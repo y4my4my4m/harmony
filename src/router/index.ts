@@ -1,7 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import ChatView from '../views/ChatView.vue';
 import LoginView from '../views/LoginView.vue';
-import { useStore } from '@/stores';
+import RegisterView from '../views/RegisterView.vue';
+import { useAuthStore } from '@/stores/auth';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -13,19 +14,26 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/',
+      path: '/login',
       name: 'Login',
-      component: LoginView
+      component: LoginView,
     },
-    // Other routes...
+    {
+      path: '/',
+      name: 'Register',
+      component: RegisterView
+    }
   ],
 });
 
 router.beforeEach((to, from, next) => {
-  const store = useStore();
-  if (to.meta.requiresAuth && !store.isLoggedIn) {
+  const authStore = useAuthStore();
+
+  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
+    console.log("Redirecting to Login, isLoggedIn:", authStore.isLoggedIn);
     next({ name: 'Login' });
   } else {
+    console.log("Proceeding to route, isLoggedIn:", authStore.isLoggedIn);
     next();
   }
 });

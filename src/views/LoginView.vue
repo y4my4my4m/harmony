@@ -5,22 +5,36 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import LoginComponent from '../components/LoginComponent.vue';
+import { useAuthStore } from '../stores/auth';
 
 export default defineComponent({
-  name: 'LoginView',
   components: {
-    LoginComponent
-  }
+    LoginComponent,
+  },
+  setup() {
+    const router = useRouter();
+    const authStore = useAuthStore();
+
+    watch(() => authStore.isLoggedIn, (isLoggedIn) => {
+      if (isLoggedIn) {
+        router.push('/chat');
+      }
+    });
+
+    return {};
+  },
 });
 </script>
 
+
 <style scoped>
-.login-view {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
+  .login-view {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
 </style>

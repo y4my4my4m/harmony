@@ -1,7 +1,6 @@
 <template>
   <RouterView />
 </template>
-
 <style>
 /* Global styles */
 html, body {

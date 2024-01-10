@@ -1,34 +1,30 @@
 <template>
   <div>
-    <h1>Login</h1>
-    <form @submit.prevent="login">
-      <input type="text" placeholder="Username" v-model="username" />
-      <input type="password" placeholder="Password" v-model="password" />
-      <button type="submit">Login</button>
-    </form>
+    <h2>Login</h2>
+    <input v-model="email" type="email" placeholder="Email" />
+    <input v-model="password" type="password" placeholder="Password" />
+    <button @click="login">Login</button>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
-import { useStore } from '@/stores';
-import { useRouter } from 'vue-router';
+import { ref, defineComponent } from 'vue';
+import { useAuthStore } from '../stores/auth';
 
 export default defineComponent({
   setup() {
-    const username = ref('');
+    const email = ref('');
     const password = ref('');
-    const store = useStore();
-    const router = useRouter();
+    const authStore = useAuthStore();
 
-    const login = () => {
-      // Simulate login logic - setting a "test" user
-      store.loginUser({ username: 'test', password: 'test' });
-      console.log('Logged in as test user');
-      router.push({ name: 'Chat' }); // Redirect to the chat view after login
+    const login = async () => {
+      const { error } = await authStore.login(email.value, password.value);
+      if (error) {
+        console.error('Error logging in:', error);
+      }
     };
 
-    return { username, password, login };
-  }
+    return { email, password, login };
+  },
 });
 </script>
