@@ -1,9 +1,11 @@
 <template>
   <div>
+    <img src="/icon.png" class="logo" alt="Logo" />
     <h2>Login</h2>
     <input v-model="email" type="email" placeholder="Email" />
     <input v-model="password" type="password" placeholder="Password" />
     <button @click="login">Login</button>
+    <a href="/register">Register</a>
   </div>
 </template>
 
@@ -18,13 +20,28 @@ export default defineComponent({
     const authStore = useAuthStore();
 
     const login = async () => {
-      const { error } = await authStore.login(email.value, password.value);
-      if (error) {
-        console.error('Error logging in:', error);
-      }
+      await authStore.login(email.value, password.value);
     };
 
     return { email, password, login };
   },
 });
 </script>
+
+<style scoped>
+  .logo {
+    display:flex;
+    margin: 0 auto;
+    width: 128px;
+    height: 128px;
+  }
+  h2 {
+    text-align: center;
+    margin: 40px auto;
+  }
+  a {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+  }
+</style>

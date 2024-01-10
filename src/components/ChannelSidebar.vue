@@ -3,15 +3,20 @@
     <div v-for="channel in channels" :key="channel.id" class="channel-item">
       {{ channel.name }}
     </div>
+    <UserProfileComponent />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, ref } from 'vue';
 import type { Channel } from '../types';
+import UserProfileComponent from './UserProfileComponent.vue';
 
 export default defineComponent({
   name: 'ChannelSidebar',
+  components: {
+    UserProfileComponent,
+  },
   setup() {
     const channels = ref<Channel[]>([
       { id: 1, name: 'General', type: 'text', messages: [] },

@@ -18,12 +18,12 @@ export const useAuthStore = defineStore('auth', {
         this.session = session;
       });
     },
-    async login(email, password) {
+    async login(email: string, password: string) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       this.session = data.session;
     },
-    async register(email, password) {
+    async register(email: string, password: string) {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       this.session = data.session;

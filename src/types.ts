@@ -14,7 +14,7 @@ export interface Channel {
 export interface User {
   id: number;
   username: string;
-  displayname: string;
+  display_name: string;
   avatarUrl: string;
   status: 'online' | 'away' | 'busy' | 'offline';
   roles: Role[];
@@ -41,3 +41,13 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
 }
+
+// should probably start to put these in their own files
+export interface Profile {
+  id?: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  about?: string;
+}
+

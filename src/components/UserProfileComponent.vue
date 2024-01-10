@@ -1,84 +1,52 @@
 <template>
-  <div class="user-profile" ref="profileCard">
-    <img :src="user.avatarUrl" alt="User avatar" class="profile-avatar">
-    <div class="user-profile-details">
-      <h2>{{ user.displayname }}</h2>
-      <h4>{{ user.username }}</h4>
-      <br/>
-      <div class="role-pills">
-        <span v-for="role in user.roles" :key="role.id" class="role-pill" :style="{ backgroundColor: role.color }">
-          {{ role.name }}
-        </span>
-      </div>
-      <br/>
-      <div>
-        <span>About:</span>
-      </div>
+    <div class="user-profile">
+      <img v-if="profile?.avatar_url" :src="profile.avatar_url" alt="User Avatar" class="avatar">
+      <p>{{ profile?.display_name }}</p>
+      <p>{{ profile?.username }}</p>
+      <button @click="goToSettings">Settings</button>
     </div>
-    <!-- Additional profile details -->
-  </div>
-</template>
+  </template>
+  
+  <script lang="ts">
+  import { defineComponent, onMounted, ref } from 'vue';
+  import { useAuthStore } from '@/stores/auth';
+  import { getProfileWithAvatarUrl } from '@/services/profileService';
+  import { useRouter } from 'vue-router';
+  import type { Profile } from '@/types';
+  
+  export default defineComponent({
+    setup() {
+      const authStore = useAuthStore();
+      const profile = ref<Profile | null>(null);
 
+      const router = useRouter();
 
-<script lang="ts">
-import { defineComponent, ref, onMounted, onUnmounted } from 'vue';
-import type { PropType, Ref } from 'vue';
-import type { User } from '../types';
+      const goToSettings = () => {
+        router.push({ name: 'Profile' });
+      };
 
-export default defineComponent({
-  name: 'UserProfileComponent',
-  props: {
-    user: {
-      type: Object as PropType<User>,
-      required: true
-    },
-    closeProfile: Function
-  },
-  setup(props) {
-    const profileCard: Ref<HTMLElement | null> = ref(null);
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-
-      if (profileCard.value && !profileCard.value.contains(target)) {
-        if (props.closeProfile) {
-          props.closeProfile();
+      onMounted(async () => {
+        if (authStore.session?.user) {
+          profile.value = await getProfileWithAvatarUrl(authStore.session.user.id);
         }
+      });
+  
+      return { profile, goToSettings };
+    },
+  });
+  </script>
+  
+  <style scoped>
+    .user-profile {
+      position:fixed;
+      bottom:0;
+      width:240px;
+      background:#666;
+      .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
       }
-    };
-
-    onMounted(() => {
-      document.addEventListener('click', handleClickOutside);
-    });
-
-    onUnmounted(() => {
-      document.removeEventListener('click', handleClickOutside);
-    });
-
-    return { profileCard };
-  }
-});
-</script>
-
-<style scoped>
-.user-profile {
-  /* Styles for the user profile component */
-  color: white;
-}
-
-.profile-avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  margin-bottom: 10px;
-}
-.role-pill {
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 20px;
-  margin: 0 5px;
-  font-size: 0.8em;
-  font-weight: bold;
-  color: white;
-}
-</style>
+    }
+  </style>
+  

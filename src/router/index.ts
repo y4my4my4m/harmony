@@ -2,11 +2,17 @@ import { createRouter, createWebHistory } from 'vue-router';
 import ChatView from '../views/ChatView.vue';
 import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
+import ProfileComponent from '../components/ProfileComponent.vue';
 import { useAuthStore } from '@/stores/auth';
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    {
+      path: '/',
+      name: 'Home',
+      meta: { requiresAuth: true }
+    },
     {
       path: '/chat',
       name: 'Chat',
@@ -19,10 +25,16 @@ const router = createRouter({
       component: LoginView,
     },
     {
-      path: '/',
+      path: '/register',
       name: 'Register',
       component: RegisterView
-    }
+    },
+    {
+      path: '/profile',
+      name: 'Profile',
+      component: ProfileComponent,
+      meta: { requiresAuth: true }
+    },
   ],
 });
 

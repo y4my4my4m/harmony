@@ -3,12 +3,12 @@
     <div v-for="user in users" :key="user.id" class="user-item" @click="showUserProfile(user, $event)">
       <img :src="user.avatarUrl" alt="User avatar" class="user-avatar">
       <span class="user-status" :class="getUserStatusClass(user.status)"></span>
-      <span class="user-name">{{ user.displayname }}</span>
+      <span class="user-name">{{ user.display_name }}</span>
     </div>
 
     <!-- User profile card -->
     <div v-if="selectedUser" class="user-profile-card" :style="profileCardStyle" @click.stop>
-      <UserProfileComponent :user="selectedUser" :closeProfile="closeProfile" />
+      <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
     </div>
   </div>
 </template>
@@ -17,21 +17,21 @@
 import { defineComponent, ref } from 'vue';
 import { Permission } from '../types';
 import type { User } from '../types';
-import UserProfileComponent from './UserProfileComponent.vue';
+import UserPreviewComponent from './UserPreviewComponent.vue';
 
 export default defineComponent({
   name: 'UserSidebar',
-  components: { UserProfileComponent },
+  components: { UserPreviewComponent },
   setup() {
     const profileCardStyle = ref({ top: '0px'});
     const users = ref<User[]>([
-      { id: 1, username: '@HarmonyUser1@harmony.com', displayname: 'HarmonyUser1', avatarUrl: 'default_avatar.png', status: 'online', roles: [
+      { id: 1, username: '@HarmonyUser1@harmony.com', display_name: 'HarmonyUser1', avatarUrl: 'default_avatar.png', status: 'online', roles: [
         {id:1,name:'admin',color:'#DD0000',permissions: [Permission.VIEW_CHANNEL, Permission.SEND_MESSAGE, Permission.MANAGE_MESSAGES, Permission.MANAGE_CHANNEL]},
         {id:1,name:'mod',color:'#00DD00',permissions: [Permission.VIEW_CHANNEL]}
       ]},
-      { id: 2, username: '@HarmonyUser2@harmony.com', displayname: 'HarmonyUser2', avatarUrl: 'default_avatar.png', status: 'away', roles: [] },
-      { id: 3, username: '@HarmonyUser3@harmony.com', displayname: 'HarmonyUser3', avatarUrl: 'default_avatar.png', status: 'busy', roles: [] },
-      { id: 4, username: '@HarmonyUser3@harmony.com', displayname: 'HarmonyUser4', avatarUrl: 'default_avatar.png', status: 'offline', roles: [] },
+      { id: 2, username: '@HarmonyUser2@harmony.com', display_name: 'HarmonyUser2', avatarUrl: 'default_avatar.png', status: 'away', roles: [] },
+      { id: 3, username: '@HarmonyUser3@harmony.com', display_name: 'HarmonyUser3', avatarUrl: 'default_avatar.png', status: 'busy', roles: [] },
+      { id: 4, username: '@HarmonyUser3@harmony.com', display_name: 'HarmonyUser4', avatarUrl: 'default_avatar.png', status: 'offline', roles: [] },
       // Add more mock users
     ]);
     const selectedUser = ref<User | null>(null);

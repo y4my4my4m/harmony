@@ -1,7 +1,6 @@
 <template>
     <div class="register-view">
-      <h2>Register</h2>
-      <RegistrationComponent />
+      <RegistrationComponent/>
     </div>
   </template>
   
@@ -17,10 +16,10 @@
   </script>
   
 <style scoped>
-.register-view {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
+  .register-view {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
 </style>
