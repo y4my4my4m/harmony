@@ -3,7 +3,7 @@
   "build": {
     "beforeBuildCommand": "bun build",
     "beforeDevCommand": "bun dev",
-    "devPath": "http://localhost:8080",
+    "devPath": "http://localhost:5173",
     "distDir": "../dist"
   },
   "package": {
@@ -23,11 +23,7 @@
       },
       "externalBin": [],
       "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
+        "icons/icon.icns"
       ],
       "identifier": "online.knowmad.harmony",
       "longDescription": "",
