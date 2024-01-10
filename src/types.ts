@@ -14,6 +14,7 @@ export interface Channel {
 export interface User {
   id: number;
   username: string;
+  displayname: string;
   avatarUrl: string;
   status: 'online' | 'away' | 'busy' | 'offline';
   roles: Role[];
@@ -23,6 +24,7 @@ export interface Role {
   id: number;
   name: string;
   permissions: Permission[];
+  color: string;
 }
 
 export enum Permission {

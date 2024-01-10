@@ -15,6 +15,10 @@ export default defineComponent({
 
     const send = () => {
       if (newMessage.value.trim()) {
+        // const hasSendMessagePermission = (user: User) => {
+        //   return user.roles.some(role => role.permissions.includes(Permission.SEND_MESSAGE));
+        // };
+
         emit('sendMessage', newMessage.value);
         newMessage.value = '';
       }

@@ -31,6 +31,7 @@ export default defineComponent({
   display: flex;
   height: 100vh;
   width: 100vw; /* Ensure it takes the full viewport width */
+  position: relative;
 }
 
 .chat-area {

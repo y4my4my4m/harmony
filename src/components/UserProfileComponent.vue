@@ -1,7 +1,20 @@
 <template>
   <div class="user-profile" ref="profileCard">
-    <h2>{{ user.username }}'s Profile</h2>
     <img :src="user.avatarUrl" alt="User avatar" class="profile-avatar">
+    <div class="user-profile-details">
+      <h2>{{ user.displayname }}</h2>
+      <h4>{{ user.username }}</h4>
+      <br/>
+      <div class="role-pills">
+        <span v-for="role in user.roles" :key="role.id" class="role-pill" :style="{ backgroundColor: role.color }">
+          {{ role.name }}
+        </span>
+      </div>
+      <br/>
+      <div>
+        <span>About:</span>
+      </div>
+    </div>
     <!-- Additional profile details -->
   </div>
 </template>
@@ -25,13 +38,12 @@ export default defineComponent({
     const profileCard: Ref<HTMLElement | null> = ref(null);
 
     const handleClickOutside = (event: MouseEvent) => {
-    // Type assertion for event.target as Node
-    const target = event.target as Node;
+      const target = event.target as Node;
 
-    if (profileCard.value && !profileCard.value.contains(target)) {
-      if (props.closeProfile) {
-        props.closeProfile();
-      }
+      if (profileCard.value && !profileCard.value.contains(target)) {
+        if (props.closeProfile) {
+          props.closeProfile();
+        }
       }
     };
 
@@ -55,9 +67,18 @@ export default defineComponent({
 }
 
 .profile-avatar {
-  width: 100px;
-  height: 100px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   margin-bottom: 10px;
+}
+.role-pill {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 20px;
+  margin: 0 5px;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: white;
 }
 </style>

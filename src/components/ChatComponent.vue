@@ -19,8 +19,8 @@ export default defineComponent({
   },
   setup() {
     const messages = ref<ChatMessage[]>([
-      { id: 1, sender: 'User1', content: 'Hello there!' },
-      { id: 2, sender: 'User2', content: 'Hi! How are you?' },
+      { id: 1, sender: 'User1', content: 'Hello there!', timestamp: new Date() },
+      { id: 2, sender: 'User2', content: 'Hi! How are you?', timestamp: new Date() },
       // Add more mock messages as needed
     ]);
 
