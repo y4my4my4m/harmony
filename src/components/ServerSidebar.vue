@@ -1,41 +1,47 @@
 <template>
-    <div class="server-sidebar">
-      <div v-for="server in servers" :key="server.id" class="server-item">
+  <div class="server-sidebar">
+    <div v-for="server in servers" :key="server.id" class="server-item" @click="selectServer(server.id)">
       {{ server.name }}
-      </div>
     </div>
-  </template>
-  
-  <script lang="ts">
-  import { defineComponent, ref } from 'vue';
-  
-  export default defineComponent({
-    setup() {
-      const servers = ref([
-        { id: 1, name: 'Server 1' },
-        { id: 2, name: 'Server 2' },
-        // Add more mock servers as needed
-      ]);
-  
-      return { servers };
+  </div>
+</template>
+
+<script setup lang="ts">
+  import { computed, watch } from 'vue';
+  import { useAuthStore } from '@/stores/auth';
+  import { useServerChannelStore } from '@/stores/useServerChannel';
+
+  const authStore = useAuthStore();
+  const userId = computed(() => authStore.session?.user?.id);
+  const serverChannelStore = useServerChannelStore();
+  const servers = serverChannelStore.servers;
+
+
+  watch(userId, (newUserId) => {
+    if (newUserId) {
+      serverChannelStore.fetchServersForUser(newUserId);
     }
-  });
-  </script>
-  
-  <style scoped>
-  .server-sidebar {
-    width: 72px;
-    background-color: #202225;
-  }
-  .server-item {
-    width: 64px;
-    height: 64px;
-    background-color: #313336;
-    margin: 4px;
-    padding: 4px;
-    border-radius: 50%;
-    text-align:center;
-    vertical-align: middle;
-  }
-  </style>
-  
+  }, { immediate: true });
+
+  const selectServer = (serverId: string) => {
+    serverChannelStore.setCurrentServer(serverId);
+  };
+
+</script>
+
+<style scoped>
+.server-sidebar {
+  width: 72px;
+  background-color: #202225;
+}
+.server-item {
+  width: 64px;
+  height: 64px;
+  background-color: #313336;
+  margin: 4px;
+  padding: 4px;
+  border-radius: 50%;
+  text-align:center;
+  vertical-align: middle;
+}
+</style>

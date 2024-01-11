@@ -1,5 +1,5 @@
 export interface Server {
-  id: number;
+  id: string;
   name: string;
   channels: Channel[];
 }
@@ -37,9 +37,11 @@ export enum Permission {
 
 export interface ChatMessage {
   id: number;
-  sender: string; // Could be replaced by User type if more user info is needed
+  created_at: Date;
+  channel_id: number;
+  user_id: string;
   content: string;
-  timestamp: Date;
+  reactions?: JSON;
 }
 
 // should probably start to put these in their own files

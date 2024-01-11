@@ -1,6 +1,6 @@
 <template>
   <div class="channel-sidebar">
-    <div v-for="channel in channels" :key="channel.id" class="channel-item">
+    <div v-for="channel in channels" :key="channel.id" class="channel-item" @click="selectChannel(channel.id.toString())">
       {{ channel.name }}
     </div>
     <UserProfileComponent />
@@ -8,9 +8,9 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
-import type { Channel } from '../types';
+import { computed, defineComponent } from 'vue';
 import UserProfileComponent from './UserProfileComponent.vue';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 
 export default defineComponent({
   name: 'ChannelSidebar',
@@ -18,14 +18,14 @@ export default defineComponent({
     UserProfileComponent,
   },
   setup() {
-    const channels = ref<Channel[]>([
-      { id: 1, name: 'General', type: 'text', messages: [] },
-      { id: 2, name: 'Random', type: 'text', messages: [] },
-      { id: 3, name: 'Voice 1', type: 'voice', messages: [] }
-      // Add more mock channels as needed
-    ]);
+    const serverChannelStore = useServerChannelStore();
+    const channels = computed(() => serverChannelStore.channels);
 
-    return { channels };
+    const selectChannel = (channelId: string) => {
+      serverChannelStore.setCurrentChannel(channelId);
+    };
+
+    return { channels, selectChannel };
   }
 });
 </script>

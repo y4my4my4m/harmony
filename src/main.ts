@@ -13,6 +13,6 @@ const pinia = createPinia();
 app.use(pinia);
 
 const authStore = useAuthStore();
-authStore.initializeAuth();
+await authStore.initializeAuth();
 
 app.use(router).mount('#app');

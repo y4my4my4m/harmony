@@ -3,25 +3,31 @@
     <ServerSidebar />
     <ChannelSidebar />
     <div class="chat-area">
-      <ChatCompoment />
+      <ChatComponent :channelId="currentChannelId" />
     </div>
     <UserSidebar />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, computed } from 'vue';
 import ServerSidebar from '../components/ServerSidebar.vue';
 import ChannelSidebar from '../components/ChannelSidebar.vue';
-import ChatCompoment from '../components/ChatComponent.vue';
+import ChatComponent from '../components/ChatComponent.vue';
 import UserSidebar from '../components/UserSidebar.vue';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 
 export default defineComponent({
   components: {
     ServerSidebar,
     ChannelSidebar,
-    ChatCompoment,
+    ChatComponent,
     UserSidebar
+  },
+  setup() {
+    const serverChannelStore = useServerChannelStore();
+    const currentChannelId = computed(() => serverChannelStore.currentChannelId);
+    return { currentChannelId };
   }
 });
 </script>
