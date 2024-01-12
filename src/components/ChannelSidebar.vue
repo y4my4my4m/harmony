@@ -1,6 +1,6 @@
 <template>
   <div class="channel-sidebar">
-    <!-- Iterate over channels and emit event when a channel is clicked -->
+    <h2>Server Name</h2>
     <div v-for="channel in channels" :key="channel.id" class="channel-item" @click="selectChannel(channel.id)">
       {{ channel.name }}
     </div>

@@ -2,6 +2,7 @@ export interface Server {
   id: string;
   name: string;
   channels: Channel[];
+  icon: string;
 }
 
 export interface Channel {
@@ -18,6 +19,7 @@ export interface User {
   avatar_url: string;
   status: 'online' | 'away' | 'busy' | 'offline';
   roles: Role[];
+  color: string;
 }
 
 export interface Role {

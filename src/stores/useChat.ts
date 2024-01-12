@@ -10,6 +10,9 @@ export const useChatStore = defineStore('chat', {
     clearMessages() {
       this.messages = [];
     },
+    setMessages(newMessages: ChatMessage[]) {
+      this.messages = newMessages;
+    },
     async fetchMessages(channelId: number) {
       const { data: messages, error } = await supabase
         .from('messages')

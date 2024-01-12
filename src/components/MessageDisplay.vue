@@ -1,7 +1,7 @@
 <template>
   <div class="message-display">
     <div v-for="message in messages" :key="message.id" class="message">
-      <strong>{{ getUserDisplayName(message.user_id) }}:</strong> {{ message.content }}
+      <strong :style="getUserColor(message.user_id)">{{ getUserDisplayName(message.user_id) }}:</strong> {{ message.content }}
     </div>
   </div>
 </template>
@@ -26,8 +26,11 @@ export default defineComponent({
     const getUserDisplayName = (userId:string) => {
       return serverUsersStore.userProfiles[userId]?.display_name || 'Unknown User';
     };
+    const getUserColor = (userId:string) => {
+      return `color: ${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`;
+    };
 
-    return { getUserDisplayName };
+    return { getUserDisplayName, getUserColor };
   }
 });
 </script>
