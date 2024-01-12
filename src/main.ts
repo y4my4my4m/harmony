@@ -14,5 +14,10 @@ app.use(pinia);
 
 const authStore = useAuthStore();
 await authStore.initializeAuth();
-
+app.directive('scroll-bottom', {
+    updated(el) {
+      el.scrollTop = el.scrollHeight;
+    },
+  });
+  
 app.use(router).mount('#app');

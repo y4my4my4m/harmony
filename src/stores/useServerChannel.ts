@@ -52,7 +52,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
     setCurrentServer(serverId: string) {
       this.currentServerId = serverId;
-      this.fetchChannels(serverId);
+      this.fetchChannels(serverId).then(() => {
+        if (!this.currentChannelId && this.channels.length > 0) {
+          const firstChannelId = this.channels[0].id;
+          this.setCurrentChannel(firstChannelId);
+        }
+      });
     },
     setCurrentChannel(channelId: number) {
       this.currentChannelId = channelId;

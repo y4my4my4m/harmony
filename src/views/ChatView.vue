@@ -10,7 +10,7 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, computed, onMounted } from 'vue';
+  import { defineComponent, computed, onMounted, watch } from 'vue';
   import ServerSidebar from '../components/ServerSidebar.vue';
   import ChannelSidebar from '../components/ChannelSidebar.vue';
   import ChatComponent from '../components/ChatComponent.vue';
@@ -38,16 +38,23 @@
       const chatMessages = computed(() => chatStore.messages);
       const currentChannelId = computed(() => serverChannelStore.currentChannelId || null);
 
-      onMounted(() => {
+      onMounted(async () => {
         const userId = authStore.session?.user?.id;
         if (userId) {
-          serverChannelStore.fetchServersForUser(userId);
+          await serverChannelStore.fetchServersForUser(userId);
+          if (serverChannelStore.servers.length > 0) {
+            handleServerSelected(serverChannelStore.servers[0].id);
+          }
         }
       });
 
-      const handleServerSelected = (serverId: string) => {
+      const handleServerSelected = async (serverId: string) => {
         serverChannelStore.setCurrentServer(serverId);
         chatStore.clearMessages();
+        await serverChannelStore.fetchChannels(serverId);
+        if (serverChannelStore.channels.length > 0) {
+          handleChannelSelected(serverChannelStore.channels[0].id);
+        }
       };
 
       const handleChannelSelected = async (channelId: number) => {
