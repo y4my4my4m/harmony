@@ -1,7 +1,7 @@
 export interface Server {
   id: string;
   name: string;
-  channels: Channel[];
+  owner: string;
   icon: string;
 }
 
@@ -9,7 +9,6 @@ export interface Channel {
   id: number;
   name: string;
   type: 'text' | 'voice';
-  messages: ChatMessage[];
 }
 
 export interface User {

@@ -1,6 +1,9 @@
 <template>
   <div class="message-display" v-scroll-bottom>
-    <div v-for="(message, index) in messages" :key="message.id" class="message-wrapper">
+    <div v-if="messages.length == 0">
+      There are no messages here, type something!
+    </div>
+    <div v-else v-for="(message, index) in messages" :key="message.id" class="message-wrapper">
       <div v-if="index === 0 || messages[index - 1].user_id !== message.user_id" class="message-header">
         <img :src="getUserAvatar(message.user_id)" class="user-avatar"/>
         <div>

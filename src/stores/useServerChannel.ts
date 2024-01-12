@@ -50,6 +50,38 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (error) console.error('Error fetching channels:', error);
       else this.channels = channels;
     },
+    async createServer(name: string, userId: string) {
+      try {
+        // Create server
+        const { data: serverData, error: serverError } = await supabase
+          .from('servers')
+          .insert([{ name: name, owner: userId }])
+          .select()
+          .single();
+        if (serverError) throw serverError;
+
+        console.log(serverData);
+
+        // TODO: FIX MY RLS POLICY, currently *anyone* can make any user_servers relation entry
+        // Connect user to the server
+        const { error: userServerError } = await supabase
+          .from('user_servers')
+          .insert([{ user_id: userId, server_id: serverData.id }]);
+        if (userServerError) throw userServerError;
+
+        // TODO: FIX MY RLS POLICY, currently *anyone* can create a channel on any servers
+        // Create default channel
+        const { error: channelError } = await supabase
+          .from('channels')
+          .insert([{ name: 'General', server_id: serverData.id }]);
+        if (channelError) throw channelError;
+        
+        return true;
+        // Handle successful server creation
+      } catch (error) {
+        console.error('Error creating server:', error);
+      }
+    },
     setCurrentServer(serverId: string) {
       this.currentServerId = serverId;
       this.fetchChannels(serverId).then(() => {
