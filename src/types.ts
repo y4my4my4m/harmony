@@ -15,7 +15,7 @@ export interface User {
   id: number;
   username: string;
   display_name: string;
-  avatarUrl: string;
+  avatar_url: string;
   status: 'online' | 'away' | 'busy' | 'offline';
   roles: Role[];
 }

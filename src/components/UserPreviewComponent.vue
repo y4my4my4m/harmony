@@ -1,6 +1,6 @@
 <template>
   <div class="user-preview" ref="profileCard">
-    <img :src="user.avatarUrl" alt="User avatar" class="preview-avatar">
+    <img :src="user.avatar_url" alt="User avatar" class="preview-avatar">
     <div class="user-preview-details">
       <h2>{{ user.display_name }}</h2>
       <h4>{{ user.username }}</h4>

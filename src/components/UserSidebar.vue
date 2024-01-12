@@ -1,7 +1,7 @@
 <template>
   <div class="user-sidebar">
     <div v-for="user in users" :key="user.id" class="user-item" @click="showUserProfile(user, $event)">
-      <img :src="user.avatarUrl" alt="User avatar" class="user-avatar">
+      <img :src="user.avatar_url" alt="User avatar" class="user-avatar">
       <span class="user-status" :class="getUserStatusClass(user.status)"></span>
       <span class="user-name">{{ user.display_name }}</span>
     </div>
@@ -14,26 +14,36 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
-import { Permission } from '../types';
+import { defineComponent, ref, watch } from 'vue';
 import type { User } from '../types';
 import UserPreviewComponent from './UserPreviewComponent.vue';
+import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useServerUsersStore } from '@/stores/useServerUsers';
+import { getUserIdsForServer} from '@/services/usersService';
 
 export default defineComponent({
   name: 'UserSidebar',
   components: { UserPreviewComponent },
   setup() {
+    const serverChannelStore = useServerChannelStore();
+    const serverUsersStore = useServerUsersStore();
+    const users = ref<User[]>([]); // Define users as a reactive ref
+
+    const fetchAndSetUsers = async (serverId: string | null) => {
+      if (serverId) {
+        const userIds = await getUserIdsForServer(serverId);
+        await serverUsersStore.fetchUserProfiles(userIds);
+        users.value = userIds.map(userId => 
+          serverUsersStore.userProfiles[userId] || { id: userId, display_name: 'Loading...' });
+      }
+    };
+
+    watch(() => serverChannelStore.currentServerId, (newServerId) => {
+      fetchAndSetUsers(newServerId);
+    });
+
     const profileCardStyle = ref({ top: '0px'});
-    const users = ref<User[]>([
-      { id: 1, username: '@HarmonyUser1@harmony.com', display_name: 'HarmonyUser1', avatarUrl: 'default_avatar.png', status: 'online', roles: [
-        {id:1,name:'admin',color:'#DD0000',permissions: [Permission.VIEW_CHANNEL, Permission.SEND_MESSAGE, Permission.MANAGE_MESSAGES, Permission.MANAGE_CHANNEL]},
-        {id:1,name:'mod',color:'#00DD00',permissions: [Permission.VIEW_CHANNEL]}
-      ]},
-      { id: 2, username: '@HarmonyUser2@harmony.com', display_name: 'HarmonyUser2', avatarUrl: 'default_avatar.png', status: 'away', roles: [] },
-      { id: 3, username: '@HarmonyUser3@harmony.com', display_name: 'HarmonyUser3', avatarUrl: 'default_avatar.png', status: 'busy', roles: [] },
-      { id: 4, username: '@HarmonyUser3@harmony.com', display_name: 'HarmonyUser4', avatarUrl: 'default_avatar.png', status: 'offline', roles: [] },
-      // Add more mock users
-    ]);
+
     const selectedUser = ref<User | null>(null);
       const showUserProfile = (user: User, event: MouseEvent) => {
       const userItemElement = (event.currentTarget as HTMLElement);
@@ -52,6 +62,12 @@ export default defineComponent({
       event.stopPropagation();
     };
 
+    watch(() => serverChannelStore.currentServerId, async (newServerId) => {
+      if (newServerId) {
+        const userIds = await getUserIdsForServer(newServerId);
+        await serverUsersStore.fetchUserProfiles(userIds);
+      }
+    });
 
     const getUserStatusClass = (status: string) => {
       return `status-${status}`;

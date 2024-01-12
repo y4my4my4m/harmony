@@ -10,11 +10,12 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, computed, onMounted } from 'vue';
+  import { defineComponent, computed, onMounted, watch } from 'vue';
   import ServerSidebar from '../components/ServerSidebar.vue';
   import ChannelSidebar from '../components/ChannelSidebar.vue';
   import ChatComponent from '../components/ChatComponent.vue';
   import UserSidebar from '../components/UserSidebar.vue';
+  import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
   import { useAuthStore } from '@/stores/auth';
@@ -27,6 +28,7 @@
       UserSidebar
     },
     setup() {
+      const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
       const chatStore = useChatStore();
       const authStore = useAuthStore();
