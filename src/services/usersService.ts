@@ -1,6 +1,9 @@
 import { supabase } from '@/supabase';
 import type { User } from '@/types';
 
+
+// TODO: fix the RLS!!!
+// currently it's allowing anyone to fetch user_servers, which means people could see what servers other people are in even if they dont share servers...
 const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
   const { data, error } = await supabase
     .from('user_servers')

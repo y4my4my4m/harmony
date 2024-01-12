@@ -11,7 +11,6 @@ export const useChatStore = defineStore('chat', {
       this.messages = [];
     },
     async fetchMessages(channelId: number) {
-      console.log("AAAA");
       const { data: messages, error } = await supabase
         .from('messages')
         .select('*')
