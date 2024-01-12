@@ -6,6 +6,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
     channels: [] as Channel[],
+    currentServer: {} as Server,
     currentServerId: null as string | null,
     currentChannelId: null as number | null,
   }),
@@ -82,8 +83,20 @@ export const useServerChannelStore = defineStore('serverChannel', {
         console.error('Error creating server:', error);
       }
     },
+    async getCurrentServer() {
+      const { data, error } = await supabase
+        .from('servers')
+        .select('*')
+        .in('id', this.currentServerId ? [this.currentServerId] : [])
+        .select()
+        .single();
+
+        if (error) console.error('Error fetching servers:', error);
+        else this.currentServer = data;
+    },
     setCurrentServer(serverId: string) {
       this.currentServerId = serverId;
+      this.getCurrentServer();
       this.fetchChannels(serverId).then(() => {
         if (!this.currentChannelId && this.channels.length > 0) {
           const firstChannelId = this.channels[0].id;

@@ -12,13 +12,13 @@ export interface Channel {
 }
 
 export interface User {
-  id: number;
+  id: string;
   username: string;
   display_name: string;
   avatar_url: string;
   status: UserStatus;
   roles: Role[];
-  color: string;
+  color?: string;
   about?: string;
 }
 

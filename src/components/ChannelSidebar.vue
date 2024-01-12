@@ -1,33 +1,44 @@
 <template>
   <div class="channel-sidebar">
-    <h2>Server Name</h2>
-    <div v-for="channel in channels" :key="channel.id" class="channel-item" @click="selectChannel(channel.id)">
+    <h2>{{ currentServerName }}</h2>
+    <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === channelId }]" @click="selectChannel(channel.id)">
       {{ channel.name }}
     </div>
     <UserProfileComponent />
   </div>
 </template>
-
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import { defineComponent } from 'vue';
+import type { PropType } from 'vue';
 import UserProfileComponent from './UserProfileComponent.vue';
-import { useServerChannelStore } from '@/stores/useServerChannel';
+import type { Channel } from '@/types'; // Adjust the import path as needed
 
 export default defineComponent({
   name: 'ChannelSidebar',
   components: {
     UserProfileComponent,
   },
-  setup(_, { emit }) {
-    const serverChannelStore = useServerChannelStore();
-    const channels = computed(() => serverChannelStore.channels);
-
+  props: {
+    currentServerName: {
+      type: String,
+      required: true
+    },
+    channelId: {
+      type: Number || null,
+      required: true
+    },
+    channels: {
+      type: Array as PropType<Channel[]>,
+      required: true
+    }
+  },
+  setup(props, { emit }) {
     // Emit an event with the selected channelId
     const selectChannel = (channelId: number) => {
       emit('channelSelected', channelId);
     };
 
-    return { channels, selectChannel };
+    return { selectChannel };
   }
 });
 </script>
@@ -40,11 +51,44 @@ export default defineComponent({
   overflow-y: auto;
 }
 
+h2 {
+  padding: 10px;
+  font-size: 1.2rem;
+  font-weight: 500;
+  background: var(--vt-c-divider-light-2);
+  position:relative;
+  z-index:1;
+  box-shadow: 0 1px 5px 0px rgba(0,0,0,0.25);
+  margin-bottom:2px
+}
 .channel-item {
   padding: 10px;
   cursor: pointer;
+  transition: 0.2s ease-in-out;
   &:hover {
     background-color: #36393f;
   }
 }
+.channel-item.selected {
+  /* padding-left:25px; */
+  position: relative;
+  background-color: #36393f;
+}
+/* .channel-item::before {
+  opacity:0;
+  content: "";
+  transition: 0.3s ease-in-out;
+  left:0;
+}
+.channel-item.selected::before {
+  content: "";
+  position: absolute;
+  left:8px;
+  top:17px;
+  opacity:1;
+  border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  background-color: var(--vt-c-divider-dark-1);
+} */
 </style>

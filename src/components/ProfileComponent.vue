@@ -20,7 +20,7 @@
 import { defineComponent, ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar } from '@/services/profileService';
-import type { Profile } from '@/types';
+import type { User } from '@/types';
 import { useRouter } from 'vue-router';
 
 export default defineComponent({
@@ -28,7 +28,7 @@ export default defineComponent({
     const router = useRouter();
 
     const authStore = useAuthStore();
-    const profile = ref<Profile | null>(null);
+    const profile = ref<User | null>(null);
 
     onMounted(async () => {
       if (authStore.session?.user) {
@@ -38,6 +38,7 @@ export default defineComponent({
 
     const signOut = async () => {
       await authStore.logout();
+      router.go(0); // refresh page
     };
     const back = async () => {
       router.push({ name: 'Chat' });

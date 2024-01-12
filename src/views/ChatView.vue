@@ -4,7 +4,7 @@
   </div>
   <div v-else class="chat-layout">
     <ServerSidebar :servers="servers" @serverSelected="handleServerSelected" />
-    <ChannelSidebar :channels="channels" @channelSelected="handleChannelSelected" />
+    <ChannelSidebar :currentServerName="currentServerName" :channelId="currentChannelId" :channels="channels" @channelSelected="handleChannelSelected" />
     <div class="chat-area">
       <ChatComponent :channelId="currentChannelId" :messages="chatMessages" />
     </div>
@@ -43,6 +43,7 @@
       const servers = computed(() => serverChannelStore.servers);
       const channels = computed(() => serverChannelStore.channels);
       const chatMessages = computed(() => chatStore.messages);
+      const currentServerName = computed(() => serverChannelStore.currentServer.name || '');
       const currentChannelId = computed(() => serverChannelStore.currentChannelId || null);
 
       onMounted(async () => {
@@ -74,7 +75,7 @@
         chatStore.subscribeToMessages(channelId);
       };
 
-      return { servers, channels, chatMessages, currentChannelId, showNoServersSplash, handleServerSelected, handleChannelSelected };
+      return { servers, channels, chatMessages, currentServerName, currentChannelId, showNoServersSplash, handleServerSelected, handleChannelSelected };
     }
   });
 </script>
