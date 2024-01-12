@@ -17,9 +17,10 @@ export interface User {
   username: string;
   display_name: string;
   avatar_url: string;
-  status: 'online' | 'away' | 'busy' | 'offline';
+  status: UserStatus;
   roles: Role[];
   color: string;
+  about?: string;
 }
 
 export interface Role {
@@ -37,6 +38,12 @@ export enum Permission {
   // Add more permissions as needed
 }
 
+export enum UserStatus {
+  Offline = 0,
+  Online = 1,
+  Away = 2,
+  Busy = 3
+}
 export interface ChatMessage {
   id: number;
   created_at: Date;
@@ -47,11 +54,3 @@ export interface ChatMessage {
 }
 
 // should probably start to put these in their own files
-export interface Profile {
-  id?: string;
-  username?: string;
-  display_name?: string;
-  avatar_url?: string;
-  about?: string;
-}
-

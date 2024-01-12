@@ -7,8 +7,10 @@
 <script lang="ts">
 import { defineComponent, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import LoginComponent from '../components/LoginComponent.vue';
-import { useAuthStore } from '../stores/auth';
+import LoginComponent from '@/components/LoginComponent.vue';
+import { useAuthStore } from '@/stores/auth';
+import { UserStatus } from '@/types';
+import { updateUserStatus } from '@/services/profileService';
 
 export default defineComponent({
   components: {
@@ -20,6 +22,8 @@ export default defineComponent({
 
     watch(() => authStore.isLoggedIn, (isLoggedIn) => {
       if (isLoggedIn) {
+        const userId = authStore.session.user.id;
+        updateUserStatus(userId, UserStatus.Online);
         router.push('/chat');
       }
     });

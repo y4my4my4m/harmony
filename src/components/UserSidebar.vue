@@ -2,7 +2,7 @@
   <div class="user-sidebar">
     <div v-for="user in users" :key="user.id" class="user-item" @click="showUserProfile(user, $event)">
       <img :src="user.avatar_url" alt="User avatar" class="user-avatar">
-      <span class="user-status" :class="getUserStatusClass(user.status)"></span>
+      <span :class="getUserStatusClass(user.status)" class="user-status"></span>
       <span class="user-name">{{ user.display_name }}</span>
     </div>
 
@@ -15,11 +15,12 @@
 
 <script lang="ts">
 import { defineComponent, ref, watch } from 'vue';
-import type { User } from '../types';
+import type { User } from '@/types';
 import UserPreviewComponent from './UserPreviewComponent.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { getUserIdsForServer} from '@/services/usersService';
+import { UserStatus } from '@/types';
 
 export default defineComponent({
   name: 'UserSidebar',
@@ -68,11 +69,21 @@ export default defineComponent({
         await serverUsersStore.fetchUserProfiles(userIds);
       }
     });
-
-    const getUserStatusClass = (status: string) => {
-      return `status-${status}`;
+  
+    const getUserStatusClass = (status: UserStatus) => {
+      switch (status) {
+        case UserStatus.Online:
+          return 'status-online';
+        case UserStatus.Away:
+          return 'status-away';
+        case UserStatus.Busy:
+          return 'status-busy';
+        case UserStatus.Offline:
+        default:
+          return 'status-offline';
+      }
     };
-    
+  
     const closeProfile = () => {
       selectedUser.value = null;
     };

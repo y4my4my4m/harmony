@@ -9,10 +9,10 @@
 
 ## TODO
 
-- [] realtime status
-- [] realtime messages
-- [] store messages
-- [] fetch messages
+- [x] realtime status
+- [x] realtime messages
+- [x] store messages
+- [x] fetch messages
 - [] notifications
 - [x] settings
 - [x] login

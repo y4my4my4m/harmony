@@ -56,4 +56,16 @@ const uploadAvatar = async (userId: string, file: File): Promise<string> => {
   return filePath;
 };
 
-export { getProfile, getProfileWithAvatarUrl, updateProfile, downloadAvatar, uploadAvatar };
+const updateUserStatus = async (userId: string, status: number) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ status })
+    .eq('id', userId);
+
+  if (error) {
+    console.error('Error updating status:', error);
+  }
+  return data;
+};
+
+export { getProfile, getProfileWithAvatarUrl, updateProfile, downloadAvatar, uploadAvatar, updateUserStatus };

@@ -1,26 +1,105 @@
 <template>
-    <div class="user-profile">
-      <img v-if="profile?.avatar_url" :src="profile.avatar_url" alt="User Avatar" class="avatar">
-      <p>{{ profile?.display_name }}</p>
-      <p>{{ profile?.username }}</p>
-      <button @click="goToSettings">Settings</button>
+  <div class="user-profile">
+    <img :src="profile?.avatar_url" alt="User Avatar" class="avatar">
+    <div class="user-info">
+      <p class="user-name">{{ profile?.display_name }}</p>
+
+      <div class="user-status" @click="toggleStatusDropdown">
+        <span :class="getUserStatusClass(profile?.status ?? 0)"></span>
+        <span>{{ getUserStatusText(profile?.status ?? 0) }}</span>
+      </div>
+
     </div>
-  </template>
-  
-  <script lang="ts">
-  import { defineComponent, onMounted, ref } from 'vue';
+    <button class="icon-button" @click="toggleMic">🎤</button>
+    <button class="icon-button" @click="toggleHeadphones">🎧</button>
+    <button class="icon-button" @click="goToSettings">⚙️</button>
+
+    <div class="status-dropdown" v-if="showStatusDropdown">
+      <select v-model="selectedStatus" @change="updateStatus">
+        <option value="1">Online</option>
+        <option value="2">Away</option>
+        <option value="3">Do Not Disturb</option>
+        <option value="0">Invisible</option>
+      </select>
+    </div>
+  </div>
+</template>
+
+
+<script lang="ts">
+  import { defineComponent, ref, onMounted, onBeforeUnmount } from 'vue';
   import { useAuthStore } from '@/stores/auth';
   import { getProfileWithAvatarUrl } from '@/services/profileService';
   import { useRouter } from 'vue-router';
-  import type { Profile } from '@/types';
+  import type { User } from '@/types';
+  import { updateUserStatus } from '@/services/profileService';
+  import { UserStatus } from '@/types';
   
   export default defineComponent({
+    methods: {
+      toggleMic() {
+        // Logic to toggle the mic
+      },
+      toggleHeadphones() {
+        // Logic to toggle the headphones
+      },
+    },
     setup() {
       const authStore = useAuthStore();
-      const profile = ref<Profile | null>(null);
+      const profile = ref<User | null>(null);
+
+      const showStatusDropdown = ref(false);
+
+      const toggleStatusDropdown = () => {
+        showStatusDropdown.value = !showStatusDropdown.value;
+      };
+      const onClickOutside = (event: any) => {
+        if (!event.target.closest('.user-profile')) {
+          showStatusDropdown.value = false;
+        }
+      };
+
+      const selectedStatus = ref(profile.value?.status || UserStatus.Offline);
+
+      const updateStatus = async () => {
+        if (authStore.session?.user) {
+          await updateUserStatus(authStore.session.user.id, selectedStatus.value);
+          // Update the profile status locally
+          if (profile.value)
+            profile.value.status = selectedStatus.value;
+        }
+      };
 
       const router = useRouter();
 
+      // refactor those into helper functions that can be used globally or something
+      const getUserStatusClass = (status: UserStatus) => {
+        switch (status) {
+          case UserStatus.Online:
+            return 'status-online';
+          case UserStatus.Away:
+            return 'status-away';
+          case UserStatus.Busy:
+            return 'status-busy';
+          case UserStatus.Offline:
+          default:
+            return 'status-offline';
+        }
+      };
+
+      const getUserStatusText = (status: UserStatus) => {
+        switch (status) {
+          case UserStatus.Online:
+            return 'Online';
+          case UserStatus.Away:
+            return 'Away';
+          case UserStatus.Busy:
+            return 'Do Not Disturb';
+          case UserStatus.Offline:
+          default:
+            return 'Offline';
+        }
+      };
       const goToSettings = () => {
         router.push({ name: 'Profile' });
       };
@@ -29,24 +108,111 @@
         if (authStore.session?.user) {
           profile.value = await getProfileWithAvatarUrl(authStore.session.user.id);
         }
+        document.addEventListener('click', onClickOutside);
       });
-  
-      return { profile, goToSettings };
+      onBeforeUnmount(() => {
+        document.removeEventListener('click', onClickOutside);
+      });
+
+      return { profile, goToSettings, selectedStatus, updateStatus, showStatusDropdown, toggleStatusDropdown, getUserStatusClass, getUserStatusText};
     },
   });
   </script>
-  
-  <style scoped>
-    .user-profile {
-      position:fixed;
-      bottom:0;
-      width:240px;
-      background:#666;
-      .avatar {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-      }
-    }
-  </style>
-  
+<style scoped>
+.user-profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: fixed;
+  bottom: 0;
+  width: 240px;
+  background: #292b2f;
+  padding: 10px;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.user-info {
+  flex-grow: 1;
+  margin-left: 10px;
+}
+
+.user-name {
+  font-weight: bold;
+  color: white;
+}
+
+.user-status {
+  display: flex;
+  align-items: center;
+  color: #8e9094;
+  font-size:10px;
+}
+
+.status-online {
+  background-color: #43b581; /* Online status color */
+}
+
+.status-away {
+  background-color: #faa81a; /* Away status color */
+}
+
+.status-busy {
+  background-color: #f04747; /* Busy status color */
+}
+
+.status-offline {
+  background-color: #747f8d; /* Offline status color */
+}
+
+.status-online, .status-away, .status-busy, .status-offline {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+.status-dropdown {
+  position: absolute;
+  bottom: 100%; /* Position above the user profile */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #2f3136;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+.status-dropdown select {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background-color: #202225;
+  color: white;
+  cursor: pointer;
+}
+
+.status-dropdown select:focus {
+  outline: none;
+}
+
+/* Optional: style the options */
+.status-dropdown option {
+  background-color: #2f3136;
+  color: white;
+}
+
+
+</style>
