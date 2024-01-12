@@ -1,8 +1,8 @@
 <template>
   <div class="channel-sidebar">
     <h2>{{ currentServerName }}</h2>
-    <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === channelId }]" @click="selectChannel(channel.id)">
-      {{ channel.name }}
+    <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === serverChannelStore.currentChannelId }]" @click="selectChannel(channel.id)">
+      # {{ channel.name }}
     </div>
     <UserProfileComponent />
   </div>
@@ -12,6 +12,7 @@ import { defineComponent } from 'vue';
 import type { PropType } from 'vue';
 import UserProfileComponent from './UserProfileComponent.vue';
 import type { Channel } from '@/types'; // Adjust the import path as needed
+import { useServerChannelStore } from '@/stores/useServerChannel';
 
 export default defineComponent({
   name: 'ChannelSidebar',
@@ -23,22 +24,20 @@ export default defineComponent({
       type: String,
       required: true
     },
-    channelId: {
-      type: Number || null,
-      required: true
-    },
     channels: {
       type: Array as PropType<Channel[]>,
       required: true
     }
   },
-  setup(props, { emit }) {
+  setup(_, { emit }) {
+    // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
+    const serverChannelStore = useServerChannelStore();
     // Emit an event with the selected channelId
-    const selectChannel = (channelId: number) => {
-      emit('channelSelected', channelId);
+    const selectChannel = (selectedChannelId: number) => {
+      emit('channelSelected', selectedChannelId);
     };
 
-    return { selectChannel };
+    return { selectChannel, serverChannelStore };
   }
 });
 </script>

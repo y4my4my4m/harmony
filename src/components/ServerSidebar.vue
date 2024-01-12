@@ -1,9 +1,11 @@
 <template>
   <div class="server-sidebar">
-    <div v-for="server in servers" :key="server.id" class="server-item"
+    <div v-for="server in servers" 
+      :key="server.id" 
+      class="server-item"
       :style="{ backgroundImage: 'url(' + server.icon + ')' }" 
+      :class="[{ 'selected': server.id === serverChannelStore.currentServerId }]"
       @click="selectServer(server.id)">
-      <!-- {{ server.name }} -->
     </div>
   </div>
 </template>
@@ -11,7 +13,10 @@
 <script setup lang="ts">
   import { defineProps, defineEmits } from 'vue';
   import type { Server } from '@/types';
+  import { useServerChannelStore } from '@/stores/useServerChannel';
 
+  // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
+  const serverChannelStore = useServerChannelStore();
   defineProps({
     // make an array of type Server
     servers: {
@@ -48,46 +53,32 @@
   background-position: center;
   cursor:pointer;
   position:relative;
-  transition: all 0.2s ease-in-out;
   left:0;
+  transition: border 0.6s ease-in-out, all 0.2s ease-in-out;
+  border: 3px solid transparent;
+}
+.server-item:hover {
+  left:5px;
 }
 
 .server-item::before {
-  content: '';
+  opacity:0;
+  content: "";
   position: absolute;
-  left: -30px;
-  top: 0;
-  width: 0;
-  height: 0;
-  border-top: 24px solid transparent;
-  border-bottom: 24px solid transparent;
-  border-right: 10px solid #7289da;
-  border-radius: 50%;
   transition: all 0.2s ease-in-out;
+  left:-25px;
+  top: 17px;
+  border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  background-color: var(--vt-c-divider-dark-1);
 }
-.blob:before {
-    content: "";  
-    position: absolute;
-    width: 50px; 
-    height: 50px;
-    background-color: #7491A3;
-    border-radius:50%;
-    top: 0;
-    left: -30px;
-    z-index: 1;
-    transform: scale(0);
-    transition: all 0.6s ease-in-out;
-}
-
-.blob:hover:before,
-.blob:active:before {
-    transform: scale(1);
-}
-
 .server-item:hover::before {
-  width: 20px;
+  left:-16px;
+  opacity:1;
 }
-.server-item:hover{
-  left:5px;
+.server-item.selected {
+  border: 3px solid #7289da;
+  border-radius: 50%;
 }
 </style>

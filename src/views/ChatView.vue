@@ -4,9 +4,9 @@
   </div>
   <div v-else class="chat-layout">
     <ServerSidebar :servers="servers" @serverSelected="handleServerSelected" />
-    <ChannelSidebar :currentServerName="currentServerName" :channelId="currentChannelId" :channels="channels" @channelSelected="handleChannelSelected" />
+    <ChannelSidebar :currentServerName="currentServerName" :channels="channels" @channelSelected="handleChannelSelected" />
     <div class="chat-area">
-      <ChatComponent :channelId="currentChannelId" :messages="chatMessages" />
+      <ChatComponent :messages="chatMessages" />
     </div>
     <UserSidebar />
   </div>
