@@ -1,6 +1,7 @@
 <template>
   <div class="channel-sidebar">
-    <div v-for="channel in channels" :key="channel.id" class="channel-item" @click="selectChannel(channel.id.toString())">
+    <!-- Iterate over channels and emit event when a channel is clicked -->
+    <div v-for="channel in channels" :key="channel.id" class="channel-item" @click="selectChannel(channel.id)">
       {{ channel.name }}
     </div>
     <UserProfileComponent />
@@ -17,12 +18,13 @@ export default defineComponent({
   components: {
     UserProfileComponent,
   },
-  setup() {
+  setup(_, { emit }) {
     const serverChannelStore = useServerChannelStore();
     const channels = computed(() => serverChannelStore.channels);
 
-    const selectChannel = (channelId: string) => {
-      serverChannelStore.setCurrentChannel(channelId);
+    // Emit an event with the selected channelId
+    const selectChannel = (channelId: number) => {
+      emit('channelSelected', channelId);
     };
 
     return { channels, selectChannel };

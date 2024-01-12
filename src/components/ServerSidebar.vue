@@ -7,26 +7,21 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, watch } from 'vue';
-  import { useAuthStore } from '@/stores/auth';
-  import { useServerChannelStore } from '@/stores/useServerChannel';
+  import { defineProps, defineEmits } from 'vue';
+  import type { Server } from '@/types';
 
-  const authStore = useAuthStore();
-  const userId = computed(() => authStore.session?.user?.id);
-  const serverChannelStore = useServerChannelStore();
-  const servers = serverChannelStore.servers;
-
-
-  watch(userId, (newUserId) => {
-    if (newUserId) {
-      serverChannelStore.fetchServersForUser(newUserId);
+  defineProps({
+    // make an array of type Server
+    servers: {
+      type: Array as () => Server[],
+      required: true
     }
-  }, { immediate: true });
+  });
+  const emits = defineEmits(['serverSelected']);
 
   const selectServer = (serverId: string) => {
-    serverChannelStore.setCurrentServer(serverId);
+    emits('serverSelected', serverId);
   };
-
 </script>
 
 <style scoped>

@@ -1,35 +1,61 @@
 <template>
   <div class="chat-layout">
-    <ServerSidebar />
-    <ChannelSidebar />
+    <ServerSidebar :servers="servers" @serverSelected="handleServerSelected" />
+    <ChannelSidebar :channels="channels" @channelSelected="handleChannelSelected" />
     <div class="chat-area">
-      <ChatComponent :channelId="currentChannelId" />
+      <ChatComponent :channelId="currentChannelId" :messages="chatMessages" />
     </div>
     <UserSidebar />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, computed } from 'vue';
-import ServerSidebar from '../components/ServerSidebar.vue';
-import ChannelSidebar from '../components/ChannelSidebar.vue';
-import ChatComponent from '../components/ChatComponent.vue';
-import UserSidebar from '../components/UserSidebar.vue';
-import { useServerChannelStore } from '@/stores/useServerChannel';
+  import { defineComponent, computed, onMounted } from 'vue';
+  import ServerSidebar from '../components/ServerSidebar.vue';
+  import ChannelSidebar from '../components/ChannelSidebar.vue';
+  import ChatComponent from '../components/ChatComponent.vue';
+  import UserSidebar from '../components/UserSidebar.vue';
+  import { useServerChannelStore } from '@/stores/useServerChannel';
+  import { useChatStore } from '@/stores/useChat';
+  import { useAuthStore } from '@/stores/auth';
 
-export default defineComponent({
-  components: {
-    ServerSidebar,
-    ChannelSidebar,
-    ChatComponent,
-    UserSidebar
-  },
-  setup() {
-    const serverChannelStore = useServerChannelStore();
-    const currentChannelId = computed(() => serverChannelStore.currentChannelId);
-    return { currentChannelId };
-  }
-});
+  export default defineComponent({
+    components: {
+      ServerSidebar,
+      ChannelSidebar,
+      ChatComponent,
+      UserSidebar
+    },
+    setup() {
+      const serverChannelStore = useServerChannelStore();
+      const chatStore = useChatStore();
+      const authStore = useAuthStore();
+
+      const servers = computed(() => serverChannelStore.servers);
+      const channels = computed(() => serverChannelStore.channels);
+      const chatMessages = computed(() => chatStore.messages);
+      const currentChannelId = computed(() => serverChannelStore.currentChannelId || null);
+
+      onMounted(() => {
+        const userId = authStore.session?.user?.id;
+        if (userId) {
+          serverChannelStore.fetchServersForUser(userId);
+        }
+      });
+
+      const handleServerSelected = (serverId: string) => {
+        serverChannelStore.setCurrentServer(serverId);
+        chatStore.clearMessages();  // Clear messages when switching servers
+      };
+
+      const handleChannelSelected = async (channelId: number) => {
+        serverChannelStore.setCurrentChannel(channelId);
+        await chatStore.fetchMessages(channelId);
+      };
+
+      return { servers, channels, chatMessages, currentChannelId, handleServerSelected, handleChannelSelected };
+    }
+  });
 </script>
 
 <style scoped>

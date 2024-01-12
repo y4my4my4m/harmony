@@ -6,47 +6,42 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, onMounted } from 'vue';
-import MessageDisplay from './MessageDisplay.vue';
-import MessageInput from './MessageInput.vue';
-import { useAuthStore } from '@/stores/auth'; 
-import { useChatStore } from '@/stores/useChat'; 
-import { useServerChannelStore } from '@/stores/useServerChannel'; 
+  import { defineComponent, watch } from 'vue';
+  import MessageDisplay from './MessageDisplay.vue';
+  import MessageInput from './MessageInput.vue';
+  import { useAuthStore } from '@/stores/auth'; 
+  import { useChatStore } from '@/stores/useChat';
+  import { useServerChannelStore } from '@/stores/useServerChannel'; 
+  import type { ChatMessage } from '@/types';
 
-export default defineComponent({
-  name: 'ChatComponent',
-  components: {
-    MessageDisplay,
-    MessageInput
-  },
-  props: {
-    channelId: {
-      type: Number,
-      required: true,
+  export default defineComponent({
+    components: {
+      MessageDisplay,
+      MessageInput
     },
-  },
-  setup(props) {
-    const chatStore = useChatStore();
-    const authStore = useAuthStore();
-    const serverChannelStore = useServerChannelStore();
+    props:{
+      messages: {
+        type: Array as () => ChatMessage[],
+        required: true
+      },
+    },
+    setup(props) {
+      const chatStore = useChatStore();
+      const authStore = useAuthStore();
+      const serverChannelStore = useServerChannelStore();
 
-    onMounted(() => {
-      // Subscribe to messages for the current channel
-      chatStore.subscribeToMessages(props.channelId);
-      // Fetch initial set of messages
-      chatStore.fetchMessages(props.channelId);
-    });
+      const handleSendMessage = (content: string) => {
+        if (authStore.session?.user && serverChannelStore.currentChannelId) {
+          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, content);
+        }
+      };
+      watch(() => props.messages, (newMessages) => {
+        console.log("Received messages:", newMessages);
+      }, { deep: true });
 
-    const handleSendMessage = async (content: string) => {
-      if (authStore.session?.user) {
-        // Use the sendMessage action from the chat store
-        chatStore.sendMessage(props.channelId, authStore.session.user.id, content);
-      }
-    };
-
-    return { messages: chatStore.messages, handleSendMessage };
-  }
-});
+      return { handleSendMessage };
+    }
+  });
 </script>
 
 <style scoped>

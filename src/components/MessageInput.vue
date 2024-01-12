@@ -5,12 +5,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, } from 'vue';
+import { defineComponent, ref } from 'vue';
 
 export default defineComponent({
-  name: 'MessageInput',
   emits: ['sendMessage'],
-  setup(props, { emit }) {
+  setup(_, { emit }) {
     const newMessage = ref('');
 
     const send = () => {
