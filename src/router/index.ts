@@ -11,6 +11,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'Home',
+      component: LoginView,
       meta: { requiresAuth: true }
     },
     {
@@ -40,11 +41,16 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
-
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
     console.log("Redirecting to Login, isLoggedIn:", authStore.isLoggedIn);
     next({ name: 'Login' });
-  } else {
+  }
+  // if on login page and logged in, redirect to chat
+  else if (to.name === 'Login' && authStore.isLoggedIn) {
+    console.log("Redirecting to Chat, isLoggedIn:", authStore.isLoggedIn);
+    next({ name: 'Chat' });
+  }
+  else {
     console.log("Proceeding to route, isLoggedIn:", authStore.isLoggedIn);
     next();
   }
