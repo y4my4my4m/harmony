@@ -53,6 +53,7 @@
       const handleChannelSelected = async (channelId: number) => {
         serverChannelStore.setCurrentChannel(channelId);
         await chatStore.fetchMessages(channelId);
+        chatStore.subscribeToMessages(channelId);
       };
 
       return { servers, channels, chatMessages, currentChannelId, handleServerSelected, handleChannelSelected };

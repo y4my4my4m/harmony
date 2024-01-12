@@ -5,13 +5,11 @@ import type { ChatMessage } from '@/types';  // Define Message type according to
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [] as ChatMessage[],
+    currentSubscription: null as any | null,
   }),
   actions: {
     clearMessages() {
       this.messages = [];
-    },
-    setMessages(newMessages: ChatMessage[]) {
-      this.messages = newMessages;
     },
     async fetchMessages(channelId: number) {
       const { data: messages, error } = await supabase
@@ -29,28 +27,35 @@ export const useChatStore = defineStore('chat', {
       try {
         const { data, error } = await supabase
           .from('messages')
-          .insert([{ channel_id: channelId, user_id: userId, content: content }]);
-          // .select('*');
+          .insert([{ channel_id: channelId, user_id: userId, content: content }])
+          .select('*');
     
         if (error) {
           console.error('Error sending message:', error);
           return;
         }
-    
+        if (data && data.length > 0) {
+          this.messages.push(data[0]);
+        }
         console.log('Message sent:', data);
       } catch (e) {
         console.error('Error during message sending:', e);
       }
     },    
     subscribeToMessages(channelId: number) {
+      
+      if (this.currentSubscription) {
+        this.currentSubscription.unsubscribe();
+      }
+
       const channelName = `channel-${channelId}`;
-    
-      supabase
+      this.currentSubscription = supabase
         .channel(channelName)
         .on(
           'postgres_changes', 
-          { event: 'INSERT', schema: 'public', table: 'messages', filter: `eq.channel_id.${channelId}` },
+          { event: 'INSERT', schema: 'public', table: 'messages'},
           (payload) => {
+            // console.log(payload);
             const newMessage: ChatMessage = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
@@ -58,14 +63,13 @@ export const useChatStore = defineStore('chat', {
               user_id: payload.new.user_id,
               content: payload.new.content,
             };
-    
-            this.messages.unshift(newMessage);
+
+            if (!this.messages.some(msg => msg.id === newMessage.id)) {
+              this.messages.push(newMessage);
+            }
           }
         )
         .subscribe();
     }
-    
-    
-    
   },
 });
