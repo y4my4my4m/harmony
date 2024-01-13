@@ -15,6 +15,10 @@
       </div>
       <template v-else>
         <div class="message-content">{{ message.content }}</div>
+        <div v-if="message.file_url" class="file-container">
+          <img :src="message.file_url" alt="Uploaded file" />
+          <!-- Additional logic for other file types -->
+        </div>
       </template>
     </div>
   </div>
@@ -24,14 +28,14 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import type { PropType } from 'vue';
-import type { ChatMessage } from '../types';
+import type { Message } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { format } from 'date-fns';
 
 export default defineComponent({
   props: {
     messages: {
-      type: Array as PropType<ChatMessage[]>,
+      type: Array as PropType<Message[]>,
       required: true
     }
   },

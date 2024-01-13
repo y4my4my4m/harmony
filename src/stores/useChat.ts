@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { ChatMessage } from '@/types';  // Define Message type according to your schema
+import type { Message } from '@/types';  // Define Message type according to your schema
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
-    messages: [] as ChatMessage[],
+    messages: [] as Message[],
     currentSubscription: null as any | null,
   }),
   actions: {
@@ -23,11 +23,11 @@ export const useChatStore = defineStore('chat', {
       else this.messages = messages.reverse();  // Reverse to display in correct order
       console.log("Updated messages in store:", this.messages);
     },
-    async sendMessage(channelId: number, userId: string, content: string) {
+    async sendMessage(channelId: number, userId: string, content: string, file_url?: string) {
       try {
         const { data, error } = await supabase
           .from('messages')
-          .insert([{ channel_id: channelId, user_id: userId, content: content }])
+          .insert([{ channel_id: channelId, user_id: userId, content: content, file_url: file_url }])
           .select('*');
     
         if (error) {
@@ -56,12 +56,13 @@ export const useChatStore = defineStore('chat', {
           { event: 'INSERT', schema: 'public', table: 'messages'},
           (payload) => {
             // console.log(payload);
-            const newMessage: ChatMessage = {
+            const newMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
               channel_id: payload.new.channel_id,
               user_id: payload.new.user_id,
               content: payload.new.content,
+              file_url: payload.new.file_url,
             };
 
             if (!this.messages.some(msg => msg.id === newMessage.id)) {

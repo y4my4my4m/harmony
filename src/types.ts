@@ -44,13 +44,14 @@ export enum UserStatus {
   Away = 2,
   Busy = 3
 }
-export interface ChatMessage {
+export interface Message {
   id: number;
   created_at: Date;
   channel_id: number;
   user_id: string;
   content: string;
   reactions?: JSON;
+  file_url?: string;
 }
 
 // should probably start to put these in their own files

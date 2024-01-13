@@ -17,20 +17,26 @@
 - [x] login
 - [x] register
 - [x] logout
-- [~] realtime status
-- [~] server settings
+- [x] server settings
 - [x] profile picture
+- [~] realtime status
+- [x] file uploads
+- [ ] files upload
+- [~] media embeds
+  - [x] images
+  - [ ] videos
+  - [ ] urls
+  - [ ] audio
+  - [ ] files/binaries
+- [ ] markdown
 - [ ] profile changes
 - [ ] server order
 - [ ] forgot password
 - [ ] reset password
 - [ ] notifications
 - [ ] mentions
-- [ ] media embeds
-- [ ] markdown
 - [ ] reactions
 - [ ] threads
-- [ ] file uploads
 - [ ] personal drive
 - [ ] personal pages
 - [ ] activitypub
@@ -45,3 +51,4 @@
 - [ ] admin
 - [ ] smart fetching
 - [ ] smart caching
+- [ ] uuid for filenames
