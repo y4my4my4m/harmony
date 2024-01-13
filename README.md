@@ -9,20 +9,33 @@
 
 ## TODO
 
-- [x] realtime status
-- [x] realtime messages
 - [x] store messages
 - [x] fetch messages
-- [] notifications
+- [x] realtime messages
 - [x] invites
 - [x] settings
 - [x] login
 - [x] register
 - [x] logout
+- [~] realtime status
+- [~] server settings
+- [x] profile picture
+- [ ] profile changes
+- [ ] server order
 - [ ] forgot password
 - [ ] reset password
-- [ ] profile changes
-- [x] profile picture
+- [ ] notifications
+- [ ] mentions
+- [ ] media embeds
+- [ ] markdown
+- [ ] reactions
+- [ ] threads
+- [ ] file uploads
+- [ ] personal drive
+- [ ] personal pages
+- [ ] activitypub
+- [ ] spaces
+- [ ] public/private
 - [ ] voice
 - [ ] voice positioning
 - [ ] federation
@@ -30,4 +43,5 @@
 - [ ] permissions
 - [ ] moderation
 - [ ] admin
-- [ ] server settings
+- [ ] smart fetching
+- [ ] smart caching

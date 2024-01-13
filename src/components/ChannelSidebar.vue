@@ -1,6 +1,9 @@
 <template>
   <div class="channel-sidebar">
-    <h2 @click="generateInvite">{{ currentServer.name }}</h2>
+    <div class="server-name" @click="toggleDropdown">
+      {{ currentServer.name }}
+    </div>
+    <ServerDropdown :serverId="currentServer.id" v-show="showDropdown" />
     <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === serverChannelStore.currentChannelId }]" @click="selectChannel(channel.id)">
       # {{ channel.name }}
     </div>
@@ -8,19 +11,19 @@
   </div>
 </template>
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, ref } from 'vue';
 import type { PropType } from 'vue';
-import UserProfileComponent from './UserProfileComponent.vue';
 import type { Channel } from '@/types';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { generateInviteUrl } from '@/services/inviteService';
-import { useAuthStore } from '@/stores/auth';
-import { useToast } from "vue-toastification";
+
+import UserProfileComponent from './UserProfileComponent.vue';
+import ServerDropdown from './ServerDropdown.vue';
 
 export default defineComponent({
   name: 'ChannelSidebar',
   components: {
     UserProfileComponent,
+    ServerDropdown,
   },
   props: {
     currentServer: {
@@ -33,26 +36,19 @@ export default defineComponent({
     }
   },
   setup(props, { emit }) {
-    const toast = useToast();
+    const showDropdown = ref(false);
     // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
     const serverChannelStore = useServerChannelStore();
-    const auth = useAuthStore();
     // Emit an event with the selected channelId
     const selectChannel = (selectedChannelId: number) => {
       emit('channelSelected', selectedChannelId);
     };
 
-    const generateInvite = async () => {
-      const userId = auth.session?.user?.id;
-      const inviteUrl = await generateInviteUrl(props.currentServer.id, userId);
-      if (inviteUrl) {
-        console.log('Invite URL:', inviteUrl);
-        navigator.clipboard.writeText(inviteUrl); // Copy to clipboard
-        toast.success('Invite URL copied to clipboard'); // Show toast
-      }
+    const toggleDropdown = () => {
+      showDropdown.value = !showDropdown.value;
     };
 
-    return { selectChannel, serverChannelStore, generateInvite };
+    return { selectChannel, serverChannelStore, showDropdown, toggleDropdown };
   }
 });
 </script>
@@ -65,7 +61,7 @@ export default defineComponent({
   overflow-y: auto;
 }
 
-h2 {
+.server-name {
   padding: 10px;
   font-size: 1.2rem;
   font-weight: 500;
@@ -77,7 +73,8 @@ h2 {
   cursor:pointer;
 }
 
-h2:hover {
+
+.server-name:hover {
   background: rgba(0,0,0,0.1);
 }
 .channel-item {

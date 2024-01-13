@@ -36,12 +36,27 @@ export const useServerChannelStore = defineStore('serverChannel', {
           this.servers = serversData;
         }
       }
+      // await this.updateServerIcons(this.servers);
     },
     async fetchServers() {
       const { data: servers, error } = await supabase.from('servers').select('*');
       if (error) console.error('Error fetching servers:', error);
       else this.servers = servers;
+      // await this.updateServerIcons(this.servers);
     },
+
+    // async updateServerIcons(servers: Server[]) {
+    //   for (const server of servers) {
+    //     if (server.icon) {
+    //       const { data, error } = await supabase.storage
+    //         .from('server_icons')
+    //         .createSignedUrl(server.icon, 60);
+    //       if (!error && data.signedUrl) {
+    //         server.icon = data.signedUrl; // Update the icon URL
+    //       }
+    //     }
+    //   }
+    // },
     async fetchChannels(serverId: string) {
         const { data: channels, error } = await supabase
         .from('channels')

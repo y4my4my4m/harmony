@@ -10,6 +10,8 @@ import router from './router'
 import Toast from 'vue-toastification';
 import "vue-toastification/dist/index.css";
 
+import ClickOutsideDirective from './directives/ClickOutsideDirective';
+
 const app = createApp(App);
 
 app.use(Toast, {
@@ -32,4 +34,6 @@ app.directive('scroll-bottom', {
     },
   });
   
+app.directive('click-outside', ClickOutsideDirective);
+
 app.use(router).mount('#app');

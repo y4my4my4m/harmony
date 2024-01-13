@@ -5,6 +5,7 @@ import RegisterView from '@/views/RegisterView.vue';
 import ProfileComponent from '@/components/ProfileComponent.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
+import ServerSettings from '@/views/ServerSettings.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -42,7 +43,14 @@ const router = createRouter({
       name: 'InviteAccept',
       component: InviteAccept,
       meta: { requiresAuth: true }
-    }
+    },
+    {
+      path: '/server/:serverId',
+      name: 'ServerSettings',
+      component: ServerSettings,
+      meta: { requiresAuth: true },
+      props: true
+    },
   ],
 });
 
