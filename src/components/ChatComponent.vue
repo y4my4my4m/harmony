@@ -12,7 +12,7 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, watch, ref } from 'vue';
+  import { defineComponent, watch, ref, onMounted, onUnmounted } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
   import { useAuthStore } from '@/stores/auth'; 
@@ -20,7 +20,9 @@
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
   import type { Message } from '@/types';
   import { handleFileDrop } from '@/services/fileService';
-
+  import { listen } from '@tauri-apps/api/event';
+  import { readBinaryFile } from '@tauri-apps/api/fs';
+  import type { UnlistenFn } from '@tauri-apps/api/event';
   export default defineComponent({
     components: {
       MessageDisplay,
@@ -37,10 +39,12 @@
       const authStore = useAuthStore();
       const serverChannelStore = useServerChannelStore();
       const showDragDropArea = ref(false);
+      // let unlisten: UnlistenFn | null = null;
 
       const triggerFileDrop = async (event:any) => {
+        console.log("File dropped:", event);
         const files = event.dataTransfer.files;
-        if (files.length && serverChannelStore.currentChannelId) {
+        if (files.length && serverChannelStore.currentChannelId && authStore.session?.user?.id) {
             const file = files[0];
             const fileUrl = await handleFileDrop(authStore.session?.user?.id, file);
 
@@ -59,9 +63,41 @@
             }
         }
         showDragDropArea.value = false;
-    };
+      };
 
+      onMounted(async () => {
+        await listen('tauri://file-drop', async (event: any) => {
+          const filePath = event.payload[0];
+          try {
+            // Read the file as a binary blob
+            const fileBlob = await readBinaryFile(filePath);
 
+            // Create a File object
+            const file = new File([fileBlob], filePath.split('/').pop(), {
+              type: "mime/type", // Replace with the actual mime type if known
+            });
+
+            // Create a custom DataTransfer-like object
+            const customDataTransfer = {
+              files: {
+                0: file,
+                length: 1,
+                item: () => file
+              }
+            };
+
+            // Trigger the file drop handler
+            triggerFileDrop({ dataTransfer: customDataTransfer });
+          } catch (error) {
+            console.error('Error processing file drop:', error);
+          }
+        });
+      });
+      // onUnmounted(() => {
+      //   if (unlisten) {
+      //     unlisten();
+      //   }
+      // });
       const handleSendMessage = (content: string) => {
         if (authStore.session?.user && serverChannelStore.currentChannelId) {
           chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, content);

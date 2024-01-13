@@ -136,8 +136,8 @@ export default defineComponent({
 }
 
 .file-container > img {
-  width: 100px;
-  height: auto;
+  height: 100px;
+  width: auto;
   border-radius: 5px;
   cursor: pointer;
   transition: transform 0.2s ease-in-out;
