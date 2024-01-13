@@ -20,6 +20,7 @@
     "uuidv4": "^6.2.13",
     "vue": "^3.3.11",
     "vue-drag-drop": "^1.1.4",
+    "vue-easy-lightbox": "next",
     "vue-router": "^4.2.5",
     "vue-toastification": "next"
   },

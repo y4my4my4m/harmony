@@ -1,5 +1,6 @@
-import './assets/main.css'
+import './assets/reset.css'
 
+import './assets/main.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
@@ -10,6 +11,10 @@ import router from './router'
 import Toast from 'vue-toastification';
 import "vue-toastification/dist/index.css";
 
+import VueEasyLightbox from 'vue-easy-lightbox';
+import './assets/vue-easy-lightbox.css';
+
+// TODO: FIXME
 import ClickOutsideDirective from './directives/ClickOutsideDirective';
 
 const app = createApp(App);
@@ -28,6 +33,10 @@ app.use(pinia);
 
 const authStore = useAuthStore();
 await authStore.initializeAuth();
+
+
+app.use(VueEasyLightbox)
+
 app.directive('scroll-bottom', {
     updated(el) {
       el.scrollTop = el.scrollHeight;

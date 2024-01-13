@@ -16,17 +16,27 @@
       <template v-else>
         <div class="message-content">{{ message.content }}</div>
         <div v-if="message.file_url" class="file-container">
-          <img :src="message.file_url" alt="Uploaded file" />
-          <!-- Additional logic for other file types -->
+          <img 
+            :src="message.file_url" 
+            @click="openLightbox(imageUrls.indexOf(message.file_url))" 
+            alt="Uploaded file" 
+          />
         </div>
       </template>
     </div>
   </div>
+  <vue-easy-lightbox
+    class="lightbox"
+    :visible="isLightboxOpen"
+    :imgs="lightboxImages"
+    :index="indexRef"
+    @hide="closeLightbox"
+  />
 </template>
 
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, computed, ref } from 'vue';
 import type { PropType } from 'vue';
 import type { Message } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -39,7 +49,7 @@ export default defineComponent({
       required: true
     }
   },
-  setup() {
+  setup(props) {
     const serverUsersStore = useServerUsersStore();
 
     const getUserDisplayName = (userId:string) => {
@@ -54,7 +64,36 @@ export default defineComponent({
     const formatTimestamp = (timestamp:Date) => {
       return format(new Date(timestamp), 'p'); // Formats to the user's locale time
     };
-    return { getUserDisplayName, getUserColor, getUserAvatar, formatTimestamp };
+
+
+    const imageUrls = computed(() => props.messages
+      .filter(message => message.file_url)
+      .map(message => message.file_url));
+    const lightboxImages = ref([]);
+    const isLightboxOpen = ref(false);
+    const indexRef = ref(0);
+
+    const openLightbox = (index: number) => {
+      lightboxImages.value = imageUrls.value;
+      indexRef.value = index;
+      isLightboxOpen.value = true;
+    };
+
+    const closeLightbox = () => {
+      isLightboxOpen.value = false;
+    };
+    return { 
+      getUserDisplayName, 
+      getUserColor, 
+      getUserAvatar, 
+      formatTimestamp, 
+      openLightbox, 
+      closeLightbox,
+      imageUrls,
+      lightboxImages, 
+      isLightboxOpen,
+      indexRef
+    };
   }
   
 });
@@ -92,5 +131,25 @@ export default defineComponent({
   margin-left: 8px;
   font-size: 0.8em;
 }
+.file-container {
+  margin-top: 5px;
+}
+
+.file-container > img {
+  width: 100px;
+  height: auto;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
+}
+
+.file-container img:hover {
+  transform: scale(1.05);
+}
+
+.lightbox {
+  z-index: 1000;
+}
+
 </style>
 
