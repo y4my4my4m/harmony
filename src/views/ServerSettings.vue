@@ -17,7 +17,7 @@
       <div>
         <label for="icon">Server Icon:</label>
         <input type="file" id="icon" @change="handleFileChange">
-        <img :src="previewUrl || server.icon" class="icon" alt="Server Icon">
+        <img :src="server.icon" class="icon" alt="Server Icon">
       </div>
       <button type="submit">Save Changes</button>
       <button @click="back()" style="background-color:gray">Cancel</button>
@@ -47,7 +47,6 @@
       const toast = useToast();
       const ownerName = ref('');
       const selectedFile = ref<File | null>(null);
-      const previewUrl = ref('');
       const server = ref<Server>({
         id: '',
         name: '',
@@ -60,7 +59,7 @@
         const input = event.target as HTMLInputElement;
         if (input.files?.[0]) {
           selectedFile.value = input.files[0];
-          previewUrl.value = URL.createObjectURL(selectedFile.value);
+          server.value.icon = URL.createObjectURL(selectedFile.value);
         }
       };
 

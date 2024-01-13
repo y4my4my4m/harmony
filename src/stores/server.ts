@@ -33,7 +33,7 @@ export const useServerStore = defineStore('server', {
           if (uploadError) throw uploadError;
 
           // Construct public URL for the uploaded file
-          const response = supabase.storage.from('server_icons').getPublicUrl(`/${filePath}`);
+          const response = supabase.storage.from('server_icons').getPublicUrl(filePath);
 
           // Update serverData with the new icon URL
           serverData.icon = response.data.publicUrl;
