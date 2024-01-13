@@ -18,30 +18,28 @@ export const useServerStore = defineStore('server', {
       return data;
     },
 
-    async updateServer(serverData: Partial<Server>): Promise<boolean> {
+
+    async updateServer(serverData: Partial<Server>, file?: File): Promise<boolean> {
       try {
-        if (selectedFile.value && serverData.id) {
-          // Upload to Supabase
-          const filePath = `server_icons/${serverData.id}/${selectedFile.value.name}`;
+        if (file && serverData.id) {
+          // Define file path
+          const filePath = `${serverData.id}/${file.name}`;
+          
+          // Upload to Supabase storage
           const { error: uploadError } = await supabase.storage
             .from('server_icons')
-            .upload(filePath, selectedFile.value);
+            .upload(filePath, file);
 
           if (uploadError) throw uploadError;
 
-          // Get public URL for the uploaded file
-          const { data } = await supabase.storage
-            .from('server_icons')
-            .getPublicUrl(filePath);
-          
-          // TODO: error handling?
+          // Construct public URL for the uploaded file
+          const response = supabase.storage.from('server_icons').getPublicUrl(`/${filePath}`);
 
-          if (data) {
-            serverData.icon = data.publicUrl; // Update icon URL in serverData
-          }
+          // Update serverData with the new icon URL
+          serverData.icon = response.data.publicUrl;
         }
 
-        // Update server data
+        // Update server data in database
         const { error } = await supabase
           .from('servers')
           .update(serverData)
