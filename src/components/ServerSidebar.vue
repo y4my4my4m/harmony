@@ -1,5 +1,10 @@
 <template>
   <div class="server-sidebar">
+    <div 
+      :style="{ backgroundImage: 'url(portal.png)' }"
+      class="portal">
+    </div>
+    <div class="separator"></div>
     <div v-for="server in servers" 
       :key="server.id" 
       class="server-item"
@@ -40,6 +45,7 @@
   flex-direction: column;
   align-items: center;
 }
+.portal,
 .server-item {
   width: 48px;
   height: 48px;
@@ -57,10 +63,20 @@
   transition: border 0.6s ease-in-out, all 0.2s ease-in-out;
   border: 3px solid transparent;
 }
+.portal {
+  border-radius: 12px;
+}
+.separator {
+  position: relative;
+  width:80%;
+  border-top: 1px solid #1d1d1d;
+  border-bottom: 1px solid #2d2d2d;
+}
+.portal:hover,
 .server-item:hover {
   left:5px;
 }
-
+.portal::before,
 .server-item::before {
   opacity:0;
   content: "";
@@ -73,10 +89,13 @@
   height: 8px;
   background-color: var(--vt-c-divider-dark-1);
 }
+.portal:hover::before,
 .server-item:hover::before {
   left:-16px;
   opacity:1;
 }
+
+.portal.selected,
 .server-item.selected {
   border: 3px solid #7289da;
   border-radius: 50%;

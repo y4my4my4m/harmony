@@ -1,10 +1,9 @@
 <template>
   <div class="user-preview" ref="profileCard">
     <img :src="user.avatar_url" alt="User avatar" class="preview-avatar">
+    <h2>{{ user.display_name }}</h2>
+    <h4>{{ user.username }}</h4>
     <div class="user-preview-details">
-      <h2>{{ user.display_name }}</h2>
-      <h4>{{ user.username }}</h4>
-      <br/>
       <div class="role-pills">
         <span v-for="role in user.roles" :key="role.id" class="role-pill" :style="{ backgroundColor: role.color }">
           {{ role.name }}
@@ -65,7 +64,11 @@ export default defineComponent({
   /* Styles for the user profile component */
   color: white;
 }
-
+.user-preview-details {
+  border-radius: 4px;
+  background-color: #292b2e; 
+  padding: 10px;
+}
 .preview-avatar {
   width: 64px;
   height: 64px;

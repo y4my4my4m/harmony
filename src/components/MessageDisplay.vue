@@ -65,7 +65,6 @@ export default defineComponent({
 .message-wrapper {
   display: flex;
   align-items: flex-start;
-  margin-top: 10px;
 }
 
 .user-avatar {
@@ -77,6 +76,7 @@ export default defineComponent({
 
 .message-header {
   display: flex;
+  margin-top: 12px;
 }
 
 .message-content {

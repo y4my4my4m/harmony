@@ -1,7 +1,7 @@
 import { supabase } from '../supabase';
-import type { Profile } from '@/types';
+import type { User } from '@/types';
 
-const getProfile = async (userId: string): Promise<Profile | null> => {
+const getProfile = async (userId: string): Promise<User | null> => {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
@@ -12,7 +12,7 @@ const getProfile = async (userId: string): Promise<Profile | null> => {
   return data;
 };
 
-const getProfileWithAvatarUrl = async (userId: string): Promise<Profile | null> => {
+const getProfileWithAvatarUrl = async (userId: string): Promise<User | null> => {
   const profile = await getProfile(userId);
   if (!profile || !profile.avatar_url) return profile;
 
@@ -30,7 +30,7 @@ const getProfileWithAvatarUrl = async (userId: string): Promise<Profile | null> 
   }
 };
 
-const updateProfile = async (userId: string, updates: Partial<Profile>): Promise<Profile | undefined> => {
+const updateProfile = async (userId: string, updates: Partial<User>): Promise<User | undefined> => {
   const { data, error } = await supabase
     .from('profiles')
     .update(updates)

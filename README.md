@@ -14,6 +14,7 @@
 - [x] store messages
 - [x] fetch messages
 - [] notifications
+- [x] invites
 - [x] settings
 - [x] login
 - [x] register

@@ -7,7 +7,7 @@
     </div>
 
     <!-- User profile card -->
-    <div v-if="selectedUser" class="user-profile-card" :style="profileCardStyle" @click.stop>
+    <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
       <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
     </div>
   </div>
@@ -147,8 +147,14 @@ export default defineComponent({
   left: -332px;
   width: 320px; 
   height: 400px;
+  border-radius: 12px;
   background-color: #2f3339; 
   z-index: 1000;
   padding: 10px;
+  opacity: 0;
+  transition: 0.2s ease-in-out;
+}
+.user-profile-card.selected {
+  opacity: 1
 }
 </style>

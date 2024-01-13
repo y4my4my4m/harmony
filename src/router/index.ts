@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import ChatView from '../views/ChatView.vue';
-import LoginView from '../views/LoginView.vue';
-import RegisterView from '../views/RegisterView.vue';
-import ProfileComponent from '../components/ProfileComponent.vue';
+import ChatView from '@/views/ChatView.vue';
+import LoginView from '@/views/LoginView.vue';
+import RegisterView from '@/views/RegisterView.vue';
+import ProfileComponent from '@/components/ProfileComponent.vue';
+import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
 
 const router = createRouter({
@@ -36,6 +37,12 @@ const router = createRouter({
       component: ProfileComponent,
       meta: { requiresAuth: true }
     },
+    {
+      path: '/invite/:code',
+      name: 'InviteAccept',
+      component: InviteAccept,
+      meta: { requiresAuth: true }
+    }
   ],
 });
 
@@ -46,7 +53,7 @@ router.beforeEach((to, from, next) => {
     next({ name: 'Login' });
   }
   // if on login page and logged in, redirect to chat
-  else if (to.name === 'Login' && authStore.isLoggedIn) {
+  else if ((to.name === 'Login' || to.name === 'Home') && authStore.isLoggedIn) {
     console.log("Redirecting to Chat, isLoggedIn:", authStore.isLoggedIn);
     next({ name: 'Chat' });
   }

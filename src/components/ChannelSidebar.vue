@@ -1,6 +1,6 @@
 <template>
   <div class="channel-sidebar">
-    <h2>{{ currentServerName }}</h2>
+    <h2 @click="generateInvite">{{ currentServer.name }}</h2>
     <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === serverChannelStore.currentChannelId }]" @click="selectChannel(channel.id)">
       # {{ channel.name }}
     </div>
@@ -11,8 +11,11 @@
 import { defineComponent } from 'vue';
 import type { PropType } from 'vue';
 import UserProfileComponent from './UserProfileComponent.vue';
-import type { Channel } from '@/types'; // Adjust the import path as needed
+import type { Channel } from '@/types';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { generateInviteUrl } from '@/services/inviteService';
+import { useAuthStore } from '@/stores/auth';
+import { useToast } from "vue-toastification";
 
 export default defineComponent({
   name: 'ChannelSidebar',
@@ -20,8 +23,8 @@ export default defineComponent({
     UserProfileComponent,
   },
   props: {
-    currentServerName: {
-      type: String,
+    currentServer: {
+      type: Object,
       required: true
     },
     channels: {
@@ -29,15 +32,27 @@ export default defineComponent({
       required: true
     }
   },
-  setup(_, { emit }) {
+  setup(props, { emit }) {
+    const toast = useToast();
     // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
     const serverChannelStore = useServerChannelStore();
+    const auth = useAuthStore();
     // Emit an event with the selected channelId
     const selectChannel = (selectedChannelId: number) => {
       emit('channelSelected', selectedChannelId);
     };
 
-    return { selectChannel, serverChannelStore };
+    const generateInvite = async () => {
+      const userId = auth.session?.user?.id;
+      const inviteUrl = await generateInviteUrl(props.currentServer.id, userId);
+      if (inviteUrl) {
+        console.log('Invite URL:', inviteUrl);
+        navigator.clipboard.writeText(inviteUrl); // Copy to clipboard
+        toast.success('Invite URL copied to clipboard'); // Show toast
+      }
+    };
+
+    return { selectChannel, serverChannelStore, generateInvite };
   }
 });
 </script>
@@ -58,7 +73,12 @@ h2 {
   position:relative;
   z-index:1;
   box-shadow: 0 1px 5px 0px rgba(0,0,0,0.25);
-  margin-bottom:2px
+  margin-bottom:2px;
+  cursor:pointer;
+}
+
+h2:hover {
+  background: rgba(0,0,0,0.1);
 }
 .channel-item {
   padding: 10px;

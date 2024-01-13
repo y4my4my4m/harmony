@@ -7,8 +7,20 @@ import App from './App.vue'
 import { useAuthStore } from './stores/auth';
 import router from './router'
 
+import Toast from 'vue-toastification';
+import "vue-toastification/dist/index.css";
 
 const app = createApp(App);
+
+app.use(Toast, {
+  transition: "Vue-Toastification__bounce",
+  maxToasts: 20,
+  newestOnTop: true,
+  timeout: 2500,
+  pauseOnHover: true,
+  closeOnClick: true,
+});
+
 const pinia = createPinia();
 app.use(pinia);
 

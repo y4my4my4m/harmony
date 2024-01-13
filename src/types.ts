@@ -1,6 +1,7 @@
 export interface Server {
   id: string;
   name: string;
+  description: string;
   owner: string;
   icon: string;
 }
