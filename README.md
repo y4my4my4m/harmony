@@ -36,6 +36,7 @@
   - [x] images
   - [ ] videos
   - [ ] url previews
+  - [x] links
   - [ ] audio
   - [ ] files/binaries
 - [ ] markdown
@@ -69,3 +70,5 @@
 - [ ] smart caching
 - [ ] search
 - [ ] crypto transfers
+- [x] remote db
+- [x] remote storage

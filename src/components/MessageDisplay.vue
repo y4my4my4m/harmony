@@ -10,11 +10,21 @@
           <strong :style="getUserColor(message.user_id)">
             {{ getUserDisplayName(message.user_id) }} <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
           </strong>
-          <div>{{ message.content }}</div>
+          <div>
+            <template v-for="(part, partIndex) in parseMessage(message.content)" :key="partIndex">
+              <a v-if="typeof part === 'object'" :href="part.url" target="_blank">{{ part.url }}</a>
+              <span v-else>{{ part }}</span>
+            </template>
+          </div>
         </div>
       </div>
       <template v-else>
-        <div class="message-content">{{ message.content }}</div>
+        <div class="message-content">
+          <template v-for="(part, partIndex) in parseMessage(message.content)" :key="partIndex">
+            <a v-if="typeof part === 'object'" :href="part.url" target="_blank">{{ part.url }}</a>
+            <span v-else>{{ part }}</span>
+          </template>
+        </div>
         <div v-if="message.file_url" class="file-container">
           <div v-if="!imageLoaded[message.id]" class="image-skeleton"></div>
           <img
@@ -105,7 +115,12 @@ export default defineComponent({
         emit('update:isAtBottom', false);
       }
     };
-  
+    
+    const parseMessage = (message: string): Array<string | { url: string }> => {
+      const urlRegex = /(\bhttps?:\/\/\S+)/gi;
+      const parts = message.split(urlRegex);
+      return parts.map(part => part.match(urlRegex) ? { url: part } : part);
+    };
 
     watch(() => props.messages, async (newMessages, oldMessages) => {
       const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
@@ -141,6 +156,7 @@ export default defineComponent({
       imageLoaded,
       messageDisplayContainer,
       handleScroll,
+      parseMessage,
     };
   }
   
