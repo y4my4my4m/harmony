@@ -8,11 +8,13 @@
         <span :class="getUserStatusClass(profile?.status ?? 0)"></span>
         <span>{{ getUserStatusText(profile?.status ?? 0) }}</span>
       </div>
-
     </div>
-    <button class="icon-button" @click="toggleMic">🎤</button>
-    <button class="icon-button" @click="toggleHeadphones">🎧</button>
-    <button class="icon-button" @click="goToSettings">⚙️</button>
+
+    <div class="buttons">
+      <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }">🎤</div>
+      <div class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }">🎧</div>
+      <div class="icon-button" @click="goToSettings">⚙️</div>
+    </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
       <select v-model="selectedStatus" @change="updateStatus">
@@ -36,12 +38,20 @@
   import { UserStatus } from '@/types';
   
   export default defineComponent({
+    data() {
+      return {
+        isMicActive: false,
+        isHeadphonesActive: true
+      };
+    },
     methods: {
       toggleMic() {
         // Logic to toggle the mic
+        this.isMicActive = !this.isMicActive;
       },
       toggleHeadphones() {
         // Logic to toggle the headphones
+        this.isHeadphonesActive = !this.isHeadphonesActive;
       },
     },
     setup() {
@@ -126,7 +136,7 @@
   position: fixed;
   bottom: 0;
   width: 240px;
-  background: #292b2f;
+  background: var(--h-black-dark);
   padding: 10px;
 }
 
@@ -176,13 +186,27 @@
   margin-right: 5px;
 }
 
+
+.buttons {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
 .icon-button {
   background: none;
   border: none;
   color: white;
   cursor: pointer;
+  padding: 4px;
+  margin: 2px;
+  border-radius: 4px;
+  transition: 0.2s ease-in-out;
 }
 
+.icon-button.muted {
+  opacity:0.65;
+  background:rgba(255,0,0,0.35);
+}
 .status-dropdown {
   position: absolute;
   bottom: 100%; /* Position above the user profile */
