@@ -3,28 +3,30 @@
     <div v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
-    <div v-else v-for="(message, index) in messages" :key="message.id" class="message-wrapper">
+    <div v-else v-for="(message, index) in messages" :key="message.id" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
       <div v-if="index === 0 || messages[index - 1].user_id !== message.user_id" class="message-header">
         <img :src="getUserAvatar(message.user_id)" class="user-avatar"/>
         <div>
           <strong :style="getUserColor(message.user_id)">
             {{ getUserDisplayName(message.user_id) }} <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
           </strong>
-          <div class="message-content">
+          <div v-if="editableMessageId !== message.id" class="message-content">
             <template v-for="(part, partIndex) in parseMessage(message.content)" :key="partIndex">
               <a v-if="typeof part === 'object'" :href="part.url" target="_blank">{{ part.url }}</a>
               <span v-else>{{ part }}</span>
             </template>
           </div>
+          <input v-else type="text" v-model="editableMessageContent" @keyup.esc="cancelEdit" @keyup.enter="saveEdit(message.id)" class="edit-input" />
         </div>
       </div>
       <template v-else>
-        <div class="message-content">
+        <div v-if="editableMessageId !== message.id" class="message-content">
           <template v-for="(part, partIndex) in parseMessage(message.content)" :key="partIndex">
             <a v-if="typeof part === 'object'" :href="part.url" target="_blank">{{ part.url }}</a>
             <span v-else>{{ part }}</span>
           </template>
         </div>
+        <input v-else type="text" v-model="editableMessageContent" @keyup.esc="cancelEdit" @keyup.enter="saveEdit(message.id)" class="edit-input" />
         <div v-if="message.file_url" class="file-container">
           <div v-if="!imageLoaded[message.id]" class="image-skeleton"></div>
           <img
@@ -36,6 +38,10 @@
           />
         </div>
       </template>
+      <div class="message-actions" v-if="hoveredMessageId === message.id">
+        <div class="btn" @click="startEdit(message)">✏️</div>
+        <div class="btn" @click="deleteMessage(message.id)">🗑</div>
+      </div>
     </div>
   </div>
   <vue-easy-lightbox
@@ -54,6 +60,7 @@ import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType } from 'vue';
 import type { Message } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
+import { useChatStore } from '@/stores/useChat';
 import { format } from 'date-fns';
 
 export default defineComponent({
@@ -68,7 +75,29 @@ export default defineComponent({
   setup(props, { emit }) {
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
+    const chat = useChatStore();
 
+    const hoveredMessageId = ref<string | null>(null);
+    const editableMessageId = ref<string | null>(null);
+    const editableMessageContent = ref('');
+
+    const startEdit = (message: Message) => {
+      editableMessageId.value = message.id;
+      editableMessageContent.value = message.content;
+    };
+
+    const saveEdit = async (messageId: string) => {
+      await chat.editMessage(messageId, editableMessageContent.value);
+      editableMessageId.value = null;
+    };
+
+    const cancelEdit = () => {
+      editableMessageId.value = null;
+    };
+
+    const deleteMessage = (messageId: string) => {
+      chat.deleteMessage(messageId);
+    };
     const getUserDisplayName = (userId:string) => {
       return serverUsersStore.userProfiles[userId]?.display_name || 'Unknown User';
     };
@@ -157,6 +186,13 @@ export default defineComponent({
       messageDisplayContainer,
       handleScroll,
       parseMessage,
+      hoveredMessageId,
+      deleteMessage,
+      startEdit,
+      saveEdit,
+      cancelEdit,
+      editableMessageId,
+      editableMessageContent
     };
   }
   
@@ -248,10 +284,44 @@ export default defineComponent({
   background-size: 100% 200%;
   animation: shimmer 1.5s infinite alternate;
 }
-
+.message-actions {
+  display:flex;
+  justify-content: flex-end;
+  flex-grow:1;
+}
+.message-actions .btn {
+  margin-left: 5px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  background:transparent;
+  transition: background 0.2s ease-in-out;
+}
+.message-actions .btn:hover {
+  background: rgba(0,0,0,0.1);
+}
 .scroll-bottom {
   scroll-behavior: smooth;
 }
-
+.edit-input {
+  display: flex;
+  align-items: flex-start;
+  padding: 4px;
+  width: 100%;
+  padding: 2px 6px;
+  border-radius: 4px;
+  /* remove default html styling of input */
+  background: rgba(0,0,0,0.1);
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  line-height: inherit;
+  outline: none;
+  resize: none;
+  border-style: solid;
+  border-width: 1px;
+  border-color: rgba(0,0,0,0.3);
+}
 </style>
 

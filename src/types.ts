@@ -24,6 +24,23 @@ export interface User {
   about?: string;
 }
 
+export enum UserStatus {
+  Offline = 0,
+  Online = 1,
+  Away = 2,
+  Busy = 3
+}
+export interface Message {
+  id: string;
+  created_at: Date;
+  channel_id: number;
+  user_id: string;
+  content: string;
+  reactions?: JSON;
+  file_url?: string;
+}
+
+// should probably start to put these in their own files
 export interface Role {
   id: number;
   name: string;
@@ -38,21 +55,3 @@ export enum Permission {
   MANAGE_CHANNEL,
   // Add more permissions as needed
 }
-
-export enum UserStatus {
-  Offline = 0,
-  Online = 1,
-  Away = 2,
-  Busy = 3
-}
-export interface Message {
-  id: number;
-  created_at: Date;
-  channel_id: number;
-  user_id: string;
-  content: string;
-  reactions?: JSON;
-  file_url?: string;
-}
-
-// should probably start to put these in their own files

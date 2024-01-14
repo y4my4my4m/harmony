@@ -44,6 +44,43 @@ export const useChatStore = defineStore('chat', {
       }
       this.loadingOlderMessages = false;
     },
+    async editMessage(messageId: string, content: string) {
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .update({ content: content })
+          .match({ id: messageId })
+          .select('*');
+    
+        if (error) {
+          console.error('Error editing message:', error);
+          return;
+        }
+        if (data && data.length > 0) {
+          this.messages = this.messages.map((msg) => {
+            if (msg.id === messageId) {
+              return data[0];
+            }
+            return msg;
+          });
+        }
+        console.log('Message edited:', data);
+      } catch (e) {
+        console.error('Error during message edition:', e);
+      }
+    },
+    async deleteMessage(messageId: string) {
+      try {
+        const { error } = await supabase.from('messages').delete().match({ id: messageId });
+        if (error) {
+          console.error('Error deleting message:', error);
+          return;
+        }
+        this.messages = this.messages.filter((msg) => msg.id !== messageId);
+      } catch (e) {
+        console.error('Error during message deletion:', e);
+      }
+    },
     async sendMessage(channelId: string, userId: string, content: string, file_url?: string) {
       try {
         const { data, error } = await supabase
