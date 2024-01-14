@@ -30,13 +30,14 @@
     setup(props, { emit }) {
       const newChannelName = ref('');
   
+      // FIXME: put me in a store
       const createChannel = async () => {
         if (!newChannelName.value) return;
   
         try {
           const { data, error } = await supabase
             .from('channels')
-            .insert([{ name: newChannelName.value, server_id: props.serverId }]);
+            .insert([{ name: newChannelName.value, server_id: props.serverId, type: 0 }]);
   
           if (error) throw error;
           emit('channelCreated', data);

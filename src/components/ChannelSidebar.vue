@@ -43,7 +43,7 @@ export default defineComponent({
     const serverChannelStore = useServerChannelStore();
     const router = useRouter();
 
-    const selectChannel = (channelId: number) => {
+    const selectChannel = (channelId: string) => {
       router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId: channelId } });
     };
 

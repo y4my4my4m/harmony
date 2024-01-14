@@ -7,9 +7,10 @@ export interface Server {
 }
 
 export interface Channel {
-  id: number;
+  id: string;
   name: string;
-  type: 'text' | 'voice';
+  // type: 'text' | 'voice';
+  type: 0 | 1;
 }
 
 export interface User {

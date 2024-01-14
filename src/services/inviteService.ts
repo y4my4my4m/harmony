@@ -7,6 +7,7 @@ async function generateInviteUrl(serverId: string, userId: string): Promise<stri
 
         // Insert the invite code into the database
         // TODO: fix RLS for people with permissions to do so
+        // TODO: also just copy an already existing one if it exists
         const { data, error } = await supabase
             .from('invites')
             .insert([{ code, server_id: serverId, created_by: userId, expires_at: new Date(new Date().getTime() + 24*60*60*1000) }]) // Expires in 24 hours
@@ -15,7 +16,7 @@ async function generateInviteUrl(serverId: string, userId: string): Promise<stri
         if (error) throw error;
 
         // Construct the invite URL
-        return `http://localhost:5173/invite/${code}`; // TODO: replace with env URL
+        return `${import.meta.env.VITE_APP_URL}/invite/${code}`; // TODO: replace with env URL
     } catch (error) {
         console.error('Error generating invite URL:', error);
         return null;

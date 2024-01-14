@@ -8,7 +8,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     channels: [] as Channel[],
     currentServer: {} as Server,
     currentServerId: null as string | null,
-    currentChannelId: null as number | null,
+    currentChannelId: null as string | null,
   }),
   actions: {
     async fetchServersForUser(userId: string) {
@@ -105,7 +105,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       //   }
       // });
     },
-    setCurrentChannel(channelId: number) {
+    setCurrentChannel(channelId: string) {
       this.currentChannelId = channelId;
     },
   },

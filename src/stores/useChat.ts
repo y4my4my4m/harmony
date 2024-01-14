@@ -14,7 +14,7 @@ export const useChatStore = defineStore('chat', {
       this.messages = [];
       this.allMessagesLoaded = false;
     },
-    async fetchMessages(channelId: number, oldestMessageId: number = 0) {
+    async fetchMessages(channelId: string, oldestMessageId: number = 0) {
       if (this.loadingOlderMessages && oldestMessageId !== 0) return;
       this.loadingOlderMessages = true;
       let query = supabase
@@ -44,7 +44,7 @@ export const useChatStore = defineStore('chat', {
       }
       this.loadingOlderMessages = false;
     },
-    async sendMessage(channelId: number, userId: string, content: string, file_url?: string) {
+    async sendMessage(channelId: string, userId: string, content: string, file_url?: string) {
       try {
         const { data, error } = await supabase
           .from('messages')
@@ -63,7 +63,7 @@ export const useChatStore = defineStore('chat', {
         console.error('Error during message sending:', e);
       }
     },    
-    subscribeToMessages(channelId: number) {
+    subscribeToMessages(channelId: string) {
       
       if (this.currentSubscription) {
         this.currentSubscription.unsubscribe();

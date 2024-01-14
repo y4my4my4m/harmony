@@ -93,7 +93,7 @@
         // }
       };
 
-      const handleChannelSelected = async (channelId: number) => {
+      const handleChannelSelected = async (channelId: string) => {
         serverChannelStore.setCurrentChannel(channelId);
         await chatStore.fetchMessages(channelId);
         chatStore.subscribeToMessages(channelId);
