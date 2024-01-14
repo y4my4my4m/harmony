@@ -101,54 +101,61 @@
 </script>
   
 <style scoped>
-  .server-settings {
-    background-color: #36393f;
-    color: #fff;
-    padding: 20px;
-    border-radius: 8px;
-    max-width: 500px;
-    margin: auto;
-  }
-  
-  .server-settings h2 {
-    color: #fff;
-    margin-bottom: 20px;
-  }
-  
-  .server-settings form {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-  }
-  
-  .server-settings input[type="text"],
-  .server-settings textarea {
-    padding: 10px;
-    border-radius: 5px;
-    border: none;
-    background-color: #40444b;
-    color: white;
-  }
-  
-  .server-settings button {
-    padding: 10px 15px;
-    background-color: #5865f2;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-  
-  .server-settings button:hover {
-    background-color: #4e5cd1;
-  }
-  .icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    object-fit: cover;
-    margin-left: 10px;
-  }
+.server-settings {
+  background-color: #2f3136; /* Dark background */
+  color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 500px;
+  margin: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); /* Adding shadow for depth */
+}
+
+.server-settings h2 {
+  color: #5865f2; /* Discord's primary blue color */
+  margin-bottom: 20px;
+  font-size: 1.5rem; /* Larger font size for heading */
+}
+
+.server-settings form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.server-settings input[type="text"],
+.server-settings textarea {
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #40444b; /* Subtle border */
+  background-color: #40444b;
+  color: white;
+  font-size: 1rem; /* Bigger font size for readability */
+}
+
+.server-settings button {
+  padding: 10px 15px;
+  background-color: #5865f2; /* Discord's primary blue color */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-weight: bold; /* Making text bold */
+}
+
+.server-settings button:hover {
+  background-color: #4e5cd1; /* Slightly darker shade on hover */
+}
+
+.icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-top: 10px; /* Adjusted margin */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); /* Shadow for depth */
+}
+
 </style>
   

@@ -114,7 +114,7 @@
           // console.log('Loading server and channel:', serverId, channelId);
           await handleServerSelected(serverId.toString());
           if (channelId) {
-            await handleChannelSelected(Number(channelId));
+            await handleChannelSelected(channelId.toString());
           }
           else {
             if (serverChannelStore.channels.length > 0) {

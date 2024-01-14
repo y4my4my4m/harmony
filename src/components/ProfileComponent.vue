@@ -1,18 +1,18 @@
 <template>
-  <div>
-    <!-- Display profile information -->
-    <div v-if="profile">
+  <div class="user-settings">
+    <div v-if="profile" class="profile">
       <img class="avatar" :src="profile.avatar_url" alt="Avatar">
-      <p>DisplayName: {{ profile.display_name }}</p>
-      <p>Username: {{ profile.username }}</p>
-      <p>About: {{ profile.about }}</p>
+      <div class="info">
+        <p><span class="label">DisplayName:</span> {{ profile.display_name }}</p>
+        <p><span class="label">Username:</span> {{ profile.username }}</p>
+        <p><span class="label">About:</span> {{ profile.about }}</p>
+      </div>
     </div>
-
-    <!-- File input for avatar upload -->
-    <input type="file" @change="onFileChange" />
-    <!-- sign out button -->
-    <button @click="signOut">Sign Out</button>
-    <button @click="back">Back</button>
+    <input type="file" @change="onFileChange" class="file-input" />
+    <div class="buttons">
+      <button @click="signOut" class="btn sign-out">Sign Out</button>
+      <button @click="back" class="btn back">Back</button>
+    </div>
   </div>
 </template>
 
@@ -63,9 +63,68 @@ export default defineComponent({
 });
 </script>
 
+
 <style scoped>
+  .user-settings {
+    background-color: #36393f;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 400px;
+    margin: auto;
+    color: white;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+
+  .profile {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
   .avatar {
-    width:128px;
-    height:128px;
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 20px;
+  }
+
+  .info p {
+    margin: 5px 0;
+    font-size: 0.9rem;
+  }
+
+  .label {
+    font-weight: bold;
+  }
+
+  .file-input {
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+
+  .buttons {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .btn {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .sign-out {
+    background-color: #f04747; /* Red color for sign out */
+  }
+
+  .back {
+    background-color: #5865f2; /* Discord's primary blue color */
+  }
+  .btn:hover {
+  opacity: 0.8;
   }
 </style>
