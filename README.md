@@ -21,10 +21,18 @@
 - [x] logout
 - [x] server settings
 - [x] profile picture
-- [~] realtime status
+- [ ] realtime status
+  - [x] changes
+  - [ ] bug in self status display
+
+- [ ] uuid for filenames
+  - [ ] profile pictures
+  - [x] server icons
+  - [x] user media
+
 - [x] file uploads
 - [ ] files upload
-- [~] media embeds
+- [ ] media embeds
   - [x] images
   - [ ] videos
   - [ ] url previews
@@ -59,5 +67,5 @@
 - [ ] admin
 - [ ] smart fetching
 - [ ] smart caching
-- [ ] uuid for filenames
 - [ ] search
+- [ ] crypto transfers
