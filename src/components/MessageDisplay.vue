@@ -1,5 +1,5 @@
 <template>
-  <div class="message-display" v-scroll-bottom>
+  <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
     <div v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
@@ -38,8 +38,9 @@
 </template>
 
 
+
 <script lang="ts">
-import { defineComponent, computed, ref } from 'vue';
+import { defineComponent, computed, ref, watch } from 'vue';
 import type { PropType } from 'vue';
 import type { Message } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -50,9 +51,12 @@ export default defineComponent({
     messages: {
       type: Array as PropType<Message[]>,
       required: true
-    }
+    },
+    loadMoreMessages: Function as PropType<() => void>,
+    isAtBottom: Boolean
   },
-  setup(props) {
+  setup(props, { emit }) {
+    const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
 
     const getUserDisplayName = (userId:string) => {
@@ -87,6 +91,26 @@ export default defineComponent({
     const closeLightbox = () => {
       isLightboxOpen.value = false;
     };
+
+
+    const handleScroll = () => {
+      if (messageDisplayContainer.value) {
+        const { scrollTop } = messageDisplayContainer.value;
+        if (scrollTop === 0) {
+          emit('loadMoreMessages');
+        }
+
+        // Emit event instead of mutating the prop
+        emit('update:isAtBottom', false);
+      }
+    };
+
+    watch(() => props.messages, () => {
+      if (props.isAtBottom && messageDisplayContainer.value) {
+        messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+      }
+    }, { immediate: true });
+
     return { 
       getUserDisplayName, 
       getUserColor, 
@@ -98,7 +122,9 @@ export default defineComponent({
       lightboxImages, 
       isLightboxOpen,
       indexRef,
-      imageLoaded
+      imageLoaded,
+      messageDisplayContainer,
+      handleScroll,
     };
   }
   
@@ -109,6 +135,7 @@ export default defineComponent({
   flex-grow: 1;
   overflow-y: auto;
   padding: 10px;
+  scroll-behavior: smooth;
 }
 
 .message-wrapper {
@@ -164,5 +191,9 @@ export default defineComponent({
   border-radius: 6px;
   transition: 0.2s ease-in-out;
 }
+.scroll-bottom {
+  scroll-behavior: smooth;
+}
+
 </style>
 

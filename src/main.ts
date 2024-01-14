@@ -14,6 +14,8 @@ import "vue-toastification/dist/index.css";
 import VueEasyLightbox from 'vue-easy-lightbox';
 import './assets/vue-easy-lightbox.css';
 
+import VueLazyLoad from 'vue3-lazyload';
+
 // TODO: FIXME
 import ClickOutsideDirective from './directives/ClickOutsideDirective';
 
@@ -35,13 +37,19 @@ const authStore = useAuthStore();
 await authStore.initializeAuth();
 
 
-app.use(VueEasyLightbox)
+app.use(VueEasyLightbox);
+
+app.use(VueLazyLoad, {
+  // options...
+});
 
 app.directive('scroll-bottom', {
-    updated(el) {
+  updated(el, binding) {
+    if (binding.value) {
       el.scrollTop = el.scrollHeight;
-    },
-  });
+    }
+  },
+});
   
 app.directive('click-outside', ClickOutsideDirective);
 

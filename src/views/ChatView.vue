@@ -11,14 +11,18 @@
       @close="showCreateChannelForm = false"
     />
     <div class="chat-area">
-      <ChatComponent :messages="chatMessages" />
+      <ChatComponent 
+        :messages="chatMessages" 
+        :isAtBottom="isAtBottom" 
+        :loadMoreMessages="fetchMoreMessages" 
+        @update:isAtBottom="isAtBottom = $event" />
     </div>
     <UserSidebar />
   </div>
 </template>
 
 <script lang="ts">
-  import { defineComponent, computed, onMounted, ref } from 'vue';
+  import { defineComponent, computed, onMounted, ref, nextTick, watch } from 'vue';
   import ServerSidebar from '@/components/ServerSidebar.vue';
   import ChannelSidebar from '@/components/ChannelSidebar.vue';
   import ChatComponent from '@/components/ChatComponent.vue';
@@ -46,6 +50,7 @@
       const authStore = useAuthStore();
 
       const showNoServersSplash = ref(false);
+      const isAtBottom = ref(true); // Default to true for initial load
 
       const servers = computed(() => serverChannelStore.servers);
       const channels = computed(() => serverChannelStore.channels);
@@ -55,18 +60,17 @@
       const currentServer = computed(() => serverChannelStore.currentServer);
       const showCreateChannelForm = ref(false);
 
-      onMounted(async () => {
-        const userId = authStore.session?.user?.id;
-        if (userId) {
-          await serverChannelStore.fetchServersForUser(userId);
-          if (serverChannelStore.servers.length > 0) {
-            handleServerSelected(serverChannelStore.servers[0].id);
+      // Method to manually scroll to the bottom
+      const scrollToBottom = () => {
+        isAtBottom.value = true;
+        // Use nextTick to wait for the DOM to update
+        nextTick(() => {
+          const chatArea = document.querySelector('.message-display');
+          if (chatArea) {
+            chatArea.scrollTop = chatArea.scrollHeight;
           }
-          else {
-            showNoServersSplash.value = true;
-          }
-        }
-      });
+        });
+      };
 
       const handleChannelCreated = (newChannel:any) => {
         console.log('New channel created:', newChannel);
@@ -89,11 +93,48 @@
         serverChannelStore.setCurrentChannel(channelId);
         await chatStore.fetchMessages(channelId);
         chatStore.subscribeToMessages(channelId);
+        scrollToBottom();
       };
 
-      return { servers, channels, chatMessages, currentServerName, currentServer, currentChannelId, showNoServersSplash, handleServerSelected, handleChannelCreated, showCreateChannelForm, handleChannelSelected };
-    }
-  });
+      const fetchMoreMessages = async () => {
+        if (!chatStore.allMessagesLoaded && !chatStore.loadingOlderMessages && serverChannelStore.currentChannelId) {
+          const oldestMessageId = chatMessages.value[0]?.id || 0;
+          await chatStore.fetchMessages(serverChannelStore.currentChannelId, oldestMessageId);
+        }
+      };
+
+
+      onMounted(async () => {
+        const userId = authStore.session?.user?.id;
+        if (userId) {
+          await serverChannelStore.fetchServersForUser(userId);
+          if (serverChannelStore.servers.length > 0) {
+            handleServerSelected(serverChannelStore.servers[0].id);
+          }
+          else {
+            showNoServersSplash.value = true;
+          }
+        }
+      });
+
+      return { 
+        servers, 
+        channels, 
+        chatMessages, 
+        currentServerName, 
+        currentServer, 
+        currentChannelId, 
+        showNoServersSplash, 
+        handleServerSelected, 
+        handleChannelCreated, 
+        showCreateChannelForm, 
+        handleChannelSelected,
+        fetchMoreMessages,
+        isAtBottom,
+        scrollToBottom
+      };
+  }
+});
 </script>
 
 <style scoped>

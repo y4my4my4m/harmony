@@ -1,27 +1,48 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { Message } from '@/types';  // Define Message type according to your schema
+import type { Message } from '@/types';
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [] as Message[],
     currentSubscription: null as any | null,
+    loadingOlderMessages: false,
+    allMessagesLoaded: false,
   }),
   actions: {
     clearMessages() {
       this.messages = [];
+      this.allMessagesLoaded = false;
     },
-    async fetchMessages(channelId: number) {
-      const { data: messages, error } = await supabase
+    async fetchMessages(channelId: number, oldestMessageId: number = 0) {
+      if (this.loadingOlderMessages && oldestMessageId !== 0) return;
+      this.loadingOlderMessages = true;
+      let query = supabase
         .from('messages')
         .select('*')
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (error) console.error('Error fetching messages:', error);
-      else this.messages = messages.reverse();  // Reverse to display in correct order
-      console.log("Updated messages in store:", this.messages);
+      if (oldestMessageId !== 0) {
+        query = query.lt('id', oldestMessageId);
+      }
+
+      const { data: messages, error } = await query;
+
+      if (error) {
+        console.error('Error fetching messages:', error);
+      } else {
+        if (messages.length < 20) {
+          this.allMessagesLoaded = true;
+        }
+        if (oldestMessageId === 0) {
+          this.messages = messages.reverse();
+        } else {
+          this.messages = [...messages.reverse(), ...this.messages];
+        }
+      }
+      this.loadingOlderMessages = false;
     },
     async sendMessage(channelId: number, userId: string, content: string, file_url?: string) {
       try {

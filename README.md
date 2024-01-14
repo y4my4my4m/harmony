@@ -11,9 +11,8 @@
 
 - [x] store messages
 - [x] fetch messages
-  - [ ] pagination
-  - [ ] lazy load
-  - [ ] history
+  - [x] lazy load
+  - [x] load more messages on scroll
 - [x] realtime messages
 - [x] invites
 - [x] settings

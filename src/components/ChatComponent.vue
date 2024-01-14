@@ -6,13 +6,19 @@
     <div v-if="showDragDropArea" class="drag-drop-area">
       Drop files here
     </div>
-    <MessageDisplay :messages="messages" />
+
+    <MessageDisplay 
+      :messages="messages" 
+      :isAtBottom="isAtBottom" 
+      @loadMoreMessages="$emit('loadMoreMessages')" 
+      @scrollToBottom="$emit('scrollToBottom')" />
     <MessageInput @sendMessage="handleSendMessage" />
   </div>
 </template>
 
 <script lang="ts">
   import { defineComponent, watch, ref, onMounted, onUnmounted, computed } from 'vue';
+  import type { PropType } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
   import { useAuthStore } from '@/stores/auth'; 
@@ -34,6 +40,8 @@
         type: Array as () => Message[],
         required: true
       },
+      isAtBottom: Boolean,
+      loadMoreMessages: Function as PropType<() => void>
     },
     setup(props) {
       const chatStore = useChatStore();
@@ -113,7 +121,12 @@
         console.log("Received messages:", newMessages);
       }, { deep: true });
 
-      return { handleSendMessage, triggerFileDrop, showDragDropArea, isTauri };
+      return { 
+        handleSendMessage,
+        triggerFileDrop,
+        showDragDropArea,
+        isTauri,
+      };
     }
   });
 </script>
