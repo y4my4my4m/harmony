@@ -10,7 +10,7 @@
           <strong :style="getUserColor(message.user_id)">
             {{ getUserDisplayName(message.user_id) }} <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
           </strong>
-          <div>
+          <div class="message-content">
             <template v-for="(part, partIndex) in parseMessage(message.content)" :key="partIndex">
               <a v-if="typeof part === 'object'" :href="part.url" target="_blank">{{ part.url }}</a>
               <span v-else>{{ part }}</span>
@@ -166,7 +166,6 @@ export default defineComponent({
 .message-display {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 10px;
   /* scroll-behavior: smooth; */
   margin-right:4px;
 }
@@ -174,24 +173,34 @@ export default defineComponent({
 .message-wrapper {
   display: flex;
   align-items: flex-start;
+  padding: 4px;
+}
+
+.message-wrapper:hover {
+  background: rgba(0,0,0,0.1)
 }
 
 .user-avatar {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   margin-right: 10px;
+  position: relative;
+  top: 4.5px;
 }
 
 .message-header {
   display: flex;
-  margin-top: 12px;
+  align-items: flex-start;
 }
 
 .message-content {
-  margin-left: 50px; /* Same as avatar width + margin-right */
+  padding-left: 47.5px; /* Same as avatar width + margin-right */
 }
 
+.message-header .message-content {
+  padding-left: 0;
+}
 .timestamp {
   color: #626262;
   margin-left: 8px;
