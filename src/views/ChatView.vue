@@ -3,7 +3,7 @@
     <NoServersSplash />
   </div>
   <div v-else class="chat-layout">
-    <ServerSidebar :servers="servers" @serverSelected="handleServerSelected" />
+    <ServerSidebar :servers="servers" />
     <ChannelSidebar :currentServer="currentServer" :channels="channels" @channelSelected="handleChannelSelected" @createChannel="showCreateChannelForm = true"/>
     <CreateChannel
       :serverId="currentServer.id"
@@ -33,6 +33,7 @@
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
   import { useAuthStore } from '@/stores/auth';
+  import { useRoute, useRouter } from 'vue-router';
 
   export default defineComponent({
     components: {
@@ -48,6 +49,10 @@
       const serverChannelStore = useServerChannelStore();
       const chatStore = useChatStore();
       const authStore = useAuthStore();
+
+      const route = useRoute();
+      const router = useRouter();
+      let initialized = false;
 
       const showNoServersSplash = ref(false);
       const isAtBottom = ref(true); // Default to true for initial load
@@ -84,9 +89,9 @@
         serverUsersStore.subscribeToUserStatuses();
         chatStore.clearMessages();
         await serverChannelStore.fetchChannels(serverId);
-        if (serverChannelStore.channels.length > 0) {
-          handleChannelSelected(serverChannelStore.channels[0].id);
-        }
+        // if (serverChannelStore.channels.length > 0) {
+        //   handleChannelSelected(serverChannelStore.channels[0].id);
+        // }
       };
 
       const handleChannelSelected = async (channelId: number) => {
@@ -103,19 +108,40 @@
         }
       };
 
+      const loadServerAndChannel = async () => {
+        const serverId = route.params.serverId;
+        const channelId = route.params.channelId;
+        if (serverId) {
+          console.log('Loading server and channel:', serverId, channelId);
+          await handleServerSelected(serverId.toString());
+          if (channelId) {
+            await handleChannelSelected(Number(channelId));
+          }
+          else {
+            if (serverChannelStore.channels.length > 0) {
+              handleChannelSelected(serverChannelStore.channels[0].id);
+            }
+          }
+        } else if (serverChannelStore.servers.length > 0) {
+          const firstServerId = serverChannelStore.servers[0].id;
+          router.replace({ name: 'Chat', params: { serverId: firstServerId } });
+        }
+      };
 
       onMounted(async () => {
         const userId = authStore.session?.user?.id;
         if (userId) {
           await serverChannelStore.fetchServersForUser(userId);
-          if (serverChannelStore.servers.length > 0) {
-            handleServerSelected(serverChannelStore.servers[0].id);
-          }
-          else {
-            showNoServersSplash.value = true;
-          }
+          initialized = true;
+          await loadServerAndChannel();
+        } else {
+          showNoServersSplash.value = true;
         }
       });
+
+      watch(route, () => {
+        if (initialized) loadServerAndChannel();
+      }, { immediate: true });
 
       return { 
         servers, 

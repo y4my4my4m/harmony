@@ -22,13 +22,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return;
       }
 
-      // Assuming server_id is a foreign key to the servers table
       const serverIds = data.map(us => us.server_id);
       if (serverIds.length > 0) {
         const { data: serversData, error: serversError } = await supabase
           .from('servers')
           .select('*')
-          .in('id', serverIds);
+          .in('id', serverIds)
+          .select();
 
         if (serversError) {
           console.error('Error fetching server details:', serversError);
@@ -42,21 +42,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const { data: servers, error } = await supabase.from('servers').select('*');
       if (error) console.error('Error fetching servers:', error);
       else this.servers = servers;
-      // await this.updateServerIcons(this.servers);
     },
 
-    // async updateServerIcons(servers: Server[]) {
-    //   for (const server of servers) {
-    //     if (server.icon) {
-    //       const { data, error } = await supabase.storage
-    //         .from('server_icons')
-    //         .createSignedUrl(server.icon, 60);
-    //       if (!error && data.signedUrl) {
-    //         server.icon = data.signedUrl; // Update the icon URL
-    //       }
-    //     }
-    //   }
-    // },
     async fetchChannels(serverId: string) {
         const { data: channels, error } = await supabase
         .from('channels')
@@ -111,12 +98,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
     setCurrentServer(serverId: string) {
       this.currentServerId = serverId;
       this.getCurrentServer();
-      this.fetchChannels(serverId).then(() => {
-        if (!this.currentChannelId && this.channels.length > 0) {
-          const firstChannelId = this.channels[0].id;
-          this.setCurrentChannel(firstChannelId);
-        }
-      });
+      // this.fetchChannels(serverId).then(() => {
+      //   if (!this.currentChannelId && this.channels.length > 0) {
+      //     const firstChannelId = this.channels[0].id;
+      //     this.setCurrentChannel(firstChannelId);
+      //   }
+      // });
     },
     setCurrentChannel(channelId: number) {
       this.currentChannelId = channelId;

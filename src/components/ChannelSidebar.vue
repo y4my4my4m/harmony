@@ -16,6 +16,7 @@ import { defineComponent, ref } from 'vue';
 import type { PropType } from 'vue';
 import type { Channel } from '@/types';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useRouter } from 'vue-router';
 
 import UserProfileComponent from './UserProfileComponent.vue';
 import ServerDropdown from './ServerDropdown.vue';
@@ -40,9 +41,10 @@ export default defineComponent({
     const showDropdown = ref(false);
     // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
     const serverChannelStore = useServerChannelStore();
-    // Emit an event with the selected channelId
-    const selectChannel = (selectedChannelId: number) => {
-      emit('channelSelected', selectedChannelId);
+    const router = useRouter();
+
+    const selectChannel = (channelId: number) => {
+      router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId: channelId } });
     };
 
     const emitCreateChannel = () => {

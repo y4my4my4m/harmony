@@ -17,10 +17,11 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/chat',
+      path: '/chat/:serverId?/:channelId?',
       name: 'Chat',
       component: ChatView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true },
+      props: true
     },
     {
       path: '/login',

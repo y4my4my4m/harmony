@@ -1,7 +1,7 @@
 <template>
   <div class="server-sidebar">
     <div 
-      :style="{ backgroundImage: 'url(portal.png)' }"
+      :style="{ backgroundImage: 'url(/portal.png)' }"
       class="portal">
     </div>
     <div class="separator"></div>
@@ -16,10 +16,12 @@
 </template>
 
 <script setup lang="ts">
-  import { defineProps, defineEmits } from 'vue';
+  import { defineProps } from 'vue';
   import type { Server } from '@/types';
   import { useServerChannelStore } from '@/stores/useServerChannel';
+  import { useRouter } from 'vue-router';
 
+  const router = useRouter();
   // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
   const serverChannelStore = useServerChannelStore();
   defineProps({
@@ -29,10 +31,9 @@
       required: true
     }
   });
-  const emits = defineEmits(['serverSelected']);
 
   const selectServer = (serverId: string) => {
-    emits('serverSelected', serverId);
+    router.push({ name: 'Chat', params: { serverId: serverId } });
   };
   
 </script>

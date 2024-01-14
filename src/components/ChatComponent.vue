@@ -17,7 +17,7 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, watch, ref, onMounted, onUnmounted, computed } from 'vue';
+  import { defineComponent, ref, onMounted, computed } from 'vue';
   import type { PropType } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
@@ -43,7 +43,7 @@
       isAtBottom: Boolean,
       loadMoreMessages: Function as PropType<() => void>
     },
-    setup(props) {
+    setup() {
       const chatStore = useChatStore();
       const authStore = useAuthStore();
       const serverChannelStore = useServerChannelStore();
@@ -117,9 +117,9 @@
           chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, content);
         }
       };
-      watch(() => props.messages, (newMessages) => {
-        console.log("Received messages:", newMessages);
-      }, { deep: true });
+      // watch(() => props.messages, (newMessages) => {
+      //   console.log("Received messages:", newMessages);
+      // }, { deep: true });
 
       return { 
         handleSendMessage,
