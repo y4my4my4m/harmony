@@ -132,9 +132,11 @@
         if (userId) {
           await serverChannelStore.fetchServersForUser(userId);
           initialized = true;
+          if (servers.value.length === 0) {
+            showNoServersSplash.value = true;
+            return;
+          }
           await loadServerAndChannel();
-        } else {
-          showNoServersSplash.value = true;
         }
       });
 
