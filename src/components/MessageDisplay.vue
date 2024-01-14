@@ -97,6 +97,7 @@ export default defineComponent({
       if (messageDisplayContainer.value) {
         const { scrollTop } = messageDisplayContainer.value;
         if (scrollTop === 0) {
+          console.log('fetchMore!');
           emit('loadMoreMessages');
         }
 
@@ -136,6 +137,7 @@ export default defineComponent({
   overflow-y: auto;
   padding: 10px;
   scroll-behavior: smooth;
+  margin-right:4px;
 }
 
 .message-wrapper {
@@ -184,13 +186,29 @@ export default defineComponent({
   z-index: 1000;
 }
 
+@keyframes shimmer {
+  0% {
+    background-position: 0 150%;
+  }
+  100% {
+    background-position: 0 -150%;
+  }
+}
+
 .image-skeleton {
   width: 100px;
   height: 100px;
-  background-color: #cccccc3d;
   border-radius: 6px;
-  transition: 0.2s ease-in-out;
+  background: linear-gradient(
+    to top,
+    #888 0%, 
+    #999 25%, 
+    #888 50%
+  );
+  background-size: 100% 200%;
+  animation: shimmer 1.5s infinite alternate;
 }
+
 .scroll-bottom {
   scroll-behavior: smooth;
 }

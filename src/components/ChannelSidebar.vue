@@ -63,7 +63,7 @@ export default defineComponent({
 <style scoped>
 .channel-sidebar {
   width: 240px;
-  background-color: #2f3136;
+  background-color: var(--h-sidebar);
   color: white;
   overflow-y: auto;
 }
@@ -89,13 +89,13 @@ export default defineComponent({
   cursor: pointer;
   transition: 0.2s ease-in-out;
   &:hover {
-    background-color: #36393f;
+    background-color: var(--h-sidebar-light);
   }
 }
 .channel-item.selected {
   /* padding-left:25px; */
   position: relative;
-  background-color: #36393f;
+  background-color: var(--h-sidebar-light);
 }
 .create-channel {
   cursor:pointer;

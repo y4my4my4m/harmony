@@ -41,7 +41,7 @@
 <style scoped>
 .server-sidebar {
   width: 72px;
-  background-color: #202225;
+  background-color: var(--h-black);
   display:flex;
   flex-direction: column;
   align-items: center;
@@ -50,7 +50,7 @@
 .server-item {
   width: 48px;
   height: 48px;
-  background-color: #313336;
+  background-color:var(--h-black-light);
   margin: 10px;
   padding: 4px;
   border-radius: 50%;

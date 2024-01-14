@@ -12,9 +12,8 @@
     />
     <div class="chat-area">
       <ChatComponent 
-        :messages="chatMessages" 
-        :isAtBottom="isAtBottom" 
-        :loadMoreMessages="fetchMoreMessages" 
+        :messages="chatMessages"
+        @loadMoreMessages="fetchMoreMessages" 
         @update:isAtBottom="isAtBottom = $event" />
     </div>
     <UserSidebar />
@@ -112,7 +111,7 @@
         const serverId = route.params.serverId;
         const channelId = route.params.channelId;
         if (serverId) {
-          console.log('Loading server and channel:', serverId, channelId);
+          // console.log('Loading server and channel:', serverId, channelId);
           await handleServerSelected(serverId.toString());
           if (channelId) {
             await handleChannelSelected(Number(channelId));
@@ -175,6 +174,8 @@
   flex-grow: 1;
   display: flex;
   flex-direction: column;
+  background: var(--h-chat);
+  padding-top: 6px;
 }
 
 </style>

@@ -27,7 +27,7 @@ export default defineComponent({
 <style scoped>
 .message-input {
   padding: 10px;
-  background-color: #40444b; /* input area background */
+  background-color: var(--h-chat);/* input area background */
 }
 
 .message-input input[type="text"] {
@@ -35,9 +35,9 @@ export default defineComponent({
   padding: 8px 10px;
   border-radius: 8px;
   border: none;
-  background-color: #202225; /* input field background */
+  background-color:var(--h-chat-light); /* input field background */
   color: white;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .message-input input[type="text"]::placeholder {

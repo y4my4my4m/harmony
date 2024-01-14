@@ -96,7 +96,7 @@ export default defineComponent({
 <style scoped>
 .user-sidebar {
   width: 240px;
-  background-color: #292b2f;
+  background-color: var(--h-sidebar);
   padding: 10px;
   position: relative;
 }
@@ -107,7 +107,7 @@ export default defineComponent({
   cursor: pointer;
   padding: 5px;
   &:hover {
-    background-color: #36393f;
+    background-color:var(--h-sidebar-light);
   }
 }
 

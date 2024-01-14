@@ -9,9 +9,7 @@
 
     <MessageDisplay 
       :messages="messages" 
-      :isAtBottom="isAtBottom" 
-      @loadMoreMessages="$emit('loadMoreMessages')" 
-      @scrollToBottom="$emit('scrollToBottom')" />
+      @loadMoreMessages="$emit('loadMoreMessages')" />
     <MessageInput @sendMessage="handleSendMessage" />
   </div>
 </template>
@@ -40,7 +38,6 @@
         type: Array as () => Message[],
         required: true
       },
-      isAtBottom: Boolean,
       loadMoreMessages: Function as PropType<() => void>
     },
     setup() {
