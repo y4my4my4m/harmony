@@ -4,7 +4,12 @@
   </div>
   <div v-else class="chat-layout">
     <ServerSidebar :servers="servers" @serverSelected="handleServerSelected" />
-    <ChannelSidebar :currentServer="currentServer" :channels="channels" @channelSelected="handleChannelSelected" />
+    <ChannelSidebar :currentServer="currentServer" :channels="channels" @channelSelected="handleChannelSelected" @createChannel="showCreateChannelForm = true"/>
+    <CreateChannel
+      :serverId="currentServer.id"
+      :show="showCreateChannelForm"
+      @close="showCreateChannelForm = false"
+    />
     <div class="chat-area">
       <ChatComponent :messages="chatMessages" />
     </div>
@@ -19,6 +24,7 @@
   import ChatComponent from '@/components/ChatComponent.vue';
   import UserSidebar from '@/components/UserSidebar.vue';
   import NoServersSplash from '@/components/NoServersSplash.vue';
+  import CreateChannel from '@/components/CreateChannel.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
@@ -30,7 +36,8 @@
       ChannelSidebar,
       ChatComponent,
       UserSidebar,
-      NoServersSplash
+      NoServersSplash,
+      CreateChannel,
     },
     setup() {
       const serverUsersStore = useServerUsersStore();
@@ -46,6 +53,7 @@
       const currentServerName = computed(() => serverChannelStore.currentServer.name || '');
       const currentChannelId = computed(() => serverChannelStore.currentChannelId || null);
       const currentServer = computed(() => serverChannelStore.currentServer);
+      const showCreateChannelForm = ref(false);
 
       onMounted(async () => {
         const userId = authStore.session?.user?.id;
@@ -60,6 +68,13 @@
         }
       });
 
+      const handleChannelCreated = (newChannel:any) => {
+        console.log('New channel created:', newChannel);
+        // Add logic to update the channels list or perform other actions
+        // Example: serverChannelStore.addChannel(newChannel);
+        showCreateChannelForm.value = false; // Hide the form after successful creation
+      };
+      
       const handleServerSelected = async (serverId: string) => {
         serverChannelStore.setCurrentServer(serverId);
         serverUsersStore.subscribeToUserStatuses();
@@ -76,7 +91,7 @@
         chatStore.subscribeToMessages(channelId);
       };
 
-      return { servers, channels, chatMessages, currentServerName, currentServer, currentChannelId, showNoServersSplash, handleServerSelected, handleChannelSelected };
+      return { servers, channels, chatMessages, currentServerName, currentServer, currentChannelId, showNoServersSplash, handleServerSelected, handleChannelCreated, showCreateChannelForm, handleChannelSelected };
     }
   });
 </script>

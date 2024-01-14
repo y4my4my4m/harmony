@@ -97,7 +97,7 @@
 
 .portal.selected,
 .server-item.selected {
-  border: 3px solid #7289da;
+  border: 3px solid var(--h-primary);
   border-radius: 50%;
 }
 </style>

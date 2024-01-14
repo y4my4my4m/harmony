@@ -85,13 +85,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
           .insert([{ user_id: userId, server_id: serverData.id }]);
         if (userServerError) throw userServerError;
 
-        // TODO: FIX MY RLS POLICY, currently *anyone* can create a channel on any servers
         // Create default channel
         const { error: channelError } = await supabase
           .from('channels')
           .insert([{ name: 'General', server_id: serverData.id }]);
         if (channelError) throw channelError;
-        
+
         return true;
         // Handle successful server creation
       } catch (error) {

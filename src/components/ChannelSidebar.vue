@@ -4,6 +4,7 @@
       {{ currentServer.name }}
     </div>
     <ServerDropdown :serverId="currentServer.id" v-show="showDropdown" />
+    <div class="create-channel" @click="emitCreateChannel">+ Create Channel</div>
     <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === serverChannelStore.currentChannelId }]" @click="selectChannel(channel.id)">
       # {{ channel.name }}
     </div>
@@ -44,11 +45,15 @@ export default defineComponent({
       emit('channelSelected', selectedChannelId);
     };
 
+    const emitCreateChannel = () => {
+      emit('createChannel');
+    }
+
     const toggleDropdown = () => {
       showDropdown.value = !showDropdown.value;
     };
 
-    return { selectChannel, serverChannelStore, showDropdown, toggleDropdown };
+    return { selectChannel, serverChannelStore, showDropdown, emitCreateChannel, toggleDropdown };
   }
 });
 </script>
@@ -78,7 +83,7 @@ export default defineComponent({
   background: rgba(0,0,0,0.1);
 }
 .channel-item {
-  padding: 10px;
+  padding: 6px 10px;
   cursor: pointer;
   transition: 0.2s ease-in-out;
   &:hover {
@@ -89,6 +94,16 @@ export default defineComponent({
   /* padding-left:25px; */
   position: relative;
   background-color: #36393f;
+}
+.create-channel {
+  cursor:pointer;
+  padding: 2px 10px;
+  transition: 0.2s ease-in-out;
+  font-size: 12px;
+  background: var(--vt-c-divider-dark-2);
+}
+.create-channel:hover {
+  background: var(--vt-c-divider-dark-1);
 }
 /* .channel-item::before {
   opacity:0;

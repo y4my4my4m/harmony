@@ -12,7 +12,7 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, watch, ref, onMounted, onUnmounted } from 'vue';
+  import { defineComponent, watch, ref, onMounted, onUnmounted, computed } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
   import { useAuthStore } from '@/stores/auth'; 
@@ -23,6 +23,7 @@
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
   import type { UnlistenFn } from '@tauri-apps/api/event';
+  
   export default defineComponent({
     components: {
       MessageDisplay,
@@ -40,6 +41,10 @@
       const serverChannelStore = useServerChannelStore();
       const showDragDropArea = ref(false);
       // let unlisten: UnlistenFn | null = null;
+      // Computed property to check if running in Tauri
+      const isTauri = computed(() => {
+        return typeof __TAURI__ !== 'undefined';
+      });
 
       const triggerFileDrop = async (event:any) => {
         console.log("File dropped:", event);
@@ -66,6 +71,7 @@
       };
 
       onMounted(async () => {
+        if (!isTauri.value) return;
         await listen('tauri://file-drop', async (event: any) => {
           const filePath = event.payload[0];
           try {
@@ -107,7 +113,7 @@
         console.log("Received messages:", newMessages);
       }, { deep: true });
 
-      return { handleSendMessage, triggerFileDrop, showDragDropArea };
+      return { handleSendMessage, triggerFileDrop, showDragDropArea, isTauri };
     }
   });
 </script>
