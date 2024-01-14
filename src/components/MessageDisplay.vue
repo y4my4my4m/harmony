@@ -16,13 +16,13 @@
       <template v-else>
         <div class="message-content">{{ message.content }}</div>
         <div v-if="message.file_url" class="file-container">
-          <div v-if="!imageLoaded[index]" class="image-skeleton"></div>
-          <img 
-            :src="message.file_url" 
-            @load="imageLoaded[index] = true"
-            v-show="imageLoaded[index]" 
-            @click="openLightbox(imageUrls.indexOf(message.file_url))" 
-            alt="Uploaded file" 
+          <div v-if="!imageLoaded[message.id]" class="image-skeleton"></div>
+          <img
+          :src="message.file_url"
+          @load="imageLoaded[message.id] = true"
+          v-show="imageLoaded[message.id]"
+          @click="openLightbox(imageUrls.indexOf(message.file_url))"
+          alt="Uploaded file"
           />
         </div>
       </template>
@@ -40,7 +40,7 @@
 
 
 <script lang="ts">
-import { defineComponent, computed, ref, watch } from 'vue';
+import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType } from 'vue';
 import type { Message } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -80,7 +80,7 @@ export default defineComponent({
     const isLightboxOpen = ref(false);
     const indexRef = ref(0);
 
-    const imageLoaded = {};
+    const imageLoaded = ref({});
 
     const openLightbox = (index: number) => {
       lightboxImages.value = imageUrls.value;
@@ -97,7 +97,7 @@ export default defineComponent({
       if (messageDisplayContainer.value) {
         const { scrollTop } = messageDisplayContainer.value;
         if (scrollTop === 0) {
-          console.log('fetchMore!');
+          // console.log('fetchMore!');
           emit('loadMoreMessages');
         }
 
@@ -105,12 +105,27 @@ export default defineComponent({
         emit('update:isAtBottom', false);
       }
     };
+  
 
-    watch(() => props.messages, () => {
-      if (props.isAtBottom && messageDisplayContainer.value) {
-        messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+    watch(() => props.messages, async (newMessages, oldMessages) => {
+      const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
+      // Initialize or update 'imageLoaded' for each message
+      newMessages.forEach(message => {
+        if (message.file_url && !(message.id in imageLoaded.value)) {
+          imageLoaded.value[message.id] = false;
+        }
+      });
+
+      await nextTick();
+
+      if (messageDisplayContainer.value) {
+        const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+        const scrollOffset = newScrollHeight - oldScrollHeight;
+        messageDisplayContainer.value.scrollTop += scrollOffset;
       }
-    }, { immediate: true });
+    }, { immediate: true, deep: true });
+
+
 
     return { 
       getUserDisplayName, 
@@ -136,7 +151,7 @@ export default defineComponent({
   flex-grow: 1;
   overflow-y: auto;
   padding: 10px;
-  scroll-behavior: smooth;
+  /* scroll-behavior: smooth; */
   margin-right:4px;
 }
 

@@ -122,7 +122,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--h-black-light);
+  background-color: var(--h-black-lighter);
 }
 
 ::-webkit-scrollbar-track {
