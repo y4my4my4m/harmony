@@ -11,6 +11,9 @@
 
 - [x] store messages
 - [x] fetch messages
+  - [ ] pagination
+  - [ ] lazy load
+  - [ ] history
 - [x] realtime messages
 - [x] invites
 - [x] settings
@@ -25,7 +28,7 @@
 - [~] media embeds
   - [x] images
   - [ ] videos
-  - [ ] urls
+  - [ ] url previews
   - [ ] audio
   - [ ] files/binaries
 - [ ] markdown
@@ -43,7 +46,13 @@
 - [ ] spaces
 - [ ] public/private
 - [ ] voice
+  - [ ] e2ee
 - [ ] voice positioning
+- [ ] video
+  - [ ] e2ee
+  - [ ] screen share
+  - [ ] video filters
+  - [ ] video backgrounds
 - [ ] federation
 - [ ] e2e encryption
 - [ ] permissions
@@ -52,3 +61,4 @@
 - [ ] smart fetching
 - [ ] smart caching
 - [ ] uuid for filenames
+- [ ] search

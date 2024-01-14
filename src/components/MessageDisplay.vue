@@ -16,8 +16,11 @@
       <template v-else>
         <div class="message-content">{{ message.content }}</div>
         <div v-if="message.file_url" class="file-container">
+          <div v-if="!imageLoaded[index]" class="image-skeleton"></div>
           <img 
             :src="message.file_url" 
+            @load="imageLoaded[index] = true"
+            v-show="imageLoaded[index]" 
             @click="openLightbox(imageUrls.indexOf(message.file_url))" 
             alt="Uploaded file" 
           />
@@ -73,6 +76,8 @@ export default defineComponent({
     const isLightboxOpen = ref(false);
     const indexRef = ref(0);
 
+    const imageLoaded = {};
+
     const openLightbox = (index: number) => {
       lightboxImages.value = imageUrls.value;
       indexRef.value = index;
@@ -92,7 +97,8 @@ export default defineComponent({
       imageUrls,
       lightboxImages, 
       isLightboxOpen,
-      indexRef
+      indexRef,
+      imageLoaded
     };
   }
   
@@ -151,5 +157,12 @@ export default defineComponent({
   z-index: 1000;
 }
 
+.image-skeleton {
+  width: 100px;
+  height: 100px;
+  background-color: #cccccc3d;
+  border-radius: 6px;
+  transition: 0.2s ease-in-out;
+}
 </style>
 
