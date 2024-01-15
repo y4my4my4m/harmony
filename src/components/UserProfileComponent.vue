@@ -201,11 +201,19 @@
   margin: 2px;
   border-radius: 4px;
   transition: 0.2s ease-in-out;
+  filter: blur(0);
+}
+.icon-button:hover {
+  filter: blur(3px);
 }
 
 .icon-button.muted {
   opacity:0.65;
   background:rgba(255,0,0,0.35);
+  filter: blur(0);
+}
+.icon-button.muted:hover {
+  filter: blur(1px);
 }
 .status-dropdown {
   position: absolute;

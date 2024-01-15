@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import ChatView from '@/views/ChatView.vue';
 import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
+import NewProfile from '@/views/NewProfile.vue';
 import ProfileComponent from '@/components/ProfileComponent.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -32,6 +33,12 @@ const router = createRouter({
       path: '/register',
       name: 'Register',
       component: RegisterView
+    },
+    {
+      path: '/new-profile',
+      name: 'NewProfile',
+      component: NewProfile,
+      meta: { requiresAuth: true },
     },
     {
       path: '/profile',

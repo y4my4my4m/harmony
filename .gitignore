@@ -31,3 +31,6 @@ coverage
 
 
 .env
+.env.dev
+.env.stg
+.env.prod

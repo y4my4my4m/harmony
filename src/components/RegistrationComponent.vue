@@ -12,15 +12,25 @@
 <script lang="ts">
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import { useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
 
 export default {
     setup() {
         const email = ref('');
         const password = ref('');
         const authStore = useAuthStore();
+        const toast = useToast();
+        const router = useRouter();
 
         const register = async () => {
+          try {
             await authStore.register(email.value, password.value);
+            router.push('/new-profile');
+          } catch (error: any) {
+            console.log(error);
+            toast.error(error.message);
+          }
         };
 
         return { email, password, register };

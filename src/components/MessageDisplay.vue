@@ -291,15 +291,18 @@ export default defineComponent({
 }
 .message-actions .btn {
   margin-left: 5px;
-  padding: 2px 5px;
+  padding: 2px 4px;
   border-radius: 5px;
   border: none;
   cursor: pointer;
   background:transparent;
-  transition: background 0.2s ease-in-out;
+  transition: 0.2s ease-in-out;
+  font-size: 12px;
+  filter: saturate(0);
 }
 .message-actions .btn:hover {
   background: rgba(0,0,0,0.1);
+  filter: saturate(1);
 }
 .scroll-bottom {
   scroll-behavior: smooth;

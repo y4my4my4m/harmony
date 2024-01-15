@@ -13,6 +13,7 @@ export interface Channel {
   type: 0 | 1;
 }
 
+// TODO: FIXME! User is NOT profile (user is the auth user, profile is the user's profile)
 export interface User {
   id: string;
   username: string;
@@ -20,6 +21,17 @@ export interface User {
   avatar_url: string;
   status: UserStatus;
   roles: Role[];
+  color?: string;
+  about?: string;
+}
+
+export interface Profile {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+  status?: UserStatus;
+  // roles: Role[];
   color?: string;
   about?: string;
 }
