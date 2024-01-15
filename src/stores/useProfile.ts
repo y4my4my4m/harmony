@@ -19,9 +19,12 @@ export const useProfileStore = defineStore('profile', {
           .eq('id', userId)
           .single();
 
-        if (error) throw error;
+        if (error && error.code !== 'PGRST100' /* Row not found error code */) {
+          throw error;
+        }
 
-        this.profile = data;
+        // If profile data is found, set it, else keep it null
+        this.profile = data ? data : null;
       } catch (error) {
         console.error('Error fetching profile:', error);
         // Handle error appropriately
