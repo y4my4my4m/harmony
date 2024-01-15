@@ -33,6 +33,7 @@
   import { useChatStore } from '@/stores/useChat';
   import { useAuthStore } from '@/stores/auth';
   import { useRoute, useRouter } from 'vue-router';
+  import { useProfileStore } from '@/stores/useProfile';
 
   export default defineComponent({
     components: {
@@ -48,6 +49,7 @@
       const serverChannelStore = useServerChannelStore();
       const chatStore = useChatStore();
       const authStore = useAuthStore();
+      const profileStore = useProfileStore();
 
       const route = useRoute();
       const router = useRouter();
@@ -130,6 +132,13 @@
       onMounted(async () => {
         const userId = authStore.session?.user?.id;
         if (userId) {
+          try {
+            // make sure this is only checked once?
+            await profileStore.checkProfileCompletion(userId);
+          } catch (error: any) {
+            console.log(error);
+            router.push('/new-profile');
+          }
           await serverChannelStore.fetchServersForUser(userId);
           initialized = true;
           if (servers.value.length === 0) {
