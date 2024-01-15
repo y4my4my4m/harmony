@@ -22,9 +22,14 @@ export default defineComponent({
 
     watch(() => authStore.isLoggedIn, (isLoggedIn) => {
       if (isLoggedIn) {
-        const userId = authStore.session.user.id;
-        updateUserStatus(userId, UserStatus.Online);
-        router.push('/chat');
+        try {
+          const userId = authStore.session?.user?.id || '';
+          updateUserStatus(userId, UserStatus.Online);
+          router.push('/chat');
+        } catch (error: any) {
+          console.log(error);
+          router.push('/new-profile');
+        }
       }
     });
 

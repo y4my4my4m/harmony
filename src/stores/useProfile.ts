@@ -30,6 +30,13 @@ export const useProfileStore = defineStore('profile', {
         // Handle error appropriately
       }
     },
+    async checkProfileCompletion(userId: string) {
+      const profileStore = useProfileStore();
+      await profileStore.fetchProfile(userId);
+      if (!profileStore.isProfileComplete) {
+        throw Error;
+      }
+    },
     async updateProfile(profileData: Profile) {
       try {
         const { data, error } = await supabase
