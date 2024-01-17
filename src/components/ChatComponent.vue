@@ -4,7 +4,8 @@
        @dragleave.prevent="showDragDropArea = false"
        @drop.prevent="triggerFileDrop">
     <div v-if="showDragDropArea" class="drag-drop-area">
-      Drop files here
+      <div v-if="uploading" style="color:rgb(18, 143, 18);">Uploading...</div>
+      <div v-else>Drop files here.</div>
     </div>
 
     <MessageDisplay 
@@ -45,6 +46,7 @@
       const authStore = useAuthStore();
       const serverChannelStore = useServerChannelStore();
       const showDragDropArea = ref(false);
+      const uploading = ref(false);
       // let unlisten: UnlistenFn | null = null;
       // Computed property to check if running in Tauri
       const isTauri = computed(() => {
@@ -53,6 +55,7 @@
 
       const triggerFileDrop = async (event:any) => {
         console.log("File dropped:", event);
+        uploading.value = true;
         const files = event.dataTransfer.files;
         if (files.length && serverChannelStore.currentChannelId && authStore.session?.user?.id) {
             const file = files[0];
@@ -70,6 +73,7 @@
                     "", // No additional content, just the file
                     fileUrl // URL of the uploaded file
                 );
+                uploading.value = false;
             }
         }
         showDragDropArea.value = false;
@@ -123,6 +127,7 @@
         triggerFileDrop,
         showDragDropArea,
         isTauri,
+        uploading
       };
     }
   });
@@ -149,6 +154,8 @@
   align-items: center;
   justify-content: center;
   transition: 0.2s ease-in-out;
+  font-size:48px; 
+  font-weight:bold
 }
 .drag-drop-area:hover {
   opacity:0.8;
