@@ -4,7 +4,7 @@
   </div>
   <div v-else class="chat-layout">
     <ServerSidebar :servers="servers" />
-    <ChannelSidebar :currentServer="currentServer" :channels="channels" @channelSelected="handleChannelSelected" @createChannel="showCreateChannelForm = true"/>
+    <ChannelSidebar :currentServer="currentServer" :channels="channels" :currentChannelId="currentChannelId" :categories="categories" :categoryChannels="categoryChannels" @channelSelected="handleChannelSelected" @createChannel="showCreateChannelForm = true"/>
     <CreateChannel
       :serverId="currentServer.id"
       :show="showCreateChannelForm"
@@ -60,9 +60,11 @@
 
       const servers = computed(() => serverChannelStore.servers);
       const channels = computed(() => serverChannelStore.channels);
+      const categories = computed(() => serverChannelStore.categories);
+      const categoryChannels = computed(() => serverChannelStore.categoryChannels);
       const chatMessages = computed(() => chatStore.messages);
       const currentServerName = computed(() => serverChannelStore.currentServer.name || '');
-      const currentChannelId = computed(() => serverChannelStore.currentChannelId || null);
+      const currentChannelId = computed(() => serverChannelStore.currentChannelId || '');
       const currentServer = computed(() => serverChannelStore.currentServer);
       const showCreateChannelForm = ref(false);
 
@@ -89,7 +91,8 @@
         serverChannelStore.setCurrentServer(serverId);
         serverUsersStore.subscribeToUserStatuses();
         chatStore.clearMessages();
-        await serverChannelStore.fetchChannels(serverId);
+        await serverChannelStore.fetchCategoriesAndChannels(serverId);
+        // await serverChannelStore.fetchChannels(serverId);
         // if (serverChannelStore.channels.length > 0) {
         //   handleChannelSelected(serverChannelStore.channels[0].id);
         // }
@@ -105,7 +108,7 @@
       const fetchMoreMessages = async () => {
         if (!chatStore.allMessagesLoaded && !chatStore.loadingOlderMessages && serverChannelStore.currentChannelId) {
           const oldestMessageId = chatMessages.value[0]?.id || 0;
-          await chatStore.fetchMessages(serverChannelStore.currentChannelId, oldestMessageId);
+          await chatStore.fetchMessages(serverChannelStore.currentChannelId, Number(oldestMessageId));
         }
       };
 
@@ -156,6 +159,8 @@
       return { 
         servers, 
         channels, 
+        categories,
+        categoryChannels,
         chatMessages, 
         currentServerName, 
         currentServer, 

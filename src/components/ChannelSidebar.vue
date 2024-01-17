@@ -5,16 +5,30 @@
     </div>
     <ServerDropdown :serverId="currentServer.id" v-show="showDropdown" />
     <div class="create-channel" @click="emitCreateChannel">+ Create Channel</div>
-    <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === serverChannelStore.currentChannelId }]" @click="selectChannel(channel.id)">
-      # {{ channel.name }}
-    </div>
+    <template v-if="categories && categories.length !== 0">
+      <div v-for="category in categories" :key="category.id">
+        <div class="category-name" @click="toggleCategory(category.id)">
+          {{ category.name }}
+        </div>
+        <div v-if="isCategoryOpen(category.id)">
+          <div v-for="channel in categoryChannels[category.id]" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
+            # {{ channel.name }}
+          </div>
+        </div>
+      </div>
+    </template>
+    <template v-else>
+      <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
+        # {{ channel.name }}
+      </div>
+    </template>
     <UserProfileComponent />
   </div>
 </template>
 <script lang="ts">
 import { defineComponent, ref } from 'vue';
 import type { PropType } from 'vue';
-import type { Channel } from '@/types';
+import type { Channel, Category } from '@/types';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useRouter } from 'vue-router';
 
@@ -35,13 +49,29 @@ export default defineComponent({
     channels: {
       type: Array as PropType<Channel[]>,
       required: true
-    }
+    },
+    categories: {
+      type: Array as PropType<Category[]>,
+    },
+    categoryChannels: {
+      type: Object as PropType<{ [key: string]: Channel[] }>,
+      required: true
+    },
+    currentChannelId: {
+      type: String,
+      required: true
+    },
   },
   setup(props, { emit }) {
     const showDropdown = ref(false);
     // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
     const serverChannelStore = useServerChannelStore();
     const router = useRouter();
+    interface CategoryOpenState {
+      [key: string]: boolean;
+    }
+    const categoryOpenState = ref<CategoryOpenState>({});
+    
 
     const selectChannel = (channelId: string) => {
       router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId: channelId } });
@@ -51,11 +81,19 @@ export default defineComponent({
       emit('createChannel');
     }
 
+    const toggleCategory = (categoryId: string) => {
+      categoryOpenState.value[categoryId] = !categoryOpenState.value[categoryId];
+    };
+
+    const isCategoryOpen = (categoryId: string) => {
+      return categoryOpenState.value[categoryId] || false;
+    };
+
     const toggleDropdown = () => {
       showDropdown.value = !showDropdown.value;
     };
 
-    return { selectChannel, serverChannelStore, showDropdown, emitCreateChannel, toggleDropdown };
+    return { selectChannel, serverChannelStore, showDropdown, emitCreateChannel, toggleDropdown, toggleCategory, isCategoryOpen  };
   }
 });
 </script>
@@ -80,6 +118,9 @@ export default defineComponent({
   cursor:pointer;
 }
 
+.category-name {
+  cursor: pointer;
+}
 
 .server-name:hover {
   background: rgba(0,0,0,0.1);

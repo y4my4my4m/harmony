@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { Server, Channel } from '@/types';
+import type { Server, Category, Channel } from '@/types';
 
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
     channels: [] as Channel[],
+    categories: {} as Category[],
+    categoryChannels: {} as Record<string, Channel[]>,
     currentServer: {} as Server,
     currentServerId: null as string | null,
     currentChannelId: null as string | null,
@@ -43,7 +45,46 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (error) console.error('Error fetching servers:', error);
       else this.servers = servers;
     },
+    async fetchCategoriesAndChannels(serverId: string) {
+      // Fetch categories for the server, ordered by 'order'
+      const { data: categories, error: categoriesError } = await supabase
+        .from('channel_categories')
+        .select('*')
+        .eq('server_id', serverId)
+        .order('order', { ascending: true });
 
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError);
+        return;
+      }
+      this.categories = categories;
+
+      // Fetch channels for the server
+      const { data: channels, error: channelsError } = await supabase
+        .from('channels')
+        .select('*')
+        .eq('server_id', serverId);
+  
+      if (channelsError) {
+        console.error('Error fetching channels:', channelsError);
+        return;
+      }
+      this.channels = channels;
+      this.categoryChannels = {};
+
+      // Populate categoryChannels mapping
+      this.channels.forEach(channel => {
+        if (channel.category) {
+          if (!this.categoryChannels[channel.category]) {
+            this.categoryChannels[channel.category] = [];
+          }
+          this.categoryChannels[channel.category].push(channel);
+        } else {
+          // console.log(`Channel with id ${channel.id} has no category_id or invalid category_id`);
+        }
+      });
+
+    },
     async fetchChannels(serverId: string) {
         const { data: channels, error } = await supabase
         .from('channels')

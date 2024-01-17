@@ -11,8 +11,15 @@ export interface Channel {
   name: string;
   // type: 'text' | 'voice';
   type: 0 | 1;
+  category: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  order: number;
+  server_id: string;
+}
 // TODO: FIXME! User is NOT profile (user is the auth user, profile is the user's profile)
 export interface User {
   id: string;
