@@ -21,6 +21,10 @@
 - [x] logout
 - [x] server settings
 - [x] profile picture
+- [x] servers
+- [x] channels
+- [x] channel categories
+- [~] channel type
 - [ ] realtime status
   - [x] changes
   - [ ] bug in self status display

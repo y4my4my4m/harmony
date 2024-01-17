@@ -14,8 +14,8 @@ export const useChatStore = defineStore('chat', {
       this.messages = [];
       this.allMessagesLoaded = false;
     },
-    async fetchMessages(channelId: string, oldestMessageId: number = 0) {
-      if (this.loadingOlderMessages && oldestMessageId !== 0) return;
+    async fetchMessages(channelId: string, oldestMessageId: string = '') {
+      if (this.loadingOlderMessages && oldestMessageId !== '') return;
       this.loadingOlderMessages = true;
       let query = supabase
         .from('messages')
@@ -24,8 +24,16 @@ export const useChatStore = defineStore('chat', {
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (oldestMessageId !== 0) {
-        query = query.lt('id', oldestMessageId);
+      if (oldestMessageId !== '') {
+        const { data: oldestMessage } = await supabase
+          .from('messages')
+          .select('created_at')
+          .eq('id', oldestMessageId)
+          .single();
+
+        if (oldestMessage) {
+          query = query.lt('created_at', oldestMessage.created_at);
+        }
       }
 
       const { data: messages, error } = await query;
@@ -36,7 +44,7 @@ export const useChatStore = defineStore('chat', {
         if (messages.length < 20) {
           this.allMessagesLoaded = true;
         }
-        if (oldestMessageId === 0) {
+        if (oldestMessageId === '') {
           this.messages = messages.reverse();
         } else {
           this.messages = [...messages.reverse(), ...this.messages];
