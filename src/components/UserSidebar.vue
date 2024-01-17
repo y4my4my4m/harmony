@@ -153,6 +153,11 @@ export default defineComponent({
   padding: 10px;
   opacity: 0;
   transition: 0.2s ease-in-out;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+  transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+}
+.user-profile-card:hover {
+  box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
 }
 .user-profile-card.selected {
   opacity: 1
