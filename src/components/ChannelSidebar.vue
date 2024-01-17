@@ -6,20 +6,20 @@
     <ServerDropdown :serverId="currentServer.id" v-show="showDropdown" />
     <div class="create-channel" @click="emitCreateChannel">+ Create Channel</div>
     <template v-if="categories && categories.length !== 0">
-      <div v-for="category in categories" :key="category.id">
+      <div class="category" v-for="category in categories" :key="category.id">
         <div class="category-name" @click="toggleCategory(category.id)">
-          {{ category.name }}
+         <ArrowDownIcon /> {{ category.name }}
         </div>
         <div v-if="isCategoryOpen(category.id)">
           <div v-for="channel in categoryChannels[category.id]" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
-            # {{ channel.name }}
+            <HashTagIcon /> {{ channel.name }}
           </div>
         </div>
       </div>
     </template>
     <template v-else>
       <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
-        # {{ channel.name }}
+        <HashTagIcon /> {{ channel.name }}
       </div>
     </template>
     <UserProfileComponent />
@@ -31,6 +31,8 @@ import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useRouter } from 'vue-router';
+import ArrowDownIcon from '@/components/icons/ArrowDown.vue';
+import HashTagIcon from '@/components/icons/HashTag.vue';
 
 import UserProfileComponent from './UserProfileComponent.vue';
 import ServerDropdown from './ServerDropdown.vue';
@@ -40,6 +42,8 @@ export default defineComponent({
   components: {
     UserProfileComponent,
     ServerDropdown,
+    ArrowDownIcon,
+    HashTagIcon
   },
   props: {
     currentServer: {
@@ -102,7 +106,6 @@ export default defineComponent({
 .channel-sidebar {
   width: 240px;
   background-color: var(--h-sidebar);
-  color: white;
   overflow-y: auto;
 }
 
@@ -120,6 +123,18 @@ export default defineComponent({
 
 .category-name {
   cursor: pointer;
+  padding:8px 6px;
+  margin-top:10px;
+  vertical-align: middle;
+  display: inline-flex;
+  font-size:18px;
+}
+.category-name > svg {
+  margin-right: 10px;
+  width:15px;
+  height:15px;
+  top:5px;
+  position:relative;
 }
 
 .server-name:hover {
@@ -129,15 +144,35 @@ export default defineComponent({
   padding: 6px 10px;
   cursor: pointer;
   transition: 0.2s ease-in-out;
+  display: inline-flex;
+  width:100%;
+  font-size:18px;
+  font-weight:600;
   &:hover {
     background-color: var(--h-sidebar-light);
   }
+  color: rgb(173, 173, 173);
+}
+.channel-item:hover {
+  color: rgb(173, 173, 173);
 }
 .channel-item.selected {
   /* padding-left:25px; */
   position: relative;
   background-color: var(--h-sidebar-light);
+  color:#FFF;
 }
+.channel-item > svg {
+  margin-right: 10px;
+  width:20px;
+  height:20px;
+  position:relative;
+  top:4px;
+}
+.category .channel-item {
+  padding-left:20px;
+}
+
 .create-channel {
   cursor:pointer;
   padding: 2px 10px;
