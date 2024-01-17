@@ -13,7 +13,7 @@
     <div class="buttons">
       <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }">🎤</div>
       <div class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }">🎧</div>
-      <div class="icon-button" @click="goToSettings">⚙️</div>
+      <div class="icon-button settings" @click="goToSettings">⚙️</div>
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
@@ -201,19 +201,13 @@
   margin: 2px;
   border-radius: 4px;
   transition: 0.2s ease-in-out;
-  filter: blur(0);
 }
-.icon-button:hover {
-  filter: blur(3px);
-}
-
 .icon-button.muted {
   opacity:0.65;
   background:rgba(255,0,0,0.35);
-  filter: blur(0);
 }
-.icon-button.muted:hover {
-  filter: blur(1px);
+.settings {
+  filter: grayscale(1) brightness(0.65)
 }
 .status-dropdown {
   position: absolute;

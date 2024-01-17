@@ -11,8 +11,8 @@
       </div>
       <hr/>
       <div class="about-title">About:</div>
-      <div class="about">
-      </div>
+      <textarea class="about" :value="user.about" readonly>
+      </textarea>
     </div>
     <!-- Additional profile details -->
   </div>
@@ -73,7 +73,14 @@ export default defineComponent({
   background-color: #292b2e; 
   padding: 10px 10px 120px 10px;
   box-shadow: 0 0 1px 1px rgba(255,255,255,0.03), inset 0 0 1px 1px rgba(0,0,0,0.1), inset 0 -1px 7px rgba(0,0,0,0.04);
+  resize: none;
+  width:100%;
+  outline:none;
+  border:0;
+  color:#999;
+  font-family: Arial, sans-serif;
 }
+
 hr {
   margin-top:1.25em;
   border-top: 1px solid hsl(216 10% 28% / 1);

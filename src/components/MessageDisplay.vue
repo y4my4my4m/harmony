@@ -1,6 +1,6 @@
 <template>
   <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
-    <div v-if="messages.length == 0">
+    <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
     <div v-else v-for="(message, index) in messages" :key="message.id" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
@@ -216,6 +216,16 @@ export default defineComponent({
   background: rgba(0,0,0,0.1)
 }
 
+.no-messages {
+  text-align: center;
+  color: #626262;
+  margin:auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+
+}
 .user-avatar {
   width: 36px;
   height: 36px;
@@ -231,7 +241,7 @@ export default defineComponent({
 }
 
 .message-content {
-  padding-left: 47.5px; /* Same as avatar width + margin-right */
+  padding-left: 46px; /* Same as avatar width + margin-right */
 }
 
 .message-header .message-content {
