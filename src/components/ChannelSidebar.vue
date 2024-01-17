@@ -12,14 +12,14 @@
         </div>
         <div v-if="isCategoryOpen(category.id)">
           <div v-for="channel in categoryChannels[category.id]" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
-            <HashTagIcon /> {{ channel.name }}
+            <HashTagIcon v-if="channel.type==0"/><SpeakerIcon v-else /> {{ channel.name }}
           </div>
         </div>
       </div>
     </template>
     <template v-else>
       <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
-        <HashTagIcon /> {{ channel.name }}
+        <HashTagIcon v-if="channel.type==0"/><SpeakerIcon v-else /> {{ channel.name }}
       </div>
     </template>
     <UserProfileComponent />
@@ -33,6 +33,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useRouter } from 'vue-router';
 import ArrowDownIcon from '@/components/icons/ArrowDown.vue';
 import HashTagIcon from '@/components/icons/HashTag.vue';
+import SpeakerIcon from '@/components/icons/Speaker.vue';
 
 import UserProfileComponent from './UserProfileComponent.vue';
 import ServerDropdown from './ServerDropdown.vue';
@@ -43,7 +44,8 @@ export default defineComponent({
     UserProfileComponent,
     ServerDropdown,
     ArrowDownIcon,
-    HashTagIcon
+    HashTagIcon,
+    SpeakerIcon
   },
   props: {
     currentServer: {

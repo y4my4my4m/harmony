@@ -10,7 +10,7 @@ export interface Channel {
   id: string;
   name: string;
   // type: 'text' | 'voice';
-  type: 0 | 1;
+  type: number;
   category: string;
 }
 
