@@ -282,15 +282,24 @@ export default defineComponent({
 
     // Watch for changes in messages for parsing
     watch(() => props.messages, async (newMessages) => {
-      parsedMessages.value = await Promise.all(newMessages.map(async message => {
-        // Parse the content of each message
-        const content = await parseMessage(message.content);
-        // Return a new message object with the parsed content
-        return {
-          ...message,
-          content: content
-        };
-      }));
+        const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
+        parsedMessages.value = await Promise.all(newMessages.map(async message => {
+          // Parse the content of each message
+          const content = await parseMessage(message.content);
+
+          await nextTick();
+
+          if (messageDisplayContainer.value) {
+            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+            const scrollOffset = newScrollHeight - oldScrollHeight;
+            messageDisplayContainer.value.scrollTop += scrollOffset;
+          }
+          // Return a new message object with the parsed content
+          return {
+            ...message,
+            content: content
+          };
+        }));
     }, { immediate: true });
 
 

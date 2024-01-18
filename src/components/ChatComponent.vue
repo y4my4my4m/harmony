@@ -11,7 +11,9 @@
     <MessageDisplay 
       :messages="messages" 
       @loadMoreMessages="$emit('loadMoreMessages')" />
+
     <MessageInput 
+      v-model="messageContent"
       :giphyOpen="giphyOpen"
       @toggleGiphy="toggleGiphy"
       :emojiListOpen="emojiListOpen"
@@ -79,6 +81,7 @@
       const uploading = ref(false);
       const emojiListOpen = ref(false);
       const giphyOpen = ref(false);
+      const messageContent = ref('');
 
       // let unlisten: UnlistenFn | null = null;
       // Computed property to check if running in Tauri
@@ -186,6 +189,7 @@
         if (authStore.session?.user && serverChannelStore.currentChannelId) {
           chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, content);
         }
+        messageContent.value = ''; 
       };
       // watch(() => props.messages, (newMessages) => {
       //   console.log("Received messages:", newMessages);
@@ -198,14 +202,20 @@
           chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, "", gifUrl);
         }
       };
-      const handleSendEmoji = (emoji: Emoji ) => {
+      const handleSendEmoji = (emoji: Emoji) => {
         closeEmojiList();
-        console.log("Selected emoji:", JSON.stringify(emoji));
-        if (serverChannelStore.currentChannelId && authStore.session?.user) {
-          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, `Test emoji :${emoji.id}: and stuff`, "");
-        }
+        // Append emoji id to the existing message content
+        messageContent.value += `:${emoji.id}:`;
+        console.log("Emoji added in Parent:", messageContent.value);
       };
-      
+      const updateMessageContent = (newContent: string) => {
+        messageContent.value = newContent;
+      };
+
+      // watch(messageContent, (newValue) => {
+      //   console.log("messageContent updated in Parent:", newValue);
+      // });
+
       return { 
         handleSendMessage,
         triggerFileDrop,
@@ -221,7 +231,9 @@
         closeEmojiList,
         emojiListOpen,
         emojiIconClicked,
-        handleSendEmoji
+        handleSendEmoji,
+        messageContent,
+        updateMessageContent,
       };
     }
   });
