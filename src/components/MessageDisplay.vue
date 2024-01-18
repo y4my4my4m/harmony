@@ -359,8 +359,9 @@ export default defineComponent({
 }
 
 .file-container > img {
-  height: 100px;
+  height: 100%;
   width: auto;
+  max-height: 256px;
   border-radius: 5px;
   cursor: pointer;
   transition: transform 0.2s ease-in-out;

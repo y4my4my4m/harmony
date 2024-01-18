@@ -13,7 +13,6 @@
       @loadMoreMessages="$emit('loadMoreMessages')" />
     <MessageInput :giphyOpen="giphyOpen" @toggleGiphy="toggleGiphy" @sendMessage="handleSendMessage" />
 
-    {{ giphyOpen }}
     <div v-if="giphyOpen==true" @click.stop>
       <GifComponent
           @sendGif="handleSendGif"

@@ -2,7 +2,7 @@
     <div class="giphy-search" ref="giphy">
       <input type="text" v-model="searchQuery" placeholder="Search GIFs...">
       <div class="giphy-results">
-        <masonry-wall :items="gifs" :column-width="128" :gap="10">
+        <masonry-wall :items="gifs" :column-width="150" :gap="10">
             <template #default="{ item, index }">
                 <div :key="item.id" class="gif-item" 
                     @mouseover="hoveredGif = item.id" 
@@ -113,12 +113,12 @@
 <style scoped>
     .giphy-search {
         position: absolute;
-        width: 420px;
-        bottom:120px;
-        right:15%;
+        width: 480px;
+        bottom: 90px;
+        right: 250px;
         background-color: #2f3136;
         border-radius: 8px;
-        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        box-shadow: -3px 7px 16px rgba(0,0,0,0.32), 4px 8px 16px rgba(0,0,0,0.22);
         padding: 10px;
         box-sizing: border-box;
     }
@@ -146,6 +146,8 @@
         height: 450px;
         max-height: 450px;
         overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 10px;
     }
 
     .gif-item {
