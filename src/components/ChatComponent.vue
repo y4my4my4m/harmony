@@ -12,6 +12,7 @@
       :messages="messages" 
       @loadMoreMessages="$emit('loadMoreMessages')" />
     <MessageInput @sendMessage="handleSendMessage" />
+    <GifComponent @sendGif="handleSendGif" />
   </div>
 </template>
 
@@ -23,16 +24,18 @@
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
-  import type { Message } from '@/types';
+  import type { Message, Gif } from '@/types';
   import { handleFileDrop } from '@/services/fileService';
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
   import type { UnlistenFn } from '@tauri-apps/api/event';
+  import GifComponent from '@/components/GifComponent.vue';
   
   export default defineComponent({
     components: {
       MessageDisplay,
-      MessageInput
+      MessageInput,
+      GifComponent
     },
     props:{
       messages: {
@@ -50,6 +53,7 @@
       // let unlisten: UnlistenFn | null = null;
       // Computed property to check if running in Tauri
       const isTauri = computed(() => {
+        // eslint-disable-next-line no-undef
         return typeof __TAURI__ !== 'undefined';
       });
 
@@ -121,13 +125,20 @@
       // watch(() => props.messages, (newMessages) => {
       //   console.log("Received messages:", newMessages);
       // }, { deep: true });
-
+      const handleSendGif = (gif: Gif ) => {
+        const gifUrl = gif.media_formats.gif.url;
+        // console.log("Sending GIF URL:", gifUrl);
+        if (serverChannelStore.currentChannelId && authStore.session?.user) {
+          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, "", gifUrl);
+        }
+      };
       return { 
         handleSendMessage,
         triggerFileDrop,
         showDragDropArea,
         isTauri,
-        uploading
+        uploading,
+        handleSendGif
       };
     }
   });

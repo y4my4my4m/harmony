@@ -74,3 +74,14 @@ export enum Permission {
   MANAGE_CHANNEL,
   // Add more permissions as needed
 }
+export interface Gif {
+  id: string;
+  // add more formats?
+  media_formats: {
+      gif: {url:string},
+      gifpreview: {url:string},
+      mp4: {url:string},
+      webm: {url:string}
+  }
+  title?: string;
+}
