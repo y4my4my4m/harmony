@@ -201,9 +201,9 @@
       const handleSendEmoji = (emoji: Emoji ) => {
         closeEmojiList();
         console.log("Selected emoji:", JSON.stringify(emoji));
-        // if (serverChannelStore.currentChannelId && authStore.session?.user) {
-        //   chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, emoji.url, "");
-        // }
+        if (serverChannelStore.currentChannelId && authStore.session?.user) {
+          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, `Test emoji :${emoji.id}: and stuff`, "");
+        }
       };
       
       return { 

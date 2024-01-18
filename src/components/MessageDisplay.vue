@@ -3,7 +3,7 @@
     <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
-    <div v-else v-for="(message, index) in messages" :key="message.id" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+    <div v-else v-for="(message, index) in parsedMessages" :key="message.id" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
       <div v-if="index === 0 || messages[index - 1].user_id !== message.user_id" class="message-header">
         <img :src="getUserAvatar(message.user_id)" class="user-avatar"/>
         <div>
@@ -11,9 +11,10 @@
             {{ getUserDisplayName(message.user_id) }} <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
           </strong>
           <div v-if="editableMessageId !== message.id" class="message-content">
-            <template v-for="(part, partIndex) in parseMessage(message.content)" :key="partIndex">
+            <template v-for="(part, partIndex) in message.content" :key="partIndex">
               <a v-if="typeof part === 'object' && part.url" :href="part.url" target="_blank">{{ part.url }}</a>
               <span v-else-if="typeof part === 'object' && part.mention" class="mention"  @click="showUserProfile(part.userId, $event)">{{ part.mention }}</span>
+              <img v-else-if="typeof part === 'object' && part.emoji" class="emoji-icon" :src="part.emoji.url" :alt="part.emoji.name" />
               <span v-else>{{ part }}</span>
             </template>
           </div>
@@ -22,9 +23,10 @@
       </div>
       <template v-else>
         <div v-if="editableMessageId !== message.id" class="message-content">
-          <template v-for="(part, partIndex) in parseMessage(message.content)" :key="partIndex">
+          <template v-for="(part, partIndex) in message.content" :key="partIndex">
             <a v-if="typeof part === 'object' && part.url" :href="part.url" target="_blank">{{ part.url }}</a>
             <span v-else-if="typeof part === 'object' && part.mention" class="mention"  @click="showUserProfile(part.userId, $event)">{{ part.mention }}</span>
+            <img v-else-if="typeof part === 'object' && part.emoji" class="emoji-icon" :src="part.emoji.url" :alt="part.emoji.name" />
             <span v-else>{{ part }}</span>
           </template>
         </div>
@@ -62,19 +64,24 @@
 <script lang="ts">
 import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType } from 'vue';
-import type { Message, User } from '@/types';
+import type { Message, User, Emoji } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
+import { getEmoji } from '@/services/emojiService';
 import { format } from 'date-fns';
 import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 
-// interface Part {
-//   url?: string;
-//   mention?: string;
-//   userId?: string;
-// }
+interface ParsedMessage {
+    id: string;
+    created_at: Date;  // or the correct type for your date/time
+    channel_id: number;
+    user_id: string;
+    reactions?: JSON;  // Adjust as per the actual type
+    file_url?: string;
+    content: (string | { url: string; userId: string; mention: string; emoji: Emoji; })[];
+}
 
 export default defineComponent({
   props: {
@@ -94,7 +101,14 @@ export default defineComponent({
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
     const chat = useChatStore();
-  
+    const parsedMessages = ref<ParsedMessage[]>([]); 
+
+    type MessagePart = 
+      string | 
+      { url: string } | 
+      { mention: string; userId: string } | 
+      { emoji: Emoji };
+
     const usernameToUserIdMap = computed(() => {
       const map: Record<string, string> = {};
       // Assuming userProfiles include the full '@username@domain' format
@@ -161,7 +175,6 @@ export default defineComponent({
       isLightboxOpen.value = false;
     };
 
-
     const handleScroll = () => {
       if (messageDisplayContainer.value) {
         const { scrollTop } = messageDisplayContainer.value;
@@ -201,68 +214,103 @@ export default defineComponent({
       selectedUser.value = null;
     };
 
-    const parseMessage = (message: string): Array<string | { url: string, userId: string, mention: string }> => {
+    const parseMessage = async (message: string): Promise<MessagePart[]> => {
       const urlRegex = /(\bhttps?:\/\/\S+)/gi;
       // Updated regex to include '@username@domain' format
       const mentionRegex = /(@\w+@\w+\S+)/g;
+      const emojiRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
       let parts = [];
       let lastIndex = 0;
 
-      // Extract URLs
+      // Find and process URLs
       message.replace(urlRegex, (match, _, urlIndex) => {
         if (urlIndex > lastIndex) {
-          parts.push(message.substring(lastIndex, urlIndex));
+          parts.push(message.substring(lastIndex, urlIndex)); // Add text before URL
         }
         parts.push({ url: match });
         lastIndex = urlIndex + match.length;
         return match;
       });
 
-      // Process remaining text for mentions
-      if (lastIndex < message.length) {
-        let remainingText = message.substring(lastIndex);
+      // Remaining text after URLs
+      let remainingTextAfterURLs = message.substring(lastIndex);
 
-        remainingText.replace(mentionRegex, (match, usernameWithDomain, mentionIndex) => {
-          if (mentionIndex > 0) {
-            parts.push(remainingText.substring(0, mentionIndex));
-          }
-          const userId = usernameToUserIdMap.value[usernameWithDomain.toLowerCase()];
-          if (userId) {
-            parts.push({ mention: match, userId });
-          } else {
-            parts.push(match); // If no user found, keep the text as is
-          }
-          remainingText = remainingText.substring(mentionIndex + match.length);
-          return match;
-        });
-
-        if (remainingText) {
-          parts.push(remainingText);
+      // Find and process mentions
+      remainingTextAfterURLs = remainingTextAfterURLs.replace(mentionRegex, (match, usernameWithDomain, mentionIndex) => {
+        if (mentionIndex > 0) {
+          parts.push(remainingTextAfterURLs.substring(0, mentionIndex)); // Add text before mention
         }
+        const userId = usernameToUserIdMap.value[usernameWithDomain.toLowerCase()];
+        if (userId) {
+          parts.push({ mention: match, userId });
+        } else {
+          parts.push(match); // If no user found, keep the text as is
+        }
+        return ""; // Remove the processed part from the remaining text
+      });
+
+
+      // Remaining text after mentions
+      let remainingTextAfterMentions = remainingTextAfterURLs;
+
+      // Process emojis
+      let match;
+      while ((match = emojiRegex.exec(remainingTextAfterMentions)) !== null) {
+        let emojiIndex = match.index;
+        if (emojiIndex > 0) {
+          parts.push(remainingTextAfterMentions.substring(0, emojiIndex)); // Add text before emoji
+        }
+
+        const emojiId = match[1];
+        const emojiData = await getEmoji(emojiId);
+        if (emojiData) {
+          parts.push({ emoji: emojiData });
+        } else {
+          parts.push(match[0]); // If no emoji data found, keep the text as is
+        }
+
+        remainingTextAfterMentions = remainingTextAfterMentions.substring(emojiIndex + match[0].length);
+      }
+
+      // Add any remaining text after the last emoji
+      if (remainingTextAfterMentions) {
+        parts.push(remainingTextAfterMentions);
       }
 
       return parts;
     };
 
+    // Watch for changes in messages for parsing
+    watch(() => props.messages, async (newMessages) => {
+      parsedMessages.value = await Promise.all(newMessages.map(async message => {
+        // Parse the content of each message
+        const content = await parseMessage(message.content);
+        // Return a new message object with the parsed content
+        return {
+          ...message,
+          content: content
+        };
+      }));
+    }, { immediate: true });
 
-    watch(() => props.messages, async (newMessages, oldMessages) => {
-      const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
-      // Initialize or update 'imageLoaded' for each message
-      newMessages.forEach(message => {
-        if (message.file_url && !(message.id in imageLoaded.value)) {
-          imageLoaded.value[message.id] = false;
-        }
-      });
 
-      await nextTick();
+    // Watch for changes in messages for scroll behavior and image loading
+    // watch(() => props.messages, async (newMessages, _) => {
+    //   const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
+    //   newMessages.forEach(message => {
+    //     if (message.file_url && !(message.id in imageLoaded.value)) {
+    //       imageLoaded.value[message.id] = false;
+    //     }
+    //   });
 
-      if (messageDisplayContainer.value) {
-        const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-        const scrollOffset = newScrollHeight - oldScrollHeight;
-        messageDisplayContainer.value.scrollTop += scrollOffset;
-      }
-    }, { immediate: true, deep: true });
+    //   await nextTick();
 
+    //   if (messageDisplayContainer.value) {
+    //     const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+    //     const scrollOffset = newScrollHeight - oldScrollHeight;
+    //     messageDisplayContainer.value.scrollTop += scrollOffset;
+    //   }
+    // }, { immediate: true, deep: true });
 
 
     return { 
@@ -291,6 +339,7 @@ export default defineComponent({
       selectedUser,
       profileCardStyle, 
       closeProfile,
+      parsedMessages,
     };
   }
   

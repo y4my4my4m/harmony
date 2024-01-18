@@ -21,7 +21,19 @@ const cleanFileName = (originalName:string) => {
 
     return { name: fileNameWithoutExtension, extension };
 };
+async function getEmoji(emojiId: string) {
+    const { data, error } = await supabase
+        .from('emojis')
+        .select()
+        .eq('id', emojiId)
+        .single();
 
+    if (error) {
+        console.error('Error getting emoji:', error);
+        throw error;
+    }
+    return data;
+};
 async function uploadEmoji(serverId: string, userId: string, file: File) {
     try {
         const { name: cleanedName, extension } = cleanFileName(file.name);
@@ -86,4 +98,4 @@ async function doesEmojiNameExist(serverId: string, name: string): Promise<boole
     return data.length > 0; // Return true if there's at least one row
 }
 
-export { uploadEmoji };
+export { uploadEmoji, getEmoji };
