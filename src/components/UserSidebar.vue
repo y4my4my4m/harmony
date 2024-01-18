@@ -6,7 +6,7 @@
       <span class="user-name">{{ user.display_name }}</span>
     </div>
 
-    <!-- User profile card -->
+    <!-- FIXME: User profile card (class should be inside, reusable component!) -->
     <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
       <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
     </div>
@@ -46,7 +46,7 @@ export default defineComponent({
     const profileCardStyle = ref({ top: '0px'});
 
     const selectedUser = ref<User | null>(null);
-      const showUserProfile = (user: User, event: MouseEvent) => {
+    const showUserProfile = (user: User, event: MouseEvent) => {
       const userItemElement = (event.currentTarget as HTMLElement);
       const userSidebar = (event.currentTarget as HTMLElement).closest('.user-sidebar');
 

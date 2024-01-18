@@ -12,7 +12,8 @@
           </strong>
           <div v-if="editableMessageId !== message.id" class="message-content">
             <template v-for="(part, partIndex) in parseMessage(message.content)" :key="partIndex">
-              <a v-if="typeof part === 'object'" :href="part.url" target="_blank">{{ part.url }}</a>
+              <a v-if="typeof part === 'object' && part.url" :href="part.url" target="_blank">{{ part.url }}</a>
+              <span v-else-if="typeof part === 'object' && part.mention" class="mention"  @click="showUserProfile(part.userId, $event)">{{ part.mention }}</span>
               <span v-else>{{ part }}</span>
             </template>
           </div>
@@ -22,7 +23,8 @@
       <template v-else>
         <div v-if="editableMessageId !== message.id" class="message-content">
           <template v-for="(part, partIndex) in parseMessage(message.content)" :key="partIndex">
-            <a v-if="typeof part === 'object'" :href="part.url" target="_blank">{{ part.url }}</a>
+            <a v-if="typeof part === 'object' && part.url" :href="part.url" target="_blank">{{ part.url }}</a>
+            <span v-else-if="typeof part === 'object' && part.mention" class="mention"  @click="showUserProfile(part.userId, $event)">{{ part.mention }}</span>
             <span v-else>{{ part }}</span>
           </template>
         </div>
@@ -51,15 +53,26 @@
     :index="indexRef"
     @hide="closeLightbox"
   />
+    <!-- FIXME: User profile card (class should be inside, reusable component!) -->
+  <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
+    <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
+  </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType } from 'vue';
-import type { Message } from '@/types';
+import type { Message, User } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { format } from 'date-fns';
+import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
+
+// interface Part {
+//   url?: string;
+//   mention?: string;
+//   userId?: string;
+// }
 
 export default defineComponent({
   props: {
@@ -70,10 +83,25 @@ export default defineComponent({
     loadMoreMessages: Function as PropType<() => void>,
     isAtBottom: Boolean
   },
+  components: { 
+    UserPreviewComponent,
+  },
   setup(props, { emit }) {
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
     const chat = useChatStore();
+  
+    const usernameToUserIdMap = computed(() => {
+      const map: Record<string, string> = {};
+      // Assuming userProfiles include the full '@username@domain' format
+      for (const userId in serverUsersStore.userProfiles) {
+        const profile = serverUsersStore.userProfiles[userId];
+        if (profile && profile.username) {
+          map[profile.username.toLowerCase()] = userId; // profile.username includes '@domain'
+        }
+      }
+      return map;
+    });
 
     const hoveredMessageId = ref<string | null>(null);
     const editableMessageId = ref<string | null>(null);
@@ -143,11 +171,76 @@ export default defineComponent({
       }
     };
     
-    const parseMessage = (message: string): Array<string | { url: string }> => {
-      const urlRegex = /(\bhttps?:\/\/\S+)/gi;
-      const parts = message.split(urlRegex);
-      return parts.map(part => part.match(urlRegex) ? { url: part } : part);
+    const profileCardStyle = ref({ top: '0px', left: '0px'});
+    const selectedUser = ref<User | null>(null);
+    const showUserProfile = (userId: string, event: MouseEvent) => {
+      const user = serverUsersStore.userProfiles[userId];
+      if (!user) {
+        console.error("User not found for ID:", userId);
+        return;
+      }
+
+      const userMention = (event.currentTarget as HTMLElement);
+      if (userMention) {
+        const userMentionRect = userMention.getBoundingClientRect();
+        console.log(userMentionRect);
+        profileCardStyle.value = {
+          left: `calc(10px + ${userMentionRect.width}px + ${userMentionRect.x}px)`,
+          top: `calc(${userMentionRect.y}px - 400px)`,
+        };
+      }
+
+      selectedUser.value = user;
+      event.stopPropagation();
     };
+
+    const closeProfile = () => {
+      selectedUser.value = null;
+    };
+
+    const parseMessage = (message: string): Array<string | { url: string, userId: string, mention: string }> => {
+      const urlRegex = /(\bhttps?:\/\/\S+)/gi;
+      // Updated regex to include '@username@domain' format
+      const mentionRegex = /(@\w+@\w+\S+)/g;
+      let parts = [];
+      let lastIndex = 0;
+
+      // Extract URLs
+      message.replace(urlRegex, (match, _, urlIndex) => {
+        if (urlIndex > lastIndex) {
+          parts.push(message.substring(lastIndex, urlIndex));
+        }
+        parts.push({ url: match });
+        lastIndex = urlIndex + match.length;
+        return match;
+      });
+
+      // Process remaining text for mentions
+      if (lastIndex < message.length) {
+        let remainingText = message.substring(lastIndex);
+
+        remainingText.replace(mentionRegex, (match, usernameWithDomain, mentionIndex) => {
+          if (mentionIndex > 0) {
+            parts.push(remainingText.substring(0, mentionIndex));
+          }
+          const userId = usernameToUserIdMap.value[usernameWithDomain.toLowerCase()];
+          if (userId) {
+            parts.push({ mention: match, userId });
+          } else {
+            parts.push(match); // If no user found, keep the text as is
+          }
+          remainingText = remainingText.substring(mentionIndex + match.length);
+          return match;
+        });
+
+        if (remainingText) {
+          parts.push(remainingText);
+        }
+      }
+
+      return parts;
+    };
+
 
     watch(() => props.messages, async (newMessages, oldMessages) => {
       const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
@@ -190,7 +283,11 @@ export default defineComponent({
       saveEdit,
       cancelEdit,
       editableMessageId,
-      editableMessageContent
+      editableMessageContent,
+      showUserProfile,
+      selectedUser,
+      profileCardStyle, 
+      closeProfile,
     };
   }
   
@@ -336,6 +433,41 @@ export default defineComponent({
   border-style: solid;
   border-width: 1px;
   border-color: rgba(0,0,0,0.3);
+}
+.mention {
+  background-color: #e0e0e0;
+  border-radius: 15px;
+  padding: 3px 8px;
+  cursor: pointer;
+  color: #333;
+  display: inline-block;
+}
+.mention:hover {
+  background-color: #d0d0d0;
+}
+
+/* FIXME: this should all be inside the userProfileComponent */
+.user-profile-card {
+  position: absolute;
+  /* left: -332px; */
+  left: 0px;
+  top: 0px;
+  width: 320px; 
+  height: 400px;
+  border-radius: 12px;
+  background-color: #2f3339; 
+  z-index: 1000;
+  padding: 10px;
+  opacity: 0;
+  transition: 0.2s ease-in-out;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+  transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+}
+.user-profile-card:hover {
+  box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+}
+.user-profile-card.selected {
+  opacity: 1
 }
 </style>
 
