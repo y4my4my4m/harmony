@@ -435,15 +435,19 @@ export default defineComponent({
   border-color: rgba(0,0,0,0.3);
 }
 .mention {
-  background-color: #e0e0e0;
-  border-radius: 15px;
-  padding: 3px 8px;
+  background-color: #3c4270;
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 500;
   cursor: pointer;
-  color: #333;
+  color: #c9c9ee;
   display: inline-block;
+  transition: 0.2s;
+  font-weight:500;
 }
 .mention:hover {
-  background-color: #d0d0d0;
+  background-color: #5865f2;
+  color:rgba(255,255,255,0.9);
 }
 
 /* FIXME: this should all be inside the userProfileComponent */
