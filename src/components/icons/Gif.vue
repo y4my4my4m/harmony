@@ -13,6 +13,10 @@ export default defineComponent({
 </script>
 
 <style scoped>
+    /* FIXME: cheap workaround for spacing of the buttons */
+    .gifIcon {
+        margin-right:10px;
+    }
     .gifIcon .gifIconPath {
         fill: #aaa;
         transition: fill .2s;

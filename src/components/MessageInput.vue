@@ -1,12 +1,14 @@
 <template>
   <div class="message-input">
-    <div class="left-icons">
-      <PlusIcon/>
-    </div>
-    <textarea v-model="newMessage" @keydown.enter="handleEnter" placeholder="Type a message..."></textarea>
-    <div class="right-icons">
-      <GifIcon/>
-      <EmojiUI/>
+    <div class="message-container">
+      <div class="left-icons">
+        <PlusIcon/>
+      </div>
+      <textarea v-model="newMessage" @keydown.enter="handleEnter" placeholder="Type a message..."></textarea>
+      <div class="right-icons">
+        <GifIcon/>
+        <EmojiUI/>
+      </div>
     </div>
   </div>
 </template>
@@ -52,7 +54,6 @@ export default defineComponent({
 <style scoped>
 .message-input {
   display: flex;
-  align-items: flex-start; /* Aligns items to the top */
   padding: 10px;
   background-color: var(--h-chat);
   border-radius: 8px;
@@ -63,29 +64,96 @@ export default defineComponent({
   align-items: center;
 }
 
-.message-input textarea {
+.right-icons > div {
+  justify-content: space-between; /* This will create space between the icons */
+  flex: 1; /* If you want the icons to take up equal space in the container */
+}
+
+.message-container {
+  position:relative;
+  display: flex;
+  align-items: center; /* Aligns items to the top */
   flex-grow: 1;
-  padding: 8px 10px;
-  margin-left: 10px; /* Spacing between left icons and textarea */
-  margin-right: 10px; /* Spacing between textarea and right icons */
+  padding: 8px ;
   border-radius: 8px;
   border: none;
   background-color: var(--h-chat-light);
+  transition: .2s;
+}
+textarea {
+  flex-grow: 1;
+  padding: 0;
+  margin-left: 10px;
+  margin-right: 10px;
+  border: none;
+  background-color: transparent;
   color: white;
-  font-size: 14px;
+  font-size: 18px;
   resize: none;
   overflow: auto;
   outline: none;
+  position: relative;
+  top: 10px;
   font-family: Arial, sans-serif;
-  min-height: 38px; /* Initial height of textarea */
 }
 
-.message-input textarea::placeholder {
+textarea::placeholder {
   color: #72767d;
 }
 
-.message-input textarea:focus {
-  box-shadow: 0 0 0 2px #00aff4;
+textarea:focus,
+textarea:active {
+  /* box-shadow: 0 0 0 2px #00aff4; */
   outline: none;
 }
+/* party mode RGB */
+/* .message-container::before,
+.message-container::after{
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  bottom: -2px;
+  left: -2px;
+  z-index: -1;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+  transition: .5s;
+  opacity: 0;
+}
+
+@keyframes rgbled {
+  0% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(0, 100%, 50%, 100%), 0 0 50px hsla(0, 100%, 50%, 5%); }
+  25% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(90, 100%, 50%, 100%), 0 0 50px hsla(90, 100%, 50%, 5%); }
+  50% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(180, 100%, 50%, 100%), 0 0 50px hsla(180, 100%, 50%, 5%); }
+  75% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(270, 100%, 50%, 100%), 0 0 50px hsla(270, 100%, 50%, 5%); }
+  100% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(360, 100%, 50%, 100%), 0 0 50px hsla(360, 100%, 50%, 5%); }
+}
+
+.message-container:has(textarea:focus)::before{
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  bottom: -2px;
+  left: -2px;
+  z-index: 2;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+  animation: rgbled 15s linear infinite;
+  border-radius: 8px;
+  opacity: 1;
+}
+
+.message-container:has(textarea:focus)::after {
+  top: -4px;
+  right: -4px;
+  bottom: -4px;
+  left: -4px;
+  animation-delay: 2.5s;
+} */
+
+.message-container:has(textarea:focus) {
+  /* box-shadow: 0 0 0 2px #00aff4; */
+  box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
+}
+
 </style>
