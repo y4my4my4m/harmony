@@ -2,12 +2,16 @@
     <div class="giphy-search" ref="giphy">
       <input type="text" v-model="searchQuery" placeholder="Search GIFs...">
       <div class="giphy-results">
-        <div v-for="gif in gifs" :key="gif.id" class="gif-item" 
-            @mouseover="hoveredGif = gif.id" 
-            @mouseleave="hoveredGif = null"
-            @click="selectGif(gif)">
-            <img :src="getImageSource(gif)" :alt="gif.title">
-        </div>
+        <masonry-wall :items="gifs" :column-width="128" :gap="10">
+            <template #default="{ item, index }">
+                <div :key="item.id" class="gif-item" 
+                    @mouseover="hoveredGif = item.id" 
+                    @mouseleave="hoveredGif = null"
+                    @click="selectGif(item)">
+                    <img :src="getImageSource(item)" :alt="item.title">
+                </div>
+            </template>
+        </masonry-wall>
       </div>
     </div>
 </template>
@@ -35,9 +39,9 @@
 
         const fetchTrendingGifs = async () => {
             try {
-                const response = await fetch(`https://tenor.googleapis.com/v2/trending?key=${import.meta.env.VITE_TENOR_API_KEY}&limit=25`);
+                const response = await fetch(`https://tenor.googleapis.com/v2/featured?key=${import.meta.env.VITE_TENOR_API_KEY}&limit=18`);
                 if (!response.ok) {
-                throw new Error('Network response was not ok');
+                    throw new Error('Network response was not ok');
                 }
                 const data = await response.json();
                 gifs.value = data.results;
@@ -45,7 +49,7 @@
                 console.error('Fetch error:', error);
             }
         };
-        // Function to perform search
+
         const searchGifs = async () => {
             if (!searchQuery.value.trim()) {
                 console.log('empty search');
@@ -53,7 +57,7 @@
             } else {
                 if (!searchQuery.value.trim()) return;
                 try {
-                    const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=25`);
+                    const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=18`);
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
                     }
@@ -138,20 +142,19 @@
     }
 
     .giphy-results {
-        display: flex;
-        flex-wrap: wrap; /* Allows items to wrap to the next line */
-        gap: 10px; /* Space between items */
-        padding: 10px;
+        display: block;
+        height: 450px;
         max-height: 450px;
-        overflow-y: auto; /* Scroll vertically if content overflows */
+        overflow-y: auto;
     }
 
     .gif-item {
-        flex-basis: calc(50% - 10px); /* Each item takes up half the container width minus half the gap */
         cursor: pointer;
         border-radius: 4px;
         transition: .2s;
         transform: scale(1);
+        width: 100%;
+        height: auto;
     }
 
     .gif-item:hover {

@@ -15,6 +15,7 @@ import VueEasyLightbox from 'vue-easy-lightbox';
 import './assets/vue-easy-lightbox.css';
 
 import VueLazyLoad from 'vue3-lazyload';
+import MasonryWall from '@yeger/vue-masonry-wall'
 
 // TODO: FIXME
 import ClickOutsideDirective from './directives/ClickOutsideDirective';
@@ -38,6 +39,7 @@ await authStore.initializeAuth();
 
 
 app.use(VueEasyLightbox);
+app.use(MasonryWall)
 
 app.use(VueLazyLoad, {
   // options...

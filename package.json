@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.39.2",
     "@tauri-apps/api": "^1.5.3",
     "@tauri-apps/cli": "^1.5.9",
+    "@yeger/vue-masonry-wall": "^5.0.5",
     "date-fns": "^3.2.0",
     "pinia": "^2.1.7",
     "uuidv4": "^6.2.13",
