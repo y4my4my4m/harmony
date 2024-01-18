@@ -126,17 +126,17 @@ export default defineComponent({
 .category-name {
   cursor: pointer;
   padding:8px 6px;
-  margin-top:10px;
+  margin-top: 6px;
   vertical-align: middle;
   display: inline-flex;
-  font-size:18px;
+  font-size: 16px;
 }
 .category-name > svg {
-  margin-right: 10px;
-  width:15px;
-  height:15px;
-  top:5px;
-  position:relative;
+  margin-right: 5px;
+  width: 16px;
+  height: 16px;
+  top: 4px;
+  position: relative;
 }
 
 .server-name:hover {
@@ -148,8 +148,8 @@ export default defineComponent({
   transition: 0.2s ease-in-out;
   display: inline-flex;
   width:100%;
-  font-size:18px;
-  font-weight:600;
+  font-size:14px;
+  font-weight:500;
   &:hover {
     background-color: var(--h-sidebar-light);
   }
@@ -166,10 +166,10 @@ export default defineComponent({
 }
 .channel-item > svg {
   margin-right: 10px;
-  width:20px;
-  height:20px;
-  position:relative;
-  top:4px;
+  width: 16px;
+  height: 16px;
+  position: relative;
+  top: 3px;
 }
 .category .channel-item {
   padding-left:20px;
