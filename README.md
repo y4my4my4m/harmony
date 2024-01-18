@@ -36,6 +36,7 @@
 
 - [x] file uploads
 - [ ] files upload
+- [x] tenor implementation
 - [ ] media embeds
   - [x] images
   - [ ] videos
@@ -49,7 +50,7 @@
 - [ ] forgot password
 - [ ] reset password
 - [ ] notifications
-- [ ] mentions
+- [x] mentions
 - [ ] reactions
 - [ ] threads
 - [ ] personal drive
