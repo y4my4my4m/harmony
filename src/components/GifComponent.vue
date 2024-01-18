@@ -32,11 +32,10 @@
         const getImageSource = (gif: Gif) => {
             return hoveredGif.value === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url;
         };
-        // Function to perform search
-        const searchGifs = async () => {
-            if (!searchQuery.value.trim()) return;
+
+        const fetchTrendingGifs = async () => {
             try {
-                const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=25`);
+                const response = await fetch(`https://tenor.googleapis.com/v2/trending?key=${import.meta.env.VITE_TENOR_API_KEY}&limit=25`);
                 if (!response.ok) {
                 throw new Error('Network response was not ok');
                 }
@@ -44,6 +43,25 @@
                 gifs.value = data.results;
             } catch (error) {
                 console.error('Fetch error:', error);
+            }
+        };
+        // Function to perform search
+        const searchGifs = async () => {
+            if (!searchQuery.value.trim()) {
+                console.log('empty search');
+                await fetchTrendingGifs();
+            } else {
+                if (!searchQuery.value.trim()) return;
+                try {
+                    const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=25`);
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    const data = await response.json();
+                    gifs.value = data.results;
+                } catch (error) {
+                    console.error('Fetch error:', error);
+                }
             }
         };
 
@@ -60,6 +78,7 @@
 
         onMounted(() => {
             document.addEventListener('click', handleClickOutside);
+            fetchTrendingGifs();
         });
 
         onUnmounted(() => {
