@@ -250,6 +250,7 @@ export default defineComponent({
       const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
       // Initialize or update 'imageLoaded' for each message
       newMessages.forEach(message => {
+        console.log(message.file_url);
         if (message.file_url && !(message.id in imageLoaded.value)) {
           imageLoaded.value[message.id] = false;
         }

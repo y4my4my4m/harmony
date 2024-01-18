@@ -1,7 +1,6 @@
 <template>
     <div class="giphy-search">
-      <input type="text" v-model="searchQuery" @keyup.enter="searchGifs" placeholder="Search GIFs...">
-      <button @click="searchGifs">Search</button>
+      <input type="text" v-model="searchQuery" placeholder="Search GIFs...">
       <div class="giphy-results">
         <div v-for="gif in gifs" :key="gif.id" class="gif-item" 
             @mouseover="hoveredGif = gif.id" 
@@ -31,7 +30,7 @@
         const searchGifs = async () => {
         if (!searchQuery.value.trim()) return;
         try {
-            const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=10`);
+            const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=25`);
             if (!response.ok) {
             throw new Error('Network response was not ok');
             }
@@ -66,33 +65,60 @@
 <style scoped>
     .giphy-search {
         position: absolute;
-        width: 100%;
-        top:300px;
-        left:200px;
-    }
-
-    .giphy-results {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-        gap: 10px;
-        padding: 10px;
-        max-height: 300px;
-        overflow-y: auto;
-        width:100%;
+        width: 420px;
+        bottom:120px;
+        right:15%;
         background-color: #2f3136;
         border-radius: 8px;
         box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        padding: 10px;
+        box-sizing: border-box;
+    }
+
+    .giphy-search input[type="text"] {
+        width: 100%;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid #52575e;
+        background-color: var(--h-chat-dark);
+        color: #cccccc;
+        font-size: 16px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        box-sizing: border-box;
+        outline:none;
+    }
+
+    .giphy-search input[type="text"]::placeholder {
+        color: #72767d;
+    }
+
+    .giphy-results {
+        display: flex;
+        flex-wrap: wrap; /* Allows items to wrap to the next line */
+        gap: 10px; /* Space between items */
+        padding: 10px;
+        max-height: 450px;
+        overflow-y: auto; /* Scroll vertically if content overflows */
     }
 
     .gif-item {
+        flex-basis: calc(50% - 10px); /* Each item takes up half the container width minus half the gap */
         cursor: pointer;
         border-radius: 4px;
-        width:100%;
+        transition: .2s;
+        transform: scale(1);
     }
 
+    .gif-item:hover {
+        transform: scale(1.14);
+    }
+    .gif-item:hover img {
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
     .gif-item img {
         width: 100%;
-        height: 150px;
+        height: auto;
         border-radius: 4px;
         object-fit: cover;
     }
