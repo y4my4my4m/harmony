@@ -11,9 +11,9 @@
     </div>
 
     <div class="buttons">
-      <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }">🎤</div>
-      <div class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }">🎧</div>
-      <div class="icon-button settings" @click="goToSettings">⚙️</div>
+      <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }"><MicIcon :isMicActive/></div>
+      <div class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }"><HeadphonesIcon :isHeadphonesActive/></div>
+      <div class="icon-button settings" @click="goToSettings"><SettingsIcon/></div>
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
@@ -36,6 +36,9 @@
   import type { User } from '@/types';
   import { updateUserStatus } from '@/services/profileService';
   import { UserStatus } from '@/types';
+  import MicIcon from '@/components/icons/Mic.vue';
+  import HeadphonesIcon from '@/components/icons/Headphones.vue';
+  import SettingsIcon from '@/components/icons/Settings.vue';
   
   export default defineComponent({
     data() {
@@ -43,6 +46,11 @@
         isMicActive: false,
         isHeadphonesActive: true
       };
+    },
+    components: {
+      MicIcon,
+      HeadphonesIcon,
+      SettingsIcon
     },
     methods: {
       toggleMic() {
@@ -193,22 +201,22 @@
   justify-content:space-between;
 }
 .icon-button {
-  background: none;
-  border: none;
+  /* background: none; */
+  /* border: none; */
   color: white;
   cursor: pointer;
   padding: 4px;
   margin: 2px;
-  border-radius: 4px;
+  /* border-radius: 4px; */
   transition: 0.2s ease-in-out;
 }
-.icon-button.muted {
+/* .icon-button.muted {
   opacity:0.65;
   background:rgba(255,0,0,0.35);
 }
 .settings {
   filter: grayscale(1) brightness(0.65)
-}
+} */
 .status-dropdown {
   position: absolute;
   bottom: 100%; /* Position above the user profile */

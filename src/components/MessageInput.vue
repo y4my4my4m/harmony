@@ -54,19 +54,20 @@ export default defineComponent({
 <style scoped>
 .message-input {
   display: flex;
-  padding: 10px;
+  padding: 10px 12px;
   background-color: var(--h-chat);
   border-radius: 8px;
 }
 
+.left-icons {
+  padding-left:10px;
+}
 .left-icons, .right-icons {
   display: flex;
   align-items: center;
 }
-
-.right-icons > div {
-  justify-content: space-between; /* This will create space between the icons */
-  flex: 1; /* If you want the icons to take up equal space in the container */
+.right-icons {
+  padding-right:10px;
 }
 
 .message-container {
