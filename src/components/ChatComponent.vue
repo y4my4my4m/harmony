@@ -11,13 +11,22 @@
     <MessageDisplay 
       :messages="messages" 
       @loadMoreMessages="$emit('loadMoreMessages')" />
-    <MessageInput :giphyOpen="giphyOpen" @sendMessage="handleSendMessage" />
-    <GifComponent v-if="giphyOpen==true" @sendGif="handleSendGif" :closeGiphy="closeGiphy"/>
+    <MessageInput :giphyOpen="giphyOpen" @toggleGiphy="toggleGiphy" @sendMessage="handleSendMessage" />
+
+    {{ giphyOpen }}
+    <div v-if="giphyOpen==true" @click.stop>
+      <GifComponent
+          @sendGif="handleSendGif"
+          :closeGiphy="closeGiphy"
+          :gifIconClicked="gifIconClicked"
+          @resetGifIconClicked="gifIconClicked = false"
+      />
+    </div>
   </div>
 </template>
 
 <script lang="ts">
-  import { defineComponent, ref, onMounted, computed } from 'vue';
+  import { defineComponent, ref, onMounted, computed, watch } from 'vue';
   import type { PropType } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
@@ -30,6 +39,8 @@
   import { readBinaryFile } from '@tauri-apps/api/fs';
   import type { UnlistenFn } from '@tauri-apps/api/event';
   import GifComponent from '@/components/GifComponent.vue';
+  // FIXME: probably breaking the __TAURI__ implementation if we declare it here
+  declare const __TAURI__: any;
   
   export default defineComponent({
     components: {
@@ -51,16 +62,31 @@
       const showDragDropArea = ref(false);
       const uploading = ref(false);
       const giphyOpen = ref(false);
+
       // let unlisten: UnlistenFn | null = null;
       // Computed property to check if running in Tauri
       const isTauri = computed(() => {
-        // eslint-disable-next-line no-undef
         return typeof __TAURI__ !== 'undefined';
+      });
+      const gifIconClicked = ref(false);
+
+      const toggleGiphy = () => {
+          giphyOpen.value = !giphyOpen.value;
+          if (giphyOpen.value) {
+              gifIconClicked.value = true;
+          }
+      };
+
+      watch(giphyOpen, () => {
+          if (!giphyOpen.value) {
+              gifIconClicked.value = false;
+          }
       });
 
       const closeGiphy = () => {
         giphyOpen.value = false;
       };
+
       const triggerFileDrop = async (event:any) => {
         console.log("File dropped:", event);
         uploading.value = true;
@@ -131,6 +157,7 @@
       // }, { deep: true });
       const handleSendGif = (gif: Gif ) => {
         const gifUrl = gif.media_formats.gif.url;
+        closeGiphy();
         // console.log("Sending GIF URL:", gifUrl);
         if (serverChannelStore.currentChannelId && authStore.session?.user) {
           chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, "", gifUrl);
@@ -144,7 +171,9 @@
         uploading,
         handleSendGif,
         giphyOpen,
-        closeGiphy
+        toggleGiphy,
+        closeGiphy,
+        gifIconClicked
       };
     }
   });

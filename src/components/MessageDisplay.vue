@@ -187,7 +187,6 @@ export default defineComponent({
       const userMention = (event.currentTarget as HTMLElement);
       if (userMention) {
         const userMentionRect = userMention.getBoundingClientRect();
-        console.log(userMentionRect);
         profileCardStyle.value = {
           left: `calc(10px + ${userMentionRect.width}px + ${userMentionRect.x}px)`,
           top: `calc(${userMentionRect.y}px - 400px)`,
@@ -250,7 +249,6 @@ export default defineComponent({
       const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
       // Initialize or update 'imageLoaded' for each message
       newMessages.forEach(message => {
-        console.log(message.file_url);
         if (message.file_url && !(message.id in imageLoaded.value)) {
           imageLoaded.value[message.id] = false;
         }

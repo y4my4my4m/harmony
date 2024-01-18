@@ -13,21 +13,21 @@
 </template>
 <script lang="ts">
   import { defineComponent, ref, watch, onMounted, onUnmounted } from 'vue';
-  import type { Ref } from 'vue';
+  import type { PropType } from 'vue';
   import type { Gif } from '@/types'
 
   export default defineComponent({
     name: 'GifComponent',
     props: {
-        openGiphy: Function,
-        closeGiphy: Function
+        closeGiphy: Function as PropType<() => void>,
+        gifIconClicked: Boolean
     },
-    emits: ['sendGif'],
+    emits: ['sendGif', 'resetGifIconClicked'],
     setup(props, { emit }) {
         const searchQuery = ref('');
         const gifs = ref<Gif[]>([]);
         const hoveredGif = ref<string | null>(null);
-        const giphy: Ref<HTMLElement | null> = ref(null);
+        const giphy = ref<HTMLElement | null>(null);
 
         const getImageSource = (gif: Gif) => {
             return hoveredGif.value === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url;
@@ -46,12 +46,14 @@
                 console.error('Fetch error:', error);
             }
         };
-        const handleClickOutside = (event: MouseEvent) => {
-            const target = event.target as Node;
 
-            if (giphy.value && !giphy.value.contains(target)) {
-                if (props.closeGiphy) {
-                    props.closeGiphy();
+        const handleClickOutside = (event: MouseEvent) => {
+            if (giphy.value && !giphy.value.contains(event.target as Node)) {
+                if (props.gifIconClicked) {
+                    // Notify parent to reset the flag
+                    emit('resetGifIconClicked');
+                } else {
+                    props.closeGiphy?.();
                 }
             }
         };
@@ -78,7 +80,8 @@
             hoveredGif,
             getImageSource,
             searchGifs, 
-            selectGif 
+            selectGif,
+            giphy,
         };
     }
     });
