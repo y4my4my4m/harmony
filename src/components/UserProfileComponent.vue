@@ -209,6 +209,7 @@
   margin: 2px;
   /* border-radius: 4px; */
   transition: 0.2s ease-in-out;
+  display:flex;
 }
 /* .icon-button.muted {
   opacity:0.65;

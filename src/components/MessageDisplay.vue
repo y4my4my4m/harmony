@@ -41,8 +41,8 @@
         </div>
       </template>
       <div class="message-actions" v-if="hoveredMessageId === message.id">
-        <div class="btn" @click="startEdit(message)">✏️</div>
-        <div class="btn" @click="deleteMessage(message.id)">🗑</div>
+        <div class="btn" @click="startEdit(message)"><EditIcon/></div>
+        <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
       </div>
     </div>
   </div>
@@ -67,6 +67,8 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { format } from 'date-fns';
 import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
+import EditIcon from '@/components/icons/Edit.vue';
+import DeleteIcon from '@/components/icons/Delete.vue';
 
 // interface Part {
 //   url?: string;
@@ -85,6 +87,8 @@ export default defineComponent({
   },
   components: { 
     UserPreviewComponent,
+    EditIcon,
+    DeleteIcon
   },
   setup(props, { emit }) {
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
@@ -305,6 +309,7 @@ export default defineComponent({
   display: flex;
   align-items: flex-start;
   padding: 0px 12px;
+  position:relative;
 }
 
 .message-wrapper:hover {
@@ -396,20 +401,27 @@ export default defineComponent({
   display:flex;
   justify-content: flex-end;
   flex-grow:1;
+  position:absolute;
+  right:4px;
+  top:-14px;
+  background:var(--h-chat);
+  box-shadow: 0 0 5px rgba(0,0,0,0.3);
+  border-radius: 5px;
+  padding:0px;
 }
 .message-actions .btn {
+  width: 24px;
+  height: 24px;
   margin-left: 5px;
   padding: 2px 4px;
-  border-radius: 5px;
   border: none;
   cursor: pointer;
-  background:transparent;
+  /* background:transparent; */
   transition: 0.2s ease-in-out;
   font-size: 12px;
-  filter: saturate(0);
 }
 .message-actions .btn:hover {
-  background: rgba(0,0,0,0.1);
+  /* background: rgba(0,0,0,0.1); */
   filter: saturate(1);
 }
 .scroll-bottom {
