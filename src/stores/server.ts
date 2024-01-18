@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { Server } from '@/types';
+import type { Server, Emoji } from '@/types';
 import { ref } from 'vue';
 
 const selectedFile = ref<File | null>(null);
@@ -17,7 +17,6 @@ export const useServerStore = defineStore('server', {
       if (error) throw error;
       return data;
     },
-
 
     async updateServer(serverData: Partial<Server>, file?: File): Promise<boolean> {
       try {
@@ -53,6 +52,16 @@ export const useServerStore = defineStore('server', {
         console.error('Error updating server:', error);
         return false;
       }
-    }
+    },
+
+    async fetchEmojis(serverId: string): Promise<Emoji[]> {
+      const { data, error } = await supabase
+        .from('emojis')
+        .select('*')
+        .eq('server_id', serverId);
+
+      if (error) throw error;
+      return data;
+    },
   }
 });

@@ -19,6 +19,21 @@
         <input type="file" id="icon" @change="handleFileChange">
         <img :src="server.icon" class="icon" alt="Server Icon">
       </div>
+      <hr>
+      <h3>Emojis</h3>
+      <div>
+        <label for="allow_cross_server_emojis">Allow Cross Server Emojis:</label>
+        <input type="checkbox" id="allow_cross_server_emojis" v-model="server.allow_cross_server_emojis">
+      </div>
+      <label for="emoji-upload">Upload Emoji:</label>
+      <input type="file" id="emoji-upload" @change="handleEmojiChange">
+      <div class="emoji-list">
+        <div v-for="emoji in emojis" :key="emoji.id" class="emoji-item">
+          <img :src="emoji.url" :alt="emoji.name" class="emoji-icon">
+          <span>{{ emoji.name }}</span>
+        </div>
+      </div>
+
       <button type="submit">Save Changes</button>
       <button @click="back()" style="background-color:gray">Cancel</button>
     </form>
@@ -26,13 +41,13 @@
 </template>
   
 <script lang="ts">
-  import { ref } from 'vue';
+  import { onMounted, ref } from 'vue';
   import { useServerStore } from '@/stores/server';
-  import type { Server } from '@/types';
+  import type { Server, Emoji } from '@/types';
   import { useRouter } from 'vue-router';
   import { useToast } from "vue-toastification";
   import { getProfileWithAvatarUrl } from '@/services/profileService';
-
+  import { uploadEmoji } from '@/services/emojiService';
   
   export default {
     props: {
@@ -47,13 +62,29 @@
       const toast = useToast();
       const ownerName = ref('');
       const selectedFile = ref<File | null>(null);
+      const emojis = ref<Emoji[]>([]);
       const server = ref<Server>({
         id: '',
         name: '',
         description: '',
         icon: '',
         owner: '',
+        allow_cross_server_emojis: true,
       });
+
+      const handleEmojiChange = async (event: Event) => {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (file) {
+          const newEmoji = await uploadEmoji(props.serverId, server.value.owner, file);
+          if (newEmoji) {
+            emojis.value.push(newEmoji);
+            toast.success('Emoji uploaded successfully');
+          } else {
+            toast.error('Failed to upload emoji');
+          }
+        }
+      };
 
       const handleFileChange = (event: Event) => {
         const input = event.target as HTMLInputElement;
@@ -94,8 +125,13 @@
         router.push('/chat');
       }
   
+      onMounted(async () => {
+        // Fetch existing emojis
+        emojis.value = await serverStore.fetchEmojis(props.serverId);
+      });
+      
       fetchServer();
-      return { server, updateServer, handleFileChange, back, ownerName };
+      return { server, updateServer, handleFileChange, back, ownerName, handleEmojiChange, emojis };
     }
   };
 </script>
@@ -156,6 +192,27 @@
   margin-top: 10px; /* Adjusted margin */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); /* Shadow for depth */
 }
+.emoji-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+.emoji-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.emoji-item {
+  display: flex;
+  align-items: center;
+}
+
+.emoji-icon {
+  width: 32px;
+  height: 32px;
+  margin-right: 5px;
+}
 
 </style>
-  

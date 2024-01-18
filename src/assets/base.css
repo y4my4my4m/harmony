@@ -117,7 +117,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--h-black-dark);
+  background-color: var(--h-black-darker);
   border-radius: 12px;
 }
 

@@ -4,6 +4,7 @@ export interface Server {
   description: string;
   owner: string;
   icon: string;
+  allow_cross_server_emojis: boolean;
 }
 
 export interface Channel {
@@ -84,4 +85,13 @@ export interface Gif {
       webm: {url:string}
   }
   title?: string;
+}
+
+export interface Emoji {
+  id: string;
+  created_at: Date;
+  name: string;
+  url: string;
+  server_id: string;
+  uploader: string;
 }
