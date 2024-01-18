@@ -30,7 +30,8 @@
       <div class="emoji-list">
         <div v-for="emoji in emojis" :key="emoji.id" class="emoji-item">
           <img :src="emoji.url" :alt="emoji.name" class="emoji-icon">
-          <span>{{ emoji.name }}</span>
+          <span>:{{ emoji.name }}:</span>
+          <!-- <span>{{ emoji.uploader }}</span> -->
         </div>
       </div>
 
