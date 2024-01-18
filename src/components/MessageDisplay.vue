@@ -207,7 +207,7 @@ export default defineComponent({
 .message-wrapper {
   display: flex;
   align-items: flex-start;
-  padding: 4px;
+  padding: 0px 12px;
 }
 
 .message-wrapper:hover {
@@ -238,6 +238,9 @@ export default defineComponent({
   align-items: flex-start;
 }
 
+.message-wrapper:has(> .message-header) {
+  margin-top: 12px;
+}
 .message-content {
   padding-left: 46px; /* Same as avatar width + margin-right */
 }
