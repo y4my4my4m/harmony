@@ -11,8 +11,8 @@
     <MessageDisplay 
       :messages="messages" 
       @loadMoreMessages="$emit('loadMoreMessages')" />
-    <MessageInput @sendMessage="handleSendMessage" />
-    <GifComponent @sendGif="handleSendGif" />
+    <MessageInput :giphyOpen="giphyOpen" @sendMessage="handleSendMessage" />
+    <GifComponent v-if="giphyOpen==true" @sendGif="handleSendGif" :closeGiphy="closeGiphy"/>
   </div>
 </template>
 
@@ -50,6 +50,7 @@
       const serverChannelStore = useServerChannelStore();
       const showDragDropArea = ref(false);
       const uploading = ref(false);
+      const giphyOpen = ref(false);
       // let unlisten: UnlistenFn | null = null;
       // Computed property to check if running in Tauri
       const isTauri = computed(() => {
@@ -57,6 +58,9 @@
         return typeof __TAURI__ !== 'undefined';
       });
 
+      const closeGiphy = () => {
+        giphyOpen.value = false;
+      };
       const triggerFileDrop = async (event:any) => {
         console.log("File dropped:", event);
         uploading.value = true;
@@ -138,37 +142,39 @@
         showDragDropArea,
         isTauri,
         uploading,
-        handleSendGif
+        handleSendGif,
+        giphyOpen,
+        closeGiphy
       };
     }
   });
 </script>
 
 <style scoped>
-.chat-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-.drag-drop-area {
-  position:absolute;
-  z-index:50;
-  display: flex;
-  height: 90%;
-  width: 63%;
-  border: 2px dashed #ccc;
-  padding: 20px;
-  text-align: center;
-  margin: 20px;
-  background: var(--vt-c-black);
-  opacity:0.25;
-  align-items: center;
-  justify-content: center;
-  transition: 0.2s ease-in-out;
-  font-size:48px; 
-  font-weight:bold
-}
-.drag-drop-area:hover {
-  opacity:0.8;
-}
+  .chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .drag-drop-area {
+    position:absolute;
+    z-index:50;
+    display: flex;
+    height: 90%;
+    width: 63%;
+    border: 2px dashed #ccc;
+    padding: 20px;
+    text-align: center;
+    margin: 20px;
+    background: var(--vt-c-black);
+    opacity:0.25;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s ease-in-out;
+    font-size:48px; 
+    font-weight:bold
+  }
+  .drag-drop-area:hover {
+    opacity:0.8;
+  }
 </style>

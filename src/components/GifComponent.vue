@@ -1,5 +1,5 @@
 <template>
-    <div class="giphy-search">
+    <div class="giphy-search" ref="giphy">
       <input type="text" v-model="searchQuery" placeholder="Search GIFs...">
       <div class="giphy-results">
         <div v-for="gif in gifs" :key="gif.id" class="gif-item" 
@@ -12,35 +12,57 @@
     </div>
 </template>
 <script lang="ts">
-  import { defineComponent, ref, watch } from 'vue';
+  import { defineComponent, ref, watch, onMounted, onUnmounted } from 'vue';
+  import type { Ref } from 'vue';
   import type { Gif } from '@/types'
 
   export default defineComponent({
     name: 'GifComponent',
+    props: {
+        openGiphy: Function,
+        closeGiphy: Function
+    },
     emits: ['sendGif'],
-    setup(_, { emit }) {
+    setup(props, { emit }) {
         const searchQuery = ref('');
         const gifs = ref<Gif[]>([]);
         const hoveredGif = ref<string | null>(null);
+        const giphy: Ref<HTMLElement | null> = ref(null);
 
         const getImageSource = (gif: Gif) => {
             return hoveredGif.value === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url;
         };
         // Function to perform search
         const searchGifs = async () => {
-        if (!searchQuery.value.trim()) return;
-        try {
-            const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=25`);
-            if (!response.ok) {
-            throw new Error('Network response was not ok');
+            if (!searchQuery.value.trim()) return;
+            try {
+                const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=25`);
+                if (!response.ok) {
+                throw new Error('Network response was not ok');
+                }
+                const data = await response.json();
+                gifs.value = data.results;
+            } catch (error) {
+                console.error('Fetch error:', error);
             }
-            const data = await response.json();
-            gifs.value = data.results;
-        } catch (error) {
-            console.error('Fetch error:', error);
-        }
+        };
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+
+            if (giphy.value && !giphy.value.contains(target)) {
+                if (props.closeGiphy) {
+                    props.closeGiphy();
+                }
+            }
         };
 
+        onMounted(() => {
+            document.addEventListener('click', handleClickOutside);
+        });
+
+        onUnmounted(() => {
+            document.removeEventListener('click', handleClickOutside);
+        });
         // Watcher on searchQuery
         watch(searchQuery, () => {
             searchGifs();
