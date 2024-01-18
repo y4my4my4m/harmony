@@ -7,7 +7,7 @@
       <textarea v-model="newMessage" @keydown.enter="handleEnter" placeholder="Type a message..."></textarea>
       <div class="right-icons">
         <GifIcon @click="toggleGiphy" />
-        <EmojiUI/>
+        <EmojiUI @click="toggleEmojiList" />
       </div>
     </div>
   </div>
@@ -26,11 +26,13 @@ export default defineComponent({
     EmojiUI,
   },
   props: {
-    giphyOpen: Boolean
+    giphyOpen: Boolean,
+    emojiListOpen: Boolean
   },
   emits: {
     sendMessage: null, // If 'sendMessage' doesn't have a payload
-    toggleGiphy: null
+    toggleGiphy: null,
+    toggleEmojiList: null
   },
   setup(_, { emit }) {
     const newMessage = ref('');
@@ -55,8 +57,11 @@ export default defineComponent({
     const toggleGiphy = () => {
       emit('toggleGiphy');
     };
+    const toggleEmojiList = () => {
+      emit('toggleEmojiList');
+    };
 
-    return { newMessage, send, toggleGiphy, handleEnter };
+    return { newMessage, send, toggleGiphy, toggleEmojiList, handleEnter };
   }
 });
 </script>

@@ -3,7 +3,7 @@
       <input type="text" v-model="searchQuery" placeholder="Search GIFs...">
       <div class="giphy-results">
         <masonry-wall :items="gifs" :column-width="150" :gap="10">
-            <template #default="{ item, index }">
+            <template #default="{ item }">
                 <div :key="item.id" class="gif-item" 
                     @mouseover="hoveredGif = item.id" 
                     @mouseleave="hoveredGif = null"

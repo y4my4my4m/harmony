@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { Server, Category, Channel } from '@/types';
+import type { Server, Category, Channel, Emoji } from '@/types';
 
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
+    emojiList: [] as { serverId: string, emojis: Emoji[] }[],
     channels: [] as Channel[],
     categories: {} as Category[],
     categoryChannels: {} as Record<string, Channel[]>,
@@ -136,6 +137,38 @@ export const useServerChannelStore = defineStore('serverChannel', {
         if (error) console.error('Error fetching servers:', error);
         else this.currentServer = data;
     },
+    async fetchAllEmojis() {
+      try {
+        // Get server IDs from the current user's servers
+        const serverIds = this.servers.map(server => server.id);
+    
+        // Fetch emojis only from those servers
+        const { data, error } = await supabase
+          .from('emojis')
+          .select(`
+            *,
+            server:server_id ( name )
+          `)
+          .in('server_id', serverIds);
+    
+        if (error) throw error;
+    
+        // Reset emojis state
+        this.emojiList = [];
+    
+        // Group emojis by server
+        data.forEach(emoji => {
+          let serverEmoji = this.emojiList.find(e => e.serverId === emoji.server_id);
+          if (!serverEmoji) {
+            serverEmoji = { serverId: emoji.server_id, emojis: [] };
+            this.emojiList.push(serverEmoji);
+          }
+          serverEmoji.emojis.push(emoji);
+        });
+      } catch (error) {
+        console.error('Error fetching emojis:', error);
+      }
+    },    
     setCurrentServer(serverId: string) {
       this.currentServerId = serverId;
       this.getCurrentServer();

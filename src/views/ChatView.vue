@@ -148,6 +148,7 @@
             showNoServersSplash.value = true;
             return;
           }
+          await serverChannelStore.fetchAllEmojis();
           await loadServerAndChannel();
         }
       });

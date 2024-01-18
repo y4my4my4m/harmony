@@ -1,9 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Server, Emoji } from '@/types';
-import { ref } from 'vue';
 
-const selectedFile = ref<File | null>(null);
 export const useServerStore = defineStore('server', {
   actions: {
     async getServer(serverId: string): Promise<Server | null> {

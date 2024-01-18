@@ -11,16 +11,31 @@
     <MessageDisplay 
       :messages="messages" 
       @loadMoreMessages="$emit('loadMoreMessages')" />
-    <MessageInput :giphyOpen="giphyOpen" @toggleGiphy="toggleGiphy" @sendMessage="handleSendMessage" />
+    <MessageInput 
+      :giphyOpen="giphyOpen"
+      @toggleGiphy="toggleGiphy"
+      :emojiListOpen="emojiListOpen"
+      @toggleEmojiList="toggleEmojiList"
+      @sendMessage="handleSendMessage"
+    />
 
-    <div v-if="giphyOpen==true" @click.stop>
-      <GifComponent
-          @sendGif="handleSendGif"
-          :closeGiphy="closeGiphy"
-          :gifIconClicked="gifIconClicked"
-          @resetGifIconClicked="gifIconClicked = false"
-      />
-    </div>
+    <GifComponent
+      v-if="giphyOpen==true"
+      @click.stop
+      @sendGif="handleSendGif"
+      :closeGiphy="closeGiphy"
+      :gifIconClicked="gifIconClicked"
+      @resetGifIconClicked="gifIconClicked = false"
+    />
+
+    <EmojiPopup
+        v-if="emojiListOpen==true"
+        @click.stop
+        @sendEmoji="handleSendEmoji"
+        :closeEmojiList="closeEmojiList"
+        :emojiIconClicked="emojiIconClicked"
+        @resetEmojiIconClicked="emojiIconClicked = false"
+    />
   </div>
 </template>
 
@@ -32,12 +47,13 @@
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
-  import type { Message, Gif } from '@/types';
+  import type { Message, Gif, Emoji } from '@/types';
   import { handleFileDrop } from '@/services/fileService';
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
   import type { UnlistenFn } from '@tauri-apps/api/event';
   import GifComponent from '@/components/GifComponent.vue';
+  import EmojiPopup from '@/components/EmojiPopup.vue';
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
   
@@ -45,7 +61,8 @@
     components: {
       MessageDisplay,
       MessageInput,
-      GifComponent
+      GifComponent,
+      EmojiPopup
     },
     props:{
       messages: {
@@ -60,6 +77,7 @@
       const serverChannelStore = useServerChannelStore();
       const showDragDropArea = ref(false);
       const uploading = ref(false);
+      const emojiListOpen = ref(false);
       const giphyOpen = ref(false);
 
       // let unlisten: UnlistenFn | null = null;
@@ -68,6 +86,24 @@
         return typeof __TAURI__ !== 'undefined';
       });
       const gifIconClicked = ref(false);
+      const emojiIconClicked = ref(false);
+
+      const toggleEmojiList = () => {
+          emojiListOpen.value = !emojiListOpen.value;
+          if (emojiListOpen.value) {
+            emojiIconClicked.value = true;
+          }
+      };
+
+      watch(emojiListOpen, () => {
+          if (!emojiListOpen.value) {
+            emojiIconClicked.value = false;
+          }
+      });
+
+      const closeEmojiList = () => {
+        emojiListOpen.value = false;
+      };
 
       const toggleGiphy = () => {
           giphyOpen.value = !giphyOpen.value;
@@ -162,6 +198,14 @@
           chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, "", gifUrl);
         }
       };
+      const handleSendEmoji = (emoji: Emoji ) => {
+        closeEmojiList();
+        console.log("Selected emoji:", JSON.stringify(emoji));
+        // if (serverChannelStore.currentChannelId && authStore.session?.user) {
+        //   chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, emoji.url, "");
+        // }
+      };
+      
       return { 
         handleSendMessage,
         triggerFileDrop,
@@ -172,7 +216,12 @@
         giphyOpen,
         toggleGiphy,
         closeGiphy,
-        gifIconClicked
+        gifIconClicked,
+        toggleEmojiList,
+        closeEmojiList,
+        emojiListOpen,
+        emojiIconClicked,
+        handleSendEmoji
       };
     }
   });
