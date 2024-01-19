@@ -58,7 +58,6 @@ export default {
     background-attachment: fixed;
   }
   .register-container {
-    transform: scale(1.5);
   }
   .register-container::before {
     position:absolute;
