@@ -11,7 +11,7 @@
           <button class="login" @click="login">Login</button>
           <button class="register" @click="$router.push('/register')">Register</button>
         </div>
-        <img src="/icon_3d.png" class="logo" alt="Logo" />
+        <img src="/icon_3d.png" class="logo" alt="Logo" @click="playSound" />
       </div>
     </div>
   </div>
@@ -28,6 +28,11 @@ export default defineComponent({
     const authStore = useAuthStore();
     const randomBg = ref('');
     const bgRotation = ref(0);
+    const audio = ref(new Audio('/assets/sounds/pirori-wet.mp3'));
+
+    const playSound = () => {
+      audio.value.play();
+    };
 
     const login = async () => {
       await authStore.login(email.value, password.value);
@@ -44,7 +49,7 @@ export default defineComponent({
       randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 41) + 1}.png')`;
     });
 
-    return { email, password, login, randomBg, updateBackgroundRotation, bgRotation };
+    return { email, password, login, randomBg, updateBackgroundRotation, bgRotation, playSound };
   },
 });
 </script>
@@ -142,6 +147,7 @@ export default defineComponent({
     -webkit-box-shadow:0 0 0 50px #24274e inset; /* Change the color to your own background color */
     border: 1px solid #242b37; /* Subtle border */
     -webkit-text-fill-color: #dddddd;
+    font-size:2em;
   }
 
   input:-webkit-autofill:focus {

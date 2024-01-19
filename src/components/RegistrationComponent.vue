@@ -11,7 +11,7 @@
           <button class="register" @click="register">Register</button>
           <button class="login" @click="$router.push('/Login')">Login</button>
         </div>
-        <img src="/icon_3d.png" class="logo" alt="Logo" />
+        <img src="/icon_3d.png" class="logo" alt="Logo" @click="playSound" />
       </div>
     </div>
   </div>
@@ -32,6 +32,11 @@ export default {
         const router = useRouter();
         const randomBg = ref('');
         const bgRotation = ref(0);
+        const audio = ref(new Audio('/assets/sounds/pirori-wet.mp3'));
+
+        const playSound = () => {
+          audio.value.play();
+        };
 
         const register = async () => {
           try {
@@ -54,7 +59,7 @@ export default {
           randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 41) + 1}.png')`;
         });
 
-        return { email, password, register, randomBg, updateBackgroundRotation, bgRotation };
+        return { email, password, register, randomBg, updateBackgroundRotation, bgRotation, playSound };
     },
 };
 </script>
