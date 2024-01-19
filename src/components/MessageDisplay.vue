@@ -294,7 +294,6 @@ export default defineComponent({
     // Watch for changes in messages for parsing
     watch(() => props.messages, async (newMessages) => {
       const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
-      
       // Process image loading
       newMessages.forEach(message => {
         if (message.file_url && !(message.id in imageLoaded.value)) {
@@ -314,6 +313,8 @@ export default defineComponent({
           const scrollOffset = newScrollHeight - oldScrollHeight;
           messageDisplayContainer.value.scrollTop += scrollOffset;
         }
+        // FIXME: manually call to scroll down to bottom, although we probably dont want if we've scrolled up
+        handleScroll();
 
         return {
           ...message,

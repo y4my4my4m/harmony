@@ -34,6 +34,7 @@
   import { useAuthStore } from '@/stores/auth';
   import { useRoute, useRouter } from 'vue-router';
   import { useProfileStore } from '@/stores/useProfile';
+  import { useToast } from "vue-toastification";
 
   export default defineComponent({
     components: {
@@ -50,6 +51,9 @@
       const chatStore = useChatStore();
       const authStore = useAuthStore();
       const profileStore = useProfileStore();
+      const toast = useToast();
+      const notificationSound = ref(new Audio('/assets/sounds/poi1.mp3'));
+      const notificationSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
 
       const route = useRoute();
       const router = useRouter();
@@ -132,6 +136,25 @@
         }
       };
 
+      const requestNotificationPermission = async () => {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          toast.success('Notification permission granted.');
+          notificationSound2.value.play();
+        } else {
+          toast.error('Notification permission denied.');
+        }
+      };
+
+      const showNotification = (title: string, options?: NotificationOptions) => {
+        if (Notification.permission === 'granted') {
+          notificationSound.value.play(); // Play the notification sound
+          new Notification(title, options);
+        } else {
+          toast.info('Notification permission not granted. Please allow notifications.');
+        }
+      };
+
       onMounted(async () => {
         const userId = authStore.session?.user?.id;
         if (userId) {
@@ -150,6 +173,12 @@
           }
           await serverChannelStore.fetchAllEmojis();
           await loadServerAndChannel();
+          requestNotificationPermission();
+
+          // wait 5 seconds then send a notification
+          setTimeout(() => {
+            showNotification('Welcome to Harmony!');
+          }, 5000);
         }
       });
 
@@ -173,7 +202,9 @@
         handleChannelSelected,
         fetchMoreMessages,
         isAtBottom,
-        scrollToBottom
+        scrollToBottom,
+        requestNotificationPermission,
+        showNotification,
       };
   }
 });
