@@ -14,7 +14,7 @@
             <template v-for="(part, partIndex) in message.content" :key="partIndex">
               <a v-if="typeof part === 'object' && part.url" :href="part.url" target="_blank">{{ part.url }}</a>
               <span v-else-if="typeof part === 'object' && part.mention" class="mention"  @click="showUserProfile(part.userId, $event)">{{ part.mention }}</span>
-              <img v-else-if="typeof part === 'object' && part.emoji" class="emoji-icon" :src="part.emoji.url" :alt="part.emoji.name" />
+              <img v-else-if="typeof part === 'object' && part.emoji" class="emoji-icon" :src="part.emoji.url" :alt="part.emoji.name" :title="`:${part.emoji.name}:`" />
               <span v-else>{{ part }}</span>
             </template>
           </div>
@@ -26,7 +26,7 @@
           <template v-for="(part, partIndex) in message.content" :key="partIndex">
             <a v-if="typeof part === 'object' && part.url" :href="part.url" target="_blank">{{ part.url }}</a>
             <span v-else-if="typeof part === 'object' && part.mention" class="mention"  @click="showUserProfile(part.userId, $event)">{{ part.mention }}</span>
-            <img v-else-if="typeof part === 'object' && part.emoji" class="emoji-icon" :src="part.emoji.url" :alt="part.emoji.name" />
+            <img v-else-if="typeof part === 'object' && part.emoji" class="emoji-icon" :src="part.emoji.url" :alt="part.emoji.name" :title="`:${part.emoji.name}:`" />
             <span v-else>{{ part }}</span>
           </template>
         </div>
@@ -394,6 +394,7 @@ export default defineComponent({
 }
 .message-content {
   padding-left: 46px; /* Same as avatar width + margin-right */
+  /* line-height:24px; */
 }
 
 .message-header .message-content {
@@ -510,6 +511,14 @@ export default defineComponent({
 .mention:hover {
   background-color: #5865f2;
   color:rgba(255,255,255,0.9);
+}
+
+.message-content .emoji-icon  {
+  width: auto;
+  max-width : 120px;
+  height: 24px;
+  /* margin: 0 2px; */
+  vertical-align: middle;
 }
 
 /* FIXME: this should all be inside the userProfileComponent */

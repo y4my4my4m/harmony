@@ -11,7 +11,7 @@
             @mouseover="hoveredEmoji = emoji.id" 
             @mouseleave="hoveredEmoji = null"
           >
-            <img :src="emoji.url" :alt="emoji.name">
+            <img :src="emoji.url" :alt="emoji.name" :title="`:${emoji.name}:`">
           </div>
         </div>
       </div>
