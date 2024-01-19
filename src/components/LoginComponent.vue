@@ -126,12 +126,27 @@ export default defineComponent({
     width: 100%;
     margin: 20px auto;
     padding: 10px;
-    border-radius: 5px; /* Rounded corners */
+    border-radius: 6px; /* Rounded corners */
     border: 1px solid #40444b; /* Subtle border */
     background-color: #2f3136; /* Slightly lighter than the background */
     color: white; /* White text */
     outline: none;
     font-size:2em;
+  }
+  input:focus{
+    outline: none;
+    border: 1px solid #7289da;
+    box-shadow: 0 0 0 3px #7289da;
+  }
+  input:-webkit-autofill {
+    -webkit-box-shadow:0 0 0 50px #24274e inset; /* Change the color to your own background color */
+    border: 1px solid #242b37; /* Subtle border */
+    -webkit-text-fill-color: #dddddd;
+  }
+
+  input:-webkit-autofill:focus {
+      -webkit-box-shadow: 0 0 0 50px #5865f2 inset;/*your box-shadow*/
+      -webkit-text-fill-color: white;
   }
   .buttons {
     display: flex;
