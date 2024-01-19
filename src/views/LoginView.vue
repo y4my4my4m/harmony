@@ -1,7 +1,5 @@
 <template>
-  <div class="login-view">
-    <LoginComponent />
-  </div>
+  <LoginComponent />
 </template>
 
 <script lang="ts">
@@ -37,13 +35,3 @@ export default defineComponent({
   },
 });
 </script>
-
-
-<style scoped>
-  .login-view {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-  }
-</style>
