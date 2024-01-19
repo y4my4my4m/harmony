@@ -125,9 +125,19 @@ export default defineComponent({
     const editableMessageId = ref<string | null>(null);
     const editableMessageContent = ref('');
 
-    const startEdit = (message: Message) => {
+    const startEdit = (message: ParsedMessage) => {
       editableMessageId.value = message.id;
-      editableMessageContent.value = message.content;
+      editableMessageContent.value = message.content.map(part => {
+        if (typeof part === 'string') {
+          return part;
+        } else if (part.mention) {
+          return part.mention;
+        } else if (part.url) {
+          return part.url;
+        } else if (part.emoji) {
+          return `:${part.emoji.id}:`;
+        }
+      }).join('')
     };
 
     const saveEdit = async (messageId: string) => {
