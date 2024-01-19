@@ -19,6 +19,7 @@
       :emojiListOpen="emojiListOpen"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
+      @update:newMessage="messageContent = $event"
     />
 
     <GifComponent
@@ -208,6 +209,7 @@
         messageContent.value += `:${emoji.id}:`;
         console.log("Emoji added in Parent:", messageContent.value);
       };
+
       const updateMessageContent = (newContent: string) => {
         messageContent.value = newContent;
       };

@@ -282,44 +282,36 @@ export default defineComponent({
 
     // Watch for changes in messages for parsing
     watch(() => props.messages, async (newMessages) => {
-        const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
-        parsedMessages.value = await Promise.all(newMessages.map(async message => {
-          // Parse the content of each message
-          const content = await parseMessage(message.content);
+      const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
+      
+      // Process image loading
+      newMessages.forEach(message => {
+        if (message.file_url && !(message.id in imageLoaded.value)) {
+          imageLoaded.value[message.id] = false;
+        }
+      });
 
-          await nextTick();
+      // Parse messages and update scroll
+      parsedMessages.value = await Promise.all(newMessages.map(async (message:any) => {
+        const content = await parseMessage(message.content);
 
-          if (messageDisplayContainer.value) {
-            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-            const scrollOffset = newScrollHeight - oldScrollHeight;
-            messageDisplayContainer.value.scrollTop += scrollOffset;
-          }
-          // Return a new message object with the parsed content
-          return {
-            ...message,
-            content: content
-          };
-        }));
-    }, { immediate: true });
+        await nextTick();
 
+        // Recalculate scroll height
+        if (messageDisplayContainer.value) {
+          const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+          const scrollOffset = newScrollHeight - oldScrollHeight;
+          messageDisplayContainer.value.scrollTop += scrollOffset;
+        }
 
-    // Watch for changes in messages for scroll behavior and image loading
-    // watch(() => props.messages, async (newMessages, _) => {
-    //   const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
-    //   newMessages.forEach(message => {
-    //     if (message.file_url && !(message.id in imageLoaded.value)) {
-    //       imageLoaded.value[message.id] = false;
-    //     }
-    //   });
+        return {
+          ...message,
+          content
+        };
+      }));
 
-    //   await nextTick();
+    }, { immediate: true, deep: true });
 
-    //   if (messageDisplayContainer.value) {
-    //     const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-    //     const scrollOffset = newScrollHeight - oldScrollHeight;
-    //     messageDisplayContainer.value.scrollTop += scrollOffset;
-    //   }
-    // }, { immediate: true, deep: true });
 
 
     return { 

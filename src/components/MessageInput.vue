@@ -34,6 +34,7 @@ export default defineComponent({
     sendMessage: null,
     toggleGiphy: null,
     toggleEmojiList: null,
+    'update:newMessage': null,
   },
   setup(props, { emit }) {
     const newMessage = ref(props.modelValue);
@@ -68,6 +69,7 @@ export default defineComponent({
 
     watch(() => props.modelValue, (newValue) => {
       newMessage.value = newValue;
+      emit('update:newMessage', newMessage.value);
     });
 
     return { newMessage, send, toggleGiphy, toggleEmojiList, handleEnter };

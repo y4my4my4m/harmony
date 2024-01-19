@@ -36,6 +36,13 @@
 
 - [x] file uploads
 - [ ] files upload
+- [ ] emojis
+  - [x] server emojis
+  - [x] cross server emojis
+  - [x] emoji display
+  - [x] emoji picker
+  - [ ] emoji in textarea
+  - [ ] emoji search  
 - [x] tenor implementation
 - [ ] media embeds
   - [x] images
