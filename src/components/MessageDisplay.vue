@@ -127,6 +127,7 @@ export default defineComponent({
 
     const startEdit = (message: ParsedMessage) => {
       editableMessageId.value = message.id;
+      // Convert message content to string
       editableMessageContent.value = message.content.map(part => {
         if (typeof part === 'string') {
           return part;
