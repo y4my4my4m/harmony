@@ -3,6 +3,7 @@
     <div class="login-container">
       <div class="login-bg">
         <h1>Harmony</h1>
+        <h2>Login</h2>
         <input v-model="email" type="email" placeholder="Email" />
         <input v-model="password" type="password" placeholder="Password" />
         <br/>
@@ -38,7 +39,6 @@ export default defineComponent({
       const angle = Math.atan2(y, x) * (180 / Math.PI);
       bgRotation.value = angle;
     };
-
 
     onMounted(() => {
       randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 41) + 1}.png')`;
@@ -100,9 +100,10 @@ export default defineComponent({
 
   h2 {
     text-align: center;
-    margin: 20px auto;
-    font-weight:500;
-    font-size:2em;
+    font-weight:100;
+    font-size:3em;
+    position:relative;
+    top: -30px;
   }
   .logo {
     display:block;

@@ -48,7 +48,6 @@
     src: local('gg sans Bold'), url('/assets/fonts/gg_sans_Bold.woff') format('woff');
   }
   
-
   /* Global styles */
   html, body {
     margin: 0;
