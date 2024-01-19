@@ -67,8 +67,9 @@ export default defineComponent({
     background-attachment: fixed;
   }
   .login-container {
-    position:relative;
+    position:absolute;
     z-index:2;
+    left:200px;
   }
   .login-container::before {
     position:absolute;
@@ -79,6 +80,7 @@ export default defineComponent({
     bottom:0;
     background:var(--random-bg) center center;
     background-size: 100vw 100vh;
+    background-position-x:-200px;
     z-index:3;
     filter: blur(15px);
   }

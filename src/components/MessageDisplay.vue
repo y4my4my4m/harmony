@@ -493,12 +493,10 @@ export default defineComponent({
 .edit-input {
   display: flex;
   align-items: flex-start;
-  padding: 4px;
-  width: 100%;
+  width: calc(64vw);
   padding: 2px 6px;
   border-radius: 4px;
-  /* remove default html styling of input */
-  background: rgba(0,0,0,0.1);
+  background: rgb(0 0 0 / 9%);
   font-family: inherit;
   font-size: inherit;
   color: inherit;
@@ -507,7 +505,11 @@ export default defineComponent({
   resize: none;
   border-style: solid;
   border-width: 1px;
-  border-color: rgba(0,0,0,0.3);
+  border-color: rgba(0,0,0,0.15);
+}
+.message-header .edit-input {
+  margin-left:42px;
+  width: calc(64vw - 42px);
 }
 .mention {
   background-color: #3c4270;
