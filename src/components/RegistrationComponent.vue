@@ -4,12 +4,13 @@
       <div class="register-bg">
         <h1>Harmony</h1>
         <h2>Register</h2>
-        <input v-model="email" type="email" placeholder="Email" />
-        <input v-model="password" type="password" placeholder="Password" />
-        <br/>
+        <div class="inputs-container">
+          <input v-model="email" type="email" placeholder="Email" />
+          <input v-model="password" type="password" placeholder="Password" />
+        </div>
         <div class="buttons">
           <button class="register" @click="register">Register</button>
-          <button class="login" @click="$router.push('/Login')">Login</button>
+          <button class="login" @click="$router.push('/login')">Login</button>
         </div>
         <img src="/icon_3d.png" class="logo" alt="Logo" @click="playSound" />
       </div>
@@ -77,8 +78,9 @@ export default {
     background-attachment: fixed;
   }
   .register-container {
-    position:relative;
+    position: absolute;
     z-index:2;
+    left:200px;
   }
   .register-container::before {
     position:absolute;
@@ -89,13 +91,14 @@ export default {
     bottom:0;
     background:var(--random-bg) center center;
     background-size: 100vw 100vh;
+    background-position-x:-200px;
     z-index:3;
     filter: blur(15px);
   }
   .register-bg{
     /* background: rgba(0,0,0,0.93); */
     background: linear-gradient(var(--bg-rotation-angle), rgba(0,0,0,.9) 0%, rgba(0,0,0,0.7) 100%);
-    padding: 40px 140px 100px 140px; 
+    padding: 40px 120px 100px 120px; 
     position: relative;
     z-index:5;
     border-radius:24px;
@@ -105,7 +108,7 @@ export default {
     text-align: center;
     margin: 0px auto;
     font-weight:900;
-    font-size: 12em;
+    font-size: 9em;
     /* font-family: 'Rubik Moonrocks', sans-serif; */
     font-family: 'Arizonia', cursive;
     /* font-family: 'Press Start 2P', system-ui; */
@@ -116,15 +119,15 @@ export default {
   h2 {
     text-align: center;
     font-weight:100;
-    font-size:3em;
+    font-size:2em;
     position:relative;
-    top: -30px;
+    top: -15px;
   }
   .logo {
     display:block;
-    margin: 20px auto;
-    width: 12rem;
-    height: 12rem;
+    margin: 15px auto;
+    width: 8rem;
+    height: 8rem;
     position:relative;
     top: 50px;
     cursor: pointer;
@@ -146,7 +149,7 @@ export default {
     background-color: #2f3136; /* Slightly lighter than the background */
     color: white; /* White text */
     outline: none;
-    font-size:2em;
+    font-size:1em;
   }
   input:focus{
     outline: none;
@@ -157,6 +160,7 @@ export default {
     -webkit-box-shadow:0 0 0 50px #24274e inset; /* Change the color to your own background color */
     border: 1px solid #242b37; /* Subtle border */
     -webkit-text-fill-color: #dddddd;
+    font-size:1em;
   }
 
   input:-webkit-autofill:focus {
@@ -171,15 +175,15 @@ export default {
   button {
     display: block;
     width: 100%;
-    margin: 20px auto;
-    padding: 20px;
+    margin: 15px auto;
+    padding: 15px;
     border: none;
     border-radius: 6px;
     color: white;
     cursor: pointer;
     background: rgba(128,128,128,0.2);
     transition: .3s;
-    font-size:1.75em;
+    font-size:1.15em;
     font-weight:bold;
   }
   button.register {
@@ -200,5 +204,33 @@ export default {
 
   a:hover {
     text-decoration: underline;
+  }
+
+  @media screen and (max-width: 768px) {
+    .register-container {
+      left:0;
+      position:relative;
+    }
+    .register-container::before {
+      display:none;
+    }
+    .register-bg {
+      padding: 60px 60px 100px 60px; 
+      width:100vw;
+      height:100vh;
+      box-shadow:none;
+      border-radius:0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+    }
+    .inputs-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      font-size: 12em;
+    }
   }
 </style>

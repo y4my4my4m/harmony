@@ -4,8 +4,10 @@
       <div class="login-bg">
         <h1>Harmony</h1>
         <h2>Login</h2>
-        <input v-model="email" type="email" placeholder="Email" />
-        <input v-model="password" type="password" placeholder="Password" />
+        <div class="inputs-container">
+          <input v-model="email" type="email" placeholder="Email" />
+          <input v-model="password" type="password" placeholder="Password" />
+        </div>
         <div class="buttons">
           <button class="login" @click="login">Login</button>
           <button class="register" @click="$router.push('/register')">Register</button>
@@ -66,7 +68,7 @@ export default defineComponent({
     background-attachment: fixed;
   }
   .login-container {
-    position:absolute;
+    position: absolute;
     z-index:2;
     left:200px;
   }
@@ -192,5 +194,33 @@ export default defineComponent({
 
   a:hover {
     text-decoration: underline;
+  }
+
+  @media screen and (max-width: 768px) {
+    .login-container {
+      left:0;
+      position:relative;
+    }
+    .login-container::before {
+      display:none;
+    }
+    .login-bg {
+      padding: 60px 60px 100px 60px; 
+      width:100vw;
+      height:100vh;
+      box-shadow:none;
+      border-radius:0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+    }
+    .inputs-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      font-size: 12em;
+    }
   }
 </style>
