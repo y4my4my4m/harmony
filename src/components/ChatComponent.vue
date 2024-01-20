@@ -1,9 +1,11 @@
 <template>
   <div class="chat-container" 
-       @dragover.prevent="showDragDropArea = true"
-       @dragleave.prevent="showDragDropArea = false"
-       @drop.prevent="triggerFileDrop">
-    <div v-if="showDragDropArea" class="drag-drop-area">
+      @dragenter.prevent="showDragDropArea = true"
+      @dragover.prevent="showDragDropArea = true"
+      @drop.prevent="triggerFileDrop">
+    <div v-if="showDragDropArea" 
+      class="drag-drop-area"
+      @dragleave.prevent="showDragDropArea = false">
       <div v-if="uploading" style="color:rgb(18, 143, 18);">Uploading...</div>
       <div v-else>Drop files here.</div>
     </div>
@@ -264,6 +266,6 @@
     transition: 0.2s ease-in-out;
     font-size:48px; 
     font-weight:bold;
-    pointer-events: none;
+    /* pointer-events: none; */
   }
 </style>

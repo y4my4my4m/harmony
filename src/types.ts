@@ -60,6 +60,15 @@ export interface Message {
   file_url?: string;
 }
 
+export interface ParsedMessage {
+  id: string;
+  created_at: Date;  // or the correct type for your date/time
+  channel_id: number;
+  user_id: string;
+  reactions?: JSON;  // Adjust as per the actual type
+  file_url?: string;
+  content: (string | { url: string; userId: string; mention: string; emoji: Emoji; })[];
+}
 // should probably start to put these in their own files
 export interface Role {
   id: number;

@@ -10,38 +10,37 @@
           <strong :style="getUserColor(message.user_id)">
             {{ getUserDisplayName(message.user_id) }} <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
           </strong>
-          <div v-if="editableMessageId !== message.id" class="message-content">
-            <template v-for="(part, partIndex) in message.content" :key="partIndex">
-              <a v-if="typeof part === 'object' && part.url" :href="part.url" target="_blank">{{ part.url }}</a>
-              <span v-else-if="typeof part === 'object' && part.mention" class="mention"  @click="showUserProfile(part.userId, $event)">{{ part.mention }}</span>
-              <img v-else-if="typeof part === 'object' && part.emoji" class="emoji-icon" :src="part.emoji.url" :alt="part.emoji.name" :title="`:${part.emoji.name}:`" />
-              <span v-else>{{ part }}</span>
-            </template>
-          </div>
-          <input v-else type="text" v-model="editableMessageContent" @keyup.esc="cancelEdit" @keyup.enter="saveEdit(message.id)" class="edit-input" />
-        </div>
-      </div>
-      <template v-else>
-        <div v-if="editableMessageId !== message.id" class="message-content">
-          <template v-for="(part, partIndex) in message.content" :key="partIndex">
-            <a v-if="typeof part === 'object' && part.url" :href="part.url" target="_blank">{{ part.url }}</a>
-            <span v-else-if="typeof part === 'object' && part.mention" class="mention"  @click="showUserProfile(part.userId, $event)">{{ part.mention }}</span>
-            <img v-else-if="typeof part === 'object' && part.emoji" class="emoji-icon" :src="part.emoji.url" :alt="part.emoji.name" :title="`:${part.emoji.name}:`" />
-            <span v-else>{{ part }}</span>
-          </template>
-        </div>
-        <input v-else type="text" v-model="editableMessageContent" @keyup.esc="cancelEdit" @keyup.enter="saveEdit(message.id)" class="edit-input" />
-        <div v-if="message.file_url" class="file-container">
-          <div v-if="!imageLoaded[message.id]" class="image-skeleton"></div>
-          <img
-          :src="message.file_url"
-          @load="imageLoaded[message.id] = true"
-          v-show="imageLoaded[message.id]"
-          @click="openLightbox(imageUrls.indexOf(message.file_url))"
-          alt="Uploaded file"
+          <MessageContent 
+            :message="message"
+            :editableMessageId="editableMessageId"
+            :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+            :editableMessageContent="editableMessageContent"
+            :saveEdit="saveEdit"
+            :cancelEdit="cancelEdit"
+            :showUserProfile="showUserProfile"
           />
         </div>
-      </template>
+      </div>
+      <MessageContent 
+        v-else
+        :message="message"
+        :editableMessageId="editableMessageId"
+        :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+        :editableMessageContent="editableMessageContent"
+        :saveEdit="saveEdit"
+        :cancelEdit="cancelEdit"
+        :showUserProfile="showUserProfile"
+      />
+      <div v-if="message.file_url" class="file-container">
+        <div v-if="!imageLoaded[message.id]" class="image-skeleton"></div>
+        <img
+        :src="message.file_url"
+        @load="imageLoaded[message.id] = true"
+        v-show="imageLoaded[message.id]"
+        @click="openLightbox(imageUrls.indexOf(message.file_url))"
+        alt="Uploaded file"
+        />
+      </div>
       <div class="message-actions" v-if="hoveredMessageId === message.id">
         <div class="btn" @click="startEdit(message)"><EditIcon/></div>
         <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
@@ -63,25 +62,16 @@
 
 <script lang="ts">
 import { defineComponent, computed, ref, watch, nextTick } from 'vue';
-import type { PropType } from 'vue';
-import type { Message, User, Emoji } from '@/types';
+import type { PropType, Ref } from 'vue';
+import type { Message, User, Emoji, ParsedMessage} from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { getEmoji } from '@/services/emojiService';
 import { format } from 'date-fns';
 import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
+import MessageContent from '@/components/MessageContent.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
-
-interface ParsedMessage {
-    id: string;
-    created_at: Date;  // or the correct type for your date/time
-    channel_id: number;
-    user_id: string;
-    reactions?: JSON;  // Adjust as per the actual type
-    file_url?: string;
-    content: (string | { url: string; userId: string; mention: string; emoji: Emoji; })[];
-}
 
 export default defineComponent({
   props: {
@@ -95,13 +85,20 @@ export default defineComponent({
   components: { 
     UserPreviewComponent,
     EditIcon,
-    DeleteIcon
+    DeleteIcon,
+    MessageContent
   },
   setup(props, { emit }) {
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
     const chat = useChatStore();
     const parsedMessages = ref<ParsedMessage[]>([]); 
+    const isSingleEmojiMessage = computed(() => {
+      return parsedMessages.value.map(message => {
+        // Check if the message content has only one part and that part is an emoji
+        return message.content.length === 1 && Object.prototype.hasOwnProperty.call(message.content[0], 'emoji');
+      });
+    });
 
     type MessagePart = 
       string | 
@@ -170,11 +167,12 @@ export default defineComponent({
     const imageUrls = computed(() => props.messages
       .filter(message => message.file_url)
       .map(message => message.file_url));
-    const lightboxImages = ref([]);
+
+    const lightboxImages: Ref<(string | undefined)[]> = ref([]);
     const isLightboxOpen = ref(false);
     const indexRef = ref(0);
 
-    const imageLoaded = ref({});
+    const imageLoaded: Ref<Record<string, boolean>> = ref({});
 
     const openLightbox = (index: number) => {
       lightboxImages.value = imageUrls.value;
@@ -353,6 +351,7 @@ export default defineComponent({
       profileCardStyle, 
       closeProfile,
       parsedMessages,
+      isSingleEmojiMessage
     };
   }
   
@@ -530,9 +529,13 @@ export default defineComponent({
 .message-content .emoji-icon  {
   width: auto;
   max-width : 120px;
-  height: 24px;
+  height: 24px; 
+  /* height: 48px; */
   /* margin: 0 2px; */
   vertical-align: middle;
+}
+.message-content .emoji-icon.single {
+  height: 64px;
 }
 
 /* FIXME: this should all be inside the userProfileComponent */
