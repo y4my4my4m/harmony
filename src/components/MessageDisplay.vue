@@ -13,11 +13,12 @@
           <MessageContent 
             :message="message"
             :editableMessageId="editableMessageId"
-            :isSingleEmojiMessage="isSingleEmojiMessage[index]"
             :editableMessageContent="editableMessageContent"
-            :saveEdit="saveEdit"
-            :cancelEdit="cancelEdit"
-            :showUserProfile="showUserProfile"
+            :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+            @update:message="saveEdit"
+            @update:content="editableMessageContent = $event"
+            @cancel-edit="cancelEdit"
+            @show-user-profile="showUserProfile"
           />
         </div>
       </div>
@@ -25,11 +26,12 @@
         v-else
         :message="message"
         :editableMessageId="editableMessageId"
-        :isSingleEmojiMessage="isSingleEmojiMessage[index]"
         :editableMessageContent="editableMessageContent"
-        :saveEdit="saveEdit"
-        :cancelEdit="cancelEdit"
-        :showUserProfile="showUserProfile"
+        :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+        @update:message="saveEdit"
+        @update:content="editableMessageContent = $event"
+        @cancel-edit="cancelEdit"
+        @show-user-profile="showUserProfile"
       />
       <div v-if="message.file_url" class="file-container">
         <div v-if="!imageLoaded[message.id]" class="image-skeleton"></div>
@@ -100,6 +102,9 @@ export default defineComponent({
       });
     });
 
+    const editableMessageId = ref<string | null>(null);
+    const editableMessageContent = ref('');
+
     type MessagePart = 
       string | 
       { url: string } | 
@@ -119,8 +124,6 @@ export default defineComponent({
     });
 
     const hoveredMessageId = ref<string | null>(null);
-    const editableMessageId = ref<string | null>(null);
-    const editableMessageContent = ref('');
 
     const startEdit = (message: ParsedMessage) => {
       editableMessageId.value = message.id;
@@ -138,8 +141,9 @@ export default defineComponent({
       }).join('')
     };
 
-    const saveEdit = async (messageId: string) => {
-      await chat.editMessage(messageId, editableMessageContent.value);
+    const saveEdit = async (messageId: string, newContent?: string) => {
+      const content = newContent ?? editableMessageContent.value;
+      await chat.editMessage(messageId, content); // Replace with your actual update logic
       editableMessageId.value = null;
     };
 
@@ -150,6 +154,33 @@ export default defineComponent({
     const deleteMessage = (messageId: string) => {
       chat.deleteMessage(messageId);
     };
+
+    const profileCardStyle = ref({ top: '0px', left: '0px'});
+    const selectedUser = ref<User | null>(null);
+    const showUserProfile = (userId: string, event: MouseEvent) => {
+      const user = serverUsersStore.userProfiles[userId];
+      if (!user) {
+        console.error("User not found for ID:", userId);
+        return;
+      }
+
+      const userMention = (event.currentTarget as HTMLElement);
+      if (userMention) {
+        const userMentionRect = userMention.getBoundingClientRect();
+        profileCardStyle.value = {
+          left: `calc(10px + ${userMentionRect.width}px + ${userMentionRect.x}px)`,
+          top: `calc(${userMentionRect.y}px - 400px)`,
+        };
+      }
+
+      selectedUser.value = user;
+      event.stopPropagation();
+    };
+
+    const closeProfile = () => {
+      selectedUser.value = null;
+    };
+
     const getUserDisplayName = (userId:string) => {
       return serverUsersStore.userProfiles[userId]?.display_name || 'Unknown User';
     };
@@ -197,32 +228,6 @@ export default defineComponent({
       }
     };
     
-    const profileCardStyle = ref({ top: '0px', left: '0px'});
-    const selectedUser = ref<User | null>(null);
-    const showUserProfile = (userId: string, event: MouseEvent) => {
-      const user = serverUsersStore.userProfiles[userId];
-      if (!user) {
-        console.error("User not found for ID:", userId);
-        return;
-      }
-
-      const userMention = (event.currentTarget as HTMLElement);
-      if (userMention) {
-        const userMentionRect = userMention.getBoundingClientRect();
-        profileCardStyle.value = {
-          left: `calc(10px + ${userMentionRect.width}px + ${userMentionRect.x}px)`,
-          top: `calc(${userMentionRect.y}px - 400px)`,
-        };
-      }
-
-      selectedUser.value = user;
-      event.stopPropagation();
-    };
-
-    const closeProfile = () => {
-      selectedUser.value = null;
-    };
-
     const parseMessage = async (message: string): Promise<MessagePart[]> => {
       const urlRegex = /(\bhttps?:\/\/\S+)/gi;
       // Updated regex to include '@username@domain' format
@@ -351,7 +356,7 @@ export default defineComponent({
       profileCardStyle, 
       closeProfile,
       parsedMessages,
-      isSingleEmojiMessage
+      isSingleEmojiMessage,
     };
   }
   
@@ -534,7 +539,7 @@ export default defineComponent({
   /* margin: 0 2px; */
   vertical-align: middle;
 }
-.message-content .emoji-icon.single {
+.emoji-icon.single {
   height: 64px;
 }
 
