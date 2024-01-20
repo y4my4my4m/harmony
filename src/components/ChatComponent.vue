@@ -258,14 +258,12 @@
     text-align: center;
     margin: 20px;
     background: var(--vt-c-black);
-    opacity:0.25;
+    opacity:0.8;
     align-items: center;
     justify-content: center;
     transition: 0.2s ease-in-out;
     font-size:48px; 
-    font-weight:bold
-  }
-  .drag-drop-area:hover {
-    opacity:0.8;
+    font-weight:bold;
+    pointer-events: none;
   }
 </style>
