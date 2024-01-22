@@ -207,6 +207,9 @@ export default {
   }
 
   @media screen and (max-width: 768px) {
+    .register-view {
+      height: auto;
+    }
     .register-container {
       left:0;
       position:relative;
@@ -220,9 +223,9 @@ export default {
       height:100vh;
       box-shadow:none;
       border-radius:0;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-around;
+      display: block;
+      /* flex-direction: column; */
+      /* justify-content: space-around; */
     }
     .inputs-container {
       display: flex;
@@ -231,9 +234,6 @@ export default {
     }
     h1 {
       font-size: 6em;
-    }
-    .logo {
-      top:0;
     }
   }
 </style>

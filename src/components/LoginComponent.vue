@@ -213,9 +213,9 @@ export default defineComponent({
       height:100vh;
       box-shadow:none;
       border-radius:0;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-around;
+      display: block;
+      /* flex-direction: column; */
+      /* justify-content: space-around; */
     }
     .inputs-container {
       display: flex;
