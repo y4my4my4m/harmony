@@ -330,5 +330,13 @@
     width: 100%;
     padding: 10px;
   }
+  .emoji-popup {
+    width: 90%;
+    right: 20px
+  }
+  .giphy-search {
+    width: 90%;
+    right: 20px;
+  }
 }
 </style>
