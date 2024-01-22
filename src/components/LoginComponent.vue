@@ -197,6 +197,9 @@ export default defineComponent({
   }
 
   @media screen and (max-width: 768px) {
+    .login-view {
+      height: auto;
+    }
     .login-container {
       left:0;
       position:relative;
@@ -220,10 +223,10 @@ export default defineComponent({
       align-items: center;
     }
     h1 {
-      font-size: 6em;
+      font-size: 4.25rem;
     }
-    .logo {
+    /* .logo {
       top:0;
-    }
+    } */
   }
 </style>
