@@ -183,9 +183,6 @@ export default defineComponent({
     box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
   }
 
-
-
-
   @media (max-width: 768px) {
     .message-input {
       position:sticky;

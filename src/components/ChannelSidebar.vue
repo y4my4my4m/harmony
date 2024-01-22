@@ -4,11 +4,14 @@
       {{ currentServer.name }}
     </div>
     <ServerDropdown :serverId="currentServer.id" v-show="showDropdown" />
-    <div class="create-channel" @click="emitCreateChannel">+ Create Channel</div>
     <template v-if="categories && categories.length !== 0">
       <div class="category" v-for="category in categories" :key="category.id">
-        <div class="category-name" @click="toggleCategory(category.id)">
-         <ArrowDownIcon /> {{ category.name }}
+        <div class="category-name">
+          <div class="category-name-holder" @click="toggleCategory(category.id)">
+            <ArrowDownIcon /> 
+            {{ category.name }}
+          </div>
+         <div class="create-channel" @click="emitCreateChannel">+</div>
         </div>
         <div v-if="isCategoryOpen(category.id)">
           <div v-for="channel in categoryChannels[category.id]" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
@@ -128,17 +131,21 @@ export default defineComponent({
   padding:8px 6px;
   margin-top: 6px;
   vertical-align: middle;
-  display: inline-flex;
+  display: flex;
   font-size: 16px;
+  align-items: center;
+  justify-content: space-between;
 }
-.category-name > svg {
+.category-name .category-name-holder {
+  flex-grow:1;
+}
+.category-name svg {
   margin-right: 5px;
   width: 16px;
   height: 16px;
-  top: 4px;
+  top: 2px;
   position: relative;
 }
-
 .server-name:hover {
   background: rgba(0,0,0,0.1);
 }
@@ -177,10 +184,11 @@ export default defineComponent({
 
 .create-channel {
   cursor:pointer;
-  padding: 2px 10px;
+  padding: 0 10px;
   transition: 0.2s ease-in-out;
-  font-size: 12px;
-  background: var(--vt-c-divider-dark-2);
+  font-size: 16px;
+  font-weight:500;
+  /* background: var(--vt-c-divider-dark-2); */
 }
 .create-channel:hover {
   background: var(--vt-c-divider-dark-1);
