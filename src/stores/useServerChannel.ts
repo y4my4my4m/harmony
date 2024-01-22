@@ -58,7 +58,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
         console.error('Error fetching categories:', categoriesError);
         return;
       }
-      this.categories = categories;
+      // this.categories = categories;
+      this.categories = categories.map(cat => ({ ...cat, expanded: true }));
 
       // Fetch channels for the server
       const { data: channels, error: channelsError } = await supabase

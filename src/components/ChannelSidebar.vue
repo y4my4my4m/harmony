@@ -13,7 +13,7 @@
           </div>
          <div class="create-channel" @click="emitCreateChannel(category.id)">+</div>
         </div>
-        <div v-if="isCategoryOpen(category.id)">
+        <div v-if="category.expanded">
           <div v-for="channel in categoryChannels[category.id]" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
             <HashTagIcon v-if="channel.type==0"/><SpeakerIcon v-else /> {{ channel.name }}
           </div>
@@ -91,8 +91,14 @@ export default defineComponent({
       emit('createChannel', categoryId);
     }
 
+    // const toggleCategory = (categoryId: string) => {
+    //   categoryOpenState.value[categoryId] = !categoryOpenState.value[categoryId];
+    // };
     const toggleCategory = (categoryId: string) => {
-      categoryOpenState.value[categoryId] = !categoryOpenState.value[categoryId];
+      const category = serverChannelStore.categories.find(c => c.id === categoryId);
+      if (category) {
+        category.expanded = !category.expanded;
+      }
     };
 
     const isCategoryOpen = (categoryId: string) => {

@@ -20,6 +20,7 @@ export interface Category {
   name: string;
   order: number;
   server_id: string;
+  expanded: boolean;
 }
 // TODO: FIXME! User is NOT profile (user is the auth user, profile is the user's profile)
 export interface User {
