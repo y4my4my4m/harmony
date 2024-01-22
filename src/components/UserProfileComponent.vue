@@ -250,8 +250,10 @@
 }
 @media (max-width: 768px) {
   .user-profile {
-    width:0;
-    overflow:hidden;
+    width: 0;
+    overflow: hidden;
+    padding: 0;
+    display: none;
   }
   .user-profile.open {
     width: calc(100% - 60px)
