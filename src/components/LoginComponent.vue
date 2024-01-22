@@ -222,5 +222,8 @@ export default defineComponent({
     h1 {
       font-size: 6em;
     }
+    .logo {
+      top:0;
+    }
   }
 </style>
