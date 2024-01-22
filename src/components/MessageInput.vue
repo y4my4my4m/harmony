@@ -191,5 +191,8 @@ export default defineComponent({
       position:sticky;
       bottom:0;
     }
+    textarea {
+      font-size:14px;
+    }
   }
 </style>
