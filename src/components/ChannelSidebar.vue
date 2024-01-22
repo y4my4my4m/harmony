@@ -5,7 +5,7 @@
     </div>
     <ServerDropdown :serverId="currentServer.id" v-show="showDropdown" />
     <template v-if="categories && categories.length !== 0">
-      <div class="category" v-for="category in categories" :key="category.id">
+      <div class="category" v-for="category in categories" :key="category.id" :class="{'expanded' : category.expanded }">
         <div class="category-name">
           <div class="category-name-holder" @click="toggleCategory(category.id)">
             <ArrowDownIcon /> 
@@ -13,7 +13,7 @@
           </div>
          <div class="create-channel" @click="emitCreateChannel(category.id)">+</div>
         </div>
-        <div v-if="category.expanded">
+        <div class="category-items" >
           <div v-for="channel in categoryChannels[category.id]" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
             <HashTagIcon v-if="channel.type==0"/><SpeakerIcon v-else /> {{ channel.name }}
           </div>
@@ -158,7 +158,23 @@ export default defineComponent({
   height: 16px;
   top: 2px;
   position: relative;
+  transition: 0.2s ease-in-out;
+  transform: rotate(-90deg);
 }
+.category.expanded .category-name svg {
+  transform: rotate(0deg);
+}
+.category .category-items {
+  max-height: 0;
+  overflow: hidden;
+  transition: 0.3s ease-in-out;
+}
+
+.category.expanded .category-items {
+  max-height: 100vh; /* or some other value large enough */
+  /* overflow: auto; */
+}
+
 .server-name:hover {
   background: rgba(0,0,0,0.1);
 }
