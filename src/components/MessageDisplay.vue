@@ -576,8 +576,17 @@ export default defineComponent({
     align-items: center;
     flex-wrap: wrap;
   }
+  .message-header {
+    width: 100%;
+  }
   .message-content {
     width: 100%;
+  }
+  .message-content {
+    max-width: 100%; 
+    white-space: normal;
+    word-wrap:break-word;
+    overflow-wrap:break-word;
   }
   .file-container > img {
     max-width: 100%;
