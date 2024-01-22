@@ -566,5 +566,25 @@ export default defineComponent({
 .user-profile-card.selected {
   opacity: 1
 }
+@media (max-width: 768px) {
+
+  .message-display {
+    /* padding-bottom: 72px; */
+  }
+  .message-wrapper {
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .message-content {
+    width: 100%;
+  }
+  .file-container > img {
+    max-width: 100%;
+    padding-left: 46px;
+  }
+
+}
+
 </style>
 

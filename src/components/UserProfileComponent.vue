@@ -248,6 +248,9 @@
   background-color: #2f3136;
   color: white;
 }
-
-
+@media (max-width: 768px) {
+  .user-profile {
+    width: calc(100% - 60px)
+  }
+}
 </style>

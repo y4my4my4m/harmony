@@ -1,22 +1,26 @@
 <template>
+  <div class="top-bar">
+    <div class="show-left" @click="toggleSidebars">←</div>
+    <div class="show-right" @click="toggleProfiles">→</div>
+  </div>
   <div v-if="showNoServersSplash">
     <NoServersSplash />
   </div>
   <div v-else class="chat-layout">
-    <ServerSidebar :servers="servers" />
-    <ChannelSidebar :currentServer="currentServer" :channels="channels" :currentChannelId="currentChannelId" :categories="categories" :categoryChannels="categoryChannels" @channelSelected="handleChannelSelected" @createChannel="showCreateChannelForm = true"/>
+    <ServerSidebar :class="{ 'open': isSidebarsVisible }" :servers="servers" />
+    <ChannelSidebar :class="{ 'open': isSidebarsVisible }" :currentServer="currentServer" :channels="channels" :currentChannelId="currentChannelId" :categories="categories" :categoryChannels="categoryChannels" @channelSelected="handleChannelSelected" @createChannel="showCreateChannelForm = true"/>
     <CreateChannel
       :serverId="currentServer.id"
       :show="showCreateChannelForm"
       @close="showCreateChannelForm = false"
     />
-    <div class="chat-area">
+    <div :class="{ 'open': isSidebarsVisible, 'profile-open': isProfilesVisible}"  class="chat-area">
       <ChatComponent 
         :messages="chatMessages"
         @loadMoreMessages="fetchMoreMessages" 
         @update:isAtBottom="isAtBottom = $event" />
     </div>
-    <UserSidebar />
+    <UserSidebar :class="{ 'open': isProfilesVisible }"  />
   </div>
 </template>
 
@@ -71,6 +75,9 @@
       const currentChannelId = computed(() => serverChannelStore.currentChannelId || '');
       const currentServer = computed(() => serverChannelStore.currentServer);
       const showCreateChannelForm = ref(false);
+
+      const isSidebarsVisible = ref(false);
+      const isProfilesVisible = ref(false);
 
       // Method to manually scroll to the bottom
       const scrollToBottom = () => {
@@ -155,6 +162,29 @@
         }
       };
 
+      const toggleSidebars = () => {
+        // if currently viewing chat
+        if(isProfilesVisible.value == false)
+        {
+          isSidebarsVisible.value = !isSidebarsVisible.value;
+        }
+        else {
+          isProfilesVisible.value = !isProfilesVisible.value;
+        }
+      };
+
+      const toggleProfiles = () => {
+        // if currently viewing chat
+        if(isSidebarsVisible.value == false)
+        {
+          isProfilesVisible.value = !isProfilesVisible.value;
+
+        }
+        else {
+          isSidebarsVisible.value = !isSidebarsVisible.value;
+        }
+      };
+
       onMounted(async () => {
         const userId = authStore.session?.user?.id;
         if (userId) {
@@ -205,6 +235,10 @@
         scrollToBottom,
         requestNotificationPermission,
         showNotification,
+        toggleSidebars,
+        isSidebarsVisible,
+        toggleProfiles,
+        isProfilesVisible
       };
   }
 });
@@ -225,5 +259,76 @@
   background: var(--h-chat);
   padding-top: 6px;
 }
+.top-bar {
+  display: none;
+}
+/* Mobile styles */
+@media (max-width: 768px) {
+  .top-bar {
+    position: fixed;
+    top:0;
+    z-index:100;
+    width:100%;
+    height: 40px;
+    background: var(--h-chat-darker);
+    display: flex;
+    justify-content: space-between;
+  }
+  .show-left,
+  .show-right {
+    width: 35px;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: var(--h-chat-dark);
+  }
 
+  .server-sidebar, .channel-sidebar {
+    width: 0;
+    overflow: hidden;
+    /* Transition for smooth opening/closing */
+    transition: 0.3s ease-in-out;
+    margin-top: 40px;
+  }
+
+  .user-sidebar {
+    overflow: hidden;
+    width:0;
+    transition: 0.3s ease-in-out;
+    padding: 0;
+    margin-top:40px;
+  }
+  .chat-area {
+    transition: 0.3s ease-in-out;
+    width: 100%;
+    overflow: hidden;
+  }
+  .chat-container {
+    width: 100%;
+    overflow: hidden;
+  }
+  .chat-area.open {
+    position: absolute;
+    overflow: hidden;
+    left:100%;
+    width:0;
+  }
+  .chat-area.profile-open {
+    overflow: hidden;
+    right:100%;
+    width:0;
+  }
+  .server-sidebar.open {
+    width: 72px;
+  }
+  .channel-sidebar.open {
+    width: 100%;
+  }
+  .user-sidebar.open {
+    display:block;
+    width: 100%;
+    padding: 10px;
+  }
+}
 </style>
