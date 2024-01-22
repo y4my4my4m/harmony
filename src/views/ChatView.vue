@@ -139,7 +139,7 @@
       const requestNotificationPermission = async () => {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-          toast.success('Notification permission granted.');
+          // toast.success('Notification permission granted.');
           notificationSound2.value.play();
         } else {
           toast.error('Notification permission denied.');
@@ -149,7 +149,7 @@
       const showNotification = (title: string, options?: NotificationOptions) => {
         if (Notification.permission === 'granted') {
           notificationSound.value.play(); // Play the notification sound
-          new Notification(title, options);
+          // new Notification(title, options);
         } else {
           toast.info('Notification permission not granted. Please allow notifications.');
         }

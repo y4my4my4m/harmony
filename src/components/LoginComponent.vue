@@ -220,7 +220,7 @@ export default defineComponent({
       align-items: center;
     }
     h1 {
-      font-size: 12em;
+      font-size: 6em;
     }
   }
 </style>
