@@ -11,7 +11,7 @@
             <ArrowDownIcon /> 
             {{ category.name }}
           </div>
-         <div class="create-channel" @click="emitCreateChannel">+</div>
+         <div class="create-channel" @click="emitCreateChannel(category.id)">+</div>
         </div>
         <div v-if="isCategoryOpen(category.id)">
           <div v-for="channel in categoryChannels[category.id]" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
@@ -86,8 +86,8 @@ export default defineComponent({
       router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId: channelId } });
     };
 
-    const emitCreateChannel = () => {
-      emit('createChannel');
+    const emitCreateChannel = (categoryId: string) => {
+      emit('createChannel', categoryId);
     }
 
     const toggleCategory = (categoryId: string) => {

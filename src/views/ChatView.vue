@@ -8,9 +8,10 @@
   </div>
   <div v-else class="chat-layout">
     <ServerSidebar :class="{ 'open': isSidebarsVisible }" :servers="servers" />
-    <ChannelSidebar :class="{ 'open': isSidebarsVisible }" :currentServer="currentServer" :channels="channels" :currentChannelId="currentChannelId" :categories="categories" :categoryChannels="categoryChannels" @channelSelected="handleChannelSelected" @createChannel="showCreateChannelForm = true"/>
+    <ChannelSidebar :class="{ 'open': isSidebarsVisible }" :currentServer="currentServer" :channels="channels" :currentChannelId="currentChannelId" :categories="categories" :categoryChannels="categoryChannels" @channelSelected="handleChannelSelected" @createChannel="handleCreateChannel"/>
     <CreateChannel
       :serverId="currentServer.id"
+      :categoryId="currentCategoryId"
       :show="showCreateChannelForm"
       @close="showCreateChannelForm = false"
     />
@@ -75,6 +76,7 @@
       const currentChannelId = computed(() => serverChannelStore.currentChannelId || '');
       const currentServer = computed(() => serverChannelStore.currentServer);
       const showCreateChannelForm = ref(false);
+      const currentCategoryId = ref<string | null>(null);
 
       const isSidebarsVisible = ref(false);
       const isProfilesVisible = ref(false);
@@ -91,13 +93,11 @@
         });
       };
 
-      const handleChannelCreated = (newChannel:any) => {
-        console.log('New channel created:', newChannel);
-        // Add logic to update the channels list or perform other actions
-        // Example: serverChannelStore.addChannel(newChannel);
-        showCreateChannelForm.value = false; // Hide the form after successful creation
+      const handleCreateChannel = (categoryId: string) => {
+        currentCategoryId.value = categoryId;
+        showCreateChannelForm.value = true;
       };
-      
+
       const handleServerSelected = async (serverId: string) => {
         serverChannelStore.setCurrentServer(serverId);
         serverUsersStore.subscribeToUserStatuses();
@@ -155,7 +155,7 @@
 
       const showNotification = (title: string, options?: NotificationOptions) => {
         if (Notification.permission === 'granted') {
-          notificationSound.value.play(); // Play the notification sound
+          // notificationSound.value.play();
           // new Notification(title, options);
         } else {
           toast.info('Notification permission not granted. Please allow notifications.');
@@ -226,8 +226,7 @@
         currentServer, 
         currentChannelId, 
         showNoServersSplash, 
-        handleServerSelected, 
-        handleChannelCreated, 
+        handleServerSelected,
         showCreateChannelForm, 
         handleChannelSelected,
         fetchMoreMessages,
@@ -238,7 +237,9 @@
         toggleSidebars,
         isSidebarsVisible,
         toggleProfiles,
-        isProfilesVisible
+        handleCreateChannel,
+        isProfilesVisible,
+        currentCategoryId
       };
   }
 });

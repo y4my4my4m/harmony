@@ -4,6 +4,10 @@
         <h2>Create a New Channel</h2>
         <form @submit.prevent="createChannel">
           <input type="text" v-model="newChannelName" placeholder="Channel Name" required />
+          <div class="channel-type-buttons">
+            <div @click="setChannelType(0)" :class="{ selected: channelType === 0 }">Text</div>
+            <div @click="setChannelType(1)" :class="{ selected: channelType === 1 }">Voice</div>
+          </div>
           <button type="submit">Create Channel</button>
           <button @click="closeForm">Cancel</button>
         </form>
@@ -24,12 +28,20 @@
       show: {
         type: Boolean,
         required: true
+      },
+      categoryId: {
+        type: String,
+        default: null
       }
     },
     emits: ['close', 'channelCreated'],
     setup(props, { emit }) {
       const newChannelName = ref('');
-  
+      const channelType = ref(0); // Default to text channel
+    
+      const setChannelType = (type: number) => {
+        channelType.value = type;
+      };
       // FIXME: put me in a store
       const createChannel = async () => {
         if (!newChannelName.value) return;
@@ -37,9 +49,10 @@
         try {
           const { data, error } = await supabase
             .from('channels')
-            .insert([{ name: newChannelName.value, server_id: props.serverId, type: 0 }]);
+            .insert([{ name: newChannelName.value, server_id: props.serverId, type: channelType.value, category: props.categoryId }])
   
           if (error) throw error;
+          
           emit('channelCreated', data);
           closeForm();
         } catch (error) {
@@ -51,7 +64,7 @@
         emit('close');
       };
   
-      return { newChannelName, createChannel, closeForm };
+      return { newChannelName, channelType, setChannelType, createChannel, closeForm };
     },
 };
 </script>
@@ -93,12 +106,21 @@
   border-radius: 5px;
 }
 
-.create-channel-form button {
+.create-channel-form button,
+.create-channel-form .channel-type-buttons > div {
   padding: 10px;
   border-radius: 5px;
   border: none;
+  display: inline-block;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: 0.3s;
+  background: rgba(255,255,255,0.1);
+}
+.create-channel-form .channel-type-buttons {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: space-evenly;
 }
 
 .create-channel-form button[type="submit"] {
@@ -118,5 +140,11 @@
 .create-channel-form button:last-child:hover {
   background-color:  var(--vt-c-divider-dark-2);
 }
+
+.create-channel-form .channel-type-buttons > div.selected {
+  background-color: var(--h-primary);
+  color: white;
+}
+
 </style>
   

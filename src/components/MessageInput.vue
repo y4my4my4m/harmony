@@ -115,7 +115,7 @@ export default defineComponent({
     border: none;
     background-color: transparent;
     color: white;
-    font-size: 18px;
+    font-size: 16px;
     resize: none;
     overflow: auto;
     outline: none;
