@@ -407,6 +407,7 @@ export default defineComponent({
 
 .message-wrapper:has(> .message-header) {
   margin-top: 12px;
+  flex-direction: column;
 }
 .message-content {
   padding-left: 46px; /* Same as avatar width + margin-right */
@@ -425,6 +426,9 @@ export default defineComponent({
   margin-top: 5px;
 }
 
+.message-header + .file-container{
+  padding-left: 46px
+}
 .file-container > img {
   height: 100%;
   width: auto;
