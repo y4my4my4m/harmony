@@ -123,6 +123,7 @@ export default defineComponent({
 <style scoped>
 .channel-sidebar {
   width: 240px;
+  min-width: 240px;
   background-color: var(--h-sidebar);
   overflow-y: auto;
 }

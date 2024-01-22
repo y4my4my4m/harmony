@@ -296,6 +296,7 @@
 
   .server-sidebar, .channel-sidebar {
     width: 0;
+    min-width: 0;
     overflow: hidden;
     /* Transition for smooth opening/closing */
     transition: 0.3s ease-in-out;
