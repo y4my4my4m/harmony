@@ -233,7 +233,7 @@ export default {
       align-items: center;
     }
     h1 {
-      font-size: 6em;
+      font-size: 4.25em;
     }
   }
 </style>
