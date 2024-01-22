@@ -50,6 +50,8 @@
           const { data, error } = await supabase
             .from('channels')
             .insert([{ name: newChannelName.value, server_id: props.serverId, type: channelType.value, category: props.categoryId }])
+            .select('*')
+            .single();
   
           if (error) throw error;
           

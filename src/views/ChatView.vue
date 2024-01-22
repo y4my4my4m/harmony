@@ -13,6 +13,7 @@
       :serverId="currentServer.id"
       :categoryId="currentCategoryId"
       :show="showCreateChannelForm"
+      @channelCreated="handleChannelCreated"
       @close="showCreateChannelForm = false"
     />
     <div :class="{ 'open': isSidebarsVisible, 'profile-open': isProfilesVisible}"  class="chat-area">
@@ -40,6 +41,7 @@
   import { useRoute, useRouter } from 'vue-router';
   import { useProfileStore } from '@/stores/useProfile';
   import { useToast } from "vue-toastification";
+  import { Channel } from "@/types";
 
   export default defineComponent({
     components: {
@@ -97,6 +99,12 @@
         currentCategoryId.value = categoryId;
         showCreateChannelForm.value = true;
       };
+      const handleChannelCreated = async (channel: Channel) => {
+        console.log(channel);
+        await serverChannelStore.fetchCategoriesAndChannels(currentServer.value.id);
+        // uncomment this to automatically go to the new channel
+        // handleChannelSelected(channel.id);
+      }
 
       const handleServerSelected = async (serverId: string) => {
         serverChannelStore.setCurrentServer(serverId);
@@ -147,7 +155,7 @@
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           // toast.success('Notification permission granted.');
-          notificationSound2.value.play();
+          // notificationSound2.value.play();
         } else {
           toast.error('Notification permission denied.');
         }
@@ -239,7 +247,8 @@
         toggleProfiles,
         handleCreateChannel,
         isProfilesVisible,
-        currentCategoryId
+        currentCategoryId,
+        handleChannelCreated
       };
   }
 });

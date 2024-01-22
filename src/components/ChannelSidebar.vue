@@ -21,6 +21,7 @@
       </div>
     </template>
     <template v-else>
+      <div class="create-channel" @click="emitCreateChannel(null)">Create channel +</div>
       <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
         <HashTagIcon v-if="channel.type==0"/><SpeakerIcon v-else /> {{ channel.name }}
       </div>
@@ -86,7 +87,7 @@ export default defineComponent({
       router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId: channelId } });
     };
 
-    const emitCreateChannel = (categoryId: string) => {
+    const emitCreateChannel = (categoryId: string | null) => {
       emit('createChannel', categoryId);
     }
 
@@ -102,7 +103,13 @@ export default defineComponent({
       showDropdown.value = !showDropdown.value;
     };
 
-    return { selectChannel, serverChannelStore, showDropdown, emitCreateChannel, toggleDropdown, toggleCategory, isCategoryOpen  };
+    const handleChannelCreated = (channel: Channel) => {
+      console.log('Channel created:', channel);
+      selectChannel(channel.id);
+      serverChannelStore.fetchChannels(props.currentServer.id);
+    };
+
+    return { selectChannel, serverChannelStore, showDropdown, emitCreateChannel, handleChannelCreated, toggleDropdown, toggleCategory, isCategoryOpen  };
   }
 });
 </script>
