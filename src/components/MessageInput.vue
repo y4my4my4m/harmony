@@ -193,7 +193,7 @@ export default defineComponent({
     }
     textarea {
       font-size:14px;
-      top:6px;
+      top:7px;
     }
   }
 </style>
