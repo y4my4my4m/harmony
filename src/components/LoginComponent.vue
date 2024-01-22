@@ -205,7 +205,7 @@ export default defineComponent({
       display:none;
     }
     .login-bg {
-      padding: 60px 60px 100px 60px; 
+      padding: 20px 60px 60px 60px; 
       width:100vw;
       height:100vh;
       box-shadow:none;
