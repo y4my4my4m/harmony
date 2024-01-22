@@ -97,5 +97,11 @@
         height: 48px;
         border-radius: 4px; /* Optional: for rounded emojis */
     }
+    @media (max-width: 768px) {
+      .emoji-popup {
+        width: 90%;
+        right: 20px
+      }
+    }
 </style>
   

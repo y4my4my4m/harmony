@@ -171,6 +171,13 @@
         border-radius: 4px;
         object-fit: cover;
     }
+    @media (max-width: 768px) {
+
+        .giphy-search {
+            width: 90%;
+            right: 20px;
+        }
+    }
 </style>
 
   
