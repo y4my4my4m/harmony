@@ -89,6 +89,7 @@ export interface Message {
   content: MessagePart[];
   reactions?: JSON;
   file_url?: string;
+  reply_to?: string;
 }
 // should probably start to put these in their own files
 export interface Role {

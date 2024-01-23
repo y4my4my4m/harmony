@@ -45,6 +45,7 @@
         @show-user-profile="showUserProfile"
       />
       <div class="message-actions" v-if="hoveredMessageId === message.id">
+        <div class="btn" @click="react(message)"><ReactionIcon/></div>
         <div class="btn" @click="startEdit(message)"><EditIcon/></div>
         <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
       </div>
@@ -72,6 +73,7 @@ import { useChatStore } from '@/stores/useChat';
 import { format } from 'date-fns';
 import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
 import MessageContent from '@/components/MessageContent.vue';
+import ReactionIcon from '@/components/icons/Reaction.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 
@@ -87,6 +89,7 @@ export default defineComponent({
   components: { 
     UserPreviewComponent,
     EditIcon,
+    ReactionIcon,
     DeleteIcon,
     MessageContent
   },
@@ -120,6 +123,9 @@ export default defineComponent({
     const editableMessageContent = ref('');
     const hoveredMessageId = ref<string | null>(null);
     
+    const react = (message: Message) => {
+
+    }
 
     const startEdit = (message: Message) => {
       // editableMessageId.value = message.id;
@@ -294,6 +300,7 @@ export default defineComponent({
       handleScroll,
       hoveredMessageId,
       deleteMessage,
+      react,
       startEdit,
       saveEdit,
       cancelEdit,
