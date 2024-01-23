@@ -10,13 +10,13 @@
            :src="part.emoji.url"
            :alt="part.emoji.name"
            :title="`:${part.emoji.name}:`" />
-      <div v-else-if="part.type === 'file' && part.fileType === 'image'" class="file-container">
-        <div v-if="!(imageLoaded ?? {})[part.url]" class="image-skeleton"></div>
+      <div v-else-if="part.type === 'file' && part.fileType === 'image' && imageLoaded" class="file-container">
+        <div v-if="imageLoaded[part.url]" class="image-skeleton"></div>
         <img
           :src="part.url"
           @load="$emit('image-loaded', part.url)"
           @click="$emit('open-lightbox', part.url)"
-          v-show="!(imageLoaded ?? {})[part.url]" />
+          v-show="imageLoaded[part.url]" />
       </div>
     </template>
   </div>
