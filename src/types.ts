@@ -59,6 +59,7 @@ export interface TextContent {
 export interface UrlContent {
   type: 'url';
   url: string;
+  preview: boolean;
 }
 
 export interface MentionContent {

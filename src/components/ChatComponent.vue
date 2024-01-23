@@ -214,12 +214,43 @@
           lastIndex = match.index + match[0].length;
         }
 
-        // Add remaining text
-        if (lastIndex < input.length) {
-          result.push({ type: 'text', text: input.slice(lastIndex) });
-        }
-        console.log(result);
+        // Process remaining text
+        const remainingText = input.slice(lastIndex);
+        result.push(...parseTextForURLsAndMentions(remainingText));
+
         return result;
+      };
+
+      const urlRegex = /(\bhttps?:\/\/\S+)/gi;
+      const mentionRegex = /(@\w+@\w+\S+)/g;
+      const parseTextForURLsAndMentions = (text: string): MessagePart[] => {
+        const parts: MessagePart[] = [];
+        let lastIndex = 0;
+
+        const combinedRegex = new RegExp(`${urlRegex.source}|${mentionRegex.source}`, 'gi');
+        let textMatch;
+        while ((textMatch = combinedRegex.exec(text)) !== null) {
+          if (textMatch.index > lastIndex) {
+            parts.push({ type: 'text', text: text.slice(lastIndex, textMatch.index) });
+          }
+
+          if (textMatch[0].startsWith('http')) {
+            parts.push({ type: 'url', url: textMatch[0], preview: true });
+          } else {
+            const mention = textMatch[1];
+            // const userId = getUserIdFromMention(mention); // Implement this based on your user system
+            const userId = mention;
+            parts.push({ type: 'mention', mention, userId });
+          }
+
+          lastIndex = textMatch.index + textMatch[0].length;
+        }
+
+        if (lastIndex < text.length) {
+          parts.push({ type: 'text', text: text.slice(lastIndex) });
+        }
+
+        return parts;
       };
 
       const findEmojiByName = (name: string): Emoji | undefined => {
@@ -235,35 +266,26 @@
 
       const handleSendMessage = (content: string) => {
         if (authStore.session?.user && serverChannelStore.currentChannelId) {
-          console.log(content);
           const parsedMessage = parseMessageInput(content);
-          console.log(parsedMessage);
           chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, parsedMessage);
           messageContent.value = ''; // Reset the message input field after sending
         }
       };
 
-      // watch(() => props.messages, (newMessages) => {
-      //   console.log("Received messages:", newMessages);
-      // }, { deep: true });
       const handleSendGif = (gif: Gif ) => {
         const gifUrl = gif.media_formats.gif.url;
         closeGiphy();
-        // console.log("Sending GIF URL:", gifUrl);
         if (serverChannelStore.currentChannelId && authStore.session?.user) {
           chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, [{type: "file", url: gifUrl, fileType: "image"}]);
         }
       };
+
       const handleSendEmoji = (emoji: Emoji) => {
         closeEmojiList();
         // Append emoji id to the existing message content
         messageContent.value += `:${emoji.name}:`;
         console.log("Emoji added in Parent:", messageContent.value);
       };
-
-      // watch(messageContent, (newValue) => {
-      //   console.log("messageContent updated in Parent:", newValue);
-      // });
 
       return { 
         handleSendMessage,

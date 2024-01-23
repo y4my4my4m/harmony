@@ -1,4 +1,4 @@
-import type { Emoji, ResolvedEmoji } from '@/types';
+import type { Emoji } from '@/types';
 import { getEmoji } from '@/services/emojiService';
 
 type MessagePart = 
