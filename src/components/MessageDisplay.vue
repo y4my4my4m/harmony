@@ -498,24 +498,29 @@ export default defineComponent({
   flex-wrap: wrap;
   padding-left: 46px;
   padding-bottom: 12px;
+  gap: 4px;
+  justify-content: space-between;
 }
 .reactions .reaction {
   display: flex;
   align-items: center;
   border-radius: 4px;
-  background: rgb(0 0 0 / 17%);
+  background: rgb(0 0 0 / 15%);
   cursor: pointer;
   transition: 0.2s ease-in-out;
-  padding: 0 6px 4px 6px;
+  padding: 6px;
   justify-content: center;
   flex-direction: row;
   flex-wrap: nowrap;
+  gap: 10px;
+  border:1px solid transparent;
 }
 .reactions .reaction img {
   height: 24px;
 }
 .reactions .reaction:hover {
   background: rgb(0 0 0 / 25%);
+  border:1px solid rgba(255,255,255,0.25);
 }
 .reactions .reaction .reaction-count {
   margin-left: 4px;
@@ -547,10 +552,8 @@ export default defineComponent({
   opacity: 1
 }
 @media (max-width: 768px) {
-
   .message-wrapper {
     justify-content: flex-start;
-    align-items: center;
     flex-wrap: wrap;
   }
   .message-header {
