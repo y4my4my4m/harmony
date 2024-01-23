@@ -125,7 +125,8 @@
       };
 
       const fetchMoreMessages = async () => {
-        if (isAtBottom.value == false && !chatStore.allMessagesLoaded && !chatStore.loadingOlderMessages && serverChannelStore.currentChannelId) {
+        // isAtBottom.value == false && 
+        if (!chatStore.allMessagesLoaded && !chatStore.loadingOlderMessages && serverChannelStore.currentChannelId) {
           const oldestMessageId = chatMessages.value[0]?.id || '';
           await chatStore.fetchMessages(serverChannelStore.currentChannelId, oldestMessageId);
         }

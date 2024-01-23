@@ -17,24 +17,26 @@ export const useChatStore = defineStore('chat', {
     async fetchMessages(channelId: string, oldestMessageId: string = '') {
       if (this.loadingOlderMessages && oldestMessageId !== '') return;
       this.loadingOlderMessages = true;
-      let query = supabase
+      const query = supabase
         .from('messages')
         .select('*')
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (oldestMessageId !== '') {
-        const { data: oldestMessage } = await supabase
-          .from('messages')
-          .select('created_at')
-          .eq('id', oldestMessageId)
-          .single();
+      // what was that for again?
 
-        if (oldestMessage) {
-          query = query.lt('created_at', oldestMessage.created_at);
-        }
-      }
+      // if (oldestMessageId !== '') {
+      //   const { data: oldestMessage } = await supabase
+      //     .from('messages')
+      //     .select('created_at')
+      //     .eq('id', oldestMessageId)
+      //     .single();
+
+      //   if (oldestMessage) {
+      //     query = query.lt('created_at', oldestMessage.created_at);
+      //   }
+      // }
 
       const { data: messages, error } = await query;
 
