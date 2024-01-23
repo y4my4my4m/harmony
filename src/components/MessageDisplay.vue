@@ -5,11 +5,14 @@
     </div>
     <div v-else v-for="(message, index) in messages" :key="message.id" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
       <div v-if="index === 0 || messages[index - 1].user_id !== message.user_id" class="message-header">
-        <img :src="getUserAvatar(message.user_id)" class="user-avatar"/>
+        <img :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
         <div>
-          <strong :style="getUserColor(message.user_id)">
-            {{ getUserDisplayName(message.user_id) }} <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
-          </strong>
+          <span>
+            <strong class="user-display-name" :style="getUserColor(message.user_id)" @click="showUserProfile(message.user_id, $event)">
+            {{ getUserDisplayName(message.user_id) }}
+            </strong>
+            <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
+          </span>
           <MessageContent 
             :content="message.content"
             :message-id="message.id"
@@ -342,8 +345,14 @@ export default defineComponent({
   margin-right: 10px;
   position: relative;
   top: 4.5px;
+  cursor: pointer;
 }
-
+.user-display-name {
+  cursor: pointer;
+}
+.user-display-name:hover {
+  text-decoration: solid underline;
+}
 .message-header {
   display: flex;
   align-items: flex-start;
@@ -363,7 +372,7 @@ export default defineComponent({
 }
 .timestamp {
   color: #626262;
-  margin-left: 8px;
+  margin-left: 10px;
   font-size: 0.8em;
 }
 

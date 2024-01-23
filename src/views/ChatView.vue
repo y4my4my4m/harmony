@@ -41,7 +41,7 @@
   import { useRoute, useRouter } from 'vue-router';
   import { useProfileStore } from '@/stores/useProfile';
   import { useToast } from "vue-toastification";
-  import { Channel } from "@/types";
+  import type { Channel } from "@/types";
 
   export default defineComponent({
     components: {

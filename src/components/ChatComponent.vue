@@ -17,8 +17,8 @@
     <MessageInput 
       v-model="messageContent"
       :giphyOpen="giphyOpen"
-      @toggleGiphy="toggleGiphy"
       :emojiListOpen="emojiListOpen"
+      @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
       @update:newMessage="messageContent = $event"
@@ -52,6 +52,7 @@
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
+  import { useServerUsersStore } from '@/stores/useServerUsers'; 
   import type { Message, Gif, Emoji, ResolvedEmoji, MessagePart } from '@/types';
   import { handleFileDrop } from '@/services/fileService';
   import { listen } from '@tauri-apps/api/event';
@@ -80,6 +81,7 @@
       const chatStore = useChatStore();
       const authStore = useAuthStore();
       const serverChannelStore = useServerChannelStore();
+      const serverUsersStore = useServerUsersStore();
       const showDragDropArea = ref(false);
       const uploading = ref(false);
       const emojiListOpen = ref(false);
@@ -237,10 +239,9 @@
           if (textMatch[0].startsWith('http')) {
             parts.push({ type: 'url', url: textMatch[0], preview: true });
           } else {
-            const mention = textMatch[1];
-            // const userId = getUserIdFromMention(mention); // Implement this based on your user system
-            const userId = mention;
-            parts.push({ type: 'mention', mention, userId });
+            const mention = textMatch[0];
+            const userId = serverUsersStore.usernameToUserIdMap[mention.toLowerCase()];
+            parts.push({ type: 'mention', mention: mention, userId });
           }
 
           lastIndex = textMatch.index + textMatch[0].length;

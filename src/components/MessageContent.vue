@@ -3,7 +3,7 @@
     <template v-for="(part, partIndex) in content" :key="partIndex">
       <span v-if="part.type === 'text'">{{ part.text }}</span>
       <a v-else-if="part.type === 'url'" :href="part.url" target="_blank">{{ part.url }}</a>
-      <span v-else-if="part.type === 'mention'" class="mention">{{ part.mention }}</span>
+      <span v-else-if="part.type === 'mention'" class="mention" @click="$emit('show-user-profile', part.userId, $event)">{{ part.mention }}</span>
       <img v-else-if="part.type === 'emoji'"
            class="emoji-icon"
            :class="{ 'single': isSingleEmojiMessage }"
@@ -11,12 +11,12 @@
            :alt="part.emoji.name"
            :title="`:${part.emoji.name}:`" />
       <div v-else-if="part.type === 'file' && part.fileType === 'image'" class="file-container">
-        <div v-if="!imageLoaded[part.url]" class="image-skeleton"></div>
+        <div v-if="!(imageLoaded ?? {})[part.url]" class="image-skeleton"></div>
         <img
           :src="part.url"
           @load="$emit('image-loaded', part.url)"
           @click="$emit('open-lightbox', part.url)"
-          v-show="imageLoaded[part.url]" />
+          v-show="!(imageLoaded ?? {})[part.url]" />
       </div>
     </template>
   </div>
@@ -53,7 +53,7 @@ export default defineComponent({
     cancelEdit: Function,
     showUserProfile: Function
   },
-  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox'],
+  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableMessageContent);
 

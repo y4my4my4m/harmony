@@ -15,7 +15,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
   }),
   getters: {
     usernameToUserIdMap: (state) => {
-      const map = {};
+      const map: Record<string, string> = {};
       for (const userId in state.userProfiles) {
         const profile = state.userProfiles[userId];
         if (profile && profile.username) {
