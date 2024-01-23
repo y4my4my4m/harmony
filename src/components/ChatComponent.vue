@@ -112,7 +112,7 @@
 
       const toggleEmojiList = (isReaction: boolean, message: Message) => {
         // TODO: i dont like putting "selectedMessage" out in the eather this is bad design, revise it to make the emoji popup completely modular and free of logic
-        selectedMessageId.value = message.id;
+        if(message) selectedMessageId.value = message.id;
         isPopupForReaction.value = isReaction;
         emojiListOpen.value = !emojiListOpen.value;
         if (emojiListOpen.value) {
