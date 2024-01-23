@@ -257,7 +257,7 @@
       const handleSendEmoji = (emoji: Emoji) => {
         closeEmojiList();
         // Append emoji id to the existing message content
-        messageContent.value += `:${emoji.id}:`;
+        messageContent.value += `:${emoji.name}:`;
         console.log("Emoji added in Parent:", messageContent.value);
       };
 
