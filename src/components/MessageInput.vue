@@ -40,12 +40,10 @@ export default defineComponent({
     const newMessage = ref(props.modelValue);
 
     const send = () => {
-      if (newMessage.value !== '')
-      {
-        // if (newMessage.value.trim()) {
-        emit('sendMessage', newMessage.value);
+      if (newMessage.value?.trim()) {
+        const content = [{ type: "text", text: newMessage.value.trim() }];
+        emit('sendMessage', content);
         newMessage.value = '';
-        // }
       }
     };
 

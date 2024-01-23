@@ -51,24 +51,43 @@ export enum UserStatus {
   Away = 2,
   Busy = 3
 }
+export interface TextContent {
+  type: 'text';
+  text: string;
+}
+
+export interface UrlContent {
+  type: 'url';
+  url: string;
+}
+
+export interface MentionContent {
+  type: 'mention';
+  mention: string;
+  userId: string;
+}
+
+export interface EmojiContent {
+  type: 'emoji';
+  emoji: Emoji; // Assuming Emoji is already defined
+}
+
+export interface FileContent {
+  type: 'file';
+  url: string;
+  fileType: string; // e.g., 'image', 'video'
+}
+
+export type MessagePart = TextContent | UrlContent | MentionContent | EmojiContent | FileContent;
+
 export interface Message {
   id: string;
   created_at: Date;
   channel_id: number;
   user_id: string;
-  content: string;
+  content: MessagePart[];
   reactions?: JSON;
   file_url?: string;
-}
-
-export interface ParsedMessage {
-  id: string;
-  created_at: Date;  // or the correct type for your date/time
-  channel_id: number;
-  user_id: string;
-  reactions?: JSON;  // Adjust as per the actual type
-  file_url?: string;
-  content: (string | { url: string; userId: string; mention: string; emoji: Emoji; })[];
 }
 // should probably start to put these in their own files
 export interface Role {

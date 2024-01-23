@@ -52,7 +52,7 @@
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
-  import type { Message, Gif, Emoji } from '@/types';
+  import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { handleFileDrop } from '@/services/fileService';
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
@@ -145,8 +145,7 @@
                 chatStore.sendMessage(
                     serverChannelStore.currentChannelId, 
                     authStore.session.user.id, 
-                    "", // No additional content, just the file
-                    fileUrl // URL of the uploaded file
+                    [{type: "file", url: fileUrl, fileType: "image"}],
                 );
                 uploading.value = false;
             }
@@ -188,7 +187,7 @@
       //     unlisten();
       //   }
       // });
-      const handleSendMessage = (content: string) => {
+      const handleSendMessage = (content: MessagePart[]) => {
         if (authStore.session?.user && serverChannelStore.currentChannelId) {
           chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, content);
         }
@@ -202,7 +201,7 @@
         closeGiphy();
         // console.log("Sending GIF URL:", gifUrl);
         if (serverChannelStore.currentChannelId && authStore.session?.user) {
-          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, "", gifUrl);
+          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, [{type: "file", url: gifUrl, fileType: "image"}]);
         }
       };
       const handleSendEmoji = (emoji: Emoji) => {

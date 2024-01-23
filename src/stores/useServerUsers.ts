@@ -13,6 +13,18 @@ export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
     userProfiles: {} as Record<string, User>,
   }),
+  getters: {
+    usernameToUserIdMap: (state) => {
+      const map = {};
+      for (const userId in state.userProfiles) {
+        const profile = state.userProfiles[userId];
+        if (profile && profile.username) {
+          map[profile.username.toLowerCase()] = userId;
+        }
+      }
+      return map;
+    },
+  },
   actions: {
     async fetchUserProfiles(userIds: string[]) {
         const profiles = await getProfilesWithAvatarUrls(userIds);
