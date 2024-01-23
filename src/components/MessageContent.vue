@@ -5,18 +5,22 @@
       <a v-else-if="part.type === 'url'" :href="part.url" target="_blank">{{ part.url }}</a>
       <span v-else-if="part.type === 'mention'" class="mention" @click="$emit('show-user-profile', part.userId, $event)">{{ part.mention }}</span>
       <img v-else-if="part.type === 'emoji'"
-           class="emoji-icon"
-           :class="{ 'single': isSingleEmojiMessage }"
-           :src="part.emoji.url"
-           :alt="part.emoji.name"
-           :title="`:${part.emoji.name}:`" />
+        class="emoji-icon"
+        :class="{ 'single': isSingleEmojiMessage }"
+        :src="part.emoji.url"
+        :alt="part.emoji.name"
+        :title="`:${part.emoji.name}:`"
+        draggable="false"
+      />
       <div v-else-if="part.type === 'file' && part.fileType === 'image' && imageLoaded" class="file-container">
         <div v-if="imageLoaded[part.url]" class="image-skeleton"></div>
         <img
           :src="part.url"
           @load="$emit('image-loaded', part.url)"
           @click="$emit('open-lightbox', part.url)"
-          v-show="imageLoaded[part.url]" />
+          v-show="imageLoaded[part.url]"
+          draggable="false"
+        />
       </div>
     </template>
   </div>
