@@ -55,7 +55,7 @@
           v-for="reaction in message.reactions"
           :key="reaction.id"
           class="reaction"
-          @click="toggleReaction(reaction)"
+          @click="toggleReaction(message.id, reaction.emoji)"
           >
           <img 
             :src="reaction.emoji.url" 
@@ -84,7 +84,7 @@
 <script lang="ts">
 import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType, Ref } from 'vue';
-import type { Message, User, Reaction } from '@/types';
+import type { Message, User, Emoji } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { format } from 'date-fns';
@@ -114,9 +114,6 @@ export default defineComponent({
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
     const chat = useChatStore();
-    const reactionSound = ref(new Audio('/assets/sounds/poi1.mp3'));
-    const reactionSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
-
     // const parsedMessages = computed(() => {
     //   return props.messages.map((message) => {
     //     // Assuming the content of each message is a JSON string
@@ -147,8 +144,8 @@ export default defineComponent({
       emit('toggleEmojiList', true, message);
     }
 
-    const toggleReaction = (reaction: Reaction) => {
-      reactionSound2.value.play();
+    const toggleReaction = (messageId: string, emoji: Emoji) => {
+      emit('sendReaction', messageId, emoji);
     }
 
     const startEdit = (message: Message) => {

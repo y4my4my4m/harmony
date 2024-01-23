@@ -14,6 +14,7 @@
       :messages="messages" 
       @loadMoreMessages="$emit('loadMoreMessages')"
       @toggleEmojiList="toggleEmojiList"
+      @sendReaction="toggleReaction"
     />
 
     <MessageInput 
@@ -88,7 +89,7 @@
       const uploading = ref(false);
       const emojiListOpen = ref(false);
       const isPopupForReaction = ref(false);
-      const selectedMessage = ref();
+      const selectedMessageId = ref('');
       const giphyOpen = ref(false);
       const messageContent = ref('');
       const resolvedEmojiList = computed(() => serverChannelStore.resolvedEmojiList);
@@ -102,9 +103,16 @@
       const gifIconClicked = ref(false);
       const emojiIconClicked = ref(false);
 
+      const toggleReaction = (messageId: string, emoji: Emoji) => {
+        // TODO: i dont like putting "selectedMessage" out in the eather this is bad design, revise it to make the emoji popup completely modular and free of logic
+        selectedMessageId.value = messageId;
+        isPopupForReaction.value = true;
+        handleSendEmoji(emoji);
+      };
+
       const toggleEmojiList = (isReaction: boolean, message: Message) => {
         // TODO: i dont like putting "selectedMessage" out in the eather this is bad design, revise it to make the emoji popup completely modular and free of logic
-        selectedMessage.value = message;
+        selectedMessageId.value = message.id;
         isPopupForReaction.value = isReaction;
         emojiListOpen.value = !emojiListOpen.value;
         if (emojiListOpen.value) {
@@ -293,11 +301,9 @@
         closeEmojiList();
 
         if (isPopupForReaction.value) {
-          console.log(emoji);
-          console.log(selectedMessage.value);
           if (authStore.session?.user) {
             reactionSound2.value.play();
-            await chatStore.addReaction(selectedMessage.value.id, emoji.id, authStore.session.user.id);
+            await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
 
           }
         }
@@ -327,7 +333,8 @@
         messageContent,
         resolvedEmojiList,
         isPopupForReaction,
-        selectedMessage
+        selectedMessageId,
+        toggleReaction,
       };
     }
   });
