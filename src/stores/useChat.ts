@@ -45,40 +45,50 @@ export const useChatStore = defineStore('chat', {
       if (error) {
         console.error('Error fetching messages:', error);
       } else {
-
-
-
         // FIXME: refactor me...
         // Assuming messages have an array of reaction IDs
         if(!messages) return;
         for (const message of messages) {
           if (message.reactions && message.reactions.length > 0) {
-            console.log(message);
-            const { data: reactionDetails, error: reactionError } = await supabase
-              .from('reactions')
-              .select('*')
-              .in('id', message.reactions);
-  
-            if (reactionError) {
-              console.error('Error fetching reaction details:', reactionError);
+            // TODO: im using a supabase function to count and populate the emoji data...check for performance issues? (perhaps a query for all the messages would be better than individuals)
+            const { data: reactions, error: reactionsError } = await supabase
+              .rpc('get_message_reactions', { message_id: message.id });
+        
+            if (reactionsError) {
+              console.error('Error fetching reactions:', reactionsError);
               continue;
             }
-  
-            // Transforming each reaction detail to include emoji data
-            for (const reaction of reactionDetails) {
-              try {
-                const emojiData = await getEmoji(reaction.emoji_id);
-                reaction.emoji = emojiData;
-              } catch (emojiError) {
-                console.error('Error fetching emoji:', emojiError);
-                reaction.emoji = null; // Or some default emoji
-              }
-            }
-  
-            // Attach the detailed reactions back to the message
-            message.reactions = reactionDetails;
+        
+            // Attach reactions to the message
+            message.reactions = reactions;
           }
         }
+        //     console.log(message);
+        //     const { data: reactionDetails, error: reactionError } = await supabase
+        //       .from('reactions')
+        //       .select('*')
+        //       .in('id', message.reactions);
+  
+        //     if (reactionError) {
+        //       console.error('Error fetching reaction details:', reactionError);
+        //       continue;
+        //     }
+  
+        //     // Transforming each reaction detail to include emoji data
+        //     for (const reaction of reactionDetails) {
+        //       try {
+        //         const emojiData = await getEmoji(reaction.emoji_id);
+        //         reaction.emoji = emojiData;
+        //       } catch (emojiError) {
+        //         console.error('Error fetching emoji:', emojiError);
+        //         reaction.emoji = null; // Or some default emoji
+        //       }
+        //     }
+  
+        //     // Attach the detailed reactions back to the message
+        //     message.reactions = reactionDetails;
+        //   }
+        // }
 
         if (messages.length < 20) {
           this.allMessagesLoaded = true;

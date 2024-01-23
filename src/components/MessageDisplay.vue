@@ -61,8 +61,8 @@
             :src="reaction.emoji.url" 
             :alt="reaction.emoji.name"
           />
-          <!-- <span>{{ reaction.count }}</span> -->
-          <span class="reaction-count">1</span>
+          <span>{{ reaction.count }}</span>
+          <!-- <span class="reaction-count">1</span> -->
         </div>
         <!-- Additional UI for adding new reactions -->
       </div>
