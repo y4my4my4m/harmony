@@ -45,9 +45,26 @@
         @show-user-profile="showUserProfile"
       />
       <div class="message-actions" v-if="hoveredMessageId === message.id">
-        <div class="btn" @click="react(message)"><ReactionIcon/></div>
+        <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
         <div class="btn" @click="startEdit(message)"><EditIcon/></div>
         <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
+      </div>
+      <div class="reactions" v-if="message.reactions" >
+        <!-- Display existing reactions -->
+        <div
+          v-for="reaction in message.reactions"
+          :key="reaction.id"
+          class="reaction"
+          @click="toggleReaction(reaction)"
+          >
+          <img 
+            :src="reaction.emoji.url" 
+            :alt="reaction.emoji.name"
+          />
+          <!-- <span>{{ reaction.count }}</span> -->
+          <span class="reaction-count">1</span>
+        </div>
+        <!-- Additional UI for adding new reactions -->
       </div>
     </div>
   </div>
@@ -67,7 +84,7 @@
 <script lang="ts">
 import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType, Ref } from 'vue';
-import type { Message, User } from '@/types';
+import type { Message, User, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { format } from 'date-fns';
@@ -123,7 +140,11 @@ export default defineComponent({
     const editableMessageContent = ref('');
     const hoveredMessageId = ref<string | null>(null);
     
-    const react = (message: Message) => {
+    const openEmojiReactor = (message: Message) => {
+
+    }
+
+    const toggleReaction = (reaction: Reaction) => {
 
     }
 
@@ -300,7 +321,7 @@ export default defineComponent({
       handleScroll,
       hoveredMessageId,
       deleteMessage,
-      react,
+      toggleReaction,
       startEdit,
       saveEdit,
       cancelEdit,
@@ -311,9 +332,9 @@ export default defineComponent({
       profileCardStyle, 
       closeProfile,
       isSingleEmojiMessage,
+      openEmojiReactor
     };
   }
-  
 });
 </script>
 <style scoped>
@@ -329,6 +350,7 @@ export default defineComponent({
   align-items: flex-start;
   padding: 0px 12px;
   position:relative;
+  flex-direction: column;
 }
 
 .message-wrapper:hover {
@@ -471,7 +493,36 @@ export default defineComponent({
 .emoji-icon.single {
   height: 64px;
 }
-
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  padding-left: 46px;
+  padding-bottom: 12px;
+}
+.reactions .reaction {
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 17%);
+  cursor: pointer;
+  transition: 0.2s ease-in-out;
+  padding: 0 6px 4px 6px;
+  justify-content: center;
+  flex-direction: row;
+  flex-wrap: nowrap;
+}
+.reactions .reaction img {
+  height: 24px;
+}
+.reactions .reaction:hover {
+  background: rgb(0 0 0 / 25%);
+}
+.reactions .reaction .reaction-count {
+  margin-left: 4px;
+  margin-top: 5px;
+  font-size: 0.8em;
+  color: #848484;
+}
 /* FIXME: this should all be inside the userProfileComponent */
 .user-profile-card {
   position: absolute;

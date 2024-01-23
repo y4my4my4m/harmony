@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Message } from '@/types';
-
+import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [] as Message[],
@@ -19,7 +19,9 @@ export const useChatStore = defineStore('chat', {
       this.loadingOlderMessages = true;
       const query = supabase
         .from('messages')
-        .select('*')
+        .select(`
+          *
+        `)
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
         .limit(20);
@@ -43,6 +45,41 @@ export const useChatStore = defineStore('chat', {
       if (error) {
         console.error('Error fetching messages:', error);
       } else {
+
+
+
+        // FIXME: refactor me...
+        // Assuming messages have an array of reaction IDs
+        if(!messages) return;
+        for (const message of messages) {
+          if (message.reactions && message.reactions.length > 0) {
+            console.log(message);
+            const { data: reactionDetails, error: reactionError } = await supabase
+              .from('reactions')
+              .select('*')
+              .in('id', message.reactions);
+  
+            if (reactionError) {
+              console.error('Error fetching reaction details:', reactionError);
+              continue;
+            }
+  
+            // Transforming each reaction detail to include emoji data
+            for (const reaction of reactionDetails) {
+              try {
+                const emojiData = await getEmoji(reaction.emoji_id);
+                reaction.emoji = emojiData;
+              } catch (emojiError) {
+                console.error('Error fetching emoji:', emojiError);
+                reaction.emoji = null; // Or some default emoji
+              }
+            }
+  
+            // Attach the detailed reactions back to the message
+            message.reactions = reactionDetails;
+          }
+        }
+
         if (messages.length < 20) {
           this.allMessagesLoaded = true;
         }
@@ -113,7 +150,30 @@ export const useChatStore = defineStore('chat', {
       } catch (e) {
         console.error('Error during message sending:', e);
       }
-    },    
+    },
+    // async sendReaction(messageId: string, emojiId: string, userId: string) {
+    //   try {
+    //     const { data, error } = await supabase
+    //       .from('reactions')
+    //       .insert([{ 
+    //         message_id: messageId, 
+    //         emoji_id: emojiId,
+    //         user_id: userId,
+    //       }])
+    //       .select('*');
+    
+    //     if (error) {
+    //       console.error('Error sending message:', error);
+    //       return;
+    //     }
+    //     if (data && data.length > 0) {
+    //       this.messages[messageId].reactions.push(data[0]);
+    //     }
+    //     console.log('Message sent:', data);
+    //   } catch (e) {
+    //     console.error('Error during message sending:', e);
+    //   }
+    // },
     subscribeToMessages(channelId: string) {
       
       if (this.currentSubscription) {
@@ -134,7 +194,8 @@ export const useChatStore = defineStore('chat', {
               channel_id: payload.new.channel_id,
               user_id: payload.new.user_id,
               content: payload.new.content,
-              file_url: payload.new.file_url,
+              reactions: payload.new.reactions,
+              reply_to: payload.new.reply_to,
             };
 
             if (!this.messages.some(msg => msg.id === newMessage.id)) {

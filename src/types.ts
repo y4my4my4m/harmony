@@ -81,16 +81,25 @@ export interface FileContent {
 
 export type MessagePart = TextContent | UrlContent | MentionContent | EmojiContent | FileContent;
 
+export interface Reaction {
+  id: string;
+  created_at: Date;
+  message_id: string;
+  emoji_id: string;
+  user_id: string;
+  count: number; // doesn't exist in the database, we're transforming it
+  emoji: Emoji; // doesn't exist in the database, we're transforming it
+}
 export interface Message {
   id: string;
   created_at: Date;
   channel_id: number;
   user_id: string;
   content: MessagePart[];
-  reactions?: JSON;
-  file_url?: string;
   reply_to?: string;
+  reactions?: Reaction[]; // doesn't exist in the database, we're transforming it
 }
+
 // should probably start to put these in their own files
 export interface Role {
   id: number;
