@@ -64,21 +64,3 @@ export async function parseMessageContent(
   
     return remainingParts;
   };
-
-export async function parseEmojiUUIDsForDisplay(message: string, resolvedEmojiList: Record<string, { 
-    server_name: string; 
-    server_icon?: string; 
-    emojis: ResolvedEmoji[]; 
-  }>): string {
-      return message.replace(/:([0-9a-f-]+):/g, (match, emojiId) => {
-          for (const serverId in resolvedEmojiList) {
-              const serverEmojis = resolvedEmojiList[serverId].emojis;
-              const emoji = serverEmojis.find(e => e.id === emojiId);
-              if (emoji) {
-                  return `<img src="${emoji.url}" alt="${emoji.display_name}" class="emoji-icon">`;
-              }
-          }
-          return match; // If no emoji found, return original text
-      });
-  }
-  

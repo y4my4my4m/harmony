@@ -61,7 +61,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, computed, ref} from 'vue';
+import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType, Ref } from 'vue';
 import type { Message, User } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -91,8 +91,6 @@ export default defineComponent({
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
     const chat = useChatStore();
-
-    console.log(props.messages);
 
     // const parsedMessages = computed(() => {
     //   return props.messages.map((message) => {
@@ -249,38 +247,31 @@ export default defineComponent({
     
 
     // Watch for changes in messages for parsing
-    // watch(() => props.messages, async (newMessages) => {
-    //   const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
-    //   // Process image loading
-    //   newMessages.forEach(message => {
-    //     if (message.file_url && !(message.id in imageLoaded.value)) {
-    //       imageLoaded.value[message.id] = false;
-    //     }
-    //   });
-    //   if (newMessages && newMessages.length > 0) {
-    //     // Parse messages and update scroll
-    //     parsedMessages.value = await Promise.all(newMessages.map(async (message:any) => {
-    //       const content = await parseMessageContent(message.content, serverUsersStore.usernameToUserIdMap);
+    watch(() => props.messages, (newMessages) => {
+      const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
 
-    //       await nextTick();
+      newMessages.forEach(message => {
+        message.content.forEach(part => {
+          // initialize image "loading" state
+          if (part.type === 'file' && part.fileType === 'image' && !(part.url in imageLoaded.value)) {
+            imageLoaded.value[part.url] = false;
+          }
+        });
+      });
 
-    //       // Recalculate scroll height
-    //       if (messageDisplayContainer.value) {
-    //         const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-    //         const scrollOffset = newScrollHeight - oldScrollHeight;
-    //         messageDisplayContainer.value.scrollTop += scrollOffset;
-    //       }
-    //       // FIXME: manually call to scroll down to bottom, although we probably dont want if we've scrolled up
-    //       handleScroll();
-
-    //       return {
-    //         ...message,
-    //         content
-    //       };
-    //     }));
-    //   }
-    // }, { immediate: true, deep: true });
-
+      if (newMessages && newMessages.length > 0) {
+        // Recalculate scroll height
+        nextTick(() => {
+          if (messageDisplayContainer.value) {
+            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+            const scrollOffset = newScrollHeight - oldScrollHeight;
+            messageDisplayContainer.value.scrollTop += scrollOffset;
+          }
+          // FIXME: manually call to scroll down to bottom, although we probably dont want if we've scrolled up
+          handleScroll();
+        });
+      }
+    }, { immediate: true, deep: true });
 
 
     return { 

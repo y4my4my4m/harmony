@@ -52,7 +52,7 @@
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
-  import type { Message, Gif, Emoji, MessagePart } from '@/types';
+  import type { Message, Gif, Emoji, ResolvedEmoji, MessagePart } from '@/types';
   import { handleFileDrop } from '@/services/fileService';
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
@@ -85,6 +85,7 @@
       const emojiListOpen = ref(false);
       const giphyOpen = ref(false);
       const messageContent = ref('');
+      const resolvedEmojiList = computed(() => serverChannelStore.resolvedEmojiList);
 
       // let unlisten: UnlistenFn | null = null;
       // Computed property to check if running in Tauri
@@ -187,12 +188,61 @@
       //     unlisten();
       //   }
       // });
-      const handleSendMessage = (content: MessagePart[]) => {
-        if (authStore.session?.user && serverChannelStore.currentChannelId) {
-          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, content);
+
+      const parseMessageInput = (input: string): MessagePart[] => {
+        const emojiRegex = /:([\w\d_+-]+):/g;
+        let lastIndex = 0;
+        const result: MessagePart[] = [];
+
+        let match;
+        while ((match = emojiRegex.exec(input)) !== null) {
+          // Add text before emoji
+          if (match.index > lastIndex) {
+            result.push({ type: 'text', text: input.slice(lastIndex, match.index) });
+          }
+
+          // Add emoji
+          const emojiName = match[1];
+          const emoji = findEmojiByName(emojiName);
+          if (emoji) {
+            result.push({ type: 'emoji', emoji });
+          } else {
+            // If emoji not found, add the text as is
+            result.push({ type: 'text', text: match[0] });
+          }
+
+          lastIndex = match.index + match[0].length;
         }
-        messageContent.value = ''; 
+
+        // Add remaining text
+        if (lastIndex < input.length) {
+          result.push({ type: 'text', text: input.slice(lastIndex) });
+        }
+        console.log(result);
+        return result;
       };
+
+      const findEmojiByName = (name: string): Emoji | undefined => {
+        for (const serverId in resolvedEmojiList.value) {
+          const server = resolvedEmojiList.value[serverId];
+          const emoji = server.emojis.find(e => e.name === name);
+          if (emoji) {
+            return emoji;
+          }
+        }
+        return undefined;
+      };
+
+      const handleSendMessage = (content: string) => {
+        if (authStore.session?.user && serverChannelStore.currentChannelId) {
+          console.log(content);
+          const parsedMessage = parseMessageInput(content);
+          console.log(parsedMessage);
+          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, parsedMessage);
+          messageContent.value = ''; // Reset the message input field after sending
+        }
+      };
+
       // watch(() => props.messages, (newMessages) => {
       //   console.log("Received messages:", newMessages);
       // }, { deep: true });
@@ -209,10 +259,6 @@
         // Append emoji id to the existing message content
         messageContent.value += `:${emoji.id}:`;
         console.log("Emoji added in Parent:", messageContent.value);
-      };
-
-      const updateMessageContent = (newContent: string) => {
-        messageContent.value = newContent;
       };
 
       // watch(messageContent, (newValue) => {
@@ -236,7 +282,7 @@
         emojiIconClicked,
         handleSendEmoji,
         messageContent,
-        updateMessageContent,
+        resolvedEmojiList,
       };
     }
   });

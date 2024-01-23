@@ -69,7 +69,7 @@ export interface MentionContent {
 
 export interface EmojiContent {
   type: 'emoji';
-  emoji: Emoji; // Assuming Emoji is already defined
+  emoji: Emoji;
 }
 
 export interface FileContent {

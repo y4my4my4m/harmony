@@ -41,7 +41,7 @@ export default defineComponent({
 
     const send = () => {
       if (newMessage.value?.trim()) {
-        const content = [{ type: "text", text: newMessage.value.trim() }];
+        const content = newMessage.value.trim();
         emit('sendMessage', content);
         newMessage.value = '';
       }
@@ -63,7 +63,6 @@ export default defineComponent({
     const toggleEmojiList = () => {
       emit('toggleEmojiList');
     };
-
 
     watch(() => props.modelValue, (newValue) => {
       newMessage.value = newValue;
