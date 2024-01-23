@@ -4,7 +4,7 @@
       <div class="left-icons">
         <PlusIcon/>
       </div>
-      <textarea v-model="newMessage" @keydown.enter="handleEnter" placeholder="Type a message..."></textarea>
+      <textarea v-model="localMessageContent" @keydown.enter="handleEnter" placeholder="Type a message..."></textarea>
       <div class="right-icons">
         <GifIcon @click="toggleGiphy" />
         <EmojiUI @click="toggleEmojiList" />
@@ -29,21 +29,25 @@ export default defineComponent({
     giphyOpen: Boolean,
     emojiListOpen: Boolean,
     modelValue: String,
+    messageContent: {
+      type: String,
+      default: ''
+    },
   },
   emits: {
     sendMessage: null,
     toggleGiphy: null,
     toggleEmojiList: null,
-    'update:newMessage': null,
+    'update:messageContent': null,
   },
   setup(props, { emit }) {
-    const newMessage = ref(props.modelValue);
+    const localMessageContent = ref(props.messageContent);
 
     const send = () => {
-      if (newMessage.value?.trim()) {
-        const content = newMessage.value.trim();
+      if (localMessageContent.value?.trim()) {
+        const content = localMessageContent.value.trim();
         emit('sendMessage', content);
-        newMessage.value = '';
+        localMessageContent.value = '';
       }
     };
 
@@ -64,12 +68,18 @@ export default defineComponent({
       emit('toggleEmojiList');
     };
 
-    watch(() => props.modelValue, (newValue) => {
-      newMessage.value = newValue;
-      emit('update:newMessage', newMessage.value);
+    // Watch for changes to the prop and update the local copy accordingly
+    watch(() => props.messageContent, (newValue) => {
+      localMessageContent.value = newValue;
     });
 
-    return { newMessage, send, toggleGiphy, toggleEmojiList, handleEnter };
+    // Emit an event when the local copy changes
+    watch(localMessageContent, (newValue) => {
+      emit('update:messageContent', newValue);
+    });
+
+
+    return { localMessageContent, send, toggleGiphy, toggleEmojiList, handleEnter };
   }
 });
 </script>

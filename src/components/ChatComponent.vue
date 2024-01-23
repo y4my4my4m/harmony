@@ -15,13 +15,13 @@
       @loadMoreMessages="$emit('loadMoreMessages')" />
 
     <MessageInput 
-      v-model="messageContent"
+      v-model:messageContent="messageContent"
       :giphyOpen="giphyOpen"
       :emojiListOpen="emojiListOpen"
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
-      @update:newMessage="messageContent = $event"
+      @update:messageContent="messageContent = $event"
     />
 
     <GifComponent
@@ -283,7 +283,7 @@
 
       const handleSendEmoji = (emoji: Emoji) => {
         closeEmojiList();
-        // Append emoji id to the existing message content
+        // Append emoji name to the existing message content
         messageContent.value += `:${emoji.name}:`;
         console.log("Emoji added in Parent:", messageContent.value);
       };
