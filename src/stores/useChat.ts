@@ -163,7 +163,7 @@ export const useChatStore = defineStore('chat', {
     },
     async addReaction(messageId: string, emojiId: string, userId: string) {
       try {
-        // Insert new reaction and get its ID
+        // Attempt to insert new reaction
         const { data: reactionData, error: insertError } = await supabase
           .from('reactions')
           .insert([{ 
@@ -175,43 +175,40 @@ export const useChatStore = defineStore('chat', {
     
         if (insertError) {
           console.error('Error adding reaction:', insertError);
-          return;
+          // Check for unique constraint violation (duplicate reaction)
+          if (insertError.code === "23505") {
+            // Delete the reaction if it already exists
+            await supabase
+              .from('reactions')
+              .delete()
+              .match({ message_id: messageId, emoji_id: emojiId, user_id: userId });
+            console.log('Reaction removed');
+          }
+          // return;
         }
     
-        // Extract the ID of the newly added reaction
-        const newReactionId = reactionData[0].id;
-    
-        // Fetch current reactions array for the message
-        const { data: currentReactions, error: fetchError } = await supabase
-          .from('messages')
-          .select('reactions')
-          .eq('id', messageId)
-          .single();
-    
-        if (fetchError) {
-          console.error('Error fetching current reactions:', fetchError);
-          return;
+        // Fetch and update reaction data in messages
+        const updatedReactionData = await this.fetchAndPopulateReactions(messageId);
+        const messageIndex = this.messages.findIndex(msg => msg.id === messageId);
+        if (messageIndex !== -1) {
+          this.messages[messageIndex].reactions = updatedReactionData;
         }
-    
-        // Append new reaction ID to the array
-        const updatedReactions = [...(currentReactions.reactions || []), newReactionId];
-    
-        // Update the messages table with the new reactions array
-        const { error: updateError } = await supabase
-          .from('messages')
-          .update({ reactions: updatedReactions })
-          .match({ id: messageId });
-    
-        if (updateError) {
-          console.error('Error updating message with new reaction:', updateError);
-          return;
-        }
-    
-        console.log('Reaction added successfully');
       } catch (e) {
         console.error('Error during reaction add:', e);
       }
-    },    
+    },
+    
+    async fetchAndPopulateReactions(messageId:string) {
+      const { data: reactions, error } = await supabase
+        .rpc('get_message_reactions', { message_id: messageId });
+    
+      if (error) {
+        console.error('Error fetching reactions:', error);
+        return [];
+      }
+    
+      return reactions;
+    },
     subscribeToMessages(channelId: string) {
       
       if (this.currentSubscription) {
