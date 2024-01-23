@@ -203,13 +203,15 @@
             console.log(error);
             router.push('/new-profile');
           }
-          await serverChannelStore.fetchServersForUser(userId);
+
+          await serverChannelStore.initializeUserEnvironment(userId);
+          // await serverChannelStore.fetchServersForUser(userId);
           initialized = true;
           if (servers.value.length === 0) {
             showNoServersSplash.value = true;
             return;
           }
-          await serverChannelStore.fetchAllEmojis();
+          // await serverChannelStore.fetchAllEmojis();
           await loadServerAndChannel();
           requestNotificationPermission();
 

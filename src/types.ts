@@ -102,6 +102,8 @@ export interface Emoji {
   created_at: Date;
   name: string;
   url: string;
-  server_id: string;
   uploader: string;
 }
+export type ResolvedEmoji = Emoji & {
+  display_name: string;
+};

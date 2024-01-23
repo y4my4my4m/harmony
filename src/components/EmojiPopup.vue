@@ -1,28 +1,28 @@
 <template>
-    <div class="emoji-popup" ref="emojiPopup">
-      <div v-for="serverEmoji in allEmojis" :key="serverEmoji.serverId">
-        <h3>{{ serverEmoji.serverId }}</h3>
-        <!-- <input type="text" v-model="searchQuery" placeholder="Search emojis..."> -->
-        <div class="emoji-list">
-          <div v-for="emoji in serverEmoji.emojis" 
-            :key="emoji.id" 
-            class="emoji-item" 
-            @click="selectEmoji(emoji)"
-            @mouseover="hoveredEmoji = emoji.id" 
-            @mouseleave="hoveredEmoji = null"
-          >
-            <img :src="emoji.url" :alt="emoji.name" :title="`:${emoji.name}:`">
-          </div>
+  <div class="emoji-popup" ref="emojiPopup">
+    <div v-for="(emojiData, serverId) in resolvedEmojiList" :key="serverId">
+      <h3>{{ emojiData.server_name }}</h3>
+      <div class="emoji-list">
+        <div v-for="emoji in emojiData.emojis" 
+          :key="emoji.id" 
+          class="emoji-item" 
+          @click="selectEmoji(emoji)"
+          @mouseover="hoveredEmoji = emoji.id" 
+          @mouseleave="hoveredEmoji = null"
+        >
+          <img :src="emoji.url" :alt="emoji.name" :title="`:${emoji.display_name}:`">
         </div>
       </div>
     </div>
+  </div>
 </template>
+
 
 <script lang="ts">
   import { defineComponent, ref, onMounted } from 'vue';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import type { PropType } from 'vue';
-  import type { Emoji } from '@/types';
+  import type { Emoji, ResolvedEmoji } from '@/types';
   
   export default defineComponent({
     name: 'EmojiPopup',
@@ -35,19 +35,23 @@
         const serverChannelStore = useServerChannelStore();
         const hoveredEmoji = ref<string | null>(null);
         const emojiPopup = ref<HTMLElement | null>(null);
+        const resolvedEmojiList = ref<Record<string, { 
+          server_name: string; 
+          server_icon?: string; 
+          emojis: ResolvedEmoji[]; 
+        }>>({});
 
-        const allEmojis = ref<{ serverId: string, emojis: Emoji[] }[]>([]);
-        onMounted(async () => {
-            // console.log(serverChannelStore.emojiList);
-            allEmojis.value = serverChannelStore.emojiList;
+        onMounted(() => {
+          resolvedEmojiList.value = serverChannelStore.resolvedEmojiList;
         });
+
 
         const selectEmoji = (emoji: Emoji) => {
             emit('sendEmoji', emoji);
         };
   
         return {
-            allEmojis, 
+            resolvedEmojiList, 
             selectEmoji, 
             hoveredEmoji,
             emojiPopup

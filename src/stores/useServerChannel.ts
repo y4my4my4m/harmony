@@ -1,11 +1,16 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { Server, Category, Channel, Emoji } from '@/types';
+import type { Server, Category, Channel, Emoji, ResolvedEmoji } from '@/types';
 
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
     emojiList: [] as { serverId: string, emojis: Emoji[] }[],
+    resolvedEmojiList: {} as Record<string, { 
+      server_name: string; 
+      server_icon?: string; 
+      emojis: ResolvedEmoji[]; 
+    }>,
     channels: [] as Channel[],
     categories: {} as Category[],
     categoryChannels: {} as Record<string, Channel[]>,
@@ -14,6 +19,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
     currentChannelId: null as string | null,
   }),
   actions: {
+    async initializeUserEnvironment(userId: string): Promise<void> {
+      await this.fetchServersForUser(userId);
+      await this.fetchAllEmojis();
+      this.resolveAndCacheEmojis();
+    },
     async fetchServersForUser(userId: string) {
       const { data, error } = await supabase
         .from('user_servers')
@@ -169,7 +179,45 @@ export const useServerChannelStore = defineStore('serverChannel', {
       } catch (error) {
         console.error('Error fetching emojis:', error);
       }
-    },    
+    },
+    resolveAndCacheEmojis() {
+      const resolvedEmojis = this.resolveNamingConflicts();
+      this.cacheEmojis(resolvedEmojis);
+    },
+
+    resolveNamingConflicts(): Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }> {
+      const nameCount: Record<string, number> = {};
+      const emojisByServer: Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }> = {};
+    
+      this.emojiList.forEach(({ serverId, emojis }) => { // Corrected serverId
+        const serverDetails = this.getServerDetails(serverId);
+    
+        emojisByServer[serverId] = { // Corrected serverId
+          server_name: serverDetails?.name || '', // Default to empty string if undefined
+          server_icon: serverDetails?.icon,
+          emojis: emojis.map(emoji => {
+            const count = nameCount[emoji.name] || 0;
+            nameCount[emoji.name] = count + 1;
+    
+            return {
+              ...emoji,
+              display_name: count > 0 ? `${emoji.name}~${count}` : emoji.name,
+            };
+          }),
+        };
+      });
+    
+      return emojisByServer;
+    },
+
+    cacheEmojis(emojisByServer: Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }>) {
+      this.resolvedEmojiList = emojisByServer;
+    },
+    
+    getServerDetails(serverId: string): { name?: string; icon?: string } | undefined {
+      return this.servers.find(server => server.id === serverId);
+    },
+
     setCurrentServer(serverId: string) {
       this.currentServerId = serverId;
       this.getCurrentServer();
