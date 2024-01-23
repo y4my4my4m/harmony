@@ -12,7 +12,9 @@
 
     <MessageDisplay 
       :messages="messages" 
-      @loadMoreMessages="$emit('loadMoreMessages')" />
+      @loadMoreMessages="$emit('loadMoreMessages')"
+      @toggleEmojiList="toggleEmojiList"
+    />
 
     <MessageInput 
       v-model:messageContent="messageContent"
@@ -53,11 +55,11 @@
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
   import { useServerUsersStore } from '@/stores/useServerUsers'; 
-  import type { Message, Gif, Emoji, ResolvedEmoji, MessagePart } from '@/types';
+  import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { handleFileDrop } from '@/services/fileService';
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
-  import type { UnlistenFn } from '@tauri-apps/api/event';
+  // import type { UnlistenFn } from '@tauri-apps/api/event';
   import GifComponent from '@/components/GifComponent.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
@@ -85,9 +87,12 @@
       const showDragDropArea = ref(false);
       const uploading = ref(false);
       const emojiListOpen = ref(false);
+      const isPopupForReaction = ref(false);
+      const selectedMessage = ref();
       const giphyOpen = ref(false);
       const messageContent = ref('');
       const resolvedEmojiList = computed(() => serverChannelStore.resolvedEmojiList);
+      const reactionSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
 
       // let unlisten: UnlistenFn | null = null;
       // Computed property to check if running in Tauri
@@ -97,11 +102,14 @@
       const gifIconClicked = ref(false);
       const emojiIconClicked = ref(false);
 
-      const toggleEmojiList = () => {
-          emojiListOpen.value = !emojiListOpen.value;
-          if (emojiListOpen.value) {
-            emojiIconClicked.value = true;
-          }
+      const toggleEmojiList = (isReaction: boolean, message: Message) => {
+        // TODO: i dont like putting "selectedMessage" out in the eather this is bad design, revise it to make the emoji popup completely modular and free of logic
+        selectedMessage.value = message;
+        isPopupForReaction.value = isReaction;
+        emojiListOpen.value = !emojiListOpen.value;
+        if (emojiListOpen.value) {
+          emojiIconClicked.value = true;
+        }
       };
 
       watch(emojiListOpen, () => {
@@ -281,11 +289,23 @@
         }
       };
 
-      const handleSendEmoji = (emoji: Emoji) => {
+      const handleSendEmoji = async (emoji: Emoji) => {
         closeEmojiList();
-        // Append emoji name to the existing message content
-        messageContent.value += `:${emoji.name}:`;
-        console.log("Emoji added in Parent:", messageContent.value);
+
+        if (isPopupForReaction.value) {
+          console.log(emoji);
+          console.log(selectedMessage.value);
+          if (authStore.session?.user) {
+            reactionSound2.value.play();
+            await chatStore.addReaction(selectedMessage.value.id, emoji.id, authStore.session.user.id);
+
+          }
+        }
+        else {
+          // Append emoji name to the existing message content
+          messageContent.value += `:${emoji.name}:`;
+          console.log("Emoji added in Parent:", messageContent.value);
+        }
       };
 
       return { 
@@ -306,6 +326,8 @@
         handleSendEmoji,
         messageContent,
         resolvedEmojiList,
+        isPopupForReaction,
+        selectedMessage
       };
     }
   });

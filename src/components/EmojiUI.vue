@@ -22,7 +22,12 @@ export default defineComponent({
 
         const onHover = () => {
             spriteRow.value = Math.floor(Math.random() * 4) + 1; // Assuming 4 rows
-            spriteCol.value = Math.floor(Math.random() * 20) + 1; // Assuming 20 columns
+
+            if (spriteRow.value === 3) {
+                spriteCol.value = Math.floor(Math.random() * 17) + 1; // Assuming 17 columns for the fourth row
+            } else {
+                spriteCol.value = Math.floor(Math.random() * 20) + 1; // Assuming 20 columns for other rows
+            }
             grayscaleFactor.value = 0;
             scaleFactor.value = 1.14;
         };

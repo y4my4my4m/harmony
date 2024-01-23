@@ -65,7 +65,8 @@ export default defineComponent({
       emit('toggleGiphy');
     };
     const toggleEmojiList = () => {
-      emit('toggleEmojiList');
+      // set false if not a reaction but an emoji for the input
+      emit('toggleEmojiList', false);
     };
 
     // Watch for changes to the prop and update the local copy accordingly

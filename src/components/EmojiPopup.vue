@@ -28,7 +28,8 @@
     name: 'EmojiPopup',
     props: {
         closeEmojiList: Function as PropType<() => void>,
-        emojiIconClicked: Boolean
+        emojiIconClicked: Boolean,
+        isReaction: Boolean,
     },
     emits: ['sendEmoji'],
     setup(props, { emit }) {
@@ -46,8 +47,8 @@
         });
 
 
-        const selectEmoji = (emoji: Emoji) => {
-            emit('sendEmoji', emoji);
+        const selectEmoji = (emoji: Emoji, isReaction: boolean) => {
+            emit('sendEmoji', emoji, isReaction);
         };
   
         return {

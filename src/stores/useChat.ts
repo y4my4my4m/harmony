@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Message } from '@/types';
-import { getEmoji } from '@/services/emojiService';
+// import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [] as Message[],
@@ -161,29 +161,57 @@ export const useChatStore = defineStore('chat', {
         console.error('Error during message sending:', e);
       }
     },
-    // async sendReaction(messageId: string, emojiId: string, userId: string) {
-    //   try {
-    //     const { data, error } = await supabase
-    //       .from('reactions')
-    //       .insert([{ 
-    //         message_id: messageId, 
-    //         emoji_id: emojiId,
-    //         user_id: userId,
-    //       }])
-    //       .select('*');
+    async addReaction(messageId: string, emojiId: string, userId: string) {
+      try {
+        // Insert new reaction and get its ID
+        const { data: reactionData, error: insertError } = await supabase
+          .from('reactions')
+          .insert([{ 
+            message_id: messageId, 
+            emoji_id: emojiId,
+            user_id: userId,
+          }])
+          .select('id');
     
-    //     if (error) {
-    //       console.error('Error sending message:', error);
-    //       return;
-    //     }
-    //     if (data && data.length > 0) {
-    //       this.messages[messageId].reactions.push(data[0]);
-    //     }
-    //     console.log('Message sent:', data);
-    //   } catch (e) {
-    //     console.error('Error during message sending:', e);
-    //   }
-    // },
+        if (insertError) {
+          console.error('Error adding reaction:', insertError);
+          return;
+        }
+    
+        // Extract the ID of the newly added reaction
+        const newReactionId = reactionData[0].id;
+    
+        // Fetch current reactions array for the message
+        const { data: currentReactions, error: fetchError } = await supabase
+          .from('messages')
+          .select('reactions')
+          .eq('id', messageId)
+          .single();
+    
+        if (fetchError) {
+          console.error('Error fetching current reactions:', fetchError);
+          return;
+        }
+    
+        // Append new reaction ID to the array
+        const updatedReactions = [...(currentReactions.reactions || []), newReactionId];
+    
+        // Update the messages table with the new reactions array
+        const { error: updateError } = await supabase
+          .from('messages')
+          .update({ reactions: updatedReactions })
+          .match({ id: messageId });
+    
+        if (updateError) {
+          console.error('Error updating message with new reaction:', updateError);
+          return;
+        }
+    
+        console.log('Reaction added successfully');
+      } catch (e) {
+        console.error('Error during reaction add:', e);
+      }
+    },    
     subscribeToMessages(channelId: string) {
       
       if (this.currentSubscription) {

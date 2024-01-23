@@ -114,6 +114,8 @@ export default defineComponent({
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
     const chat = useChatStore();
+    const reactionSound = ref(new Audio('/assets/sounds/poi1.mp3'));
+    const reactionSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
 
     // const parsedMessages = computed(() => {
     //   return props.messages.map((message) => {
@@ -141,11 +143,12 @@ export default defineComponent({
     const hoveredMessageId = ref<string | null>(null);
     
     const openEmojiReactor = (message: Message) => {
-
+      // set true if not an emoji for the input but a reaction
+      emit('toggleEmojiList', true, message);
     }
 
     const toggleReaction = (reaction: Reaction) => {
-
+      reactionSound2.value.play();
     }
 
     const startEdit = (message: Message) => {
