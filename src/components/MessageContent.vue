@@ -12,7 +12,18 @@
         :title="`:${part.emoji.name}:`"
         draggable="false"
       />
-      <div v-else-if="part.type === 'file' && part.fileType === 'image' && imageLoaded" class="file-container">
+      <div v-else-if="(part.type === 'file' && part.fileType === 'image') && imageLoaded" class="file-container">
+        <div v-if="imageLoaded[part.url]" class="image-skeleton"></div>
+        <img
+          :src="part.url"
+          @load="$emit('image-loaded', part.url)"
+          @click="$emit('open-lightbox', part.url)"
+          v-show="imageLoaded[part.url]"
+          draggable="false"
+        />
+      </div>
+      <!-- maybe unsafe? -->
+      <div v-if="(part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png'))) && imageLoaded" class="file-container">
         <div v-if="imageLoaded[part.url]" class="image-skeleton"></div>
         <img
           :src="part.url"
@@ -135,5 +146,10 @@ export default defineComponent({
 .file-container img:hover {
   transform: scale(1.05);
 }
-
+@media (max-width: 768px) {
+  .file-container > img {
+    max-width: 100%;
+    /* padding-left: 46px; */
+  }
+}
 </style>

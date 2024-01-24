@@ -569,10 +569,6 @@ export default defineComponent({
     word-wrap:break-word;
     overflow-wrap:break-word;
   }
-  .file-container > img {
-    max-width: 100%;
-    padding-left: 46px;
-  }
 
 }
 
