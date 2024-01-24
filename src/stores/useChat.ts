@@ -173,18 +173,24 @@ export const useChatStore = defineStore('chat', {
           }])
           .select('id');
     
+        let wasRemoval = false;
+        let removedReactionId: string;
         if (insertError) {
           console.error('Error adding reaction:', insertError);
           // Check for unique constraint violation (duplicate reaction)
           if (insertError.code === "23505") {
             // Delete the reaction if it already exists
-            await supabase
+            const {data: removedReaction, error: removedError} = await supabase
               .from('reactions')
               .delete()
-              .match({ message_id: messageId, emoji_id: emojiId, user_id: userId });
-            console.log('Reaction removed');
+              .match({ message_id: messageId, emoji_id: emojiId, user_id: userId })
+              .select('id')
+              .single();
+            removedReactionId = removedReaction?.id;
+            console.log('Reaction removed: ', removedReactionId);
           }
           // return;
+          wasRemoval = true;
         }
     
         // Fetch and update reaction data in messages
@@ -193,15 +199,50 @@ export const useChatStore = defineStore('chat', {
         if (messageIndex !== -1) {
           this.messages[messageIndex].reactions = updatedReactionData;
         }
+
+        // FIXME: it's silly to refetch the message's reactions again...
+        const { data: messageReactions, error: messageError} = await supabase
+          .from('messages')
+          .select(`
+            reactions
+          `)
+          .eq('id', messageId)
+          .single();
+
+
+        if (messageError) {
+          console.error('Error fetching current reactions:', messageError);
+          return;
+        }
+
+        // Extract current reaction IDs from the message
+        const currentReactionIds = messageReactions?.reactions || [];
+        let updatedReactions;
+        // if were removing a reaction from the messages table's reactions column
+        if (wasRemoval)
+        {
+          updatedReactions = currentReactionIds.filter(id => id !== removedReactionId);
+        }
+        // if were adding a reaction to the messages table's reactions column
+        else{
+          // Append new reaction ID to the array
+          const newReactionId = reactionData[0].id;
+          updatedReactions = [...currentReactionIds, newReactionId];
+        }
+
+        // Update the messages table with the new reactions array
+        await supabase
+          .from('messages')
+          .update({ reactions: updatedReactions })
+          .match({ id: messageId });
       } catch (e) {
         console.error('Error during reaction add:', e);
       }
     },
-    
     async fetchAndPopulateReactions(messageId:string) {
       const { data: reactions, error } = await supabase
         .rpc('get_message_reactions', { message_id: messageId });
-    
+
       if (error) {
         console.error('Error fetching reactions:', error);
         return [];

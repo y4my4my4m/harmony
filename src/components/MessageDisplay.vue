@@ -517,6 +517,7 @@ export default defineComponent({
 }
 .reactions .reaction img {
   height: 24px;
+  max-width: 120px;
 }
 .reactions .reaction:hover {
   background: rgb(0 0 0 / 25%);
