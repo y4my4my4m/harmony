@@ -224,6 +224,10 @@ export default defineComponent({
           if (part.type === 'file' && part.fileType === 'image') {
             urls.push(part.url);
           }
+          else if (part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png')))
+          {
+            urls.push(part.url);
+          }
         });
       });
       return urls;
@@ -237,18 +241,6 @@ export default defineComponent({
     const handleImageLoaded = (url: string) => {
       imageLoaded.value[url] = true;
     };
-    
-    const imageUrls = computed(() => {
-      let urls:Array<string> = [];
-      props.messages.forEach(message => {
-        message.content.forEach(part => {
-          if (part.type === 'file' && part.fileType === 'image') {
-            urls.push(part.url);
-          }
-        });
-      });
-      return urls;
-    });
 
     const handleOpenLightbox = (url: string) => {
       const index = lightboxImages.value.indexOf(url);
@@ -286,6 +278,10 @@ export default defineComponent({
           if (part.type === 'file' && part.fileType === 'image' && !(part.url in imageLoaded.value)) {
             imageLoaded.value[part.url] = false;
           }
+          else if ((part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png')))  && !(part.url in imageLoaded.value))
+          {
+            imageLoaded.value[part.url] = false;
+          }
         });
       });
 
@@ -310,7 +306,6 @@ export default defineComponent({
       getUserAvatar, 
       formatTimestamp,
       closeLightbox,
-      imageUrls,
       lightboxImages, 
       isLightboxOpen,
       indexRef,
