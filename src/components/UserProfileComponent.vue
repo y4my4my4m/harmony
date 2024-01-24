@@ -11,8 +11,8 @@
     </div>
 
     <div class="buttons">
-      <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }"><MicIcon :isMicActive/></div>
-      <div class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }"><HeadphonesIcon :isHeadphonesActive/></div>
+      <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }"><MicIcon :isMicActive="isMicActive" /></div>
+      <div class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }"><HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" /></div>
       <div class="icon-button settings" @click="goToSettings"><SettingsIcon/></div>
     </div>
 
@@ -41,36 +41,48 @@
   import SettingsIcon from '@/components/icons/Settings.vue';
   
   export default defineComponent({
-    data() {
-      return {
-        isMicActive: false,
-        isHeadphonesActive: true
-      };
-    },
     components: {
       MicIcon,
       HeadphonesIcon,
       SettingsIcon
     },
-    methods: {
-      toggleMic() {
-        // Logic to toggle the mic
-        this.isMicActive = !this.isMicActive;
-      },
-      toggleHeadphones() {
-        // Logic to toggle the headphones
-        this.isHeadphonesActive = !this.isHeadphonesActive;
-      },
-    },
     setup() {
+      const micOnSound = ref(new Audio('/assets/sounds/mic_on.mp3'));
+      const micOffSound = ref(new Audio('/assets/sounds/mic_off.mp3'));
+      const cameraOnSound = ref(new Audio('/assets/sounds/camera_on.mp3'));
+      const cameraOffSound = ref(new Audio('/assets/sounds/camera_off.mp3'));
+      const isMicActive = ref(false);
+      const isHeadphonesActive = ref(true);
+      
       const authStore = useAuthStore();
       const profile = ref<User | null>(null);
 
       const showStatusDropdown = ref(false);
 
+      const toggleMic = () => {
+        isMicActive.value = !isMicActive.value;
+        if (!isMicActive.value) {
+          micOffSound.value.play();
+        } else {
+          micOnSound.value.play();
+        }
+      };
+
+      const toggleHeadphones = () => {
+        isHeadphonesActive.value = !isHeadphonesActive.value;
+        if (!isHeadphonesActive.value) {
+          isMicActive.value = false;
+          cameraOffSound.value.play();
+        } else {
+          // TODO: only turn back on the mic if it was already set to "on" (observe the inspiration app's behaviour for this)
+          cameraOnSound.value.play();
+        }
+      };
+
       const toggleStatusDropdown = () => {
         showStatusDropdown.value = !showStatusDropdown.value;
       };
+
       const onClickOutside = (event: any) => {
         if (!event.target.closest('.user-profile')) {
           showStatusDropdown.value = false;
@@ -132,7 +144,20 @@
         document.removeEventListener('click', onClickOutside);
       });
 
-      return { profile, goToSettings, selectedStatus, updateStatus, showStatusDropdown, toggleStatusDropdown, getUserStatusClass, getUserStatusText};
+      return { 
+        profile, 
+        goToSettings, 
+        selectedStatus, 
+        updateStatus, 
+        showStatusDropdown, 
+        toggleStatusDropdown, 
+        getUserStatusClass, 
+        getUserStatusText,
+        toggleMic,
+        toggleHeadphones,
+        isMicActive,
+        isHeadphonesActive,
+      };
     },
   });
   </script>

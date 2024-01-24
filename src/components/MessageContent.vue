@@ -155,12 +155,13 @@ export default defineComponent({
 .file-container img:hover {
   transform: scale(1.05);
 }
-.file-container > img 
-
 .file-container > video {
-  max-width: 100%;
-  max-height: 35vh;
+  max-width: 25vw!important;
+  max-height: 25vh !important;
 }
-/* @media (max-width: 768px) {
-} */
+@media (max-width: 768px) {
+  .file-container > video {
+    max-width: 100% !important;
+  }
+}
 </style>
