@@ -23,7 +23,7 @@
         />
       </div>
       <!-- maybe unsafe? -->
-      <div v-if="(part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png'))) && imageLoaded" class="file-container">
+      <div v-if="(part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) && imageLoaded" class="file-container">
         <div v-if="imageLoaded[part.url]" class="image-skeleton"></div>
         <img
           :src="part.url"
@@ -32,6 +32,14 @@
           v-show="imageLoaded[part.url]"
           draggable="false"
         />
+      </div>
+      <div v-if="(part.type === 'url' && (part.url.endsWith('.mp4') || part.url.endsWith('.webm')))" class="file-container">
+        <!-- <div v-if="imageLoaded[part.url]" class="image-skeleton"></div> -->
+        <video
+          :src="part.url"
+          autoplay="false"
+          controls="true"
+        ></video>
       </div>
     </template>
   </div>
@@ -136,6 +144,7 @@ export default defineComponent({
 }
 .file-container > img {
   height: 100%;
+  max-width: 100%;
   width: auto;
   max-height: 256px;
   border-radius: 5px;
@@ -146,10 +155,12 @@ export default defineComponent({
 .file-container img:hover {
   transform: scale(1.05);
 }
-@media (max-width: 768px) {
-  .file-container > img {
-    max-width: 100%;
-    /* padding-left: 46px; */
-  }
+.file-container > img 
+
+.file-container > video {
+  max-width: 100%;
+  max-height: 35vh;
 }
+/* @media (max-width: 768px) {
+} */
 </style>

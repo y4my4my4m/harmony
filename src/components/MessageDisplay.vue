@@ -224,7 +224,7 @@ export default defineComponent({
           if (part.type === 'file' && part.fileType === 'image') {
             urls.push(part.url);
           }
-          else if (part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png')))
+          else if (part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')))
           {
             urls.push(part.url);
           }
@@ -278,7 +278,7 @@ export default defineComponent({
           if (part.type === 'file' && part.fileType === 'image' && !(part.url in imageLoaded.value)) {
             imageLoaded.value[part.url] = false;
           }
-          else if ((part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png')))  && !(part.url in imageLoaded.value))
+          else if ((part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')))  && !(part.url in imageLoaded.value))
           {
             imageLoaded.value[part.url] = false;
           }
