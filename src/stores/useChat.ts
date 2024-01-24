@@ -176,7 +176,7 @@ export const useChatStore = defineStore('chat', {
         let wasRemoval = false;
         let removedReactionId: string;
         if (insertError) {
-          console.error('Error adding reaction:', insertError);
+          // console.error('Error adding reaction:', insertError);
           // Check for unique constraint violation (duplicate reaction)
           if (insertError.code === "23505") {
             // Delete the reaction if it already exists
