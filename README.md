@@ -28,7 +28,9 @@
 - [ ] realtime status
   - [x] changes
   - [ ] bug in self status display
-
+- [ ] mobile
+  - [x] mobile web
+  - [ ] mobile PWA
 - [x] uuid for filenames
   - [x] profile pictures
   - [x] server icons
