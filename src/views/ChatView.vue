@@ -7,7 +7,10 @@
     v-if="showPublicServers"
     @showPublicServers="handleShowPublicServers"
   />
-  <NoServersSplash v-if="showNoServersSplash"/>
+  <NoServersSplash 
+    v-if="showNoServersSplash"
+    @showPublicServers="handleShowPublicServers"
+  />
   <div v-else class="chat-layout">
     <ServerSidebar
       :class="{ 'open': isSidebarsVisible }"
