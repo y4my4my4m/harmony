@@ -46,7 +46,7 @@
       />
       <div class="message-actions" v-if="hoveredMessageId === message.id">
         <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
-        <div class="btn" @click="startEdit(message)"><ReplyIcon/></div>
+        <div class="btn" @click="replyTo(message)"><ReplyIcon/></div>
         <div class="btn" @click="startEdit(message)"><EditIcon/></div>
         <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
         <div class="btn"><MoreIcon/></div>
@@ -170,6 +170,10 @@ export default defineComponent({
       //   }
       // }).join('')
     };
+
+    const replyTo = (message: Message) => {
+      emit('replyingTo', message.id, getUserDisplayName(message.user_id));
+    }
 
     const saveEdit = async (messageId: string, newContent?: string) => {
       const content = newContent ?? editableMessageContent.value;
@@ -333,7 +337,8 @@ export default defineComponent({
       profileCardStyle, 
       closeProfile,
       isSingleEmojiMessage,
-      openEmojiReactor
+      openEmojiReactor,
+      replyTo
     };
   }
 });

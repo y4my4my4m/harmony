@@ -16,16 +16,19 @@
       @loadMoreMessages="$emit('loadMoreMessages')"
       @toggleEmojiList="toggleEmojiList"
       @sendReaction="toggleReaction"
+      @replyingTo="replyingTo"
     />
-
     <MessageInput 
       v-model:messageContent="messageContent"
       :giphyOpen="giphyOpen"
       :emojiListOpen="emojiListOpen"
+      :reply-message-id="replyToMessageId"
+      :reply-user-display-name="replyToUserDisplayName"
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
       @update:messageContent="messageContent = $event"
+      @update:replyMessageId="handleDontReply"
     />
 
     <GifComponent
@@ -38,12 +41,12 @@
     />
 
     <EmojiPopup
-        v-if="emojiListOpen==true"
-        @click.stop
-        @sendEmoji="handleSendEmoji"
-        :closeEmojiList="closeEmojiList"
-        :emojiIconClicked="emojiIconClicked"
-        @resetEmojiIconClicked="emojiIconClicked = false"
+      v-if="emojiListOpen==true"
+      @click.stop
+      @sendEmoji="handleSendEmoji"
+      :closeEmojiList="closeEmojiList"
+      :emojiIconClicked="emojiIconClicked"
+      @resetEmojiIconClicked="emojiIconClicked = false"
     />
   </div>
 </template>
@@ -72,7 +75,7 @@
       MessageDisplay,
       MessageInput,
       GifComponent,
-      EmojiPopup
+      EmojiPopup,
     },
     props:{
       messages: {
@@ -91,6 +94,8 @@
       const emojiListOpen = ref(false);
       const isPopupForReaction = ref(false);
       const selectedMessageId = ref('');
+      const replyToMessageId = ref('');
+      const replyToUserDisplayName = ref('');
       const giphyOpen = ref(false);
       const messageContent = ref('');
       const resolvedEmojiList = computed(() => serverChannelStore.resolvedEmojiList);
@@ -103,6 +108,19 @@
       });
       const gifIconClicked = ref(false);
       const emojiIconClicked = ref(false);
+
+      const replyingTo = (messageId: string, replyingTo: string) => {
+        if (messageId) {
+          replyToMessageId.value = messageId;
+          replyToUserDisplayName.value = replyingTo;
+        }
+      };
+
+      // TODO: we're emitting from messageReply->messageInput->chatComponent ... dont do that!
+      const handleDontReply = () => {
+        replyToMessageId.value = '';
+        replyToUserDisplayName.value = '';
+      };
 
       const toggleReaction = (messageId: string, emoji: Emoji) => {
         // TODO: i dont like putting "selectedMessage" out in the eather this is bad design, revise it to make the emoji popup completely modular and free of logic
@@ -166,8 +184,10 @@
                     serverChannelStore.currentChannelId, 
                     authStore.session.user.id, 
                     [{type: "file", url: fileUrl, fileType: "image"}],
+                    replyToMessageId.value
                 );
                 uploading.value = false;
+                handleDontReply();
             }
         }
         showDragDropArea.value = false;
@@ -285,8 +305,10 @@
       const handleSendMessage = (content: string) => {
         if (authStore.session?.user && serverChannelStore.currentChannelId) {
           const parsedMessage = parseMessageInput(content);
-          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, parsedMessage);
+          console.log("replyToMessageId.value:", replyToMessageId.value);
+          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, parsedMessage, replyToMessageId.value);
           messageContent.value = ''; // Reset the message input field after sending
+          handleDontReply();
         }
       };
 
@@ -294,7 +316,8 @@
         const gifUrl = gif.media_formats.gif.url;
         closeGiphy();
         if (serverChannelStore.currentChannelId && authStore.session?.user) {
-          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, [{type: "file", url: gifUrl, fileType: "image"}]);
+          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, [{type: "file", url: gifUrl, fileType: "image"}], replyToMessageId.value);
+          handleDontReply();
         }
       };
 
@@ -336,8 +359,12 @@
         resolvedEmojiList,
         isPopupForReaction,
         selectedMessageId,
+        replyingTo,
+        replyToMessageId,
+        replyToUserDisplayName,
         toggleReaction,
-        currentUserId
+        currentUserId,
+        handleDontReply
       };
     }
   });

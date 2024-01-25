@@ -138,7 +138,7 @@ export const useChatStore = defineStore('chat', {
         console.error('Error during message deletion:', e);
       }
     },
-    async sendMessage(channelId: string, userId: string, content: Array<Object>) {
+    async sendMessage(channelId: string, userId: string, content: Array<Object>, replyTo: string) {
       try {
         const { data, error } = await supabase
           .from('messages')
@@ -146,6 +146,7 @@ export const useChatStore = defineStore('chat', {
             channel_id: channelId, 
             user_id: userId, 
             content: content,
+            reply_to: replyTo,
           }])
           .select('*');
     
