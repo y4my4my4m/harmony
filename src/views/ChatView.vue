@@ -200,8 +200,8 @@
       const startY = ref(0);
       const endX = ref(0);
       const endY = ref(0);
-      const swipeThreshold = 100; // Increase swipe threshold
-      const verticalMovementThreshold = 50; // Adjust vertical movement threshold
+      const swipeThreshold = 150; // Increase swipe threshold
+      const verticalMovementThreshold = 150; // Adjust vertical movement threshold
 
       const handleTouchStart = (event) => {
         startX.value = event.touches[0].clientX;
