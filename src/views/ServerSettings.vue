@@ -34,7 +34,10 @@
           <!-- <span>{{ emoji.uploader }}</span> -->
         </div>
       </div>
-
+      <div class="public">
+        <label for="public">Public:</label>
+        <input type="checkbox" id="public" v-model="server.public">
+      </div>
       <button type="submit">Save Changes</button>
       <button @click="back()" style="background-color:gray">Cancel</button>
     </form>
