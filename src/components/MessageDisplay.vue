@@ -7,25 +7,27 @@
       <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
         <div v-show="message.reply_to" class="repliedMessage">
           <!-- TODO: dont make "gets" for everything -->
-          <img :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
-          <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="getUserColor(getUserIdFromMessage(message.reply_to)) ">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
-          <div class="repliedTextPreview" role="button" tabindex="0">
-            <div id="message-content" class="repliedTextContent">
-              <!-- TODO: need to fetch if message is too far back -->
-              <span>
-                <MessageContent 
-                  :content=" messages.find(msg => msg.id === message.reply_to)?.content || []"
-                  :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
-                  :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-                  :image-loaded="imageLoaded"
-                  @image-loaded="handleImageLoaded"
-                  @open-lightbox="handleOpenLightbox"
-                  @update:message="saveEdit"
-                  @update:content="editableMessageContent = $event"
-                  @cancel-edit="cancelEdit"
-                  @show-user-profile="showUserProfile"
-                />
-              </span>
+          <div class="replyContainer">
+            <img :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
+            <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="getUserColor(getUserIdFromMessage(message.reply_to)) ">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
+            <div class="repliedTextPreview" role="button" tabindex="0">
+              <div id="message-content" class="repliedTextContent">
+                <!-- TODO: need to fetch if message is too far back -->
+                <span>
+                  <MessageContent 
+                    :content=" messages.find(msg => msg.id === message.reply_to)?.content || []"
+                    :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
+                    :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+                    :image-loaded="imageLoaded"
+                    @image-loaded="handleImageLoaded"
+                    @open-lightbox="handleOpenLightbox"
+                    @update:message="saveEdit"
+                    @update:content="editableMessageContent = $event"
+                    @cancel-edit="cancelEdit"
+                    @show-user-profile="showUserProfile"
+                  />
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -400,7 +402,6 @@ export default defineComponent({
   position: relative;
   white-space: pre;
   user-select: none;
-  left: 46px;
   gap: 4px;
 }
 .message-wrapper .repliedMessage:before {
@@ -409,12 +410,9 @@ export default defineComponent({
     position: absolute;
     box-sizing: border-box;
     top: 50%;
-    right: 92px;
     bottom: -4px;
-    left: -30px;
-    /* right: 100%;
-    bottom: 0;
-    left: calc(-1*(.5*var(--avatar-size) + var(--gutter))); */
+    width: 26px;
+    left: 16px;
     margin-right: var(--reply-spacing);
     /* margin-top: -1px; */
     margin-top: calc(-.5*var(--spine-width));
@@ -426,6 +424,16 @@ export default defineComponent({
     border-width: var(--spine-width)0 0 var(--spine-width);
     border-style: solid;
     border-top-left-radius: 6px;
+}
+.message-wrapper .repliedMessage .replyContainer {
+    display: flex;
+    align-items: center;
+    font-size: .875rem;
+    position: relative;
+    white-space: pre;
+    user-select: none;
+    gap: 4px;
+    margin-left:46px;
 }
 .message-wrapper .repliedMessage .replyAvatar {
     width: 16px;
