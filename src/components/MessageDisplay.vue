@@ -56,11 +56,11 @@
           :key="reaction.id"
           class="reaction"
           @click="toggleReaction(message.id, reaction.emoji)"
+          :class="{'reacted': reaction.reactions.some(r => r.user_id === currentUserId)}"
           >
           <img 
             :src="reaction.emoji.url" 
-            :alt="reaction.emoji.name"
-          />
+            :alt="reaction.emoji.name"      />
           <span>{{ reaction.count }}</span>
           <!-- <span class="reaction-count">1</span> -->
         </div>
@@ -101,7 +101,8 @@ export default defineComponent({
       required: true
     },
     loadMoreMessages: Function as PropType<() => void>,
-    isAtBottom: Boolean
+    isAtBottom: Boolean,
+    currentUserId: String,
   },
   components: { 
     UserPreviewComponent,
@@ -498,19 +499,24 @@ export default defineComponent({
 .reactions .reaction {
   display: flex;
   align-items: center;
-  border-radius: 4px;
-  background: rgb(0 0 0 / 15%);
+  border: 0.0625rem solid transparent;
+  border-radius: 0.5rem;
+  background: hsl( 220 calc( 1 * 6.5%) 18% / 1);
   cursor: pointer;
   transition: 0.2s ease-in-out;
-  padding: 6px;
   justify-content: center;
   flex-direction: row;
   flex-wrap: nowrap;
-  gap: 10px;
-  border:1px solid transparent;
+  gap: .25rem;
+  padding: 0.125rem 0.375rem;
 }
 .reactions .reaction img {
-  height: 24px;
+  /* height: 24px; */
+  width: 1rem;
+  height: 1rem;
+  margin: 0.125rem 0;
+  min-width: auto;
+  min-height: auto;
   max-width: 120px;
 }
 .reactions .reaction:hover {
@@ -522,6 +528,10 @@ export default defineComponent({
   margin-top: 5px;
   font-size: 0.8em;
   color: #848484;
+}
+.reactions .reaction.reacted {
+  background: hsl( 235 calc( 1 * 85.6%) 64.7% / 0.15);
+  border:1px solid hsl( 235 calc( 1 * 85.6%) 64.7% / 1);
 }
 /* FIXME: this should all be inside the userProfileComponent */
 .user-profile-card {

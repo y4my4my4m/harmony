@@ -309,44 +309,39 @@ export const useChatStore = defineStore('chat', {
           'postgres_changes',
           { event: 'DELETE', schema: 'public', table: 'reactions' },
           async (payload) => {
-            // console.log('Reaction deleted payload:', payload);
-        
             const reactionIdToDelete = payload.old.id;
         
             for (const message of this.messages) {
               if (message.reactions) {
-                // console.log('Message reactions:', message.reactions);
-        
+                console.log(message.reactions);
                 // Find the reaction object that contains the reactionIdToDelete
-                const reactionObjIndex = message.reactions.findIndex((reactionObj: any) => 
-                  reactionObj.reaction_ids.includes(reactionIdToDelete)
-                );
+                for (const reactionObj of message.reactions) {
+                  let reactionArray = reactionObj.reactions;
+                  if (reactionArray && Array.isArray(reactionArray)) {
+                    const reactionIndex = reactionArray.findIndex(reaction => reaction.reaction_id === reactionIdToDelete);
+                    if (reactionIndex !== -1) {
+                      // Remove the deleted reaction from the array
+                      reactionArray.splice(reactionIndex, 1);
+                      
+                      // Update the count
+                      reactionObj.count = reactionArray.length;
         
-                if (reactionObjIndex !== -1) {
-                  // Update the reaction object by removing the reactionIdToDelete from the reaction_ids array
-                  const updatedReactionIds = message.reactions[reactionObjIndex].reaction_ids.filter(id => id !== reactionIdToDelete);
-                  message.reactions[reactionObjIndex].reaction_ids = updatedReactionIds;
-        
-                  // Update the count
-                  message.reactions[reactionObjIndex].count = updatedReactionIds.length;
-        
-                  // Optionally, refetch reactions for the updated message for accuracy
-                  try {
-                    // console.log(`Refetching reactions for message ID: ${message.id}`);
-                    const updatedReactionData = await this.fetchAndPopulateReactions(message.id);
-                    message.reactions = updatedReactionData;
-                    // console.log(`Updated reactions for message ID ${message.id}:`, updatedReactionData);
-                  } catch (error) {
-                    console.error('Error during reaction deletion handling:', error);
+                      // Refetch reactions for accuracy (optional)
+                      try {
+                        const updatedReactionData = await this.fetchAndPopulateReactions(message.id);
+                        message.reactions = updatedReactionData;
+                      } catch (error) {
+                        console.error('Error during reaction deletion handling:', error);
+                      }
+                      break; // Break the loop as we've found and updated the relevant reaction object
+                    }
                   }
-        
-                  break; // Break the loop as we've found and updated the relevant message
                 }
               }
             }
           }
         )
-        .subscribe();        
+        .subscribe();            
     }
   },
 });

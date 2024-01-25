@@ -89,6 +89,7 @@ export interface Reaction {
   user_id: string;
   count: number; // doesn't exist in the database, we're transforming it
   emoji: Emoji; // doesn't exist in the database, we're transforming it
+  reactions: Reaction[]; // doesn't exist in the database, we're transforming it
 }
 export interface Message {
   id: string;

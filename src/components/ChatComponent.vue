@@ -12,6 +12,7 @@
 
     <MessageDisplay 
       :messages="messages" 
+      :currentUserId="currentUserId"
       @loadMoreMessages="$emit('loadMoreMessages')"
       @toggleEmojiList="toggleEmojiList"
       @sendReaction="toggleReaction"
@@ -94,7 +95,7 @@
       const messageContent = ref('');
       const resolvedEmojiList = computed(() => serverChannelStore.resolvedEmojiList);
       const reactionSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
-
+      const currentUserId = computed(() => authStore.session?.user?.id);
       // let unlisten: UnlistenFn | null = null;
       // Computed property to check if running in Tauri
       const isTauri = computed(() => {
@@ -335,6 +336,7 @@
         isPopupForReaction,
         selectedMessageId,
         toggleReaction,
+        currentUserId
       };
     }
   });
