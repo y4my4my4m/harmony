@@ -512,7 +512,7 @@ export default defineComponent({
 }
 .reactions .reaction img {
   /* height: 24px; */
-  width: 1rem;
+  /* width: 1rem; */
   height: 1rem;
   margin: 0.125rem 0;
   min-width: auto;
