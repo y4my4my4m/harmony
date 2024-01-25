@@ -14,7 +14,7 @@
             ref="colorPreviewRef"
             @click="openColorPicker"
           ></div>
-          &nbsp;{{  color }}
+          &nbsp;{{ color }}
         </div>
       </div>
     </div>
@@ -61,6 +61,7 @@ export default defineComponent({
     const colorPreviewRef = ref<HTMLElement | null>(null);
     const isLoadingProfile = ref(true); // Flag to indicate if the profile is loading
 
+    // FIXME: color picker doesn't register zeros when typed...
     const openColorPicker = (event: MouseEvent) => {
       event.stopPropagation();
       showColorPicker.value = true;
@@ -154,7 +155,8 @@ export default defineComponent({
     });
 
     const changeColor = (newColor: { hex: string }) => {
-      color.value = newColor.hex; // Store the selected color temporarily
+      console.log(newColor);
+      color.value = newColor.hex;
       if (profile.value) {
         profile.value = { ...profile.value, color: color.value };
       }
