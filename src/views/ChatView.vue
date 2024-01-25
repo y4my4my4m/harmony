@@ -1,8 +1,8 @@
 <template>
-  <div class="top-bar">
+  <!-- <div class="top-bar">
     <div class="show-left" @click="toggleSidebars">←</div>
     <div class="show-right" @click="toggleProfiles">→</div>
-  </div>
+  </div> -->
   <PublicServers 
     v-if="showPublicServers"
     @showPublicServers="handleShowPublicServers"
@@ -45,7 +45,7 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, computed, onMounted, ref, nextTick, watch } from 'vue';
+  import { defineComponent, computed, onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue';
   import ServerSidebar from '@/components/ServerSidebar.vue';
   import ChannelSidebar from '@/components/ChannelSidebar.vue';
   import ChatComponent from '@/components/ChatComponent.vue';
@@ -196,6 +196,29 @@
         showPublicServers.value = toggleState;
       };
 
+      const startX = ref(0);
+      const endX = ref(0);
+
+      const handleTouchStart = (event) => {
+        startX.value = event.touches[0].clientX;
+      };
+
+      const handleTouchMove = (event) => {
+        endX.value = event.touches[0].clientX;
+      };
+
+      const handleTouchEnd = () => {
+        const direction = endX.value - startX.value;
+
+        if (direction > 50) {
+          // Swipe right
+          toggleSidebars();
+        } else if (direction < -50) {
+          // Swipe left
+          toggleProfiles();
+        }
+      };
+
       const toggleSidebars = () => {
         // if currently viewing chat
         if(isProfilesVisible.value == false)
@@ -241,11 +264,20 @@
           await loadServerAndChannel();
           requestNotificationPermission();
 
+          const chatLayout = document.querySelector('#app');
+          chatLayout.addEventListener('touchstart', handleTouchStart);
+          chatLayout.addEventListener('touchend', handleTouchEnd);
           // wait 5 seconds then send a notification
           setTimeout(() => {
             showNotification('Welcome to Harmony!');
           }, 5000);
         }
+      });
+
+      onBeforeUnmount(() => {
+        const chatLayout = document.querySelector('#app');
+        chatLayout.removeEventListener('touchstart', handleTouchStart);
+        chatLayout.removeEventListener('touchend', handleTouchEnd);
       });
 
       watch(route, () => {
@@ -309,19 +341,20 @@
     top:0;
     z-index:100;
     width:100%;
-    height: 40px;
-    background: var(--h-chat-darker);
+    height: 100vh;
+    /* background: var(--h-chat-darker); */
     display: flex;
     justify-content: space-between;
   }
   .show-left,
   .show-right {
-    width: 35px;
+    width: 40%;
     height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
     background: var(--h-chat-dark);
+    opacity:0.5;
   }
 
   .server-sidebar, .channel-sidebar {
@@ -330,7 +363,7 @@
     overflow: hidden;
     /* Transition for smooth opening/closing */
     transition: 0.3s ease-in-out;
-    margin-top: 40px;
+    /* margin-top: 40px; */
   }
 
   .user-sidebar {
@@ -338,13 +371,13 @@
     width:0;
     transition: 0.3s ease-in-out;
     padding: 0;
-    margin-top:40px;
+    /* margin-top:40px; */
   }
   .chat-area {
     transition: 0.3s ease-in-out;
     width: 100%;
     overflow: hidden;
-    margin-top: 40px;
+    /* margin-top: 40px; */
   }
   .chat-container {
     width: 100%;
