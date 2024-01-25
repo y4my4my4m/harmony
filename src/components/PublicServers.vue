@@ -29,7 +29,7 @@
   </template>
   
   <script lang="ts">
-  import { defineComponent, ref, onMounted, onUnmounted, watch, computed } from 'vue';
+  import { defineComponent, ref, onMounted, onUnmounted, watch } from 'vue';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerStore } from '@/stores/server';
@@ -92,9 +92,11 @@
 
       watch(searchQuery, fetchPublicServers, { immediate: true });
 
-      onMounted(() => {
+      onMounted(async () => {
         currentUserId.value = authStore.session?.user?.id;
-        fetchPublicServers();
+        await fetchPublicServers();
+        // FIXME: this is silly, dont do that!
+        serverUsersStore.fetchUserProfiles(serverChannelStore.publicServers.map((server) => server.owner));
         window.addEventListener('keydown', onKeydown);
       });
 
