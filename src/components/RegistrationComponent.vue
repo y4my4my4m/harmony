@@ -57,7 +57,7 @@ export default {
         };
 
         onMounted(() => {
-          randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 41) + 1}.png')`;
+          randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 45) + 1}.png')`;
         });
 
         return { email, password, register, randomBg, updateBackgroundRotation, bgRotation, playSound };

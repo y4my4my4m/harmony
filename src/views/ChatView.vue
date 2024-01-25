@@ -100,7 +100,7 @@
         showCreateChannelForm.value = true;
       };
       const handleChannelCreated = async (channel: Channel) => {
-        console.log(channel);
+        // console.log(channel);
         await serverChannelStore.fetchCategoriesAndChannels(currentServer.value.id);
         // uncomment this to automatically go to the new channel
         // handleChannelSelected(channel.id);
@@ -206,13 +206,13 @@
           }
 
           await serverChannelStore.initializeUserEnvironment(userId);
-          // await serverChannelStore.fetchServersForUser(userId);
+
           initialized = true;
           if (servers.value.length === 0) {
             showNoServersSplash.value = true;
             return;
           }
-          // await serverChannelStore.fetchAllEmojis();
+
           await loadServerAndChannel();
           requestNotificationPermission();
 

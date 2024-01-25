@@ -85,15 +85,13 @@ export default defineComponent({
 
     const selectChannel = (channelId: string) => {
       router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId: channelId } });
+      // if voice channel, join it
     };
 
     const emitCreateChannel = (categoryId: string | null) => {
       emit('createChannel', categoryId);
     }
 
-    // const toggleCategory = (categoryId: string) => {
-    //   categoryOpenState.value[categoryId] = !categoryOpenState.value[categoryId];
-    // };
     const toggleCategory = (categoryId: string) => {
       const category = serverChannelStore.categories.find(c => c.id === categoryId);
       if (category) {

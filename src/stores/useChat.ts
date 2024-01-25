@@ -256,6 +256,9 @@ export const useChatStore = defineStore('chat', {
         this.currentSubscription.unsubscribe();
       }
 
+      // Maintain a list of message IDs for which to listen to reactions
+      const listenedMessageIds = new Set();
+
       const channelName = `channel-${channelId}`;
       this.currentSubscription = supabase
         .channel(channelName)
@@ -276,10 +279,74 @@ export const useChatStore = defineStore('chat', {
 
             if (!this.messages.some(msg => msg.id === newMessage.id)) {
               this.messages.push(newMessage);
+              listenedMessageIds.add(newMessage.id);
+              console.log(listenedMessageIds);
             }
           }
         )
-        .subscribe();
+        // TODO: add the delete event for messages
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'reactions' },
+          async (payload) => {
+            // // Handling new reactions
+            // const newReaction = {
+            //   id: payload.new.id,
+            //   created_at: new Date(payload.new.created_at),
+            //   message_id: payload.new.message_id,
+            //   user_id: payload.new.user_id,
+            //   type: payload.new.type,
+            // };
+            // TODO: we need to only care about the messages in the user's chat
+            const updatedReactionData = await this.fetchAndPopulateReactions(payload.new.message_id);
+            const messageIndex = this.messages.findIndex(msg => msg.id === payload.new.message_id);
+            if (messageIndex !== -1) {
+              this.messages[messageIndex].reactions = updatedReactionData;
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'reactions' },
+          async (payload) => {
+            console.log('Reaction deleted payload:', payload);
+        
+            const reactionIdToDelete = payload.old.id;
+        
+            for (const message of this.messages) {
+              if (message.reactions) {
+                console.log('Message reactions:', message.reactions);
+        
+                // Find the reaction object that contains the reactionIdToDelete
+                const reactionObjIndex = message.reactions.findIndex(reactionObj => 
+                  reactionObj.reaction_ids.includes(reactionIdToDelete)
+                );
+        
+                if (reactionObjIndex !== -1) {
+                  // Update the reaction object by removing the reactionIdToDelete from the reaction_ids array
+                  const updatedReactionIds = message.reactions[reactionObjIndex].reaction_ids.filter(id => id !== reactionIdToDelete);
+                  message.reactions[reactionObjIndex].reaction_ids = updatedReactionIds;
+        
+                  // Update the count
+                  message.reactions[reactionObjIndex].count = updatedReactionIds.length;
+        
+                  // Optionally, refetch reactions for the updated message for accuracy
+                  try {
+                    console.log(`Refetching reactions for message ID: ${message.id}`);
+                    const updatedReactionData = await this.fetchAndPopulateReactions(message.id);
+                    message.reactions = updatedReactionData;
+                    console.log(`Updated reactions for message ID ${message.id}:`, updatedReactionData);
+                  } catch (error) {
+                    console.error('Error during reaction deletion handling:', error);
+                  }
+        
+                  break; // Break the loop as we've found and updated the relevant message
+                }
+              }
+            }
+          }
+        )
+        .subscribe();        
     }
   },
 });

@@ -266,7 +266,6 @@ export default defineComponent({
         emit('update:isAtBottom', false);
       }
     };
-    
 
     // Watch for changes in messages for parsing
     watch(() => props.messages, (newMessages) => {

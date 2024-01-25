@@ -37,8 +37,7 @@
         <!-- <div v-if="imageLoaded[part.url]" class="image-skeleton"></div> -->
         <video
           :src="part.url"
-          autoplay="false"
-          controls="true"
+          controls
         ></video>
       </div>
     </template>
