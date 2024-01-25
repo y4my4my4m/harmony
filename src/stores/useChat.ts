@@ -146,7 +146,7 @@ export const useChatStore = defineStore('chat', {
             channel_id: channelId, 
             user_id: userId, 
             content: content,
-            reply_to: replyTo,
+            ...(replyTo ? { reply_to: replyTo } : {})
           }])
           .select('*');
     

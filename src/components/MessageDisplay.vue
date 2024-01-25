@@ -16,8 +16,6 @@
                 <MessageContent 
                   :content=" messages.find(msg => msg.id === message.reply_to)?.content || []"
                   :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
-                  :editableMessageId="editableMessageId"
-                  :editableMessageContent="editableMessageContent"
                   :isSingleEmojiMessage="isSingleEmojiMessage[index]"
                   :image-loaded="imageLoaded"
                   @image-loaded="handleImageLoaded"
