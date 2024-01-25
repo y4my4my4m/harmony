@@ -1,36 +1,38 @@
 <template>
   <div class="user-settings">
-    <div v-if="profile" class="profile">
-      <img class="avatar" :src="profile.avatar_url" alt="Avatar">
-      <div class="info">
-        <p><span class="label">Display Name:</span> <span :style="{ color: profile.color }">{{ profile.display_name }}</span></p>
-        <p><span class="label">Username:</span> {{ profile.username }}</p>
-        <p><span class="label">About:</span> {{ profile.about }}</p>
-        <div class="profile-color">
-          <span>Profile Color:</span>
-          <div 
-            class="color-preview" 
-            :style="{ backgroundColor: color }" 
-            ref="colorPreviewRef"
-            @click="openColorPicker"
-          ></div>
-          &nbsp;{{ color }}
+    <div class="user-settings-container">
+      <div v-if="profile" class="profile">
+        <img class="avatar" :src="profile.avatar_url" alt="Avatar">
+        <div class="info">
+          <p><span class="label">Display Name:</span> <span :style="{ color: profile.color }">{{ profile.display_name }}</span></p>
+          <p><span class="label">Username:</span> {{ profile.username }}</p>
+          <p><span class="label">About:</span> {{ profile.about }}</p>
+          <p class="profile-color">
+            <span class="label">Profile Color:</span>
+            <div 
+              class="color-preview" 
+              :style="{ backgroundColor: color }" 
+              ref="colorPreviewRef"
+              @click="openColorPicker"
+            ></div>
+            &nbsp;{{ color }}
+          </p>
         </div>
       </div>
-    </div>
-    <input type="file" @change="onFileChange" class="file-input" />
-    <ColorPicker
-      v-if="!isLoadingProfile"
-      v-show="showColorPicker"
-      v-click-outside="closeColorPicker"
-      ref="colorPickerRef"
-      theme="light"
-      :color="color"
-      @changeColor="changeColor"
-    />
-    <div class="buttons">
-      <button @click="signOut" class="btn sign-out">Sign Out</button>
-      <button @click="back" class="btn back">Back</button>
+      <input type="file" @change="onFileChange" class="file-input" />
+      <ColorPicker
+        v-if="!isLoadingProfile"
+        v-show="showColorPicker"
+        v-click-outside="closeColorPicker"
+        ref="colorPickerRef"
+        theme="light"
+        :color="color"
+        @changeColor="changeColor"
+      />
+      <div class="buttons">
+        <button @click="signOut" class="btn sign-out">Sign Out</button>
+        <button @click="back" class="btn back">Back</button>
+      </div>
     </div>
   </div>
 </template>
@@ -195,13 +197,27 @@ export default defineComponent({
 
 <style scoped>
   .user-settings {
+    position: absolute;
+    display: flex;
+    color: white;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    flex-direction: column;
+    flex-wrap: wrap;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    justify-content: center;
+  }
+  .user-settings-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     background-color: #36393f;
     padding: 20px;
     border-radius: 8px;
-    max-width: 400px;
-    margin: auto;
-    color: white;
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    max-width: 480px;
+    margin: 0 auto;
   }
 
   .profile {
