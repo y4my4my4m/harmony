@@ -81,9 +81,23 @@ export default defineComponent({
       [key: string]: boolean;
     }
     const categoryOpenState = ref<CategoryOpenState>({});
-    
+    const voiceConnected = ref('');
+    const voiceOnSound = ref(new Audio('/assets/sounds/voice_connect.mp3'));
+    const voiceOffSound = ref(new Audio('/assets/sounds/voice_disconnect.mp3'));
 
     const selectChannel = (channelId: string) => {
+      // Find the channel by channelId
+      const channel = props.channels.find(ch => ch.id === channelId);
+
+      if (channel) {
+        if (voiceConnected.value !== channelId && channel.type === 1) {
+          voiceOnSound.value.play();
+          voiceConnected.value = channelId;
+        } else if (voiceConnected.value == channelId && channel.type === 1) {
+          voiceOffSound.value.play();
+          voiceConnected.value = '';
+        }
+      }
       router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId: channelId } });
       // if voice channel, join it
     };
@@ -113,7 +127,16 @@ export default defineComponent({
       serverChannelStore.fetchChannels(props.currentServer.id);
     };
 
-    return { selectChannel, serverChannelStore, showDropdown, emitCreateChannel, handleChannelCreated, toggleDropdown, toggleCategory, isCategoryOpen  };
+    return { 
+      selectChannel,
+      serverChannelStore,
+      showDropdown,
+      emitCreateChannel,
+      handleChannelCreated,
+      toggleDropdown,
+      toggleCategory,
+      isCategoryOpen,
+    };
   }
 });
 </script>

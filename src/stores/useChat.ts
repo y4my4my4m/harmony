@@ -309,16 +309,16 @@ export const useChatStore = defineStore('chat', {
           'postgres_changes',
           { event: 'DELETE', schema: 'public', table: 'reactions' },
           async (payload) => {
-            console.log('Reaction deleted payload:', payload);
+            // console.log('Reaction deleted payload:', payload);
         
             const reactionIdToDelete = payload.old.id;
         
             for (const message of this.messages) {
               if (message.reactions) {
-                console.log('Message reactions:', message.reactions);
+                // console.log('Message reactions:', message.reactions);
         
                 // Find the reaction object that contains the reactionIdToDelete
-                const reactionObjIndex = message.reactions.findIndex(reactionObj => 
+                const reactionObjIndex = message.reactions.findIndex((reactionObj: any) => 
                   reactionObj.reaction_ids.includes(reactionIdToDelete)
                 );
         
@@ -332,10 +332,10 @@ export const useChatStore = defineStore('chat', {
         
                   // Optionally, refetch reactions for the updated message for accuracy
                   try {
-                    console.log(`Refetching reactions for message ID: ${message.id}`);
+                    // console.log(`Refetching reactions for message ID: ${message.id}`);
                     const updatedReactionData = await this.fetchAndPopulateReactions(message.id);
                     message.reactions = updatedReactionData;
-                    console.log(`Updated reactions for message ID ${message.id}:`, updatedReactionData);
+                    // console.log(`Updated reactions for message ID ${message.id}:`, updatedReactionData);
                   } catch (error) {
                     console.error('Error during reaction deletion handling:', error);
                   }
