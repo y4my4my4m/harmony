@@ -409,7 +409,7 @@ export default defineComponent({
     display: block;
     position: absolute;
     box-sizing: border-box;
-    top: 50%;
+    top: 16px;
     bottom: -4px;
     width: 26px;
     left: 16px;
@@ -427,13 +427,13 @@ export default defineComponent({
 }
 .message-wrapper .repliedMessage .replyContainer {
     display: flex;
-    align-items: center;
     font-size: .875rem;
     position: relative;
     white-space: pre;
     user-select: none;
     gap: 4px;
     margin-left:46px;
+    margin-bottom:10px; 
 }
 .message-wrapper .repliedMessage .replyAvatar {
     width: 16px;
@@ -444,12 +444,14 @@ export default defineComponent({
     user-select: none;
     margin-right: var(0.25rem);
     position: relative;
+    top:8.5px;
     cursor:pointer;
 }
 .message-wrapper .repliedMessage .replyUsername {
     font-weight: 500;
     color: var(--interactive-normal);
     position: relative;
+    top:6px;
     opacity:.65;
     display: inline-block;
     cursor:pointer;
@@ -460,6 +462,7 @@ export default defineComponent({
     text-overflow: ellipsis;
     white-space: nowrap;
     position: relative;
+    top: 6px;
     opacity:.65;
     cursor:pointer;
 }
@@ -472,6 +475,9 @@ export default defineComponent({
 }
 .message-wrapper .repliedMessage .message-content {
   padding-left:0;
+}
+.repliedMessage .file-container {
+  max-height:48px;
 }
 .no-messages {
   text-align: center;
