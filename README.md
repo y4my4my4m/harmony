@@ -24,13 +24,13 @@
 - [x] servers
 - [x] channels
 - [x] channel categories
-- [~] channel type
+- [x] channel type
 - [ ] realtime status
   - [x] changes
   - [ ] bug in self status display
 
-- [ ] uuid for filenames
-  - [ ] profile pictures
+- [x] uuid for filenames
+  - [x] profile pictures
   - [x] server icons
   - [x] user media
 
@@ -46,25 +46,25 @@
 - [x] tenor implementation
 - [ ] media embeds
   - [x] images
-  - [ ] videos
-  - [ ] url previews
+  - [x] videos
   - [x] links
+  - [~] url previews
   - [ ] audio
   - [ ] files/binaries
 - [ ] markdown
-- [ ] profile changes
+- [x] profile changes
 - [ ] server order
 - [ ] forgot password
 - [ ] reset password
 - [ ] notifications
 - [x] mentions
-- [ ] reactions
+- [x] reactions
 - [ ] threads
 - [ ] personal drive
 - [ ] personal pages
 - [ ] activitypub
 - [ ] spaces
-- [ ] public/private
+- [x] public/private
 - [ ] voice
   - [ ] e2ee
 - [ ] voice positioning
