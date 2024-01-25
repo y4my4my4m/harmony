@@ -303,6 +303,7 @@
 
         if (isPopupForReaction.value) {
           if (authStore.session?.user) {
+            reactionSound2.value.volume = 0.5;
             reactionSound2.value.play();
             await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
 

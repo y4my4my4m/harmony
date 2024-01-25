@@ -91,9 +91,11 @@ export default defineComponent({
 
       if (channel) {
         if (voiceConnected.value !== channelId && channel.type === 1) {
+          voiceOnSound.value.volume = 0.5;
           voiceOnSound.value.play();
           voiceConnected.value = channelId;
         } else if (voiceConnected.value == channelId && channel.type === 1) {
+          voiceOffSound.value.volume = 0.5;
           voiceOffSound.value.play();
           voiceConnected.value = '';
         }

@@ -62,8 +62,10 @@
       const toggleMic = () => {
         isMicActive.value = !isMicActive.value;
         if (!isMicActive.value) {
+          micOffSound.value.volume = 0.5;
           micOffSound.value.play();
         } else {
+          micOnSound.value.volume = 0.5;
           micOnSound.value.play();
         }
       };
@@ -72,9 +74,11 @@
         isHeadphonesActive.value = !isHeadphonesActive.value;
         if (!isHeadphonesActive.value) {
           isMicActive.value = false;
+          cameraOffSound.value.volume = 0.5;
           cameraOffSound.value.play();
         } else {
           // TODO: only turn back on the mic if it was already set to "on" (observe the inspiration app's behaviour for this)
+          cameraOnSound.value.volume = 0.5;
           cameraOnSound.value.play();
         }
       };
