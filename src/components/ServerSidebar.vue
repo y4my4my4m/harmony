@@ -2,7 +2,9 @@
   <div class="server-sidebar">
     <div 
       :style="{ backgroundImage: 'url(/portal.png)' }"
-      class="portal">
+      class="portal"
+      @click="togglePublicServers"
+    >
     </div>
     <div class="separator"></div>
     <div v-for="server in servers" 
@@ -15,27 +17,47 @@
   </div>
 </template>
 
-<script setup lang="ts">
-  import { defineProps } from 'vue';
-  import type { Server } from '@/types';
-  import { useServerChannelStore } from '@/stores/useServerChannel';
-  import { useRouter } from 'vue-router';
+<script lang="ts">
+import { defineComponent, ref, watch } from 'vue';
+import type { Server } from '@/types';
+import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useRouter } from 'vue-router';
 
-  const router = useRouter();
-  // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
-  const serverChannelStore = useServerChannelStore();
-  defineProps({
-    // make an array of type Server
+export default defineComponent({
+  props: {
     servers: {
       type: Array as () => Server[],
       required: true
     }
-  });
+  },
+  setup(props, { emit }) {
+    const showPublicServers = ref(false);
+    // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
+    const serverChannelStore = useServerChannelStore();
+    const router = useRouter();
 
-  const selectServer = (serverId: string) => {
-    router.push({ name: 'Chat', params: { serverId: serverId } });
-  };
-  
+    const togglePublicServers = () => {
+      showPublicServers.value = !showPublicServers.value;
+    };
+
+    watch(showPublicServers, (value) => {
+      if (value) {
+        emit('show-public-servers', value); 
+      }
+    });
+
+    const selectServer = (serverId: string) => {
+      router.push({ name: 'Chat', params: { serverId: serverId } });
+    };
+
+    return {
+      showPublicServers,
+      selectServer,
+      serverChannelStore,
+      togglePublicServers
+    };
+  }
+});
 </script>
 
 <style scoped>

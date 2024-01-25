@@ -3,12 +3,27 @@
     <div class="show-left" @click="toggleSidebars">←</div>
     <div class="show-right" @click="toggleProfiles">→</div>
   </div>
-  <div v-if="showNoServersSplash">
-    <NoServersSplash />
-  </div>
+  <PublicServers 
+    v-if="showPublicServers"
+    @showPublicServers="handleShowPublicServers"
+  />
+  <NoServersSplash v-if="showNoServersSplash"/>
   <div v-else class="chat-layout">
-    <ServerSidebar :class="{ 'open': isSidebarsVisible }" :servers="servers" />
-    <ChannelSidebar :class="{ 'open': isSidebarsVisible }" :currentServer="currentServer" :channels="channels" :currentChannelId="currentChannelId" :categories="categories" :categoryChannels="categoryChannels" @channelSelected="handleChannelSelected" @createChannel="handleCreateChannel"/>
+    <ServerSidebar
+      :class="{ 'open': isSidebarsVisible }"
+      :servers="servers"
+      @showPublicServers="handleShowPublicServers"
+    />
+    <ChannelSidebar
+      :class="{ 'open': isSidebarsVisible }"
+      :currentServer="currentServer"
+      :channels="channels"
+      :currentChannelId="currentChannelId"
+      :categories="categories"
+      :categoryChannels="categoryChannels"
+      @channelSelected="handleChannelSelected"
+      @createChannel="handleCreateChannel"
+    />
     <CreateChannel
       :serverId="currentServer.id"
       :categoryId="currentCategoryId"
@@ -34,6 +49,7 @@
   import UserSidebar from '@/components/UserSidebar.vue';
   import NoServersSplash from '@/components/NoServersSplash.vue';
   import CreateChannel from '@/components/CreateChannel.vue';
+  import PublicServers from '@/components/PublicServers.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
@@ -51,6 +67,7 @@
       UserSidebar,
       NoServersSplash,
       CreateChannel,
+      PublicServers,
     },
     setup() {
       const serverUsersStore = useServerUsersStore();
@@ -67,6 +84,7 @@
       let initialized = false;
 
       const showNoServersSplash = ref(false);
+      const showPublicServers = ref(false);
       const isAtBottom = ref(true); // Default to true for initial load
 
       const servers = computed(() => serverChannelStore.servers);
@@ -171,6 +189,10 @@
         }
       };
 
+      const handleShowPublicServers = (toggleState: boolean) => {
+        showPublicServers.value = toggleState;
+      };
+
       const toggleSidebars = () => {
         // if currently viewing chat
         if(isProfilesVisible.value == false)
@@ -251,7 +273,9 @@
         handleCreateChannel,
         isProfilesVisible,
         currentCategoryId,
-        handleChannelCreated
+        handleChannelCreated,
+        showPublicServers,
+        handleShowPublicServers
       };
   }
 });

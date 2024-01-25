@@ -61,5 +61,38 @@ export const useServerStore = defineStore('server', {
       if (error) throw error;
       return data;
     },
+
+    async joinServer(serverId: string, userId: string): Promise<boolean> {
+      try {
+        const { data, error } = await supabase
+          .from('user_servers')
+          .insert([{ server_id: serverId, user_id: userId }]);
+
+        if (error) throw error;
+
+        console.log("Server joined successfully", data);
+        return true;
+      } catch (error) {
+        console.error('Error joining server:', error);
+        return false;
+      }
+    },
+    async leaveServer(serverId: string, userId: string): Promise<boolean> {
+      try {
+        const { data, error } = await supabase
+          .from('user_servers')
+          .delete()
+          .eq('server_id', serverId)
+          .eq('user_id', userId);
+
+        if (error) throw error;
+
+        console.log("Server left successfully", data);
+        return true;
+      } catch (error) {
+        console.error('Error leaving server:', error);
+        return false;
+      }
+    }
   }
 });

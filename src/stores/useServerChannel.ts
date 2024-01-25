@@ -5,6 +5,7 @@ import type { Server, Category, Channel, Emoji, ResolvedEmoji } from '@/types';
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
+    publicServers: [] as Server[],
     emojiList: [] as { serverId: string, emojis: Emoji[] }[],
     resolvedEmojiList: {} as Record<string, { 
       server_name: string; 
@@ -230,6 +231,37 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
     setCurrentChannel(channelId: string) {
       this.currentChannelId = channelId;
+    },
+    // subscribeToServers() {
+    //   supabase.channel('user-statuses')
+    //     .on(
+    //       'postgres_changes',
+    //       { event: 'UPDATE', schema: 'public', table: 'user_servers' },
+    //       (payload) => {
+
+    //       }
+    //     )
+    //     .subscribe();
+    // },
+    async fetchPublicServers(searchTerm = '', limit = 10) {
+      let query = supabase
+        .from('servers')
+        .select('*')
+        .eq('public', true)
+        .limit(limit);
+    
+      if (searchTerm) {
+        query = query.ilike('name', `%${searchTerm}%`); // Assuming 'name' is the field to search
+      }
+    
+      const { data: servers, error } = await query;
+    
+      if (error) {
+        console.error('Error fetching servers:', error);
+      } else {
+        console.log(servers);
+        this.publicServers = servers;
+      }
     },
   },
 });

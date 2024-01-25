@@ -5,6 +5,7 @@ export interface Server {
   owner: string;
   icon: string;
   allow_cross_server_emojis: boolean;
+  public: boolean;
 }
 
 export interface Channel {
