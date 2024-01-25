@@ -4,31 +4,59 @@
       There are no messages here, type something!
     </div>
     <div v-else v-for="(message, index) in messages" :key="message.id" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
-      <div v-if="index === 0 || messages[index - 1].user_id !== message.user_id" class="message-header">
-        <img :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
-        <div>
-          <span>
-            <strong class="user-display-name" :style="getUserColor(message.user_id)" @click="showUserProfile(message.user_id, $event)">
-            {{ getUserDisplayName(message.user_id) }}
-            </strong>
-            <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
-          </span>
-          <MessageContent 
-            :content="message.content"
-            :message-id="message.id"
-            :editableMessageId="editableMessageId"
-            :editableMessageContent="editableMessageContent"
-            :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-            :image-loaded="imageLoaded"
-            @image-loaded="handleImageLoaded"
-            @open-lightbox="handleOpenLightbox"
-            @update:message="saveEdit"
-            @update:content="editableMessageContent = $event"
-            @cancel-edit="cancelEdit"
-            @show-user-profile="showUserProfile"
-          />
+      <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
+        <div v-show="message.reply_to" class="repliedMessage">
+          <!-- TODO: dont make "gets" for everything -->
+          <img :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
+          <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="getUserColor(getUserIdFromMessage(message.reply_to)) ">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
+          <div class="repliedTextPreview" role="button" tabindex="0">
+            <div id="message-content" class="repliedTextContent">
+              <!-- TODO: need to fetch if message is too far back -->
+              <span>
+                <MessageContent 
+                  :content=" messages.find(msg => msg.id === message.reply_to)?.content || []"
+                  :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
+                  :editableMessageId="editableMessageId"
+                  :editableMessageContent="editableMessageContent"
+                  :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+                  :image-loaded="imageLoaded"
+                  @image-loaded="handleImageLoaded"
+                  @open-lightbox="handleOpenLightbox"
+                  @update:message="saveEdit"
+                  @update:content="editableMessageContent = $event"
+                  @cancel-edit="cancelEdit"
+                  @show-user-profile="showUserProfile"
+                />
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
+        <div class="message-header">
+          <img :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
+          <div>
+            <span>
+              <strong class="user-display-name" :style="getUserColor(message.user_id)" @click="showUserProfile(message.user_id, $event)">
+              {{ getUserDisplayName(message.user_id) }}
+              </strong>
+              <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
+            </span>
+            <MessageContent 
+              :content="message.content"
+              :message-id="message.id"
+              :editableMessageId="editableMessageId"
+              :editableMessageContent="editableMessageContent"
+              :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+              :image-loaded="imageLoaded"
+              @image-loaded="handleImageLoaded"
+              @open-lightbox="handleOpenLightbox"
+              @update:message="saveEdit"
+              @update:content="editableMessageContent = $event"
+              @cancel-edit="cancelEdit"
+              @show-user-profile="showUserProfile"
+            />
+          </div>
+        </div>
+      </template>
       <MessageContent 
         v-else
         :content="message.content"
@@ -120,7 +148,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
-    const chat = useChatStore();
+    const useChat = useChatStore();
     // const parsedMessages = computed(() => {
     //   return props.messages.map((message) => {
     //     // Assuming the content of each message is a JSON string
@@ -177,7 +205,7 @@ export default defineComponent({
 
     const saveEdit = async (messageId: string, newContent?: string) => {
       const content = newContent ?? editableMessageContent.value;
-      await chat.editMessage(messageId, content); // Replace with your actual update logic
+      await useChat.editMessage(messageId, content); // Replace with your actual update logic
       editableMessageId.value = null;
     };
 
@@ -186,7 +214,7 @@ export default defineComponent({
     };
 
     const deleteMessage = (messageId: string) => {
-      chat.deleteMessage(messageId);
+      useChat.deleteMessage(messageId);
     };
 
     const profileCardStyle = ref({ top: '0px', left: '0px'});
@@ -215,6 +243,9 @@ export default defineComponent({
       selectedUser.value = null;
     };
 
+    const getUserIdFromMessage = (messageId:string) => {
+      return useChat.messages.find(message => message.id === messageId)?.user_id || 'Unknown Message Id';
+    };
     const getUserDisplayName = (userId:string) => {
       return serverUsersStore.userProfiles[userId]?.display_name || 'Unknown User';
     };
@@ -313,7 +344,8 @@ export default defineComponent({
     return { 
       getUserDisplayName, 
       getUserColor, 
-      getUserAvatar, 
+      getUserAvatar,
+      getUserIdFromMessage,
       formatTimestamp,
       closeLightbox,
       lightboxImages, 
@@ -363,6 +395,78 @@ export default defineComponent({
   background: rgba(0,0,0,0.1)
 }
 
+.message-wrapper .repliedMessage {
+  display: flex;
+  align-items: center;
+  font-size: .875rem;
+  position: relative;
+  white-space: pre;
+  user-select: none;
+  left: 46px;
+  gap: 4px;
+}
+.message-wrapper .repliedMessage:before {
+    content: "";
+    display: block;
+    position: absolute;
+    box-sizing: border-box;
+    top: 50%;
+    right: 92px;
+    bottom: -4px;
+    left: -30px;
+    /* right: 100%;
+    bottom: 0;
+    left: calc(-1*(.5*var(--avatar-size) + var(--gutter))); */
+    margin-right: var(--reply-spacing);
+    /* margin-top: -1px; */
+    margin-top: calc(-.5*var(--spine-width));
+    /* margin-left: -1px; */
+    margin-left: calc(-.5*var(--spine-width));
+    margin-bottom: calc(-4px + var(0.125rem));
+    border-color: var(--interactive-muted);
+    /* border-width: 2px 0 0 2px; */
+    border-width: var(--spine-width)0 0 var(--spine-width);
+    border-style: solid;
+    border-top-left-radius: 6px;
+}
+.message-wrapper .repliedMessage .replyAvatar {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+    margin-right: var(0.25rem);
+    position: relative;
+    cursor:pointer;
+}
+.message-wrapper .repliedMessage .replyUsername {
+    font-weight: 500;
+    color: var(--interactive-normal);
+    position: relative;
+    opacity:.65;
+    display: inline-block;
+    cursor:pointer;
+}
+.message-wrapper .repliedMessage .repliedTextPreview {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
+    opacity:.65;
+    cursor:pointer;
+}
+.message-wrapper .repliedMessage .replyUsername:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+.message-wrapper .repliedMessage .repliedTextPreview:hover {
+  opacity: 1;
+}
+.message-wrapper .repliedMessage .message-content {
+  padding-left:0;
+}
 .no-messages {
   text-align: center;
   color: #626262;

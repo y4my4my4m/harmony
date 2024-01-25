@@ -43,6 +43,12 @@
   --h-chat-lighter: #313336; /* input area background */
   --h-chat-dark: #141618;
   --h-chat-darker: #0c0d0e;
+
+  --gutter: 16px;
+  --avatar-size: 40px;
+  --reply-spacing: 4px;
+  --spine-width: 2px;
+  --interactive-muted: hsl( 228 calc( 1 * 6%) 32.5% / 1);
 }
 
 /* semantic color variables for this project */
