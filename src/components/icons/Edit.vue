@@ -12,6 +12,11 @@ export default defineComponent({
 });
 </script>
 <style scoped>
+
+    .editIcon {
+        width: 20px;
+        height: 20px;
+    }
     .editIcon path {
         fill: #aaa;
       transition: fill .2s;

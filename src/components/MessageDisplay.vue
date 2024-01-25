@@ -46,8 +46,10 @@
       />
       <div class="message-actions" v-if="hoveredMessageId === message.id">
         <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
+        <div class="btn" @click="startEdit(message)"><ReplyIcon/></div>
         <div class="btn" @click="startEdit(message)"><EditIcon/></div>
         <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
+        <div class="btn"><MoreIcon/></div>
       </div>
       <div class="reactions" v-if="message.reactions" >
         <!-- Display existing reactions -->
@@ -91,8 +93,10 @@ import { format } from 'date-fns';
 import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
 import MessageContent from '@/components/MessageContent.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
+import ReplyIcon from '@/components/icons/Reply.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
+import MoreIcon from '@/components/icons/More.vue';
 
 export default defineComponent({
   props: {
@@ -106,9 +110,11 @@ export default defineComponent({
   },
   components: { 
     UserPreviewComponent,
+    ReplyIcon,
     EditIcon,
     ReactionIcon,
     DeleteIcon,
+    MoreIcon,
     MessageContent
   },
   setup(props, { emit }) {
@@ -432,25 +438,39 @@ export default defineComponent({
   flex-grow:1;
   position:absolute;
   right:4px;
-  top:-14px;
+  top:-16px;
+  padding: 0 14px 0 32px;
   background:var(--h-chat);
   box-shadow: 0 0 5px rgba(0,0,0,0.3);
   border-radius: 5px;
   padding:0px;
+  display: grid;
+  grid-auto-flow: column;
+  box-sizing: border-box;
+  height: 32px;
+  border-radius: 4px;
+  align-items: center;
+  justify-content: flex-start;
+  transition: box-shadow.1s ease-out;
 }
 .message-actions .btn {
-  width: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 24px;
-  margin-left: 5px;
-  padding: 2px 4px;
-  border: none;
+  padding: 4px;
+  min-width: 24px;
+  flex: 0 0 auto;
+  color: var(--interactive-normal);
   cursor: pointer;
+  position: relative;
   /* background:transparent; */
   transition: 0.2s ease-in-out;
   font-size: 12px;
 }
 .message-actions .btn:hover {
-  /* background: rgba(0,0,0,0.1); */
+  background: rgba(255,255,255,0.35);
   filter: saturate(1);
 }
 .scroll-bottom {
@@ -577,4 +597,3 @@ export default defineComponent({
 }
 
 </style>
-

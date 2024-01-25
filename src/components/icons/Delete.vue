@@ -13,6 +13,11 @@ export default defineComponent({
 });
 </script>
 <style scoped>
+
+    .deleteIcon {
+        width: 20px;
+        height: 20px;
+    }
     .deleteIcon path {
         fill: #dd0000aa;
         transition: fill .2s;

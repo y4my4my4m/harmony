@@ -157,6 +157,8 @@ export default defineComponent({
 .file-container > video {
   max-width: 25vw!important;
   max-height: 25vh !important;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
 }
 @media (max-width: 768px) {
   .file-container > video {

@@ -221,7 +221,7 @@ export const useChatStore = defineStore('chat', {
         // if were removing a reaction from the messages table's reactions column
         if (wasRemoval)
         {
-          updatedReactions = currentReactionIds.filter(id => id !== removedReactionId);
+          updatedReactions = currentReactionIds.filter((id:string) => id !== removedReactionId);
         }
         // if were adding a reaction to the messages table's reactions column
         else{
@@ -313,10 +313,10 @@ export const useChatStore = defineStore('chat', {
         
             for (const message of this.messages) {
               if (message.reactions) {
-                console.log(message.reactions);
+                // console.log(message.reactions);
                 // Find the reaction object that contains the reactionIdToDelete
                 for (const reactionObj of message.reactions) {
-                  let reactionArray = reactionObj.reactions;
+                  const reactionArray = reactionObj.reactions;
                   if (reactionArray && Array.isArray(reactionArray)) {
                     const reactionIndex = reactionArray.findIndex(reaction => reaction.reaction_id === reactionIdToDelete);
                     if (reactionIndex !== -1) {
