@@ -197,25 +197,34 @@
       };
 
       const startX = ref(0);
+      const startY = ref(0);
       const endX = ref(0);
+      const endY = ref(0);
+      const swipeThreshold = 100; // Increase swipe threshold
+      const verticalMovementThreshold = 50; // Adjust vertical movement threshold
 
       const handleTouchStart = (event) => {
         startX.value = event.touches[0].clientX;
+        startY.value = event.touches[0].clientY;
       };
 
-      const handleTouchMove = (event) => {
-        endX.value = event.touches[0].clientX;
-      };
+      const handleTouchEnd = (event) => {
+        endX.value = event.changedTouches[0].clientX;
+        endY.value = event.changedTouches[0].clientY;
 
-      const handleTouchEnd = () => {
-        const direction = endX.value - startX.value;
+        const deltaX = endX.value - startX.value;
+        const deltaY = endY.value - startY.value;
 
-        if (direction > 50) {
-          // Swipe right
-          toggleSidebars();
-        } else if (direction < -50) {
-          // Swipe left
-          toggleProfiles();
+        // Check for a horizontal swipe and limited vertical movement
+        if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaY) < verticalMovementThreshold) {
+          event.preventDefault(); // Prevent default behavior if it's clearly a swipe
+          if (deltaX > 0) {
+            // Swipe right
+            toggleSidebars();
+          } else {
+            // Swipe left
+            toggleProfiles();
+          }
         }
       };
 
