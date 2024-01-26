@@ -203,12 +203,12 @@
       const swipeThreshold = 150; // Increase swipe threshold
       const verticalMovementThreshold = 150; // Adjust vertical movement threshold
 
-      const handleTouchStart = (event) => {
+      const handleTouchStart = (event: any) => {
         startX.value = event.touches[0].clientX;
         startY.value = event.touches[0].clientY;
       };
 
-      const handleTouchEnd = (event) => {
+      const handleTouchEnd = (event: any) => {
         endX.value = event.changedTouches[0].clientX;
         endY.value = event.changedTouches[0].clientY;
 
@@ -274,8 +274,11 @@
           requestNotificationPermission();
 
           const chatLayout = document.querySelector('#app');
-          chatLayout.addEventListener('touchstart', handleTouchStart);
-          chatLayout.addEventListener('touchend', handleTouchEnd);
+          if (chatLayout)
+          {
+            chatLayout.addEventListener('touchstart', handleTouchStart);
+            chatLayout.addEventListener('touchend', handleTouchEnd);
+          }
           // wait 5 seconds then send a notification
           setTimeout(() => {
             showNotification('Welcome to Harmony!');
@@ -285,8 +288,11 @@
 
       onBeforeUnmount(() => {
         const chatLayout = document.querySelector('#app');
-        chatLayout.removeEventListener('touchstart', handleTouchStart);
-        chatLayout.removeEventListener('touchend', handleTouchEnd);
+        if (chatLayout)
+        {
+          chatLayout.removeEventListener('touchstart', handleTouchStart);
+          chatLayout.removeEventListener('touchend', handleTouchEnd);
+        }
       });
 
       watch(route, () => {
