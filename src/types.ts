@@ -16,6 +16,7 @@ export interface Channel {
   category: string;
 }
 
+
 export interface Category {
   id: string;
   name: string;
@@ -139,3 +140,8 @@ export interface Emoji {
 export type ResolvedEmoji = Emoji & {
   display_name: string;
 };
+
+export interface Point {
+  x: number;
+  y: number;
+}

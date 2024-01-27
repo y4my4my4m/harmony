@@ -30,15 +30,18 @@
   </div>
 </template>
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
+import { defineComponent, ref, computed } from 'vue';
+import { useServerUsersStore } from '@/stores/useServerUsers';
+import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useAuthStore } from '@/stores/auth';
+import { useRouter } from 'vue-router';
+
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
-import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useRouter } from 'vue-router';
+
 import ArrowDownIcon from '@/components/icons/ArrowDown.vue';
 import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
-
 import UserProfileComponent from './UserProfileComponent.vue';
 import ServerDropdown from './ServerDropdown.vue';
 
@@ -76,6 +79,8 @@ export default defineComponent({
     const showDropdown = ref(false);
     // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
     const serverChannelStore = useServerChannelStore();
+    const serverUsers = useServerUsersStore();
+    const authStore = useAuthStore();
     const router = useRouter();
     interface CategoryOpenState {
       [key: string]: boolean;
@@ -84,6 +89,10 @@ export default defineComponent({
     const voiceConnected = ref('');
     const voiceOnSound = ref(new Audio('/assets/sounds/voice_connect.mp3'));
     const voiceOffSound = ref(new Audio('/assets/sounds/voice_disconnect.mp3'));
+    const userId = computed(() => {
+      return authStore.session?.user?.id || '';
+      // return localStorage.getItem('userId') || '';
+    });
 
     const selectChannel = (channelId: string) => {
       // Find the channel by channelId
@@ -94,6 +103,7 @@ export default defineComponent({
           voiceOnSound.value.volume = 0.5;
           voiceOnSound.value.play();
           voiceConnected.value = channelId;
+          serverUsers.broadcastVoiceChannelEvent(props.currentServer.id, channelId, 'user-joined', userId.value);
         } else if (voiceConnected.value == channelId && channel.type === 1) {
           voiceOffSound.value.volume = 0.5;
           voiceOffSound.value.play();

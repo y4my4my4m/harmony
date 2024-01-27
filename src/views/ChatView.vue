@@ -1,8 +1,4 @@
 <template>
-  <!-- <div class="top-bar">
-    <div class="show-left" @click="toggleSidebars">←</div>
-    <div class="show-right" @click="toggleProfiles">→</div>
-  </div> -->
   <PublicServers 
     v-if="showPublicServers"
     @showPublicServers="handleShowPublicServers"
@@ -34,7 +30,10 @@
       @channelCreated="handleChannelCreated"
       @close="showCreateChannelForm = false"
     />
-    <div :class="{ 'open': isSidebarsVisible, 'profile-open': isProfilesVisible}"  class="chat-area">
+    <div :class="{ 'open': isSidebarsVisible, 'profile-open': isProfilesVisible}" class="chat-area">
+      <VoiceChannelScene 
+        :currentChannelId="currentChannelId"
+      />
       <ChatComponent 
         :messages="chatMessages"
         @loadMoreMessages="fetchMoreMessages" 
@@ -51,6 +50,7 @@
   import ChatComponent from '@/components/ChatComponent.vue';
   import UserSidebar from '@/components/UserSidebar.vue';
   import NoServersSplash from '@/components/NoServersSplash.vue';
+  import VoiceChannelScene from '@/components/VoiceChannelScene.vue';
   import CreateChannel from '@/components/CreateChannel.vue';
   import PublicServers from '@/components/PublicServers.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -69,6 +69,7 @@
       ChatComponent,
       UserSidebar,
       NoServersSplash,
+      VoiceChannelScene,
       CreateChannel,
       PublicServers,
     },
@@ -250,6 +251,10 @@
           isSidebarsVisible.value = !isSidebarsVisible.value;
         }
       };
+      
+      // const usersInCurrentVoiceChannel = computed(() => {
+      //   return serverUsersStore.getUsersInChannel(currentChannelId.value);
+      // });
 
       onMounted(async () => {
         const userId = authStore.session?.user?.id;
@@ -307,7 +312,7 @@
         chatMessages, 
         currentServerName, 
         currentServer, 
-        currentChannelId, 
+        currentChannelId,
         showNoServersSplash, 
         handleServerSelected,
         showCreateChannelForm, 
@@ -325,7 +330,7 @@
         currentCategoryId,
         handleChannelCreated,
         showPublicServers,
-        handleShowPublicServers
+        handleShowPublicServers,
       };
   }
 });
@@ -335,11 +340,12 @@
 .chat-layout {
   display: flex;
   height: 100vh;
-  width: 100vw; /* Ensure it takes the full viewport width */
+  width: 100vw;
   position: relative;
 }
 
 .chat-area {
+  position: relative;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
@@ -351,27 +357,6 @@
 }
 /* Mobile styles */
 @media (max-width: 768px) {
-  .top-bar {
-    position: fixed;
-    top:0;
-    z-index:100;
-    width:100%;
-    height: 100vh;
-    /* background: var(--h-chat-darker); */
-    display: flex;
-    justify-content: space-between;
-  }
-  .show-left,
-  .show-right {
-    width: 40%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: var(--h-chat-dark);
-    opacity:0.5;
-  }
-
   .server-sidebar, .channel-sidebar {
     width: 0;
     min-width: 0;
