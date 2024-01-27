@@ -47,7 +47,7 @@ export default defineComponent({
     };
 
     onMounted(() => {
-      randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 45) + 1}.png')`;
+      randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 64) + 1}.png')`;
     });
 
     return { email, password, login, randomBg, updateBackgroundRotation, bgRotation, playSound };

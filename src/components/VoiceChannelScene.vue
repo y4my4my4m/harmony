@@ -204,8 +204,20 @@
     height: 60%;
     padding: 20px;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-    background-color: #424242;
+    /* background-color: #424242; */
+    background-color: #121212;
     border-radius: 5px;
+  }
+  .voice-channel-grid::before{
+    position:absolute;
+    top:0;
+    left:0;
+    content: '';
+    width: 100%;
+    height:100%;
+    background-image: url('/img/grid_bg1.png');
+    background-size:cover;
+    opacity: 0.025;
   }
   .voice-channel-grid-container {
     position: relative;
