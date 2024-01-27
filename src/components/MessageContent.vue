@@ -1,7 +1,7 @@
 <template>
   <div v-if="editableMessageId !== messageId" class="message-content">
     <template v-for="(part, partIndex) in content" :key="partIndex">
-      <span v-if="part.type === 'text'">{{ part.text }}</span>
+      <span draggable="false" @dragstart.prevent class="selectableText" v-if="part.type === 'text'">{{ part.text }}</span>
       <a v-else-if="part.type === 'url'" :href="part.url" target="_blank">{{ part.url }}</a>
       <span v-else-if="part.type === 'mention'" class="mention" @click="$emit('show-user-profile', part.userId, $event)">{{ part.mention }}</span>
       <img v-else-if="part.type === 'emoji'"
@@ -42,7 +42,7 @@
       </div>
     </template>
   </div>
-  <input v-else type="text" v-model="localEditableContent" @keyup.esc="handleCancelEdit" @keyup.enter="handleSaveEdit" class="edit-input" />
+  <input v-else type="text" v-model="localEditableContent" @keyup.esc="handleCancelEdit" @keyup.enter="handleSaveEdit" class="edit-input selectableText"  @dragstart.prevent/>
 </template>
 
 <script lang="ts">

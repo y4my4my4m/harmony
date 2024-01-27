@@ -10,7 +10,7 @@
       <div class="left-icons">
         <PlusIcon/>
       </div>
-      <textarea v-model="localMessageContent" @keydown.enter="handleEnter" placeholder="Type a message..."></textarea>
+      <textarea draggable="false" @dragstart.prevent class="selectableText" v-model="localMessageContent" @keydown.enter="handleEnter" placeholder="Type a message..."></textarea>
       <div class="right-icons">
         <GifIcon @click="toggleGiphy" />
         <EmojiUI @click="toggleEmojiList" />

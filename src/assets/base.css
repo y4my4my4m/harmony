@@ -86,6 +86,14 @@
   box-sizing: border-box;
   margin: 0;
   font-weight: normal;
+  -drag: none;
+  user-select: none;
+}
+.selectableText {
+  user-select: text;
+}
+.draggable {
+  user-select:auto;
 }
 
 body {
