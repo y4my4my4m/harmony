@@ -15,8 +15,11 @@
             draggable="false"
           >
         </div>
-        <SpaceTimeGrid :width="615" :height="550" :avatars="avatarPositions" />
       </div>
+      <SpaceTimeGrid 
+        :width="655" 
+        :height="589" 
+        :avatars="avatarPositions" />
     </div>
   </div>
 </template>
@@ -44,7 +47,7 @@
       const serverUsersStore = useServerUsersStore();
       const voiceChannelStore = useVoiceChannelStore();
       const isVoiceChannelPopupVisible = ref(false);
-      const gridContainer = ref(null);
+      const gridContainer = ref<HTMLElement | null>(null);
       const containerWidth = ref(0);
       const containerHeight = ref(0);
       const avatarPositions = ref<Point[]>([]);
@@ -54,7 +57,7 @@
 
       watch(() => voiceChannelStore.positions, (newPositions) => {
         avatarPositions.value = usersInCurrentChannel.value.map(userId => {
-          return newPositions[userId] || { x: 0, y: 0 };
+          return {x: newPositions[userId].x, y: newPositions[userId].y, color: getUserColorInRGB(userId)};
         });
       }, { deep: true });
 
@@ -71,6 +74,10 @@
         return serverUsersStore.userProfiles[userId]?.avatar_url || '';
       };
 
+      const getUserColorInRGB = (userId:string) => {
+        return hexToRgb(`${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`);
+      };
+
       const getProfileStyle = (userId: string) => {
         const position = voiceChannelStore.positions[userId] || { x: 0, y: 0 };
         return {
@@ -78,6 +85,34 @@
           left: `${position.x}px`
         };
       };
+
+      const hexToRgb = (hex: string): string | null => {
+        if (hex.charAt(0) === '#') {
+            hex = hex.substr(1);
+        }
+
+        if (hex.length !== 3 && hex.length !== 6) {
+            return null;
+        }
+
+        let r: number = 0
+        let g: number = 0
+        let b: number = 0;
+
+        if (hex.length === 3) {
+            r = parseInt(hex.charAt(0) + hex.charAt(0), 16);
+            g = parseInt(hex.charAt(1) + hex.charAt(1), 16);
+            b = parseInt(hex.charAt(2) + hex.charAt(2), 16);
+        } 
+        else {
+            r = parseInt(hex.substr(0, 2), 16);
+            g = parseInt(hex.substr(2, 2), 16);
+            b = parseInt(hex.substr(4, 2), 16);
+        }
+
+        return `rgb(${r}, ${g}, ${b})`;
+      };
+
 
       let selectedUserId = ref<string | null>(null);
       let originalPosition = ref({ x: 0, y: 0 });
@@ -92,7 +127,7 @@
       };
 
       const onDrag = (event: MouseEvent) => {
-        if (!selectedUserId.value) return;
+        if (!selectedUserId.value || !gridContainer.value) return;
         const containerBounds = gridContainer.value.getBoundingClientRect();
 
         const newPosition = {
@@ -116,22 +151,32 @@
       const closePopup = () => {
         isVoiceChannelPopupVisible.value = false;
       };
-      const updateDimensions = async () => {
-        await nextTick();
-        if (gridContainer.value) {
-          containerWidth.value = gridContainer.value.clientWidth;
-          containerHeight.value = gridContainer.value.clientHeight;
-        }
+
+
+      const updateDimensions = () => {
+        nextTick(() => {
+          if (gridContainer.value) {
+            containerWidth.value = gridContainer.value.clientWidth;
+            containerHeight.value = gridContainer.value.clientHeight;
+          }
+        });
       };
 
-      onMounted(async () => {
-        await updateDimensions();
+      let resizeObserver = new ResizeObserver(entries => {
+        for (let entry of entries) {
+          updateDimensions();
+        }
       });
 
-      watch(() => window.innerWidth, async () => {
-        await updateDimensions();
+      onMounted(() => {
+        if (gridContainer.value) {
+          resizeObserver.observe(gridContainer.value);
+        }
+        updateDimensions(); // Call it once to set initial dimensions
       });
-      
+
+      watch(() => window.innerWidth, updateDimensions);
+  
       return { 
         isVoiceChannelPopupVisible, 
         usersInCurrentChannel, 
@@ -176,7 +221,6 @@
     position: relative;
     height: 100%;
   }
-  
   .profile-avatar {
     position: absolute;
     cursor: pointer;
