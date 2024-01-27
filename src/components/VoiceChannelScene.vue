@@ -17,8 +17,8 @@
         </div>
       </div>
       <SpaceTimeGrid 
-        :width="655" 
-        :height="589" 
+        :width="containerWidth" 
+        :height="containerHeight" 
         :avatars="avatarPositions" />
     </div>
   </div>
@@ -130,12 +130,13 @@
         if (!selectedUserId.value || !gridContainer.value) return;
         const containerBounds = gridContainer.value.getBoundingClientRect();
 
+        updateDimensions();
         const newPosition = {
           x: event.clientX - originalPosition.value.x,
           y: event.clientY - originalPosition.value.y
         };
-        let newX = Math.max(0, Math.min(newPosition.x, containerBounds.width - 48)); // Assume avatar width is 48px
-        let newY = Math.max(0, Math.min(newPosition.y, containerBounds.height - 48)); // Assume avatar height is 48px
+        let newX = Math.max(0, Math.min(newPosition.x, containerBounds.width - 24)); // Assume avatar width is 48px
+        let newY = Math.max(0, Math.min(newPosition.y, containerBounds.height - 24)); // Assume avatar height is 48px
 
         voiceChannelStore.setProfilePosition(selectedUserId.value, { x: newX, y: newY });
       };
@@ -154,29 +155,18 @@
 
 
       const updateDimensions = () => {
-        nextTick(() => {
-          if (gridContainer.value) {
-            containerWidth.value = gridContainer.value.clientWidth;
-            containerHeight.value = gridContainer.value.clientHeight;
-          }
-        });
+        if (gridContainer.value) {
+          containerWidth.value = gridContainer.value.clientWidth;
+          containerHeight.value = gridContainer.value.clientHeight;
+        }
       };
 
-      let resizeObserver = new ResizeObserver(entries => {
-        for (let entry of entries) {
-          updateDimensions();
-        }
-      });
-
       onMounted(() => {
-        if (gridContainer.value) {
-          resizeObserver.observe(gridContainer.value);
-        }
-        updateDimensions(); // Call it once to set initial dimensions
+        updateDimensions();
       });
 
       watch(() => window.innerWidth, updateDimensions);
-  
+
       return { 
         isVoiceChannelPopupVisible, 
         usersInCurrentChannel, 

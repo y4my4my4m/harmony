@@ -53,8 +53,8 @@ export default defineComponent({
         let blendedColor = { r:0, g:0, b: 0 };
 
         props.avatars.forEach(avatar => {
-          const avatarCenterX = avatar.x + 48;
-          const avatarCenterY = avatar.y + 48;
+          const avatarCenterX = avatar.x + 24;
+          const avatarCenterY = avatar.y + 24;
           const distance = Math.sqrt((x - avatarCenterX) ** 2 + (y - avatarCenterY) ** 2);
 
           if (distance < deformationDistance) {
