@@ -1,10 +1,9 @@
 {
   "name": "Harmony",
   "short_name": "harmony",
-  "start_url": "/",
-  "display": "fullscreen",
-  "background_color": "#2e6acb",
   "description": "An e2ee federated chat-app and activity pub to disrupt centralized power of greedy corporations who want to erode your freedom.",
+	"start_url": "/",
+	"display": "standalone",
   "icons": [
     {
       "src": "/favicon/android-icon-36x36.png",
@@ -42,17 +41,5 @@
       "type": "image/png",
       "density": "4.0"
     }
-  ],
-  "theme_color": "#000000",
-  "id": "harmony",
-  "dir": "auto",
-  "scope": "/",
-  "lang": "en",
-  "orientation": "any",
-  "display_override": [
-    "standalone",
-    "fullscreen",
-    "window-controls-overlay",
-    "minimal-ui"
   ]
 }
