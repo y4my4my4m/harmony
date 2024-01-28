@@ -35,7 +35,7 @@ const pinia = createPinia();
 app.use(pinia);
 
 const authStore = useAuthStore();
-await authStore.initializeAuth();
+authStore.initializeAuth();
 
 
 app.use(VueEasyLightbox);
