@@ -1,7 +1,7 @@
 {
   "name": "Harmony",
   "short_name": "harmony",
-  "start_url": "https://harmony.morale.ch",
+  "start_url": "/",
   "display": "fullscreen",
   "background_color": "#2e6acb",
   "description": "An e2ee federated chat-app and activity pub to disrupt centralized power of greedy corporations who want to erode your freedom.",
@@ -46,7 +46,7 @@
   "theme_color": "#000000",
   "id": "harmony",
   "dir": "auto",
-  "scope": "https://harmony.morale.ch/",
+  "scope": "/",
   "lang": "en",
   "orientation": "any"
 }
