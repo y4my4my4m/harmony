@@ -1,6 +1,8 @@
 <template>
     <div class="public-servers-overlay"  @click="closePublicServers">
+
       <div class="public-servers"  @click.stop>
+        <CreateServerForm v-if="showCreateServerForm" />
         <input 
           type="text" 
           placeholder="Search public servers" 
@@ -19,11 +21,12 @@
               </div>
             </div>
             <template v-if="alreadyJoined(server.id)">
-              <div class="join" @click="leaveServer(server.id)" style="background-color: #dd281b">{{ alreadyJoined(server.id) }}</div>
+              <div class="btn" @click="leaveServer(server.id)" style="background-color: #dd281b">{{ alreadyJoined(server.id) }}</div>
             </template>
-            <div v-else class="join" @click="joinServer(server.id)">Join</div>
+            <div v-else class="btn" @click="joinServer(server.id)">Join</div>
           </div>
         </div>
+        <div class="btn create" @click="showCreateServerForm = true">Create a Server</div>
       </div>
     </div>
   </template>
@@ -34,8 +37,12 @@
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerStore } from '@/stores/server';
   import { useAuthStore } from '@/stores/auth';
+  import CreateServerForm from './CreateServer.vue';
 
   export default defineComponent({
+    components: {
+        CreateServerForm,
+    },
     setup(_, { emit }) {
       const serverChannelStore = useServerChannelStore();
       const serverUsersStore = useServerUsersStore();
@@ -45,6 +52,7 @@
       const publicServers = ref([]);
       // const currentUserId = computed(() => authStore.session?.user?.id);
       const currentUserId = ref();
+      const showCreateServerForm = ref(false);
 
       const alreadyJoined = (serverId:string) => {
         const joined = serverChannelStore.servers.some((server) => server.id === serverId);
@@ -105,6 +113,7 @@
       });
 
       return { 
+        showCreateServerForm,
         searchQuery,
         publicServers,
         closePublicServers,
@@ -196,7 +205,7 @@
     object-fit: cover;
     margin-right: 5px;
   }
-  .join {
+  .btn {
     padding: 10px 15px;
     border: none;
     border-radius: 5px;
@@ -205,8 +214,15 @@
     background-color: #5865f2; 
     transition: background-color 0.2s;
   }
-  .join:hover {
+  .btn:hover {
     opacity: 0.8;
+  }
+
+  .create {
+    background-color: #43b581;
+    margin-top: 10px;
+    width:auto;
+    display:inline-flex;
   }
 
   </style>

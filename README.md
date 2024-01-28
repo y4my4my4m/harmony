@@ -28,9 +28,12 @@
 - [ ] realtime status
   - [x] changes
   - [ ] bug in self status display
-- [ ] mobile
+- [ ] app
   - [x] mobile web
-  - [ ] mobile PWA
+  - [x] PWA mobile
+    - [ ] service worker for notifications
+  - [x] PWA desktop
+  - [ ] desktop app using Tauri necssary?
 - [x] uuid for filenames
   - [x] profile pictures
   - [x] server icons
@@ -70,6 +73,8 @@
 - [ ] voice
   - [ ] e2ee
 - [ ] voice positioning
+  - [x] voice positioning UI
+  - [ ] functionality
 - [ ] video
   - [ ] e2ee
   - [ ] screen share

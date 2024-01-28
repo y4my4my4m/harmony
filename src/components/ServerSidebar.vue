@@ -1,7 +1,7 @@
 <template>
   <div class="server-sidebar">
     <div 
-      :style="{ backgroundImage: 'url(/portal.png)' }"
+      :style="{ backgroundImage: 'url(/icon16.png)' }"
       class="portal"
       @click="togglePublicServers"
     >
@@ -85,6 +85,7 @@ export default defineComponent({
   left:0;
   transition: border 0.6s ease-in-out, all 0.2s ease-in-out;
   border: 3px solid transparent;
+  background-origin: border-box;
 }
 .portal {
   border-radius: 12px;
