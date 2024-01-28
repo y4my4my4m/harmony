@@ -46,7 +46,7 @@
   "theme_color": "#000000",
   "id": "harmony",
   "dir": "auto",
-  "scope": "https://harmony.morale.ch",
+  "scope": "https://harmony.morale.ch/",
   "lang": "en",
   "orientation": "any"
 }
