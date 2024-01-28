@@ -1,5 +1,10 @@
 {
- "name": "App",
+ "name": "Harmony",
+ "short_name": "harmony",
+ "start_url": ".",
+ "display": "standalone",
+ "background_color": "#2e6acb",
+ "description": "An e2ee federated chat-app and activity pub to disrupt centralized power of greedy corporations who want to erode your freedom.",
  "icons": [
   {
    "src": "\/favicon\/android-icon-36x36.png",
