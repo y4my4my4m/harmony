@@ -155,7 +155,9 @@ export const useChatStore = defineStore('chat', {
           return;
         }
         if (data && data.length > 0) {
-          this.messages.push(data[0]);
+          // this.messages.push(data[0]);
+          // TODO: the following supposed to help with the double message being sent but i still get the same issue...
+          this.messages = [...this.messages, data[0]];
         }
         console.log('Message sent:', data);
       } catch (e) {

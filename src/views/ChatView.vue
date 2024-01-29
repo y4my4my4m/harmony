@@ -35,9 +35,11 @@
         :currentChannelId="currentChannelId"
       />
       <ChatComponent 
+        :key="currentChannelId"
         :messages="chatMessages"
         @loadMoreMessages="fetchMoreMessages" 
-        @update:isAtBottom="isAtBottom = $event" />
+        @update:isAtBottom="isAtBottom = $event" 
+      />
     </div>
     <UserSidebar :class="{ 'open': isProfilesVisible }"  />
   </div>
@@ -138,9 +140,9 @@
         //   handleChannelSelected(serverChannelStore.channels[0].id);
         // }
       };
-
       const handleChannelSelected = async (channelId: string) => {
         serverChannelStore.setCurrentChannel(channelId);
+        chatStore.clearMessages(); // Clear messages right when the channel is changed
         await chatStore.fetchMessages(channelId);
         chatStore.subscribeToMessages(channelId);
         scrollToBottom();
