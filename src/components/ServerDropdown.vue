@@ -3,6 +3,7 @@
     <ul>
       <li @click="goToServerSettings">Server Settings</li>
       <li @click="createCategory">Create Category</li>
+      <li @click="createChannel">Create channel</li>
       <li @click="generateInviteLink">Get Invite Link</li>
     </ul>
   </div>
@@ -20,11 +21,15 @@
       serverId: String,
       isVisible: Boolean,
     },
-    emits: ['toggle', 'showCategoryCreator'],
+    emits: ['toggle', 'showCategoryCreator', 'createChannel'],
     setup(props, { emit }) {
       const auth = useAuthStore();
       const router = useRouter();
       const toast = useToast();
+
+      const createChannel = () => {
+        emit('createChannel', null);
+      };
 
       const closeDropdown = () => {
         emit('toggle');
@@ -55,7 +60,8 @@
         goToServerSettings, 
         createCategory,
         generateInviteLink,
-        closeDropdown
+        closeDropdown,
+        createChannel
       };
     }
   });

@@ -93,8 +93,9 @@ export default defineComponent({
 .separator {
   position: relative;
   width:80%;
-  border-top: 1px solid #1d1d1d;
+  border-top: 1px solid #000000;
   border-bottom: 1px solid #2d2d2d;
+  margin-bottom: 5px;
 }
 .portal:hover,
 .server-item:hover {

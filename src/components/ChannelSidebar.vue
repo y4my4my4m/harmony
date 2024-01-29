@@ -13,9 +13,9 @@
       :isVisible="isDropdownOpen"
       @toggle="toggleDropdown"
       @showCategoryCreator="showCategoryCreator"
+      @createChannel="emitCreateChannel"
     />
     <div>
-      <div class="create-channel" @click="emitCreateChannel(null)">Create channel +</div>
       <draggable
         class="category-items"
         v-model="orphanChannels"
