@@ -25,6 +25,11 @@
 - [x] channels
 - [x] channel categories
 - [x] channel type
+- [x] channel drag & drop
+- [ ] channel order
+- [ ] category order
+  - [x] has or
+  - [ ] reorganize order
 - [ ] realtime status
   - [x] changes
   - [ ] bug in self status display

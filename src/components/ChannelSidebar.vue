@@ -14,6 +14,22 @@
       @toggle="toggleDropdown"
       @showCategoryCreator="showCategoryCreator"
     />
+    <div>
+      <div class="create-channel" @click="emitCreateChannel(null)">Create channel +</div>
+      <draggable
+        class="category-items"
+        v-model="orphanChannels"
+        group="channels"
+        :data-category-index="null"
+        @end="onEndDrag"
+      >
+        <template #item="{ element }">
+          <div :key="element.id" :class="['channel-item', { 'selected': element.id === currentChannelId }]" @click="selectChannel(element.id)">
+            <HashTagIcon v-if="element.type==0"/><SpeakerIcon v-else /> {{ element.name }}
+          </div>
+        </template>
+      </draggable>
+    </div>
     <template v-if="categories && categories.length !== 0">
       <template v-for="(category, index) in combinedCategories" :key="category.id">
         <div class="category" :class="{'expanded' : category.expanded }">
@@ -40,12 +56,6 @@
           </draggable>
         </div>
       </template>
-    </template>
-    <template v-else>
-      <div class="create-channel" @click="emitCreateChannel(null)">Create channel +</div>
-      <div v-for="channel in channels" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
-        <HashTagIcon v-if="channel.type==0"/><SpeakerIcon v-else /> {{ channel.name }}
-      </div>
     </template>
     <UserProfileComponent />
   </div>
@@ -131,6 +141,10 @@ export default defineComponent({
       }));
     });
 
+    const orphanChannels = computed(() => {
+      return props.channels.filter(channel => !channel.category);
+    });
+  
     const draggedChannel = ref(null);
 
     const onStartDrag = (event: any) => {
@@ -141,22 +155,37 @@ export default defineComponent({
         draggedChannel.value = originalCategory.channels[event.oldIndex];
       }
     };
-
     const onEndDrag = (event: any) => {
-      const newCategoryIndex = Number(event.to.closest('.category-items').dataset.categoryIndex);
-      const newCategory = combinedCategories.value[newCategoryIndex];
+      // Determine the original and new category indices
+      const originalCategoryIndex = event.from.dataset.categoryIndex ? Number(event.from.dataset.categoryIndex) : null;
+      const newCategoryIndex = event.to.dataset.categoryIndex ? Number(event.to.dataset.categoryIndex) : null;
 
-      if (!draggedChannel.value || !newCategory) {
-        console.error("Dragged channel not found or new category not found");
+      let newCategory = null;
+      if (newCategoryIndex !== null) {
+        newCategory = combinedCategories.value[newCategoryIndex];
+      }
+
+      let draggedChannel = null;
+      if (originalCategoryIndex !== null) {
+        const originalCategory = combinedCategories.value[originalCategoryIndex];
+        draggedChannel = originalCategory.channels[event.oldIndex];
+      } else {
+        // Handle the case when the channel is dragged from the orphan list
+        draggedChannel = orphanChannels.value[event.oldIndex];
+      }
+
+      if (!draggedChannel) {
+        console.error("Dragged channel not found");
         return;
       }
 
-      // Use draggedChannel.value as the channel that was moved
-      serverChannelStore.moveChannelToCategory(draggedChannel.value.id, newCategory.id);
+      // Determine the new category ID or set it to null if it's an orphan channel now
+      const newCategoryId = newCategory ? newCategory.id : null;
 
-      // Reset the dragged channel
-      draggedChannel.value = null;
+      // Move the channel to the new category or to the orphan list
+      serverChannelStore.moveChannelToCategory(draggedChannel.id, newCategoryId);
     };
+
 
 
   
@@ -232,6 +261,7 @@ export default defineComponent({
       draggedChannel,
       onStartDrag,
       onEndDrag,
+      orphanChannels,
     };
   }
 });

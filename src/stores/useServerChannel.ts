@@ -13,7 +13,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       emojis: ResolvedEmoji[]; 
     }>,
     channels: [] as Channel[],
-    categories: {} as Category[],
+    categories: [] as Category[],
     categoryChannels: {} as Record<string, Channel[]>,
     currentServer: {} as Server,
     currentServerId: null as string | null,
@@ -135,21 +135,25 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
     async createCategory(name: string, serverId: string) {
       try {
-        // find the highest order number
-        const highestOrder = this.categories.sort((a, b) =>  a.order - b.order);
+        let highestOrder = 0;
+    
+        if (this.categories.length > 0) {
+          const sortedCategories = this.categories.sort((a, b) => b.order - a.order);
+          highestOrder = sortedCategories[0].order;
+        }
+    
         const { data: categoryData, error: categoryError } = await supabase
           .from('channel_categories')
-          .insert([{ name: name, server_id: serverId, order: highestOrder[highestOrder.length - 1].order + 1}])
-          .select()
+          .insert([{ name: name, server_id: serverId, order: highestOrder + 1 }])
           .single();
+    
         if (categoryError) throw categoryError;
-
-        // Handle successful category creation
+    
         this.categories.push(categoryData);
       } catch (error) {
         console.error('Error creating category:', error);
       }
-    },
+    },    
     async fetchChannels(serverId: string) {
         const { data: channels, error } = await supabase
         .from('channels')
