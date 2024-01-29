@@ -3,6 +3,7 @@
     <div class="login-container">
       <div class="login-bg">
         <h1>Harmony</h1>
+        <!-- <img src="/harmony_text.png" alt="Harmony" class="text-logo" /> -->
         <h2>Login</h2>
         <div class="inputs-container">
           <input v-model="email" type="email" placeholder="Email" />
@@ -194,6 +195,13 @@ export default defineComponent({
 
   a:hover {
     text-decoration: underline;
+  }
+
+  .text-logo {
+    width: 100%;
+    height: auto;
+    max-width: 460px;
+    margin-top: 60px;
   }
 
   @media screen and (max-width: 768px) {

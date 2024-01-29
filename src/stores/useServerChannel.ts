@@ -96,7 +96,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
           // console.log(`Channel with id ${channel.id} has no category_id or invalid category_id`);
         }
       });
+    },
+    async createCategory(name: string, serverId: string) {
+      try {
+        // find the highest order number
+        const highestOrder = this.categories.sort((a, b) =>  a.order - b.order);
+        const { data: categoryData, error: categoryError } = await supabase
+          .from('channel_categories')
+          .insert([{ name: name, server_id: serverId, order: highestOrder[highestOrder.length - 1].order + 1}])
+          .select()
+          .single();
+        if (categoryError) throw categoryError;
 
+        // Handle successful category creation
+        this.categories.push(categoryData);
+      } catch (error) {
+        console.error('Error creating category:', error);
+      }
     },
     async fetchChannels(serverId: string) {
         const { data: channels, error } = await supabase

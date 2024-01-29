@@ -1,15 +1,15 @@
 <template>
-    <div class="server-dropdown" v-click-outside="closeDropdown">
-      <ul>
-        <li @click="goToServerSettings">Server Settings</li>
-        <li @click="generateInviteLink">Get Invite Link</li>
-        <!-- Additional options -->
-      </ul>
-    </div>
-  </template>
+  <div class="server-dropdown" v-if="isVisible">
+    <ul>
+      <li @click="goToServerSettings">Server Settings</li>
+      <li @click="createCategory">Create Category</li>
+      <li @click="generateInviteLink">Get Invite Link</li>
+    </ul>
+  </div>
+</template>
   
 <script lang="ts">
-  import { defineComponent, ref } from 'vue';
+  import { defineComponent } from 'vue';
   import { generateInviteUrl } from '@/services/inviteService';
   import { useAuthStore } from '@/stores/auth';
   import { useToast } from "vue-toastification";
@@ -17,18 +17,24 @@
   
   export default defineComponent({
     props: {
-      serverId: String
+      serverId: String,
+      isVisible: Boolean,
     },
-    setup(props) {
-      const showDropdown = ref(false);
+    emits: ['toggle', 'showCategoryCreator'],
+    setup(props, { emit }) {
       const auth = useAuthStore();
       const router = useRouter();
       const toast = useToast();
-  
+
       const closeDropdown = () => {
-        showDropdown.value = false;
+        emit('toggle');
       };
-  
+
+      const createCategory = async () => {
+        emit('showCategoryCreator', true);
+        closeDropdown();
+      };
+
       const goToServerSettings = () => {
         // Navigate to server settings page
         router.push(`/server/${props.serverId}`);
@@ -45,7 +51,12 @@
         closeDropdown();
       };
   
-      return { showDropdown, goToServerSettings, generateInviteLink, closeDropdown };
+      return { 
+        goToServerSettings, 
+        createCategory,
+        generateInviteLink,
+        closeDropdown
+      };
     }
   });
 </script>
@@ -60,6 +71,7 @@
     color: white;
     border-radius: 5px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    display:block;
   }
   
   .server-dropdown ul {

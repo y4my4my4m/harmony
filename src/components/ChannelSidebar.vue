@@ -1,9 +1,19 @@
 <template>
+  <CategoryCreator
+    v-if="isCategoryCreatorOpen"
+    @showCategoryCreator="showCategoryCreator"
+    @createCategory="createCategory"
+  />
   <div class="channel-sidebar">
-    <div class="server-name" @click="toggleDropdown">
+    <div class="server-name" @click="toggleDropdown" v-click-outside="toggleDropdown">
       {{ currentServer.name }}
     </div>
-    <ServerDropdown :serverId="currentServer.id" v-show="showDropdown" />
+    <ServerDropdown
+      :serverId="currentServer.id"
+      :isVisible="isDropdownOpen"
+      @toggle="toggleDropdown"
+      @showCategoryCreator="showCategoryCreator"
+    />
     <template v-if="categories && categories.length !== 0">
       <div class="category" v-for="category in categories" :key="category.id" :class="{'expanded' : category.expanded }">
         <div class="category-name">
@@ -44,12 +54,14 @@ import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
 import UserProfileComponent from './UserProfileComponent.vue';
 import ServerDropdown from './ServerDropdown.vue';
+import CategoryCreator from './CategoryCreator.vue';
 
 export default defineComponent({
   name: 'ChannelSidebar',
   components: {
     UserProfileComponent,
     ServerDropdown,
+    CategoryCreator,
     ArrowDownIcon,
     HashTagIcon,
     SpeakerIcon
@@ -76,7 +88,8 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const showDropdown = ref(false);
+    const isDropdownOpen = ref(false);
+    const isCategoryCreatorOpen = ref(false);
     // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
     const serverChannelStore = useServerChannelStore();
     const serverUsers = useServerUsersStore();
@@ -93,6 +106,18 @@ export default defineComponent({
       return authStore.session?.user?.id || '';
       // return localStorage.getItem('userId') || '';
     });
+
+    const toggleDropdown = () => {
+      isDropdownOpen.value = !isDropdownOpen.value;
+    };
+
+    const showCategoryCreator = (show: boolean) => {
+      isCategoryCreatorOpen.value = show;
+    }
+
+    const createCategory = (category: string) => {
+      serverChannelStore.createCategory(category, props.currentServer.id);
+    }
 
     const selectChannel = (channelId: string) => {
       // Find the channel by channelId
@@ -129,10 +154,6 @@ export default defineComponent({
       return categoryOpenState.value[categoryId] || false;
     };
 
-    const toggleDropdown = () => {
-      showDropdown.value = !showDropdown.value;
-    };
-
     const handleChannelCreated = (channel: Channel) => {
       console.log('Channel created:', channel);
       selectChannel(channel.id);
@@ -140,14 +161,17 @@ export default defineComponent({
     };
 
     return { 
+      isDropdownOpen, 
+      toggleDropdown,
       selectChannel,
       serverChannelStore,
-      showDropdown,
       emitCreateChannel,
       handleChannelCreated,
-      toggleDropdown,
       toggleCategory,
       isCategoryOpen,
+      isCategoryCreatorOpen,
+      showCategoryCreator,
+      createCategory,
     };
   }
 });
