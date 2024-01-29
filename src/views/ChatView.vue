@@ -34,8 +34,7 @@
       <VoiceChannelScene 
         :currentChannelId="currentChannelId"
       />
-      <ChatComponent 
-        :key="currentChannelId"
+      <ChatComponent
         :messages="chatMessages"
         @loadMoreMessages="fetchMoreMessages" 
         @update:isAtBottom="isAtBottom = $event" 
@@ -142,7 +141,7 @@
       };
       const handleChannelSelected = async (channelId: string) => {
         serverChannelStore.setCurrentChannel(channelId);
-        chatStore.clearMessages(); // Clear messages right when the channel is changed
+        // chatStore.clearMessages(); // Clear messages right when the channel is changed
         await chatStore.fetchMessages(channelId);
         chatStore.subscribeToMessages(channelId);
         scrollToBottom();

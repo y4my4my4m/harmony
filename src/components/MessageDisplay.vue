@@ -8,7 +8,7 @@
         <div v-show="message.reply_to" class="repliedMessage">
           <!-- TODO: dont make "gets" for everything -->
           <div class="replyContainer">
-            <img :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
+            <img draggable="false" :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
             <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="getUserColor(getUserIdFromMessage(message.reply_to)) ">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
             <div class="repliedTextPreview" role="button" tabindex="0">
               <div id="message-content" class="repliedTextContent">
@@ -32,7 +32,7 @@
           </div>
         </div>
         <div class="message-header">
-          <img :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
+          <img draggable="false" :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
           <div>
             <span>
               <strong class="user-display-name" :style="getUserColor(message.user_id)" @click="showUserProfile(message.user_id, $event)">
