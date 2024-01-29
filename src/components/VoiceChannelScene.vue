@@ -62,7 +62,7 @@
       }, { deep: true });
 
       watch (usersInCurrentChannel, () => {
-        console.log(usersInCurrentChannel.value);
+        // console.log(usersInCurrentChannel.value);
         if (usersInCurrentChannel.value.length > 0) {
           isVoiceChannelPopupVisible.value = true;
         } else {

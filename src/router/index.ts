@@ -65,16 +65,16 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
-    console.log("Redirecting to Login, isLoggedIn:", authStore.isLoggedIn);
+    // console.log("Redirecting to Login, isLoggedIn:", authStore.isLoggedIn);
     next({ name: 'Login' });
   }
   // if on login page and logged in, redirect to chat
   else if ((to.name === 'Login' || to.name === 'Home') && authStore.isLoggedIn) {
-    console.log("Redirecting to Chat, isLoggedIn:", authStore.isLoggedIn);
+    // console.log("Redirecting to Chat, isLoggedIn:", authStore.isLoggedIn);
     next({ name: 'Chat' });
   }
   else {
-    console.log("Proceeding to route, isLoggedIn:", authStore.isLoggedIn);
+    // console.log("Proceeding to route, isLoggedIn:", authStore.isLoggedIn);
     next();
   }
 });

@@ -15,20 +15,31 @@
       @showCategoryCreator="showCategoryCreator"
     />
     <template v-if="categories && categories.length !== 0">
-      <div class="category" v-for="category in categories" :key="category.id" :class="{'expanded' : category.expanded }">
-        <div class="category-name">
-          <div class="category-name-holder" @click="toggleCategory(category.id)">
-            <ArrowDownIcon /> 
-            {{ category.name }}
+      <template v-for="(category, index) in combinedCategories" :key="category.id">
+        <div class="category" :class="{'expanded' : category.expanded }">
+          <div class="category-name">
+            <div class="category-name-holder" @click="toggleCategory(category.id)">
+              <ArrowDownIcon /> 
+              {{ category.name }}
+            </div>
+          <div class="create-channel" @click="emitCreateChannel(category.id)">+</div>
           </div>
-         <div class="create-channel" @click="emitCreateChannel(category.id)">+</div>
+          <draggable
+            class="category-items"
+            v-model="category.channels"
+            group="channels"
+            :data-category-index="index"
+            @start="onStartDrag"
+            @end="onEndDrag"
+          >
+            <template #item="{ element }">
+              <div :key="element.id" :class="['channel-item', { 'selected': element.id === currentChannelId }]" @click="selectChannel(element.id)">
+                <HashTagIcon v-if="element.type==0"/><SpeakerIcon v-else /> {{ element.name }}
+              </div>
+            </template>
+          </draggable>
         </div>
-        <div class="category-items" >
-          <div v-for="channel in categoryChannels[category.id]" :key="channel.id" :class="['channel-item', { 'selected': channel.id === currentChannelId }]" @click="selectChannel(channel.id)">
-            <HashTagIcon v-if="channel.type==0"/><SpeakerIcon v-else /> {{ channel.name }}
-          </div>
-        </div>
-      </div>
+      </template>
     </template>
     <template v-else>
       <div class="create-channel" @click="emitCreateChannel(null)">Create channel +</div>
@@ -56,6 +67,8 @@ import UserProfileComponent from './UserProfileComponent.vue';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 
+import draggable from "vuedraggable";
+
 export default defineComponent({
   name: 'ChannelSidebar',
   components: {
@@ -64,7 +77,8 @@ export default defineComponent({
     CategoryCreator,
     ArrowDownIcon,
     HashTagIcon,
-    SpeakerIcon
+    SpeakerIcon,
+    draggable,
   },
   props: {
     currentServer: {
@@ -107,6 +121,45 @@ export default defineComponent({
       // return localStorage.getItem('userId') || '';
     });
 
+    const combinedCategories = computed(() => {
+      if (!Array.isArray(props.categories)) {
+        return [];
+      }
+      return props.categories.map(category => ({
+        ...category,
+        channels: props.categoryChannels[category.id] || [],
+      }));
+    });
+
+    const draggedChannel = ref(null);
+
+    const onStartDrag = (event: any) => {
+      const originalCategoryIndex = Number(event.from.closest('.category-items').dataset.categoryIndex);
+      const originalCategory = combinedCategories.value[originalCategoryIndex];
+
+      if (event.oldIndex >= 0 && event.oldIndex < originalCategory.channels.length) {
+        draggedChannel.value = originalCategory.channels[event.oldIndex];
+      }
+    };
+
+    const onEndDrag = (event: any) => {
+      const newCategoryIndex = Number(event.to.closest('.category-items').dataset.categoryIndex);
+      const newCategory = combinedCategories.value[newCategoryIndex];
+
+      if (!draggedChannel.value || !newCategory) {
+        console.error("Dragged channel not found or new category not found");
+        return;
+      }
+
+      // Use draggedChannel.value as the channel that was moved
+      serverChannelStore.moveChannelToCategory(draggedChannel.value.id, newCategory.id);
+
+      // Reset the dragged channel
+      draggedChannel.value = null;
+    };
+
+
+  
     const toggleDropdown = (event?: MouseEvent) => {
       if (event) {
         event.stopPropagation();
@@ -175,6 +228,10 @@ export default defineComponent({
       isCategoryCreatorOpen,
       showCategoryCreator,
       createCategory,
+      combinedCategories,
+      draggedChannel,
+      onStartDrag,
+      onEndDrag,
     };
   }
 });

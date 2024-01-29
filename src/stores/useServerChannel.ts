@@ -97,6 +97,42 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       });
     },
+    async moveChannelToCategory(channelId:string, newCategoryId:string) {
+      try {
+        // console.log(channelId, newCategoryId);
+        const { data, error } = await supabase
+          .from('channels')
+          .update({ category: newCategoryId })
+          .eq('id', channelId)
+          .select()
+          .single();
+        if (error) throw error;
+
+        // Update the channels array
+        const updatedChannelIndex = this.channels.findIndex(ch => ch.id === channelId);
+        if (updatedChannelIndex !== -1) {
+          this.channels[updatedChannelIndex] = data;
+        }
+
+        // Update the categoryChannels mapping
+        // Remove the channel from its previous category
+        for (const categoryChannels of Object.values(this.categoryChannels)) {
+          const channelIndex = categoryChannels.findIndex(ch => ch.id === channelId);
+          if (channelIndex !== -1) {
+            categoryChannels.splice(channelIndex, 1);
+            break;
+          }
+        }
+        // Add the channel to its new category
+        if (!this.categoryChannels[newCategoryId]) {
+          this.categoryChannels[newCategoryId] = [];
+        }
+        this.categoryChannels[newCategoryId].push(data);
+
+        } catch (error) {
+        console.error('Error moving channel to category:', error);
+      }
+    },
     async createCategory(name: string, serverId: string) {
       try {
         // find the highest order number

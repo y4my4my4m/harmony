@@ -29,7 +29,8 @@
     "vue-easy-lightbox": "next",
     "vue-router": "^4.2.5",
     "vue-toastification": "next",
-    "vue3-lazyload": "^0.3.8"
+    "vue3-lazyload": "^0.3.8",
+    "vuedraggable": "next"
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.3.3",
