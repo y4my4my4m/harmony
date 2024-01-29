@@ -12,7 +12,7 @@
         :title="`:${part.emoji.name}:`"
         draggable="false"
       />
-      <div v-else-if="(part.type === 'file' && part.fileType === 'image') && imageLoaded" class="file-container">
+      <div v-else-if="(part.type === 'file' && part.fileType === 'image' && !reply) && imageLoaded" class="file-container">
         <div v-if="imageLoaded[part.url]" class="image-skeleton"></div>
         <img
           :src="part.url"
@@ -23,7 +23,7 @@
         />
       </div>
       <!-- maybe unsafe? -->
-      <div v-if="(part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) && imageLoaded" class="file-container">
+      <div v-if="(part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) && imageLoaded && !reply" class="file-container">
         <div v-if="imageLoaded[part.url]" class="image-skeleton"></div>
         <img
           :src="part.url"
@@ -33,13 +33,14 @@
           draggable="false"
         />
       </div>
-      <div v-if="(part.type === 'url' && (part.url.endsWith('.mp4') || part.url.endsWith('.webm')))" class="file-container">
+      <div v-if="(part.type === 'url' && (part.url.endsWith('.mp4') || part.url.endsWith('.webm'))) && !reply" class="file-container">
         <!-- <div v-if="imageLoaded[part.url]" class="image-skeleton"></div> -->
         <video
           :src="part.url"
           controls
         ></video>
       </div>
+      <a v-if="reply && (part.type === 'url' || part.type === 'file')" :href="part.url" target="_blank">{{ part.url }}</a>
     </template>
   </div>
   <input v-else type="text" v-model="localEditableContent" @keyup.esc="handleCancelEdit" @keyup.enter="handleSaveEdit" class="edit-input selectableText"  @dragstart.prevent/>
@@ -73,7 +74,8 @@ export default defineComponent({
     },
     saveEdit: Function,
     cancelEdit: Function,
-    showUserProfile: Function
+    showUserProfile: Function,
+    reply: Boolean,
   },
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile'],
   setup(props, { emit }) {
@@ -99,7 +101,7 @@ export default defineComponent({
     return { 
       localEditableContent,
       handleSaveEdit, 
-      handleCancelEdit
+      handleCancelEdit,
     };
   }
 });

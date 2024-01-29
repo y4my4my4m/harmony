@@ -3,9 +3,9 @@
     <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
-    <div v-else v-for="(message, index) in messages" :key="message.id" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`#${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
       <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
-        <div v-show="message.reply_to" class="repliedMessage">
+        <div v-show="message.reply_to" @click="highlightMessage(message.reply_to)" class="repliedMessage">
           <!-- TODO: dont make "gets" for everything -->
           <div class="replyContainer">
             <img draggable="false" :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
@@ -19,6 +19,7 @@
                     :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
                     :isSingleEmojiMessage="isSingleEmojiMessage[index]"
                     :image-loaded="imageLoaded"
+                    :reply="true"
                     @image-loaded="handleImageLoaded"
                     @open-lightbox="handleOpenLightbox"
                     @update:message="saveEdit"
@@ -47,6 +48,7 @@
               :editableMessageContent="editableMessageContent"
               :isSingleEmojiMessage="isSingleEmojiMessage[index]"
               :image-loaded="imageLoaded"
+              :reply="false"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -65,6 +67,7 @@
         :editableMessageContent="editableMessageContent"
         :isSingleEmojiMessage="isSingleEmojiMessage[index]"
         :image-loaded="imageLoaded"
+        :reply="false"
         @image-loaded="handleImageLoaded"
         @open-lightbox="handleOpenLightbox"
         @update:message="saveEdit"
@@ -198,6 +201,15 @@ export default defineComponent({
       //   }
       // }).join('')
     };
+
+    const highlightMessage = (messageId: string) => {
+      // scroll up to message id
+      const messageElement = document.getElementById(`#${messageId}`);
+      if (messageElement) {
+        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        messageElement.classList.add('highlighted');
+      }
+    }
 
     const replyTo = (message: Message) => {
       emit('replyingTo', message.id, getUserDisplayName(message.user_id));
@@ -370,7 +382,8 @@ export default defineComponent({
       closeProfile,
       isSingleEmojiMessage,
       openEmojiReactor,
-      replyTo
+      replyTo,
+      highlightMessage
     };
   }
 });
@@ -625,6 +638,10 @@ export default defineComponent({
   /* height: 48px; */
   /* margin: 0 2px; */
   vertical-align: middle;
+}
+.highlighted {
+  background:#59554766;
+  border-left:2px solid #d79315;
 }
 .emoji-icon.single {
   height: 64px;
