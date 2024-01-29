@@ -253,7 +253,7 @@ export default defineComponent({
       return `color: ${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`;
     };
     const getUserAvatar = (userId:string) => {
-      return serverUsersStore.userProfiles[userId]?.avatar_url;
+      return serverUsersStore.userProfiles[userId]?.avatar_url || '/default_avatar.png';
     };
     const formatTimestamp = (timestamp:Date) => {
       return format(new Date(timestamp), 'p'); // Formats to the user's locale time
