@@ -21,8 +21,8 @@ const router = createRouter({
       path: '/chat/:serverId?/:channelId?',
       name: 'Chat',
       component: ChatView,
+      props: true,
       meta: { requiresAuth: true },
-      props: true
     },
     {
       path: '/login',
@@ -64,17 +64,13 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
-  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
-    // console.log("Redirecting to Login, isLoggedIn:", authStore.isLoggedIn);
+  const isLoggedIn = authStore.isLoggedIn;
+
+  if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'Login' });
-  }
-  // if on login page and logged in, redirect to chat
-  else if ((to.name === 'Login' || to.name === 'Home') && authStore.isLoggedIn) {
-    // console.log("Redirecting to Chat, isLoggedIn:", authStore.isLoggedIn);
+  } else if ((to.name === 'Login' || to.name === 'Home') && isLoggedIn) {
     next({ name: 'Chat' });
-  }
-  else {
-    // console.log("Proceeding to route, isLoggedIn:", authStore.isLoggedIn);
+  } else {
     next();
   }
 });

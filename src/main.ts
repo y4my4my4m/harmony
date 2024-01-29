@@ -35,7 +35,11 @@ const pinia = createPinia();
 app.use(pinia);
 
 const authStore = useAuthStore();
-authStore.initializeAuth();
+try {
+  await authStore.initializeAuth();
+} catch (error) {
+  console.error('Failed to initialize app:', error);
+}
 
 
 app.use(VueEasyLightbox);
