@@ -1,5 +1,5 @@
 <template>
-  <div class="server-dropdown" v-if="isVisible">
+  <div class="server-dropdown" v-if="isVisible" v-click-outside="closeDropdown">
     <ul>
       <li @click="goToServerSettings">Server Settings</li>
       <li @click="createCategory">Create Category</li>

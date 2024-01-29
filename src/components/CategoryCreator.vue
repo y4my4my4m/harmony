@@ -1,6 +1,6 @@
 <template>
     <div class="categoryCreatorOverlay"  @click="closeCategoryCreator">
-      <div class="categoryCreator"  @click.stop>
+      <div class="categoryCreator" @click.stop>
         <input 
           type="text" 
           placeholder="New Category"

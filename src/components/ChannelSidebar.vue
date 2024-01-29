@@ -5,7 +5,7 @@
     @createCategory="createCategory"
   />
   <div class="channel-sidebar">
-    <div class="server-name" @click="toggleDropdown" v-click-outside="toggleDropdown">
+    <div class="server-name" @click="toggleDropdown">
       {{ currentServer.name }}
     </div>
     <ServerDropdown
@@ -107,7 +107,10 @@ export default defineComponent({
       // return localStorage.getItem('userId') || '';
     });
 
-    const toggleDropdown = () => {
+    const toggleDropdown = (event?: MouseEvent) => {
+      if (event) {
+        event.stopPropagation();
+      }
       isDropdownOpen.value = !isDropdownOpen.value;
     };
 
