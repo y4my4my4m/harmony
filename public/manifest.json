@@ -1,6 +1,6 @@
 {
   "name": "Harmony",
-  "short_name": "harmony",
+  "short_name": "Harmony",
   "description": "An e2ee federated chat-app and activity pub to disrupt centralized power of greedy corporations who want to erode your freedom.",
 	"start_url": "/",
 	"display": "standalone",
