@@ -1,10 +1,10 @@
 <template>
-  <CategoryCreator
-    v-if="isCategoryCreatorOpen"
-    @showCategoryCreator="showCategoryCreator"
-    @createCategory="createCategory"
-  />
   <div class="channel-sidebar">
+    <CategoryCreator
+      v-if="isCategoryCreatorOpen"
+      @showCategoryCreator="showCategoryCreator"
+      @createCategory="createCategory"
+    />
     <div class="server-name" @click="toggleDropdown">
       {{ currentServer.name }}
     </div>
