@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Message } from '@/types';
+import { 
+  subscribeToServerNotifications,
+  broadcastInServer,
+  listenInServer
+} from '@/services/notificationService';
+
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -158,6 +164,16 @@ export const useChatStore = defineStore('chat', {
           // this.messages.push(data[0]);
           // TODO: the following supposed to help with the double message being sent but i still get the same issue...
           this.messages = [...this.messages, data[0]];
+          
+          // if content contains a mention, send to the notification service
+          
+          for (const parts of content) {
+            for (const part of parts) {
+              if (part.type === 'mention') {
+                broadcastInServer('mention', serverId, to: part.mention, from: userId, messageId:data[0].id );
+              }
+            }
+          }
         }
         console.log('Message sent:', data);
       } catch (e) {

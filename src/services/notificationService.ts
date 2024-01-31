@@ -20,7 +20,7 @@ export const unsubscribeToServerNotifications = async (userId: string, serverId:
     }).unsubscribe();
 }
 
-export const broadcastInServer = async (event: string, serverId: string, to?: string, content?: string, messageId?: string) => {
+export const broadcastInServer = async (event: string, serverId: string, to?: string, from?: string, content?: string, messageId?: string) => {
     // broadcast notification to server listeners
     const channel = supabase.channel(`notificationsFromServer-${serverId}`);
 
@@ -30,6 +30,7 @@ export const broadcastInServer = async (event: string, serverId: string, to?: st
         payload: {
             serverId,
             to,
+            from,
             content, 
             messageId
         }
