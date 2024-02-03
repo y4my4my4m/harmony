@@ -31,19 +31,20 @@ export const broadcastInServer = async (event: string, serverId: string, to?: st
             serverId,
             to,
             from,
-            content, 
+            content,
             messageId
         }
     });
 }
 
-export const listenInServer = async (event: string, serverId: string, from?: string, content?: string, messageId?: string) => {
+export const listenInServer = async (event: string, serverId: string) => {
     // listen to broadcast notifications for server
     const channel = supabase.channel(`notificationsFromServer-${serverId}`);
-
-    console.log(from, content, messageId);
+    // , from?: string, content?: string, messageId?: string
+    // console.log(from, content, messageId);
 
     channel.on('broadcast', { event }, (payload) => {
+        console.log("received broadcast in server");
         console.log(payload);
         // const { event, userId } = payload.payload;
 

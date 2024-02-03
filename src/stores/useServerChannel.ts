@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Server, Category, Channel, Emoji, ResolvedEmoji } from '@/types';
+import { 
+  subscribeToServerNotifications,
+  listenInServer
+} from '@/services/notificationService';
 
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
@@ -24,6 +28,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
       await this.fetchServersForUser(userId);
       await this.fetchAllEmojis();
       this.resolveAndCacheEmojis();
+      await this.subscribeAndListentoServerNotifications(userId);
+    },
+    async subscribeAndListentoServerNotifications(userId: string) {
+      this.servers.forEach(server => {
+        subscribeToServerNotifications(userId, server.id);
+        listenInServer('broadcast', server.id);
+      });
     },
     async fetchServersForUser(userId: string) {
       const { data, error } = await supabase

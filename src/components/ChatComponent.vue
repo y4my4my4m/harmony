@@ -170,7 +170,7 @@
         console.log("File dropped:", event);
         uploading.value = true;
         const files = event.dataTransfer.files;
-        if (files.length && serverChannelStore.currentChannelId && authStore.session?.user?.id) {
+        if (files.length && serverChannelStore.currentChannelId && serverChannelStore.currentServerId && authStore.session?.user?.id) {
             const file = files[0];
             const fileUrl = await handleFileDrop(authStore.session?.user?.id, file);
 

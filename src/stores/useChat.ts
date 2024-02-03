@@ -1,10 +1,8 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { Message } from '@/types';
+import type { Message, MessagePart } from '@/types';
 import { 
-  subscribeToServerNotifications,
   broadcastInServer,
-  listenInServer
 } from '@/services/notificationService';
 
 // import { getEmoji } from '@/services/emojiService';
@@ -164,12 +162,11 @@ export const useChatStore = defineStore('chat', {
           this.messages = [...this.messages, data[0]];
 
           // if content contains a mention, send to the notification service
-          for (const parts of Array.from(content)) {
-            for (const part of parts as Array<any>) {
-              if (part.type === 'mention') {
-                //!SECTION                             to            from    messageId
-                broadcastInServer('mention', serverId, part.mention, userId, data[0].id );
-              }
+          for (const part of Array.from(content) as MessagePart[]) {
+            console.log(part);
+            if (part.type === 'mention') {
+              //!SECTION                             to            from    content       messageId
+              broadcastInServer('mention', serverId, part.mention, userId, part.mention, data[0].id );
             }
           }
         }
