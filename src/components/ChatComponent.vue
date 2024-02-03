@@ -181,6 +181,7 @@
                 // bad practice to use empty string as content, but we don't want to send the file as content
                 // we should use typed data for this, but we'll keep it simple for now
                 chatStore.sendMessage(
+                    serverChannelStore.currentServerId,
                     serverChannelStore.currentChannelId, 
                     authStore.session.user.id, 
                     [{type: "file", url: fileUrl, fileType: "image"}],
@@ -306,7 +307,7 @@
         if (authStore.session?.user && serverChannelStore.currentChannelId) {
           const parsedMessage = parseMessageInput(content);
           console.log("replyToMessageId.value:", replyToMessageId.value);
-          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, parsedMessage, replyToMessageId.value);
+          chatStore.sendMessage(serverChannelStore.currentServerId, serverChannelStore.currentChannelId, authStore.session.user.id, parsedMessage, replyToMessageId.value);
           messageContent.value = ''; // Reset the message input field after sending
           handleDontReply();
         }
@@ -316,7 +317,7 @@
         const gifUrl = gif.media_formats.gif.url;
         closeGiphy();
         if (serverChannelStore.currentChannelId && authStore.session?.user) {
-          chatStore.sendMessage(serverChannelStore.currentChannelId, authStore.session.user.id, [{type: "file", url: gifUrl, fileType: "image"}], replyToMessageId.value);
+          chatStore.sendMessage(serverChannelStore.currentServerId, serverChannelStore.currentChannelId, authStore.session.user.id, [{type: "file", url: gifUrl, fileType: "image"}], replyToMessageId.value);
           handleDontReply();
         }
       };

@@ -144,7 +144,7 @@ export const useChatStore = defineStore('chat', {
         console.error('Error during message deletion:', e);
       }
     },
-    async sendMessage(channelId: string, userId: string, content: Array<Object>, replyTo: string) {
+    async sendMessage(serverId: string, channelId: string, userId: string, content: Array<Object>, replyTo: string) {
       try {
         const { data, error } = await supabase
           .from('messages')
@@ -161,16 +161,14 @@ export const useChatStore = defineStore('chat', {
           return;
         }
         if (data && data.length > 0) {
-          // this.messages.push(data[0]);
-          // TODO: the following supposed to help with the double message being sent but i still get the same issue...
           this.messages = [...this.messages, data[0]];
-          
+
           // if content contains a mention, send to the notification service
-          
-          for (const parts of content) {
-            for (const part of parts) {
+          for (const parts of Array.from(content)) {
+            for (const part of parts as Array<any>) {
               if (part.type === 'mention') {
-                broadcastInServer('mention', serverId, to: part.mention, from: userId, messageId:data[0].id );
+                //!SECTION                             to            from    messageId
+                broadcastInServer('mention', serverId, part.mention, userId, data[0].id );
               }
             }
           }
