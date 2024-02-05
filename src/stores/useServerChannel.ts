@@ -33,7 +33,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
     async subscribeAndListentoServerNotifications(userId: string) {
       this.servers.forEach(server => {
         subscribeToServerNotifications(userId, server.id);
-        listenInServer('broadcast', server.id);
+        // listenInServer('broadcast', server.id);
+        console.log('Subscribed to server notifications for server:', server.id);
       });
     },
     async fetchServersForUser(userId: string) {

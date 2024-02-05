@@ -5,6 +5,8 @@ import {
   broadcastInServer,
 } from '@/services/notificationService';
 
+import { GetUserIdFromUsername } from '@/utils/getFromUser';
+
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -165,8 +167,9 @@ export const useChatStore = defineStore('chat', {
           for (const part of Array.from(content) as MessagePart[]) {
             console.log(part);
             if (part.type === 'mention') {
+              const toUserId = await GetUserIdFromUsername(part.mention);
               //!SECTION                             to            from    content       messageId
-              broadcastInServer('mention', serverId, part.mention, userId, part.mention, data[0].id );
+              broadcastInServer('mention', serverId, toUserId, userId, part.mention, data[0].id );
             }
           }
         }

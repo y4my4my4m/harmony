@@ -2,12 +2,16 @@ import { supabase } from '@/supabase';
 
 export const subscribeToServerNotifications = async (userId: string, serverId: string) => {
     // subscribe from notification events in server
-    supabase.channel(`notificationsFromServer-${serverId}`, {
+    const channel = supabase.channel(`notificationsFromServer-${serverId}`, {
         config: {
             broadcast: { self: true },
         },
     }).subscribe();
 
+    channel.on('broadcast', { event: 'mention' }, (payload) => {
+        console.log("received broadcast in server");
+        console.log(payload);
+    });
 }
 
 
