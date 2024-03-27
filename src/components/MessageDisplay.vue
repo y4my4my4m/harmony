@@ -9,7 +9,7 @@
           <!-- TODO: dont make "gets" for everything -->
           <div class="replyContainer">
             <img draggable="false" :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
-            <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="getUserColor(getUserIdFromMessage(message.reply_to)) ">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
+            <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getUserColor(getUserIdFromMessage(message.reply_to)) }">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
             <div class="repliedTextPreview" role="button" tabindex="0">
               <div id="message-content" class="repliedTextContent">
                 <!-- TODO: need to fetch if message is too far back -->
@@ -36,7 +36,7 @@
           <img draggable="false" :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
           <div>
             <span>
-              <strong class="user-display-name" :style="getUserColor(message.user_id)" @click="showUserProfile(message.user_id, $event)">
+              <strong class="user-display-name" :style="{color: getUserColor(message.user_id)}" @click="showUserProfile(message.user_id, $event)">
               {{ getUserDisplayName(message.user_id) }}
               </strong>
               <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
@@ -89,13 +89,14 @@
           :key="reaction.id"
           class="reaction"
           @click="toggleReaction(message.id, reaction.emoji)"
+          @mouseenter="showTooltip($event, reaction)"
+          @mouseleave="hideTooltip"
           :class="{'reacted': reaction.reactions.some(r => r.user_id === currentUserId)}"
           >
           <img 
             :src="reaction.emoji.url" 
             :alt="reaction.emoji.name"      />
           <span>{{ reaction.count }}</span>
-          <!-- <span class="reaction-count">1</span> -->
         </div>
         <!-- Additional UI for adding new reactions -->
       </div>
@@ -112,12 +113,27 @@
   <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
     <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
   </div>
+
+  <div 
+    v-show="tooltip.visible" 
+    class="tooltip" 
+    :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
+  >
+    <div v-for="(user) in tooltip.content" :key="user.id">
+      <span :style="{color: user.userColor}">
+        <img :src="user.avatarUrl" alt="" style="width: 20px; height: 20px; border-radius: 50%;">
+        {{ user.displayName }}
+      </span>
+    </div>
+  </div>
+
+
 </template>
 
 <script lang="ts">
 import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType, Ref } from 'vue';
-import type { Message, User, Emoji } from '@/types';
+import type { Message, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { format } from 'date-fns';
@@ -165,6 +181,45 @@ export default defineComponent({
     //     }
     //   });
     // });
+    
+    const tooltip = ref({
+      visible: false,
+      content: [] as { id: string; displayName: string; avatarUrl: string; userColor: string; }[],
+      x: 0,
+      y: 0,
+    });
+    const tooltipTimer: Ref<NodeJS.Timeout | null> = ref(null);
+
+
+    const showTooltip = (event: MouseEvent, reaction: Reaction) => {
+      // Cancel any existing timer to prevent unwanted tooltip behavior
+      if (tooltipTimer.value) {
+        clearTimeout(tooltipTimer.value);
+      }
+      const usersDetails = reaction.reactions.map(r => ({
+        id: r.user_id,
+        displayName: getUserDisplayName(r.user_id),
+        avatarUrl: getUserAvatar(r.user_id),
+        userColor: getUserColor(r.user_id),
+      }));
+      
+      // Set a timer to delay showing the tooltip
+      tooltipTimer.value = setTimeout(() => {
+        tooltip.value = {
+          visible: true,
+          content: usersDetails,
+          x: event.clientX,
+          y: event.clientY,
+        };
+      }, 2000); // 2000 milliseconds delay
+    };
+
+    const hideTooltip = () => {
+      if (tooltipTimer.value) {
+        clearTimeout(tooltipTimer.value);
+      }
+      tooltip.value.visible = false;
+    };
 
     const isSingleEmojiMessage = computed(() => {
       return props.messages.map(message => {
@@ -186,6 +241,7 @@ export default defineComponent({
       emit('sendReaction', messageId, emoji);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const startEdit = (message: Message) => {
       // editableMessageId.value = message.id;
       // // Convert message content to string
@@ -262,7 +318,7 @@ export default defineComponent({
       return serverUsersStore.userProfiles[userId]?.display_name || 'Unknown User';
     };
     const getUserColor = (userId:string) => {
-      return `color: ${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`;
+      return `${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`;
     };
     const getUserAvatar = (userId:string) => {
       return serverUsersStore.userProfiles[userId]?.avatar_url || '/default_avatar.png';
@@ -383,7 +439,10 @@ export default defineComponent({
       isSingleEmojiMessage,
       openEmojiReactor,
       replyTo,
-      highlightMessage
+      highlightMessage,
+      tooltip,
+      showTooltip,
+      hideTooltip,
     };
   }
 });
@@ -714,6 +773,29 @@ export default defineComponent({
 .user-profile-card.selected {
   opacity: 1
 }
+
+.tooltip {
+  position: fixed;
+  padding: 8px;
+  background-color: rgba(05,05,05,0.95);
+  color: white;
+  border-radius: 4px;
+  z-index: 15; /* Ensure it's above other elements */
+  pointer-events: none; /* Ignore pointer events */
+  transform: translate(-50%, -100%); /* Adjust based on actual tooltip size */
+  white-space: nowrap;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+  transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+}
+.tooltip img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  margin-right: 4px;
+  position: relative;
+  top: 4px
+}
+
 @media (max-width: 768px) {
   .message-wrapper {
     justify-content: flex-start;

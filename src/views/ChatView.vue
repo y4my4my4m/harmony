@@ -210,12 +210,34 @@
       const swipeThreshold = 150; // Increase swipe threshold
       const verticalMovementThreshold = 150; // Adjust vertical movement threshold
 
-      const handleTouchStart = (event: any) => {
+      const handleTouchStart = (touchEvent: Event) => {
+        const event = touchEvent as TouchEvent;
         startX.value = event.touches[0].clientX;
         startY.value = event.touches[0].clientY;
       };
 
-      const handleTouchEnd = (event: any) => {
+      // const handleTouchMove = (touchEvent: Event) => {
+      //   touchEvent.preventDefault();
+
+      //   const event = touchEvent as TouchEvent;
+      //   let deltaX = event.touches[0].clientX - startX.value;
+
+      //   // Constrain deltaX to within the expected range
+      //   deltaX = Math.max(Math.min(deltaX, swipeThreshold), -swipeThreshold);
+
+      //   const sidebarElement = document.querySelector('.server-sidebar') as HTMLElement;
+      //   const profileSidebarElement = document.querySelector('.user-sidebar') as HTMLElement;
+
+      //   // Assuming a left swipe reveals the right (profile) sidebar and vice versa
+      //   if (sidebarElement && deltaX > 0) { // Adjust for revealing server sidebar
+      //     sidebarElement.style.transform = `translateX(${deltaX}px)`;
+      //   } else if (profileSidebarElement && deltaX < 0) { // Adjust for revealing profile sidebar
+      //     profileSidebarElement.style.transform = `translateX(${deltaX}px)`;
+      //   }
+      // };
+
+      const handleTouchEnd = (touchEvent: Event) => {
+        const event = touchEvent as TouchEvent;
         endX.value = event.changedTouches[0].clientX;
         endY.value = event.changedTouches[0].clientY;
 
@@ -288,6 +310,7 @@
           if (chatLayout)
           {
             chatLayout.addEventListener('touchstart', handleTouchStart);
+            // chatLayout.addEventListener('touchmove', handleTouchMove);
             chatLayout.addEventListener('touchend', handleTouchEnd);
           }
           // wait 5 seconds then send a notification
@@ -302,6 +325,7 @@
         if (chatLayout)
         {
           chatLayout.removeEventListener('touchstart', handleTouchStart);
+          // chatLayout.removeEventListener('touchmove', handleTouchMove);
           chatLayout.removeEventListener('touchend', handleTouchEnd);
         }
       });
