@@ -119,9 +119,11 @@
     class="tooltip" 
     :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
   >
+    <div class="tooltip-emoji"><img :src="tooltip.emoji?.url" />:{{ tooltip.emoji?.name }}:</div>
+    <div style="color:#777; font-size:12px;">Reactions:</div>
     <div v-for="(user) in tooltip.content" :key="user.id">
       <span :style="{color: user.userColor}">
-        <img :src="user.avatarUrl" alt="" style="width: 20px; height: 20px; border-radius: 50%;">
+        <img class="tooltip-avatar" :src="user.avatarUrl" alt="" style="width: 20px; height: 20px; border-radius: 50%;">
         {{ user.displayName }}
       </span>
     </div>
@@ -187,6 +189,7 @@ export default defineComponent({
       content: [] as { id: string; displayName: string; avatarUrl: string; userColor: string; }[],
       x: 0,
       y: 0,
+      emoji: null as Emoji | null,
     });
     const tooltipTimer: Ref<NodeJS.Timeout | null> = ref(null);
 
@@ -210,8 +213,9 @@ export default defineComponent({
           content: usersDetails,
           x: event.clientX,
           y: event.clientY,
+          emoji: reaction.emoji
         };
-      }, 2000); // 2000 milliseconds delay
+      }, 500); // 2000 milliseconds delay
     };
 
     const hideTooltip = () => {
@@ -787,7 +791,18 @@ export default defineComponent({
   box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
   transition: all 0.3s cubic-bezier(.25,.8,.25,1);
 }
-.tooltip img {
+.tooltip .tooltip-emoji {
+  display:flex;
+  align-items:center;
+  margin-bottom:10px;
+}
+.tooltip .tooltip-emoji img {
+  width: 48px;
+  height: 48px;
+  margin-right: 4px;
+  border-radius: 4px
+}
+.tooltip .tooltip-avatar {
   width: 20px;
   height: 20px;
   border-radius: 50%;
