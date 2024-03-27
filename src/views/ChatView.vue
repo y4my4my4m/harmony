@@ -81,7 +81,9 @@
       const authStore = useAuthStore();
       const profileStore = useProfileStore();
       const toast = useToast();
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const notificationSound = ref(new Audio('/assets/sounds/poi1.mp3'));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const notificationSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
 
       const route = useRoute();
@@ -101,7 +103,7 @@
       const currentChannelId = computed(() => serverChannelStore.currentChannelId || '');
       const currentServer = computed(() => serverChannelStore.currentServer);
       const showCreateChannelForm = ref(false);
-      const currentCategoryId = ref<string | null>(null);
+      const currentCategoryId = ref<string | undefined>();
 
       const isSidebarsVisible = ref(false);
       const isProfilesVisible = ref(false);
@@ -122,6 +124,8 @@
         currentCategoryId.value = categoryId;
         showCreateChannelForm.value = true;
       };
+      
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const handleChannelCreated = async (channel: Channel) => {
         // console.log(channel);
         await serverChannelStore.fetchCategoriesAndChannels(currentServer.value.id);
@@ -185,6 +189,7 @@
         }
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const showNotification = (title: string, options?: NotificationOptions) => {
         if (Notification.permission === 'granted') {
           // notificationSound.value.play();
