@@ -178,5 +178,6 @@ export default defineComponent({
     width: calc(100% + 10px);
     top:0;
     left:0;
+    z-index: 30;
   }
 </style>

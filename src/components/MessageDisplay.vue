@@ -5,7 +5,7 @@
     </div>
     <div v-else v-for="(message, index) in messages" :key="message.id" :id="`#${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
       <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
-        <div v-show="message.reply_to" @click="highlightMessage(message.reply_to)" class="repliedMessage">
+        <div v-if="message.reply_to" @click="highlightMessage(message.reply_to)" class="repliedMessage">
           <!-- TODO: dont make "gets" for everything -->
           <div class="replyContainer">
             <img draggable="false" :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">

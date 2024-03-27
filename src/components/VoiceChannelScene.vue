@@ -196,6 +196,7 @@
     justify-content: center;
     /* justify-content: flex-start; */
     align-items: center;
+    z-index:20;
   }
   
   .voice-channel-grid {
