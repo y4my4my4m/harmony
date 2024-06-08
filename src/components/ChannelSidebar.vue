@@ -22,6 +22,8 @@
         group="channels"
         :data-category-index="null"
         @end="onEndDrag"
+        delay="250"
+        delay-on-touch-only
       >
         <template #item="{ element }">
           <div :key="element.id" :class="['channel-item', { 'selected': element.id === currentChannelId }]" @click="selectChannel(element.id)">
@@ -38,7 +40,7 @@
               <ArrowDownIcon /> 
               {{ category.name }}
             </div>
-          <div class="create-channel" @click="emitCreateChannel(category.id)">+</div>
+            <div class="create-channel" @click="emitCreateChannel(category.id)">+</div>
           </div>
           <draggable
             class="category-items"
@@ -47,6 +49,8 @@
             :data-category-index="index"
             @start="onStartDrag"
             @end="onEndDrag"
+            delay="250"
+            delay-on-touch-only
           >
             <template #item="{ element }">
               <div :key="element.id" :class="['channel-item', { 'selected': element.id === currentChannelId }]" @click="selectChannel(element.id)">
@@ -156,7 +160,7 @@ export default defineComponent({
       }
     };
     const onEndDrag = (event: any) => {
-      // Determine the original and new category indices
+// Determine the original and new category indices
       const originalCategoryIndex = event.from.dataset.categoryIndex ? Number(event.from.dataset.categoryIndex) : null;
       const newCategoryIndex = event.to.dataset.categoryIndex ? Number(event.to.dataset.categoryIndex) : null;
 
@@ -186,9 +190,34 @@ export default defineComponent({
       serverChannelStore.moveChannelToCategory(draggedChannel.id, newCategoryId);
     };
 
+    // const onEndDrag = (event: any) => {
+    //   const originalCategoryIndex = event.from.dataset.categoryIndex ? Number(event.from.dataset.categoryIndex) : null;
+    //   const newCategoryIndex = event.to.dataset.categoryIndex ? Number(event.to.dataset.categoryIndex) : null;
+
+    //   console.log(`Dragging from ${originalCategoryIndex} to ${newCategoryIndex}`);
+
+    //   if (originalCategoryIndex !== null && newCategoryIndex !== null) {
+    //     const originalCategory = combinedCategories.value[originalCategoryIndex];
+    //     const newCategory = combinedCategories.value[newCategoryIndex];
+    //     const draggedChannel = originalCategory.channels[event.oldIndex];
+
+    //     if (draggedChannel) {
+    //       // Move the channel in the backend
+    //       serverChannelStore.moveChannelToCategory(draggedChannel.id, newCategory.id).then(() => {
+    //         // Update local state upon successful backend update
+    //         originalCategory.channels.splice(event.oldIndex, 1); // Remove from old category
+    //         newCategory.channels.push(draggedChannel); // Add to new category
+    //       }).catch(console.error);
+    //     } else {
+    //       console.error("Dragged channel not found");
+    //     }
+    //   } else {
+    //     console.error("Invalid category indices");
+    //   }
+    // };
 
 
-  
+
     const toggleDropdown = (event?: MouseEvent) => {
       if (event) {
         event.stopPropagation();
