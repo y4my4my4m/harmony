@@ -1,25 +1,11 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { Message, MessagePart } from '@/types';
+import type { Message, MessagePart, ChannelCache, CacheMetadata } from '@/types';
 import { 
   broadcastInServer,
 } from '@/services/notificationService';
 
 import { GetUserIdFromUsername } from '@/utils/getFromUser';
-
-interface ChannelCache {
-  messages: Message[];
-  lastFetchedAt: Date;
-  oldestMessageId: string | null;
-  allMessagesLoaded: boolean;
-  lastModified: Date | null;
-}
-
-interface CacheMetadata {
-  channelId: string;
-  lastModified: Date;
-  messageCount: number;
-}
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {

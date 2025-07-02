@@ -187,3 +187,18 @@ export interface PresenceChannel {
   on(event: string, options: any, callback: (payload: any) => void): PresenceChannel;
   subscribe(callback: (status: PresenceSubscriptionStatus) => void): void;
 }
+
+// Chat store cache interfaces
+export interface ChannelCache {
+  messages: Message[];
+  lastFetchedAt: Date;
+  oldestMessageId: string | null;
+  allMessagesLoaded: boolean;
+  lastModified: Date | null;
+}
+
+export interface CacheMetadata {
+  channelId: string;
+  lastModified: Date;
+  messageCount: number;
+}
