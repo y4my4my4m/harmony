@@ -20,90 +20,79 @@ export const useChatStore = defineStore('chat', {
       this.messages = [];
       this.allMessagesLoaded = false;
     },
-    async fetchMessages(channelId: string, oldestMessageId: string = '') {
+    async fetchMessages(channelId: string, oldestMessageId: string = '', signal?: AbortSignal) {
       if (this.loadingOlderMessages && oldestMessageId !== '') return;
       this.loadingOlderMessages = true;
-      let query = supabase
-        .from('messages')
-        .select(`
-          *
-        `)
-        .eq('channel_id', channelId)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      // what was that for again?
-
-      if (oldestMessageId !== '') {
-        const { data: oldestMessage } = await supabase
+      
+      try {
+        let query = supabase
           .from('messages')
-          .select('created_at')
-          .eq('id', oldestMessageId)
-          .single();
+          .select(`
+            *
+          `)
+          .eq('channel_id', channelId)
+          .order('created_at', { ascending: false })
+          .limit(20);
 
-        if (oldestMessage) {
-          query = query.lt('created_at', oldestMessage.created_at);
-        }
-      }
+        // what was that for again?
 
-      const { data: messages, error } = await query;
+        if (oldestMessageId !== '') {
+          const { data: oldestMessage } = await supabase
+            .from('messages')
+            .select('created_at')
+            .eq('id', oldestMessageId)
+            .single();
 
-      if (error) {
-        console.error('Error fetching messages:', error);
-      } else {
-        // FIXME: refactor me...
-        // Assuming messages have an array of reaction IDs
-        if(!messages) return;
-        for (const message of messages) {
-          if (message.reactions && message.reactions.length > 0) {
-            // TODO: im using a supabase function to count and populate the emoji data...check for performance issues? (perhaps a query for all the messages would be better than individuals)
-            const { data: reactions, error: reactionsError } = await supabase
-              .rpc('get_message_reactions', { message_id: message.id });
-        
-            if (reactionsError) {
-              console.error('Error fetching reactions:', reactionsError);
-              continue;
-            }
-        
-            // Attach reactions to the message
-            message.reactions = reactions;
+          if (oldestMessage) {
+            query = query.lt('created_at', oldestMessage.created_at);
           }
         }
-        //     console.log(message);
-        //     const { data: reactionDetails, error: reactionError } = await supabase
-        //       .from('reactions')
-        //       .select('*')
-        //       .in('id', message.reactions);
-  
-        //     if (reactionError) {
-        //       console.error('Error fetching reaction details:', reactionError);
-        //       continue;
-        //     }
-  
-        //     // Transforming each reaction detail to include emoji data
-        //     for (const reaction of reactionDetails) {
-        //       try {
-        //         const emojiData = await getEmoji(reaction.emoji_id);
-        //         reaction.emoji = emojiData;
-        //       } catch (emojiError) {
-        //         console.error('Error fetching emoji:', emojiError);
-        //         reaction.emoji = null; // Or some default emoji
-        //       }
-        //     }
-  
-        //     // Attach the detailed reactions back to the message
-        //     message.reactions = reactionDetails;
-        //   }
-        // }
 
-        if (messages.length < 20) {
-          this.allMessagesLoaded = true;
+        const { data: messages, error } = await query;
+
+        // Check if request was cancelled
+        if (signal?.aborted) {
+          throw new Error('Request aborted');
         }
-        if (oldestMessageId === '') {
-          this.messages = [...messages].reverse();
+
+        if (error) {
+          console.error('Error fetching messages:', error);
         } else {
-          this.messages = [...[...messages].reverse(), ...this.messages];
+          // FIXME: refactor me...
+          // Assuming messages have an array of reaction IDs
+          if(!messages) return;
+          
+          for (const message of messages) {
+            if (message.reactions && message.reactions.length > 0) {
+              // TODO: im using a supabase function to count and populate the emoji data...check for performance issues? (perhaps a query for all the messages would be better than individuals)
+              const { data: reactions, error: reactionsError } = await supabase
+                .rpc('get_message_reactions', { message_id: message.id });
+          
+              if (reactionsError) {
+                console.error('Error fetching reactions:', reactionsError);
+                continue;
+              }
+          
+              // Attach reactions to the message
+              message.reactions = reactions;
+            }
+          }
+
+          if (messages.length < 20) {
+            this.allMessagesLoaded = true;
+          }
+          if (oldestMessageId === '') {
+            this.messages = messages.reverse();
+          } else {
+            this.messages = [...messages.reverse(), ...this.messages];
+          }
         }
+      } catch (error: any) {
+        if (error.message === 'Request aborted') {
+          throw new Error('AbortError');
+        }
+        throw error;
+      } finally {
         this.loadingOlderMessages = false;
       }
     },

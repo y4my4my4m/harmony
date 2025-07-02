@@ -12,6 +12,7 @@
 
     <MessageDisplay 
       :messages="messages" 
+      :isLoading="isLoading"
       :currentUserId="currentUserId"
       @loadMoreMessages="$emit('loadMoreMessages')"
       @toggleEmojiList="toggleEmojiList"
@@ -80,6 +81,10 @@
       messages: {
         type: Array as () => Message[],
         required: true
+      },
+      isLoading: {
+        type: Boolean,
+        default: false
       },
       loadMoreMessages: Function as PropType<() => void>
     },

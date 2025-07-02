@@ -1,106 +1,124 @@
 <template>
   <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
-    <div class="no-messages" v-if="messages.length == 0">
-      There are no messages here, type something!
+    <!-- Loading skeleton for initial channel load -->
+    <div v-if="isLoading && messages.length === 0" class="loading-skeleton">
+      <div v-for="i in 8" :key="i" class="skeleton-message">
+        <div class="skeleton-avatar"></div>
+        <div class="skeleton-content">
+          <div class="skeleton-header">
+            <div class="skeleton-username"></div>
+            <div class="skeleton-timestamp"></div>
+          </div>
+          <div class="skeleton-text"></div>
+          <div class="skeleton-text short"></div>
+        </div>
+      </div>
     </div>
-    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`#${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
-      <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
-        <div v-if="message.reply_to" @click="highlightMessage(message.reply_to)" class="repliedMessage">
-          <!-- TODO: dont make "gets" for everything -->
-          <div class="replyContainer">
-            <img draggable="false" :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
-            <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getUserColor(getUserIdFromMessage(message.reply_to)) }">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
-            <div class="repliedTextPreview" role="button" tabindex="0">
-              <div id="message-content" class="repliedTextContent">
-                <!-- TODO: need to fetch if message is too far back -->
-                <span>
-                  <MessageContent 
-                    :content=" messages.find(msg => msg.id === message.reply_to)?.content || []"
-                    :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
-                    :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-                    :image-loaded="imageLoaded"
-                    :reply="true"
-                    @image-loaded="handleImageLoaded"
-                    @open-lightbox="handleOpenLightbox"
-                    @update:message="saveEdit"
-                    @update:content="editableMessageContent = $event"
-                    @cancel-edit="cancelEdit"
-                    @show-user-profile="showUserProfile"
-                  />
-                </span>
+    
+    <!-- Normal message display -->
+    <template v-else>
+      <div class="no-messages" v-if="messages.length == 0 && !isLoading">
+        There are no messages here, type something!
+      </div>
+      <div v-else v-for="(message, index) in messages" :key="message.id" :id="`#${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+        <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
+          <div v-if="message.reply_to" @click="highlightMessage(message.reply_to)" class="repliedMessage">
+            <!-- TODO: dont make "gets" for everything -->
+            <div class="replyContainer">
+              <img draggable="false" :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
+              <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getUserColor(getUserIdFromMessage(message.reply_to)) }">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
+              <div class="repliedTextPreview" role="button" tabindex="0">
+                <div id="message-content" class="repliedTextContent">
+                  <!-- TODO: need to fetch if message is too far back -->
+                  <span>
+                    <MessageContent 
+                      :content=" messages.find(msg => msg.id === message.reply_to)?.content || []"
+                      :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
+                      :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+                      :image-loaded="imageLoaded"
+                      :reply="true"
+                      @image-loaded="handleImageLoaded"
+                      @open-lightbox="handleOpenLightbox"
+                      @update:message="saveEdit"
+                      @update:content="editableMessageContent = $event"
+                      @cancel-edit="cancelEdit"
+                      @show-user-profile="showUserProfile"
+                    />
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="message-header">
-          <img draggable="false" :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
-          <div>
-            <span>
-              <strong class="user-display-name" :style="{color: getUserColor(message.user_id)}" @click="showUserProfile(message.user_id, $event)">
-              {{ getUserDisplayName(message.user_id) }}
-              </strong>
-              <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
-            </span>
-            <MessageContent 
-              :content="message.content"
-              :message-id="message.id"
-              :editableMessageId="editableMessageId"
-              :editableMessageContent="editableMessageContent"
-              :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-              :image-loaded="imageLoaded"
-              :reply="false"
-              @image-loaded="handleImageLoaded"
-              @open-lightbox="handleOpenLightbox"
-              @update:message="saveEdit"
-              @update:content="editableMessageContent = $event"
-              @cancel-edit="cancelEdit"
-              @show-user-profile="showUserProfile"
-            />
+          <div class="message-header">
+            <img draggable="false" :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
+            <div>
+              <span>
+                <strong class="user-display-name" :style="{color: getUserColor(message.user_id)}" @click="showUserProfile(message.user_id, $event)">
+                {{ getUserDisplayName(message.user_id) }}
+                </strong>
+                <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
+              </span>
+              <MessageContent 
+                :content="message.content"
+                :message-id="message.id"
+                :editableMessageId="editableMessageId"
+                :editableMessageContent="editableMessageContent"
+                :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+                :image-loaded="imageLoaded"
+                :reply="false"
+                @image-loaded="handleImageLoaded"
+                @open-lightbox="handleOpenLightbox"
+                @update:message="saveEdit"
+                @update:content="editableMessageContent = $event"
+                @cancel-edit="cancelEdit"
+                @show-user-profile="showUserProfile"
+              />
+            </div>
           </div>
+        </template>
+        <MessageContent 
+          v-else
+          :content="message.content"
+          :message-id="message.id"
+          :editableMessageId="editableMessageId"
+          :editableMessageContent="editableMessageContent"
+          :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+          :image-loaded="imageLoaded"
+          :reply="false"
+          @image-loaded="handleImageLoaded"
+          @open-lightbox="handleOpenLightbox"
+          @update:message="saveEdit"
+          @update:content="editableMessageContent = $event"
+          @cancel-edit="cancelEdit"
+          @show-user-profile="showUserProfile"
+        />
+        <div class="message-actions" v-if="hoveredMessageId === message.id">
+          <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
+          <div class="btn" @click="replyTo(message)"><ReplyIcon/></div>
+          <div class="btn" @click="startEdit(message)"><EditIcon/></div>
+          <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
+          <div class="btn"><MoreIcon/></div>
         </div>
-      </template>
-      <MessageContent 
-        v-else
-        :content="message.content"
-        :message-id="message.id"
-        :editableMessageId="editableMessageId"
-        :editableMessageContent="editableMessageContent"
-        :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-        :image-loaded="imageLoaded"
-        :reply="false"
-        @image-loaded="handleImageLoaded"
-        @open-lightbox="handleOpenLightbox"
-        @update:message="saveEdit"
-        @update:content="editableMessageContent = $event"
-        @cancel-edit="cancelEdit"
-        @show-user-profile="showUserProfile"
-      />
-      <div class="message-actions" v-if="hoveredMessageId === message.id">
-        <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
-        <div class="btn" @click="replyTo(message)"><ReplyIcon/></div>
-        <div class="btn" @click="startEdit(message)"><EditIcon/></div>
-        <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
-        <div class="btn"><MoreIcon/></div>
-      </div>
-      <div class="reactions" v-if="message.reactions" >
-        <!-- Display existing reactions -->
-        <div
-          v-for="reaction in message.reactions"
-          :key="reaction.id"
-          class="reaction"
-          @click="toggleReaction(message.id, reaction.emoji)"
-          @mouseenter="showTooltip($event, reaction)"
-          @mouseleave="hideTooltip"
-          :class="{'reacted': reaction.reactions.some(r => r.user_id === currentUserId)}"
-          >
-          <img 
-            :src="reaction.emoji.url" 
-            :alt="reaction.emoji.name"      />
-          <span>{{ reaction.count }}</span>
+        <div class="reactions" v-if="message.reactions" >
+          <!-- Display existing reactions -->
+          <div
+            v-for="reaction in message.reactions"
+            :key="reaction.id"
+            class="reaction"
+            @click="toggleReaction(message.id, reaction.emoji)"
+            @mouseenter="showTooltip($event, reaction)"
+            @mouseleave="hideTooltip"
+            :class="{'reacted': reaction.reactions.some(r => r.user_id === currentUserId)}"
+            >
+            <img 
+              :src="reaction.emoji.url" 
+              :alt="reaction.emoji.name"      />
+            <span>{{ reaction.count }}</span>
+          </div>
+          <!-- Additional UI for adding new reactions -->
         </div>
-        <!-- Additional UI for adding new reactions -->
       </div>
-    </div>
+    </template>
   </div>
   <vue-easy-lightbox
     class="lightbox"
@@ -152,6 +170,10 @@ export default defineComponent({
     messages: {
       type: Array as PropType<Message[]>,
       required: true
+    },
+    isLoading: {
+      type: Boolean,
+      default: false
     },
     loadMoreMessages: Function as PropType<() => void>,
     isAtBottom: Boolean,
@@ -861,5 +883,59 @@ export default defineComponent({
     overflow-wrap:break-word;
   }
 
+}
+
+/* Loading skeleton styles */
+.loading-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.skeleton-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.skeleton-content {
+  flex-grow: 1;
+}
+
+.skeleton-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.skeleton-username,
+.skeleton-timestamp {
+  height: 12px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.skeleton-text {
+  height: 16px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.skeleton-text.short {
+  width: 60%;
+}
+
+.skeleton-text.long {
+  width: 80%;
+}
+.skeleton-text.extra-long {
+  width: 100%;
 }
 </style>

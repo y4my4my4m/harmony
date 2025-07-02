@@ -36,6 +36,7 @@
       />
       <ChatComponent
         :messages="chatMessages"
+        :isLoading="isLoading"
         @loadMoreMessages="fetchMoreMessages" 
         @update:isAtBottom="isAtBottom = $event" 
       />
@@ -94,6 +95,11 @@
       const route = useRoute();
       const router = useRouter();
       let initialized = false;
+      
+      // Professional async state management
+      const currentRequestId = ref(0);
+      let currentAbortController: AbortController | null = null;
+      const isLoading = ref(false);
 
       const showNoServersSplash = ref(false);
       const showPublicServers = ref(false);
@@ -132,21 +138,59 @@
       
       const { getDefaultChannel } = useChannelSelection()
 
+      const cancelCurrentRequest = () => {
+        if (currentAbortController) {
+          currentAbortController.abort();
+          currentAbortController = null;
+        }
+      };
+
+      const createRequestContext = () => {
+        cancelCurrentRequest();
+        currentAbortController = new AbortController();
+        const requestId = ++currentRequestId.value;
+        return { signal: currentAbortController.signal, requestId };
+      };
+
+      const isRequestStale = (requestId: number) => {
+        return requestId !== currentRequestId.value;
+      };
+
       const handleServerSelected = async (serverId: string) => {
+        // Immediate UI update for responsiveness
         serverChannelStore.setCurrentServer(serverId);
-        serverUsersStore.subscribeToUserStatuses();
-        chatStore.clearMessages();
-        await serverChannelStore.fetchCategoriesAndChannels(serverId);
+        isLoading.value = true;
         
-        // Improved default channel selection
-        if (serverChannelStore.channels.length > 0) {
-          const defaultChannelId = getDefaultChannel(
-            serverChannelStore.channels, 
-            serverChannelStore.categories, 
-            serverChannelStore.categoryChannels
-          )
-          if (defaultChannelId) {
-            handleChannelSelected(defaultChannelId)
+        const { signal, requestId } = createRequestContext();
+        
+        try {
+          serverUsersStore.subscribeToUserStatuses();
+          chatStore.clearMessages();
+          
+          // Fetch data with cancellation support
+          await serverChannelStore.fetchCategoriesAndChannels(serverId, signal);
+          
+          // Check if request is still current
+          if (isRequestStale(requestId)) return;
+          
+          // Only select default channel if no specific channel is in the route
+          if (!route.params.channelId && serverChannelStore.channels.length > 0) {
+            const defaultChannelId = getDefaultChannel(
+              serverChannelStore.channels, 
+              serverChannelStore.categories, 
+              serverChannelStore.categoryChannels
+            )
+            if (defaultChannelId && !isRequestStale(requestId)) {
+              await handleChannelSelected(defaultChannelId, true);
+            }
+          }
+        } catch (error: any) {
+          if (error.name === 'AbortError') return; // Request was cancelled
+          console.error('Error loading server:', error);
+          toast.error('Failed to load server');
+        } finally {
+          if (!isRequestStale(requestId)) {
+            isLoading.value = false;
           }
         }
       };
@@ -156,15 +200,48 @@
         await serverChannelStore.fetchCategoriesAndChannels(currentServer.value.id);
         showCreateChannelForm.value = false
         // Automatically navigate to the newly created channel
-        handleChannelSelected(channel.id);
+        await handleChannelSelected(channel.id);
       }
 
-      const handleChannelSelected = async (channelId: string) => {
+      const handleChannelSelected = async (channelId: string, isFromServerSelection = false) => {
+        // Immediate UI update for responsiveness
         serverChannelStore.setCurrentChannel(channelId);
-        // chatStore.clearMessages(); // Clear messages right when the channel is changed
-        await chatStore.fetchMessages(channelId);
-        chatStore.subscribeToMessages(channelId);
-        scrollToBottom();
+        
+        // Update route immediately if this is a manual channel selection
+        if (!isFromServerSelection && route.params.channelId !== channelId) {
+          router.push({ 
+            name: 'Chat', 
+            params: { 
+              serverId: serverChannelStore.currentServerId, 
+              channelId: channelId 
+            }
+          });
+        }
+        
+        // Clear messages immediately to prevent flash of old content
+        chatStore.clearMessages();
+        isLoading.value = true;
+        
+        const { signal, requestId } = createRequestContext();
+        
+        try {
+          // Fetch messages and subscribe with cancellation support
+          await chatStore.fetchMessages(channelId, '', signal);
+          
+          // Check if request is still current before updating subscription
+          if (!isRequestStale(requestId)) {
+            chatStore.subscribeToMessages(channelId);
+            scrollToBottom();
+          }
+        } catch (error: any) {
+          if (error.name === 'AbortError') return; // Request was cancelled
+          console.error('Error loading channel:', error);
+          toast.error('Failed to load channel messages');
+        } finally {
+          if (!isRequestStale(requestId)) {
+            isLoading.value = false;
+          }
+        }
       };
 
       const fetchMoreMessages = async () => {
@@ -312,9 +389,14 @@
           await serverChannelStore.initializeUserEnvironment(userId);
           
           // Initialize presence for current user
-          const userProfile = await serverUsersStore.userProfiles[userId];
-          if (userProfile) {
-            serverUsersStore.initializePresence(userId, userProfile, selectedServer.value?.id);
+          const userProfile = serverUsersStore.userProfiles[userId];
+          if (userProfile && currentServer.value?.id) {
+            serverUsersStore.initializePresence(
+              currentServer.value.id, 
+              userId, 
+              userProfile.display_name || userProfile.username || 'Unknown User', 
+              userProfile.avatar_url
+            );
           }
           serverUsersStore.subscribeToUserStatuses();
           
@@ -385,6 +467,7 @@
         handleChannelCreated,
         showPublicServers,
         handleShowPublicServers,
+        isLoading,
       };
   }
 });
@@ -459,5 +542,38 @@
     width: 100%;
     padding: 10px;
   }
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>
