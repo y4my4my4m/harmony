@@ -86,6 +86,7 @@
             <div 
               class="color-preview" 
               :style="{ backgroundColor: localProfile.color || '#5865f2' }"
+              ref="colorPreviewRef"
               @click="toggleColorPicker"
             ></div>
             <input
@@ -98,12 +99,14 @@
             <button class="color-reset-btn" @click="resetColor">Reset</button>
           </div>
           
-          <div v-if="showColorPicker" class="color-picker-popup" v-click-outside="closeColorPicker">
-            <ColorPicker
-              v-model:color="localProfile.color"
-              @change="onColorPickerChange"
-            />
-          </div>
+          <ColorPicker
+            v-show="showColorPicker"
+            v-click-outside="closeColorPicker"
+            ref="colorPickerRef"
+            theme="light"
+            :color="localProfile.color || '#5865f2'"
+            @changeColor="onColorPickerChange"
+          />
         </div>
         <div class="form-hint">
           This color will be used for your name and profile accents.
@@ -161,7 +164,8 @@ import type { User } from '@/types'
 import { format } from 'date-fns'
 
 // Components
-import ColorPicker from '@/components/common/ColorPicker.vue'
+import { ColorPicker } from 'vue-color-kit'
+import 'vue-color-kit/dist/vue-color-kit.css'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 // Props
@@ -185,6 +189,10 @@ const authStore = useAuthStore()
 const localProfile = ref<Partial<User>>({})
 const showColorPicker = ref(false)
 const avatarInput = ref<HTMLInputElement>()
+
+// Refs
+const colorPickerRef = ref<InstanceType<typeof ColorPicker>>()
+const colorPreviewRef = ref<HTMLElement | null>(null)
 
 // Computed
 const userEmail = computed(() => authStore.session?.user?.email)
@@ -233,8 +241,8 @@ const onColorChange = () => {
   }
 }
 
-const onColorPickerChange = (color: string) => {
-  localProfile.value.color = color
+const onColorPickerChange = (colorObject: { hex: string }) => {
+  localProfile.value.color = colorObject.hex
 }
 
 const toggleColorPicker = () => {
@@ -292,11 +300,13 @@ const formatDate = (dateString?: string) => {
   return format(new Date(dateString), 'MMMM d, yyyy')
 }
 
-// Click outside directive
+// Click outside directive implementation
 const vClickOutside = {
   beforeMount(el: HTMLElement, binding: any) {
     const onClick = (event: MouseEvent) => {
-      if (el && !el.contains(event.target as Node)) {
+      // Check if the click is outside the color picker and not on the color preview
+      if (el && !el.contains(event.target as Node) &&
+          (!colorPreviewRef.value || !colorPreviewRef.value.contains(event.target as Node))) {
         binding.value()
       }
     }
@@ -508,17 +518,43 @@ onMounted(() => {
   color: #ffffff;
 }
 
-.color-picker-popup {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 1000;
-  margin-top: 8px;
-  background-color: var(--h-chat);
-  border: 1px solid var(--h-chat-light);
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+/* Professional Color Picker Styling */
+:deep(.hu-color-picker) {
+  position: absolute !important;
+  top: 100% !important;
+  left: 0 !important;
+  z-index: 1000 !important;
+  margin-top: 8px !important;
+  background-color: var(--h-chat) !important;
+  border: 1px solid var(--h-chat-light) !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+  width: 280px !important;
+}
+
+:deep(.hu-color-picker .color-set) {
+  background-color: var(--h-chat-darker) !important;
+  border: 1px solid var(--h-chat-light) !important;
+}
+
+:deep(.hu-color-picker .color-show) {
+  border: 1px solid var(--h-chat-light) !important;
+}
+
+:deep(.hu-color-picker .sucker) {
+  background-color: var(--h-chat-darker) !important;
+  border: 1px solid var(--h-chat-light) !important;
+}
+
+:deep(.hu-color-picker .color-type .name) {
+  color: #ffffff !important;
+}
+
+:deep(.hu-color-picker .color-type .value) {
+  background-color: var(--h-chat-darker) !important;
+  border: 1px solid var(--h-chat-light) !important;
+  color: #ffffff !important;
 }
 
 .section-title {
