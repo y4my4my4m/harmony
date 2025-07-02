@@ -165,7 +165,14 @@ export default defineComponent({
     loadMoreMessages: Function as PropType<() => void>,
     isAtBottom: Boolean,
     currentUserId: String,
+    // Add the missing isLoading prop
+    isLoading: {
+      type: Boolean,
+      default: false
+    },
   },
+  // Add the missing emits declaration
+  emits: ['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom'],
   components: { 
     UserPreviewComponent,
     ReplyIcon,
