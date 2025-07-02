@@ -889,53 +889,80 @@ export default defineComponent({
 .loading-skeleton {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
+  padding: 12px;
+  opacity: 0.6;
 }
 
 .skeleton-message {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 12px;
+  padding: 2px 0;
 }
 
 .skeleton-avatar {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(90deg, #2f3136 25%, #303135 50%, #2f3136 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-content {
   flex-grow: 1;
+  padding-top: 2px;
 }
 
 .skeleton-header {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 4px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
-.skeleton-username,
+.skeleton-username {
+  height: 16px;
+  width: 80px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
 .skeleton-timestamp {
   height: 12px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  width: 40px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
 .skeleton-text {
   height: 16px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  margin-bottom: 4px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-text:first-of-type {
+  width: 85%;
 }
 
 .skeleton-text.short {
-  width: 60%;
+  width: 45%;
 }
 
-.skeleton-text.long {
-  width: 80%;
-}
-.skeleton-text.extra-long {
-  width: 100%;
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 </style>
