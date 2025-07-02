@@ -61,6 +61,32 @@
     <div class="edit-actions">
       <span class="edit-hint">escape to <span class="edit-action" @click="handleCancelEdit">cancel</span> • enter to <span class="edit-action" @click="handleSaveEdit">save</span></span>
     </div>
+    <!-- Auto-suggest component -->
+    <AutoSuggest
+      :isVisible="autoSuggest.state.value.isActive"
+      :suggestions="autoSuggest.suggestions.value"
+      :position="autoSuggest.state.value.position"
+      :selectedIndex="autoSuggest.state.value.selectedIndex"
+      :headerText="autoSuggest.headerText.value"
+      @select="handleSuggestionSelect"
+    >
+      <template #default="{ suggestion }">
+        <!-- Custom rendering for different suggestion types -->
+        <div class="suggest-item-content">
+          <img 
+            v-if="suggestion.url || suggestion.avatar" 
+            :src="suggestion.url || suggestion.avatar" 
+            :alt="suggestion.name || suggestion.display_name"
+            class="suggest-icon"
+          />
+          <div class="suggest-text">
+            <span class="suggest-name">{{ suggestion.display_name || suggestion.name }}</span>
+            <span v-if="suggestion.username" class="suggest-username">@{{ suggestion.username }}</span>
+            <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
+          </div>
+        </div>
+      </template>
+    </AutoSuggest>
   </div>
 </template>
 
@@ -68,9 +94,15 @@
 import { defineComponent, watch, ref, nextTick } from 'vue';
 import type { PropType } from 'vue';
 import type { MessagePart } from '@/types';
+import AutoSuggest from '@/components/AutoSuggest.vue';
+import type { SuggestionItem } from '@/components/AutoSuggest.vue';
+import { useAutoSuggest } from '@/composables/useAutoSuggest';
 
 export default defineComponent({
   name: 'MessageContent',
+  components: {
+    AutoSuggest,
+  },
   props: {
     content: {
       type: Array as PropType<MessagePart[]>,
@@ -99,6 +131,9 @@ export default defineComponent({
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableMessageContent);
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
+    
+    // Auto-suggest setup
+    const autoSuggest = useAutoSuggest(editTextarea);
 
     // Watch for changes to the prop and update the local copy accordingly
     watch(() => props.editableMessageContent, (newVal) => {
@@ -138,11 +173,24 @@ export default defineComponent({
     };
 
     const handleInput = () => {
+      if (editTextarea.value) {
+        const value = editTextarea.value.value;
+        const cursorPosition = editTextarea.value.selectionStart || 0;
+        
+        // Handle auto-suggest
+        autoSuggest.handleInput(value, cursorPosition);
+      }
+      
       emit('update:content', localEditableContent.value);
       autoResizeTextarea();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Let auto-suggest handle its own key events first
+      if (autoSuggest.handleKeyDown(event)) {
+        return; // Auto-suggest handled the event
+      }
+      
       // Handle Enter key (save)
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
@@ -164,7 +212,18 @@ export default defineComponent({
       }
     };
 
+    const handleSuggestionSelect = (suggestion: SuggestionItem) => {
+      if (editTextarea.value) {
+        const newValue = autoSuggest.selectSuggestion(suggestion);
+        localEditableContent.value = newValue;
+        emit('update:content', newValue);
+      }
+    };
+
     const handleSaveEdit = () => {
+      // Close auto-suggest when saving
+      autoSuggest.closeSuggestions();
+      
       if (!localEditableContent.value.trim()) {
         handleCancelEdit();
         return;
@@ -178,6 +237,8 @@ export default defineComponent({
     };
 
     const handleCancelEdit = () => {
+      // Close auto-suggest when canceling
+      autoSuggest.closeSuggestions();
       emit('cancel-edit');
     };
 
@@ -189,6 +250,8 @@ export default defineComponent({
       handleKeyDown,
       handleInput,
       autoResizeTextarea,
+      autoSuggest,
+      handleSuggestionSelect,
     };
   }
 });
@@ -312,5 +375,51 @@ export default defineComponent({
   .edit-container {
     max-width: calc(100vw - 40px);
   }
+}
+
+/* Auto-suggest custom styling */
+.suggest-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.suggest-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.suggest-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.suggest-name {
+  font-weight: 500;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggest-username {
+  font-size: 12px;
+  color: #b9bbbe;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggest-server {
+  font-size: 11px;
+  color: #72767d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
