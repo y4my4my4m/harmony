@@ -907,7 +907,7 @@ export default defineComponent({
   border-radius: 50%;
   background: linear-gradient(90deg, #2f3136 25%, #303135 50%, #2f3136 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 2.5s infinite;
 }
 
 .skeleton-content {
@@ -928,7 +928,7 @@ export default defineComponent({
   border-radius: 3px;
   background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 2.5s infinite;
 }
 
 .skeleton-timestamp {
@@ -937,7 +937,7 @@ export default defineComponent({
   border-radius: 3px;
   background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 2.5s infinite;
 }
 
 .skeleton-text {
@@ -946,7 +946,7 @@ export default defineComponent({
   border-radius: 3px;
   background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 2.5s infinite;
 }
 
 .skeleton-text:first-of-type {
