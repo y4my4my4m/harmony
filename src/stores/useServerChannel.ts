@@ -79,7 +79,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       // Check if request was cancelled
       if (signal?.aborted) {
-        throw new Error('AbortError');
+        throw new DOMException('Operation aborted', 'AbortError');
       }
 
       if (categoriesError) {
