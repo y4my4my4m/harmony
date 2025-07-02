@@ -93,6 +93,7 @@ export default defineComponent({
   z-index: 1000;
   min-width: 160px;
   margin-bottom: 8px;
+  pointer-events: auto; /* Add pointer events to ensure it's clickable */
 }
 
 .menu-item {

@@ -130,8 +130,13 @@ export default defineComponent({
       emit('update:replyMessageId', newReplyMessageId);
     };
 
-    const toggleUploadMenu = () => {
+    const toggleUploadMenu = (event?: Event) => {
+      if (event) {
+        event.stopPropagation();
+      }
+      console.log('Toggle upload menu clicked, current state:', showUploadMenu.value);
       showUploadMenu.value = !showUploadMenu.value;
+      console.log('New state:', showUploadMenu.value);
     };
 
     const closeUploadMenu = () => {
@@ -199,10 +204,14 @@ export default defineComponent({
     };
 
     const handleFilesSelected = async (files: File[]) => {
+      console.log('handleFilesSelected called with:', files.length, 'files');
+      console.log('Current attachedFiles count before:', attachedFiles.value.length);
+      
       const newFiles = await Promise.all(files.map(createFilePreview));
       
       // Add files to the preview
       attachedFiles.value.push(...newFiles);
+      console.log('Current attachedFiles count after:', attachedFiles.value.length);
       emit('files-attached', attachedFiles.value);
       
       // Start background uploads immediately
@@ -247,6 +256,7 @@ export default defineComponent({
 
     const handleDrop = async (event: DragEvent) => {
       event.preventDefault();
+      event.stopPropagation(); // Prevent bubbling to parent
       isDragging.value = false;
 
       const files = event.dataTransfer?.files;
@@ -258,6 +268,7 @@ export default defineComponent({
 
     // Handle external file drop events from ChatComponent
     const handleExternalFileDrop = (event: CustomEvent) => {
+      console.log('handleExternalFileDrop called with:', event.detail.files?.length, 'files');
       const { files } = event.detail;
       if (files && files.length > 0) {
         handleFilesSelected(files);

@@ -1,11 +1,12 @@
 <template>
   <div class="chat-container" 
-      @dragenter.prevent="showDragDropArea = true"
-      @dragover.prevent="showDragDropArea = true"
+      @dragenter.prevent="handleDragEnter"
+      @dragover.prevent="handleDragOver"
+      @dragleave.prevent="handleDragLeave"
       @drop.prevent="triggerFileDrop">
     <div v-if="showDragDropArea" 
       class="drag-drop-area"
-      @dragleave.prevent="showDragDropArea = false">
+      @dragleave.prevent="handleDragLeave">
       <div v-if="uploading" style="color:rgb(18, 143, 18);">Uploading...</div>
       <div v-else>Drop files here.</div>
     </div>
@@ -193,12 +194,13 @@
 
       // New drag and drop handler for the chat container (fallback)
       const triggerFileDrop = async (event: any) => {
-        console.log("File dropped on chat container:", event);
+        console.log("triggerFileDrop called - File dropped on chat container:", event);
         showDragDropArea.value = false;
         
         // Forward the files to MessageInput via the attached files
         const files = event.dataTransfer.files;
         if (files.length > 0) {
+          console.log("ChatComponent forwarding", files.length, "files to MessageInput");
           const fileArray = Array.from(files);
           // This will be handled by MessageInput's drag and drop
           // We'll emit an event to trigger file selection in MessageInput
@@ -394,9 +396,36 @@
         }
       };
 
+      // Drag and drop handlers for chat container
+      const handleDragEnter = (event: DragEvent) => {
+        event.preventDefault();
+        if (event.dataTransfer?.types.includes('Files')) {
+          showDragDropArea.value = true;
+        }
+      };
+
+      const handleDragOver = (event: DragEvent) => {
+        event.preventDefault();
+      };
+
+      const handleDragLeave = (event: DragEvent) => {
+        event.preventDefault();
+        // Only hide if we're leaving the chat container entirely
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        const x = event.clientX;
+        const y = event.clientY;
+        
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+          showDragDropArea.value = false;
+        }
+      };
+
       return { 
         handleSendMessage,
         triggerFileDrop,
+        handleDragEnter,
+        handleDragOver, 
+        handleDragLeave,
         showDragDropArea,
         isTauri,
         uploading,
@@ -448,22 +477,22 @@
     opacity: 1;
   } */
   .drag-drop-area {
-    position:absolute;
-    z-index:50;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
     display: flex;
-    height: 90%;
-    width: 63%;
     border: 2px dashed #ccc;
     padding: 20px;
     text-align: center;
-    margin: 20px;
-    background: var(--vt-c-black);
-    opacity:0.8;
+    background: rgba(0, 0, 0, 0.8);
     align-items: center;
     justify-content: center;
     transition: 0.2s ease-in-out;
-    font-size:48px; 
-    font-weight:bold;
-    /* pointer-events: none; */
+    font-size: 48px; 
+    font-weight: bold;
+    color: white;
   }
 </style>
