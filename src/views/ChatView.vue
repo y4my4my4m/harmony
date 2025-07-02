@@ -311,12 +311,28 @@
 
           await serverChannelStore.initializeUserEnvironment(userId);
           
-          // Initialize presence system instead of heartbeat
+          // Initialize presence for current user
           const userProfile = await serverUsersStore.userProfiles[userId];
           if (userProfile) {
-            serverUsersStore.initializePresence(userId, userProfile);
+            serverUsersStore.initializePresence(userId, userProfile, selectedServer.value?.id);
           }
           serverUsersStore.subscribeToUserStatuses();
+          
+          // Subscribe to offline broadcast notifications
+          serverUsersStore.subscribeToOfflineBroadcasts();
+
+          const handleResize = () => {
+            // Adjust chat area and sidebars on resize
+            if (window.innerWidth > 768) {
+              isSidebarsVisible.value = true;
+              isProfilesVisible.value = false;
+            } else {
+              isSidebarsVisible.value = false;
+              isProfilesVisible.value = false;
+            }
+          };
+
+          window.addEventListener('resize', handleResize);
 
           initialized = true;
           if (servers.value.length === 0) {
@@ -328,17 +344,16 @@
           requestNotificationPermission();
 
           const chatLayout = document.querySelector('#app');
-          if (chatLayout)
-          {
-            chatLayout.addEventListener('touchstart', handleTouchStart);
-            // chatLayout.addEventListener('touchmove', handleTouchMove);
+          // Event listeners
+          if (chatLayout) {
+            chatLayout.addEventListener('touchstart', handleTouchStart as EventListener);
           }
         }
       });
 
       onBeforeUnmount(() => {
         // Clean up presence when component unmounts
-        serverUsersStore.cleanupPresence();
+        serverUsersStore.cleanup();
       });
 
       watch(route, () => {
@@ -363,11 +378,9 @@
         scrollToBottom,
         requestNotificationPermission,
         showNotification,
-        toggleSidebars,
         isSidebarsVisible,
-        toggleProfiles,
-        handleCreateChannel,
         isProfilesVisible,
+        handleCreateChannel,
         currentCategoryId,
         handleChannelCreated,
         showPublicServers,

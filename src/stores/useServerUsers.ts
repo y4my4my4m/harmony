@@ -1,17 +1,11 @@
 import { defineStore } from 'pinia';
+import { supabase } from '@/supabase';
+import type { User } from '@/types';
+import { UserStatus } from '@/types';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+
 import { getProfilesWithAvatarUrls } from '@/services/usersService';
 import { updateUserStatus } from '@/services/profileService';
-import type { 
-  User, 
-  UserStatus,
-  PresenceState,
-  PresenceJoinPayload,
-  PresenceLeavePayload,
-  PresenceSubscriptionStatus,
-  RealtimePresenceState,
-  PresenceChannel
-} from '@/types';
-import { supabase } from '@/supabase';
 
 const convertToStatusEnum = (numericStatus: number): UserStatus => {
     return numericStatus as UserStatus;
@@ -21,7 +15,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
     userProfiles: {} as Record<string, User>,
     usersInVoiceChannels: {} as Record<string, string[]>,
-    presenceChannel: null as PresenceChannel | null,
+    presenceChannel: null as RealtimeChannel | null,
     onlineUsers: new Set<string>(),
   }),
   getters: {
@@ -78,62 +72,130 @@ export const useServerUsersStore = defineStore('serverUsers', {
           }
         }
       )
-      .subscribe((status: PresenceSubscriptionStatus) => {
+      .subscribe((status: string) => {
         console.log('User status subscription status:', status);
       });
     },
 
     // Professional approach: Use Supabase Presence with proper TypeScript
-    initializePresence(userId: string, userProfile: User) {
+    async initializePresence(serverId: string, userId: string, username: string, avatar?: string) {
       // Remove old presence channel
       if (this.presenceChannel) {
-        supabase.removeChannel(this.presenceChannel as any);
+        await this.presenceChannel.unsubscribe();
+        this.presenceChannel = null;
       }
 
-      // Create presence channel with proper typing
-      const channel = supabase.channel('online-users', {
-        config: {
-          presence: {
-            key: userId,
-          },
-        },
-      });
-
-      // Track presence changes with proper TypeScript types
-      channel
+      // Create presence channel
+      this.presenceChannel = supabase
+        .channel(`server:${serverId}:presence`)
         .on('presence', { event: 'sync' }, () => {
-          const presenceState = channel.presenceState() as RealtimePresenceState;
+          const presenceState = this.presenceChannel?.presenceState();
           this.updateOnlineUsers(presenceState);
         })
-        .on('presence', { event: 'join' }, ({ key, newPresences }: PresenceJoinPayload) => {
+        .on('presence', { event: 'join' }, ({ key, newPresences }) => {
           console.log('User joined:', key, newPresences);
           this.onlineUsers.add(key);
           this.setUserOnlineStatus(key, true);
         })
-        .on('presence', { event: 'leave' }, ({ key, leftPresences }: PresenceLeavePayload) => {
+        .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
           console.log('User left:', key, leftPresences);
           this.onlineUsers.delete(key);
           this.setUserOnlineStatus(key, false);
         })
-        .subscribe(async (status: PresenceSubscriptionStatus) => {
+        .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
-            // Track current user's presence with proper typing
-            const presenceData: PresenceState = {
+            // Track current user's presence
+            const presenceData = {
               user_id: userId,
-              display_name: userProfile.display_name || 'Unknown User',
-              avatar_url: userProfile.avatar_url,
+              display_name: username || 'Unknown User',
+              avatar_url: avatar,
               online_at: new Date().toISOString(),
             };
             
-            await channel.track(presenceData);
+            await this.presenceChannel?.track(presenceData);
           }
         });
 
-      // Cast to our generic type to avoid exposing internal Supabase types
-      this.presenceChannel = channel as PresenceChannel;
+      // Store cleanup function globally for immediate access during beforeunload
+      (window as any).__harmonyPresenceCleanup = () => {
+        console.log('Immediate presence cleanup triggered');
+        if (this.presenceChannel) {
+          // Immediate untrack and cleanup
+          this.presenceChannel.untrack();
+          // Force offline status update in local state
+          this.setUserOnlineStatus(userId, false);
+          // Broadcast offline status to other users immediately
+          this.broadcastOfflineStatus(userId);
+        }
+      };
     },
 
-    updateOnlineUsers(presenceState: RealtimePresenceState) {
+    async updatePresence(status: 'online' | 'offline') {
+      if (this.presenceChannel) {
+        const presenceData = {
+          user_id: this.presenceChannel.config.presence.key,
+          online_at: new Date().toISOString(),
+        };
+        
+        if (status === 'online') {
+          await this.presenceChannel.track(presenceData);
+        } else {
+          await this.presenceChannel.untrack();
+        }
+      }
+    },
+
+    // New method to immediately broadcast offline status
+    broadcastOfflineStatus(userId: string) {
+      try {
+        // Create a temporary broadcast channel for immediate offline notification
+        const offlineChannel = supabase.channel(`offline-${userId}-${Date.now()}`, {
+          config: {
+            broadcast: { self: false }, // Don't broadcast to self
+          },
+        });
+
+        offlineChannel.subscribe((status: string) => {
+          if (status === 'SUBSCRIBED') {
+            // Broadcast immediate offline status
+            offlineChannel.send({
+              type: 'broadcast',
+              event: 'user-offline',
+              payload: { 
+                user_id: userId, 
+                timestamp: new Date().toISOString() 
+              }
+            });
+            
+            // Clean up the temporary channel after a short delay
+            setTimeout(() => {
+              supabase.removeChannel(offlineChannel);
+            }, 1000);
+          }
+        });
+      } catch (error) {
+        console.error('Error broadcasting offline status:', error);
+      }
+    },
+
+    // Listen for immediate offline broadcasts from other users
+    subscribeToOfflineBroadcasts() {
+      const offlineChannel = supabase.channel('global-offline-status', {
+        config: {
+          broadcast: { self: false },
+        },
+      });
+
+      offlineChannel
+        .on('broadcast', { event: 'user-offline' }, (payload) => {
+          const { user_id } = payload.payload;
+          console.log('Received immediate offline broadcast for user:', user_id);
+          this.setUserOnlineStatus(user_id, false);
+        })
+        .subscribe();
+    },
+
+    updateOnlineUsers(presenceState: Record<string, any>) {
       const onlineUserIds = Object.keys(presenceState);
       
       // Update online users set
@@ -164,13 +226,15 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
     },
 
-    cleanupPresence() {
+    cleanup() {
       if (this.presenceChannel) {
-        this.presenceChannel.untrack();
-        supabase.removeChannel(this.presenceChannel as any);
-        this.presenceChannel = null;
+        supabase.removeChannel(this.presenceChannel)
+        this.presenceChannel = null
       }
-      this.onlineUsers.clear();
+      if (this.offlineBroadcastChannel) {
+        supabase.removeChannel(this.offlineBroadcastChannel)
+        this.offlineBroadcastChannel = null
+      }
     },
 
     broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string) {
@@ -206,6 +270,69 @@ export const useServerUsersStore = defineStore('serverUsers', {
           });
         }
       })
+    },
+
+    setupOfflineHandlers(userId: string) {
+      // Handle browser/tab close - immediate cleanup and status update
+      const handleBeforeUnload = async () => {
+        // Immediately cleanup presence (this should trigger presence leave event)
+        if ((window as any).__harmonyPresenceCleanup) {
+          (window as any).__harmonyPresenceCleanup();
+        }
+
+        // Update user status to offline using proper Supabase client
+        try {
+          await supabase
+            .from('profiles')
+            .update({ status: UserStatus.Offline })
+            .eq('id', userId);
+        } catch (error) {
+          console.error('Error setting user offline:', error);
+        }
+      };
+
+      // Handle page visibility for away status
+      const handleVisibilityChange = async () => {
+        if (document.hidden) {
+          // Set as away after 5 minutes of tab being hidden
+          setTimeout(async () => {
+            if (document.hidden) {
+              try {
+                await supabase
+                  .from('profiles')
+                  .update({ status: UserStatus.Away })
+                  .eq('id', userId);
+              } catch (error) {
+                console.error('Error setting user away:', error);
+              }
+            }
+          }, 5 * 60 * 1000);
+        } else {
+          // User returned to tab - set as online
+          try {
+            await supabase
+              .from('profiles')
+              .update({ status: UserStatus.Online })
+              .eq('id', userId);
+          } catch (error) {
+            console.error('Error setting user online:', error);
+          }
+        }
+      };
+
+      // Add event listeners
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      window.addEventListener('unload', handleBeforeUnload);
+      window.addEventListener('pagehide', handleBeforeUnload); // Additional event for mobile
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      // Store references for cleanup
+      (window as any).__harmonyOfflineHandlers = {
+        beforeunload: handleBeforeUnload,
+        unload: handleBeforeUnload,
+        pagehide: handleBeforeUnload,
+        visibilitychange: handleVisibilityChange
+      };
     },
   }
 });
