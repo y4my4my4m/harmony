@@ -127,6 +127,41 @@ export const useChatStore = defineStore('chat', {
       return cacheAge < this.cacheValidityDuration;
     },
 
+    // Enhanced cache validation that checks both age and message modifications
+    async isChannelCacheValid(channelId: string): Promise<boolean> {
+      const cached = this.messageCache.get(channelId);
+      if (!cached) return false;
+
+      // Check age-based validity first (quick local check)
+      const now = new Date();
+      const cacheAge = now.getTime() - cached.lastFetchedAt.getTime();
+      if (cacheAge > this.cacheValidityDuration) return false;
+
+      // For recent caches, also check if any messages have been updated
+      try {
+        const { data: latestMessage, error } = await supabase
+          .from('messages')
+          .select('updated_at, created_at')
+          .eq('channel_id', channelId)
+          .order('updated_at', { ascending: false })
+          .limit(1);
+
+        if (error || !latestMessage || latestMessage.length === 0) {
+          // If we can't fetch latest message info, assume cache is still valid
+          return true;
+        }
+
+        const latestModification = new Date(latestMessage[0].updated_at || latestMessage[0].created_at);
+        
+        // Cache is invalid if any message was modified after our cache was created
+        return latestModification <= cached.lastFetchedAt;
+      } catch (error) {
+        console.error('Error validating cache:', error);
+        // On error, assume cache is still valid to avoid unnecessary refetches
+        return true;
+      }
+    },
+
     // Get cache metadata from server to check if local cache is stale
     async getCacheMetadata(channelId: string): Promise<CacheMetadata | null> {
       try {

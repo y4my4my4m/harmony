@@ -206,20 +206,30 @@
       const handleChannelSelected = async (channelId: string) => {
         serverChannelStore.setCurrentChannel(channelId);
         
-        // Check if messages are cached
+        // Check if messages are cached with enhanced validation
         const isCached = chatStore.isMessageCached(channelId);
         
         if (isCached) {
-          // For cached channels: Load messages instantly and synchronously
-          chatStore.loadCachedMessages(channelId);
-          chatStore.subscribeToMessages(channelId);
-          // Don't scroll to bottom for cached channels - preserve scroll position
+          // For potentially cached channels, validate against server modifications
+          const isValidCache = await chatStore.isChannelCacheValid(channelId);
+          if (isValidCache) {
+            // Cache is truly valid - load instantly
+            chatStore.loadCachedMessages(channelId);
+            chatStore.subscribeToMessages(channelId);
+            scrollToBottom();
+          } else {
+            // Cache is stale due to message modifications - refetch
+            console.log(`Cache invalidated due to message modifications: ${channelId}`);
+            chatStore.clearMessages();
+            await chatStore.fetchMessages(channelId);
+            chatStore.subscribeToMessages(channelId);
+            scrollToBottom();
+          }
         } else {
           // For non-cached channels: Clear first, then fetch
           chatStore.clearMessages();
           await chatStore.fetchMessages(channelId);
           chatStore.subscribeToMessages(channelId);
-          // Only scroll to bottom for newly loaded channels
           scrollToBottom();
         }
       };
