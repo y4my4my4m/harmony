@@ -48,18 +48,27 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
     },
     subscribeToUserStatuses() {
+      // Unsubscribe from existing subscription if any
+      supabase.removeAllChannels();
+      
       supabase.channel('user-statuses')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'profiles' },
         (payload) => {
           const updatedUserId = payload.new.id;
+          console.log('User status updated:', updatedUserId, payload.new.status);
           if (this.userProfiles[updatedUserId]) {
-            this.userProfiles[updatedUserId].status = convertToStatusEnum(payload.new.status as unknown as number);
+            this.userProfiles[updatedUserId] = {
+              ...this.userProfiles[updatedUserId],
+              status: convertToStatusEnum(payload.new.status as unknown as number)
+            };
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('User status subscription status:', status);
+      });
     },
     broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string) {
       const channel = supabase.channel(`server-${serverId}`, {

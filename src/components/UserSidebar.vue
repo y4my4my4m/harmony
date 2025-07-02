@@ -1,162 +1,184 @@
 <template>
   <div class="user-sidebar">
     <div v-for="user in users" :key="user.id" class="user-item" @click="showUserProfile(user, $event)">
-      <div class="user-avatar-container">
-        <img :src="getUserAvatar(user.id)" alt="User avatar" class="avatar-md" />
-        <span :class="getUserStatusClass(user.status)" class="user-status"></span>
-      </div>
-      <span class="user-name text-ellipsis">{{ getUserDisplayName(user.id) }}</span>
+      <img :src="user.avatar_url || '/default_avatar.png'" alt="User avatar" class="user-avatar">
+      <span :class="getUserStatusClass(user.status)" class="user-status"></span>
+      <span class="user-name">{{ user.display_name || 'Unknown User' }}</span>
     </div>
 
-    <div v-if="selectedUser" 
-         :class="['user-profile-card', { 'selected': selectedUser }]" 
-         :style="profileCardStyle" 
-         @click.stop>
+    <!-- User profile card (reusable component) -->
+    <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
       <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch } from 'vue'
-import type { User } from '@/types'
-import UserPreviewComponent from './UserPreviewComponent.vue'
-import { useServerChannelStore } from '@/stores/useServerChannel'
-import { useServerUsersStore } from '@/stores/useServerUsers'
-import { useUserProfile } from '@/composables/useUserProfile'
-import { getUserIdsForServer } from '@/services/usersService'
+import { defineComponent, ref, watch, computed, onMounted } from 'vue';
+import type { User } from '@/types';
+import UserPreviewComponent from './UserPreviewComponent.vue';
+import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useServerUsersStore } from '@/stores/useServerUsers';
+import { getUserIdsForServer} from '@/services/usersService';
+import { UserStatus } from '@/types';
 
 export default defineComponent({
   name: 'UserSidebar',
-  components: { 
-    UserPreviewComponent 
-  },
+  components: { UserPreviewComponent },
   setup() {
-    const serverChannelStore = useServerChannelStore()
-    const serverUsersStore = useServerUsersStore()
-    const { getUserAvatar, getUserDisplayName, getUserStatusClass } = useUserProfile()
-    
-    const users = ref<User[]>([])
-    const selectedUser = ref<User | null>(null)
-    const profileCardStyle = ref({ top: '0px' })
+    const serverChannelStore = useServerChannelStore();
+    const serverUsersStore = useServerUsersStore();
+    const selectedUser = ref<User | null>(null);
+    const profileCardStyle = ref({ top: '0px', left: '-332px' });
+
+    // Make users reactive to store changes
+    const users = computed(() => {
+      const serverId = serverChannelStore.currentServerId;
+      if (!serverId) return [];
+      
+      return Object.values(serverUsersStore.userProfiles).filter(user => user && user.id);
+    });
 
     const fetchAndSetUsers = async (serverId: string | null) => {
       if (serverId) {
-        try {
-          const userIds = await getUserIdsForServer(serverId)
-          await serverUsersStore.fetchUserProfiles(userIds)
-          users.value = userIds.map(userId => 
-            serverUsersStore.userProfiles[userId] || { 
-              id: userId, 
-              display_name: 'Loading...',
-              avatar_url: '/default_avatar.png',
-              status: 0
-            }
-          ).filter(Boolean)
-        } catch (error) {
-          console.error('Error fetching users:', error)
-          users.value = []
-        }
+        const userIds = await getUserIdsForServer(serverId);
+        await serverUsersStore.fetchUserProfiles(userIds);
       }
-    }
-
-    const showUserProfile = (user: User, event: MouseEvent) => {
-      selectedUser.value = user
-      const rect = (event.target as HTMLElement).getBoundingClientRect()
-      profileCardStyle.value = { 
-        top: `${rect.top}px` 
-      }
-    }
-
-    const closeProfile = () => {
-      selectedUser.value = null
-    }
+    };
 
     watch(() => serverChannelStore.currentServerId, (newServerId) => {
-      fetchAndSetUsers(newServerId)
-      selectedUser.value = null // Close any open profile when switching servers
-    }, { immediate: true })
+      fetchAndSetUsers(newServerId);
+      selectedUser.value = null; // Close profile when switching servers
+    });
 
-    return {
-      users,
-      selectedUser,
-      profileCardStyle,
-      showUserProfile,
-      closeProfile,
-      getUserAvatar,
-      getUserDisplayName,
-      getUserStatusClass
-    }
+    const showUserProfile = (user: User, event: MouseEvent) => {
+      const userItemElement = (event.currentTarget as HTMLElement);
+      const userSidebar = (event.currentTarget as HTMLElement).closest('.user-sidebar');
+
+      if (userSidebar) {
+        const userSidebarRect = userSidebar.getBoundingClientRect();
+        const userItemRect = userItemElement.getBoundingClientRect();
+
+        profileCardStyle.value = {
+          top: `${userItemRect.top - userSidebarRect.top}px`,
+          left: '-332px'
+        };
+      }
+
+      selectedUser.value = user;
+      event.stopPropagation();
+    };
+
+    const getUserStatusClass = (status: UserStatus) => {
+      switch (status) {
+        case UserStatus.Online:
+          return 'status-online';
+        case UserStatus.Away:
+          return 'status-away';
+        case UserStatus.Busy:
+          return 'status-busy';
+        case UserStatus.Offline:
+        default:
+          return 'status-offline';
+      }
+    };
+  
+    const closeProfile = () => {
+      selectedUser.value = null;
+    };
+
+    // Initialize on mount and ensure status subscription is active
+    onMounted(() => {
+      fetchAndSetUsers(serverChannelStore.currentServerId);
+      // Make sure status subscription is active
+      serverUsersStore.subscribeToUserStatuses();
+    });
+
+    return { users, showUserProfile, selectedUser, profileCardStyle, closeProfile, getUserStatusClass };
   }
-})
+});
 </script>
 
 <style scoped>
 .user-sidebar {
   width: 240px;
   background-color: var(--h-sidebar);
-  padding: 16px 8px;
-  overflow-y: auto;
+  padding: 10px;
   position: relative;
 }
 
 .user-item {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
-  margin-bottom: 4px;
-  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  padding: 5px;
+  position: relative;
 }
 
 .user-item:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--h-sidebar-light);
 }
 
-.user-avatar-container {
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  margin-right: 10px;
   position: relative;
-  margin-right: 12px;
-  flex-shrink: 0;
+}
+
+.user-status {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  position: absolute;
+  right: 8px;
+  bottom: 0px;
+  border: 2px solid var(--h-sidebar);
+  z-index: 1;
 }
 
 .user-name {
   color: #b3b3b3;
   font-size: 0.9em;
-  font-weight: 500;
-  max-width: 140px;
+}
+
+.status-online {
+  background-color: #43b581;
+}
+
+.status-away {
+  background-color: #faa81a;
+}
+
+.status-busy {
+  background-color: #f04747;
+}
+
+.status-offline {
+  background-color: #747f8d;
 }
 
 .user-profile-card {
-  position: fixed;
-  right: 8px;
-  width: 300px;
+  position: absolute;
+  left: -332px;
+  width: 320px; 
+  height: 400px;
+  border-radius: 12px;
+  background-color: #2f3339; 
   z-index: 1000;
-  background-color: var(--h-black);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  opacity: 0;
+  transition: 0.2s ease-in-out;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+  transition: all 0.3s cubic-bezier(.25,.8,.25,1);
 }
 
-/* Mobile responsive */
-@media screen and (max-width: 768px) {
-  .user-sidebar {
-    width: 0;
-    overflow: hidden;
-    padding: 0;
-  }
-  
-  .user-sidebar.open {
-    width: calc(100% - 72px);
-    padding: 16px 8px;
-  }
-  
-  .user-profile-card {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90vw;
-    max-width: 400px;
-  }
+.user-profile-card:hover {
+  box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+}
+
+.user-profile-card.selected {
+  opacity: 1
 }
 </style>
