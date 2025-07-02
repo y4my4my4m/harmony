@@ -107,7 +107,8 @@ export default defineComponent({
         if (editTextarea.value && props.editableMessageId === props.messageId) {
           autoResizeTextarea();
           editTextarea.value.focus();
-          editTextarea.value.select();
+          // Remove the .select() call to prevent automatic text selection
+          // This allows users to position cursor where they want to edit
         }
       });
     });
@@ -119,7 +120,10 @@ export default defineComponent({
           if (editTextarea.value) {
             autoResizeTextarea();
             editTextarea.value.focus();
-            editTextarea.value.select();
+            // Remove the .select() call here too
+            // Position cursor at the end of the text instead
+            const textLength = editTextarea.value.value.length;
+            editTextarea.value.setSelectionRange(textLength, textLength);
           }
         });
       }

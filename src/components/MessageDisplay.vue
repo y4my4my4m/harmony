@@ -457,8 +457,10 @@ export default defineComponent({
         const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
         if (editInput) {
           editInput.focus();
-          // Select all text for easy replacement
-          editInput.select();
+          // Remove the .select() call to prevent automatic text selection
+          // Position cursor at the end instead
+          const textLength = editInput.value.length;
+          editInput.setSelectionRange(textLength, textLength);
         }
       });
     };
