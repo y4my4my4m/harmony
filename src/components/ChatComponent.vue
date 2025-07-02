@@ -29,6 +29,7 @@
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
       @update:replyMessageId="handleDontReply"
+      @upload-status-changed="handleUploadStatusChanged"
     />
 
     <GifComponent
@@ -52,7 +53,7 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, ref, onMounted, computed, watch } from 'vue';
+  import { defineComponent, ref, onMounted, computed, watch, onUnmounted } from 'vue';
   import type { PropType } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
@@ -106,7 +107,7 @@
       const resolvedEmojiList = computed(() => serverChannelStore.resolvedEmojiList);
       const reactionSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
       const currentUserId = computed(() => authStore.session?.user?.id);
-      const attachedFiles = ref<FilePreviewData[]>([]);
+      const hasActiveUploads = ref(false);
       
       // Computed property to check if running in Tauri
       const isTauri = computed(() => {
@@ -114,6 +115,27 @@
       });
       const gifIconClicked = ref(false);
       const emojiIconClicked = ref(false);
+
+      // Page leave protection
+      const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+        if (hasActiveUploads.value) {
+          event.preventDefault();
+          event.returnValue = 'You have files uploading. Are you sure you want to leave?';
+          return 'You have files uploading. Are you sure you want to leave?';
+        }
+      };
+
+      const handleUploadStatusChanged = (uploading: boolean) => {
+        hasActiveUploads.value = uploading;
+      };
+
+      onMounted(() => {
+        window.addEventListener('beforeunload', handleBeforeUnload);
+      });
+
+      onUnmounted(() => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      });
 
       const replyingTo = (messageId: string, replyingTo: string) => {
         if (messageId) {
@@ -285,17 +307,25 @@
         return undefined;
       };
 
-      const handleFilesAttached = (files: FilePreviewData[]) => {
-        attachedFiles.value = files;
-      };
-
       const handleSendMessage = async (content: string, files: FilePreviewData[] = []) => {
         if (!authStore.session?.user || !serverChannelStore.currentChannelId || !serverChannelStore.currentServerId) {
           return;
         }
 
-        uploading.value = files.length > 0;
-        
+        // Check if all files are uploaded
+        const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading');
+        const hasFailedFiles = files.some(file => file.uploadStatus === 'error');
+
+        if (hasUploadingFiles) {
+          console.warn('Cannot send message while files are still uploading');
+          return;
+        }
+
+        if (hasFailedFiles) {
+          console.warn('Cannot send message with failed uploads');
+          return;
+        }
+
         try {
           const messageParts: MessagePart[] = [];
           
@@ -305,15 +335,14 @@
             messageParts.push(...parsedMessage);
           }
 
-          // Upload files and add them to message parts
+          // Use already uploaded files
           for (const fileData of files) {
-            const fileUrl = await handleFileDrop(authStore.session.user.id, fileData.file);
-            if (fileUrl) {
+            if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
               const fileType = fileData.type.startsWith('image/') ? 'image' : 
                              fileData.type.startsWith('video/') ? 'video' : 'file';
               messageParts.push({
                 type: "file",
-                url: fileUrl,
+                url: fileData.uploadedUrl,
                 fileType,
                 fileName: fileData.name,
                 fileSize: fileData.size
@@ -336,8 +365,6 @@
           }
         } catch (error) {
           console.error('Error sending message with files:', error);
-        } finally {
-          uploading.value = false;
         }
       };
 
@@ -393,8 +420,7 @@
         toggleReaction,
         currentUserId,
         handleDontReply,
-        attachedFiles,
-        handleFilesAttached
+        handleUploadStatusChanged
       };
     }
   });

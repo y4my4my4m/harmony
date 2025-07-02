@@ -51,6 +51,9 @@ import MessageReply from '@/components/MessageReply.vue';
 import FilePreview from '@/components/FilePreview.vue';
 import FileUploadMenu from '@/components/FileUploadMenu.vue';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
+import { backgroundUploadManager } from '@/services/fileService';
+import { useAuthStore } from '@/stores/auth';
+import { v4 as uuidv4 } from 'uuid';
 
 export default defineComponent({
   components: {
@@ -77,8 +80,9 @@ export default defineComponent({
       default: ''
     },
   },
-  emits: ['update:modelValue', 'sendMessage', 'toggleGiphy', 'toggleEmojiList', 'update:replyMessageId', 'files-attached'],
+  emits: ['update:modelValue', 'sendMessage', 'toggleGiphy', 'toggleEmojiList', 'update:replyMessageId', 'files-attached', 'upload-status-changed'],
   setup(props, { emit }) {
+    const authStore = useAuthStore();
     const showUploadMenu = ref(false);
     const attachedFiles = ref<FilePreviewData[]>([]);
     const isDragging = ref(false);
@@ -93,6 +97,13 @@ export default defineComponent({
         const content = props.modelValue?.trim() || '';
         emit('sendMessage', content, attachedFiles.value);
         emit('update:modelValue', '');
+        
+        // Clear files after sending (uploads should be completed by now)
+        attachedFiles.value.forEach(file => {
+          if (file.preview) {
+            URL.revokeObjectURL(file.preview);
+          }
+        });
         attachedFiles.value = [];
         emit('files-attached', []);
       }
@@ -133,6 +144,7 @@ export default defineComponent({
         name: file.name,
         size: file.size,
         type: file.type,
+        uploadStatus: 'pending'
       };
 
       // Create preview for images and videos
@@ -144,10 +156,61 @@ export default defineComponent({
       return fileData;
     };
 
+    const startBackgroundUpload = async (fileData: FilePreviewData, index: number) => {
+      if (!authStore.session?.user?.id) return;
+
+      const uploadId = uuidv4();
+      fileData.uploadStatus = 'uploading';
+      fileData.uploadProgress = 0;
+
+      try {
+        const uploadedUrl = await backgroundUploadManager.startUpload(
+          uploadId,
+          authStore.session.user.id,
+          fileData.file,
+          (progress) => {
+            fileData.uploadProgress = progress;
+            // Force reactivity update
+            attachedFiles.value = [...attachedFiles.value];
+            emit('upload-status-changed', hasActiveUploads());
+          }
+        );
+
+        if (uploadedUrl) {
+          fileData.uploadStatus = 'completed';
+          fileData.uploadedUrl = uploadedUrl;
+          fileData.uploadProgress = 100;
+        } else {
+          throw new Error('Upload failed');
+        }
+      } catch (error) {
+        fileData.uploadStatus = 'error';
+        fileData.uploadError = error instanceof Error ? error.message : 'Upload failed';
+        fileData.uploadProgress = 0;
+      }
+
+      // Force reactivity update
+      attachedFiles.value = [...attachedFiles.value];
+      emit('upload-status-changed', hasActiveUploads());
+    };
+
+    const hasActiveUploads = () => {
+      return attachedFiles.value.some(file => file.uploadStatus === 'uploading');
+    };
+
     const handleFilesSelected = async (files: File[]) => {
       const newFiles = await Promise.all(files.map(createFilePreview));
+      
+      // Add files to the preview
       attachedFiles.value.push(...newFiles);
       emit('files-attached', attachedFiles.value);
+      
+      // Start background uploads immediately
+      const startIndex = attachedFiles.value.length - newFiles.length;
+      newFiles.forEach((fileData, i) => {
+        startBackgroundUpload(fileData, startIndex + i);
+      });
+      
       closeUploadMenu();
     };
 
@@ -161,6 +224,7 @@ export default defineComponent({
       
       attachedFiles.value.splice(index, 1);
       emit('files-attached', attachedFiles.value);
+      emit('upload-status-changed', hasActiveUploads());
     };
 
     // Drag and drop handlers
