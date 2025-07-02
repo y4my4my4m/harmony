@@ -178,30 +178,27 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
     const input = inputElement.value;
     const cursorPosition = input.selectionStart || 0;
 
-    // Create a temporary div to calculate text dimensions
-    const temp = document.createElement('div');
-    temp.style.position = 'absolute';
-    temp.style.visibility = 'hidden';
-    temp.style.whiteSpace = 'pre-wrap';
-    temp.style.font = window.getComputedStyle(input).font;
-    temp.style.padding = window.getComputedStyle(input).padding;
-    temp.style.border = window.getComputedStyle(input).border;
-    temp.style.width = window.getComputedStyle(input).width;
-
-    // Get text up to cursor position
-    const textBeforeCursor = input.value.substring(0, cursorPosition);
-    temp.textContent = textBeforeCursor;
-
-    document.body.appendChild(temp);
-    const textRect = temp.getBoundingClientRect();
-    document.body.removeChild(temp);
-
     // Get input element position
     const inputRect = input.getBoundingClientRect();
-
+    
+    // For better positioning, we'll use a simpler approach
+    // Position the popup above the input with some margin
+    const x = inputRect.left + 10; // Small left margin
+    const y = inputRect.top - 250; // Position well above the input (250px)
+    
+    // Make sure the popup doesn't go off-screen
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Adjust x position if it would go off the right edge
+    const adjustedX = Math.min(x, viewportWidth - 320); // 320px = max popup width + margin
+    
+    // Adjust y position if it would go off the top edge
+    const adjustedY = Math.max(y, 10); // Minimum 10px from top
+    
     return {
-      x: inputRect.left + textRect.width - inputRect.left,
-      y: inputRect.top - 10 // Position above the input
+      x: Math.max(adjustedX, 10), // Minimum 10px from left
+      y: adjustedY
     };
   };
 
@@ -285,21 +282,19 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
     const triggerStart = state.value.triggerPosition;
     
     // Calculate replacement text
-    let replacementText = '';
     let insertText = '';
 
     if (state.value.triggerType === 'emoji' && suggestion.emoji) {
       // For emojis, replace with :emoji_name: format
-      replacementText = `:${suggestion.name}:`;
-      insertText = replacementText;
+      insertText = `:${suggestion.name}:`;
     } else if (state.value.triggerType === 'mention' && suggestion.user) {
-      // For mentions, replace with @username format
+      // For mentions, we already have @ at triggerStart, so just add username
       const username = suggestion.username || suggestion.display_name;
-      replacementText = `@${username}`;
-      insertText = replacementText;
+      insertText = `${username}`;
     }
 
-    // Replace the trigger and query with the selected suggestion
+    // Replace the entire trigger + query with the selected suggestion
+    // triggerStart is the position of @ or :, cursorPosition is after the query
     const newValue = 
       currentValue.substring(0, triggerStart) + 
       insertText + 

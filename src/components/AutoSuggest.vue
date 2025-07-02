@@ -89,7 +89,7 @@ export default defineComponent({
       left: `${props.position.x}px`,
       top: `${props.position.y}px`,
       maxHeight: `${props.maxHeight}px`,
-      zIndex: 1000
+      zIndex: 9999 // Much higher z-index to ensure visibility
     }));
 
     const selectSuggestion = (suggestion: SuggestionItem) => {

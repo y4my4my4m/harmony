@@ -61,7 +61,7 @@
           />
           <div class="suggest-text">
             <span class="suggest-name">{{ suggestion.display_name || suggestion.name }}</span>
-            <span v-if="suggestion.username" class="suggest-username">@{{ suggestion.username }}</span>
+            <span v-if="suggestion.username" class="suggest-username">{{ suggestion.username }}</span>
             <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
           </div>
         </div>
@@ -140,9 +140,10 @@ export default defineComponent({
         return; // Auto-suggest handled the event
       }
       
-      // Handle normal key events
-      if (event.key === 'Enter') {
-        handleEnter(event);
+      // Handle Enter key for sending messages (only if auto-suggest is not active)
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        send();
       }
     };
 
