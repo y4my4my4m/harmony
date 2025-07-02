@@ -1,17 +1,19 @@
 <template>
   <div class="chat-container" 
-      @dragenter.prevent="showDragDropArea = true"
-      @dragover.prevent="showDragDropArea = true"
+      @dragenter.prevent="handleDragEnter"
+      @dragover.prevent="handleDragOver"
+      @dragleave.prevent="handleDragLeave"
       @drop.prevent="triggerFileDrop">
     <div v-if="showDragDropArea" 
       class="drag-drop-area"
-      @dragleave.prevent="showDragDropArea = false">
+      @dragleave.prevent="handleDragLeave">
       <div v-if="uploading" style="color:rgb(18, 143, 18);">Uploading...</div>
       <div v-else>Drop files here.</div>
     </div>
 
     <MessageDisplay 
       :messages="messages" 
+      :isLoading="isLoading"
       :currentUserId="currentUserId"
       @loadMoreMessages="$emit('loadMoreMessages')"
       @toggleEmojiList="toggleEmojiList"
@@ -19,7 +21,7 @@
       @replyingTo="replyingTo"
     />
     <MessageInput 
-      v-model:messageContent="messageContent"
+      v-model="messageContent"
       :giphyOpen="giphyOpen"
       :emojiListOpen="emojiListOpen"
       :reply-message-id="replyToMessageId"
@@ -27,8 +29,8 @@
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
-      @update:messageContent="messageContent = $event"
       @update:replyMessageId="handleDontReply"
+      @upload-status-changed="handleUploadStatusChanged"
     />
 
     <GifComponent
@@ -52,7 +54,7 @@
 </template>
 
 <script lang="ts">
-  import { defineComponent, ref, onMounted, computed, watch } from 'vue';
+  import { defineComponent, ref, onMounted, computed, watch, onUnmounted } from 'vue';
   import type { PropType } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
@@ -64,12 +66,13 @@
   import { handleFileDrop } from '@/services/fileService';
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
-  // import type { UnlistenFn } from '@tauri-apps/api/event';
   import GifComponent from '@/components/GifComponent.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
+  import type { FilePreviewData } from '@/components/FilePreview.vue';
+
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
-  
+
   export default defineComponent({
     components: {
       MessageDisplay,
@@ -81,6 +84,10 @@
       messages: {
         type: Array as () => Message[],
         required: true
+      },
+      isLoading: {
+        type: Boolean,
+        default: false
       },
       loadMoreMessages: Function as PropType<() => void>
     },
@@ -101,13 +108,35 @@
       const resolvedEmojiList = computed(() => serverChannelStore.resolvedEmojiList);
       const reactionSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
       const currentUserId = computed(() => authStore.session?.user?.id);
-      // let unlisten: UnlistenFn | null = null;
+      const hasActiveUploads = ref(false);
+      
       // Computed property to check if running in Tauri
       const isTauri = computed(() => {
         return typeof __TAURI__ !== 'undefined';
       });
       const gifIconClicked = ref(false);
       const emojiIconClicked = ref(false);
+
+      // Page leave protection
+      const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+        if (hasActiveUploads.value) {
+          event.preventDefault();
+          event.returnValue = 'You have files uploading. Are you sure you want to leave?';
+          return 'You have files uploading. Are you sure you want to leave?';
+        }
+      };
+
+      const handleUploadStatusChanged = (uploading: boolean) => {
+        hasActiveUploads.value = uploading;
+      };
+
+      onMounted(() => {
+        window.addEventListener('beforeunload', handleBeforeUnload);
+      });
+
+      onUnmounted(() => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      });
 
       const replyingTo = (messageId: string, replyingTo: string) => {
         if (messageId) {
@@ -116,21 +145,18 @@
         }
       };
 
-      // TODO: we're emitting from messageReply->messageInput->chatComponent ... dont do that!
       const handleDontReply = () => {
         replyToMessageId.value = '';
         replyToUserDisplayName.value = '';
       };
 
       const toggleReaction = (messageId: string, emoji: Emoji) => {
-        // TODO: i dont like putting "selectedMessage" out in the eather this is bad design, revise it to make the emoji popup completely modular and free of logic
         selectedMessageId.value = messageId;
         isPopupForReaction.value = true;
         handleSendEmoji(emoji);
       };
 
       const toggleEmojiList = (isReaction: boolean, message: Message) => {
-        // TODO: i dont like putting "selectedMessage" out in the eather this is bad design, revise it to make the emoji popup completely modular and free of logic
         if(message) selectedMessageId.value = message.id;
         isPopupForReaction.value = isReaction;
         emojiListOpen.value = !emojiListOpen.value;
@@ -166,32 +192,23 @@
         giphyOpen.value = false;
       };
 
-      const triggerFileDrop = async (event:any) => {
-        console.log("File dropped:", event);
-        uploading.value = true;
-        const files = event.dataTransfer.files;
-        if (files.length && serverChannelStore.currentChannelId && serverChannelStore.currentServerId && authStore.session?.user?.id) {
-            const file = files[0];
-            const fileUrl = await handleFileDrop(authStore.session?.user?.id, file);
-
-            console.log("File uploaded to:", fileUrl);
-            if (fileUrl) {
-                // Send a message with the file URL
-                // TODO: We should probably send the file name and size as well
-                // bad practice to use empty string as content, but we don't want to send the file as content
-                // we should use typed data for this, but we'll keep it simple for now
-                chatStore.sendMessage(
-                    serverChannelStore.currentServerId,
-                    serverChannelStore.currentChannelId, 
-                    authStore.session.user.id, 
-                    [{type: "file", url: fileUrl, fileType: "image"}],
-                    replyToMessageId.value
-                );
-                uploading.value = false;
-                handleDontReply();
-            }
-        }
+      // New drag and drop handler for the chat container (fallback)
+      const triggerFileDrop = async (event: any) => {
+        console.log("triggerFileDrop called - File dropped on chat container:", event);
         showDragDropArea.value = false;
+        
+        // Forward the files to MessageInput via the attached files
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+          console.log("ChatComponent forwarding", files.length, "files to MessageInput");
+          const fileArray = Array.from(files);
+          // This will be handled by MessageInput's drag and drop
+          // We'll emit an event to trigger file selection in MessageInput
+          const messageInputEvent = new CustomEvent('external-file-drop', {
+            detail: { files: fileArray }
+          });
+          document.dispatchEvent(messageInputEvent);
+        }
       };
 
       onMounted(async () => {
@@ -207,27 +224,16 @@
               type: "mime/type", // Replace with the actual mime type if known
             });
 
-            // Create a custom DataTransfer-like object
-            const customDataTransfer = {
-              files: {
-                0: file,
-                length: 1,
-                item: () => file
-              }
-            };
-
-            // Trigger the file drop handler
-            triggerFileDrop({ dataTransfer: customDataTransfer });
+            // Forward to MessageInput
+            const messageInputEvent = new CustomEvent('external-file-drop', {
+              detail: { files: [file] }
+            });
+            document.dispatchEvent(messageInputEvent);
           } catch (error) {
             console.error('Error processing file drop:', error);
           }
         });
       });
-      // onUnmounted(() => {
-      //   if (unlisten) {
-      //     unlisten();
-      //   }
-      // });
 
       const parseMessageInput = (input: string): MessagePart[] => {
         const emojiRegex = /:([\w\d_+-]+):/g;
@@ -303,13 +309,64 @@
         return undefined;
       };
 
-      const handleSendMessage = (content: string) => {
-        if (authStore.session?.user && serverChannelStore.currentChannelId) {
-          const parsedMessage = parseMessageInput(content);
-          console.log("replyToMessageId.value:", replyToMessageId.value);
-          chatStore.sendMessage(serverChannelStore.currentServerId, serverChannelStore.currentChannelId, authStore.session.user.id, parsedMessage, replyToMessageId.value);
-          messageContent.value = ''; // Reset the message input field after sending
-          handleDontReply();
+      const handleSendMessage = async (content: string, files: FilePreviewData[] = []) => {
+        if (!authStore.session?.user || !serverChannelStore.currentChannelId || !serverChannelStore.currentServerId) {
+          return;
+        }
+
+        // Check if all files are uploaded
+        const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading');
+        const hasFailedFiles = files.some(file => file.uploadStatus === 'error');
+
+        if (hasUploadingFiles) {
+          console.warn('Cannot send message while files are still uploading');
+          return;
+        }
+
+        if (hasFailedFiles) {
+          console.warn('Cannot send message with failed uploads');
+          return;
+        }
+
+        try {
+          const messageParts: MessagePart[] = [];
+          
+          // Add text content if present
+          if (content.trim()) {
+            const parsedMessage = parseMessageInput(content);
+            messageParts.push(...parsedMessage);
+          }
+
+          // Use already uploaded files
+          for (const fileData of files) {
+            if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
+              const fileType = fileData.type.startsWith('image/') ? 'image' : 
+                             fileData.type.startsWith('video/') ? 'video' : 'file';
+              messageParts.push({
+                type: "file",
+                url: fileData.uploadedUrl,
+                fileType,
+                fileName: fileData.name,
+                fileSize: fileData.size
+              });
+            }
+          }
+
+          // Send the message with all parts
+          if (messageParts.length > 0) {
+            await chatStore.sendMessage(
+              serverChannelStore.currentServerId,
+              serverChannelStore.currentChannelId,
+              authStore.session.user.id,
+              messageParts,
+              replyToMessageId.value || ''
+            );
+            
+            messageContent.value = '';
+            handleDontReply();
+          }
+        } catch (error) {
+          console.error('Error sending message with files:', error);
         }
       };
 
@@ -330,7 +387,6 @@
             reactionSound2.value.volume = 0.5;
             reactionSound2.value.play();
             await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
-
           }
         }
         else {
@@ -340,9 +396,36 @@
         }
       };
 
+      // Drag and drop handlers for chat container
+      const handleDragEnter = (event: DragEvent) => {
+        event.preventDefault();
+        if (event.dataTransfer?.types.includes('Files')) {
+          showDragDropArea.value = true;
+        }
+      };
+
+      const handleDragOver = (event: DragEvent) => {
+        event.preventDefault();
+      };
+
+      const handleDragLeave = (event: DragEvent) => {
+        event.preventDefault();
+        // Only hide if we're leaving the chat container entirely
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        const x = event.clientX;
+        const y = event.clientY;
+        
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+          showDragDropArea.value = false;
+        }
+      };
+
       return { 
         handleSendMessage,
         triggerFileDrop,
+        handleDragEnter,
+        handleDragOver, 
+        handleDragLeave,
         showDragDropArea,
         isTauri,
         uploading,
@@ -365,7 +448,8 @@
         replyToUserDisplayName,
         toggleReaction,
         currentUserId,
-        handleDontReply
+        handleDontReply,
+        handleUploadStatusChanged
       };
     }
   });
@@ -393,22 +477,22 @@
     opacity: 1;
   } */
   .drag-drop-area {
-    position:absolute;
-    z-index:50;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
     display: flex;
-    height: 90%;
-    width: 63%;
     border: 2px dashed #ccc;
     padding: 20px;
     text-align: center;
-    margin: 20px;
-    background: var(--vt-c-black);
-    opacity:0.8;
+    background: rgba(0, 0, 0, 0.8);
     align-items: center;
     justify-content: center;
     transition: 0.2s ease-in-out;
-    font-size:48px; 
-    font-weight:bold;
-    /* pointer-events: none; */
+    font-size: 48px; 
+    font-weight: bold;
+    color: white;
   }
 </style>

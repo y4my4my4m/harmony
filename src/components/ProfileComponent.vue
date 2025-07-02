@@ -97,10 +97,16 @@ export default defineComponent({
       }
     }, { immediate: true });
 
+    // Watch for authentication state changes and navigate to login if logged out
+    watch(() => authStore.isLoggedIn, (isLoggedIn) => {
+      if (!isLoggedIn) {
+        router.push('/login');
+      }
+    });
 
     const signOut = async () => {
       await authStore.logout();
-      router.go(0); // refresh page
+      // Remove router.go(0) - let the logout function handle navigation
     };
 
     const back = async () => {

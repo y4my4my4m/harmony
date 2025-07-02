@@ -14,10 +14,13 @@ export default defineComponent({
 </script>
 
 <style scoped>
+    .plusIcon {
+        cursor: pointer;
+    }
     .plusIcon .plusIconPath {
         fill: #aaa;
         transition: fill .2s;
-        cursor:pointer;
+        cursor: pointer;
     }
     .plusIcon:hover .plusIconPath {
         fill: #fff;

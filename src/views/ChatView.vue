@@ -24,7 +24,7 @@
       @createChannel="handleCreateChannel"
     />
     <CreateChannel
-      :serverId="currentServer.id"
+      :serverId="currentServer?.id || ''"
       :categoryId="currentCategoryId"
       :show="showCreateChannelForm"
       @channelCreated="handleChannelCreated"
@@ -36,6 +36,7 @@
       />
       <ChatComponent
         :messages="chatMessages"
+        :isLoading="isLoading"
         @loadMoreMessages="fetchMoreMessages" 
         @update:isAtBottom="isAtBottom = $event" 
       />
@@ -62,6 +63,7 @@
   import { useProfileStore } from '@/stores/useProfile';
   import { useToast } from "vue-toastification";
   import type { Channel } from "@/types";
+  import { useChannelSelection } from '@/composables/useUserProfile'
 
   export default defineComponent({
     components: {
@@ -73,6 +75,10 @@
       VoiceChannelScene,
       CreateChannel,
       PublicServers,
+    },
+    props: {
+      serverId: String,
+      channelId: String,
     },
     setup() {
       const serverUsersStore = useServerUsersStore();
@@ -89,6 +95,11 @@
       const route = useRoute();
       const router = useRouter();
       let initialized = false;
+      
+      // Professional async state management
+      const currentRequestId = ref(0);
+      let currentAbortController: AbortController | null = null;
+      const isLoading = ref(false);
 
       const showNoServersSplash = ref(false);
       const showPublicServers = ref(false);
@@ -125,30 +136,102 @@
         showCreateChannelForm.value = true;
       };
       
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const handleChannelCreated = async (channel: Channel) => {
-        // console.log(channel);
-        await serverChannelStore.fetchCategoriesAndChannels(currentServer.value.id);
-        // uncomment this to automatically go to the new channel
-        // handleChannelSelected(channel.id);
-      }
+      const { getDefaultChannel } = useChannelSelection()
+
+      const cancelCurrentRequest = () => {
+        if (currentAbortController) {
+          currentAbortController.abort();
+          currentAbortController = null;
+        }
+      };
+
+      const createRequestContext = () => {
+        cancelCurrentRequest();
+        currentAbortController = new AbortController();
+        const requestId = ++currentRequestId.value;
+        return { signal: currentAbortController.signal, requestId };
+      };
+
+      const isRequestStale = (requestId: number) => {
+        return requestId !== currentRequestId.value;
+      };
 
       const handleServerSelected = async (serverId: string) => {
+        // Immediate UI update for responsiveness
         serverChannelStore.setCurrentServer(serverId);
-        serverUsersStore.subscribeToUserStatuses();
-        chatStore.clearMessages();
-        await serverChannelStore.fetchCategoriesAndChannels(serverId);
-        // await serverChannelStore.fetchChannels(serverId);
-        // if (serverChannelStore.channels.length > 0) {
-        //   handleChannelSelected(serverChannelStore.channels[0].id);
-        // }
+        isLoading.value = true;
+        
+        const { signal, requestId } = createRequestContext();
+        
+        try {
+          serverUsersStore.subscribeToUserStatuses();
+          chatStore.clearMessages();
+          
+          // Fetch data with cancellation support
+          await serverChannelStore.fetchCategoriesAndChannels(serverId, signal);
+          
+          // Check if request is still current
+          if (isRequestStale(requestId)) return;
+          
+          // Only select default channel if no specific channel is in the route
+          if (!route.params.channelId && serverChannelStore.channels.length > 0) {
+            const defaultChannelId = getDefaultChannel(
+              serverChannelStore.channels, 
+              serverChannelStore.categories, 
+              serverChannelStore.categoryChannels
+            )
+            if (defaultChannelId && !isRequestStale(requestId)) {
+              await handleChannelSelected(defaultChannelId);
+            }
+          }
+        } catch (error: any) {
+          if (error.name === 'AbortError') return; // Request was cancelled
+          console.error('Error loading server:', error);
+          toast.error('Failed to load server');
+        } finally {
+          if (!isRequestStale(requestId)) {
+            isLoading.value = false;
+          }
+        }
       };
+
+      // Enhanced channel creation handler
+      const handleChannelCreated = async (channel: Channel) => {
+        await serverChannelStore.fetchCategoriesAndChannels(currentServer.value.id);
+        showCreateChannelForm.value = false
+        // Automatically navigate to the newly created channel
+        await handleChannelSelected(channel.id);
+      }
+
       const handleChannelSelected = async (channelId: string) => {
         serverChannelStore.setCurrentChannel(channelId);
-        // chatStore.clearMessages(); // Clear messages right when the channel is changed
-        await chatStore.fetchMessages(channelId);
-        chatStore.subscribeToMessages(channelId);
-        scrollToBottom();
+        
+        // Check if messages are cached with enhanced validation
+        const isCached = chatStore.isMessageCached(channelId);
+        
+        if (isCached) {
+          // For potentially cached channels, validate against server modifications
+          const isValidCache = await chatStore.isChannelCacheValid(channelId);
+          if (isValidCache) {
+            // Cache is truly valid - load instantly
+            chatStore.loadCachedMessages(channelId);
+            chatStore.subscribeToMessages(channelId);
+            scrollToBottom();
+          } else {
+            // Cache is stale due to message modifications - refetch
+            console.log(`Cache invalidated due to message modifications: ${channelId}`);
+            chatStore.clearMessages();
+            await chatStore.fetchMessages(channelId);
+            chatStore.subscribeToMessages(channelId);
+            scrollToBottom();
+          }
+        } else {
+          // For non-cached channels: Clear first, then fetch
+          chatStore.clearMessages();
+          await chatStore.fetchMessages(channelId);
+          chatStore.subscribeToMessages(channelId);
+          scrollToBottom();
+        }
       };
 
       const fetchMoreMessages = async () => {
@@ -163,15 +246,13 @@
         const serverId = route.params.serverId;
         const channelId = route.params.channelId;
         if (serverId) {
-          // console.log('Loading server and channel:', serverId, channelId);
           await handleServerSelected(serverId.toString());
           if (channelId) {
             await handleChannelSelected(channelId.toString());
           }
           else {
-            if (serverChannelStore.channels.length > 0) {
-              handleChannelSelected(serverChannelStore.channels[0].id);
-            }
+            // Let handleServerSelected handle default channel selection
+            // The logic is now in handleServerSelected
           }
         } else if (serverChannelStore.servers.length > 0) {
           const firstServerId = serverChannelStore.servers[0].id;
@@ -296,6 +377,34 @@
           }
 
           await serverChannelStore.initializeUserEnvironment(userId);
+          
+          // Initialize presence for current user
+          const userProfile = serverUsersStore.userProfiles[userId];
+          if (userProfile && currentServer.value?.id) {
+            serverUsersStore.initializePresence(
+              currentServer.value.id, 
+              userId, 
+              userProfile.display_name || userProfile.username || 'Unknown User', 
+              userProfile.avatar_url
+            );
+          }
+          serverUsersStore.subscribeToUserStatuses();
+          
+          // Subscribe to offline broadcast notifications
+          serverUsersStore.subscribeToOfflineBroadcasts();
+
+          const handleResize = () => {
+            // Adjust chat area and sidebars on resize
+            if (window.innerWidth > 768) {
+              isSidebarsVisible.value = true;
+              isProfilesVisible.value = false;
+            } else {
+              isSidebarsVisible.value = false;
+              isProfilesVisible.value = false;
+            }
+          };
+
+          window.addEventListener('resize', handleResize);
 
           initialized = true;
           if (servers.value.length === 0) {
@@ -307,27 +416,16 @@
           requestNotificationPermission();
 
           const chatLayout = document.querySelector('#app');
-          if (chatLayout)
-          {
-            chatLayout.addEventListener('touchstart', handleTouchStart);
-            // chatLayout.addEventListener('touchmove', handleTouchMove);
-            chatLayout.addEventListener('touchend', handleTouchEnd);
+          // Event listeners
+          if (chatLayout) {
+            chatLayout.addEventListener('touchstart', handleTouchStart as EventListener);
           }
-          // wait 5 seconds then send a notification
-          setTimeout(() => {
-            showNotification('Welcome to Harmony!');
-          }, 5000);
         }
       });
 
       onBeforeUnmount(() => {
-        const chatLayout = document.querySelector('#app');
-        if (chatLayout)
-        {
-          chatLayout.removeEventListener('touchstart', handleTouchStart);
-          // chatLayout.removeEventListener('touchmove', handleTouchMove);
-          chatLayout.removeEventListener('touchend', handleTouchEnd);
-        }
+        // Clean up presence when component unmounts
+        serverUsersStore.cleanup();
       });
 
       watch(route, () => {
@@ -352,15 +450,14 @@
         scrollToBottom,
         requestNotificationPermission,
         showNotification,
-        toggleSidebars,
         isSidebarsVisible,
-        toggleProfiles,
-        handleCreateChannel,
         isProfilesVisible,
+        handleCreateChannel,
         currentCategoryId,
         handleChannelCreated,
         showPublicServers,
         handleShowPublicServers,
+        isLoading,
       };
   }
 });
@@ -435,5 +532,38 @@
     width: 100%;
     padding: 10px;
   }
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>

@@ -1,12 +1,17 @@
 <template>
-  <div class="user-profile">
-    <img :src="profile?.avatar_url" alt="User Avatar" class="avatar">
+  <div class="user-profile" ref="targetRef">
+    <div class="avatar-container">
+      <img :src="profile?.avatar_url" alt="User Avatar" class="avatar">
+      <span :class="getUserStatusClass(currentStatus)" class="status-indicator"></span>
+    </div>
     <div class="user-info">
       <p class="user-name">{{ profile?.display_name }}</p>
-
-      <div class="user-status" @click="toggleStatusDropdown">
-        <span :class="getUserStatusClass(profile?.status ?? 0)"></span>
-        <span>{{ getUserStatusText(profile?.status ?? 0) }}</span>
+      <div class="user-status-container" @click="toggleStatusDropdown">
+        <div class="status-dot" :class="getUserStatusClass(currentStatus)"></div>
+        <span class="status-text">{{ getUserStatusText(currentStatus) }}</span>
+        <svg class="dropdown-arrow" :class="{ rotated: showStatusDropdown }" width="12" height="8" viewBox="0 0 12 8" fill="currentColor">
+          <path d="M6 6L10.5 1.5L9 0L6 3L3 0L1.5 1.5L6 6Z"/>
+        </svg>
       </div>
     </div>
 
@@ -17,20 +22,25 @@
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
-      <select v-model="selectedStatus" @change="updateStatus">
-        <option value="1">Online</option>
-        <option value="2">Away</option>
-        <option value="3">Do Not Disturb</option>
-        <option value="0">Invisible</option>
-      </select>
+      <div 
+        v-for="status in statusOptions" 
+        :key="status.value"
+        class="status-option"
+        :class="{ active: currentStatus === status.value }"
+        @click="selectStatus(status.value)"
+      >
+        <div class="status-dot" :class="status.class"></div>
+        <span class="status-text">{{ status.label }}</span>
+        <span v-if="currentStatus === status.value" class="checkmark">✓</span>
+      </div>
     </div>
   </div>
 </template>
 
-
 <script lang="ts">
-  import { defineComponent, ref, onMounted, onBeforeUnmount } from 'vue';
+  import { defineComponent, ref, onMounted, onBeforeUnmount, computed } from 'vue';
   import { useAuthStore } from '@/stores/auth';
+  import { useServerUsersStore } from '@/stores/useServerUsers';
   import { getProfileWithAvatarUrl } from '@/services/profileService';
   import { useRouter } from 'vue-router';
   import type { User } from '@/types';
@@ -41,32 +51,50 @@
   import SettingsIcon from '@/components/icons/Settings.vue';
   
   export default defineComponent({
+    name: 'UserProfileComponent',
     components: {
       MicIcon,
       HeadphonesIcon,
       SettingsIcon
     },
     setup() {
-      const micOnSound = ref(new Audio('/assets/sounds/mic_on.mp3'));
-      const micOffSound = ref(new Audio('/assets/sounds/mic_off.mp3'));
-      const cameraOnSound = ref(new Audio('/assets/sounds/camera_on.mp3'));
-      const cameraOffSound = ref(new Audio('/assets/sounds/camera_off.mp3'));
+      const authStore = useAuthStore();
+      const serverUsersStore = useServerUsersStore();
+      const router = useRouter();
+      const profile = ref<User | null>(null);
+      const showStatusDropdown = ref(false);
+      const selectedStatus = ref(UserStatus.Offline);
       const isMicActive = ref(false);
       const isHeadphonesActive = ref(true);
-      
-      const authStore = useAuthStore();
-      const profile = ref<User | null>(null);
+      const targetRef = ref<HTMLElement | null>(null);
 
-      const showStatusDropdown = ref(false);
+      // Make status reactive to store changes
+      const currentStatus = computed(() => {
+        if (!authStore.session?.user?.id) return UserStatus.Offline;
+        return serverUsersStore.userProfiles[authStore.session.user.id]?.status ?? UserStatus.Offline;
+      });
+
+      const statusOptions = [
+        { value: UserStatus.Online, label: 'Online', class: 'status-online' },
+        { value: UserStatus.Away, label: 'Away', class: 'status-away' },
+        { value: UserStatus.Busy, label: 'Do Not Disturb', class: 'status-busy' },
+        { value: UserStatus.Offline, label: 'Invisible', class: 'status-offline' }
+      ];
+
+      // Audio effects
+      const cameraOnSound = ref(new Audio('/assets/sounds/camera_on.mp3'));
+      const cameraOffSound = ref(new Audio('/assets/sounds/camera_off.mp3'));
 
       const toggleMic = () => {
         isMicActive.value = !isMicActive.value;
-        if (!isMicActive.value) {
-          micOffSound.value.volume = 0.35;
-          micOffSound.value.play();
+        if (!isHeadphonesActive.value) {
+          isMicActive.value = false;
+          cameraOffSound.value.volume = 0.35;
+          cameraOffSound.value.play();
         } else {
-          micOnSound.value.volume = 0.35;
-          micOnSound.value.play();
+          // TODO: only turn back on the mic if it was already set to "on" (observe the inspiration app's behaviour for this)
+          cameraOnSound.value.volume = 0.35;
+          cameraOnSound.value.play();
         }
       };
 
@@ -87,13 +115,17 @@
         showStatusDropdown.value = !showStatusDropdown.value;
       };
 
+      const selectStatus = async (status: UserStatus) => {
+        selectedStatus.value = status;
+        await updateStatus();
+        showStatusDropdown.value = false;
+      };
+
       const onClickOutside = (event: any) => {
-        if (!event.target.closest('.user-profile')) {
+        if (targetRef.value && !targetRef.value.contains(event.target)) {
           showStatusDropdown.value = false;
         }
       };
-
-      const selectedStatus = ref(profile.value?.status || UserStatus.Offline);
 
       const updateStatus = async () => {
         if (authStore.session?.user) {
@@ -103,8 +135,6 @@
             profile.value.status = selectedStatus.value;
         }
       };
-
-      const router = useRouter();
 
       // refactor those into helper functions that can be used globally or something
       const getUserStatusClass = (status: UserStatus) => {
@@ -131,9 +161,10 @@
             return 'Do Not Disturb';
           case UserStatus.Offline:
           default:
-            return 'Offline';
+            return 'Invisible';
         }
       };
+
       const goToSettings = () => {
         router.push({ name: 'Profile' });
       };
@@ -141,6 +172,7 @@
       onMounted(async () => {
         if (authStore.session?.user) {
           profile.value = await getProfileWithAvatarUrl(authStore.session.user.id);
+          selectedStatus.value = profile.value?.status || UserStatus.Offline;
         }
         document.addEventListener('click', onClickOutside);
       });
@@ -161,10 +193,15 @@
         toggleHeadphones,
         isMicActive,
         isHeadphonesActive,
+        selectStatus,
+        targetRef,
+        currentStatus,
+        statusOptions
       };
     },
   });
   </script>
+
 <style scoped>
 .user-profile {
   display: flex;
@@ -177,10 +214,40 @@
   padding: 10px;
 }
 
+.avatar-container {
+  position: relative;
+}
+
 .avatar {
   width: 36px;
   height: 36px;
   border-radius: 50%;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  border: 2px solid var(--h-black-dark);
+  border-radius: 50%;
+}
+
+.status-online {
+  background-color: #43b581;
+}
+
+.status-away {
+  background-color: #faa81a;
+}
+
+.status-busy {
+  background-color: #f04747;
+}
+
+.status-offline {
+  background-color: #747f8d;
 }
 
 .user-info {
@@ -191,93 +258,131 @@
 .user-name {
   font-weight: bold;
   color: white;
+  margin: 0 0 4px 0;
+  font-size: 0.9em;
 }
 
-.user-status {
+.user-status-container {
   display: flex;
   align-items: center;
-  color: #8e9094;
-  font-size:10px;
+  cursor: pointer;
+  font-size: 0.8em;
+  color: #b3b3b3;
+  padding: 4px 6px;
+  border-radius: 3px;
+  transition: background 0.2s;
 }
 
-.status-online {
-  background-color: #43b581; /* Online status color */
+.user-status-container:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.status-away {
-  background-color: #faa81a; /* Away status color */
+.buttons {
+  display: flex;
+  gap: 4px;
 }
 
-.status-busy {
-  background-color: #f04747; /* Busy status color */
+.status-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 10px;
+  right: 10px;
+  background: #18191c;
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  border: 1px solid #202225;
+  z-index: 1000;
+  animation: slideUp 0.15s ease-out;
 }
 
-.status-offline {
-  background-color: #747f8d; /* Offline status color */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.status-online, .status-away, .status-busy, .status-offline {
+.status-option {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+  font-size: 0.875rem;
+  color: #dcddde;
+}
+
+.status-option:hover {
+  background: #4f545c;
+}
+
+.status-option.active {
+  background: #5865f2;
+  color: white;
+}
+
+.status-option .status-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  margin-right: 5px;
+  margin-right: 10px;
+  flex-shrink: 0;
 }
 
-
-.buttons {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
+.status-text {
+  flex-grow: 1;
+  font-weight: 500;
 }
+
+.checkmark {
+  margin-left: auto;
+  color: white;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
 .icon-button {
-  /* background: none; */
-  /* border: none; */
-  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  padding: 4px;
-  margin: 2px;
-  /* border-radius: 4px; */
-  transition: 0.2s ease-in-out;
-  display:flex;
-}
-/* .icon-button.muted {
-  opacity:0.65;
-  background:rgba(255,0,0,0.35);
-}
-.settings {
-  filter: grayscale(1) brightness(0.65)
-} */
-.status-dropdown {
-  position: absolute;
-  bottom: 100%; /* Position above the user profile */
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #2f3136;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  z-index: 10;
+  transition: background 0.2s;
+  color: #b9bbbe;
 }
 
-.status-dropdown select {
-  width: 100%;
-  padding: 8px;
-  border: none;
-  border-radius: 8px;
-  background-color: #202225;
-  color: white;
-  cursor: pointer;
+.icon-button:hover {
+  background: #4f545c;
+  color: #dcddde;
 }
 
-.status-dropdown select:focus {
-  outline: none;
+.icon-button.muted {
+  color: #f04747;
 }
 
-/* Optional: style the options */
-.status-dropdown option {
-  background-color: #2f3136;
-  color: white;
+.icon-button.settings:hover {
+  color: #dcddde;
 }
-@media (max-width: 768px) {
+
+.dropdown-arrow {
+  margin-left: 4px;
+  transition: transform 0.2s;
+  opacity: 0.7;
+}
+
+.dropdown-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+@media screen and (max-width: 768px) {
   .user-profile {
     width: 0;
     overflow: hidden;
@@ -285,7 +390,9 @@
     display: none;
   }
   .user-profile.open {
-    width: calc(100% - 60px)
+    width: calc(100% - 60px);
+    display: flex;
+    padding: 10px;
   }
 }
 </style>

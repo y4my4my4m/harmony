@@ -1,16 +1,39 @@
 <template>
-  <div class="message-input" :class="{'replying': replyMessageId}">
+  <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}">
     <MessageReply
       v-if="replyMessageId"
       :replyMessageId="replyMessageId"
       :replyUserDisplayName="replyUserDisplayName"
       @update:replyMessageId="handleDontReply"
     />
-    <div class="message-container">
+    <FilePreview
+      :files="attachedFiles"
+      @remove-file="removeFile"
+    />
+    <div class="message-container"
+         @dragenter.prevent="handleDragEnter"
+         @dragover.prevent="handleDragOver"
+         @dragleave.prevent="handleDragLeave"
+         @drop.prevent="handleDrop">
       <div class="left-icons">
-        <PlusIcon/>
+        <div class="plus-icon-container">
+          <PlusIcon @click="toggleUploadMenu" :class="{ active: showUploadMenu }" />
+          <FileUploadMenu
+            :isVisible="showUploadMenu"
+            @files-selected="handleFilesSelected"
+            @close="closeUploadMenu"
+          />
+        </div>
       </div>
-      <textarea draggable="false" @dragstart.prevent class="selectableText" v-model="localMessageContent" @keydown.enter="handleEnter" placeholder="Type a message..."></textarea>
+      <textarea 
+        draggable="false" 
+        @dragstart.prevent 
+        class="selectableText" 
+        :value="modelValue"
+        @input="handleInput"
+        @keydown.enter="handleEnter" 
+        :placeholder="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
+      ></textarea>
       <div class="right-icons">
         <GifIcon @click="toggleGiphy" />
         <EmojiUI @click="toggleEmojiList" />
@@ -20,11 +43,17 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch } from 'vue';
+import { defineComponent, ref, watch, onMounted, onUnmounted } from 'vue';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
 import EmojiUI from '@/components/EmojiUI.vue'
 import MessageReply from '@/components/MessageReply.vue';
+import FilePreview from '@/components/FilePreview.vue';
+import FileUploadMenu from '@/components/FileUploadMenu.vue';
+import type { FilePreviewData } from '@/components/FilePreview.vue';
+import { backgroundUploadManager } from '@/services/fileService';
+import { useAuthStore } from '@/stores/auth';
+import { v4 as uuidv4 } from 'uuid';
 
 export default defineComponent({
   components: {
@@ -32,12 +61,13 @@ export default defineComponent({
     GifIcon,
     EmojiUI,
     MessageReply,
+    FilePreview,
+    FileUploadMenu,
   },
   props: {
     giphyOpen: Boolean,
     emojiListOpen: Boolean,
-    modelValue: String,
-    messageContent: {
+    modelValue: {
       type: String,
       default: ''
     },
@@ -50,22 +80,39 @@ export default defineComponent({
       default: ''
     },
   },
+  emits: ['update:modelValue', 'sendMessage', 'toggleGiphy', 'toggleEmojiList', 'update:replyMessageId', 'files-attached', 'upload-status-changed'],
   setup(props, { emit }) {
-    const localMessageContent = ref(props.messageContent);
+    const authStore = useAuthStore();
+    const showUploadMenu = ref(false);
+    const attachedFiles = ref<FilePreviewData[]>([]);
+    const isDragging = ref(false);
+
+    const handleInput = (event: Event) => {
+      const target = event.target as HTMLTextAreaElement;
+      emit('update:modelValue', target.value);
+    };
 
     const send = () => {
-      if (localMessageContent.value?.trim()) {
-        const content = localMessageContent.value.trim();
-        emit('sendMessage', content);
-        localMessageContent.value = '';
+      if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
+        const content = props.modelValue?.trim() || '';
+        emit('sendMessage', content, attachedFiles.value);
+        emit('update:modelValue', '');
+        
+        // Clear files after sending (uploads should be completed by now)
+        attachedFiles.value.forEach(file => {
+          if (file.preview) {
+            URL.revokeObjectURL(file.preview);
+          }
+        });
+        attachedFiles.value = [];
+        emit('files-attached', []);
       }
     };
 
     const handleEnter = (event: KeyboardEvent) => {
       if (event.shiftKey) {
-        // Allows for Shift + Enter to create a new line
+        return;
       } else {
-        // Prevents the default Enter key action and sends the message
         event.preventDefault();
         send();
       }
@@ -74,43 +121,204 @@ export default defineComponent({
     const toggleGiphy = () => {
       emit('toggleGiphy');
     };
+    
     const toggleEmojiList = () => {
-      // set false if not a reaction but an emoji for the input
       emit('toggleEmojiList', false);
     };
 
-    // Watch for changes to the prop and update the local copy accordingly
-    watch(() => props.messageContent, (newValue) => {
-      localMessageContent.value = newValue;
-    });
-
-    // Emit an event when the local copy changes
-    watch(localMessageContent, (newValue) => {
-      emit('update:messageContent', newValue);
-    });
-
     const handleDontReply = (newReplyMessageId: string) => {
-      // replyMessageId.value = newReplyMessageId;
       emit('update:replyMessageId', newReplyMessageId);
-      // Additional logic if needed
     };
 
+    const toggleUploadMenu = (event?: Event) => {
+      if (event) {
+        event.stopPropagation();
+      }
+      console.log('Toggle upload menu clicked, current state:', showUploadMenu.value);
+      showUploadMenu.value = !showUploadMenu.value;
+      console.log('New state:', showUploadMenu.value);
+    };
+
+    const closeUploadMenu = () => {
+      showUploadMenu.value = false;
+    };
+
+    const createFilePreview = async (file: File): Promise<FilePreviewData> => {
+      const fileData: FilePreviewData = {
+        file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        uploadStatus: 'pending'
+      };
+
+      // Create preview for images and videos
+      if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+        const url = URL.createObjectURL(file);
+        fileData.preview = url;
+      }
+
+      return fileData;
+    };
+
+    const startBackgroundUpload = async (fileData: FilePreviewData, index: number) => {
+      if (!authStore.session?.user?.id) return;
+
+      const uploadId = uuidv4();
+      fileData.uploadStatus = 'uploading';
+      fileData.uploadProgress = 0;
+
+      try {
+        const uploadedUrl = await backgroundUploadManager.startUpload(
+          uploadId,
+          authStore.session.user.id,
+          fileData.file,
+          (progress) => {
+            fileData.uploadProgress = progress;
+            // Force reactivity update
+            attachedFiles.value = [...attachedFiles.value];
+            emit('upload-status-changed', hasActiveUploads());
+          }
+        );
+
+        if (uploadedUrl) {
+          fileData.uploadStatus = 'completed';
+          fileData.uploadedUrl = uploadedUrl;
+          fileData.uploadProgress = 100;
+        } else {
+          throw new Error('Upload failed');
+        }
+      } catch (error) {
+        fileData.uploadStatus = 'error';
+        fileData.uploadError = error instanceof Error ? error.message : 'Upload failed';
+        fileData.uploadProgress = 0;
+      }
+
+      // Force reactivity update
+      attachedFiles.value = [...attachedFiles.value];
+      emit('upload-status-changed', hasActiveUploads());
+    };
+
+    const hasActiveUploads = () => {
+      return attachedFiles.value.some(file => file.uploadStatus === 'uploading');
+    };
+
+    const handleFilesSelected = async (files: File[]) => {
+      console.log('handleFilesSelected called with:', files.length, 'files');
+      console.log('Current attachedFiles count before:', attachedFiles.value.length);
+      
+      const newFiles = await Promise.all(files.map(createFilePreview));
+      
+      // Add files to the preview
+      attachedFiles.value.push(...newFiles);
+      console.log('Current attachedFiles count after:', attachedFiles.value.length);
+      emit('files-attached', attachedFiles.value);
+      
+      // Start background uploads immediately
+      const startIndex = attachedFiles.value.length - newFiles.length;
+      newFiles.forEach((fileData, i) => {
+        startBackgroundUpload(fileData, startIndex + i);
+      });
+      
+      closeUploadMenu();
+    };
+
+    const removeFile = (index: number) => {
+      const removedFile = attachedFiles.value[index];
+      
+      // Revoke object URL to prevent memory leaks
+      if (removedFile.preview) {
+        URL.revokeObjectURL(removedFile.preview);
+      }
+      
+      attachedFiles.value.splice(index, 1);
+      emit('files-attached', attachedFiles.value);
+      emit('upload-status-changed', hasActiveUploads());
+    };
+
+    // Drag and drop handlers
+    const handleDragEnter = (event: DragEvent) => {
+      event.preventDefault();
+      isDragging.value = true;
+    };
+
+    const handleDragOver = (event: DragEvent) => {
+      event.preventDefault();
+    };
+
+    const handleDragLeave = (event: DragEvent) => {
+      event.preventDefault();
+      // Only set isDragging to false if we're leaving the message container
+      if (!event.currentTarget?.contains(event.relatedTarget as Node)) {
+        isDragging.value = false;
+      }
+    };
+
+    const handleDrop = async (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation(); // Prevent bubbling to parent
+      isDragging.value = false;
+
+      const files = event.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const fileArray = Array.from(files);
+        await handleFilesSelected(fileArray);
+      }
+    };
+
+    // Handle external file drop events from ChatComponent
+    const handleExternalFileDrop = (event: CustomEvent) => {
+      console.log('handleExternalFileDrop called with:', event.detail.files?.length, 'files');
+      const { files } = event.detail;
+      if (files && files.length > 0) {
+        handleFilesSelected(files);
+      }
+    };
+
+    onMounted(() => {
+      document.addEventListener('external-file-drop', handleExternalFileDrop as EventListener);
+    });
+
+    onUnmounted(() => {
+      document.removeEventListener('external-file-drop', handleExternalFileDrop as EventListener);
+      
+      // Clean up any remaining object URLs
+      attachedFiles.value.forEach(file => {
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview);
+        }
+      });
+    });
+
+    // Watch for changes in attached files to emit to parent
+    watch(attachedFiles, (newFiles) => {
+      emit('files-attached', newFiles);
+    }, { deep: true });
+
     return { 
-      localMessageContent, 
       send, 
       toggleGiphy, 
       toggleEmojiList, 
       handleEnter,
+      handleInput,
       handleDontReply,
+      showUploadMenu,
+      toggleUploadMenu,
+      closeUploadMenu,
+      attachedFiles,
+      handleFilesSelected,
+      removeFile,
+      handleDragEnter,
+      handleDragOver,
+      handleDragLeave,
+      handleDrop,
+      isDragging,
     };
   }
 });
 </script>
 
 <style scoped>
-  /* this design has a small difference with the inspiration app
-     the replying bar should be "a bit" over the .message-input's gray container but our padding isnt organized for that
-     whatever...  */
   .message-input {
     display: flex;
     padding: 10px 12px;
@@ -118,36 +326,54 @@ export default defineComponent({
     border-radius: 8px;
     flex-direction: column;
   }
+  
   .message-input.replying {
     padding: 0 12px 10px 12px;
   }
+  
+  .message-input.has-files {
+    padding-top: 0;
+  }
+  
   .message-input.replying .message-container {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
   }
 
-  .left-icons {
-    padding-left:10px;
+  .message-input.has-files .message-container {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
   }
+
+  .left-icons {
+    padding-left: 10px;
+  }
+  
   .left-icons, .right-icons {
     display: flex;
     align-items: center;
   }
+  
   .right-icons {
-    padding-right:10px;
+    padding-right: 10px;
+  }
+
+  .plus-icon-container {
+    position: relative;
   }
 
   .message-container {
-    position:relative;
+    position: relative;
     display: flex;
-    align-items: center; /* Aligns items to the top */
+    align-items: center;
     flex-grow: 1;
-    padding: 8px ;
+    padding: 8px;
     border-radius: 8px;
     border: none;
     background-color: var(--h-chat-light);
     transition: .2s;
   }
+
   textarea {
     flex-grow: 1;
     padding: 0;
@@ -171,7 +397,6 @@ export default defineComponent({
 
   textarea:focus,
   textarea:active {
-    /* box-shadow: 0 0 0 2px #00aff4; */
     outline: none;
   }
   /* party mode RGB */
@@ -220,18 +445,18 @@ export default defineComponent({
   } */
 
   .message-container:has(textarea:focus) {
-    /* box-shadow: 0 0 0 2px #00aff4; */
     box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
   }
 
   @media (max-width: 768px) {
     .message-input {
-      position:sticky;
-      bottom:0;
+      position: sticky;
+      bottom: 0;
     }
+    
     textarea {
-      font-size:14px;
-      top:7px;
+      font-size: 14px;
+      top: 7px;
     }
   }
 </style>

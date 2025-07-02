@@ -1,12 +1,14 @@
 <template>
   <div class="user-sidebar">
     <div v-for="user in users" :key="user.id" class="user-item" @click="showUserProfile(user, $event)">
-      <img :src="user.avatar_url" alt="User avatar" class="user-avatar">
-      <span :class="getUserStatusClass(user.status)" class="user-status"></span>
-      <span class="user-name">{{ user.display_name }}</span>
+      <div class="user-avatar-container">
+        <img :src="user.avatar_url || '/default_avatar.png'" alt="User avatar" class="user-avatar">
+        <span :class="getUserStatusClass(user.status)" class="user-status"></span>
+      </div>
+      <span class="user-name">{{ user.display_name || 'Unknown User' }}</span>
     </div>
 
-    <!-- FIXME: User profile card (class should be inside, reusable component!) -->
+    <!-- User profile card (reusable component) -->
     <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
       <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
     </div>
@@ -14,7 +16,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch } from 'vue';
+import { defineComponent, ref, watch, computed, onMounted } from 'vue';
 import type { User } from '@/types';
 import UserPreviewComponent from './UserPreviewComponent.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -28,24 +30,29 @@ export default defineComponent({
   setup() {
     const serverChannelStore = useServerChannelStore();
     const serverUsersStore = useServerUsersStore();
-    const users = ref<User[]>([]); // Define users as a reactive ref
+    const selectedUser = ref<User | null>(null);
+    const profileCardStyle = ref({ top: '0px', left: '-332px' });
+
+    // Make users reactive to store changes
+    const users = computed(() => {
+      const serverId = serverChannelStore.currentServerId;
+      if (!serverId) return [];
+      
+      return Object.values(serverUsersStore.userProfiles).filter(user => user && user.id);
+    });
 
     const fetchAndSetUsers = async (serverId: string | null) => {
       if (serverId) {
         const userIds = await getUserIdsForServer(serverId);
         await serverUsersStore.fetchUserProfiles(userIds);
-        users.value = userIds.map(userId => 
-          serverUsersStore.userProfiles[userId] || { id: userId, display_name: 'Loading...' });
       }
     };
 
     watch(() => serverChannelStore.currentServerId, (newServerId) => {
       fetchAndSetUsers(newServerId);
+      selectedUser.value = null; // Close profile when switching servers
     });
 
-    const profileCardStyle = ref({ top: '0px'});
-
-    const selectedUser = ref<User | null>(null);
     const showUserProfile = (user: User, event: MouseEvent) => {
       const userItemElement = (event.currentTarget as HTMLElement);
       const userSidebar = (event.currentTarget as HTMLElement).closest('.user-sidebar');
@@ -56,6 +63,7 @@ export default defineComponent({
 
         profileCardStyle.value = {
           top: `${userItemRect.top - userSidebarRect.top}px`,
+          left: '-332px'
         };
       }
 
@@ -63,13 +71,6 @@ export default defineComponent({
       event.stopPropagation();
     };
 
-    watch(() => serverChannelStore.currentServerId, async (newServerId) => {
-      if (newServerId) {
-        const userIds = await getUserIdsForServer(newServerId);
-        await serverUsersStore.fetchUserProfiles(userIds);
-      }
-    });
-  
     const getUserStatusClass = (status: UserStatus) => {
       switch (status) {
         case UserStatus.Online:
@@ -87,6 +88,13 @@ export default defineComponent({
     const closeProfile = () => {
       selectedUser.value = null;
     };
+
+    // Initialize on mount and ensure status subscription is active
+    onMounted(() => {
+      fetchAndSetUsers(serverChannelStore.currentServerId);
+      // Make sure status subscription is active
+      serverUsersStore.subscribeToUserStatuses();
+    });
 
     return { users, showUserProfile, selectedUser, profileCardStyle, closeProfile, getUserStatusClass };
   }
@@ -106,9 +114,15 @@ export default defineComponent({
   align-items: center;
   cursor: pointer;
   padding: 5px;
-  &:hover {
-    background-color:var(--h-sidebar-light);
-  }
+  position: relative;
+}
+
+.user-item:hover {
+  background-color: var(--h-sidebar-light);
+}
+
+.user-avatar-container {
+  position: relative;
 }
 
 .user-avatar {
@@ -119,27 +133,35 @@ export default defineComponent({
 }
 
 .user-status {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background-color: grey; /* Default color */
-  margin-right: 5px;
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  border: 2px solid var(--h-sidebar);
+  z-index: 1;
+}
+
+.user-name {
+  color: #b3b3b3;
+  font-size: 0.9em;
 }
 
 .status-online {
-  background-color: #43b581; /* Online status color */
+  background-color: #43b581;
 }
 
 .status-away {
-  background-color: #faa81a; /* Away status color */
+  background-color: #faa81a;
 }
 
 .status-busy {
-  background-color: #f04747; /* Busy status color */
+  background-color: #f04747;
 }
 
 .status-offline {
-  background-color: #747f8d; /* Offline status color */
+  background-color: #747f8d;
 }
 
 .user-profile-card {
@@ -156,9 +178,11 @@ export default defineComponent({
   box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
   transition: all 0.3s cubic-bezier(.25,.8,.25,1);
 }
+
 .user-profile-card:hover {
   box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
 }
+
 .user-profile-card.selected {
   opacity: 1
 }

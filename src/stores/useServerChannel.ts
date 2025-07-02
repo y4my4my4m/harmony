@@ -69,13 +69,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (error) console.error('Error fetching servers:', error);
       else this.servers = servers;
     },
-    async fetchCategoriesAndChannels(serverId: string) {
+    async fetchCategoriesAndChannels(serverId: string, signal?: AbortSignal) {
       // Fetch categories for the server, ordered by 'order'
       const { data: categories, error: categoriesError } = await supabase
         .from('channel_categories')
         .select('*')
         .eq('server_id', serverId)
         .order('order', { ascending: true });
+
+      // Check if request was cancelled
+      if (signal?.aborted) {
+        throw new DOMException('Operation aborted', 'AbortError');
+      }
 
       if (categoriesError) {
         console.error('Error fetching categories:', categoriesError);
@@ -89,6 +94,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .from('channels')
         .select('*')
         .eq('server_id', serverId);
+
+      // Check if request was cancelled
+      if (signal?.aborted) {
+        throw new Error('AbortError');
+      }
   
       if (channelsError) {
         console.error('Error fetching channels:', channelsError);

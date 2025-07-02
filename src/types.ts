@@ -27,13 +27,13 @@ export interface Category {
 // TODO: FIXME! User is NOT profile (user is the auth user, profile is the user's profile)
 export interface User {
   id: string;
-  username: string;
-  display_name: string;
-  avatar_url: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
   status: UserStatus;
-  roles: Role[];
-  color?: string;
-  about?: string;
+  created_at?: string;
+  updated_at?: string;
+  last_seen?: string;
 }
 
 export interface Profile {
@@ -145,4 +145,60 @@ export interface Point {
   x: number;
   y: number;
   color: string;
+}
+
+// Supabase Presence Types
+export interface PresenceState {
+  user_id: string;
+  display_name: string;
+  avatar_url?: string;
+  online_at: string;
+}
+
+export interface PresenceJoinPayload {
+  key: string;
+  newPresences: PresenceState[];
+}
+
+export interface PresenceLeavePayload {
+  key: string;
+  leftPresences: PresenceState[];
+}
+
+export interface PresenceSyncPayload {
+  presences: Record<string, PresenceState[]>;
+}
+
+export type PresenceSubscriptionStatus = 
+  | 'SUBSCRIBED' 
+  | 'TIMED_OUT' 
+  | 'CLOSED' 
+  | 'CHANNEL_ERROR';
+
+export interface RealtimePresenceState {
+  [key: string]: PresenceState[];
+}
+
+// Generic type to avoid exposing internal Supabase types
+export interface PresenceChannel {
+  presenceState(): RealtimePresenceState;
+  track(presence: PresenceState): Promise<void>;
+  untrack(): void;
+  on(event: string, options: any, callback: (payload: any) => void): PresenceChannel;
+  subscribe(callback: (status: PresenceSubscriptionStatus) => void): void;
+}
+
+// Chat store cache interfaces
+export interface ChannelCache {
+  messages: Message[];
+  lastFetchedAt: Date;
+  oldestMessageId: string | null;
+  allMessagesLoaded: boolean;
+  lastModified: Date | null;
+}
+
+export interface CacheMetadata {
+  channelId: string;
+  lastModified: Date;
+  messageCount: number;
 }

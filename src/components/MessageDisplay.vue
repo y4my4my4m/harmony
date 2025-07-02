@@ -3,19 +3,26 @@
     <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
-    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`#${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`message-${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+      <!-- Gap indicator for jumped-to messages -->
+      <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
+        <div class="gap-line"></div>
+        <div class="gap-text">Jump in conversation</div>
+        <div class="gap-line"></div>
+      </div>
+      
       <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
-        <div v-if="message.reply_to" @click="highlightMessage(message.reply_to)" class="repliedMessage">
+        <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="repliedMessage">
           <!-- TODO: dont make "gets" for everything -->
           <div class="replyContainer">
-            <img draggable="false" :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
-            <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getUserColor(getUserIdFromMessage(message.reply_to)) }">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
+            <img draggable="false" :src="getReplyUserAvatar(message.reply_to)" class="replyAvatar">
+            <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getReplyUserColor(message.reply_to) }">{{ getReplyUserDisplayName(message.reply_to) }}</div>
             <div class="repliedTextPreview" role="button" tabindex="0">
               <div id="message-content" class="repliedTextContent">
                 <!-- TODO: need to fetch if message is too far back -->
                 <span>
                   <MessageContent 
-                    :content=" messages.find(msg => msg.id === message.reply_to)?.content || []"
+                    :content="getReplyMessageContent(message.reply_to)"
                     :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
                     :isSingleEmojiMessage="isSingleEmojiMessage[index]"
                     :image-loaded="imageLoaded"
@@ -78,8 +85,8 @@
       <div class="message-actions" v-if="hoveredMessageId === message.id">
         <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
         <div class="btn" @click="replyTo(message)"><ReplyIcon/></div>
-        <div class="btn" @click="startEdit(message)"><EditIcon/></div>
-        <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
+        <div class="btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
+        <div class="btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
         <div class="btn"><MoreIcon/></div>
       </div>
       <div class="reactions" v-if="message.reactions" >
@@ -109,23 +116,24 @@
     :index="indexRef"
     @hide="closeLightbox"
   />
-    <!-- FIXME: User profile card (class should be inside, reusable component!) -->
-  <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
-    <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
-  </div>
 
-  <div 
-    v-show="tooltip.visible" 
-    class="tooltip" 
-    :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
+  <!-- User Profile Card -->
+  <UserPreviewComponent
+    v-if="selectedUser"
+    :user="selectedUser"
+    :style="profileCardStyle"
+    @close="closeProfile"
+  />
+
+  <!-- Tooltip for reactions -->
+  <div
+    v-if="tooltip.visible"
+    class="tooltip"
+    :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
   >
-    <div class="tooltip-emoji"><img :src="tooltip.emoji?.url" />:{{ tooltip.emoji?.name }}:</div>
-    <div style="color:#777; font-size:12px;">Reactions:</div>
-    <div v-for="(user) in tooltip.content" :key="user.id">
-      <span :style="{color: user.userColor}">
-        <img class="tooltip-avatar" :src="user.avatarUrl" alt="" style="width: 20px; height: 20px; border-radius: 50%;">
-        {{ user.displayName }}
-      </span>
+    <div v-for="user in tooltip.content" :key="user.id">
+      <img :src="user.avatarUrl || '/default_avatar.png'" :alt="user.displayName" class="tooltip-avatar">
+      <span>{{ user.displayName }}</span>
     </div>
   </div>
 
@@ -135,9 +143,11 @@
 <script lang="ts">
 import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType, Ref } from 'vue';
-import type { Message, User, Emoji, Reaction } from '@/types';
+import type { Message, User, Emoji, Reaction, MessagePart, Profile } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
+import { useAuthStore } from '@/stores/auth';
+import { useServerChannelStore } from '@/stores/useServerChannel'; 
 import { format } from 'date-fns';
 import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
 import MessageContent from '@/components/MessageContent.vue';
@@ -156,7 +166,14 @@ export default defineComponent({
     loadMoreMessages: Function as PropType<() => void>,
     isAtBottom: Boolean,
     currentUserId: String,
+    // Add the missing isLoading prop
+    isLoading: {
+      type: Boolean,
+      default: false
+    },
   },
+  // Add the missing emits declaration
+  emits: ['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom'],
   components: { 
     UserPreviewComponent,
     ReplyIcon,
@@ -169,20 +186,12 @@ export default defineComponent({
   setup(props, { emit }) {
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
+    const serverChannelStore = useServerChannelStore();
     const useChat = useChatStore();
-    // const parsedMessages = computed(() => {
-    //   return props.messages.map((message) => {
-    //     // Assuming the content of each message is a JSON string
-    //     try {
-    //       const content = JSON.parse(message.content);
-    //       return { ...message, content };
-    //     } catch (e) {
-    //       // Fallback to plain text if parsing fails
-    //       console.error('Error parsing message content:', e);
-    //       return { ...message, content: [{ text: message.content }] };
-    //     }
-    //   });
-    // });
+    const authStore = useAuthStore();
+    
+    // Cache for reply messages
+    const replyMessages = ref<Record<string, Message>>({});
     
     const tooltip = ref({
       visible: false,
@@ -225,10 +234,89 @@ export default defineComponent({
       tooltip.value.visible = false;
     };
 
+    const lightboxImages = computed(() => {
+      let urls: Array<string> = [];
+      if (!props.messages || !Array.isArray(props.messages)) {
+        return urls;
+      }
+      
+      props.messages.forEach(message => {
+        if (!message?.content || !Array.isArray(message.content)) {
+          return;
+        }
+        
+        message.content.forEach(part => {
+          if (!part || typeof part !== 'object') {
+            return;
+          }
+          
+          if (part.type === 'file' && part.fileType === 'image' && part.url) {
+            urls.push(part.url);
+          }
+          else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) {
+            urls.push(part.url);
+          }
+        });
+      });
+      return urls;
+    });
+
+    // Watch for changes in messages for parsing
+    watch(() => props.messages, (newMessages) => {
+      if (!newMessages || !Array.isArray(newMessages)) {
+        return;
+      }
+
+      const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
+
+      newMessages.forEach(message => {
+        if (!message?.content || !Array.isArray(message.content)) {
+          return;
+        }
+        
+        message.content.forEach(part => {
+          if (!part || typeof part !== 'object') {
+            return;
+          }
+          
+          // initialize image "loading" state
+          if (part.type === 'file' && part.fileType === 'image' && part.url && !(part.url in imageLoaded.value)) {
+            imageLoaded.value[part.url] = false;
+          }
+          else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')) && !(part.url in imageLoaded.value)) {
+            imageLoaded.value[part.url] = false;
+          }
+        });
+      });
+
+      if (newMessages && newMessages.length > 0) {
+        // Recalculate scroll height
+        nextTick(() => {
+          if (messageDisplayContainer.value) {
+            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+            const scrollOffset = newScrollHeight - oldScrollHeight;
+            messageDisplayContainer.value.scrollTop += scrollOffset;
+          }
+          // FIXME: manually call to scroll down to bottom, although we probably dont want if we've scrolled up
+          handleScroll();
+        });
+      }
+    }, { immediate: true, deep: true });
+
     const isSingleEmojiMessage = computed(() => {
+      if (!props.messages || !Array.isArray(props.messages)) {
+        return [];
+      }
+      
       return props.messages.map(message => {
+        if (!message?.content || !Array.isArray(message.content)) {
+          return false;
+        }
         // Check if the message content has only one part and that part is an emoji
-        return message.content.length === 1 && Object.prototype.hasOwnProperty.call(message.content[0], 'emoji');
+        return message.content.length === 1 && 
+               message.content[0] && 
+               typeof message.content[0] === 'object' && 
+               Object.prototype.hasOwnProperty.call(message.content[0], 'emoji');
       });
     });
 
@@ -245,44 +333,167 @@ export default defineComponent({
       emit('sendReaction', messageId, emoji);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const startEdit = (message: Message) => {
-      // editableMessageId.value = message.id;
-      // // Convert message content to string
-      // editableMessageContent.value = message.content.map(part => {
-      //   if (typeof part === 'string') {
-      //     return part;
-      //   } else if (part.mention) {
-      //     return part.mention;
-      //   } else if (part.url) {
-      //     return part.url;
-      //   } else if (part.emoji) {
-      //     return `:${part.emoji.id}:`;
-      //   }
-      // }).join('')
+    // Utility function to convert structured message content to editable text
+    const contentToEditableText = (content: MessagePart[]): string => {
+      if (!content || !Array.isArray(content)) {
+        return '';
+      }
+
+      return content.map(part => {
+        if (!part || typeof part !== 'object') {
+          return '';
+        }
+
+        switch (part.type) {
+          case 'text':
+            return part.text || '';
+          case 'emoji':
+            return part.emoji?.name ? `:${part.emoji.name}:` : '';
+          case 'mention':
+            return part.mention || '';
+          case 'url':
+            return part.url || '';
+          case 'file':
+            // For files, we'll show a placeholder text that can't be edited
+            return `[${part.fileType || 'file'}: ${part.url ? 'attachment' : 'file'}]`;
+          default:
+            return '';
+        }
+      }).join('');
     };
 
-    const highlightMessage = (messageId: string) => {
-      // scroll up to message id
-      const messageElement = document.getElementById(`#${messageId}`);
-      if (messageElement) {
-        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        messageElement.classList.add('highlighted');
+    // Parse edited text back to structured content (reuse existing parsing logic)
+    const parseEditedText = (text: string): MessagePart[] => {
+      const emojiRegex = /:([\w\d_+-]+):/g;
+      const urlRegex = /(\bhttps?:\/\/\S+)/gi;
+      const mentionRegex = /(@\w+@\w+\S+)/g;
+      const fileRegex = /\[(?:image|video|file): [^\]]+\]/g;
+      
+      let lastIndex = 0;
+      const result: MessagePart[] = [];
+      const combinedRegex = new RegExp(
+        `${emojiRegex.source}|${urlRegex.source}|${mentionRegex.source}|${fileRegex.source}`, 
+        'gi'
+      );
+
+      let match;
+      while ((match = combinedRegex.exec(text)) !== null) {
+        // Add text before match
+        if (match.index > lastIndex) {
+          const textPart = text.slice(lastIndex, match.index);
+          if (textPart.trim()) {
+            result.push({ type: 'text', text: textPart });
+          }
+        }
+
+        const matchedText = match[0];
+        
+        // Handle emoji
+        if (matchedText.startsWith(':') && matchedText.endsWith(':')) {
+          const emojiName = matchedText.slice(1, -1);
+          const emoji = findEmojiByName(emojiName);
+          if (emoji) {
+            result.push({ type: 'emoji', emoji });
+          } else {
+            result.push({ type: 'text', text: matchedText });
+          }
+        }
+        // Handle URL
+        else if (matchedText.startsWith('http')) {
+          result.push({ type: 'url', url: matchedText, preview: true });
+        }
+        // Handle mention
+        else if (matchedText.startsWith('@')) {
+          const userId = serverUsersStore.usernameToUserIdMap[matchedText.toLowerCase()];
+          result.push({ type: 'mention', mention: matchedText, userId });
+        }
+        // Handle file placeholders (don't allow editing)
+        else if (matchedText.startsWith('[') && matchedText.endsWith(']')) {
+          // Skip file placeholders - they can't be edited
+          result.push({ type: 'text', text: matchedText });
+        }
+
+        lastIndex = match.index + matchedText.length;
       }
-    }
 
-    const replyTo = (message: Message) => {
-      emit('replyingTo', message.id, getUserDisplayName(message.user_id));
-    }
+      // Add remaining text
+      if (lastIndex < text.length) {
+        const remainingText = text.slice(lastIndex);
+        if (remainingText.trim()) {
+          result.push({ type: 'text', text: remainingText });
+        }
+      }
 
+      return result;
+    };
+
+    // Find emoji by name (reuse existing logic)
+    const findEmojiByName = (name: string) => {
+      const resolvedEmojiList = serverChannelStore.resolvedEmojiList;
+      for (const serverId in resolvedEmojiList) {
+        const server = resolvedEmojiList[serverId];
+        const emoji = server.emojis.find(e => e.name === name);
+        if (emoji) {
+          return emoji;
+        }
+      }
+      return undefined;
+    };
+
+    // Implement proper startEdit function
+    const startEdit = (message: Message) => {
+      if (!canEditMessage(message)) {
+        return;
+      }
+
+      // Set the message as editable
+      editableMessageId.value = message.id;
+      
+      // Convert structured content to editable text
+      editableMessageContent.value = contentToEditableText(message.content);
+      
+      // Focus the edit input after DOM update
+      nextTick(() => {
+        const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
+        if (editInput) {
+          editInput.focus();
+          // Select all text for easy replacement
+          editInput.select();
+        }
+      });
+    };
+
+    // Enhanced saveEdit function
     const saveEdit = async (messageId: string, newContent?: string) => {
-      const content = newContent ?? editableMessageContent.value;
-      await useChat.editMessage(messageId, content); // Replace with your actual update logic
-      editableMessageId.value = null;
+      if (!editableMessageId.value) return;
+
+      try {
+        const textContent = newContent ?? editableMessageContent.value;
+        
+        // Don't save if content is empty
+        if (!textContent.trim()) {
+          cancelEdit();
+          return;
+        }
+
+        // Parse the edited text back to structured content
+        const parsedContent = parseEditedText(textContent);
+        
+        // Update the message with structured content
+        await useChat.editMessage(messageId, parsedContent);
+        
+        // Reset edit state
+        editableMessageId.value = null;
+        editableMessageContent.value = '';
+      } catch (error) {
+        console.error('Error saving message edit:', error);
+        // TODO: Show error message to user
+      }
     };
 
     const cancelEdit = () => {
       editableMessageId.value = null;
+      editableMessageContent.value = '';
     };
 
     const deleteMessage = (messageId: string) => {
@@ -322,7 +533,8 @@ export default defineComponent({
       return serverUsersStore.userProfiles[userId]?.display_name || 'Unknown User';
     };
     const getUserColor = (userId:string) => {
-      return `${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`;
+      const profile = serverUsersStore.userProfiles[userId] as Profile;
+      return `${profile?.color || '#dddddd'}`;
     };
     const getUserAvatar = (userId:string) => {
       return serverUsersStore.userProfiles[userId]?.avatar_url || '/default_avatar.png';
@@ -330,22 +542,6 @@ export default defineComponent({
     const formatTimestamp = (timestamp:Date) => {
       return format(new Date(timestamp), 'p'); // Formats to the user's locale time
     };
-
-    const lightboxImages = computed(() => {
-      let urls:Array<string> = [];
-      props.messages.forEach(message => {
-        message.content.forEach(part => {
-          if (part.type === 'file' && part.fileType === 'image') {
-            urls.push(part.url);
-          }
-          else if (part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')))
-          {
-            urls.push(part.url);
-          }
-        });
-      });
-      return urls;
-    });
 
     const isLightboxOpen = ref(false);
     const indexRef = ref(0);
@@ -381,37 +577,149 @@ export default defineComponent({
       }
     };
 
-    // Watch for changes in messages for parsing
-    watch(() => props.messages, (newMessages) => {
-      const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
-
-      newMessages.forEach(message => {
-        message.content.forEach(part => {
-          // initialize image "loading" state
-          if (part.type === 'file' && part.fileType === 'image' && !(part.url in imageLoaded.value)) {
-            imageLoaded.value[part.url] = false;
-          }
-          else if ((part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')))  && !(part.url in imageLoaded.value))
-          {
-            imageLoaded.value[part.url] = false;
-          }
-        });
-      });
-
-      if (newMessages && newMessages.length > 0) {
-        // Recalculate scroll height
-        nextTick(() => {
-          if (messageDisplayContainer.value) {
-            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-            const scrollOffset = newScrollHeight - oldScrollHeight;
-            messageDisplayContainer.value.scrollTop += scrollOffset;
-          }
-          // FIXME: manually call to scroll down to bottom, although we probably dont want if we've scrolled up
-          handleScroll();
-        });
+    // Enhanced reply message handling
+    const getReplyMessageContent = (replyMessageId: string) => {
+      // First check if message is in current messages
+      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
+      if (currentMessage) {
+        return currentMessage.content;
       }
-    }, { immediate: true, deep: true });
 
+      // Check if message is in reply cache
+      const cachedMessage = replyMessages.value[replyMessageId];
+      if (cachedMessage) {
+        return cachedMessage.content;
+      }
+
+      // Fetch the message if not found
+      fetchReplyMessageIfNeeded(replyMessageId);
+      
+      // Return empty array while loading
+      return [];
+    };
+
+    // Handle clicking on reply messages - implement jump functionality
+    const handleReplyClick = async (replyMessageId: string) => {
+      // Get current channel ID from store
+      const currentChannelId = useChat.currentChannelId;
+      if (!currentChannelId) return;
+
+      // Attempt to jump to the message
+      const success = await useChat.jumpToMessage(replyMessageId, currentChannelId);
+      if (!success) {
+        console.warn(`Could not jump to message: ${replyMessageId}`);
+      }
+    };
+
+    // Implement highlight message functionality
+    useChat.highlightMessage = (messageId: string) => {
+      nextTick(() => {
+        const messageElement = document.getElementById(`message-${messageId}`);
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          messageElement.classList.add('highlighted');
+          
+          // Remove highlight after 3 seconds
+          setTimeout(() => {
+            messageElement.classList.remove('highlighted');
+          }, 3000);
+        }
+      });
+    };
+
+    const highlightMessage = (messageId: string) => {
+      // scroll up to message id
+      const messageElement = document.getElementById(`message-${messageId}`);
+      if (messageElement) {
+        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        messageElement.classList.add('highlighted');
+        
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+          messageElement.classList.remove('highlighted');
+        }, 3000);
+      }
+    }
+
+    const replyTo = (message: Message) => {
+      emit('replyingTo', message.id, getUserDisplayName(message.user_id));
+    }
+
+    // Permission checks for message editing/deletion
+    const canEditMessage = (message: Message) => {
+      if (!authStore.session?.user) return false;
+      
+      // Users can edit their own messages
+      if (message.user_id === authStore.session.user.id) {
+        return true;
+      }
+      
+      // TODO: Add admin permission check when admin roles are implemented
+      // For now, only allow editing own messages
+      return false;
+    };
+
+    const canDeleteMessage = (message: Message) => {
+      if (!authStore.session?.user) return false;
+      
+      // Users can delete their own messages
+      if (message.user_id === authStore.session.user.id) {
+        return true;
+      }
+      
+      // TODO: Add admin permission check when admin roles are implemented
+      // For now, only allow deleting own messages
+      return false;
+    };
+
+    const getReplyUserDisplayName = (replyMessageId: string) => {
+      const userId = getReplyUserId(replyMessageId);
+      return serverUsersStore.userProfiles[userId]?.display_name || 'Loading...';
+    };
+
+    const getReplyUserColor = (replyMessageId: string) => {
+      const userId = getReplyUserId(replyMessageId);
+      const profile = serverUsersStore.userProfiles[userId] as Profile;
+      return `${profile?.color || '#dddddd'}`;
+    };
+
+    const getReplyUserAvatar = (replyMessageId: string) => {
+      const userId = getReplyUserId(replyMessageId);
+      return serverUsersStore.userProfiles[userId]?.avatar_url || '/default_avatar.png';
+    };
+
+    const getReplyUserId = (replyMessageId: string) => {
+      // First check if message is in current messages
+      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
+      if (currentMessage) {
+        return currentMessage.user_id;
+      }
+
+      // Check if message is in reply cache
+      const cachedMessage = replyMessages.value[replyMessageId];
+      if (cachedMessage) {
+        return cachedMessage.user_id;
+      }
+
+      return 'unknown';
+    };
+
+    const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
+      // Don't fetch if already exists or is being fetched
+      if (replyMessages.value[replyMessageId] || 
+          props.messages.find(msg => msg.id === replyMessageId)) {
+        return;
+      }
+
+      try {
+        const message = await useChat.fetchReplyMessage(replyMessageId);
+        if (message) {
+          replyMessages.value[replyMessageId] = message;
+        }
+      } catch (error) {
+        console.error('Error fetching reply message:', error);
+      }
+    };
 
     return { 
       getUserDisplayName, 
@@ -447,6 +755,18 @@ export default defineComponent({
       tooltip,
       showTooltip,
       hideTooltip,
+      // Add missing functions to return
+      getReplyMessageContent,
+      handleReplyClick,
+      canEditMessage,
+      canDeleteMessage,
+      getReplyUserDisplayName,
+      getReplyUserColor,
+      getReplyUserAvatar,
+      contentToEditableText,
+      parseEditedText,
+      findEmojiByName,
+      chatStore: useChat, // Expose chat store for template
     };
   }
 });
@@ -705,7 +1025,20 @@ export default defineComponent({
 .highlighted {
   background:#59554766;
   border-left:2px solid #d79315;
+  animation: highlight-fade 3s ease-out;
 }
+
+@keyframes highlight-fade {
+  0% {
+    background: #d7931566;
+    border-left-color: #d79315;
+  }
+  100% {
+    background: #59554766;
+    border-left-color: #d79315;
+  }
+}
+
 .emoji-icon.single {
   height: 64px;
 }
@@ -831,4 +1164,107 @@ export default defineComponent({
 
 }
 
+/* Loading skeleton styles */
+.loading-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px;
+  opacity: 0.6;
+}
+
+.skeleton-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.skeleton-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #2f3136 25%, #303135 50%, #2f3136 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s infinite;
+}
+
+.skeleton-content {
+  flex-grow: 1;
+  padding-top: 2px;
+}
+
+.skeleton-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.skeleton-username {
+  height: 16px;
+  width: 80px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s infinite;
+}
+
+.skeleton-timestamp {
+  height: 12px;
+  width: 40px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s infinite;
+}
+
+.skeleton-text {
+  height: 16px;
+  margin-bottom: 4px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s infinite;
+}
+
+.skeleton-text:first-of-type {
+  width: 85%;
+}
+
+.skeleton-text.short {
+  width: 45%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Gap indicator for jumped-to messages */
+.message-gap {
+  display: flex;
+  align-items: center;
+  margin: 16px 12px;
+  color: #72767d;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.gap-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #72767d 50%, transparent);
+}
+
+.gap-text {
+  padding: 0 12px;
+  background: var(--h-chat);
+  white-space: nowrap;
+}
 </style>
