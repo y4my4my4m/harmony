@@ -1,19 +1,14 @@
 <template>
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/>
-  </svg>
+    <svg class="MicIcon" aria-hidden="true" role="img" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24">
+        <path class="MicIconPath" d="M12 2a4 4 0 0 0-4 4v4a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4Z"></path>
+        <path class="MicIconPath" d="M6 10a1 1 0 0 0-2 0 8 8 0 0 0 7 7.94V20H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.06A8 8 0 0 0 20 10a1 1 0 1 0-2 0 6 6 0 0 1-12 0Z"></path>
+    </svg>
 </template>
 
 <script lang="ts">import { defineComponent} from 'vue';
 
 export default defineComponent({
     name: 'MicIcon',
-    props: {
-        isMicActive: {
-            type: Boolean as PropType<boolean>,
-            required: true
-        }
-    }
 });
 </script>
 
@@ -25,15 +20,5 @@ export default defineComponent({
     }
     .MicIcon:hover .MicIconPath {
         fill: #fff;
-    }
-
-    .MicIconMuted .MicIconMutedPath {
-        fill: #DD0000;
-        transition: .2s;
-        cursor:pointer;
-        opacity: 0.75;
-    }
-    .MicIconMuted:hover .MicIconMutedPath {
-        opacity: 1;
     }
 </style>
