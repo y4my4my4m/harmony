@@ -1,8 +1,10 @@
 <template>
   <div class="user-sidebar">
     <div v-for="user in users" :key="user.id" class="user-item" @click="showUserProfile(user, $event)">
-      <img :src="user.avatar_url || '/default_avatar.png'" alt="User avatar" class="user-avatar">
-      <span :class="getUserStatusClass(user.status)" class="user-status"></span>
+      <div class="user-avatar-container">
+        <img :src="user.avatar_url || '/default_avatar.png'" alt="User avatar" class="user-avatar">
+        <span :class="getUserStatusClass(user.status)" class="user-status"></span>
+      </div>
       <span class="user-name">{{ user.display_name || 'Unknown User' }}</span>
     </div>
 
@@ -119,21 +121,24 @@ export default defineComponent({
   background-color: var(--h-sidebar-light);
 }
 
+.user-avatar-container {
+  position: relative;
+}
+
 .user-avatar {
   width: 30px;
   height: 30px;
   border-radius: 50%;
   margin-right: 10px;
-  position: relative;
 }
 
 .user-status {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   position: absolute;
   right: 8px;
-  bottom: 0px;
+  bottom: 4px;
   border: 2px solid var(--h-sidebar);
   z-index: 1;
 }
