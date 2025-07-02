@@ -149,45 +149,60 @@ export default defineComponent({
       return props.channels.filter(channel => !channel.category);
     });
   
-    const draggedChannel = ref(null);
+    const draggedChannel = ref<Channel | null>(null);
 
     const onStartDrag = (event: any) => {
-      const originalCategoryIndex = Number(event.from.closest('.category-items').dataset.categoryIndex);
-      const originalCategory = combinedCategories.value[originalCategoryIndex];
-
-      if (event.oldIndex >= 0 && event.oldIndex < originalCategory.channels.length) {
-        draggedChannel.value = originalCategory.channels[event.oldIndex];
-      }
-    };
-    const onEndDrag = (event: any) => {
-// Determine the original and new category indices
-      const originalCategoryIndex = event.from.dataset.categoryIndex ? Number(event.from.dataset.categoryIndex) : null;
-      const newCategoryIndex = event.to.dataset.categoryIndex ? Number(event.to.dataset.categoryIndex) : null;
-
-      let newCategory = null;
-      if (newCategoryIndex !== null) {
-        newCategory = combinedCategories.value[newCategoryIndex];
-      }
-
-      let draggedChannel = null;
-      if (originalCategoryIndex !== null) {
-        const originalCategory = combinedCategories.value[originalCategoryIndex];
-        draggedChannel = originalCategory.channels[event.oldIndex];
+      // Store the dragged channel reference more reliably
+      const element = event.item
+      const channelId = element.getAttribute('data-channel-id') || element.querySelector('.channel-item')?.getAttribute('data-channel-id')
+      
+      if (channelId) {
+        draggedChannel.value = props.channels.find(ch => ch.id === channelId) || null
       } else {
-        // Handle the case when the channel is dragged from the orphan list
-        draggedChannel = orphanChannels.value[event.oldIndex];
+        // Fallback to the old method
+        const originalCategoryIndex = event.from.dataset.categoryIndex ? Number(event.from.dataset.categoryIndex) : null
+        
+        if (originalCategoryIndex !== null && combinedCategories.value[originalCategoryIndex]) {
+          const originalCategory = combinedCategories.value[originalCategoryIndex]
+          if (event.oldIndex >= 0 && event.oldIndex < originalCategory.channels.length) {
+            draggedChannel.value = originalCategory.channels[event.oldIndex]
+          }
+        } else {
+          // Handle orphan channels
+          if (event.oldIndex >= 0 && event.oldIndex < orphanChannels.value.length) {
+            draggedChannel.value = orphanChannels.value[event.oldIndex]
+          }
+        }
+      }
+    }
+
+    const onEndDrag = (event: any) => {
+      // Use the stored dragged channel reference
+      if (!draggedChannel.value) {
+        console.error("Dragged channel not found - drag operation cancelled")
+        return
       }
 
-      if (!draggedChannel) {
-        console.error("Dragged channel not found");
-        return;
+      // Determine the new category index
+      const newCategoryIndex = event.to.dataset.categoryIndex ? Number(event.to.dataset.categoryIndex) : null
+      
+      let newCategory = null
+      if (newCategoryIndex !== null && combinedCategories.value[newCategoryIndex]) {
+        newCategory = combinedCategories.value[newCategoryIndex]
       }
 
       // Determine the new category ID or set it to null if it's an orphan channel now
-      const newCategoryId = newCategory ? newCategory.id : null;
+      const newCategoryId = newCategory ? newCategory.id : null
 
-      // Move the channel to the new category or to the orphan list
-      serverChannelStore.moveChannelToCategory(draggedChannel.id, newCategoryId);
+      // Only proceed if the category actually changed
+      const currentCategoryId = draggedChannel.value.category || null
+      if (currentCategoryId !== newCategoryId) {
+        // Move the channel to the new category or to the orphan list
+        serverChannelStore.moveChannelToCategory(draggedChannel.value.id, newCategoryId)
+      }
+
+      // Reset the dragged channel reference
+      draggedChannel.value = null
     };
 
     // const onEndDrag = (event: any) => {

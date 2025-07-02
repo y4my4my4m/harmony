@@ -1,5 +1,5 @@
 import { useServerUsersStore } from '@/stores/useServerUsers'
-import type { UserStatus } from '@/types'
+import type { UserStatus, Channel } from '@/types'
 
 export function useUserProfile() {
   const serverUsersStore = useServerUsersStore()
@@ -55,5 +55,40 @@ export function useUserProfile() {
     getUserStatus,
     getUserStatusClass,
     getUserStatusText
+  }
+}
+
+export function useChannelSelection() {
+  const getDefaultChannel = (channels: Channel[], categories: any[], categoryChannels: Record<string, Channel[]>) => {
+    // Priority order for channel selection:
+    // 1. First text channel in first category
+    // 2. First orphan text channel 
+    // 3. Any first channel as fallback
+
+    // Try to find first text channel in first category
+    if (categories && categories.length > 0) {
+      for (const category of categories) {
+        const categoryChannelList = categoryChannels[category.id] || []
+        const firstTextChannel = categoryChannelList.find(ch => ch.type === 0) // Text channel
+        if (firstTextChannel) {
+          return firstTextChannel.id
+        }
+      }
+    }
+
+    // Try to find first orphan text channel
+    const orphanChannels = channels.filter(channel => !channel.category)
+    const firstOrphanTextChannel = orphanChannels.find(ch => ch.type === 0)
+    if (firstOrphanTextChannel) {
+      return firstOrphanTextChannel.id
+    }
+
+    // Fallback to any first available channel
+    const firstChannel = channels.find(ch => ch.type === 0) || channels[0]
+    return firstChannel?.id || null
+  }
+
+  return {
+    getDefaultChannel
   }
 }

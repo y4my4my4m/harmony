@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay" @click="closeForm">
+  <div v-if="show" class="modal-overlay" @click="closeForm">
     <div class="modal-content" @click.stop>
       <h2 class="card-header">Create a New Channel</h2>
       

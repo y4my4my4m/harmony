@@ -62,6 +62,7 @@
   import { useProfileStore } from '@/stores/useProfile';
   import { useToast } from "vue-toastification";
   import type { Channel } from "@/types";
+  import { useChannelSelection } from '@/composables/useUserProfile'
 
   export default defineComponent({
     components: {
@@ -125,24 +126,35 @@
         showCreateChannelForm.value = true;
       };
       
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const handleChannelCreated = async (channel: Channel) => {
-        // console.log(channel);
-        await serverChannelStore.fetchCategoriesAndChannels(currentServer.value.id);
-        // uncomment this to automatically go to the new channel
-        // handleChannelSelected(channel.id);
-      }
+      const { getDefaultChannel } = useChannelSelection()
 
       const handleServerSelected = async (serverId: string) => {
         serverChannelStore.setCurrentServer(serverId);
         serverUsersStore.subscribeToUserStatuses();
         chatStore.clearMessages();
         await serverChannelStore.fetchCategoriesAndChannels(serverId);
-        // await serverChannelStore.fetchChannels(serverId);
-        // if (serverChannelStore.channels.length > 0) {
-        //   handleChannelSelected(serverChannelStore.channels[0].id);
-        // }
+        
+        // Improved default channel selection
+        if (serverChannelStore.channels.length > 0) {
+          const defaultChannelId = getDefaultChannel(
+            serverChannelStore.channels, 
+            serverChannelStore.categories, 
+            serverChannelStore.categoryChannels
+          )
+          if (defaultChannelId) {
+            handleChannelSelected(defaultChannelId)
+          }
+        }
       };
+
+      // Enhanced channel creation handler
+      const handleChannelCreated = async (channel: Channel) => {
+        await serverChannelStore.fetchCategoriesAndChannels(currentServer.value.id);
+        showCreateChannelForm.value = false
+        // Automatically navigate to the newly created channel
+        handleChannelSelected(channel.id);
+      }
+
       const handleChannelSelected = async (channelId: string) => {
         serverChannelStore.setCurrentChannel(channelId);
         // chatStore.clearMessages(); // Clear messages right when the channel is changed
@@ -163,15 +175,13 @@
         const serverId = route.params.serverId;
         const channelId = route.params.channelId;
         if (serverId) {
-          // console.log('Loading server and channel:', serverId, channelId);
           await handleServerSelected(serverId.toString());
           if (channelId) {
             await handleChannelSelected(channelId.toString());
           }
           else {
-            if (serverChannelStore.channels.length > 0) {
-              handleChannelSelected(serverChannelStore.channels[0].id);
-            }
+            // Let handleServerSelected handle default channel selection
+            // The logic is now in handleServerSelected
           }
         } else if (serverChannelStore.servers.length > 0) {
           const firstServerId = serverChannelStore.servers[0].id;
