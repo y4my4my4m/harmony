@@ -3,9 +3,16 @@
     <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
-    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`#${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`message-${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+      <!-- Gap indicator for jumped-to messages -->
+      <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
+        <div class="gap-line"></div>
+        <div class="gap-text">Jump in conversation</div>
+        <div class="gap-line"></div>
+      </div>
+      
       <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
-        <div v-if="message.reply_to" @click="highlightMessage(message.reply_to)" class="repliedMessage">
+        <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="repliedMessage">
           <!-- TODO: dont make "gets" for everything -->
           <div class="replyContainer">
             <img draggable="false" :src="getReplyUserAvatar(message.reply_to)" class="replyAvatar">
@@ -458,6 +465,62 @@ export default defineComponent({
       return [];
     };
 
+    // Handle clicking on reply messages - implement jump functionality
+    const handleReplyClick = async (replyMessageId: string) => {
+      // Get current channel ID from store
+      const currentChannelId = useChat.currentChannelId;
+      if (!currentChannelId) return;
+
+      // Attempt to jump to the message
+      const success = await useChat.jumpToMessage(replyMessageId, currentChannelId);
+      if (!success) {
+        console.warn(`Could not jump to message: ${replyMessageId}`);
+      }
+    };
+
+    // Implement highlight message functionality
+    useChat.highlightMessage = (messageId: string) => {
+      nextTick(() => {
+        const messageElement = document.getElementById(`message-${messageId}`);
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          messageElement.classList.add('highlighted');
+          
+          // Remove highlight after 3 seconds
+          setTimeout(() => {
+            messageElement.classList.remove('highlighted');
+          }, 3000);
+        }
+      });
+    };
+
+    // Permission checks for message editing/deletion
+    const canEditMessage = (message: Message) => {
+      if (!authStore.session?.user) return false;
+      
+      // Users can edit their own messages
+      if (message.user_id === authStore.session.user.id) {
+        return true;
+      }
+      
+      // TODO: Add admin permission check when admin roles are implemented
+      // For now, only allow editing own messages
+      return false;
+    };
+
+    const canDeleteMessage = (message: Message) => {
+      if (!authStore.session?.user) return false;
+      
+      // Users can delete their own messages
+      if (message.user_id === authStore.session.user.id) {
+        return true;
+      }
+      
+      // TODO: Add admin permission check when admin roles are implemented
+      // For now, only allow deleting own messages
+      return false;
+    };
+
     const getReplyUserDisplayName = (replyMessageId: string) => {
       const userId = getReplyUserId(replyMessageId);
       return serverUsersStore.userProfiles[userId]?.display_name || 'Loading...';
@@ -506,33 +569,6 @@ export default defineComponent({
       }
     };
 
-    // Permission checks for message editing/deletion
-    const canEditMessage = (message: Message) => {
-      if (!authStore.session?.user) return false;
-      
-      // Users can edit their own messages
-      if (message.user_id === authStore.session.user.id) {
-        return true;
-      }
-      
-      // TODO: Add admin permission check when admin roles are implemented
-      // For now, only allow editing own messages
-      return false;
-    };
-
-    const canDeleteMessage = (message: Message) => {
-      if (!authStore.session?.user) return false;
-      
-      // Users can delete their own messages
-      if (message.user_id === authStore.session.user.id) {
-        return true;
-      }
-      
-      // TODO: Add admin permission check when admin roles are implemented
-      // For now, only allow deleting own messages
-      return false;
-    };
-
     return { 
       getUserDisplayName, 
       getUserColor, 
@@ -574,6 +610,8 @@ export default defineComponent({
       getReplyUserAvatar,
       canEditMessage,
       canDeleteMessage,
+      handleReplyClick,
+      chatStore: useChat, // Expose chat store for template
     };
   }
 });
@@ -832,7 +870,20 @@ export default defineComponent({
 .highlighted {
   background:#59554766;
   border-left:2px solid #d79315;
+  animation: highlight-fade 3s ease-out;
 }
+
+@keyframes highlight-fade {
+  0% {
+    background: #d7931566;
+    border-left-color: #d79315;
+  }
+  100% {
+    background: #59554766;
+    border-left-color: #d79315;
+  }
+}
+
 .emoji-icon.single {
   height: 64px;
 }
@@ -1037,5 +1088,28 @@ export default defineComponent({
   100% {
     background-position: 200% 0;
   }
+}
+
+/* Gap indicator for jumped-to messages */
+.message-gap {
+  display: flex;
+  align-items: center;
+  margin: 16px 12px;
+  color: #72767d;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.gap-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #72767d 50%, transparent);
+}
+
+.gap-text {
+  padding: 0 12px;
+  background: var(--h-chat);
+  white-space: nowrap;
 }
 </style>

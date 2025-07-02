@@ -38,11 +38,17 @@ export const useChatStore = defineStore('chat', {
     // Cache for individual reply messages
     replyMessageCache: new Map<string, Message>(),
     fetchingReplyMessages: new Set<string>(),
+    
+    // Jump-to-message functionality
+    jumpedToMessages: new Map<string, Message>(),
+    messageGaps: new Set<string>(), // Track where gaps should be shown
   }),
   actions: {
     clearMessages() {
       this.messages = [];
       this.allMessagesLoaded = false;
+      // Clear jumped messages and gaps when clearing messages
+      this.clearJumpedMessages();
     },
 
     // Fetch individual message (for replies that aren't in current message list)
@@ -664,6 +670,128 @@ export const useChatStore = defineStore('chat', {
           }
         )
         .subscribe();            
-    }
+    },
+
+    // Jump to a specific message (for reply navigation)
+    async jumpToMessage(messageId: string, channelId: string): Promise<boolean> {
+      // First check if message is already in current messages
+      const existingMessage = this.messages.find(msg => msg.id === messageId);
+      if (existingMessage) {
+        this.highlightMessage(messageId);
+        return true;
+      }
+
+      // Check if message is in jumped messages cache
+      if (this.jumpedToMessages.has(messageId)) {
+        this.highlightMessage(messageId);
+        return true;
+      }
+
+      try {
+        // Fetch the specific message
+        const { data: message, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('id', messageId)
+          .eq('channel_id', channelId)
+          .single();
+
+        if (error || !message) {
+          console.error('Message not found or error fetching:', error);
+          return false;
+        }
+
+        // Fetch reactions for the message if it has any
+        if (message.reactions && message.reactions.length > 0) {
+          const { data: reactions, error: reactionsError } = await supabase
+            .rpc('get_message_reactions', { message_id: message.id });
+      
+          if (!reactionsError) {
+            message.reactions = reactions;
+          }
+        }
+
+        // Add the message to jumped messages cache
+        this.jumpedToMessages.set(messageId, message);
+        
+        // Determine where to insert the message and gap
+        const messageDate = new Date(message.created_at);
+        const currentMessages = [...this.messages];
+        
+        // Find insertion point (messages are ordered by created_at ascending)
+        let insertIndex = 0;
+        for (let i = 0; i < currentMessages.length; i++) {
+          if (new Date(currentMessages[i].created_at) > messageDate) {
+            insertIndex = i;
+            break;
+          }
+          insertIndex = i + 1;
+        }
+
+        // Create gap indicator if there's a significant time difference
+        const shouldShowGap = this.shouldShowGapBefore(message, insertIndex);
+        
+        if (shouldShowGap) {
+          // Add gap indicator
+          this.messageGaps.add(`gap-before-${messageId}`);
+        }
+
+        // Insert the message at the correct position
+        this.messages.splice(insertIndex, 0, message);
+        
+        // Highlight the message after a short delay
+        setTimeout(() => {
+          this.highlightMessage(messageId);
+        }, 100);
+
+        return true;
+      } catch (error) {
+        console.error('Error jumping to message:', error);
+        return false;
+      }
+    },
+
+    // Check if we should show a gap before this message
+    shouldShowGapBefore(message: Message, insertIndex: number): boolean {
+      const messageDate = new Date(message.created_at);
+      
+      // Check gap with previous message
+      if (insertIndex > 0) {
+        const prevMessage = this.messages[insertIndex - 1];
+        const prevDate = new Date(prevMessage.created_at);
+        const timeDiff = messageDate.getTime() - prevDate.getTime();
+        
+        // Show gap if more than 1 hour difference
+        if (timeDiff > 60 * 60 * 1000) {
+          return true;
+        }
+      }
+
+      // Check gap with next message
+      if (insertIndex < this.messages.length) {
+        const nextMessage = this.messages[insertIndex];
+        const nextDate = new Date(nextMessage.created_at);
+        const timeDiff = nextDate.getTime() - messageDate.getTime();
+        
+        // Show gap if more than 1 hour difference
+        if (timeDiff > 60 * 60 * 1000) {
+          return true;
+        }
+      }
+
+      return false;
+    },
+
+    // Highlight a message (scroll to it and add highlight effect)
+    highlightMessage(messageId: string) {
+      // This will be implemented in the component
+      // The actual DOM manipulation happens in MessageDisplay component
+    },
+
+    // Clear jumped messages and gaps when switching channels
+    clearJumpedMessages() {
+      this.jumpedToMessages.clear();
+      this.messageGaps.clear();
+    },
   },
 });
