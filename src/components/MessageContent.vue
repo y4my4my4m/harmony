@@ -1,46 +1,47 @@
 <template>
   <div v-if="editableMessageId !== messageId" class="message-content">
     <template v-for="(part, partIndex) in content" :key="partIndex">
-      <span draggable="false" @dragstart.prevent class="selectableText" v-if="part.type === 'text'">{{ part.text }}</span>
-      <a v-else-if="part.type === 'url'" :href="part.url" target="_blank">{{ part.url }}</a>
-      <span v-else-if="part.type === 'mention'" class="mention" @click="$emit('show-user-profile', part.userId, $event)">{{ part.mention }}</span>
-      <img v-else-if="part.type === 'emoji'"
-        class="emoji-icon"
-        :class="{ 'single': isSingleEmojiMessage }"
-        :src="part.emoji.url"
-        :alt="part.emoji.name"
-        :title="`:${part.emoji.name}:`"
-        draggable="false"
-      />
-      <div v-else-if="(part.type === 'file' && part.fileType === 'image' && !reply) && imageLoaded" class="file-container">
-        <div v-if="imageLoaded[part.url]" class="image-skeleton"></div>
-        <img
-          :src="part.url"
-          @load="$emit('image-loaded', part.url)"
-          @click="$emit('open-lightbox', part.url)"
-          v-show="imageLoaded[part.url]"
+      <template v-if="part && typeof part === 'object'">
+        <span draggable="false" @dragstart.prevent class="selectableText" v-if="part.type === 'text'">{{ part.text }}</span>
+        <a v-else-if="part.type === 'url'" :href="part.url" target="_blank" rel="noopener noreferrer">{{ part.url }}</a>
+        <span v-else-if="part.type === 'mention'" class="mention" @click="$emit('show-user-profile', part.userId, $event)">{{ part.mention }}</span>
+        <img v-else-if="part.type === 'emoji'"
+          class="emoji-icon"
+          :class="{ 'single': isSingleEmojiMessage }"
+          :src="part.emoji.url"
+          :alt="part.emoji.name"
+          :title="`:${part.emoji.name}:`"
           draggable="false"
         />
-      </div>
-      <!-- maybe unsafe? -->
-      <div v-if="(part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) && imageLoaded && !reply" class="file-container">
-        <div v-if="imageLoaded[part.url]" class="image-skeleton"></div>
-        <img
-          :src="part.url"
-          @load="$emit('image-loaded', part.url)"
-          @click="$emit('open-lightbox', part.url)"
-          v-show="imageLoaded[part.url]"
-          draggable="false"
-        />
-      </div>
-      <div v-if="(part.type === 'url' && (part.url.endsWith('.mp4') || part.url.endsWith('.webm'))) && !reply" class="file-container">
-        <!-- <div v-if="imageLoaded[part.url]" class="image-skeleton"></div> -->
-        <video
-          :src="part.url"
-          controls
-        ></video>
-      </div>
-      <a v-if="reply && (part.type === 'url' || part.type === 'file')" :href="part.url" target="_blank">{{ part.url }}</a>
+        <div v-if="(part.type === 'file' && part.fileType === 'image' && !reply) && imageLoaded" class="file-container">
+          <div v-if="!imageLoaded[part.url]" class="image-skeleton"></div>
+          <img
+            :src="part.url"
+            @load="$emit('image-loaded', part.url)"
+            @click="$emit('open-lightbox', part.url)"
+            v-show="imageLoaded[part.url]"
+            draggable="false"
+          />
+        </div>
+        <!-- maybe unsafe? -->
+        <div v-if="(part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) && imageLoaded && !reply" class="file-container">
+          <div v-if="!imageLoaded[part.url]" class="image-skeleton"></div>
+          <img
+            :src="part.url"
+            @load="$emit('image-loaded', part.url)"
+            @click="$emit('open-lightbox', part.url)"
+            v-show="imageLoaded[part.url]"
+            draggable="false"
+          />
+        </div>
+        <div v-if="(part.type === 'url' && part.url && (part.url.endsWith('.mp4') || part.url.endsWith('.webm'))) && !reply" class="file-container">
+          <video
+            :src="part.url"
+            controls
+          ></video>
+        </div>
+        <a v-if="reply && (part.type === 'url' || part.type === 'file') && part.url" :href="part.url" target="_blank" rel="noopener noreferrer">{{ part.url }}</a>
+      </template>
     </template>
   </div>
   <input v-else type="text" v-model="localEditableContent" @keyup.esc="handleCancelEdit" @keyup.enter="handleSaveEdit" class="edit-input selectableText"  @dragstart.prevent/>

@@ -24,7 +24,7 @@
       @createChannel="handleCreateChannel"
     />
     <CreateChannel
-      :serverId="currentServer.id"
+      :serverId="currentServer?.id || ''"
       :categoryId="currentCategoryId"
       :show="showCreateChannelForm"
       @channelCreated="handleChannelCreated"
@@ -74,6 +74,10 @@
       VoiceChannelScene,
       CreateChannel,
       PublicServers,
+    },
+    props: {
+      serverId: String,
+      channelId: String,
     },
     setup() {
       const serverUsersStore = useServerUsersStore();

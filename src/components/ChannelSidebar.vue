@@ -24,6 +24,7 @@
         @end="onEndDrag"
         delay="250"
         delay-on-touch-only
+        item-key="id"
       >
         <template #item="{ element }">
           <div :key="element.id" :class="['channel-item', { 'selected': element.id === currentChannelId }]" @click="selectChannel(element.id)">
@@ -51,6 +52,7 @@
             @end="onEndDrag"
             delay="250"
             delay-on-touch-only
+            item-key="id"
           >
             <template #item="{ element }">
               <div :key="element.id" :class="['channel-item', { 'selected': element.id === currentChannelId }]" @click="selectChannel(element.id)">

@@ -10,7 +10,15 @@
       <div class="left-icons">
         <PlusIcon/>
       </div>
-      <textarea draggable="false" @dragstart.prevent class="selectableText" v-model="localMessageContent" @keydown.enter="handleEnter" placeholder="Type a message..."></textarea>
+      <textarea 
+        draggable="false" 
+        @dragstart.prevent 
+        class="selectableText" 
+        :value="modelValue"
+        @input="handleInput"
+        @keydown.enter="handleEnter" 
+        placeholder="Type a message..."
+      ></textarea>
       <div class="right-icons">
         <GifIcon @click="toggleGiphy" />
         <EmojiUI @click="toggleEmojiList" />
@@ -20,7 +28,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch } from 'vue';
+import { defineComponent } from 'vue';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
 import EmojiUI from '@/components/EmojiUI.vue'
@@ -36,8 +44,7 @@ export default defineComponent({
   props: {
     giphyOpen: Boolean,
     emojiListOpen: Boolean,
-    modelValue: String,
-    messageContent: {
+    modelValue: {
       type: String,
       default: ''
     },
@@ -50,22 +57,25 @@ export default defineComponent({
       default: ''
     },
   },
+  emits: ['update:modelValue', 'sendMessage', 'toggleGiphy', 'toggleEmojiList', 'update:replyMessageId'],
   setup(props, { emit }) {
-    const localMessageContent = ref(props.messageContent);
+    const handleInput = (event: Event) => {
+      const target = event.target as HTMLTextAreaElement;
+      emit('update:modelValue', target.value);
+    };
 
     const send = () => {
-      if (localMessageContent.value?.trim()) {
-        const content = localMessageContent.value.trim();
+      if (props.modelValue?.trim()) {
+        const content = props.modelValue.trim();
         emit('sendMessage', content);
-        localMessageContent.value = '';
+        emit('update:modelValue', '');
       }
     };
 
     const handleEnter = (event: KeyboardEvent) => {
       if (event.shiftKey) {
-        // Allows for Shift + Enter to create a new line
+        return;
       } else {
-        // Prevents the default Enter key action and sends the message
         event.preventDefault();
         send();
       }
@@ -74,33 +84,21 @@ export default defineComponent({
     const toggleGiphy = () => {
       emit('toggleGiphy');
     };
+    
     const toggleEmojiList = () => {
-      // set false if not a reaction but an emoji for the input
       emit('toggleEmojiList', false);
     };
 
-    // Watch for changes to the prop and update the local copy accordingly
-    watch(() => props.messageContent, (newValue) => {
-      localMessageContent.value = newValue;
-    });
-
-    // Emit an event when the local copy changes
-    watch(localMessageContent, (newValue) => {
-      emit('update:messageContent', newValue);
-    });
-
     const handleDontReply = (newReplyMessageId: string) => {
-      // replyMessageId.value = newReplyMessageId;
       emit('update:replyMessageId', newReplyMessageId);
-      // Additional logic if needed
     };
 
     return { 
-      localMessageContent, 
       send, 
       toggleGiphy, 
       toggleEmojiList, 
       handleEnter,
+      handleInput,
       handleDontReply,
     };
   }

@@ -100,9 +100,9 @@ export const useChatStore = defineStore('chat', {
           this.allMessagesLoaded = true;
         }
         if (oldestMessageId === '') {
-          this.messages = messages.reverse();
+          this.messages = [...messages].reverse();
         } else {
-          this.messages = [...messages.reverse(), ...this.messages];
+          this.messages = [...[...messages].reverse(), ...this.messages];
         }
         this.loadingOlderMessages = false;
       }

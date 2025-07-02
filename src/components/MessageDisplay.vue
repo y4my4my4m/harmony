@@ -157,6 +157,7 @@ export default defineComponent({
     isAtBottom: Boolean,
     currentUserId: String,
   },
+  emits: ['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom'],
   components: { 
     UserPreviewComponent,
     ReplyIcon,
@@ -225,10 +226,89 @@ export default defineComponent({
       tooltip.value.visible = false;
     };
 
+    const lightboxImages = computed(() => {
+      let urls: Array<string> = [];
+      if (!props.messages || !Array.isArray(props.messages)) {
+        return urls;
+      }
+      
+      props.messages.forEach(message => {
+        if (!message?.content || !Array.isArray(message.content)) {
+          return;
+        }
+        
+        message.content.forEach(part => {
+          if (!part || typeof part !== 'object') {
+            return;
+          }
+          
+          if (part.type === 'file' && part.fileType === 'image' && part.url) {
+            urls.push(part.url);
+          }
+          else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) {
+            urls.push(part.url);
+          }
+        });
+      });
+      return urls;
+    });
+
+    // Watch for changes in messages for parsing
+    watch(() => props.messages, (newMessages) => {
+      if (!newMessages || !Array.isArray(newMessages)) {
+        return;
+      }
+
+      const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
+
+      newMessages.forEach(message => {
+        if (!message?.content || !Array.isArray(message.content)) {
+          return;
+        }
+        
+        message.content.forEach(part => {
+          if (!part || typeof part !== 'object') {
+            return;
+          }
+          
+          // initialize image "loading" state
+          if (part.type === 'file' && part.fileType === 'image' && part.url && !(part.url in imageLoaded.value)) {
+            imageLoaded.value[part.url] = false;
+          }
+          else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')) && !(part.url in imageLoaded.value)) {
+            imageLoaded.value[part.url] = false;
+          }
+        });
+      });
+
+      if (newMessages && newMessages.length > 0) {
+        // Recalculate scroll height
+        nextTick(() => {
+          if (messageDisplayContainer.value) {
+            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+            const scrollOffset = newScrollHeight - oldScrollHeight;
+            messageDisplayContainer.value.scrollTop += scrollOffset;
+          }
+          // FIXME: manually call to scroll down to bottom, although we probably dont want if we've scrolled up
+          handleScroll();
+        });
+      }
+    }, { immediate: true, deep: true });
+
     const isSingleEmojiMessage = computed(() => {
+      if (!props.messages || !Array.isArray(props.messages)) {
+        return [];
+      }
+      
       return props.messages.map(message => {
+        if (!message?.content || !Array.isArray(message.content)) {
+          return false;
+        }
         // Check if the message content has only one part and that part is an emoji
-        return message.content.length === 1 && Object.prototype.hasOwnProperty.call(message.content[0], 'emoji');
+        return message.content.length === 1 && 
+               message.content[0] && 
+               typeof message.content[0] === 'object' && 
+               Object.prototype.hasOwnProperty.call(message.content[0], 'emoji');
       });
     });
 
@@ -331,22 +411,6 @@ export default defineComponent({
       return format(new Date(timestamp), 'p'); // Formats to the user's locale time
     };
 
-    const lightboxImages = computed(() => {
-      let urls:Array<string> = [];
-      props.messages.forEach(message => {
-        message.content.forEach(part => {
-          if (part.type === 'file' && part.fileType === 'image') {
-            urls.push(part.url);
-          }
-          else if (part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')))
-          {
-            urls.push(part.url);
-          }
-        });
-      });
-      return urls;
-    });
-
     const isLightboxOpen = ref(false);
     const indexRef = ref(0);
 
@@ -380,38 +444,6 @@ export default defineComponent({
         emit('update:isAtBottom', false);
       }
     };
-
-    // Watch for changes in messages for parsing
-    watch(() => props.messages, (newMessages) => {
-      const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
-
-      newMessages.forEach(message => {
-        message.content.forEach(part => {
-          // initialize image "loading" state
-          if (part.type === 'file' && part.fileType === 'image' && !(part.url in imageLoaded.value)) {
-            imageLoaded.value[part.url] = false;
-          }
-          else if ((part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')))  && !(part.url in imageLoaded.value))
-          {
-            imageLoaded.value[part.url] = false;
-          }
-        });
-      });
-
-      if (newMessages && newMessages.length > 0) {
-        // Recalculate scroll height
-        nextTick(() => {
-          if (messageDisplayContainer.value) {
-            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-            const scrollOffset = newScrollHeight - oldScrollHeight;
-            messageDisplayContainer.value.scrollTop += scrollOffset;
-          }
-          // FIXME: manually call to scroll down to bottom, although we probably dont want if we've scrolled up
-          handleScroll();
-        });
-      }
-    }, { immediate: true, deep: true });
-
 
     return { 
       getUserDisplayName, 
@@ -830,5 +862,4 @@ export default defineComponent({
   }
 
 }
-
 </style>

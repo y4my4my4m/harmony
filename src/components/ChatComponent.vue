@@ -19,7 +19,7 @@
       @replyingTo="replyingTo"
     />
     <MessageInput 
-      v-model:messageContent="messageContent"
+      v-model="messageContent"
       :giphyOpen="giphyOpen"
       :emojiListOpen="emojiListOpen"
       :reply-message-id="replyToMessageId"
@@ -27,7 +27,6 @@
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
-      @update:messageContent="messageContent = $event"
       @update:replyMessageId="handleDontReply"
     />
 
@@ -304,10 +303,16 @@
       };
 
       const handleSendMessage = (content: string) => {
-        if (authStore.session?.user && serverChannelStore.currentChannelId) {
+        if (authStore.session?.user && serverChannelStore.currentChannelId && serverChannelStore.currentServerId) {
           const parsedMessage = parseMessageInput(content);
           console.log("replyToMessageId.value:", replyToMessageId.value);
-          chatStore.sendMessage(serverChannelStore.currentServerId, serverChannelStore.currentChannelId, authStore.session.user.id, parsedMessage, replyToMessageId.value);
+          chatStore.sendMessage(
+            serverChannelStore.currentServerId, 
+            serverChannelStore.currentChannelId, 
+            authStore.session.user.id, 
+            parsedMessage, 
+            replyToMessageId.value || ''
+          );
           messageContent.value = ''; // Reset the message input field after sending
           handleDontReply();
         }
