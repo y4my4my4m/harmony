@@ -231,7 +231,10 @@
           // Check if request is still current before updating subscription
           if (!isRequestStale(requestId)) {
             chatStore.subscribeToMessages(channelId);
-            scrollToBottom();
+            // Ensure we're at the bottom for new channel
+            nextTick(() => {
+              scrollToBottom();
+            });
           }
         } catch (error: any) {
           if (error.name === 'AbortError') return; // Request was cancelled

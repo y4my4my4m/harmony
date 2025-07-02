@@ -1,7 +1,7 @@
 <template>
   <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
-    <!-- Loading skeleton for initial channel load -->
-    <div v-if="isLoading && messages.length === 0" class="loading-skeleton">
+    <!-- Loading skeleton when switching channels -->
+    <div v-if="isLoading" class="loading-skeleton">
       <div v-for="i in 8" :key="i" class="skeleton-message">
         <div class="skeleton-avatar"></div>
         <div class="skeleton-content">
@@ -17,7 +17,7 @@
     
     <!-- Normal message display -->
     <template v-else>
-      <div class="no-messages" v-if="messages.length == 0 && !isLoading">
+      <div class="no-messages" v-if="messages.length == 0">
         There are no messages here, type something!
       </div>
       <div v-else v-for="(message, index) in messages" :key="message.id" :id="`#${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
