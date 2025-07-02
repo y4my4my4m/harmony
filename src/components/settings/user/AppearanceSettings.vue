@@ -1,0 +1,661 @@
+<template>
+  <div class="appearance-settings">
+    <div class="settings-header">
+      <h2 class="settings-title">Appearance</h2>
+      <p class="settings-description">
+        Customize how Harmony looks and feels.
+      </p>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">Theme</h3>
+      
+      <div class="theme-options">
+        <div
+          v-for="theme in themes"
+          :key="theme.id"
+          class="theme-option"
+          :class="{ active: settings.theme === theme.id }"
+          @click="selectTheme(theme.id)"
+        >
+          <div class="theme-preview" :style="{ backgroundColor: theme.preview }">
+            <div class="theme-preview-content">
+              <div class="preview-header" :style="{ backgroundColor: theme.headerColor }"></div>
+              <div class="preview-sidebar" :style="{ backgroundColor: theme.sidebarColor }"></div>
+              <div class="preview-chat" :style="{ backgroundColor: theme.chatColor }"></div>
+            </div>
+          </div>
+          <div class="theme-info">
+            <h4 class="theme-name">{{ theme.name }}</h4>
+            <p class="theme-description">{{ theme.description }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">Font Settings</h3>
+      
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Font Size</h4>
+          <p class="setting-description">Adjust the size of text in messages.</p>
+        </div>
+        <div class="setting-control">
+          <div class="font-size-slider">
+            <input
+              v-model="settings.fontSize"
+              type="range"
+              min="12"
+              max="20"
+              step="1"
+              class="slider"
+              @input="onFontSizeChange"
+            />
+            <div class="font-size-display">{{ settings.fontSize }}px</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Zoom Level</h4>
+          <p class="setting-description">Change the zoom level of the entire app.</p>
+        </div>
+        <div class="setting-control">
+          <div class="zoom-controls">
+            <button 
+              class="zoom-btn"
+              @click="adjustZoom(-10)"
+              :disabled="settings.zoomLevel <= 50"
+            >
+              -
+            </button>
+            <span class="zoom-display">{{ settings.zoomLevel }}%</span>
+            <button 
+              class="zoom-btn"
+              @click="adjustZoom(10)"
+              :disabled="settings.zoomLevel >= 200"
+            >
+              +
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">Chat Display</h3>
+      
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Message Display</h4>
+          <p class="setting-description">Choose how messages are displayed.</p>
+        </div>
+        <div class="setting-control">
+          <select 
+            v-model="settings.messageDisplay"
+            class="select-input"
+            @change="onSettingChange"
+          >
+            <option value="cozy">Cozy</option>
+            <option value="compact">Compact</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Show message timestamps</h4>
+          <p class="setting-description">Display timestamps on messages.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="settings.showTimestamps"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">24-Hour Time</h4>
+          <p class="setting-description">Display time in 24-hour format.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="settings.use24HourTime"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Compact Mode</h4>
+          <p class="setting-description">Show more messages at once with reduced spacing.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="settings.compactMode"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">Accessibility</h3>
+      
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">High Contrast</h4>
+          <p class="setting-description">Increase contrast for better visibility.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="settings.highContrast"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Reduce Motion</h4>
+          <p class="setting-description">Reduce animations and transitions.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="settings.reduceMotion"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Screen Reader Support</h4>
+          <p class="setting-description">Optimize for screen readers.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="settings.screenReaderSupport"
+            @change="onSettingChange"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-actions">
+      <button 
+        class="btn btn-primary" 
+        @click="saveSettings"
+        :disabled="loading || !hasChanges"
+      >
+        <span v-if="loading" class="loading-spinner"></span>
+        Save Changes
+      </button>
+      <button 
+        class="btn btn-secondary" 
+        @click="resetSettings"
+        :disabled="loading || !hasChanges"
+      >
+        Reset
+      </button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import type { User } from '@/types'
+
+// Components
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+
+// Props
+interface Props {
+  profile: User | null
+  loading: boolean
+}
+
+const props = defineProps<Props>()
+
+// Emits
+const emit = defineEmits<{
+  'update-appearance': [settings: any]
+}>()
+
+// State
+const settings = ref({
+  theme: 'dark',
+  fontSize: 14,
+  zoomLevel: 100,
+  messageDisplay: 'cozy' as 'cozy' | 'compact',
+  showTimestamps: true,
+  use24HourTime: false,
+  compactMode: false,
+  highContrast: false,
+  reduceMotion: false,
+  screenReaderSupport: false,
+})
+
+const originalSettings = ref({ ...settings.value })
+
+// Theme options
+const themes = [
+  {
+    id: 'dark',
+    name: 'Dark',
+    description: 'A dark theme that\'s easier on the eyes.',
+    preview: '#36393f',
+    headerColor: '#2f3136',
+    sidebarColor: '#2f3136',
+    chatColor: '#36393f'
+  },
+  {
+    id: 'light',
+    name: 'Light',
+    description: 'A clean, bright theme.',
+    preview: '#ffffff',
+    headerColor: '#f6f6f6',
+    sidebarColor: '#f2f3f5',
+    chatColor: '#ffffff'
+  },
+  {
+    id: 'midnight',
+    name: 'Midnight',
+    description: 'An even darker theme for late night usage.',
+    preview: '#1e2124',
+    headerColor: '#1a1d20',
+    sidebarColor: '#1a1d20',
+    chatColor: '#1e2124'
+  }
+]
+
+// Computed
+const hasChanges = computed(() => {
+  return JSON.stringify(settings.value) !== JSON.stringify(originalSettings.value)
+})
+
+// Methods
+const selectTheme = (themeId: string) => {
+  settings.value.theme = themeId
+  onSettingChange()
+}
+
+const onFontSizeChange = () => {
+  onSettingChange()
+}
+
+const adjustZoom = (delta: number) => {
+  const newZoom = settings.value.zoomLevel + delta
+  if (newZoom >= 50 && newZoom <= 200) {
+    settings.value.zoomLevel = newZoom
+    onSettingChange()
+  }
+}
+
+const onSettingChange = () => {
+  // Settings changed, enable save button
+}
+
+const saveSettings = () => {
+  emit('update-appearance', settings.value)
+  originalSettings.value = { ...settings.value }
+  
+  // Apply theme immediately
+  document.documentElement.setAttribute('data-theme', settings.value.theme)
+  document.documentElement.style.fontSize = settings.value.fontSize + 'px'
+  document.documentElement.style.zoom = settings.value.zoomLevel + '%'
+}
+
+const resetSettings = () => {
+  settings.value = { ...originalSettings.value }
+}
+
+// Initialize
+onMounted(() => {
+  // Load appearance settings from localStorage or server
+  const savedSettings = localStorage.getItem('harmony-appearance-settings')
+  if (savedSettings) {
+    try {
+      const parsed = JSON.parse(savedSettings)
+      settings.value = { ...settings.value, ...parsed }
+      originalSettings.value = { ...settings.value }
+    } catch (error) {
+      console.error('Failed to parse saved appearance settings:', error)
+    }
+  }
+})
+</script>
+
+<style scoped>
+.appearance-settings {
+  max-width: 700px;
+}
+
+.settings-header {
+  margin-bottom: 32px;
+}
+
+.settings-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+}
+
+.settings-description {
+  font-size: 14px;
+  color: #b9bbbe;
+  margin: 0;
+}
+
+.settings-section {
+  margin-bottom: 32px;
+  padding: 24px;
+  background-color: var(--h-chat);
+  border-radius: 8px;
+  border: 1px solid var(--h-chat-light);
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 20px 0;
+}
+
+.theme-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.theme-option {
+  border: 2px solid var(--h-chat-light);
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.theme-option:hover {
+  border-color: #5865f2;
+}
+
+.theme-option.active {
+  border-color: #5865f2;
+  background-color: rgba(88, 101, 242, 0.1);
+}
+
+.theme-preview {
+  width: 100%;
+  height: 80px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-preview-content {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.preview-header {
+  height: 20px;
+  width: 100%;
+  opacity: 0.8;
+}
+
+.preview-sidebar {
+  width: 30%;
+  height: 60px;
+  position: absolute;
+  top: 20px;
+  left: 0;
+  opacity: 0.9;
+}
+
+.preview-chat {
+  width: 70%;
+  height: 60px;
+  position: absolute;
+  top: 20px;
+  right: 0;
+}
+
+.theme-info {
+  text-align: center;
+}
+
+.theme-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 4px 0;
+}
+
+.theme-description {
+  font-size: 12px;
+  color: #b9bbbe;
+  margin: 0;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--h-chat-light);
+}
+
+.setting-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.setting-info {
+  flex: 1;
+  margin-right: 16px;
+}
+
+.setting-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  margin: 0 0 4px 0;
+}
+
+.setting-description {
+  font-size: 12px;
+  color: #b9bbbe;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.setting-control {
+  flex-shrink: 0;
+}
+
+.font-size-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.slider {
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: #4f545c;
+  outline: none;
+  appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #5865f2;
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #5865f2;
+  cursor: pointer;
+  border: none;
+}
+
+.font-size-display {
+  font-size: 12px;
+  color: #b9bbbe;
+  min-width: 40px;
+  text-align: center;
+}
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zoom-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--h-chat-light);
+  background-color: var(--h-chat-darker);
+  color: #ffffff;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.zoom-btn:hover:not(:disabled) {
+  background-color: var(--h-chat-light);
+}
+
+.zoom-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.zoom-display {
+  font-size: 14px;
+  color: #ffffff;
+  min-width: 60px;
+  text-align: center;
+}
+
+.select-input {
+  padding: 8px 12px;
+  background-color: var(--h-chat-darker);
+  border: 1px solid var(--h-chat-light);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.select-input:focus {
+  outline: none;
+  border-color: #5865f2;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: #5865f2;
+  color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #4752c4;
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: #b9bbbe;
+  border: 1px solid #4f545c;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--h-chat-light);
+  color: #ffffff;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+  .settings-section {
+    padding: 16px;
+  }
+  
+  .theme-options {
+    grid-template-columns: 1fr;
+  }
+  
+  .setting-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .setting-info {
+    margin-right: 0;
+  }
+  
+  .font-size-slider {
+    justify-content: space-between;
+  }
+}
+</style>

@@ -7,6 +7,7 @@ import ProfileComponent from '@/components/ProfileComponent.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
 import ServerSettings from '@/views/ServerSettings.vue';
+import UserSettings from '@/views/UserSettings.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -58,6 +59,12 @@ const router = createRouter({
       component: ServerSettings,
       meta: { requiresAuth: true },
       props: true
+    },
+    {
+      path: '/settings',
+      name: 'UserSettings',
+      component: UserSettings,
+      meta: { requiresAuth: true }
     },
   ],
 });

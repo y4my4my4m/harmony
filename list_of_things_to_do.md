@@ -15,3 +15,11 @@ Make sure the code is
 5. professional
 
 AND if you ever need to use supabase, be sure to use the node package that's already in place
+
+
+---
+
+Please create a professional, scalable and DRY server settings ressembling what discord is doing.
+Make sure the code is clean.
+
+You may refactor and change almost everything but dont lose functionality

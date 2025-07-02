@@ -275,7 +275,6 @@ export default defineComponent({
           if (!part || typeof part !== 'object') {
             return;
           }
-          
           // initialize image "loading" state
           if (part.type === 'file' && part.fileType === 'image' && part.url && !(part.url in imageLoaded.value)) {
             imageLoaded.value[part.url] = false;
