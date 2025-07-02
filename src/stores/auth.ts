@@ -59,25 +59,22 @@ export const useAuthStore = defineStore('auth', {
     },
 
     setupOfflineHandlers(userId: string) {
+      // Clean up any existing handlers first
+      this.cleanupOfflineHandlers();
+      
       // Handle browser/tab close - immediate cleanup and status update
-      const handleBeforeUnload = async () => {
+      const handleBeforeUnload = (event: BeforeUnloadEvent) => {
         // Immediately cleanup presence (this should trigger presence leave event)
         if ((window as any).__harmonyPresenceCleanup) {
           (window as any).__harmonyPresenceCleanup();
         }
 
-        // Update user status to offline using proper Supabase client
-        try {
-          await supabase
-            .from('profiles')
-            .update({ status: UserStatus.Offline })
-            .eq('id', userId);
-        } catch (error) {
-          console.error('Error setting user offline:', error);
-        }
+        // For beforeunload, we rely primarily on the presence system cleanup
+        // The presence "leave" event should automatically handle offline status for other users
+        // We can't reliably do async Supabase calls here due to timing constraints
       };
 
-      // Handle page visibility for away status - keep this
+      // Handle page visibility for away status
       const handleVisibilityChange = async () => {
         if (document.hidden) {
           // Set as away after 5 minutes of tab being hidden
