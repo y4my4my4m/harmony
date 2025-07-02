@@ -44,11 +44,28 @@
       </template>
     </template>
   </div>
-  <input v-else type="text" v-model="localEditableContent" @keyup.esc="handleCancelEdit" @keyup.enter="handleSaveEdit" class="edit-input selectableText"  @dragstart.prevent/>
+  
+  <!-- Discord-like editing interface -->
+  <div v-else class="edit-container">
+    <textarea 
+      :id="`edit-input-${messageId}`"
+      v-model="localEditableContent" 
+      @keydown="handleKeyDown"
+      @input="handleInput"
+      class="edit-textarea"
+      :placeholder="'Edit message'"
+      ref="editTextarea"
+      rows="1"
+      @dragstart.prevent
+    ></textarea>
+    <div class="edit-actions">
+      <span class="edit-hint">escape to <span class="edit-action" @click="handleCancelEdit">cancel</span> • enter to <span class="edit-action" @click="handleSaveEdit">save</span></span>
+    </div>
+  </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref } from 'vue';
+import { defineComponent, watch, ref, nextTick } from 'vue';
 import type { PropType } from 'vue';
 import type { MessagePart } from '@/types';
 
@@ -81,15 +98,76 @@ export default defineComponent({
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableMessageContent);
+    const editTextarea = ref<HTMLTextAreaElement | null>(null);
 
+    // Watch for changes to the prop and update the local copy accordingly
     watch(() => props.editableMessageContent, (newVal) => {
       localEditableContent.value = newVal;
+      nextTick(() => {
+        if (editTextarea.value && props.editableMessageId === props.messageId) {
+          autoResizeTextarea();
+          editTextarea.value.focus();
+          editTextarea.value.select();
+        }
+      });
     });
 
+    // Watch for edit mode changes
+    watch(() => props.editableMessageId, (newVal) => {
+      if (newVal === props.messageId) {
+        nextTick(() => {
+          if (editTextarea.value) {
+            autoResizeTextarea();
+            editTextarea.value.focus();
+            editTextarea.value.select();
+          }
+        });
+      }
+    });
+
+    // Auto-resize textarea based on content
+    const autoResizeTextarea = () => {
+      if (editTextarea.value) {
+        editTextarea.value.style.height = 'auto';
+        editTextarea.value.style.height = Math.min(editTextarea.value.scrollHeight, 200) + 'px';
+      }
+    };
+
+    const handleInput = () => {
+      emit('update:content', localEditableContent.value);
+      autoResizeTextarea();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Handle Enter key (save)
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        handleSaveEdit();
+        return;
+      }
+      
+      // Handle Escape key (cancel)
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        handleCancelEdit();
+        return;
+      }
+
+      // Allow Shift+Enter for new lines
+      if (event.key === 'Enter' && event.shiftKey) {
+        // Let the default behavior happen (new line)
+        return;
+      }
+    };
+
     const handleSaveEdit = () => {
+      if (!localEditableContent.value.trim()) {
+        handleCancelEdit();
+        return;
+      }
+      
       try {
-        const editedContent = JSON.stringify(props.content); // Updated to use props.content
-        emit('update:message', props.messageId, editedContent);
+        emit('update:message', props.messageId, localEditableContent.value);
       } catch (e) {
         console.error('Error in handleSaveEdit:', e);
       }
@@ -101,13 +179,16 @@ export default defineComponent({
 
     return { 
       localEditableContent,
+      editTextarea,
       handleSaveEdit, 
       handleCancelEdit,
+      handleKeyDown,
+      handleInput,
+      autoResizeTextarea,
     };
   }
 });
 </script>
-
 
 <style scoped>
 .emoji-icon  {
@@ -163,9 +244,69 @@ export default defineComponent({
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 4px;
 }
+
+/* Edit interface styles */
+.edit-container {
+  width: 100%;
+  max-width: calc(100vw - 200px);
+}
+
+.edit-textarea {
+  width: 100%;
+  min-height: 40px;
+  max-height: 200px;
+  padding: 8px 12px;
+  border: 1px solid #40444b;
+  border-radius: 8px;
+  background-color: #40444b;
+  color: #dcddde;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.375;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  overflow-y: auto;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.edit-textarea:focus {
+  border-color: #5865f2;
+  background-color: #383c42;
+}
+
+.edit-textarea::placeholder {
+  color: #72767d;
+}
+
+.edit-actions {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #72767d;
+}
+
+.edit-hint {
+  font-size: 12px;
+  color: #72767d;
+}
+
+.edit-action {
+  color: #00b0f4;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.edit-action:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 768px) {
   .file-container > video {
     max-width: 100% !important;
+  }
+  
+  .edit-container {
+    max-width: calc(100vw - 40px);
   }
 }
 </style>

@@ -131,9 +131,9 @@
     class="tooltip"
     :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
   >
-    <div v-for="user in tooltip.users" :key="user.id">
-      <img :src="user.avatar_url || '/default_avatar.png'" :alt="user.display_name" class="tooltip-avatar">
-      <span>{{ user.display_name }}</span>
+    <div v-for="user in tooltip.content" :key="user.id">
+      <img :src="user.avatarUrl || '/default_avatar.png'" :alt="user.displayName" class="tooltip-avatar">
+      <span>{{ user.displayName }}</span>
     </div>
   </div>
 
@@ -143,10 +143,11 @@
 <script lang="ts">
 import { defineComponent, computed, ref, watch, nextTick } from 'vue';
 import type { PropType, Ref } from 'vue';
-import type { Message, User, Emoji, Reaction } from '@/types';
+import type { Message, User, Emoji, Reaction, MessagePart, Profile } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useAuthStore } from '@/stores/auth';
+import { useServerChannelStore } from '@/stores/useServerChannel'; 
 import { format } from 'date-fns';
 import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
 import MessageContent from '@/components/MessageContent.vue';
@@ -185,6 +186,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
+    const serverChannelStore = useServerChannelStore();
     const useChat = useChatStore();
     const authStore = useAuthStore();
     
@@ -331,44 +333,167 @@ export default defineComponent({
       emit('sendReaction', messageId, emoji);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const startEdit = (message: Message) => {
-      // editableMessageId.value = message.id;
-      // // Convert message content to string
-      // editableMessageContent.value = message.content.map(part => {
-      //   if (typeof part === 'string') {
-      //     return part;
-      //   } else if (part.mention) {
-      //     return part.mention;
-      //   } else if (part.url) {
-      //     return part.url;
-      //   } else if (part.emoji) {
-      //     return `:${part.emoji.id}:`;
-      //   }
-      // }).join('')
+    // Utility function to convert structured message content to editable text
+    const contentToEditableText = (content: MessagePart[]): string => {
+      if (!content || !Array.isArray(content)) {
+        return '';
+      }
+
+      return content.map(part => {
+        if (!part || typeof part !== 'object') {
+          return '';
+        }
+
+        switch (part.type) {
+          case 'text':
+            return part.text || '';
+          case 'emoji':
+            return part.emoji?.name ? `:${part.emoji.name}:` : '';
+          case 'mention':
+            return part.mention || '';
+          case 'url':
+            return part.url || '';
+          case 'file':
+            // For files, we'll show a placeholder text that can't be edited
+            return `[${part.fileType || 'file'}: ${part.url ? 'attachment' : 'file'}]`;
+          default:
+            return '';
+        }
+      }).join('');
     };
 
-    const highlightMessage = (messageId: string) => {
-      // scroll up to message id
-      const messageElement = document.getElementById(`#${messageId}`);
-      if (messageElement) {
-        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        messageElement.classList.add('highlighted');
+    // Parse edited text back to structured content (reuse existing parsing logic)
+    const parseEditedText = (text: string): MessagePart[] => {
+      const emojiRegex = /:([\w\d_+-]+):/g;
+      const urlRegex = /(\bhttps?:\/\/\S+)/gi;
+      const mentionRegex = /(@\w+@\w+\S+)/g;
+      const fileRegex = /\[(?:image|video|file): [^\]]+\]/g;
+      
+      let lastIndex = 0;
+      const result: MessagePart[] = [];
+      const combinedRegex = new RegExp(
+        `${emojiRegex.source}|${urlRegex.source}|${mentionRegex.source}|${fileRegex.source}`, 
+        'gi'
+      );
+
+      let match;
+      while ((match = combinedRegex.exec(text)) !== null) {
+        // Add text before match
+        if (match.index > lastIndex) {
+          const textPart = text.slice(lastIndex, match.index);
+          if (textPart.trim()) {
+            result.push({ type: 'text', text: textPart });
+          }
+        }
+
+        const matchedText = match[0];
+        
+        // Handle emoji
+        if (matchedText.startsWith(':') && matchedText.endsWith(':')) {
+          const emojiName = matchedText.slice(1, -1);
+          const emoji = findEmojiByName(emojiName);
+          if (emoji) {
+            result.push({ type: 'emoji', emoji });
+          } else {
+            result.push({ type: 'text', text: matchedText });
+          }
+        }
+        // Handle URL
+        else if (matchedText.startsWith('http')) {
+          result.push({ type: 'url', url: matchedText, preview: true });
+        }
+        // Handle mention
+        else if (matchedText.startsWith('@')) {
+          const userId = serverUsersStore.usernameToUserIdMap[matchedText.toLowerCase()];
+          result.push({ type: 'mention', mention: matchedText, userId });
+        }
+        // Handle file placeholders (don't allow editing)
+        else if (matchedText.startsWith('[') && matchedText.endsWith(']')) {
+          // Skip file placeholders - they can't be edited
+          result.push({ type: 'text', text: matchedText });
+        }
+
+        lastIndex = match.index + matchedText.length;
       }
-    }
 
-    const replyTo = (message: Message) => {
-      emit('replyingTo', message.id, getUserDisplayName(message.user_id));
-    }
+      // Add remaining text
+      if (lastIndex < text.length) {
+        const remainingText = text.slice(lastIndex);
+        if (remainingText.trim()) {
+          result.push({ type: 'text', text: remainingText });
+        }
+      }
 
+      return result;
+    };
+
+    // Find emoji by name (reuse existing logic)
+    const findEmojiByName = (name: string) => {
+      const resolvedEmojiList = serverChannelStore.resolvedEmojiList;
+      for (const serverId in resolvedEmojiList) {
+        const server = resolvedEmojiList[serverId];
+        const emoji = server.emojis.find(e => e.name === name);
+        if (emoji) {
+          return emoji;
+        }
+      }
+      return undefined;
+    };
+
+    // Implement proper startEdit function
+    const startEdit = (message: Message) => {
+      if (!canEditMessage(message)) {
+        return;
+      }
+
+      // Set the message as editable
+      editableMessageId.value = message.id;
+      
+      // Convert structured content to editable text
+      editableMessageContent.value = contentToEditableText(message.content);
+      
+      // Focus the edit input after DOM update
+      nextTick(() => {
+        const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
+        if (editInput) {
+          editInput.focus();
+          // Select all text for easy replacement
+          editInput.select();
+        }
+      });
+    };
+
+    // Enhanced saveEdit function
     const saveEdit = async (messageId: string, newContent?: string) => {
-      const content = newContent ?? editableMessageContent.value;
-      await useChat.editMessage(messageId, content); // Replace with your actual update logic
-      editableMessageId.value = null;
+      if (!editableMessageId.value) return;
+
+      try {
+        const textContent = newContent ?? editableMessageContent.value;
+        
+        // Don't save if content is empty
+        if (!textContent.trim()) {
+          cancelEdit();
+          return;
+        }
+
+        // Parse the edited text back to structured content
+        const parsedContent = parseEditedText(textContent);
+        
+        // Update the message with structured content
+        await useChat.editMessage(messageId, parsedContent);
+        
+        // Reset edit state
+        editableMessageId.value = null;
+        editableMessageContent.value = '';
+      } catch (error) {
+        console.error('Error saving message edit:', error);
+        // TODO: Show error message to user
+      }
     };
 
     const cancelEdit = () => {
       editableMessageId.value = null;
+      editableMessageContent.value = '';
     };
 
     const deleteMessage = (messageId: string) => {
@@ -408,7 +533,8 @@ export default defineComponent({
       return serverUsersStore.userProfiles[userId]?.display_name || 'Unknown User';
     };
     const getUserColor = (userId:string) => {
-      return `${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`;
+      const profile = serverUsersStore.userProfiles[userId] as Profile;
+      return `${profile?.color || '#dddddd'}`;
     };
     const getUserAvatar = (userId:string) => {
       return serverUsersStore.userProfiles[userId]?.avatar_url || '/default_avatar.png';
@@ -501,6 +627,24 @@ export default defineComponent({
       });
     };
 
+    const highlightMessage = (messageId: string) => {
+      // scroll up to message id
+      const messageElement = document.getElementById(`message-${messageId}`);
+      if (messageElement) {
+        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        messageElement.classList.add('highlighted');
+        
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+          messageElement.classList.remove('highlighted');
+        }, 3000);
+      }
+    }
+
+    const replyTo = (message: Message) => {
+      emit('replyingTo', message.id, getUserDisplayName(message.user_id));
+    }
+
     // Permission checks for message editing/deletion
     const canEditMessage = (message: Message) => {
       if (!authStore.session?.user) return false;
@@ -535,7 +679,8 @@ export default defineComponent({
 
     const getReplyUserColor = (replyMessageId: string) => {
       const userId = getReplyUserId(replyMessageId);
-      return `${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`;
+      const profile = serverUsersStore.userProfiles[userId] as Profile;
+      return `${profile?.color || '#dddddd'}`;
     };
 
     const getReplyUserAvatar = (replyMessageId: string) => {
@@ -610,14 +755,17 @@ export default defineComponent({
       tooltip,
       showTooltip,
       hideTooltip,
-      // New methods
+      // Add missing functions to return
       getReplyMessageContent,
+      handleReplyClick,
+      canEditMessage,
+      canDeleteMessage,
       getReplyUserDisplayName,
       getReplyUserColor,
       getReplyUserAvatar,
-      canEditMessage,
-      canDeleteMessage,
-      handleReplyClick,
+      contentToEditableText,
+      parseEditedText,
+      findEmojiByName,
       chatStore: useChat, // Expose chat store for template
     };
   }

@@ -402,7 +402,7 @@ export const useChatStore = defineStore('chat', {
       console.log('Cleared all message caches');
     },
 
-    async editMessage(messageId: string, content: string) {
+    async editMessage(messageId: string, content: MessagePart[]) {
       try {
         const { data, error } = await supabase
           .from('messages')
@@ -540,8 +540,12 @@ export const useChatStore = defineStore('chat', {
         if (wasRemoval) {
           updatedReactions = currentReactionIds.filter((id:string) => id !== removedReactionId);
         } else {
-          const newReactionId = reactionData[0].id;
-          updatedReactions = [...currentReactionIds, newReactionId];
+          if (reactionData && reactionData.length > 0) {
+            const newReactionId = reactionData[0].id;
+            updatedReactions = [...currentReactionIds, newReactionId];
+          } else {
+            updatedReactions = currentReactionIds;
+          }
         }
 
         await supabase
@@ -627,7 +631,7 @@ export const useChatStore = defineStore('chat', {
                 for (const reactionObj of message.reactions) {
                   const reactionArray = reactionObj.reactions;
                   if (reactionArray && Array.isArray(reactionArray)) {
-                    const reactionIndex = reactionArray.findIndex(reaction => reaction.reaction_id === reactionIdToDelete);
+                    const reactionIndex = reactionArray.findIndex(reaction => reaction.id === reactionIdToDelete);
                     if (reactionIndex !== -1) {
                       reactionArray.splice(reactionIndex, 1);
                       reactionObj.count = reactionArray.length;
@@ -769,9 +773,10 @@ export const useChatStore = defineStore('chat', {
     },
 
     // Highlight a message (scroll to it and add highlight effect)
-    highlightMessage(messageId: string) {
+    highlightMessage(_messageId: string) {
       // This will be implemented in the component
       // The actual DOM manipulation happens in MessageDisplay component
+      // Parameter prefixed with underscore to indicate it's intentionally unused
     },
 
     // Clear jumped messages and gaps when switching channels
