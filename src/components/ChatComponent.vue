@@ -64,12 +64,13 @@
   import { handleFileDrop } from '@/services/fileService';
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
-  // import type { UnlistenFn } from '@tauri-apps/api/event';
   import GifComponent from '@/components/GifComponent.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
+  import type { FilePreviewData } from '@/components/FilePreview.vue';
+
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
-  
+
   export default defineComponent({
     components: {
       MessageDisplay,
@@ -105,7 +106,8 @@
       const resolvedEmojiList = computed(() => serverChannelStore.resolvedEmojiList);
       const reactionSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
       const currentUserId = computed(() => authStore.session?.user?.id);
-      // let unlisten: UnlistenFn | null = null;
+      const attachedFiles = ref<FilePreviewData[]>([]);
+      
       // Computed property to check if running in Tauri
       const isTauri = computed(() => {
         return typeof __TAURI__ !== 'undefined';
@@ -120,21 +122,18 @@
         }
       };
 
-      // TODO: we're emitting from messageReply->messageInput->chatComponent ... dont do that!
       const handleDontReply = () => {
         replyToMessageId.value = '';
         replyToUserDisplayName.value = '';
       };
 
       const toggleReaction = (messageId: string, emoji: Emoji) => {
-        // TODO: i dont like putting "selectedMessage" out in the eather this is bad design, revise it to make the emoji popup completely modular and free of logic
         selectedMessageId.value = messageId;
         isPopupForReaction.value = true;
         handleSendEmoji(emoji);
       };
 
       const toggleEmojiList = (isReaction: boolean, message: Message) => {
-        // TODO: i dont like putting "selectedMessage" out in the eather this is bad design, revise it to make the emoji popup completely modular and free of logic
         if(message) selectedMessageId.value = message.id;
         isPopupForReaction.value = isReaction;
         emojiListOpen.value = !emojiListOpen.value;
@@ -170,32 +169,22 @@
         giphyOpen.value = false;
       };
 
-      const triggerFileDrop = async (event:any) => {
-        console.log("File dropped:", event);
-        uploading.value = true;
-        const files = event.dataTransfer.files;
-        if (files.length && serverChannelStore.currentChannelId && serverChannelStore.currentServerId && authStore.session?.user?.id) {
-            const file = files[0];
-            const fileUrl = await handleFileDrop(authStore.session?.user?.id, file);
-
-            console.log("File uploaded to:", fileUrl);
-            if (fileUrl) {
-                // Send a message with the file URL
-                // TODO: We should probably send the file name and size as well
-                // bad practice to use empty string as content, but we don't want to send the file as content
-                // we should use typed data for this, but we'll keep it simple for now
-                chatStore.sendMessage(
-                    serverChannelStore.currentServerId,
-                    serverChannelStore.currentChannelId, 
-                    authStore.session.user.id, 
-                    [{type: "file", url: fileUrl, fileType: "image"}],
-                    replyToMessageId.value
-                );
-                uploading.value = false;
-                handleDontReply();
-            }
-        }
+      // New drag and drop handler for the chat container (fallback)
+      const triggerFileDrop = async (event: any) => {
+        console.log("File dropped on chat container:", event);
         showDragDropArea.value = false;
+        
+        // Forward the files to MessageInput via the attached files
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+          const fileArray = Array.from(files);
+          // This will be handled by MessageInput's drag and drop
+          // We'll emit an event to trigger file selection in MessageInput
+          const messageInputEvent = new CustomEvent('external-file-drop', {
+            detail: { files: fileArray }
+          });
+          document.dispatchEvent(messageInputEvent);
+        }
       };
 
       onMounted(async () => {
@@ -211,27 +200,16 @@
               type: "mime/type", // Replace with the actual mime type if known
             });
 
-            // Create a custom DataTransfer-like object
-            const customDataTransfer = {
-              files: {
-                0: file,
-                length: 1,
-                item: () => file
-              }
-            };
-
-            // Trigger the file drop handler
-            triggerFileDrop({ dataTransfer: customDataTransfer });
+            // Forward to MessageInput
+            const messageInputEvent = new CustomEvent('external-file-drop', {
+              detail: { files: [file] }
+            });
+            document.dispatchEvent(messageInputEvent);
           } catch (error) {
             console.error('Error processing file drop:', error);
           }
         });
       });
-      // onUnmounted(() => {
-      //   if (unlisten) {
-      //     unlisten();
-      //   }
-      // });
 
       const parseMessageInput = (input: string): MessagePart[] => {
         const emojiRegex = /:([\w\d_+-]+):/g;
@@ -307,19 +285,59 @@
         return undefined;
       };
 
-      const handleSendMessage = (content: string) => {
-        if (authStore.session?.user && serverChannelStore.currentChannelId && serverChannelStore.currentServerId) {
-          const parsedMessage = parseMessageInput(content);
-          console.log("replyToMessageId.value:", replyToMessageId.value);
-          chatStore.sendMessage(
-            serverChannelStore.currentServerId, 
-            serverChannelStore.currentChannelId, 
-            authStore.session.user.id, 
-            parsedMessage, 
-            replyToMessageId.value || ''
-          );
-          messageContent.value = ''; // Reset the message input field after sending
-          handleDontReply();
+      const handleFilesAttached = (files: FilePreviewData[]) => {
+        attachedFiles.value = files;
+      };
+
+      const handleSendMessage = async (content: string, files: FilePreviewData[] = []) => {
+        if (!authStore.session?.user || !serverChannelStore.currentChannelId || !serverChannelStore.currentServerId) {
+          return;
+        }
+
+        uploading.value = files.length > 0;
+        
+        try {
+          const messageParts: MessagePart[] = [];
+          
+          // Add text content if present
+          if (content.trim()) {
+            const parsedMessage = parseMessageInput(content);
+            messageParts.push(...parsedMessage);
+          }
+
+          // Upload files and add them to message parts
+          for (const fileData of files) {
+            const fileUrl = await handleFileDrop(authStore.session.user.id, fileData.file);
+            if (fileUrl) {
+              const fileType = fileData.type.startsWith('image/') ? 'image' : 
+                             fileData.type.startsWith('video/') ? 'video' : 'file';
+              messageParts.push({
+                type: "file",
+                url: fileUrl,
+                fileType,
+                fileName: fileData.name,
+                fileSize: fileData.size
+              });
+            }
+          }
+
+          // Send the message with all parts
+          if (messageParts.length > 0) {
+            await chatStore.sendMessage(
+              serverChannelStore.currentServerId,
+              serverChannelStore.currentChannelId,
+              authStore.session.user.id,
+              messageParts,
+              replyToMessageId.value || ''
+            );
+            
+            messageContent.value = '';
+            handleDontReply();
+          }
+        } catch (error) {
+          console.error('Error sending message with files:', error);
+        } finally {
+          uploading.value = false;
         }
       };
 
@@ -340,7 +358,6 @@
             reactionSound2.value.volume = 0.5;
             reactionSound2.value.play();
             await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
-
           }
         }
         else {
@@ -375,7 +392,9 @@
         replyToUserDisplayName,
         toggleReaction,
         currentUserId,
-        handleDontReply
+        handleDontReply,
+        attachedFiles,
+        handleFilesAttached
       };
     }
   });
