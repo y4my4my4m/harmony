@@ -118,12 +118,9 @@
   />
 
   <!-- User Profile Card -->
-  <UserPreviewComponent
-    v-if="selectedUser"
-    :user="selectedUser"
-    :style="profileCardStyle"
-    @close="closeProfile"
-  />
+  <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
+    <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
+  </div>
 
   <!-- Tooltip for reactions -->
   <div
@@ -514,9 +511,38 @@ export default defineComponent({
       const userMention = (event.currentTarget as HTMLElement);
       if (userMention) {
         const userMentionRect = userMention.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        const popupHeight = 400;
+        const popupWidth = 320;
+        
+        // Calculate position ensuring popup stays within viewport
+        let top = userMentionRect.y - popupHeight;
+        let left = userMentionRect.x + userMentionRect.width + 10;
+        
+        // Adjust if popup would go above viewport
+        if (top < 0) {
+          top = userMentionRect.y + userMentionRect.height + 10;
+        }
+        
+        // Adjust if popup would go below viewport
+        if (top + popupHeight > viewportHeight) {
+          top = viewportHeight - popupHeight - 10;
+        }
+        
+        // Adjust if popup would go beyond right edge of viewport
+        if (left + popupWidth > viewportWidth) {
+          left = userMentionRect.x - popupWidth - 10;
+        }
+        
+        // Ensure minimum left position
+        if (left < 10) {
+          left = 10;
+        }
+
         profileCardStyle.value = {
-          left: `calc(10px + ${userMentionRect.width}px + ${userMentionRect.x}px)`,
-          top: `calc(${userMentionRect.y}px - 400px)`,
+          left: `${left}px`,
+          top: `${top}px`,
         };
       }
 
