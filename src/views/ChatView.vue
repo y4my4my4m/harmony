@@ -310,6 +310,13 @@
           }
 
           await serverChannelStore.initializeUserEnvironment(userId);
+          
+          // Initialize presence system instead of heartbeat
+          const userProfile = await serverUsersStore.userProfiles[userId];
+          if (userProfile) {
+            serverUsersStore.initializePresence(userId, userProfile);
+          }
+          serverUsersStore.subscribeToUserStatuses();
 
           initialized = true;
           if (servers.value.length === 0) {
@@ -325,23 +332,13 @@
           {
             chatLayout.addEventListener('touchstart', handleTouchStart);
             // chatLayout.addEventListener('touchmove', handleTouchMove);
-            chatLayout.addEventListener('touchend', handleTouchEnd);
           }
-          // wait 5 seconds then send a notification
-          setTimeout(() => {
-            showNotification('Welcome to Harmony!');
-          }, 5000);
         }
       });
 
       onBeforeUnmount(() => {
-        const chatLayout = document.querySelector('#app');
-        if (chatLayout)
-        {
-          chatLayout.removeEventListener('touchstart', handleTouchStart);
-          // chatLayout.removeEventListener('touchmove', handleTouchMove);
-          chatLayout.removeEventListener('touchend', handleTouchEnd);
-        }
+        // Clean up presence when component unmounts
+        serverUsersStore.cleanupPresence();
       });
 
       watch(route, () => {
