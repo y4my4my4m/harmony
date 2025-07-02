@@ -181,7 +181,7 @@
               serverChannelStore.categoryChannels
             )
             if (defaultChannelId && !isRequestStale(requestId)) {
-              await handleChannelSelected(defaultChannelId, true);
+              await handleChannelSelected(defaultChannelId);
             }
           }
         } catch (error: any) {
@@ -203,47 +203,24 @@
         await handleChannelSelected(channel.id);
       }
 
-      const handleChannelSelected = async (channelId: string, isFromServerSelection = false) => {
-        // Immediate UI update for responsiveness
+      const handleChannelSelected = async (channelId: string) => {
         serverChannelStore.setCurrentChannel(channelId);
         
-        // Update route immediately if this is a manual channel selection
-        if (!isFromServerSelection && route.params.channelId !== channelId) {
-          router.push({ 
-            name: 'Chat', 
-            params: { 
-              serverId: serverChannelStore.currentServerId, 
-              channelId: channelId 
-            }
-          });
-        }
+        // Check if messages are cached
+        const isCached = chatStore.isMessageCached(channelId);
         
-        // Clear messages immediately to prevent flash of old content
-        chatStore.clearMessages();
-        isLoading.value = true;
-        
-        const { signal, requestId } = createRequestContext();
-        
-        try {
-          // Fetch messages and subscribe with cancellation support
-          await chatStore.fetchMessages(channelId, '', signal);
-          
-          // Check if request is still current before updating subscription
-          if (!isRequestStale(requestId)) {
-            chatStore.subscribeToMessages(channelId);
-            // Ensure we're at the bottom for new channel
-            nextTick(() => {
-              scrollToBottom();
-            });
-          }
-        } catch (error: any) {
-          if (error.name === 'AbortError') return; // Request was cancelled
-          console.error('Error loading channel:', error);
-          toast.error('Failed to load channel messages');
-        } finally {
-          if (!isRequestStale(requestId)) {
-            isLoading.value = false;
-          }
+        if (isCached) {
+          // For cached channels: Load messages instantly and synchronously
+          chatStore.loadCachedMessages(channelId);
+          chatStore.subscribeToMessages(channelId);
+          // Don't scroll to bottom for cached channels - preserve scroll position
+        } else {
+          // For non-cached channels: Clear first, then fetch
+          chatStore.clearMessages();
+          await chatStore.fetchMessages(channelId);
+          chatStore.subscribeToMessages(channelId);
+          // Only scroll to bottom for newly loaded channels
+          scrollToBottom();
         }
       };
 

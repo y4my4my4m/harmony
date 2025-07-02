@@ -1,124 +1,106 @@
 <template>
   <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
-    <!-- Loading skeleton when switching channels -->
-    <div v-if="isLoading" class="loading-skeleton">
-      <div v-for="i in 8" :key="i" class="skeleton-message">
-        <div class="skeleton-avatar"></div>
-        <div class="skeleton-content">
-          <div class="skeleton-header">
-            <div class="skeleton-username"></div>
-            <div class="skeleton-timestamp"></div>
-          </div>
-          <div class="skeleton-text"></div>
-          <div class="skeleton-text short"></div>
-        </div>
-      </div>
+    <div class="no-messages" v-if="messages.length == 0">
+      There are no messages here, type something!
     </div>
-    
-    <!-- Normal message display -->
-    <template v-else>
-      <div class="no-messages" v-if="messages.length == 0">
-        There are no messages here, type something!
-      </div>
-      <div v-else v-for="(message, index) in messages" :key="message.id" :id="`#${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
-        <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
-          <div v-if="message.reply_to" @click="highlightMessage(message.reply_to)" class="repliedMessage">
-            <!-- TODO: dont make "gets" for everything -->
-            <div class="replyContainer">
-              <img draggable="false" :src="getUserAvatar(getUserIdFromMessage(message.reply_to)) ?? '/default_avatar.png'" class="replyAvatar">
-              <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getUserColor(getUserIdFromMessage(message.reply_to)) }">{{ getUserDisplayName(getUserIdFromMessage(message.reply_to)) ?? '' }}</div>
-              <div class="repliedTextPreview" role="button" tabindex="0">
-                <div id="message-content" class="repliedTextContent">
-                  <!-- TODO: need to fetch if message is too far back -->
-                  <span>
-                    <MessageContent 
-                      :content=" messages.find(msg => msg.id === message.reply_to)?.content || []"
-                      :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
-                      :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-                      :image-loaded="imageLoaded"
-                      :reply="true"
-                      @image-loaded="handleImageLoaded"
-                      @open-lightbox="handleOpenLightbox"
-                      @update:message="saveEdit"
-                      @update:content="editableMessageContent = $event"
-                      @cancel-edit="cancelEdit"
-                      @show-user-profile="showUserProfile"
-                    />
-                  </span>
-                </div>
+    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`#${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+      <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
+        <div v-if="message.reply_to" @click="highlightMessage(message.reply_to)" class="repliedMessage">
+          <!-- TODO: dont make "gets" for everything -->
+          <div class="replyContainer">
+            <img draggable="false" :src="getReplyUserAvatar(message.reply_to)" class="replyAvatar">
+            <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getReplyUserColor(message.reply_to) }">{{ getReplyUserDisplayName(message.reply_to) }}</div>
+            <div class="repliedTextPreview" role="button" tabindex="0">
+              <div id="message-content" class="repliedTextContent">
+                <!-- TODO: need to fetch if message is too far back -->
+                <span>
+                  <MessageContent 
+                    :content="getReplyMessageContent(message.reply_to)"
+                    :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
+                    :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+                    :image-loaded="imageLoaded"
+                    :reply="true"
+                    @image-loaded="handleImageLoaded"
+                    @open-lightbox="handleOpenLightbox"
+                    @update:message="saveEdit"
+                    @update:content="editableMessageContent = $event"
+                    @cancel-edit="cancelEdit"
+                    @show-user-profile="showUserProfile"
+                  />
+                </span>
               </div>
             </div>
           </div>
-          <div class="message-header">
-            <img draggable="false" :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
-            <div>
-              <span>
-                <strong class="user-display-name" :style="{color: getUserColor(message.user_id)}" @click="showUserProfile(message.user_id, $event)">
-                {{ getUserDisplayName(message.user_id) }}
-                </strong>
-                <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
-              </span>
-              <MessageContent 
-                :content="message.content"
-                :message-id="message.id"
-                :editableMessageId="editableMessageId"
-                :editableMessageContent="editableMessageContent"
-                :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-                :image-loaded="imageLoaded"
-                :reply="false"
-                @image-loaded="handleImageLoaded"
-                @open-lightbox="handleOpenLightbox"
-                @update:message="saveEdit"
-                @update:content="editableMessageContent = $event"
-                @cancel-edit="cancelEdit"
-                @show-user-profile="showUserProfile"
-              />
-            </div>
-          </div>
-        </template>
-        <MessageContent 
-          v-else
-          :content="message.content"
-          :message-id="message.id"
-          :editableMessageId="editableMessageId"
-          :editableMessageContent="editableMessageContent"
-          :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-          :image-loaded="imageLoaded"
-          :reply="false"
-          @image-loaded="handleImageLoaded"
-          @open-lightbox="handleOpenLightbox"
-          @update:message="saveEdit"
-          @update:content="editableMessageContent = $event"
-          @cancel-edit="cancelEdit"
-          @show-user-profile="showUserProfile"
-        />
-        <div class="message-actions" v-if="hoveredMessageId === message.id">
-          <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
-          <div class="btn" @click="replyTo(message)"><ReplyIcon/></div>
-          <div class="btn" @click="startEdit(message)"><EditIcon/></div>
-          <div class="btn" @click="deleteMessage(message.id)"><DeleteIcon/></div>
-          <div class="btn"><MoreIcon/></div>
         </div>
-        <div class="reactions" v-if="message.reactions" >
-          <!-- Display existing reactions -->
-          <div
-            v-for="reaction in message.reactions"
-            :key="reaction.id"
-            class="reaction"
-            @click="toggleReaction(message.id, reaction.emoji)"
-            @mouseenter="showTooltip($event, reaction)"
-            @mouseleave="hideTooltip"
-            :class="{'reacted': reaction.reactions.some(r => r.user_id === currentUserId)}"
-            >
-            <img 
-              :src="reaction.emoji.url" 
-              :alt="reaction.emoji.name"      />
-            <span>{{ reaction.count }}</span>
+        <div class="message-header">
+          <img draggable="false" :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
+          <div>
+            <span>
+              <strong class="user-display-name" :style="{color: getUserColor(message.user_id)}" @click="showUserProfile(message.user_id, $event)">
+              {{ getUserDisplayName(message.user_id) }}
+              </strong>
+              <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
+            </span>
+            <MessageContent 
+              :content="message.content"
+              :message-id="message.id"
+              :editableMessageId="editableMessageId"
+              :editableMessageContent="editableMessageContent"
+              :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+              :image-loaded="imageLoaded"
+              :reply="false"
+              @image-loaded="handleImageLoaded"
+              @open-lightbox="handleOpenLightbox"
+              @update:message="saveEdit"
+              @update:content="editableMessageContent = $event"
+              @cancel-edit="cancelEdit"
+              @show-user-profile="showUserProfile"
+            />
           </div>
-          <!-- Additional UI for adding new reactions -->
         </div>
+      </template>
+      <MessageContent 
+        v-else
+        :content="message.content"
+        :message-id="message.id"
+        :editableMessageId="editableMessageId"
+        :editableMessageContent="editableMessageContent"
+        :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+        :image-loaded="imageLoaded"
+        :reply="false"
+        @image-loaded="handleImageLoaded"
+        @open-lightbox="handleOpenLightbox"
+        @update:message="saveEdit"
+        @update:content="editableMessageContent = $event"
+        @cancel-edit="cancelEdit"
+        @show-user-profile="showUserProfile"
+      />
+      <div class="message-actions" v-if="hoveredMessageId === message.id">
+        <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
+        <div class="btn" @click="replyTo(message)"><ReplyIcon/></div>
+        <div class="btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
+        <div class="btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
+        <div class="btn"><MoreIcon/></div>
       </div>
-    </template>
+      <div class="reactions" v-if="message.reactions" >
+        <!-- Display existing reactions -->
+        <div
+          v-for="reaction in message.reactions"
+          :key="reaction.id"
+          class="reaction"
+          @click="toggleReaction(message.id, reaction.emoji)"
+          @mouseenter="showTooltip($event, reaction)"
+          @mouseleave="hideTooltip"
+          :class="{'reacted': reaction.reactions.some(r => r.user_id === currentUserId)}"
+          >
+          <img 
+            :src="reaction.emoji.url" 
+            :alt="reaction.emoji.name"      />
+          <span>{{ reaction.count }}</span>
+        </div>
+        <!-- Additional UI for adding new reactions -->
+      </div>
+    </div>
   </div>
   <vue-easy-lightbox
     class="lightbox"
@@ -127,23 +109,24 @@
     :index="indexRef"
     @hide="closeLightbox"
   />
-    <!-- FIXME: User profile card (class should be inside, reusable component!) -->
-  <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
-    <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
-  </div>
 
-  <div 
-    v-show="tooltip.visible" 
-    class="tooltip" 
-    :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
+  <!-- User Profile Card -->
+  <UserPreviewComponent
+    v-if="selectedUser"
+    :user="selectedUser"
+    :style="profileCardStyle"
+    @close="closeProfile"
+  />
+
+  <!-- Tooltip for reactions -->
+  <div
+    v-if="tooltip.visible"
+    class="tooltip"
+    :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
   >
-    <div class="tooltip-emoji"><img :src="tooltip.emoji?.url" />:{{ tooltip.emoji?.name }}:</div>
-    <div style="color:#777; font-size:12px;">Reactions:</div>
-    <div v-for="(user) in tooltip.content" :key="user.id">
-      <span :style="{color: user.userColor}">
-        <img class="tooltip-avatar" :src="user.avatarUrl" alt="" style="width: 20px; height: 20px; border-radius: 50%;">
-        {{ user.displayName }}
-      </span>
+    <div v-for="user in tooltip.users" :key="user.id">
+      <img :src="user.avatar_url || '/default_avatar.png'" :alt="user.display_name" class="tooltip-avatar">
+      <span>{{ user.display_name }}</span>
     </div>
   </div>
 
@@ -156,6 +139,7 @@ import type { PropType, Ref } from 'vue';
 import type { Message, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
+import { useAuthStore } from '@/stores/auth';
 import { format } from 'date-fns';
 import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
 import MessageContent from '@/components/MessageContent.vue';
@@ -171,15 +155,10 @@ export default defineComponent({
       type: Array as PropType<Message[]>,
       required: true
     },
-    isLoading: {
-      type: Boolean,
-      default: false
-    },
     loadMoreMessages: Function as PropType<() => void>,
     isAtBottom: Boolean,
     currentUserId: String,
   },
-  emits: ['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom'],
   components: { 
     UserPreviewComponent,
     ReplyIcon,
@@ -193,19 +172,10 @@ export default defineComponent({
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
     const serverUsersStore = useServerUsersStore();
     const useChat = useChatStore();
-    // const parsedMessages = computed(() => {
-    //   return props.messages.map((message) => {
-    //     // Assuming the content of each message is a JSON string
-    //     try {
-    //       const content = JSON.parse(message.content);
-    //       return { ...message, content };
-    //     } catch (e) {
-    //       // Fallback to plain text if parsing fails
-    //       console.error('Error parsing message content:', e);
-    //       return { ...message, content: [{ text: message.content }] };
-    //     }
-    //   });
-    // });
+    const authStore = useAuthStore();
+    
+    // Cache for reply messages
+    const replyMessages = ref<Record<string, Message>>({});
     
     const tooltip = ref({
       visible: false,
@@ -467,6 +437,102 @@ export default defineComponent({
       }
     };
 
+    // Enhanced reply message handling
+    const getReplyMessageContent = (replyMessageId: string) => {
+      // First check if message is in current messages
+      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
+      if (currentMessage) {
+        return currentMessage.content;
+      }
+
+      // Check if message is in reply cache
+      const cachedMessage = replyMessages.value[replyMessageId];
+      if (cachedMessage) {
+        return cachedMessage.content;
+      }
+
+      // Fetch the message if not found
+      fetchReplyMessageIfNeeded(replyMessageId);
+      
+      // Return empty array while loading
+      return [];
+    };
+
+    const getReplyUserDisplayName = (replyMessageId: string) => {
+      const userId = getReplyUserId(replyMessageId);
+      return serverUsersStore.userProfiles[userId]?.display_name || 'Loading...';
+    };
+
+    const getReplyUserColor = (replyMessageId: string) => {
+      const userId = getReplyUserId(replyMessageId);
+      return `${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`;
+    };
+
+    const getReplyUserAvatar = (replyMessageId: string) => {
+      const userId = getReplyUserId(replyMessageId);
+      return serverUsersStore.userProfiles[userId]?.avatar_url || '/default_avatar.png';
+    };
+
+    const getReplyUserId = (replyMessageId: string) => {
+      // First check if message is in current messages
+      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
+      if (currentMessage) {
+        return currentMessage.user_id;
+      }
+
+      // Check if message is in reply cache
+      const cachedMessage = replyMessages.value[replyMessageId];
+      if (cachedMessage) {
+        return cachedMessage.user_id;
+      }
+
+      return 'unknown';
+    };
+
+    const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
+      // Don't fetch if already exists or is being fetched
+      if (replyMessages.value[replyMessageId] || 
+          props.messages.find(msg => msg.id === replyMessageId)) {
+        return;
+      }
+
+      try {
+        const message = await useChat.fetchReplyMessage(replyMessageId);
+        if (message) {
+          replyMessages.value[replyMessageId] = message;
+        }
+      } catch (error) {
+        console.error('Error fetching reply message:', error);
+      }
+    };
+
+    // Permission checks for message editing/deletion
+    const canEditMessage = (message: Message) => {
+      if (!authStore.session?.user) return false;
+      
+      // Users can edit their own messages
+      if (message.user_id === authStore.session.user.id) {
+        return true;
+      }
+      
+      // TODO: Add admin permission check when admin roles are implemented
+      // For now, only allow editing own messages
+      return false;
+    };
+
+    const canDeleteMessage = (message: Message) => {
+      if (!authStore.session?.user) return false;
+      
+      // Users can delete their own messages
+      if (message.user_id === authStore.session.user.id) {
+        return true;
+      }
+      
+      // TODO: Add admin permission check when admin roles are implemented
+      // For now, only allow deleting own messages
+      return false;
+    };
+
     return { 
       getUserDisplayName, 
       getUserColor, 
@@ -501,6 +567,13 @@ export default defineComponent({
       tooltip,
       showTooltip,
       hideTooltip,
+      // New methods
+      getReplyMessageContent,
+      getReplyUserDisplayName,
+      getReplyUserColor,
+      getReplyUserAvatar,
+      canEditMessage,
+      canDeleteMessage,
     };
   }
 });

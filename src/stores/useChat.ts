@@ -34,11 +34,97 @@ export const useChatStore = defineStore('chat', {
     cacheValidityDuration: 5 * 60 * 1000, // 5 minutes
     maxCacheSize: 50, // Maximum number of channels to cache
     currentChannelId: null as string | null,
+    
+    // Cache for individual reply messages
+    replyMessageCache: new Map<string, Message>(),
+    fetchingReplyMessages: new Set<string>(),
   }),
   actions: {
     clearMessages() {
       this.messages = [];
       this.allMessagesLoaded = false;
+    },
+
+    // Fetch individual message (for replies that aren't in current message list)
+    async fetchReplyMessage(messageId: string): Promise<Message | null> {
+      // Check if already cached
+      if (this.replyMessageCache.has(messageId)) {
+        return this.replyMessageCache.get(messageId)!;
+      }
+
+      // Check if already being fetched
+      if (this.fetchingReplyMessages.has(messageId)) {
+        // Wait for the existing fetch to complete
+        return new Promise((resolve) => {
+          const checkCache = () => {
+            if (this.replyMessageCache.has(messageId)) {
+              resolve(this.replyMessageCache.get(messageId)!);
+            } else if (!this.fetchingReplyMessages.has(messageId)) {
+              resolve(null);
+            } else {
+              setTimeout(checkCache, 50);
+            }
+          };
+          checkCache();
+        });
+      }
+
+      this.fetchingReplyMessages.add(messageId);
+
+      try {
+        const { data: message, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('id', messageId)
+          .single();
+
+        if (error || !message) {
+          console.error('Error fetching reply message:', error);
+          return null;
+        }
+
+        // Fetch reactions for the message if it has any
+        if (message.reactions && message.reactions.length > 0) {
+          const { data: reactions, error: reactionsError } = await supabase
+            .rpc('get_message_reactions', { message_id: message.id });
+      
+          if (!reactionsError) {
+            message.reactions = reactions;
+          }
+        }
+
+        // Cache the message
+        this.replyMessageCache.set(messageId, message);
+        return message;
+      } catch (error) {
+        console.error('Error fetching reply message:', error);
+        return null;
+      } finally {
+        this.fetchingReplyMessages.delete(messageId);
+      }
+    },
+
+    // Load cached messages instantly (synchronous)
+    loadCachedMessages(channelId: string) {
+      const cached = this.messageCache.get(channelId);
+      if (cached) {
+        console.log(`Loading cached messages instantly: ${channelId}`);
+        this.messages = [...cached.messages];
+        this.allMessagesLoaded = cached.allMessagesLoaded;
+        this.currentChannelId = channelId;
+      }
+    },
+
+    // Check if message is cached (for skeleton display logic)
+    isMessageCached(channelId: string): boolean {
+      if (!this.messageCache.has(channelId)) return false;
+      
+      const cached = this.messageCache.get(channelId)!;
+      const now = new Date();
+      const cacheAge = now.getTime() - cached.lastFetchedAt.getTime();
+      
+      // Cache is valid if less than 5 minutes old
+      return cacheAge < this.cacheValidityDuration;
     },
 
     // Get cache metadata from server to check if local cache is stale
@@ -112,21 +198,27 @@ export const useChatStore = defineStore('chat', {
     async fetchMessages(channelId: string, oldestMessageId: string = '', signal?: AbortSignal) {
       if (this.loadingOlderMessages && oldestMessageId !== '') return;
 
-      // For initial load, check cache first
+      // For initial load, check cache first - make this synchronous for instant loading
       if (oldestMessageId === '') {
-        // Check server metadata for cache invalidation
-        const serverMetadata = await this.getCacheMetadata(channelId);
-        
-        if (this.isCacheValid(channelId, serverMetadata || undefined)) {
-          console.log(`Loading from cache: ${channelId}`);
+        // Simple time-based cache validation (no async database calls)
+        if (this.messageCache.has(channelId)) {
           const cached = this.messageCache.get(channelId)!;
-          this.messages = [...cached.messages];
-          this.allMessagesLoaded = cached.allMessagesLoaded;
-          this.currentChannelId = channelId;
-          return;
+          const now = new Date();
+          const cacheAge = now.getTime() - cached.lastFetchedAt.getTime();
+          
+          // If cache is less than 5 minutes old, use it instantly
+          if (cacheAge < this.cacheValidityDuration) {
+            console.log(`Loading from cache instantly: ${channelId}`);
+            this.messages = [...cached.messages];
+            this.allMessagesLoaded = cached.allMessagesLoaded;
+            this.currentChannelId = channelId;
+            // Return immediately - truly instant loading
+            return;
+          }
         }
       }
 
+      // Only set loading state for non-cached messages
       this.loadingOlderMessages = true;
       
       try {
