@@ -187,6 +187,9 @@ export default defineComponent({
     const useChat = useChatStore();
     const authStore = useAuthStore();
     
+    // Initialize imageLoaded early to prevent initialization order issues
+    const imageLoaded: Ref<Record<string, boolean>> = ref({});
+    
     // Cache for reply messages
     const replyMessages = ref<Record<string, Message>>({});
     
@@ -572,8 +575,6 @@ export default defineComponent({
 
     const isLightboxOpen = ref(false);
     const indexRef = ref(0);
-
-    const imageLoaded: Ref<Record<string, boolean>> = ref({});
 
     const handleImageLoaded = (url: string) => {
       imageLoaded.value[url] = true;
