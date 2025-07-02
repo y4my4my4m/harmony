@@ -3,21 +3,26 @@
     <img :src="profile?.avatar_url" alt="User Avatar" class="avatar">
     <div class="user-info">
       <p class="user-name">{{ profile?.display_name }}</p>
-
-      <div class="user-status" @click="toggleStatusDropdown">
-        <span :class="getUserStatusClass(profile?.status ?? 0)"></span>
+      <div class="user-status-container" @click="toggleStatusDropdown">
+        <span :class="getUserStatusClass(profile?.status ?? 0)" class="user-status"></span>
         <span>{{ getUserStatusText(profile?.status ?? 0) }}</span>
       </div>
     </div>
 
     <div class="buttons">
-      <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }"><MicIcon :isMicActive="isMicActive" /></div>
-      <div class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }"><HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" /></div>
-      <div class="icon-button settings" @click="goToSettings"><SettingsIcon/></div>
+      <button class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }">
+        <MicIcon :isMicActive="isMicActive" />
+      </button>
+      <button class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }">
+        <HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" />
+      </button>
+      <button class="icon-button settings" @click="goToSettings">
+        <SettingsIcon/>
+      </button>
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
-      <select v-model="selectedStatus" @change="updateStatus">
+      <select v-model="selectedStatus" @change="updateStatus" class="input-base">
         <option value="1">Online</option>
         <option value="2">Away</option>
         <option value="3">Do Not Disturb</option>
@@ -27,144 +32,102 @@
   </div>
 </template>
 
-
 <script lang="ts">
-  import { defineComponent, ref, onMounted, onBeforeUnmount } from 'vue';
-  import { useAuthStore } from '@/stores/auth';
-  import { getProfileWithAvatarUrl } from '@/services/profileService';
-  import { useRouter } from 'vue-router';
-  import type { User } from '@/types';
-  import { updateUserStatus } from '@/services/profileService';
-  import { UserStatus } from '@/types';
-  import MicIcon from '@/components/icons/Mic.vue';
-  import HeadphonesIcon from '@/components/icons/Headphones.vue';
-  import SettingsIcon from '@/components/icons/Settings.vue';
-  
-  export default defineComponent({
-    components: {
-      MicIcon,
-      HeadphonesIcon,
-      SettingsIcon
-    },
-    setup() {
-      const micOnSound = ref(new Audio('/assets/sounds/mic_on.mp3'));
-      const micOffSound = ref(new Audio('/assets/sounds/mic_off.mp3'));
-      const cameraOnSound = ref(new Audio('/assets/sounds/camera_on.mp3'));
-      const cameraOffSound = ref(new Audio('/assets/sounds/camera_off.mp3'));
-      const isMicActive = ref(false);
-      const isHeadphonesActive = ref(true);
-      
-      const authStore = useAuthStore();
-      const profile = ref<User | null>(null);
+import { defineComponent, ref, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { getProfileWithAvatarUrl, updateUserStatus } from '@/services/profileService'
+import { useRouter } from 'vue-router'
+import { useUserProfile } from '@/composables/useUserProfile'
+import { useAudioEffects, useClickOutside } from '@/composables/useCommonUI'
+import type { User } from '@/types'
+import { UserStatus } from '@/types'
+import MicIcon from '@/components/icons/Mic.vue'
+import HeadphonesIcon from '@/components/icons/Headphones.vue'
+import SettingsIcon from '@/components/icons/Settings.vue'
 
-      const showStatusDropdown = ref(false);
+export default defineComponent({
+  name: 'UserProfileComponent',
+  components: {
+    MicIcon,
+    HeadphonesIcon,
+    SettingsIcon
+  },
+  setup() {
+    const authStore = useAuthStore()
+    const router = useRouter()
+    const { getUserStatusClass, getUserStatusText } = useUserProfile()
+    const { playSound } = useAudioEffects()
+    const { targetRef, handleClickOutside } = useClickOutside()
 
-      const toggleMic = () => {
-        isMicActive.value = !isMicActive.value;
-        if (!isMicActive.value) {
-          micOffSound.value.volume = 0.35;
-          micOffSound.value.play();
-        } else {
-          micOnSound.value.volume = 0.35;
-          micOnSound.value.play();
+    const profile = ref<User | null>(null)
+    const showStatusDropdown = ref(false)
+    const selectedStatus = ref(UserStatus.Offline)
+    const isMicActive = ref(false)
+    const isHeadphonesActive = ref(true)
+
+    const toggleMic = () => {
+      isMicActive.value = !isMicActive.value
+      const soundPath = isMicActive.value ? '/assets/sounds/mic_on.mp3' : '/assets/sounds/mic_off.mp3'
+      playSound(soundPath, 0.35)
+    }
+
+    const toggleHeadphones = () => {
+      isHeadphonesActive.value = !isHeadphonesActive.value
+      if (!isHeadphonesActive.value) {
+        isMicActive.value = false
+      }
+      const soundPath = isHeadphonesActive.value ? '/assets/sounds/camera_on.mp3' : '/assets/sounds/camera_off.mp3'
+      playSound(soundPath, 0.35)
+    }
+
+    const toggleStatusDropdown = () => {
+      showStatusDropdown.value = !showStatusDropdown.value
+    }
+
+    const updateStatus = async () => {
+      if (authStore.session?.user) {
+        await updateUserStatus(authStore.session.user.id, selectedStatus.value)
+        if (profile.value) {
+          profile.value.status = selectedStatus.value
         }
-      };
+      }
+    }
 
-      const toggleHeadphones = () => {
-        isHeadphonesActive.value = !isHeadphonesActive.value;
-        if (!isHeadphonesActive.value) {
-          isMicActive.value = false;
-          cameraOffSound.value.volume = 0.35;
-          cameraOffSound.value.play();
-        } else {
-          // TODO: only turn back on the mic if it was already set to "on" (observe the inspiration app's behaviour for this)
-          cameraOnSound.value.volume = 0.35;
-          cameraOnSound.value.play();
-        }
-      };
+    const goToSettings = () => {
+      router.push({ name: 'Profile' })
+    }
 
-      const toggleStatusDropdown = () => {
-        showStatusDropdown.value = !showStatusDropdown.value;
-      };
+    // Handle click outside to close dropdown
+    handleClickOutside(() => {
+      showStatusDropdown.value = false
+    })
 
-      const onClickOutside = (event: any) => {
-        if (!event.target.closest('.user-profile')) {
-          showStatusDropdown.value = false;
-        }
-      };
+    onMounted(async () => {
+      if (authStore.session?.user) {
+        profile.value = await getProfileWithAvatarUrl(authStore.session.user.id)
+        selectedStatus.value = profile.value?.status || UserStatus.Offline
+      }
+    })
 
-      const selectedStatus = ref(profile.value?.status || UserStatus.Offline);
+    return { 
+      profile, 
+      goToSettings, 
+      selectedStatus, 
+      updateStatus, 
+      showStatusDropdown, 
+      toggleStatusDropdown, 
+      getUserStatusClass, 
+      getUserStatusText,
+      toggleMic,
+      toggleHeadphones,
+      isMicActive,
+      isHeadphonesActive,
+      targetRef
+    }
+  },
+})
+</script>
 
-      const updateStatus = async () => {
-        if (authStore.session?.user) {
-          await updateUserStatus(authStore.session.user.id, selectedStatus.value);
-          // Update the profile status locally
-          if (profile.value)
-            profile.value.status = selectedStatus.value;
-        }
-      };
-
-      const router = useRouter();
-
-      // refactor those into helper functions that can be used globally or something
-      const getUserStatusClass = (status: UserStatus) => {
-        switch (status) {
-          case UserStatus.Online:
-            return 'status-online';
-          case UserStatus.Away:
-            return 'status-away';
-          case UserStatus.Busy:
-            return 'status-busy';
-          case UserStatus.Offline:
-          default:
-            return 'status-offline';
-        }
-      };
-
-      const getUserStatusText = (status: UserStatus) => {
-        switch (status) {
-          case UserStatus.Online:
-            return 'Online';
-          case UserStatus.Away:
-            return 'Away';
-          case UserStatus.Busy:
-            return 'Do Not Disturb';
-          case UserStatus.Offline:
-          default:
-            return 'Offline';
-        }
-      };
-      const goToSettings = () => {
-        router.push({ name: 'Profile' });
-      };
-
-      onMounted(async () => {
-        if (authStore.session?.user) {
-          profile.value = await getProfileWithAvatarUrl(authStore.session.user.id);
-        }
-        document.addEventListener('click', onClickOutside);
-      });
-      onBeforeUnmount(() => {
-        document.removeEventListener('click', onClickOutside);
-      });
-
-      return { 
-        profile, 
-        goToSettings, 
-        selectedStatus, 
-        updateStatus, 
-        showStatusDropdown, 
-        toggleStatusDropdown, 
-        getUserStatusClass, 
-        getUserStatusText,
-        toggleMic,
-        toggleHeadphones,
-        isMicActive,
-        isHeadphonesActive,
-      };
-    },
-  });
-  </script>
 <style scoped>
 .user-profile {
   display: flex;
@@ -191,93 +154,48 @@
 .user-name {
   font-weight: bold;
   color: white;
+  margin: 0 0 4px 0;
+  font-size: 0.9em;
 }
 
-.user-status {
+.user-status-container {
   display: flex;
   align-items: center;
-  color: #8e9094;
-  font-size:10px;
+  cursor: pointer;
+  font-size: 0.8em;
+  color: #b3b3b3;
 }
 
-.status-online {
-  background-color: #43b581; /* Online status color */
+.user-status-container .user-status {
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  position: relative;
+  border: none;
 }
-
-.status-away {
-  background-color: #faa81a; /* Away status color */
-}
-
-.status-busy {
-  background-color: #f04747; /* Busy status color */
-}
-
-.status-offline {
-  background-color: #747f8d; /* Offline status color */
-}
-
-.status-online, .status-away, .status-busy, .status-offline {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 5px;
-}
-
 
 .buttons {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
+  display: flex;
+  gap: 4px;
 }
-.icon-button {
-  /* background: none; */
-  /* border: none; */
-  color: white;
-  cursor: pointer;
-  padding: 4px;
-  margin: 2px;
-  /* border-radius: 4px; */
-  transition: 0.2s ease-in-out;
-  display:flex;
-}
-/* .icon-button.muted {
-  opacity:0.65;
-  background:rgba(255,0,0,0.35);
-}
-.settings {
-  filter: grayscale(1) brightness(0.65)
-} */
+
 .status-dropdown {
   position: absolute;
-  bottom: 100%; /* Position above the user profile */
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #2f3136;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  z-index: 10;
-}
-
-.status-dropdown select {
-  width: 100%;
+  bottom: 100%;
+  left: 10px;
+  right: 10px;
+  background: var(--h-black-dark);
+  border-radius: 4px;
   padding: 8px;
-  border: none;
-  border-radius: 8px;
-  background-color: #202225;
-  color: white;
-  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.status-dropdown select:focus {
-  outline: none;
+.status-dropdown .input-base {
+  font-size: 0.9em;
+  padding: 6px;
 }
 
-/* Optional: style the options */
-.status-dropdown option {
-  background-color: #2f3136;
-  color: white;
-}
-@media (max-width: 768px) {
+@media screen and (max-width: 768px) {
   .user-profile {
     width: 0;
     overflow: hidden;
@@ -285,7 +203,9 @@
     display: none;
   }
   .user-profile.open {
-    width: calc(100% - 60px)
+    width: calc(100% - 60px);
+    display: flex;
+    padding: 10px;
   }
 }
 </style>

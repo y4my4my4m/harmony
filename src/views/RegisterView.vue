@@ -1,17 +1,18 @@
 <template>
   <!-- <h2>Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration Registration </h2> -->
-  <RegistrationComponent/>
+  <AuthComponent :isLogin="false" />
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import RegistrationComponent from '@/components/RegistrationComponent.vue';
+import { defineComponent } from 'vue'
+import AuthComponent from '@/components/AuthComponent.vue'
 
 export default defineComponent({
+  name: 'RegisterView',
   components: {
-    RegistrationComponent,
+    AuthComponent,
   },
-});
+})
 </script>
 
 <style scoped>

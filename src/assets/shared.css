@@ -1,0 +1,214 @@
+/* Shared Button Styles */
+.btn {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s;
+  font-size: 1em;
+  font-weight: 500;
+}
+
+.btn:hover {
+  opacity: 0.8;
+}
+
+.btn-primary {
+  background-color: #5865f2;
+}
+
+.btn-success {
+  background-color: #43b581;
+}
+
+.btn-danger {
+  background-color: #f04747;
+}
+
+.btn-secondary {
+  background-color: #4752c4;
+}
+
+/* Shared Input Styles */
+.input-base {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #40444b;
+  background-color: #2f3136;
+  color: white;
+  outline: none;
+  font-size: 1em;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-base:focus {
+  border: 1px solid #7289da;
+  box-shadow: 0 0 0 3px rgba(114, 137, 218, 0.3);
+}
+
+.input-base::placeholder {
+  color: #72767d;
+}
+
+/* Shared Modal/Overlay Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #36393f;
+  padding: 20px;
+  border-radius: 10px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Shared Card Styles */
+.card {
+  background-color: #36393f;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+  font-size: 1.2em;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #ffffff;
+}
+
+/* User Status Styles */
+.status-online {
+  background-color: #43b581;
+}
+
+.status-away {
+  background-color: #faa61a;
+}
+
+.status-busy {
+  background-color: #f04747;
+}
+
+.status-offline {
+  background-color: #747f8d;
+}
+
+.user-status {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--h-black-dark);
+  position: absolute;
+  bottom: 0;
+  right: 0;
+}
+
+/* Shared Avatar Styles */
+.avatar-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-md {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-xl {
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Shared Layout Utilities */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Shared Icon Button Styles */
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  background-color: transparent;
+  border: none;
+}
+
+.icon-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.icon-button.muted {
+  background-color: #f04747;
+}
+
+/* Shared Form Styles */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.form-error {
+  color: #f04747;
+  font-size: 0.875em;
+  margin-top: 4px;
+}

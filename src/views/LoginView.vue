@@ -1,19 +1,20 @@
 <template>
   <!-- <h2>Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login Login </h2> -->
-  <LoginComponent />
+  <AuthComponent :isLogin="true" />
 </template>
 
 <script lang="ts">
 import { defineComponent, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import LoginComponent from '@/components/LoginComponent.vue';
+import AuthComponent from '@/components/AuthComponent.vue';
 import { useAuthStore } from '@/stores/auth';
 import { UserStatus } from '@/types';
 import { updateUserStatus } from '@/services/profileService';
 
 export default defineComponent({
+  name: 'LoginView',
   components: {
-    LoginComponent,
+    AuthComponent,
   },
   setup() {
     const router = useRouter();
