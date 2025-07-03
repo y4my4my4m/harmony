@@ -189,7 +189,7 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
     
     // Position above the input with dynamic spacing
     const x = inputRect.left + 10; // Small left margin
-    const y = inputRect.top - popupHeight - 10; // Position above with 10px margin
+    const y = inputRect.top - popupHeight - 30; // Position above with 30px margin
     
     // Make sure the popup doesn't go off-screen
     const viewportWidth = window.innerWidth;
