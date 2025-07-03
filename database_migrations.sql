@@ -348,3 +348,45 @@ GRANT EXECUTE ON FUNCTION get_emoji_metadata_bulk(uuid[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_most_used_emojis(uuid[], integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION increment_emoji_usage(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_server_emoji_analytics(uuid) TO authenticated;
+
+-- Add order columns for proper drag and drop functionality
+-- Add order column to channels table if it doesn't exist
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS "order" integer DEFAULT 0;
+
+-- Add index for better performance on ordering queries
+CREATE INDEX IF NOT EXISTS idx_channels_order ON channels("order");
+CREATE INDEX IF NOT EXISTS idx_channels_category_order ON channels(category, "order");
+
+-- Update existing channels to have proper order values within their categories
+-- Set order based on creation time for existing channels
+WITH ordered_channels AS (
+  SELECT 
+    id,
+    ROW_NUMBER() OVER (PARTITION BY COALESCE(category, 'orphan') ORDER BY created_at) - 1 as new_order
+  FROM channels
+)
+UPDATE channels 
+SET "order" = ordered_channels.new_order
+FROM ordered_channels 
+WHERE channels.id = ordered_channels.id AND channels."order" = 0;
+
+-- Ensure channel_categories table has the order column (should already exist based on code)
+-- This is just to be safe in case it's missing
+ALTER TABLE channel_categories ADD COLUMN IF NOT EXISTS "order" integer DEFAULT 0;
+
+-- Add index for categories ordering
+CREATE INDEX IF NOT EXISTS idx_channel_categories_order ON channel_categories("order");
+CREATE INDEX IF NOT EXISTS idx_channel_categories_server_order ON channel_categories(server_id, "order");
+
+-- Update existing categories to have proper order values
+WITH ordered_categories AS (
+  SELECT 
+    id,
+    ROW_NUMBER() OVER (PARTITION BY server_id ORDER BY created_at) - 1 as new_order
+  FROM channel_categories
+  WHERE "order" = 0
+)
+UPDATE channel_categories 
+SET "order" = ordered_categories.new_order
+FROM ordered_categories 
+WHERE channel_categories.id = ordered_categories.id;

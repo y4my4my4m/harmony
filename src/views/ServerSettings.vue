@@ -263,7 +263,7 @@ const handleSave = async () => {
 }
 
 const back = () => {
-  router.push('/chat')
+  router.push({ name: 'Chat', params: { serverId: props.serverId } })
 }
 
 // Lifecycle

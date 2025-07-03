@@ -271,5 +271,66 @@ export const useServerUsersStore = defineStore('serverUsers', {
         }
       })
     },
+
+    // Voice channel connection methods
+    async joinVoiceChannel(serverId: string, channelId: string, userId: string) {
+      try {
+        // Add user to local state immediately for responsive UI
+        if (!this.usersInVoiceChannels[channelId]) {
+          this.usersInVoiceChannels[channelId] = [];
+        }
+        if (!this.usersInVoiceChannels[channelId].includes(userId)) {
+          this.usersInVoiceChannels[channelId].push(userId);
+        }
+
+        // Broadcast to other users
+        this.broadcastVoiceChannelEvent(serverId, channelId, 'user-joined', userId);
+        
+        console.log(`User ${userId} joined voice channel ${channelId}`);
+        return true;
+      } catch (error) {
+        console.error('Error joining voice channel:', error);
+        return false;
+      }
+    },
+
+    async leaveVoiceChannel(serverId: string, channelId: string, userId: string) {
+      try {
+        // Remove user from local state immediately
+        if (this.usersInVoiceChannels[channelId]) {
+          this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+        }
+
+        // Broadcast to other users
+        this.broadcastVoiceChannelEvent(serverId, channelId, 'user-left', userId);
+        
+        console.log(`User ${userId} left voice channel ${channelId}`);
+        return true;
+      } catch (error) {
+        console.error('Error leaving voice channel:', error);
+        return false;
+      }
+    },
+
+    // Check if user is in a voice channel
+    isUserInVoiceChannel(userId: string, channelId: string): boolean {
+      return this.usersInVoiceChannels[channelId]?.includes(userId) || false;
+    },
+
+    // Get all users in a specific voice channel
+    getUsersInVoiceChannel(channelId: string): string[] {
+      return this.usersInVoiceChannels[channelId] || [];
+    },
+
+    // Leave all voice channels (for cleanup)
+    async leaveAllVoiceChannels(serverId: string, userId: string) {
+      const channelsToLeave = Object.keys(this.usersInVoiceChannels).filter(channelId => 
+        this.usersInVoiceChannels[channelId].includes(userId)
+      );
+
+      for (const channelId of channelsToLeave) {
+        await this.leaveVoiceChannel(serverId, channelId, userId);
+      }
+    },
   }
 });

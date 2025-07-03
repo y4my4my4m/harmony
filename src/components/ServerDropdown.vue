@@ -57,7 +57,13 @@
       };
       const generateInviteLink = async () => {
         const userId = auth.session?.user?.id;
-        const inviteUrl = await generateInviteUrl(props.serverId || '', userId);
+        if (!props.serverId || !userId) {
+          toast.error('Unable to generate invite link');
+          closeDropdown();
+          return;
+        }
+        
+        const inviteUrl = await generateInviteUrl(props.serverId, userId);
         if (inviteUrl) {
             console.log('Invite URL:', inviteUrl);
             navigator.clipboard.writeText(inviteUrl); // Copy to clipboard
@@ -83,15 +89,17 @@
   
 <style scoped>
   .server-dropdown {
-    z-index: 20;
     position: absolute;
-    left:82px;
-    width:220px;
+    top: 100%;
+    left: 8px;
+    right: 0;
+    z-index: 100;
+    width: 226px;
     background-color: var(--vt-c-black-soft);
     color: white;
     border-radius: 5px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    display:block;
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
   
   .server-dropdown ul {
