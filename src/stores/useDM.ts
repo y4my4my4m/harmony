@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 
 // Types for DM functionality
@@ -21,17 +22,6 @@ export interface DMConversation {
   last_message?: Message
   unread_count?: number
   other_user?: DMUser
-}
-
-export interface DMMessage {
-  id: string
-  conversation_id: string
-  user_id: string
-  content: MessagePart[]
-  created_at: string
-  updated_at?: string
-  reply_to?: string
-  is_edited?: boolean
 }
 
 export const useDMStore = defineStore('dm', () => {
@@ -59,11 +49,17 @@ export const useDMStore = defineStore('dm', () => {
     })
   })
 
+  // Check if user is online (mock for now, can be enhanced with presence)
+  const isUserOnline = (userId: string): boolean => {
+    const user = searchResults.value.find(u => u.id === userId)
+    return user?.is_online || false
+  }
+
   // Actions
   const initializeDMEnvironment = async (userId: string) => {
     try {
       await fetchUserConversations(userId)
-      setupRealtimeSubscriptions(userId)
+      await setupRealtimeSubscriptions(userId)
     } catch (error) {
       console.error('Failed to initialize DM environment:', error)
     }
@@ -73,42 +69,84 @@ export const useDMStore = defineStore('dm', () => {
     try {
       loadingConversations.value = true
       
-      // Mock data for development - replace with actual Supabase query
-      const mockConversations: DMConversation[] = [
-        {
-          id: 'conv-1',
-          user1_id: userId,
-          user2_id: 'user-2',
-          created_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-          last_activity: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-          unread_count: 2,
+      // Fetch conversations where user is participant
+      const { data: conversationsData, error: convError } = await supabase
+        .from('conversations')
+        .select(`
+          id,
+          user1,
+          user2,
+          created_at,
+          messages!conversations_conversation_id_fkey (
+            id,
+            content,
+            created_at,
+            user_id
+          )
+        `)
+        .or(`user1.eq.${userId},user2.eq.${userId}`)
+        .order('created_at', { ascending: false })
+
+      if (convError) {
+        console.error('Error fetching conversations:', convError)
+        return
+      }
+
+      if (!conversationsData) return
+
+      // Process conversations and get other user details
+      const processedConversations: DMConversation[] = []
+      
+      for (const conv of conversationsData) {
+        const otherUserId = conv.user1 === userId ? conv.user2 : conv.user1
+        
+        // Get other user's profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url')
+          .eq('id', otherUserId)
+          .single()
+
+        if (profileError) {
+          console.error('Error fetching profile:', profileError)
+          continue
+        }
+
+        // Get last message for conversation
+        const messages = (conv.messages as any[]) || []
+        const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null
+
+        // Count unread messages (messages after user's last read)
+        const unreadCount = 0 // TODO: Implement proper unread counting
+
+        const processedConv: DMConversation = {
+          id: conv.id,
+          user1_id: conv.user1,
+          user2_id: conv.user2,
+          created_at: conv.created_at,
+          last_activity: lastMessage?.created_at || conv.created_at,
+          last_message: lastMessage ? {
+            id: lastMessage.id,
+            user_id: lastMessage.user_id,
+            content: lastMessage.content,
+            created_at: new Date(lastMessage.created_at),
+            channel_id: 0, // Not applicable for DMs
+            reactions: []
+          } : undefined,
+          unread_count: unreadCount,
           other_user: {
-            id: 'user-2',
-            username: 'alice_dev',
-            display_name: 'Alice Developer',
-            avatar_url: undefined,
-            is_online: true
-          }
-        },
-        {
-          id: 'conv-2',
-          user1_id: userId,
-          user2_id: 'user-3',
-          created_at: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-          last_activity: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
-          unread_count: 0,
-          other_user: {
-            id: 'user-3',
-            username: 'bob_designer',
-            display_name: 'Bob Designer',
-            avatar_url: undefined,
-            is_online: false,
-            last_seen: new Date(Date.now() - 3600000).toISOString()
+            id: profileData.id,
+            username: profileData.username,
+            display_name: profileData.display_name,
+            avatar_url: profileData.avatar_url,
+            is_online: false // TODO: Implement presence
           }
         }
-      ]
+
+        processedConversations.push(processedConv)
+      }
       
-      conversations.value = mockConversations
+      conversations.value = processedConversations
       
     } catch (error) {
       console.error('Failed to fetch conversations:', error)
@@ -117,42 +155,63 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  const fetchConversationMessages = async (conversationId: string) => {
+  const fetchConversationMessages = async (conversationId: string, beforeMessageId?: string) => {
     try {
       loadingMessages.value = true
       
-      // Mock messages for development - convert to proper Message type
-      const mockMessages: Message[] = [
-        {
-          id: 'msg-1',
-          user_id: 'user-2',
-          content: [{ type: 'text', text: 'Hey there! How are you doing?' }],
-          created_at: new Date(Date.now() - 3600000),
-          channel_id: parseInt(conversationId.replace(/\D/g, '')) || 1, // Convert string to number
-          reply_to: undefined,
-          reactions: []
-        },
-        {
-          id: 'msg-2',
-          user_id: 'current-user',
-          content: [{ type: 'text', text: 'Hi Alice! I\'m doing great, thanks for asking. How about you?' }],
-          created_at: new Date(Date.now() - 3500000),
-          channel_id: parseInt(conversationId.replace(/\D/g, '')) || 1,
-          reply_to: undefined,
-          reactions: []
-        },
-        {
-          id: 'msg-3',
-          user_id: 'user-2',
-          content: [{ type: 'text', text: 'I\'m doing well! Working on some exciting new features. Want to see a preview?' }],
-          created_at: new Date(Date.now() - 3400000),
-          channel_id: parseInt(conversationId.replace(/\D/g, '')) || 1,
-          reply_to: 'msg-2',
-          reactions: []
+      let query = supabase
+        .from('messages')
+        .select(`
+          id,
+          user_id,
+          content,
+          created_at,
+          reply_to,
+          reactions
+        `)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+        .limit(50)
+
+      if (beforeMessageId) {
+        // For pagination - get messages before a specific message
+        const { data: beforeMessage } = await supabase
+          .from('messages')
+          .select('created_at')
+          .eq('id', beforeMessageId)
+          .single()
+        
+        if (beforeMessage) {
+          query = query.lt('created_at', beforeMessage.created_at)
         }
-      ]
-      
-      currentDMMessages.value = mockMessages
+      }
+
+      const { data: messagesData, error } = await query
+
+      if (error) {
+        console.error('Error fetching messages:', error)
+        return
+      }
+
+      if (!messagesData) return
+
+      const formattedMessages: Message[] = messagesData.map(msg => ({
+        id: msg.id,
+        user_id: msg.user_id,
+        content: msg.content,
+        created_at: new Date(msg.created_at),
+        channel_id: 0, // Not applicable for DMs
+        reply_to: msg.reply_to,
+        reactions: msg.reactions || []
+      }))
+
+      if (beforeMessageId) {
+        // Prepend older messages for pagination
+        currentDMMessages.value = [...formattedMessages, ...currentDMMessages.value]
+      } else {
+        // Replace messages for new conversation
+        currentDMMessages.value = formattedMessages
+      }
       
     } catch (error) {
       console.error('Failed to fetch messages:', error)
@@ -161,32 +220,35 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  const searchUsers = async (query: string) => {
+  const searchUsers = async (query: string, currentUserId: string) => {
     try {
       isSearching.value = true
       
-      // Mock search results
-      const mockUsers: DMUser[] = [
-        {
-          id: 'user-4',
-          username: 'charlie_dev',
-          display_name: 'Charlie Developer',
-          avatar_url: undefined,
-          is_online: true
-        },
-        {
-          id: 'user-5',
-          username: 'diana_designer',
-          display_name: 'Diana Designer',
-          avatar_url: undefined,
-          is_online: false
-        }
-      ].filter(user => 
-        user.username.toLowerCase().includes(query.toLowerCase()) ||
-        user.display_name?.toLowerCase().includes(query.toLowerCase())
-      )
-      
-      searchResults.value = mockUsers
+      if (!query.trim()) {
+        searchResults.value = []
+        return
+      }
+
+      const { data: users, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .neq('id', currentUserId) // Exclude current user
+        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+        .limit(10)
+
+      if (error) {
+        console.error('Error searching users:', error)
+        searchResults.value = []
+        return
+      }
+
+      searchResults.value = (users || []).map(user => ({
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        avatar_url: user.avatar_url,
+        is_online: false // TODO: Implement presence
+      }))
       
     } catch (error) {
       console.error('Failed to search users:', error)
@@ -199,36 +261,37 @@ export const useDMStore = defineStore('dm', () => {
   const createOrGetConversation = async (user1Id: string, user2Id: string): Promise<string | null> => {
     try {
       // Check if conversation already exists
-      const existingConv = conversations.value.find(conv => 
-        (conv.user1_id === user1Id && conv.user2_id === user2Id) ||
-        (conv.user1_id === user2Id && conv.user2_id === user1Id)
-      )
-      
+      const { data: existingConv, error: searchError } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(`and(user1.eq.${user1Id},user2.eq.${user2Id}),and(user1.eq.${user2Id},user2.eq.${user1Id})`)
+        .single()
+
       if (existingConv) {
         return existingConv.id
       }
-      
-      // Create new conversation
-      const newConversationId = `conv-${Date.now()}`
-      const newConversation: DMConversation = {
-        id: newConversationId,
-        user1_id: user1Id,
-        user2_id: user2Id,
-        created_at: new Date().toISOString(),
-        last_activity: new Date().toISOString(),
-        unread_count: 0,
-        other_user: {
-          id: user2Id,
-          username: `user_${user2Id.slice(0, 8)}`,
-          display_name: undefined,
-          avatar_url: undefined,
-          is_online: false
-        }
+
+      // Create new conversation if none exists
+      const { data: newConv, error: createError } = await supabase
+        .from('conversations')
+        .insert([
+          {
+            user1: user1Id,
+            user2: user2Id
+          }
+        ])
+        .select('id')
+        .single()
+
+      if (createError) {
+        console.error('Error creating conversation:', createError)
+        return null
       }
-      
-      conversations.value.unshift(newConversation)
-      
-      return newConversationId
+
+      // Refresh conversations to include the new one
+      await fetchUserConversations(user1Id)
+
+      return newConv.id
     } catch (error) {
       console.error('Failed to create conversation:', error)
       return null
@@ -242,29 +305,52 @@ export const useDMStore = defineStore('dm', () => {
     replyToId?: string
   ): Promise<boolean> => {
     try {
-      const messageId = `msg-${Date.now()}`
-      const newMessage: Message = {
-        id: messageId,
-        user_id: userId,
-        content,
-        created_at: new Date(),
-        channel_id: parseInt(conversationId.replace(/\D/g, '')) || 1,
-        reply_to: replyToId,
-        reactions: []
+      const { data: newMessage, error } = await supabase
+        .from('messages')
+        .insert([
+          {
+            conversation_id: conversationId,
+            user_id: userId,
+            content: content,
+            reply_to: replyToId || null
+          }
+        ])
+        .select('*')
+        .single()
+
+      if (error) {
+        console.error('Error sending message:', error)
+        return false
       }
-      
+
       // Add to current messages if viewing this conversation
       if (currentConversationId.value === conversationId) {
-        currentDMMessages.value.push(newMessage)
+        const formattedMessage: Message = {
+          id: newMessage.id,
+          user_id: newMessage.user_id,
+          content: newMessage.content,
+          created_at: new Date(newMessage.created_at),
+          channel_id: 0,
+          reply_to: newMessage.reply_to,
+          reactions: []
+        }
+        currentDMMessages.value.push(formattedMessage)
       }
-      
+
       // Update conversation last activity
       const conversation = conversations.value.find(c => c.id === conversationId)
       if (conversation) {
-        conversation.last_activity = new Date().toISOString()
-        conversation.last_message = newMessage
+        conversation.last_activity = newMessage.created_at
+        conversation.last_message = {
+          id: newMessage.id,
+          user_id: newMessage.user_id,
+          content: newMessage.content,
+          created_at: new Date(newMessage.created_at),
+          channel_id: 0,
+          reactions: []
+        }
       }
-      
+
       return true
     } catch (error) {
       console.error('Failed to send message:', error)
@@ -272,13 +358,15 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  const setCurrentConversation = (conversationId: string) => {
+  const setCurrentConversation = (conversationId: string | null) => {
     currentConversationId.value = conversationId
     
     // Mark conversation as read
-    const conversation = conversations.value.find(c => c.id === conversationId)
-    if (conversation) {
-      conversation.unread_count = 0
+    if (conversationId) {
+      const conversation = conversations.value.find(c => c.id === conversationId)
+      if (conversation) {
+        conversation.unread_count = 0
+      }
     }
   }
 
@@ -286,9 +374,70 @@ export const useDMStore = defineStore('dm', () => {
     currentDMMessages.value = []
   }
 
-  const setupRealtimeSubscriptions = (_userId: string) => {
-    // Mock realtime updates
-    console.log('Setting up realtime subscriptions for DMs')
+  const setupRealtimeSubscriptions = async (userId: string) => {
+    try {
+      // Subscribe to new conversations
+      supabase
+        .channel('conversations')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversations',
+          filter: `or(user1.eq.${userId},user2.eq.${userId})`
+        }, (payload) => {
+          console.log('New conversation:', payload)
+          fetchUserConversations(userId)
+        })
+        .subscribe()
+
+      // Subscribe to new DM messages
+      supabase
+        .channel('dm_messages')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: 'conversation_id.not.is.null'
+        }, (payload) => {
+          console.log('New DM message:', payload)
+          const message = payload.new as any
+          
+          // Update current messages if viewing this conversation
+          if (currentConversationId.value === message.conversation_id) {
+            const formattedMessage: Message = {
+              id: message.id,
+              user_id: message.user_id,
+              content: message.content,
+              created_at: new Date(message.created_at),
+              channel_id: 0,
+              reply_to: message.reply_to,
+              reactions: message.reactions || []
+            }
+            currentDMMessages.value.push(formattedMessage)
+          }
+
+          // Update conversation in sidebar
+          const conversation = conversations.value.find(c => c.id === message.conversation_id)
+          if (conversation) {
+            conversation.last_activity = message.created_at
+            conversation.last_message = {
+              id: message.id,
+              user_id: message.user_id,
+              content: message.content,
+              created_at: new Date(message.created_at),
+              channel_id: 0,
+              reactions: []
+            }
+            if (message.user_id !== userId) {
+              conversation.unread_count = (conversation.unread_count || 0) + 1
+            }
+          }
+        })
+        .subscribe()
+
+    } catch (error) {
+      console.error('Error setting up realtime subscriptions:', error)
+    }
   }
 
   const cleanup = () => {
@@ -297,6 +446,9 @@ export const useDMStore = defineStore('dm', () => {
     currentDMMessages.value = []
     currentConversationId.value = null
     searchResults.value = []
+    
+    // Remove subscriptions
+    supabase.removeAllChannels()
     
     console.log('DM store cleaned up')
   }
@@ -314,6 +466,9 @@ export const useDMStore = defineStore('dm', () => {
     // Computed
     getCurrentConversation,
     getSortedConversations,
+    
+    // Methods
+    isUserOnline,
     
     // Actions
     initializeDMEnvironment,
