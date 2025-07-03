@@ -451,6 +451,10 @@ export default defineComponent({
 
     // Voice channel methods
     const serverUsersStore = useServerUsersStore();
+    
+    // Voice connection audio and state
+    const voiceOnSound = ref(new Audio('/assets/sounds/voice_connect.mp3'));
+    const voiceOffSound = ref(new Audio('/assets/sounds/voice_disconnect.mp3'));
 
     const isUserInVoiceChannel = (channelId: string): boolean => {
       if (!userId.value) return false;
@@ -477,6 +481,7 @@ export default defineComponent({
         
         if (success) {
           console.log(`Successfully joined voice channel ${channelId}`);
+          voiceOnSound.value.play();
         }
       } catch (error) {
         console.error('Failed to join voice channel:', error);
@@ -495,6 +500,7 @@ export default defineComponent({
         
         if (success) {
           console.log(`Successfully left voice channel ${channelId}`);
+          voiceOffSound.value.play();
         }
       } catch (error) {
         console.error('Failed to leave voice channel:', error);
