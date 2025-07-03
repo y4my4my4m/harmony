@@ -261,26 +261,37 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async updateCategoryOrder(categories: Category[]) {
-      // Update the order of categories
-      const updates = categories.map((category, index) => ({
-        id: category.id,
-        order: index
-      }));
+      // Store original state for potential rollback
+      const originalCategories = [...this.categories];
 
-      const { error } = await supabase
-        .from('channel_categories')
-        .upsert(updates);
+      try {
+        // Optimistic update: Update local state immediately AND sort by order
+        this.categories = this.categories.map(category => {
+          const newIndex = categories.findIndex(c => c.id === category.id);
+          return newIndex !== -1 ? { ...category, order: newIndex } : category;
+        }).sort((a, b) => (a.order || 0) - (b.order || 0)); // Add sorting here!
 
-      if (error) {
-        console.error('Error updating category order:', error);
+        // Now perform the server update in the background using individual updates
+        for (let i = 0; i < categories.length; i++) {
+          const category = categories[i];
+          const { error } = await supabase
+            .from('channel_categories')
+            .update({ order: i })
+            .eq('id', category.id);
+
+          if (error) {
+            console.error(`Error updating category ${category.id}:`, error);
+            throw error;
+          }
+        }
+
+        console.log(`✅ Successfully updated order for ${categories.length} categories`);
+      } catch (error) {
+        // Rollback on error: Restore original state
+        console.error('❌ Server update failed, rolling back category changes:', error);
+        this.categories = originalCategories;
         throw error;
       }
-
-      // Update local state
-      this.categories = this.categories.map(category => {
-        const update = updates.find(u => u.id === category.id);
-        return update ? { ...category, order: update.order } : category;
-      });
     },
 
     async createCategory(name: string, serverId: string) {

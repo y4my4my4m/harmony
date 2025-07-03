@@ -80,6 +80,7 @@
       v-model="reorderableCategories"
       :group="{ name: 'categories', put: false, pull: false }"
       :disabled="!canDragAndDrop"
+      :key="categoriesKey"
       item-key="id"
       tag="div"
       class="categories-container"
@@ -353,16 +354,24 @@ export default defineComponent({
       return categoryChannelsCache.value.get(categoryId);
     };
 
-    // Clear cache when categories change
-    watch(() => props.categories, () => {
+    // Clear cache when categories change - watch store categories instead of props
+    watch(() => serverChannelStore.categories, () => {
       categoryChannelsCache.value.clear();
     }, { deep: true });
 
+    // Also clear cache when store categoryChannels mapping changes
+    watch(() => serverChannelStore.categoryChannels, () => {
+      categoryChannelsCache.value.clear();
+    }, { deep: true });
+
+    // Instead of using props.categories, read directly from store for immediate reactivity
+    const storeCategories = computed(() => serverChannelStore.categories);
+
     const combinedCategories = computed(() => {
-      if (!Array.isArray(props.categories)) {
+      if (!Array.isArray(storeCategories.value)) {
         return [];
       }
-      return props.categories.map(category => {
+      return storeCategories.value.map(category => {
         // Check reactive state first, then fall back to localStorage
         let isExpanded;
         if (category.id in categoryOpenState.value) {
@@ -382,10 +391,19 @@ export default defineComponent({
       });
     });
 
-    // Reorderable categories for drag and drop
+    // Force reactivity by using a key that changes when categories change
+    const categoriesKey = computed(() => {
+      return serverChannelStore.categories.map(c => `${c.id}-${c.order}`).join(',');
+    });
+
+    // Reorderable categories for drag and drop - now reactive to store changes
     const reorderableCategories = computed({
-      get: () => combinedCategories.value,
+      get: () => {
+        console.log('🔄 Categories getter called, current order:', serverChannelStore.categories.map(c => `${c.name}(${c.order})`));
+        return combinedCategories.value;
+      },
       set: (newCategories) => {
+        console.log('🎯 Setting new category order:', newCategories.map(c => `${c.name}(${c.order})`));
         // Handle category reordering
         serverChannelStore.updateCategoryOrder(newCategories);
       }
@@ -676,6 +694,7 @@ export default defineComponent({
       combinedCategories,
       reorderableCategories,
       orphanChannels,
+      categoriesKey, // Add this to expose it to the template
       
       // Channel filtering functions
       getVisibleChannelsForCategory,
