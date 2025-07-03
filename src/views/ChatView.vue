@@ -322,7 +322,7 @@
       };
 
       // Handle messages sent from ChatComponent
-      const handleSendMessage = async (content: any, replyTo?: string) => {
+      const handleSendMessage = async (content: any) => {
         if (props.isDM) {
           const currentUserId = authStore.session?.user?.id;
           const conversationId = dmStore.currentConversationId;
@@ -330,7 +330,7 @@
           if (!currentUserId || !conversationId) return;
 
           try {
-            const success = await dmStore.sendDMMessage(conversationId, currentUserId, content, replyTo);
+            const success = await dmStore.sendDMMessage(conversationId, currentUserId, content);
             if (!success) {
               console.error('Failed to send DM message');
               toast.error('Failed to send message');

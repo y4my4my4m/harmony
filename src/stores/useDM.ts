@@ -76,13 +76,7 @@ export const useDMStore = defineStore('dm', () => {
           id,
           user1,
           user2,
-          created_at,
-          messages!conversations_conversation_id_fkey (
-            id,
-            content,
-            created_at,
-            user_id
-          )
+          created_at
         `)
         .or(`user1.eq.${userId},user2.eq.${userId}`)
         .order('created_at', { ascending: false })
@@ -113,8 +107,13 @@ export const useDMStore = defineStore('dm', () => {
         }
 
         // Get last message for conversation
-        const messages = (conv.messages as any[]) || []
-        const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null
+        const { data: lastMessageData } = await supabase
+          .from('messages')
+          .select('id, user_id, content, created_at')
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
 
         // Count unread messages (messages after user's last read)
         const unreadCount = 0 // TODO: Implement proper unread counting
@@ -124,12 +123,12 @@ export const useDMStore = defineStore('dm', () => {
           user1_id: conv.user1,
           user2_id: conv.user2,
           created_at: conv.created_at,
-          last_activity: lastMessage?.created_at || conv.created_at,
-          last_message: lastMessage ? {
-            id: lastMessage.id,
-            user_id: lastMessage.user_id,
-            content: lastMessage.content,
-            created_at: new Date(lastMessage.created_at),
+          last_activity: lastMessageData?.created_at || conv.created_at,
+          last_message: lastMessageData ? {
+            id: lastMessageData.id,
+            user_id: lastMessageData.user_id,
+            content: lastMessageData.content,
+            created_at: new Date(lastMessageData.created_at),
             channel_id: 0, // Not applicable for DMs
             reactions: []
           } : undefined,
@@ -166,7 +165,6 @@ export const useDMStore = defineStore('dm', () => {
           user_id,
           content,
           created_at,
-          reply_to,
           reactions
         `)
         .eq('conversation_id', conversationId)
@@ -200,8 +198,7 @@ export const useDMStore = defineStore('dm', () => {
         user_id: msg.user_id,
         content: msg.content,
         created_at: new Date(msg.created_at),
-        channel_id: 0, // Not applicable for DMs
-        reply_to: msg.reply_to,
+        conversation_id: conversationId,
         reactions: msg.reactions || []
       }))
 
@@ -261,11 +258,16 @@ export const useDMStore = defineStore('dm', () => {
   const createOrGetConversation = async (user1Id: string, user2Id: string): Promise<string | null> => {
     try {
       // Check if conversation already exists
-      const { data: existingConv, error: searchError } = await supabase
+      const { data: existingConv, error } = await supabase
         .from('conversations')
         .select('id')
         .or(`and(user1.eq.${user1Id},user2.eq.${user2Id}),and(user1.eq.${user2Id},user2.eq.${user1Id})`)
         .single()
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error searching for existing conversation:', error)
+        return null
+      }
 
       if (existingConv) {
         return existingConv.id
@@ -301,8 +303,7 @@ export const useDMStore = defineStore('dm', () => {
   const sendDMMessage = async (
     conversationId: string,
     userId: string,
-    content: MessagePart[],
-    replyToId?: string
+    content: MessagePart[]
   ): Promise<boolean> => {
     try {
       const { data: newMessage, error } = await supabase
@@ -312,7 +313,6 @@ export const useDMStore = defineStore('dm', () => {
             conversation_id: conversationId,
             user_id: userId,
             content: content,
-            reply_to: replyToId || null
           }
         ])
         .select('*')
