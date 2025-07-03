@@ -136,6 +136,7 @@ import { useServerStore } from '@/stores/server'
 import { useAuthStore } from '@/stores/auth'
 import { useUserProfile } from '@/composables/useUserProfile'
 import { useKeyboardEvents } from '@/composables/useCommonUI'
+import { useRouter } from 'vue-router'
 import CreateServerForm from './CreateServer.vue'
 import type { Server } from '@/types'
 import { useToast } from 'vue-toastification'
@@ -153,6 +154,7 @@ export default defineComponent({
     const { getUserAvatar, getUserDisplayName } = useUserProfile()
     const { handleEscapeKey } = useKeyboardEvents()
     const toast = useToast()
+    const router = useRouter()
 
     const searchQuery = ref('')
     const publicServers = ref<Server[]>([])
@@ -171,8 +173,14 @@ export default defineComponent({
       try {
         const success = await serverStore.joinServer(serverId, userId)
         if (success) {
+          // Refresh the user's server list to update the UI
+          await serverChannelStore.fetchServersForUser(userId)
           toast.success('Successfully joined the server!')
           emit('show-public-servers', false)
+          // Navigate to the newly joined server
+          // router.push({ name: 'Chat', params: { serverId: serverId } })
+          // Actually, simply reload
+          router.go(0);
         } else {
           toast.error('Failed to join the server')
         }
@@ -189,8 +197,15 @@ export default defineComponent({
       try {
         const success = await serverStore.leaveServer(serverId, userId)
         if (success) {
+          // Refresh the user's server list to update the UI
+          await serverChannelStore.fetchServersForUser(userId)
           toast.success('Successfully left the server')
           emit('show-public-servers', false)
+          // if the user isn't in any servers, reload the page
+          // Also if he's currently viewing the server, reload the page
+          if (serverChannelStore.servers.length === 0 || serverChannelStore.currentServer?.id === serverId) {
+            router.go(0);
+          }
         } else {
           toast.error('Failed to leave the server')
         }
@@ -512,6 +527,8 @@ export default defineComponent({
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent);
   opacity: 0;
   transition: opacity 0.3s ease;
+  pointer-events: none; /* Ensure the pseudo-element doesn't block clicks */
+  z-index: -1; /* Put it behind the content */
 }
 
 .server-card:hover {
@@ -640,6 +657,8 @@ export default defineComponent({
 .card-actions {
   display: flex;
   gap: 8px;
+  position: relative; /* Ensure proper stacking context */
+  z-index: 1; /* Bring buttons above any pseudo-elements */
 }
 
 .action-btn {
@@ -655,6 +674,9 @@ export default defineComponent({
   align-items: center;
   justify-content: center;
   gap: 6px;
+  position: relative; /* Ensure proper stacking */
+  z-index: 2; /* Higher z-index to ensure clickability */
+  pointer-events: auto; /* Explicitly enable pointer events */
 }
 
 .action-btn.primary {

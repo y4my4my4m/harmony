@@ -424,8 +424,18 @@
         serverUsersStore.cleanup();
       });
 
-      watch(route, () => {
-        if (initialized) loadServerAndChannel();
+      watch(route, async () => {
+        // Always try to load server and channel when route changes
+        // regardless of initialization state, but with proper checks
+        if (initialized) {
+          await loadServerAndChannel();
+        } else {
+          // If not initialized yet, but we have a valid route with serverId,
+          // ensure we don't show the splash screen
+          if (route.params.serverId && servers.value.length > 0) {
+            showNoServersSplash.value = false;
+          }
+        }
       }, { immediate: true });
 
       return { 
