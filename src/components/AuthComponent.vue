@@ -13,7 +13,8 @@
           'animation-delay': particle.delay,
           'animation-duration': particle.duration,
           width: particle.size,
-          height: particle.size
+          height: particle.size,
+          transform: `translate(${particle.parallaxX}px, ${particle.parallaxY}px)`
         }"
       ></div>
     </div>
@@ -29,13 +30,18 @@
           </div>
           <h1 class="brand-title">
             <span class="harmony-logo">
-              <span class="letter" data-letter="H">H</span>
-              <span class="letter" data-letter="a">a</span>
-              <span class="letter" data-letter="r">r</span>
-              <span class="letter" data-letter="m">m</span>
-              <span class="letter" data-letter="o">o</span>
-              <span class="letter" data-letter="n">n</span>
-              <span class="letter" data-letter="y">y</span>
+              <span 
+                v-for="(letter, index) in ['H', 'a', 'r', 'm', 'o', 'n', 'y']" 
+                :key="index"
+                class="letter" 
+                :data-letter="letter"
+                :style="{
+                  '--cursor-offset-x': letterTransforms[index] ? `${letterTransforms[index].x}px` : '0px',
+                  '--cursor-offset-y': letterTransforms[index] ? `${letterTransforms[index].y}px` : '0px'
+                }"
+              >
+                {{ letter }}
+              </span>
             </span>
           </h1>
           <p class="brand-subtitle">
@@ -61,8 +67,8 @@
       </div>
 
       <!-- Right Panel - Auth Form -->
-      <div class="auth-panel">
-        <div class="auth-form-container">
+      <div class="auth-panel" @mouseenter="onAuthPanelHover(true)" @mouseleave="onAuthPanelHover(false)">
+        <div class="auth-form-container" :class="{ 'hovered': isAuthPanelHovered }">
           <!-- Form Header -->
           <div class="form-header">
             <h2 class="form-title">
@@ -185,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
@@ -224,6 +230,8 @@ const passwordError = ref('')
 // Background
 const randomBg = ref('')
 const bgRotation = ref(0)
+const bgParallaxX = ref(0)
+const bgParallaxY = ref(0)
 const particles = ref<Array<{
   id: number
   left: string
@@ -231,12 +239,24 @@ const particles = ref<Array<{
   delay: string
   duration: string
   size: string
+  parallaxX: number
+  parallaxY: number
 }>>([])
+
+// Letter effects
+const letterElements = ref<HTMLElement[]>([])
+const letterTransforms = ref<Record<number, { x: number; y: number }>>({})
+
+// Auth panel hover effect
+const isAuthPanelHovered = ref(false)
 
 // Computed
 const authStyles = computed(() => ({
   '--random-bg': randomBg.value,
-  '--bg-rotation': `${bgRotation.value}deg`
+  '--bg-rotation': `${bgRotation.value}deg`,
+  '--bg-parallax-x': `${bgParallaxX.value}px`,
+  '--bg-parallax-y': `${bgParallaxY.value}px`,
+  '--auth-blur': isAuthPanelHovered.value ? '15px' : '2px'
 }))
 
 // Methods
@@ -247,7 +267,9 @@ const initializeParticles = () => {
     top: `${Math.random() * 100}%`,
     delay: `${Math.random() * 3}s`,
     duration: `${4 + Math.random() * 4}s`,
-    size: `${4 + Math.random() * 6}px`
+    size: `${4 + Math.random() * 6}px`,
+    parallaxX: 0,
+    parallaxY: 0
   }))
 }
 
@@ -256,6 +278,57 @@ const updateBackgroundRotation = (event: MouseEvent) => {
   const y = event.clientY - window.innerHeight / 2
   const angle = Math.atan2(y, x) * (180 / Math.PI)
   bgRotation.value = angle
+
+  // Add parallax effect for background
+  const parallaxStrength = -10
+  bgParallaxX.value = (x / window.innerWidth) * parallaxStrength
+  bgParallaxY.value = (y / window.innerHeight) * parallaxStrength
+
+  // Update particle parallax
+  particles.value.forEach((particle, index) => {
+    const strength = (index % 3 + 1) * 5 // Different strengths for depth
+    particle.parallaxX = (x / window.innerWidth) * strength
+    particle.parallaxY = (y / window.innerHeight) * strength
+  })
+
+  // Update letter positions (scared effect)
+  updateLetterPositions(event)
+}
+
+const updateLetterPositions = (event: MouseEvent) => {
+  letterElements.value.forEach((letter, index) => {
+    if (!letter) return
+
+    const rect = letter.getBoundingClientRect()
+    const letterCenterX = rect.left + rect.width / 2
+    const letterCenterY = rect.top + rect.height / 2
+
+    const deltaX = event.clientX - letterCenterX
+    const deltaY = event.clientY - letterCenterY
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+
+    // Increased effect radius and strength for better responsiveness
+    const effectRadius = 250
+    const maxOffset = 100
+
+    if (distance < effectRadius && distance > 0) {
+      const force = Math.pow((effectRadius - distance) / effectRadius, 1.5) // Ease-out curve
+      const offsetX = -(deltaX / distance) * force * maxOffset
+      const offsetY = -(deltaY / distance) * force * maxOffset
+
+      letterTransforms.value[index] = {
+        x: offsetX,
+        y: offsetY
+      }
+    } else {
+      letterTransforms.value[index] = { x: 0, y: 0 }
+    }
+  })
+}
+
+const initializeLetterElements = async () => {
+  await nextTick()
+  letterElements.value = Array.from(document.querySelectorAll('.letter')) as HTMLElement[]
 }
 
 const validateEmail = () => {
@@ -311,10 +384,15 @@ const toggleMode = () => {
   router.push(route)
 }
 
+const onAuthPanelHover = (isHovered: boolean) => {
+  isAuthPanelHovered.value = isHovered
+}
+
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
   randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 64) + 1}.png')`
   initializeParticles()
+  await initializeLetterElements()
 })
 </script>
 
@@ -326,9 +404,12 @@ onMounted(() => {
   background: var(--random-bg) center center;
   background-size: cover;
   background-attachment: fixed;
+  
   position: relative;
-  overflow: hidden;
+  /* Remove overflow: hidden to allow backdrop-filter to work properly */
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Apply parallax to the background image itself */
+  background-position: calc(50% + var(--bg-parallax-x)) calc(50% + var(--bg-parallax-y));
 }
 
 .bg-overlay {
@@ -340,7 +421,10 @@ onMounted(() => {
     rgba(0, 0, 0, 0.4) 50%,
     rgba(0, 0, 0, 0.8) 100%
   );
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(var(--auth-blur, 2px));
+  transition: backdrop-filter 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1;
+  pointer-events: none;
 }
 
 .bg-particles {
@@ -448,6 +532,9 @@ onMounted(() => {
   text-shadow: 0 0 30px rgba(88, 101, 242, 0.5);
   transform-origin: center;
   cursor: pointer;
+  /* Add smooth transitions for the scared effect */
+  transition: transform 0.1s ease-out;
+  will-change: transform;
 }
 
 .letter::before {
@@ -504,19 +591,19 @@ onMounted(() => {
 
 @keyframes letterWave {
   0%, 100% { 
-    transform: translateY(0px) rotate(0deg) scale(1);
+    transform: translateY(0px) rotate(0deg) scale(1) translate(var(--cursor-offset-x, 0px), var(--cursor-offset-y, 0px));
     background-position: 0% 50%;
   }
   25% { 
-    transform: translateY(-8px) rotate(2deg) scale(1.05);
+    transform: translateY(-8px) rotate(2deg) scale(1.05) translate(var(--cursor-offset-x, 0px), var(--cursor-offset-y, 0px));
     background-position: 50% 0%;
   }
   50% { 
-    transform: translateY(0px) rotate(0deg) scale(1);
+    transform: translateY(0px) rotate(0deg) scale(1) translate(var(--cursor-offset-x, 0px), var(--cursor-offset-y, 0px));
     background-position: 100% 50%;
   }
   75% { 
-    transform: translateY(-4px) rotate(-1deg) scale(1.02);
+    transform: translateY(-4px) rotate(-1deg) scale(1.02) translate(var(--cursor-offset-x, 0px), var(--cursor-offset-y, 0px));
     background-position: 50% 100%;
   }
 }
@@ -566,14 +653,59 @@ onMounted(() => {
 .auth-form-container {
   width: 100%;
   max-width: 400px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(20px);
   border-radius: 20px;
   padding: 40px;
   box-shadow: 
     0 20px 40px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.2);
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-form-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.auth-form-container.hovered {
+  transform: translateY(-8px) scale(1.02);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(30px);
+  box-shadow: 
+    0 40px 80px rgba(88, 101, 242, 0.15),
+    0 20px 40px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 60px rgba(88, 101, 242, 0.1);
+  border-color: rgba(88, 101, 242, 0.2);
+}
+
+.auth-form-container.hovered::before {
+  opacity: 1;
+}
+
+.auth-form-container > * {
+  position: relative;
+  z-index: 2;
 }
 
 .form-header {
