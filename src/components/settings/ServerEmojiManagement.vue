@@ -105,9 +105,9 @@
             </button>
             <button
               class="action-btn delete-btn"
-              @click="deleteEmoji(emoji.id)"
+              @click="deleteEmojiHandler(emoji.id)"
               title="Delete emoji"
-              :disabled="loading"
+              :disabled="loading || deletingEmoji === emoji.id"
             >
               <svg width="16" height="16" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
@@ -123,7 +123,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useToast } from 'vue-toastification'
-import { uploadEmoji } from '@/services/emojiService'
+import { uploadEmoji, deleteEmoji } from '@/services/emojiService'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import type { Emoji } from '@/types'
 
 interface Props {
@@ -138,14 +139,17 @@ interface Emits {
   (e: 'update:emojis', value: Emoji[]): void
   (e: 'update:allowCrossServer', value: boolean): void
   (e: 'emoji-uploaded', emoji: Emoji): void
+  (e: 'emoji-deleted', emojiId: string): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const toast = useToast()
+const emojiCache = useEmojiCacheStore()
 const emojiFileInput = ref<HTMLInputElement>()
 const uploadingEmoji = ref(false)
+const deletingEmoji = ref<string | null>(null)
 
 const handleCrossServerToggle = (event: Event) => {
   const target = event.target as HTMLInputElement
@@ -195,10 +199,14 @@ const handleEmojiFile = async (file: File) => {
 
   try {
     uploadingEmoji.value = true
+    console.log('🎭 Uploading emoji with cache integration...')
+    
     const newEmoji = await uploadEmoji(props.serverId, props.ownerId, file)
     
     if (newEmoji) {
       emit('emoji-uploaded', newEmoji)
+      toast.success(`Emoji :${newEmoji.name}: uploaded successfully!`)
+      console.log('✅ Emoji upload completed with cache update')
     } else {
       toast.error('Failed to upload emoji')
     }
@@ -220,19 +228,38 @@ const copyEmojiName = async (name: string) => {
   }
 }
 
-const deleteEmoji = async (emojiId: string) => {
-  if (!confirm('Are you sure you want to delete this emoji?')) {
-    return
-  }
+const deleteEmojiHandler = async (emojiId: string) => {
+  const emoji = props.emojis.find(e => e.id === emojiId)
+  if (!emoji) return
 
-  // TODO: Implement emoji deletion in the service
-  console.log('Delete emoji:', emojiId)
-  toast.info('Emoji deletion not yet implemented')
+  const confirmed = confirm(`Are you sure you want to delete :${emoji.name}:? This action cannot be undone.`)
+  if (!confirmed) return
+
+  try {
+    deletingEmoji.value = emojiId
+    console.log('🗑️ Deleting emoji with cache invalidation...')
+    
+    const success = await deleteEmoji(emojiId)
+    
+    if (success) {
+      emit('emoji-deleted', emojiId)
+      toast.success(`Emoji :${emoji.name}: deleted successfully`)
+      console.log('✅ Emoji deletion completed with cache update')
+    } else {
+      toast.error('Failed to delete emoji')
+    }
+  } catch (error) {
+    console.error('Error deleting emoji:', error)
+    toast.error('Failed to delete emoji')
+  } finally {
+    deletingEmoji.value = null
+  }
 }
 
 const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement
   img.style.display = 'none'
+  console.warn('Failed to load emoji image:', img.src)
 }
 
 const formatUploader = (_uploaderId: string) => {
@@ -242,6 +269,16 @@ const formatUploader = (_uploaderId: string) => {
 
 const formatDate = (date: Date) => {
   return new Date(date).toLocaleDateString()
+}
+
+// Expose cache statistics for debugging
+const getCacheStats = () => {
+  return emojiCache.getCacheStats
+}
+
+// Get emoji analytics for this server
+const getEmojiAnalytics = () => {
+  return emojiCache.getServerEmojis(props.serverId).length
 }
 </script>
 

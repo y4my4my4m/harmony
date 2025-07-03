@@ -133,9 +133,13 @@ export interface Gif {
 export interface Emoji {
   id: string;
   created_at: Date;
+  updated_at?: Date;
   name: string;
   url: string;
   uploader: string;
+  server_id: string;
+  usage_count?: number;
+  last_used?: Date;
 }
 export type ResolvedEmoji = Emoji & {
   display_name: string;

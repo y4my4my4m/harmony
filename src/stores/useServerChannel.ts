@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Server, Category, Channel, Emoji, ResolvedEmoji } from '@/types';
+import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { 
   subscribeToServerNotifications,
   listenInServer
@@ -10,12 +11,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
     servers: [] as Server[],
     publicServers: [] as Server[],
-    emojiList: [] as { serverId: string, emojis: Emoji[] }[],
-    resolvedEmojiList: {} as Record<string, { 
-      server_name: string; 
-      server_icon?: string; 
-      emojis: ResolvedEmoji[]; 
-    }>,
     channels: [] as Channel[],
     categories: [] as Category[],
     categoryChannels: {} as Record<string, Channel[]>,
@@ -23,83 +18,110 @@ export const useServerChannelStore = defineStore('serverChannel', {
     currentServerId: null as string | null,
     currentChannelId: null as string | null,
   }),
+
+  getters: {
+    // Get resolved emojis from the emoji cache store
+    resolvedEmojiList: () => {
+      const emojiCache = useEmojiCacheStore();
+      return emojiCache.resolvedEmojis;
+    },
+    
+    // Get emojis for current server
+    currentServerEmojis: () => {
+      const emojiCache = useEmojiCacheStore();
+      const store = useServerChannelStore();
+      if (!store.currentServerId) return [];
+      return emojiCache.getServerEmojis(store.currentServerId);
+    },
+  },
+
   actions: {
     async initializeUserEnvironment(userId: string): Promise<void> {
-      await this.fetchServersForUser(userId);
-      await this.fetchAllEmojis();
-      this.resolveAndCacheEmojis();
-      await this.subscribeAndListentoServerNotifications(userId);
+      try {
+        console.log('🚀 Initializing user environment...');
+        
+        // Fetch user's servers first
+        await this.fetchServersForUser(userId);
+        
+        // Initialize emoji cache with user's servers
+        const emojiCache = useEmojiCacheStore();
+        const serverIds = this.servers.map(server => server.id);
+        await emojiCache.initialize(serverIds);
+        
+        // Set up server notifications
+        await this.subscribeAndListentoServerNotifications(userId);
+        
+        console.log('✅ User environment initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize user environment:', error);
+        throw error;
+      }
     },
+
     async subscribeAndListentoServerNotifications(userId: string) {
       this.servers.forEach(server => {
         subscribeToServerNotifications(userId, server.id);
-        // listenInServer('broadcast', server.id);
         console.log('Subscribed to server notifications for server:', server.id);
       });
     },
+
     async fetchServersForUser(userId: string) {
       const { data, error } = await supabase
         .from('user_servers')
-        .select('server_id')
+        .select(`
+          server:server_id (
+            id,
+            name,
+            description,
+            icon,
+            owner,
+            allow_cross_server_emojis,
+            public
+          )
+        `)
         .eq('user_id', userId);
 
+      if (error) {
+        console.error('Error fetching servers for user:', error);
+        return;
+      }
+
+      this.servers = data.map(item => item.server).filter(Boolean);
+      console.log(`📊 Loaded ${this.servers.length} servers for user`);
+    },
+
+    async fetchServers() {
+      const { data, error } = await supabase.from('servers').select('*');
       if (error) {
         console.error('Error fetching servers:', error);
         return;
       }
-
-      const serverIds = data.map(us => us.server_id);
-      if (serverIds.length > 0) {
-        const { data: serversData, error: serversError } = await supabase
-          .from('servers')
-          .select('*')
-          .in('id', serverIds)
-          .select();
-
-        if (serversError) {
-          console.error('Error fetching server details:', serversError);
-        } else {
-          this.servers = serversData;
-        }
-      }
-      // await this.updateServerIcons(this.servers);
+      this.servers = data;
     },
-    async fetchServers() {
-      const { data: servers, error } = await supabase.from('servers').select('*');
-      if (error) console.error('Error fetching servers:', error);
-      else this.servers = servers;
-    },
+
     async fetchCategoriesAndChannels(serverId: string, signal?: AbortSignal) {
-      // Fetch categories for the server, ordered by 'order'
+      // Fetch categories
       const { data: categories, error: categoriesError } = await supabase
         .from('channel_categories')
         .select('*')
-        .eq('server_id', serverId)
-        .order('order', { ascending: true });
+        .eq('server_id', serverId);
 
-      // Check if request was cancelled
-      if (signal?.aborted) {
-        throw new DOMException('Operation aborted', 'AbortError');
-      }
-
+      if (signal?.aborted) return;
+      
       if (categoriesError) {
         console.error('Error fetching categories:', categoriesError);
         return;
       }
-      // this.categories = categories;
-      this.categories = categories.map(cat => ({ ...cat, expanded: true }));
+      this.categories = categories;
 
-      // Fetch channels for the server
+      // Fetch channels
       const { data: channels, error: channelsError } = await supabase
         .from('channels')
         .select('*')
         .eq('server_id', serverId);
 
-      // Check if request was cancelled
-      if (signal?.aborted) {
-        throw new Error('AbortError');
-      }
-  
+      if (signal?.aborted) return;
+      
       if (channelsError) {
         console.error('Error fetching channels:', channelsError);
         return;
@@ -114,183 +136,111 @@ export const useServerChannelStore = defineStore('serverChannel', {
             this.categoryChannels[channel.category] = [];
           }
           this.categoryChannels[channel.category].push(channel);
-        } else {
-          // console.log(`Channel with id ${channel.id} has no category_id or invalid category_id`);
         }
       });
     },
-    async moveChannelToCategory(channelId:string, newCategoryId:string) {
-      try {
-        // console.log(channelId, newCategoryId);
-        const { data, error } = await supabase
-          .from('channels')
-          .update({ category: newCategoryId })
-          .eq('id', channelId)
-          .select()
-          .single();
-        if (error) throw error;
 
-        // Update the channels array
-        const updatedChannelIndex = this.channels.findIndex(ch => ch.id === channelId);
-        if (updatedChannelIndex !== -1) {
-          this.channels[updatedChannelIndex] = data;
-        }
+    async moveChannelToCategory(channelId: string, newCategoryId: string) {
+      const { data, error } = await supabase
+        .from('channels')
+        .update({ category: newCategoryId })
+        .eq('id', channelId)
+        .select()
+        .single();
 
-        // Update the categoryChannels mapping
-        // Remove the channel from its previous category
-        for (const categoryChannels of Object.values(this.categoryChannels)) {
-          const channelIndex = categoryChannels.findIndex(ch => ch.id === channelId);
-          if (channelIndex !== -1) {
-            categoryChannels.splice(channelIndex, 1);
-            break;
-          }
-        }
-        // Add the channel to its new category
-        if (!this.categoryChannels[newCategoryId]) {
-          this.categoryChannels[newCategoryId] = [];
-        }
-        this.categoryChannels[newCategoryId].push(data);
-
-        } catch (error) {
+      if (error) {
         console.error('Error moving channel to category:', error);
+        return;
+      }
+
+      // Update local state
+      const channelIndex = this.channels.findIndex(c => c.id === channelId);
+      if (channelIndex !== -1) {
+        this.channels[channelIndex] = data;
+        // Refresh categoryChannels mapping
+        await this.fetchCategoriesAndChannels(this.currentServerId!);
       }
     },
+
     async createCategory(name: string, serverId: string) {
-      try {
-        let highestOrder = 0;
-    
-        if (this.categories.length > 0) {
-          const sortedCategories = this.categories.sort((a, b) => b.order - a.order);
-          highestOrder = sortedCategories[0].order;
-        }
-    
-        const { data: categoryData, error: categoryError } = await supabase
-          .from('channel_categories')
-          .insert([{ name: name, server_id: serverId, order: highestOrder + 1 }])
-          .single();
-    
-        if (categoryError) throw categoryError;
-    
-        this.categories.push(categoryData);
-      } catch (error) {
+      const { data, error } = await supabase
+        .from('channel_categories')
+        .insert([{ name, server_id: serverId }])
+        .select()
+        .single();
+
+      if (error) {
         console.error('Error creating category:', error);
+        return null;
       }
-    },    
+
+      this.categories.push(data);
+      return data;
+    },
+
     async fetchChannels(serverId: string) {
-        const { data: channels, error } = await supabase
+      const { data, error } = await supabase
         .from('channels')
         .select('*')
         .eq('server_id', serverId);
 
-      if (error) console.error('Error fetching channels:', error);
-      else this.channels = channels;
-    },
-    async createServer(name: string, userId: string) {
-      try {
-        // Create server
-        const { data: serverData, error: serverError } = await supabase
-          .from('servers')
-          .insert([{ name: name, owner: userId }])
-          .select()
-          .single();
-        if (serverError) throw serverError;
-
-        console.log(serverData);
-
-        // TODO: FIX MY RLS POLICY, currently *anyone* can make any user_servers relation entry
-        // Connect user to the server
-        const { error: userServerError } = await supabase
-          .from('user_servers')
-          .insert([{ user_id: userId, server_id: serverData.id }]);
-        if (userServerError) throw userServerError;
-
-        // Create default channel
-        const { error: channelError } = await supabase
-          .from('channels')
-          .insert([{ name: 'General', server_id: serverData.id }]);
-        if (channelError) throw channelError;
-
-        return true;
-        // Handle successful server creation
-      } catch (error) {
-        console.error('Error creating server:', error);
+      if (error) {
+        console.error('Error fetching channels:', error);
+        return;
       }
+      this.channels = data;
     },
-    async getCurrentServer() {
+
+    async createServer(name: string, userId: string) {
       const { data, error } = await supabase
         .from('servers')
-        .select('*')
-        .in('id', this.currentServerId ? [this.currentServerId] : [])
+        .insert([{ name, owner: userId }])
         .select()
         .single();
 
-        if (error) console.error('Error fetching servers:', error);
-        else this.currentServer = data;
-    },
-    async fetchAllEmojis() {
-      try {
-        // Get server IDs from the current user's servers
-        const serverIds = this.servers.map(server => server.id);
-    
-        // Fetch emojis only from those servers
-        const { data, error } = await supabase
-          .from('emojis')
-          .select(`
-            *,
-            server:server_id ( name )
-          `)
-          .in('server_id', serverIds);
-    
-        if (error) throw error;
-    
-        // Reset emojis state
-        this.emojiList = [];
-    
-        // Group emojis by server
-        data.forEach(emoji => {
-          let serverEmoji = this.emojiList.find(e => e.serverId === emoji.server_id);
-          if (!serverEmoji) {
-            serverEmoji = { serverId: emoji.server_id, emojis: [] };
-            this.emojiList.push(serverEmoji);
-          }
-          serverEmoji.emojis.push(emoji);
-        });
-      } catch (error) {
-        console.error('Error fetching emojis:', error);
+      if (error) {
+        console.error('Error creating server:', error);
+        return null;
       }
-    },
-    resolveAndCacheEmojis() {
-      const resolvedEmojis = this.resolveNamingConflicts();
-      this.cacheEmojis(resolvedEmojis);
+
+      this.servers.push(data);
+      return data;
     },
 
+    async getCurrentServer() {
+      if (this.currentServerId) {
+        this.currentServer = this.servers.find(server => server.id === this.currentServerId) || {} as Server;
+      }
+    },
+
+    // Simplified emoji management - delegate to emoji cache store
+    async refreshEmojis() {
+      const emojiCache = useEmojiCacheStore();
+      const serverIds = this.servers.map(server => server.id);
+      await emojiCache.loadEmojisForServers(serverIds);
+    },
+
+    // Legacy method for backward compatibility
+    async fetchAllEmojis() {
+      console.log('⚠️ fetchAllEmojis is deprecated, use emoji cache store instead');
+      await this.refreshEmojis();
+    },
+
+    // Legacy method for backward compatibility  
+    resolveAndCacheEmojis() {
+      console.log('⚠️ resolveAndCacheEmojis is deprecated, emoji resolution is automatic');
+      // Emoji resolution is now handled automatically by the cache store
+    },
+
+    // Legacy methods - kept for compatibility but delegate to cache
     resolveNamingConflicts(): Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }> {
-      const nameCount: Record<string, number> = {};
-      const emojisByServer: Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }> = {};
-    
-      this.emojiList.forEach(({ serverId, emojis }) => { // Corrected serverId
-        const serverDetails = this.getServerDetails(serverId);
-    
-        emojisByServer[serverId] = { // Corrected serverId
-          server_name: serverDetails?.name || '', // Default to empty string if undefined
-          server_icon: serverDetails?.icon,
-          emojis: emojis.map(emoji => {
-            const count = nameCount[emoji.name] || 0;
-            nameCount[emoji.name] = count + 1;
-    
-            return {
-              ...emoji,
-              display_name: count > 0 ? `${emoji.name}~${count}` : emoji.name,
-            };
-          }),
-        };
-      });
-    
-      return emojisByServer;
+      console.log('⚠️ resolveNamingConflicts is deprecated, use resolvedEmojiList getter instead');
+      return this.resolvedEmojiList;
     },
 
     cacheEmojis(emojisByServer: Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }>) {
-      this.resolvedEmojiList = emojisByServer;
+      console.log('⚠️ cacheEmojis is deprecated, caching is automatic');
+      // Caching is now handled automatically by the emoji cache store
     },
     
     getServerDetails(serverId: string): { name?: string; icon?: string } | undefined {
@@ -300,46 +250,61 @@ export const useServerChannelStore = defineStore('serverChannel', {
     setCurrentServer(serverId: string) {
       this.currentServerId = serverId;
       this.getCurrentServer();
-      // this.fetchChannels(serverId).then(() => {
-      //   if (!this.currentChannelId && this.channels.length > 0) {
-      //     const firstChannelId = this.channels[0].id;
-      //     this.setCurrentChannel(firstChannelId);
-      //   }
-      // });
     },
+
     setCurrentChannel(channelId: string) {
       this.currentChannelId = channelId;
     },
-    // subscribeToServers() {
-    //   supabase.channel('user-statuses')
-    //     .on(
-    //       'postgres_changes',
-    //       { event: 'UPDATE', schema: 'public', table: 'user_servers' },
-    //       (payload) => {
 
-    //       }
-    //     )
-    //     .subscribe();
-    // },
+    // Enhanced emoji search using cache
+    async searchEmojis(query: string, options: { serverId?: string; limit?: number } = {}) {
+      const emojiCache = useEmojiCacheStore();
+      return emojiCache.searchEmojisByName(query, options.limit);
+    },
+
+    // Get emoji by ID using cache
+    getEmojiById(emojiId: string) {
+      const emojiCache = useEmojiCacheStore();
+      return emojiCache.getEmojiById(emojiId);
+    },
+
+    // Handle emoji updates (called by real-time subscriptions)
+    async handleEmojiUpdate(payload: any) {
+      const emojiCache = useEmojiCacheStore();
+      await emojiCache.handleEmojiUpdate(payload);
+    },
+
+    // Invalidate emoji cache for a server
+    async invalidateEmojiCache(serverId?: string) {
+      const emojiCache = useEmojiCacheStore();
+      if (serverId) {
+        await emojiCache.invalidate({ serverId });
+      } else {
+        // Refresh all servers
+        const serverIds = this.servers.map(server => server.id);
+        await emojiCache.loadEmojisForServers(serverIds);
+      }
+    },
+
     async fetchPublicServers(searchTerm = '', limit = 10) {
       let query = supabase
         .from('servers')
         .select('*')
         .eq('public', true)
         .limit(limit);
-    
+
       if (searchTerm) {
-        query = query.ilike('name', `%${searchTerm}%`); // Assuming 'name' is the field to search
+        query = query.ilike('name', `%${searchTerm}%`);
       }
-    
-      const { data: servers, error } = await query;
-    
+
+      const { data, error } = await query;
+
       if (error) {
-        console.error('Error fetching servers:', error);
-      } else {
-        console.log(servers);
-        this.publicServers = servers;
+        console.error('Error fetching public servers:', error);
+        return;
       }
+
+      this.publicServers = data;
     },
   },
 });
