@@ -30,9 +30,9 @@
 - [ ] category order
   - [x] has or
   - [ ] reorganize order
-- [ ] realtime status
+- [x] realtime status
   - [x] changes
-  - [ ] bug in self status display
+  - [x] bug in self status display
 - [ ] app
   - [x] mobile web
   - [x] PWA mobile
@@ -45,14 +45,14 @@
   - [x] user media
 
 - [x] file uploads
-- [ ] files upload
+- [x] files upload
 - [ ] emojis
   - [x] server emojis
   - [x] cross server emojis
   - [x] emoji display
   - [x] emoji picker
   - [ ] emoji in textarea
-  - [ ] emoji search  
+  - [x] emoji search  
 - [x] tenor implementation
 - [ ] media embeds
   - [x] images
@@ -91,7 +91,7 @@
 - [ ] moderation
 - [ ] admin
 - [ ] smart fetching
-- [ ] smart caching
+- [x] smart caching
 - [ ] search
 - [ ] crypto transfers
 - [x] remote db

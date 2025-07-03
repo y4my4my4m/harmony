@@ -6,8 +6,10 @@
           <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20v-2z"/>
         </svg>
       </button>
-      <h1 class="server-settings-title">Server Settings</h1>
-      <div class="server-settings-actions">
+      <h1 class="server-settings-title">
+        {{ permissions.canEditBasicInfo ? 'Server Settings' : 'Server Information' }}
+      </h1>
+      <div class="server-settings-actions" v-if="permissions.canSaveChanges">
         <button 
           class="btn btn-secondary" 
           @click="back"
@@ -24,13 +26,22 @@
           Save Changes
         </button>
       </div>
+      <div v-else class="server-settings-actions">
+        <button 
+          class="btn btn-secondary" 
+          @click="back"
+          :disabled="loading"
+        >
+          Back
+        </button>
+      </div>
     </div>
 
     <div class="server-settings-content">
       <div class="server-settings-sidebar">
         <nav class="settings-nav">
           <button 
-            v-for="section in sections" 
+            v-for="section in availableSections" 
             :key="section.id"
             class="nav-item"
             :class="{ active: activeSection === section.id }"
@@ -43,6 +54,19 @@
 
       <div class="server-settings-main">
         <div class="settings-container">
+          <!-- Permission Warning for Read-Only Users -->
+          <div v-if="!permissions.canEditBasicInfo && activeSection === 'overview'" class="permission-notice">
+            <div class="notice-content">
+              <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+              </svg>
+              <div class="notice-text">
+                <h4>View Only Access</h4>
+                <p>You can view server information but cannot make changes. Only the server owner and administrators can modify settings.</p>
+              </div>
+            </div>
+          </div>
+
           <!-- Server Overview Section -->
           <ServerBasicInfo
             v-if="activeSection === 'overview'"
@@ -50,6 +74,7 @@
             v-model:selectedFile="selectedFile"
             :owner-name="ownerName"
             :loading="loading"
+            :permissions="permissions"
             @file-change="handleFileChange"
           />
 
@@ -61,6 +86,7 @@
             :server-id="serverId"
             :owner-id="server.owner"
             :loading="loading"
+            :permissions="emojiPermissions"
             @emoji-uploaded="handleEmojiUploaded"
             @emoji-deleted="handleEmojiDeleted"
           />
@@ -70,6 +96,7 @@
             v-if="activeSection === 'privacy'"
             v-model:isPublic="server.public"
             :loading="loading"
+            :permissions="permissions"
           />
         </div>
       </div>
@@ -82,6 +109,7 @@ import { onMounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useServerStore } from '@/stores/server'
+import { useServerPermissions } from '@/composables/useServerPermissions'
 import { getProfileWithAvatarUrl } from '@/services/profileService'
 import type { Server, Emoji } from '@/types'
 
@@ -100,6 +128,7 @@ const props = defineProps<Props>()
 const router = useRouter()
 const serverStore = useServerStore()
 const toast = useToast()
+const { serverSettingsPermissions } = useServerPermissions()
 
 // State
 const loading = ref(false)
@@ -120,15 +149,34 @@ const server = ref<Server>({
 
 const originalServer = ref<Server | null>(null)
 
-// Computed
-const sections = computed(() => [
-  { id: 'overview', label: 'Overview' },
-  { id: 'emoji', label: 'Emoji' },
-  { id: 'privacy', label: 'Privacy Settings' },
-])
+// Computed permissions
+const permissions = computed(() => serverSettingsPermissions.value)
+
+const emojiPermissions = computed(() => ({
+  canUpload: permissions.value.canUploadEmojis,
+  canDelete: permissions.value.canDeleteEmojis,
+  canManageCrossServer: permissions.value.canManageCrossServerEmojis
+}))
+
+// Available sections based on permissions
+const availableSections = computed(() => {
+  const sections = [
+    { id: 'overview', label: 'Overview' }
+  ]
+  
+  // Always show emoji section but with different permissions
+  sections.push({ id: 'emoji', label: 'Emoji' })
+  
+  // Only show privacy settings if user can manage server
+  if (permissions.value.canChangePrivacySettings) {
+    sections.push({ id: 'privacy', label: 'Privacy Settings' })
+  }
+  
+  return sections
+})
 
 const hasChanges = computed(() => {
-  if (!originalServer.value) return false
+  if (!originalServer.value || !permissions.value.canSaveChanges) return false
   
   return (
     server.value.name !== originalServer.value.name ||
@@ -169,6 +217,7 @@ const fetchEmojis = async () => {
 }
 
 const handleFileChange = (file: File | null) => {
+  if (!permissions.value.canChangeServerIcon) return
   selectedFile.value = file
   if (file) {
     server.value.icon = URL.createObjectURL(file)
@@ -188,6 +237,11 @@ const handleEmojiDeleted = (emojiId: string) => {
 }
 
 const handleSave = async () => {
+  if (!permissions.value.canSaveChanges) {
+    toast.error('You do not have permission to save changes')
+    return
+  }
+
   try {
     loading.value = true
     const success = await serverStore.updateServer(server.value, selectedFile.value || undefined)
@@ -219,7 +273,7 @@ onMounted(async () => {
 
 // Watch for unsaved changes warning
 watch(hasChanges, (newValue) => {
-  if (newValue) {
+  if (newValue && permissions.value.canSaveChanges) {
     window.addEventListener('beforeunload', handleBeforeUnload)
   } else {
     window.removeEventListener('beforeunload', handleBeforeUnload)
@@ -251,6 +305,40 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   background-color: var(--h-chat);
   border-bottom: 1px solid var(--h-chat-light);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.permission-notice {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: rgba(250, 166, 26, 0.1);
+  border: 1px solid rgba(250, 166, 26, 0.3);
+  border-radius: 8px;
+}
+
+.notice-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.notice-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #faa61a;
+}
+
+.notice-text h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #faa61a;
+}
+
+.notice-text p {
+  margin: 0;
+  font-size: 13px;
+  color: #b9bbbe;
+  line-height: 1.4;
 }
 
 .back-button {

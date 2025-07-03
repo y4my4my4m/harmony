@@ -1,20 +1,23 @@
 <template>
   <div class="server-dropdown" v-if="isVisible" v-click-outside="closeDropdown">
     <ul>
-      <li @click="goToServerSettings">Server Settings</li>
-      <li @click="createCategory">Create Category</li>
-      <li @click="createChannel">Create channel</li>
+      <li v-if="canViewServerSettings" @click="goToServerSettings">
+        {{ canManageServer ? 'Server Settings' : 'View Server Info' }}
+      </li>
+      <li v-if="canCreateCategories" @click="createCategory">Create Category</li>
+      <li v-if="canCreateChannels" @click="createChannel">Create channel</li>
       <li @click="generateInviteLink">Get Invite Link</li>
     </ul>
   </div>
 </template>
   
 <script lang="ts">
-  import { defineComponent } from 'vue';
+  import { defineComponent, computed } from 'vue';
   import { generateInviteUrl } from '@/services/inviteService';
   import { useAuthStore } from '@/stores/auth';
   import { useToast } from "vue-toastification";
   import { useRouter } from 'vue-router';
+  import { useServerPermissions } from '@/composables/useServerPermissions';
   
   export default defineComponent({
     props: {
@@ -26,6 +29,13 @@
       const auth = useAuthStore();
       const router = useRouter();
       const toast = useToast();
+      const { serverSettingsPermissions, channelPermissions } = useServerPermissions();
+
+      // Computed permissions
+      const canViewServerSettings = computed(() => serverSettingsPermissions.value.canViewSettings);
+      const canManageServer = computed(() => serverSettingsPermissions.value.canEditBasicInfo);
+      const canCreateCategories = computed(() => channelPermissions.value.canCreateCategories);
+      const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels);
 
       const createChannel = () => {
         emit('createChannel', null);
@@ -61,7 +71,11 @@
         createCategory,
         generateInviteLink,
         closeDropdown,
-        createChannel
+        createChannel,
+        canViewServerSettings,
+        canManageServer,
+        canCreateCategories,
+        canCreateChannels
       };
     }
   });
@@ -96,4 +110,3 @@
     background-color: #424753;
   }
 </style>
-  

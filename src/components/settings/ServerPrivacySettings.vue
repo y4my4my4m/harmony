@@ -3,8 +3,21 @@
     <div class="settings-section">
       <h2 class="section-title">Privacy Settings</h2>
       <p class="section-description">
-        Control who can discover and join your server
+        {{ permissions.canChangePrivacySettings ? 'Control who can discover and join your server' : 'View server privacy settings' }}
       </p>
+    </div>
+
+    <!-- Permission Notice for Read-Only Users -->
+    <div v-if="!permissions.canChangePrivacySettings" class="permission-notice">
+      <div class="notice-content">
+        <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
+          <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+        </svg>
+        <div class="notice-text">
+          <h4>View Only Access</h4>
+          <p>You can view privacy settings but cannot change them. Only the server owner can modify privacy settings.</p>
+        </div>
+      </div>
     </div>
 
     <div class="settings-card">
@@ -13,7 +26,10 @@
           <div class="setting-info">
             <label class="form-label">Public Server</label>
             <div class="form-hint">
-              Allow your server to be discovered in the public server directory
+              {{ permissions.canChangePrivacySettings 
+                ? 'Allow your server to be discovered in the public server directory' 
+                : 'Whether this server can be discovered publicly' 
+              }}
             </div>
           </div>
           <div class="setting-control">
@@ -21,10 +37,10 @@
               <input
                 type="checkbox"
                 :checked="isPublic"
-                @change="handlePublicToggle"
-                :disabled="loading"
+                @change="permissions.canChangePrivacySettings ? handlePublicToggle : null"
+                :disabled="loading || !permissions.canChangePrivacySettings"
               />
-              <span class="toggle-slider"></span>
+              <span class="toggle-slider" :class="{ 'disabled': !permissions.canChangePrivacySettings }"></span>
             </label>
           </div>
         </div>
@@ -78,7 +94,7 @@
       </div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" v-if="permissions.canChangePrivacySettings">
       <div class="form-group">
         <label class="form-label">Server Discovery</label>
         <div class="discovery-options">
@@ -130,24 +146,31 @@
 </template>
 
 <script setup lang="ts">
+interface ServerPermissions {
+  canChangePrivacySettings: boolean
+}
+
 interface Props {
   isPublic: boolean
   loading: boolean
+  permissions: ServerPermissions
 }
 
 interface Emits {
   (e: 'update:isPublic', value: boolean): void
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const handlePublicToggle = (event: Event) => {
+  if (!props.permissions.canChangePrivacySettings) return
   const target = event.target as HTMLInputElement
   emit('update:isPublic', target.checked)
 }
 
 const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
+  if (!props.permissions.canChangePrivacySettings) return
   const newPublicState = mode === 'public-directory'
   emit('update:isPublic', newPublicState)
 }
@@ -175,6 +198,39 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   font-size: 14px;
   color: #b9bbbe;
   margin: 0;
+}
+
+.permission-notice {
+  padding: 16px;
+  background-color: rgba(250, 166, 26, 0.1);
+  border: 1px solid rgba(250, 166, 26, 0.3);
+  border-radius: 8px;
+}
+
+.notice-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.notice-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #faa61a;
+}
+
+.notice-text h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #faa61a;
+}
+
+.notice-text p {
+  margin: 0;
+  font-size: 13px;
+  color: #b9bbbe;
+  line-height: 1.4;
 }
 
 .settings-card {
@@ -247,6 +303,11 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   background-color: #72767d;
   transition: 0.3s;
   border-radius: 24px;
+}
+
+.toggle-slider.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .toggle-slider:before {

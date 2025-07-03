@@ -3,7 +3,7 @@
     <div class="settings-section">
       <h2 class="section-title">Server Overview</h2>
       <p class="section-description">
-        Basic information about your server
+        {{ permissions.canEditBasicInfo ? 'Basic information about your server' : 'View basic server information' }}
       </p>
     </div>
 
@@ -13,15 +13,17 @@
         <input
           id="server-name"
           :value="server.name"
-          @input="updateServerName"
+          @input="permissions.canChangeServerName ? updateServerName : null"
           type="text"
           class="form-input"
+          :class="{ 'read-only': !permissions.canChangeServerName }"
           placeholder="Enter server name"
-          :disabled="loading"
+          :disabled="loading || !permissions.canChangeServerName"
+          :readonly="!permissions.canChangeServerName"
           maxlength="100"
         />
         <div class="form-hint">
-          This is how your server will appear to members
+          {{ permissions.canEditBasicInfo ? 'This is how your server will appear to members' : 'Server name as it appears to members' }}
         </div>
       </div>
 
@@ -30,10 +32,12 @@
         <textarea
           id="server-description"
           :value="server.description"
-          @input="updateServerDescription"
+          @input="permissions.canChangeServerDescription ? updateServerDescription : null"
           class="form-textarea"
+          :class="{ 'read-only': !permissions.canChangeServerDescription }"
           placeholder="Tell people what your server is about"
-          :disabled="loading"
+          :disabled="loading || !permissions.canChangeServerDescription"
+          :readonly="!permissions.canChangeServerDescription"
           maxlength="500"
           rows="4"
         />
@@ -75,7 +79,7 @@
               </svg>
             </div>
           </div>
-          <div class="icon-upload-controls">
+          <div class="icon-upload-controls" v-if="permissions.canChangeServerIcon">
             <button
               type="button"
               class="btn btn-secondary"
@@ -94,6 +98,9 @@
               Remove
             </button>
           </div>
+          <div v-else-if="!server.icon" class="no-icon-info">
+            <p class="read-only-hint">No server icon set</p>
+          </div>
         </div>
         <input
           ref="fileInput"
@@ -103,7 +110,10 @@
           @change="handleFileInputChange"
         />
         <div class="form-hint">
-          Recommended size: 512x512px. Max file size: 8MB. JPG, PNG, GIF supported.
+          {{ permissions.canChangeServerIcon 
+            ? 'Recommended size: 512x512px. Max file size: 8MB. JPG, PNG, GIF supported.' 
+            : 'Only the server owner can change the server icon.' 
+          }}
         </div>
       </div>
     </div>
@@ -114,11 +124,20 @@
 import { ref } from 'vue'
 import type { Server } from '@/types'
 
+interface ServerPermissions {
+  canEditBasicInfo: boolean
+  canChangeServerName: boolean
+  canChangeServerDescription: boolean
+  canChangeServerIcon: boolean
+  canChangePrivacySettings: boolean
+}
+
 interface Props {
   server: Server
   selectedFile: File | null
   ownerName: string
   loading: boolean
+  permissions: ServerPermissions
 }
 
 interface Emits {
@@ -133,10 +152,13 @@ const emit = defineEmits<Emits>()
 const fileInput = ref<HTMLInputElement>()
 
 const triggerFileInput = () => {
+  if (!props.permissions.canChangeServerIcon) return
   fileInput.value?.click()
 }
 
 const handleFileInputChange = (event: Event) => {
+  if (!props.permissions.canChangeServerIcon) return
+  
   const input = event.target as HTMLInputElement
   const file = input.files?.[0] || null
   
@@ -163,18 +185,21 @@ const handleFileInputChange = (event: Event) => {
 }
 
 const removeIcon = () => {
+  if (!props.permissions.canChangeServerIcon) return
   const updatedServer = { ...props.server, icon: '' }
   emit('update:server', updatedServer)
   emit('update:selectedFile', null)
 }
 
 const updateServerName = (event: Event) => {
+  if (!props.permissions.canChangeServerName) return
   const newName = (event.target as HTMLInputElement).value
   const updatedServer = { ...props.server, name: newName }
   emit('update:server', updatedServer)
 }
 
 const updateServerDescription = (event: Event) => {
+  if (!props.permissions.canChangeServerDescription) return
   const newDescription = (event.target as HTMLTextAreaElement).value
   const updatedServer = { ...props.server, description: newDescription }
   emit('update:server', updatedServer)
@@ -249,9 +274,17 @@ const updateServerDescription = (event: Event) => {
 }
 
 .form-input:disabled,
-.form-textarea:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.form-textarea:disabled,
+.form-input.read-only,
+.form-textarea.read-only {
+  opacity: 0.7;
+  cursor: default;
+  background-color: var(--h-chat-darker);
+}
+
+.form-input.read-only:focus,
+.form-textarea.read-only:focus {
+  border-color: var(--h-chat-light);
 }
 
 .form-textarea {
@@ -263,6 +296,13 @@ const updateServerDescription = (event: Event) => {
   font-size: 12px;
   color: #72767d;
   margin-top: 8px;
+}
+
+.read-only-hint {
+  font-size: 12px;
+  color: #72767d;
+  margin: 0;
+  font-style: italic;
 }
 
 .owner-info {
@@ -320,6 +360,12 @@ const updateServerDescription = (event: Event) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.no-icon-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .btn {
