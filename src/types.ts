@@ -6,6 +6,7 @@ export interface Server {
   icon: string;
   allow_cross_server_emojis: boolean;
   public: boolean;
+  created_at?: string;
 }
 
 export interface Channel {

@@ -98,6 +98,16 @@
             :loading="loading"
             :permissions="permissions"
           />
+
+          <!-- Advanced Settings Section -->
+          <ServerAdvancedSettings
+            v-if="activeSection === 'advanced'"
+            :server-id="serverId"
+            :server-name="server.name"
+            :created-at="server.created_at"
+            :loading="loading"
+            :permissions="{ canDeleteServer: permissions.canDeleteServer }"
+          />
         </div>
       </div>
     </div>
@@ -117,6 +127,7 @@ import type { Server, Emoji } from '@/types'
 import ServerBasicInfo from '@/components/settings/ServerBasicInfo.vue'
 import ServerEmojiManagement from '@/components/settings/ServerEmojiManagement.vue'
 import ServerPrivacySettings from '@/components/settings/ServerPrivacySettings.vue'
+import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings.vue'
 
 interface Props {
   serverId: string
@@ -145,6 +156,7 @@ const server = ref<Server>({
   owner: '',
   allow_cross_server_emojis: true,
   public: false,
+  created_at: undefined,
 })
 
 const originalServer = ref<Server | null>(null)
@@ -170,6 +182,11 @@ const availableSections = computed(() => {
   // Only show privacy settings if user can manage server
   if (permissions.value.canChangePrivacySettings) {
     sections.push({ id: 'privacy', label: 'Privacy Settings' })
+  }
+  
+  // Only show advanced settings if user has advanced permissions
+  if (permissions.value.canDeleteServer) {
+    sections.push({ id: 'advanced', label: 'Advanced Settings' })
   }
   
   return sections
