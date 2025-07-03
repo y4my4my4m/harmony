@@ -1,126 +1,126 @@
 import { computed } from 'vue'
-import { useServerPermissions, ServerPermission } from './useServerPermissions'
+import { useAuthStore } from '@/stores/auth'
+import { useServerUsersStore } from '@/stores/useServerUsers'
+import { useServerChannelStore } from '@/stores/useServerChannel'
 
 export function useChannelPermissions() {
-  const { hasCurrentUserPermission, channelPermissions } = useServerPermissions()
+  const authStore = useAuthStore()
+  const serverUsersStore = useServerUsersStore()
+  const serverChannelStore = useServerChannelStore()
 
-  // Check if user can perform drag and drop operations
-  const canDragAndDrop = computed(() => 
-    hasCurrentUserPermission(ServerPermission.MANAGE_CHANNELS)
-  )
+  const currentUserId = computed(() => authStore.session?.user?.id)
+  const currentServerId = computed(() => serverChannelStore.currentServerId)
+  
+  const userRoles = computed(() => {
+    if (!currentUserId.value || !currentServerId.value) return []
+    const userProfile = serverUsersStore.userProfiles[currentUserId.value]
+    return userProfile?.roles || []
+  })
 
-  // Check if user can reorder channels within categories
-  const canReorderChannels = computed(() => 
-    channelPermissions.value.canReorderChannels
-  )
+  const isServerOwner = computed(() => {
+    if (!currentUserId.value || !currentServerId.value) return false
+    const server = serverChannelStore.currentServer
+    return server?.owner === currentUserId.value
+  })
 
-  // Check if user can reorder categories
-  const canReorderCategories = computed(() => 
-    channelPermissions.value.canReorderCategories
-  )
+  const hasAdminRole = computed(() => {
+    return userRoles.value.some(role => role.permissions?.includes('administrator'))
+  })
 
-  // Check if user can move channels between categories
-  const canMoveChannelsBetweenCategories = computed(() => 
-    channelPermissions.value.canMoveChannels
-  )
+  const hasManageChannelsPermission = computed(() => {
+    return isServerOwner.value || 
+           hasAdminRole.value || 
+           userRoles.value.some(role => role.permissions?.includes('manage_channels'))
+  })
 
-  // Check if user can create new channels
-  const canCreateChannels = computed(() => 
-    channelPermissions.value.canCreateChannels
-  )
+  const canMoveChannels = computed(() => {
+    return hasManageChannelsPermission.value
+  })
 
-  // Check if user can delete channels
-  const canDeleteChannels = computed(() => 
-    channelPermissions.value.canDeleteChannels
-  )
+  const canCreateChannels = computed(() => {
+    return hasManageChannelsPermission.value
+  })
 
-  // Check if user can edit channel properties
-  const canEditChannels = computed(() => 
-    channelPermissions.value.canEditChannels
-  )
+  const canDeleteChannels = computed(() => {
+    return hasManageChannelsPermission.value
+  })
 
-  // Check if user can create categories
-  const canCreateCategories = computed(() => 
-    channelPermissions.value.canCreateCategories
-  )
+  const canEditChannels = computed(() => {
+    return hasManageChannelsPermission.value
+  })
 
-  // Check if user can delete categories
-  const canDeleteCategories = computed(() => 
-    channelPermissions.value.canDeleteCategories
-  )
+  const canCreateCategories = computed(() => {
+    return hasManageChannelsPermission.value
+  })
 
-  // Validate if a drag and drop operation is allowed
-  const validateDragAndDrop = (
-    dragType: 'channel' | 'category',
-    dropType: 'channel' | 'category' | 'category-content'
-  ): boolean => {
+  const canMoveChannelsBetweenCategories = computed(() => {
+    return hasManageChannelsPermission.value
+  })
+
+  const canDragAndDrop = computed(() => {
+    return hasManageChannelsPermission.value
+  })
+
+  const hasAnyChannelPermissions = computed(() => {
+    return hasManageChannelsPermission.value
+  })
+
+  const canViewChannel = (channelId: string) => {
+    // Basic implementation - can be extended with channel-specific permissions
+    return true
+  }
+
+  const canAccessChannel = (channelId: string) => {
+    // Basic implementation - can be extended with channel-specific permissions
+    return true
+  }
+
+  const getDragCursor = (itemType: string) => {
+    if (!canDragAndDrop.value) return 'not-allowed'
+    return itemType === 'channel' ? 'move' : 'grab'
+  }
+
+  const validateDragAndDrop = (itemType: string, dropType: string) => {
     if (!canDragAndDrop.value) return false
-
-    // Channel reordering within same category
-    if (dragType === 'channel' && dropType === 'channel') {
-      return canReorderChannels.value
-    }
-
-    // Channel moving between categories
-    if (dragType === 'channel' && dropType === 'category-content') {
+    
+    // Allow channel to category moves
+    if (itemType === 'channel' && dropType === 'category') {
       return canMoveChannelsBetweenCategories.value
     }
-
-    // Category reordering
-    if (dragType === 'category' && dropType === 'category') {
-      return canReorderCategories.value
+    
+    // Allow channel reordering within same category
+    if (itemType === 'channel' && dropType === 'channel') {
+      return canMoveChannels.value
     }
-
+    
     return false
   }
 
-  // Get appropriate cursor style for drag operations
-  const getDragCursor = (
-    dragType: 'channel' | 'category',
-    dropType?: 'channel' | 'category' | 'category-content'
-  ): string => {
-    if (!canDragAndDrop.value) return 'not-allowed'
-    
-    if (dropType && !validateDragAndDrop(dragType, dropType)) {
-      return 'not-allowed'
-    }
-
-    return 'move'
-  }
-
-  // Check if user can perform any channel management actions
-  const hasAnyChannelPermissions = computed(() => 
-    canCreateChannels.value || 
-    canDeleteChannels.value || 
-    canEditChannels.value || 
-    canDragAndDrop.value
-  )
-
-  // Check if user can perform any category management actions
-  const hasAnyCategoryPermissions = computed(() => 
-    canCreateCategories.value || 
-    canDeleteCategories.value || 
-    canDragAndDrop.value
-  )
-
   return {
-    // Drag and drop permissions
-    canDragAndDrop,
-    canReorderChannels,
-    canReorderCategories,
-    canMoveChannelsBetweenCategories,
+    // User info
+    currentUserId,
+    currentServerId,
+    userRoles,
     
-    // CRUD permissions
+    // Server-level permissions
+    isServerOwner,
+    hasAdminRole,
+    hasManageChannelsPermission,
+    hasAnyChannelPermissions,
+    
+    // Channel permissions
+    canMoveChannels,
     canCreateChannels,
     canDeleteChannels,
     canEditChannels,
     canCreateCategories,
-    canDeleteCategories,
+    canMoveChannelsBetweenCategories,
+    canDragAndDrop,
+    canViewChannel,
+    canAccessChannel,
     
-    // Helper functions
-    validateDragAndDrop,
+    // Drag & Drop utilities
     getDragCursor,
-    hasAnyChannelPermissions,
-    hasAnyCategoryPermissions
+    validateDragAndDrop,
   }
 }

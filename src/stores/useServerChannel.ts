@@ -141,7 +141,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       });
     },
 
-    async moveChannelToCategory(channelId: string, newCategoryId: string) {
+    async moveChannelToCategory(channelId: string, newCategoryId: string | null) {
       const { data, error } = await supabase
         .from('channels')
         .update({ category: newCategoryId })
@@ -151,7 +151,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       if (error) {
         console.error('Error moving channel to category:', error);
-        return;
+        throw error;
       }
 
       // Update local state
@@ -161,6 +161,32 @@ export const useServerChannelStore = defineStore('serverChannel', {
         // Refresh categoryChannels mapping
         await this.fetchCategoriesAndChannels(this.currentServerId!);
       }
+
+      return data;
+    },
+
+    async updateChannelOrder(channels: Channel[], categoryId: string | null) {
+      // Update the order of channels within a category or orphan channels
+      const updates = channels.map((channel, index) => ({
+        id: channel.id,
+        order: index,
+        category: categoryId
+      }));
+
+      const { error } = await supabase
+        .from('channels')
+        .upsert(updates);
+
+      if (error) {
+        console.error('Error updating channel order:', error);
+        throw error;
+      }
+
+      // Update local state
+      this.channels = this.channels.map(channel => {
+        const update = updates.find(u => u.id === channel.id);
+        return update ? { ...channel, order: update.order, category: update.category } : channel;
+      });
     },
 
     async createCategory(name: string, serverId: string) {

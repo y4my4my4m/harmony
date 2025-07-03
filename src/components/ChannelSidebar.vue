@@ -15,63 +15,156 @@
       @showCategoryCreator="showCategoryCreator"
       @createChannel="emitCreateChannel"
     />
-    <div>
+    
+    <!-- Orphan Channels (not in any category) -->
+    <div class="orphan-channels">
       <draggable
-        class="category-items"
         v-model="orphanChannels"
-        group="channels"
-        :data-category-index="null"
-        @end="onEndDrag"
-        delay="250"
-        delay-on-touch-only
+        :group="dragGroup"
+        :disabled="!canDragAndDrop"
+        @start="onDragStart"
+        @end="onDragEnd"
+        @add="onChannelAddedToOrphans"
         item-key="id"
+        :class="{ 'drag-disabled': !canDragAndDrop }"
+        tag="div"
       >
         <template #item="{ element }">
-          <div :key="element.id" :class="['channel-item', { 'selected': element.id === currentChannelId }]" @click="selectChannel(element.id)">
-            <HashTagIcon v-if="element.type==0"/><SpeakerIcon v-else /> {{ element.name }}
+          <div 
+            :key="element.id" 
+            :class="['channel-item', { 
+              'selected': element.id === currentChannelId,
+              'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id
+            }]" 
+            @click="selectChannel(element.id)"
+            :style="{ cursor: getDragCursor('channel') }"
+            :data-channel-id="element.id"
+            :data-category-id="null"
+          >
+            <div class="channel-content">
+              <HashTagIcon v-if="element.type === 0" />
+              <SpeakerIcon v-else /> 
+              {{ element.name }}
+            </div>
+            <!-- Voice channel controls -->
+            <div v-if="element.type === 1" class="voice-controls">
+              <button
+                v-if="!isUserInVoiceChannel(element.id)"
+                @click.stop="joinVoiceChannel(element.id)"
+                class="voice-btn join-btn"
+                title="Join voice channel"
+              >
+                🎤
+              </button>
+              <button
+                v-else
+                @click.stop="leaveVoiceChannel(element.id)"
+                class="voice-btn leave-btn"
+                title="Leave voice channel"
+              >
+                🔇
+              </button>
+              <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
+                {{ getUsersInVoiceChannel(element.id).length }}
+              </span>
+            </div>
           </div>
         </template>
       </draggable>
     </div>
-    <template v-if="categories && categories.length !== 0">
-      <template v-for="(category, index) in combinedCategories" :key="category.id">
-        <div class="category" :class="{'expanded' : category.expanded }">
+
+    <!-- Categories with their channels -->
+    <template v-if="categories && categories.length > 0">
+      <template v-for="category in combinedCategories" :key="category.id">
+        <div class="category" :class="{ 'expanded': category.expanded }">
           <div class="category-name">
             <div class="category-name-holder" @click="toggleCategory(category.id)">
               <ArrowDownIcon /> 
               {{ category.name }}
             </div>
-            <div class="create-channel" @click="emitCreateChannel(category.id)">+</div>
+            <div 
+              v-if="canCreateChannels" 
+              class="create-channel" 
+              @click="emitCreateChannel(category.id)"
+            >
+              +
+            </div>
           </div>
+          
+          <!-- Category drop zone -->
           <draggable
-            class="category-items"
             v-model="category.channels"
-            group="channels"
-            :data-category-index="index"
-            @start="onStartDrag"
-            @end="onEndDrag"
-            delay="250"
-            delay-on-touch-only
+            :group="dragGroup"
+            :disabled="!canDragAndDrop"
+            @start="onDragStart"
+            @end="onDragEnd"
+            @add="(evt) => onChannelAddedToCategory(evt, category.id)"
+            @remove="onChannelRemovedFromCategory"
             item-key="id"
+            :class="{ 
+              'category-items': true, 
+              'drag-disabled': !canDragAndDrop,
+              'drag-over': dragState.isOver && dragState.targetCategoryId === category.id
+            }"
+            tag="div"
           >
             <template #item="{ element }">
-              <div :key="element.id" :class="['channel-item', { 'selected': element.id === currentChannelId }]" @click="selectChannel(element.id)">
-                <HashTagIcon v-if="element.type==0"/><SpeakerIcon v-else /> {{ element.name }}
+              <div 
+                :key="element.id" 
+                :class="['channel-item', 'category-channel', { 
+                  'selected': element.id === currentChannelId,
+                  'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id
+                }]" 
+                @click="selectChannel(element.id)"
+                :style="{ cursor: getDragCursor('channel') }"
+                :data-channel-id="element.id"
+                :data-category-id="category.id"
+              >
+                <div class="channel-content">
+                  <HashTagIcon v-if="element.type === 0" />
+                  <SpeakerIcon v-else /> 
+                  {{ element.name }}
+                </div>
+                <!-- Voice channel controls -->
+                <div v-if="element.type === 1" class="voice-controls">
+                  <button
+                    v-if="!isUserInVoiceChannel(element.id)"
+                    @click.stop="joinVoiceChannel(element.id)"
+                    class="voice-btn join-btn"
+                    title="Join voice channel"
+                  >
+                    🎤
+                  </button>
+                  <button
+                    v-else
+                    @click.stop="leaveVoiceChannel(element.id)"
+                    class="voice-btn leave-btn"
+                    title="Leave voice channel"
+                  >
+                    🔇
+                  </button>
+                  <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
+                    {{ getUsersInVoiceChannel(element.id).length }}
+                  </span>
+                </div>
               </div>
             </template>
           </draggable>
         </div>
       </template>
     </template>
+    
     <UserProfileComponent />
   </div>
 </template>
+
 <script lang="ts">
-import { defineComponent, ref, computed } from 'vue';
+import { defineComponent, ref, computed, watch } from 'vue';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
+import { useChannelPermissions } from '@/composables/useChannelPermissions';
 
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
@@ -84,6 +177,18 @@ import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 
 import draggable from "vuedraggable";
+
+interface DragState {
+  isDragging: boolean;
+  draggedItem: Channel | null;
+  sourceCategoryId: string | null;
+  targetCategoryId: string | null;
+  isOver: boolean;
+}
+
+interface CategoryOpenState {
+  [key: string]: boolean;
+}
 
 export default defineComponent({
   name: 'ChannelSidebar',
@@ -120,21 +225,59 @@ export default defineComponent({
   setup(props, { emit }) {
     const isDropdownOpen = ref(false);
     const isCategoryCreatorOpen = ref(false);
-    // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
     const serverChannelStore = useServerChannelStore();
-    const serverUsers = useServerUsersStore();
     const authStore = useAuthStore();
     const router = useRouter();
-    interface CategoryOpenState {
-      [key: string]: boolean;
-    }
+    
+    // Use the channel permissions composable
+    const {
+      canDragAndDrop,
+      canCreateChannels,
+      canMoveChannelsBetweenCategories,
+      getDragCursor,
+      validateDragAndDrop,
+    } = useChannelPermissions();
+
     const categoryOpenState = ref<CategoryOpenState>({});
-    const voiceConnected = ref('');
-    const voiceOnSound = ref(new Audio('/assets/sounds/voice_connect.mp3'));
-    const voiceOffSound = ref(new Audio('/assets/sounds/voice_disconnect.mp3'));
+
+    // Drag state management
+    const dragState = ref<DragState>({
+      isDragging: false,
+      draggedItem: null,
+      sourceCategoryId: null,
+      targetCategoryId: null,
+      isOver: false,
+    });
+
+    // Drag group configuration
+    const dragGroup = computed(() => ({
+      name: 'channels',
+      put: canDragAndDrop.value,
+      pull: canDragAndDrop.value,
+    }));
+
     const userId = computed(() => {
       return authStore.session?.user?.id || '';
-      // return localStorage.getItem('userId') || '';
+    });
+
+    // Compute orphan channels (channels not in any category)
+    const orphanChannels = computed({
+      get: () => {
+        if (!props.channels || !Array.isArray(props.channels)) {
+          return [];
+        }
+        
+        const categoryChannelIds = new Set();
+        Object.values(props.categoryChannels || {}).forEach(channels => {
+          channels.forEach(channel => categoryChannelIds.add(channel.id));
+        });
+        
+        return props.channels.filter(channel => !categoryChannelIds.has(channel.id));
+      },
+      set: (newChannels) => {
+        // Handle reordering of orphan channels
+        serverChannelStore.updateChannelOrder(newChannels, null);
+      }
     });
 
     const combinedCategories = computed(() => {
@@ -142,7 +285,6 @@ export default defineComponent({
         return [];
       }
       return props.categories.map(category => {
-        // Get saved state from localStorage, default to true (expanded)
         const savedState = localStorage.getItem(`category-${category.id}-expanded`);
         const isExpanded = savedState !== null ? savedState === 'true' : true;
         
@@ -154,167 +296,209 @@ export default defineComponent({
       });
     });
 
-    const orphanChannels = computed(() => {
-      return props.channels.filter(channel => !channel.category);
-    });
-  
-    const draggedChannel = ref<Channel | null>(null);
+    // Drag event handlers
+    const onDragStart = (evt: any) => {
+      if (!canDragAndDrop.value) {
+        evt.preventDefault();
+        return false;
+      }
 
-    const onStartDrag = (event: any) => {
-      // Store the dragged channel reference more reliably
-      const element = event.item
-      const channelId = element.getAttribute('data-channel-id') || element.querySelector('.channel-item')?.getAttribute('data-channel-id')
+      const channelId = evt.item.dataset.channelId;
+      const categoryId = evt.item.dataset.categoryId;
       
-      if (channelId) {
-        draggedChannel.value = props.channels.find(ch => ch.id === channelId) || null
+      // Find the channel being dragged
+      let draggedChannel: Channel | null = null;
+      
+      if (categoryId === 'null' || !categoryId) {
+        // Dragging from orphan channels
+        draggedChannel = orphanChannels.value.find(ch => ch.id === channelId) || null;
       } else {
-        // Fallback to the old method
-        const originalCategoryIndex = event.from.dataset.categoryIndex ? Number(event.from.dataset.categoryIndex) : null
-        
-        if (originalCategoryIndex !== null && combinedCategories.value[originalCategoryIndex]) {
-          const originalCategory = combinedCategories.value[originalCategoryIndex]
-          if (event.oldIndex >= 0 && event.oldIndex < originalCategory.channels.length) {
-            draggedChannel.value = originalCategory.channels[event.oldIndex]
-          }
-        } else {
-          // Handle orphan channels
-          if (event.oldIndex >= 0 && event.oldIndex < orphanChannels.value.length) {
-            draggedChannel.value = orphanChannels.value[event.oldIndex]
-          }
-        }
-      }
-    }
-
-    const onEndDrag = (event: any) => {
-      // Use the stored dragged channel reference
-      if (!draggedChannel.value) {
-        console.error("Dragged channel not found - drag operation cancelled")
-        return
+        // Dragging from a category
+        const categoryChannels = props.categoryChannels[categoryId] || [];
+        draggedChannel = categoryChannels.find(ch => ch.id === channelId) || null;
       }
 
-      // Determine the new category index
-      const newCategoryIndex = event.to.dataset.categoryIndex ? Number(event.to.dataset.categoryIndex) : null
-      
-      let newCategory = null
-      if (newCategoryIndex !== null && combinedCategories.value[newCategoryIndex]) {
-        newCategory = combinedCategories.value[newCategoryIndex]
+      if (!draggedChannel) {
+        console.error('Could not find dragged channel:', channelId);
+        evt.preventDefault();
+        return false;
       }
 
-      // Determine the new category ID or set it to null if it's an orphan channel now
-      const newCategoryId = newCategory ? newCategory.id : null
+      dragState.value = {
+        isDragging: true,
+        draggedItem: draggedChannel,
+        sourceCategoryId: categoryId === 'null' ? null : categoryId,
+        targetCategoryId: null,
+        isOver: false,
+      };
 
-      // Only proceed if the category actually changed
-      const currentCategoryId = draggedChannel.value.category || null
-      if (currentCategoryId !== newCategoryId) {
-        // Move the channel to the new category or to the orphan list
-        serverChannelStore.moveChannelToCategory(draggedChannel.value.id, newCategoryId)
-      }
-
-      // Reset the dragged channel reference
-      draggedChannel.value = null
+      // Add visual feedback
+      document.body.classList.add('dragging-channel');
     };
 
-    // const onEndDrag = (event: any) => {
-    //   const originalCategoryIndex = event.from.dataset.categoryIndex ? Number(event.from.dataset.categoryIndex) : null;
-    //   const newCategoryIndex = event.to.dataset.categoryIndex ? Number(event.to.dataset.categoryIndex) : null;
-
-    //   console.log(`Dragging from ${originalCategoryIndex} to ${newCategoryIndex}`);
-
-    //   if (originalCategoryIndex !== null && newCategoryIndex !== null) {
-    //     const originalCategory = combinedCategories.value[originalCategoryIndex];
-    //     const newCategory = combinedCategories.value[newCategoryIndex];
-    //     const draggedChannel = originalCategory.channels[event.oldIndex];
-
-    //     if (draggedChannel) {
-    //       // Move the channel in the backend
-    //       serverChannelStore.moveChannelToCategory(draggedChannel.id, newCategory.id).then(() => {
-    //         // Update local state upon successful backend update
-    //         originalCategory.channels.splice(event.oldIndex, 1); // Remove from old category
-    //         newCategory.channels.push(draggedChannel); // Add to new category
-    //       }).catch(console.error);
-    //     } else {
-    //       console.error("Dragged channel not found");
-    //     }
-    //   } else {
-    //     console.error("Invalid category indices");
-    //   }
-    // };
-
-
-
-    const toggleDropdown = (event?: MouseEvent) => {
-      if (event) {
-        event.stopPropagation();
+    const onDragEnd = async (evt: any) => {
+      // Clean up visual feedback
+      document.body.classList.remove('dragging-channel');
+      
+      const wasSuccessfulMove = evt.to !== evt.from || evt.newIndex !== evt.oldIndex;
+      
+      if (wasSuccessfulMove && dragState.value.draggedItem) {
+        console.log('Drag completed successfully');
       }
+
+      // Reset drag state
+      dragState.value = {
+        isDragging: false,
+        draggedItem: null,
+        sourceCategoryId: null,
+        targetCategoryId: null,
+        isOver: false,
+      };
+    };
+
+    const onChannelAddedToCategory = async (evt: any, categoryId: string) => {
+      if (!canMoveChannelsBetweenCategories.value) {
+        console.warn('No permission to move channels between categories');
+        return;
+      }
+
+      const channelId = evt.item.dataset.channelId;
+      const draggedChannel = dragState.value.draggedItem;
+
+      if (!draggedChannel || draggedChannel.id !== channelId) {
+        console.error('Channel data mismatch during category move');
+        return;
+      }
+
+      try {
+        console.log(`Moving channel ${channelId} to category ${categoryId}`);
+        await serverChannelStore.moveChannelToCategory(channelId, categoryId);
+        
+        // Refresh data to ensure consistency
+        await serverChannelStore.fetchChannels(props.currentServer.id);
+      } catch (error) {
+        console.error('Failed to move channel to category:', error);
+      }
+    };
+
+    const onChannelAddedToOrphans = async (evt: any) => {
+      if (!canMoveChannelsBetweenCategories.value) {
+        console.warn('No permission to move channels');
+        return;
+      }
+
+      const channelId = evt.item.dataset.channelId;
+      const draggedChannel = dragState.value.draggedItem;
+
+      if (!draggedChannel || draggedChannel.id !== channelId) {
+        console.error('Channel data mismatch during orphan move');
+        return;
+      }
+
+      try {
+        console.log(`Moving channel ${channelId} to orphan channels (no category)`);
+        await serverChannelStore.moveChannelToCategory(channelId, null);
+        
+        // Refresh data to ensure consistency
+        await serverChannelStore.fetchChannels(props.currentServer.id);
+      } catch (error) {
+        console.error('Failed to move channel to orphan channels:', error);
+      }
+    };
+
+    const onChannelRemovedFromCategory = (evt: any) => {
+      // This is handled by the add events, just logging for debugging
+      console.log('Channel removed from category');
+    };
+
+    // Other methods
+    const toggleDropdown = () => {
       isDropdownOpen.value = !isDropdownOpen.value;
     };
 
-    const showCategoryCreator = (show: boolean) => {
-      isCategoryCreatorOpen.value = show;
-    }
-
-    const createCategory = (category: string) => {
-      serverChannelStore.createCategory(category, props.currentServer.id);
-    }
-
     const selectChannel = (channelId: string) => {
-      // Emit channel selection immediately for instant visual feedback
-      emit('channelSelected', channelId);
-      
-      // Find the channel by channelId
-      const channel = props.channels.find(ch => ch.id === channelId);
-
-      if (channel) {
-        if (voiceConnected.value !== channelId && channel.type === 1) {
-          voiceOnSound.value.volume = 0.5;
-          voiceOnSound.value.play();
-          voiceConnected.value = channelId;
-          serverUsers.broadcastVoiceChannelEvent(props.currentServer.id, channelId, 'user-joined', userId.value);
-        } else if (voiceConnected.value == channelId && channel.type === 1) {
-          voiceOffSound.value.volume = 0.5;
-          voiceOffSound.value.play();
-          voiceConnected.value = '';
-        }
-      }
-      router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId: channelId } });
-      // if voice channel, join it
+      router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId } });
     };
 
-    const emitCreateChannel = (categoryId: string | null) => {
+    const emitCreateChannel = (categoryId?: string) => {
       emit('createChannel', categoryId);
-    }
+    };
 
     const toggleCategory = (categoryId: string) => {
-      // Find the category in combinedCategories to get current expanded state
-      const categoryIndex = combinedCategories.value.findIndex(c => c.id === categoryId);
-      if (categoryIndex !== -1) {
-        const category = combinedCategories.value[categoryIndex];
-        const newExpandedState = !category.expanded;
-        
-        // Save to localStorage
-        localStorage.setItem(`category-${categoryId}-expanded`, newExpandedState.toString());
-        
-        // Update the category in the store (if it has expanded property)
-        const storeCategory = serverChannelStore.categories.find(c => c.id === categoryId);
-        if (storeCategory) {
-          storeCategory.expanded = newExpandedState;
-        }
-        
-        // Force reactivity update by updating the computed property
-        // This will trigger the combinedCategories computed to re-evaluate
-        // and pick up the new localStorage value
-        category.expanded = newExpandedState;
-      }
+      const newState = !categoryOpenState.value[categoryId];
+      categoryOpenState.value[categoryId] = newState;
+      localStorage.setItem(`category-${categoryId}-expanded`, newState.toString());
     };
 
     const isCategoryOpen = (categoryId: string) => {
-      return categoryOpenState.value[categoryId] || false;
+      return categoryOpenState.value[categoryId] !== false;
+    };
+
+    const showCategoryCreator = () => {
+      isCategoryCreatorOpen.value = !isCategoryCreatorOpen.value;
+    };
+
+    const createCategory = (categoryName: string) => {
+      emit('createCategory', categoryName);
+      isCategoryCreatorOpen.value = false;
     };
 
     const handleChannelCreated = (channel: Channel) => {
       console.log('Channel created:', channel);
       selectChannel(channel.id);
       serverChannelStore.fetchChannels(props.currentServer.id);
+    };
+
+    // Voice channel methods
+    const serverUsersStore = useServerUsersStore();
+
+    const isUserInVoiceChannel = (channelId: string): boolean => {
+      if (!userId.value) return false;
+      return serverUsersStore.isUserInVoiceChannel(userId.value, channelId);
+    };
+
+    const getUsersInVoiceChannel = (channelId: string): string[] => {
+      return serverUsersStore.getUsersInVoiceChannel(channelId);
+    };
+
+    const joinVoiceChannel = async (channelId: string) => {
+      if (!userId.value || !props.currentServer?.id) return;
+      
+      try {
+        // Leave any other voice channels first (user can only be in one at a time)
+        await serverUsersStore.leaveAllVoiceChannels(props.currentServer.id, userId.value);
+        
+        // Join the new voice channel
+        const success = await serverUsersStore.joinVoiceChannel(
+          props.currentServer.id, 
+          channelId, 
+          userId.value
+        );
+        
+        if (success) {
+          console.log(`Successfully joined voice channel ${channelId}`);
+        }
+      } catch (error) {
+        console.error('Failed to join voice channel:', error);
+      }
+    };
+
+    const leaveVoiceChannel = async (channelId: string) => {
+      if (!userId.value || !props.currentServer?.id) return;
+      
+      try {
+        const success = await serverUsersStore.leaveVoiceChannel(
+          props.currentServer.id, 
+          channelId, 
+          userId.value
+        );
+        
+        if (success) {
+          console.log(`Successfully left voice channel ${channelId}`);
+        }
+      } catch (error) {
+        console.error('Failed to leave voice channel:', error);
+      }
     };
 
     return { 
@@ -330,10 +514,27 @@ export default defineComponent({
       showCategoryCreator,
       createCategory,
       combinedCategories,
-      draggedChannel,
-      onStartDrag,
-      onEndDrag,
       orphanChannels,
+      
+      // Drag & Drop
+      dragState,
+      dragGroup,
+      onDragStart,
+      onDragEnd,
+      onChannelAddedToCategory,
+      onChannelAddedToOrphans,
+      onChannelRemovedFromCategory,
+      
+      // Permissions
+      canDragAndDrop,
+      canCreateChannels,
+      getDragCursor,
+      
+      // Voice channel methods
+      isUserInVoiceChannel,
+      getUsersInVoiceChannel,
+      joinVoiceChannel,
+      leaveVoiceChannel,
     };
   }
 });
@@ -352,26 +553,92 @@ export default defineComponent({
   font-size: 1.2rem;
   font-weight: 500;
   background: var(--vt-c-divider-light-2);
-  position:relative;
-  z-index:1;
+  position: relative;
+  z-index: 1;
   box-shadow: 0 1px 5px 0px rgba(0,0,0,0.25);
-  margin-bottom:2px;
-  cursor:pointer;
+  text-align: center;
+  cursor: pointer;
+  transition: 0.2s ease-in-out;
+}
+
+.server-name:hover {
+  background: rgba(0,0,0,0.1);
+}
+
+.channel-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  width: 100%;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(173, 173, 173);
+  position: relative;
+  border-radius: 4px;
+  margin: 1px 4px;
+}
+
+.channel-item:hover {
+  transform: translateX(2px);
+  background-color: var(--h-sidebar-light);
+}
+
+.channel-item.selected {
+  position: relative;
+  background-color: var(--h-sidebar-light);
+  color: #FFF;
+}
+
+.channel-item.dragging {
+  opacity: 0.6;
+  transform: scale(1.02) rotate(2deg);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  background-color: rgba(88, 101, 242, 0.2);
+  border: 1px solid #5865f2;
+}
+
+.channel-item > svg {
+  margin-right: 10px;
+  width: 16px;
+  height: 16px;
+  position: relative;
+  top: 3px;
+}
+
+.category .channel-item {
+  padding-left: 20px;
+}
+
+.category {
+  margin-bottom: 2px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .category-name {
   cursor: pointer;
-  padding:8px 6px;
+  padding: 8px 6px;
   margin-top: 6px;
   vertical-align: middle;
   display: flex;
   font-size: 16px;
   align-items: center;
   justify-content: space-between;
+  transition: all 0.15s ease;
+  border-radius: 4px;
+  margin: 2px 4px;
 }
+
+.category-name:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
 .category-name .category-name-holder {
-  flex-grow:1;
+  flex-grow: 1;
 }
+
 .category-name svg {
   margin-right: 5px;
   width: 16px;
@@ -381,82 +648,367 @@ export default defineComponent({
   transition: 0.2s ease-in-out;
   transform: rotate(-90deg);
 }
+
 .category.expanded .category-name svg {
   transform: rotate(0deg);
 }
+
 .category .category-items {
   max-height: 0;
   overflow: hidden;
-  transition: 0.3s ease-in-out;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.2s ease,
+              border 0.2s ease,
+              min-height 0.2s ease;
 }
 
 .category.expanded .category-items {
-  max-height: 100vh; /* or some other value large enough */
-  /* overflow: auto; */
-}
-
-.server-name:hover {
-  background: rgba(0,0,0,0.1);
-}
-.channel-item {
-  padding: 6px 10px;
-  cursor: pointer;
-  transition: 0.2s ease-in-out;
-  display: inline-flex;
-  width:100%;
-  font-size:14px;
-  font-weight:500;
-  &:hover {
-    background-color: var(--h-sidebar-light);
-  }
-  color: rgb(173, 173, 173);
-}
-.channel-item:hover {
-  color: rgb(173, 173, 173);
-}
-.channel-item.selected {
-  /* padding-left:25px; */
-  position: relative;
-  background-color: var(--h-sidebar-light);
-  color:#FFF;
-}
-.channel-item > svg {
-  margin-right: 10px;
-  width: 16px;
-  height: 16px;
-  position: relative;
-  top: 3px;
-}
-.category .channel-item {
-  padding-left:20px;
+  max-height: 100vh;
 }
 
 .create-channel {
-  cursor:pointer;
+  cursor: pointer;
   padding: 0 10px;
-  transition: 0.2s ease-in-out;
+  transition: all 0.15s ease;
+  border-radius: 4px;
   font-size: 16px;
-  font-weight:500;
-  /* background: var(--vt-c-divider-dark-2); */
+  font-weight: 500;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
 }
+
 .create-channel:hover {
-  background: var(--vt-c-divider-dark-1);
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
 }
-/* .channel-item::before {
-  opacity:0;
-  content: "";
-  transition: 0.3s ease-in-out;
-  left:0;
+
+/* Enhanced Drag & Drop Styles */
+.channel-item {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 4px;
+  margin: 1px 4px;
+  position: relative;
 }
-.channel-item.selected::before {
-  content: "";
+
+.channel-item.dragging {
+  opacity: 0.6;
+  transform: scale(1.02) rotate(2deg);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  background-color: rgba(88, 101, 242, 0.2);
+  border: 1px solid #5865f2;
+}
+
+/* Global drag feedback */
+:global(.dragging-channel) {
+  cursor: grabbing !important;
+}
+
+:global(.dragging-channel *) {
+  cursor: grabbing !important;
+}
+
+/* Drop zone feedback */
+.category-items {
+  min-height: 20px;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  position: relative;
+}
+
+.category-items:empty::after {
+  content: '';
+  display: block;
+  height: 20px;
+  background: transparent;
+}
+
+.category-items.drag-over {
+  background-color: rgba(88, 101, 242, 0.1);
+  border: 2px dashed #5865f2;
+  min-height: 40px;
+}
+
+.category-items.drag-over::before {
+  content: 'Drop channel here';
   position: absolute;
-  left:8px;
-  top:17px;
-  opacity:1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #5865f2;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Orphan channels drop zone */
+.orphan-channels {
+  min-height: 20px;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  position: relative;
+  margin-bottom: 12px;
+  padding: 4px;
+}
+
+.orphan-channels.drag-over {
+  background-color: rgba(87, 242, 135, 0.1);
+  border: 2px dashed #57f287;
+  min-height: 40px;
+}
+
+.orphan-channels.drag-over::before {
+  content: 'Drop to remove from category';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #57f287;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Disable drag styles */
+.drag-disabled {
+  cursor: not-allowed !important;
+}
+
+.drag-disabled .channel-item {
+  cursor: not-allowed !important;
+}
+
+.drag-disabled .channel-item:hover {
+  transform: none !important;
+}
+
+/* Permission feedback */
+.channel-item.no-permission {
+  opacity: 0.6;
+  position: relative;
+}
+
+.channel-item.no-permission::after {
+  content: '🔒';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* Smooth animations */
+/* Hover effects */
+.channel-item:hover {
+  transform: translateX(2px);
+  background-color: var(--h-sidebar-light);
+}
+
+.channel-item.selected:hover {
+  transform: translateX(2px);
+}
+
+/* Focus improvements */
+.channel-item:focus-visible {
+  outline: 2px solid #5865f2;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Loading states for drag operations */
+.channel-item.moving {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.channel-item.moving::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  border: 2px solid #5865f2;
+  border-top: 2px solid transparent;
   border-radius: 50%;
-  width: 8px;
-  height: 8px;
-  background-color: var(--vt-c-divider-dark-1);
-} */
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translateY(-50%) rotate(0deg); }
+  100% { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* Category expansion improvements */
+.category-name {
+  transition: all 0.15s ease;
+  border-radius: 4px;
+  margin: 2px 4px;
+}
+
+/* Create channel button improvements */
+.create-channel {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  opacity: 0.7;
+  transition: all 0.15s ease;
+}
+
+.create-channel:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+/* Mobile improvements */
+@media (max-width: 768px) {
+  .channel-item {
+    padding: 12px 16px;
+    margin: 2px 0;
+  }
+  
+  .channel-item:hover {
+    transform: none;
+  }
+  
+  .category-items.drag-over::before,
+  .orphan-channels.drag-over::before {
+    font-size: 14px;
+  }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  .channel-item,
+  .category,
+  .category-items,
+  .category-name,
+  .create-channel {
+    transition: none;
+  }
+  
+  .channel-item.dragging {
+    transform: none;
+  }
+  
+  .channel-item:hover {
+    transform: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .category-items.drag-over {
+    border-color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .orphan-channels.drag-over {
+    border-color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Voice channel controls */
+.channel-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.channel-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.channel-content > svg {
+  margin-right: 10px;
+  width: 16px;
+  height: 16px;
+}
+
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.channel-item:hover .voice-controls {
+  opacity: 1;
+}
+
+.voice-btn {
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+}
+
+.voice-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.join-btn {
+  color: #57f287;
+}
+
+.join-btn:hover {
+  background-color: rgba(87, 242, 135, 0.2);
+  color: #57f287;
+}
+
+.leave-btn {
+  color: #ed4245;
+}
+
+.leave-btn:hover {
+  background-color: rgba(237, 66, 69, 0.2);
+  color: #ed4245;
+}
+
+.user-count {
+  font-size: 10px;
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 10px;
+  color: #ffffff;
+  font-weight: 600;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* Voice channel active state */
+.channel-item.voice-active {
+  background-color: rgba(87, 242, 135, 0.1);
+  border-left: 3px solid #57f287;
+}
+
+.channel-item.voice-active .voice-controls {
+  opacity: 1;
+}
 </style>
