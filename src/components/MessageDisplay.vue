@@ -118,12 +118,9 @@
   />
 
   <!-- User Profile Card -->
-  <UserPreviewComponent
-    v-if="selectedUser"
-    :user="selectedUser"
-    :style="profileCardStyle"
-    @close="closeProfile"
-  />
+  <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
+    <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
+  </div>
 
   <!-- Tooltip for reactions -->
   <div
@@ -189,6 +186,9 @@ export default defineComponent({
     const serverChannelStore = useServerChannelStore();
     const useChat = useChatStore();
     const authStore = useAuthStore();
+    
+    // Initialize imageLoaded early to prevent initialization order issues
+    const imageLoaded: Ref<Record<string, boolean>> = ref({});
     
     // Cache for reply messages
     const replyMessages = ref<Record<string, Message>>({});
@@ -278,7 +278,6 @@ export default defineComponent({
           if (!part || typeof part !== 'object') {
             return;
           }
-          
           // initialize image "loading" state
           if (part.type === 'file' && part.fileType === 'image' && part.url && !(part.url in imageLoaded.value)) {
             imageLoaded.value[part.url] = false;
@@ -457,8 +456,10 @@ export default defineComponent({
         const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
         if (editInput) {
           editInput.focus();
-          // Select all text for easy replacement
-          editInput.select();
+          // Remove the .select() call to prevent automatic text selection
+          // Position cursor at the end instead
+          const textLength = editInput.value.length;
+          editInput.setSelectionRange(textLength, textLength);
         }
       });
     };
@@ -512,9 +513,38 @@ export default defineComponent({
       const userMention = (event.currentTarget as HTMLElement);
       if (userMention) {
         const userMentionRect = userMention.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        const popupHeight = 400;
+        const popupWidth = 320;
+        
+        // Calculate position ensuring popup stays within viewport
+        let top = userMentionRect.y - popupHeight;
+        let left = userMentionRect.x + userMentionRect.width + 10;
+        
+        // Adjust if popup would go above viewport
+        if (top < 0) {
+          top = userMentionRect.y + userMentionRect.height + 10;
+        }
+        
+        // Adjust if popup would go below viewport
+        if (top + popupHeight > viewportHeight) {
+          top = viewportHeight - popupHeight - 10;
+        }
+        
+        // Adjust if popup would go beyond right edge of viewport
+        if (left + popupWidth > viewportWidth) {
+          left = userMentionRect.x - popupWidth - 10;
+        }
+        
+        // Ensure minimum left position
+        if (left < 10) {
+          left = 10;
+        }
+
         profileCardStyle.value = {
-          left: `calc(10px + ${userMentionRect.width}px + ${userMentionRect.x}px)`,
-          top: `calc(${userMentionRect.y}px - 400px)`,
+          left: `${left}px`,
+          top: `${top}px`,
         };
       }
 
@@ -545,8 +575,6 @@ export default defineComponent({
 
     const isLightboxOpen = ref(false);
     const indexRef = ref(0);
-
-    const imageLoaded: Ref<Record<string, boolean>> = ref({});
 
     const handleImageLoaded = (url: string) => {
       imageLoaded.value[url] = true;

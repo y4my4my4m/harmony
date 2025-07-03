@@ -26,12 +26,13 @@
         </div>
       </div>
       <textarea 
+        ref="textareaRef"
         draggable="false" 
         @dragstart.prevent 
         class="selectableText" 
         :value="modelValue"
         @input="handleInput"
-        @keydown.enter="handleEnter" 
+        @keydown="handleKeyDown" 
         :placeholder="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
       ></textarea>
       <div class="right-icons">
@@ -39,6 +40,33 @@
         <EmojiUI @click="toggleEmojiList" />
       </div>
     </div>
+    
+    <!-- Auto-suggest component -->
+    <AutoSuggest
+      :isVisible="autoSuggest.state.value.isActive"
+      :suggestions="autoSuggest.suggestions.value"
+      :position="autoSuggest.state.value.position"
+      :selectedIndex="autoSuggest.state.value.selectedIndex"
+      :headerText="autoSuggest.headerText.value"
+      @select="handleSuggestionSelect"
+    >
+      <template #default="{ suggestion }">
+        <!-- Custom rendering for different suggestion types -->
+        <div class="suggest-item-content">
+          <img 
+            v-if="suggestion.url || suggestion.avatar" 
+            :src="suggestion.url || suggestion.avatar" 
+            :alt="suggestion.name || suggestion.display_name"
+            class="suggest-icon"
+          />
+          <div class="suggest-text">
+            <span class="suggest-name">{{ suggestion.display_name || suggestion.name }}</span>
+            <span v-if="suggestion.username" class="suggest-username">{{ suggestion.username }}</span>
+            <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
+          </div>
+        </div>
+      </template>
+    </AutoSuggest>
   </div>
 </template>
 
@@ -50,9 +78,12 @@ import EmojiUI from '@/components/EmojiUI.vue'
 import MessageReply from '@/components/MessageReply.vue';
 import FilePreview from '@/components/FilePreview.vue';
 import FileUploadMenu from '@/components/FileUploadMenu.vue';
+import AutoSuggest from '@/components/AutoSuggest.vue';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
+import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { backgroundUploadManager } from '@/services/fileService';
 import { useAuthStore } from '@/stores/auth';
+import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { v4 as uuidv4 } from 'uuid';
 
 export default defineComponent({
@@ -63,6 +94,7 @@ export default defineComponent({
     MessageReply,
     FilePreview,
     FileUploadMenu,
+    AutoSuggest,
   },
   props: {
     giphyOpen: Boolean,
@@ -86,13 +118,46 @@ export default defineComponent({
     const showUploadMenu = ref(false);
     const attachedFiles = ref<FilePreviewData[]>([]);
     const isDragging = ref(false);
+    
+    // Auto-suggest setup
+    const textareaRef = ref<HTMLTextAreaElement | null>(null);
+    const autoSuggest = useAutoSuggest(textareaRef);
 
     const handleInput = (event: Event) => {
       const target = event.target as HTMLTextAreaElement;
-      emit('update:modelValue', target.value);
+      const value = target.value;
+      const cursorPosition = target.selectionStart || 0;
+      
+      emit('update:modelValue', value);
+      
+      // Handle auto-suggest
+      autoSuggest.handleInput(value, cursorPosition);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Let auto-suggest handle its own key events first
+      if (autoSuggest.handleKeyDown(event)) {
+        return; // Auto-suggest handled the event
+      }
+      
+      // Handle Enter key for sending messages (only if auto-suggest is not active)
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        send();
+      }
+    };
+
+    const handleSuggestionSelect = (suggestion: SuggestionItem) => {
+      if (textareaRef.value) {
+        const newValue = autoSuggest.selectSuggestion(suggestion);
+        emit('update:modelValue', newValue);
+      }
     };
 
     const send = () => {
+      // Close auto-suggest when sending
+      autoSuggest.closeSuggestions();
+      
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
         const content = props.modelValue?.trim() || '';
         emit('sendMessage', content, attachedFiles.value);
@@ -161,7 +226,7 @@ export default defineComponent({
       return fileData;
     };
 
-    const startBackgroundUpload = async (fileData: FilePreviewData, index: number) => {
+    const startBackgroundUpload = async (fileData: FilePreviewData) => {
       if (!authStore.session?.user?.id) return;
 
       const uploadId = uuidv4();
@@ -215,9 +280,8 @@ export default defineComponent({
       emit('files-attached', attachedFiles.value);
       
       // Start background uploads immediately
-      const startIndex = attachedFiles.value.length - newFiles.length;
-      newFiles.forEach((fileData, i) => {
-        startBackgroundUpload(fileData, startIndex + i);
+      newFiles.forEach((fileData) => {
+        startBackgroundUpload(fileData);
       });
       
       closeUploadMenu();
@@ -249,7 +313,9 @@ export default defineComponent({
     const handleDragLeave = (event: DragEvent) => {
       event.preventDefault();
       // Only set isDragging to false if we're leaving the message container
-      if (!event.currentTarget?.contains(event.relatedTarget as Node)) {
+      const currentTarget = event.currentTarget as HTMLElement;
+      const relatedTarget = event.relatedTarget as Node | null;
+      if (!currentTarget?.contains(relatedTarget)) {
         isDragging.value = false;
       }
     };
@@ -313,6 +379,10 @@ export default defineComponent({
       handleDragLeave,
       handleDrop,
       isDragging,
+      handleKeyDown,
+      handleSuggestionSelect,
+      textareaRef,
+      autoSuggest,
     };
   }
 });
@@ -458,5 +528,51 @@ export default defineComponent({
       font-size: 14px;
       top: 7px;
     }
+  }
+
+  /* Auto-suggest custom styling */
+  .suggest-item-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .suggest-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .suggest-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .suggest-name {
+    font-weight: 500;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .suggest-username {
+    font-size: 12px;
+    color: #b9bbbe;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .suggest-server {
+    font-size: 11px;
+    color: #72767d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

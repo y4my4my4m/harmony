@@ -215,23 +215,19 @@
           if (isValidCache) {
             // Cache is truly valid - load instantly
             chatStore.loadCachedMessages(channelId);
-            chatStore.subscribeToMessages(channelId);
-            scrollToBottom();
           } else {
             // Cache is stale due to message modifications - refetch
             console.log(`Cache invalidated due to message modifications: ${channelId}`);
             chatStore.clearMessages();
             await chatStore.fetchMessages(channelId);
-            chatStore.subscribeToMessages(channelId);
-            scrollToBottom();
           }
         } else {
           // For non-cached channels: Clear first, then fetch
           chatStore.clearMessages();
           await chatStore.fetchMessages(channelId);
-          chatStore.subscribeToMessages(channelId);
-          scrollToBottom();
         }
+        chatStore.subscribeToMessages(channelId);
+        scrollToBottom();
       };
 
       const fetchMoreMessages = async () => {

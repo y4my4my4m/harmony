@@ -166,7 +166,7 @@
       };
 
       const goToSettings = () => {
-        router.push({ name: 'Profile' });
+        router.push({ name: 'UserSettings' });
       };
 
       onMounted(async () => {

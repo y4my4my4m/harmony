@@ -251,6 +251,9 @@ export default defineComponent({
     }
 
     const selectChannel = (channelId: string) => {
+      // Emit channel selection immediately for instant visual feedback
+      emit('channelSelected', channelId);
+      
       // Find the channel by channelId
       const channel = props.channels.find(ch => ch.id === channelId);
 
