@@ -3,11 +3,8 @@ import ChatView from '@/views/ChatView.vue';
 import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import NewProfile from '@/views/NewProfile.vue';
-import ProfileComponent from '@/components/ProfileComponent.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
-import ServerSettings from '@/views/ServerSettings.vue';
-import UserSettings from '@/views/UserSettings.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -42,12 +39,6 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/profile',
-      name: 'Profile',
-      component: ProfileComponent,
-      meta: { requiresAuth: true }
-    },
-    {
       path: '/invite/:code',
       name: 'InviteAccept',
       component: InviteAccept,
@@ -56,14 +47,14 @@ const router = createRouter({
     {
       path: '/server/:serverId',
       name: 'ServerSettings',
-      component: ServerSettings,
+      component: () => import('@/views/ServerSettings.vue'),
       meta: { requiresAuth: true },
       props: true
     },
     {
       path: '/settings',
       name: 'UserSettings',
-      component: UserSettings,
+      component: () => import('@/views/UserSettings.vue'),
       meta: { requiresAuth: true }
     },
   ],
