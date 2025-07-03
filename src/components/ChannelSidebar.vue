@@ -37,7 +37,7 @@
               'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id
             }]" 
             @click="selectChannel(element.id)"
-            :style="{ cursor: getDragCursor('channel') }"
+            :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
             :data-channel-id="element.id"
             :data-category-id="null"
           >
@@ -74,95 +74,83 @@
     </div>
 
     <!-- Categories with their channels -->
-    <draggable
-      v-if="categories && categories.length > 0"
-      v-model="reorderableCategories"
-      :group="{ name: 'categories', pull: false, put: false }"
-      :disabled="!canDragAndDrop"
-      @start="onCategoryDragStart"
-      @end="onCategoryDragEnd"
-      item-key="id"
-      :class="{ 'categories-container': true, 'drag-disabled': !canDragAndDrop }"
-      tag="div"
-    >
-      <template #item="{ element: category }">
-        <div class="category" :class="{ 'expanded': category.expanded }" :key="category.id">
-          <div class="category-name" :data-category-id="category.id">
-            <div class="category-name-holder" @click="toggleCategory(category.id)">
-              <ArrowDownIcon /> 
-              {{ category.name }}
-            </div>
-            <div 
-              v-if="canCreateChannels" 
-              class="create-channel" 
-              @click="emitCreateChannel(category.id)"
-            >
-              +
-            </div>
+    <div v-if="categories && categories.length > 0" class="categories-container">
+      <div v-for="category in combinedCategories" :key="category.id" class="category" :class="{ 'expanded': category.expanded }">
+        <div class="category-name" :data-category-id="category.id">
+          <div class="category-name-holder" @click="toggleCategory(category.id)" style="cursor: pointer;">
+            <ArrowDownIcon /> 
+            {{ category.name }}
           </div>
-          
-          <!-- Category drop zone -->
-          <draggable
-            v-model="category.channels"
-            :group="dragGroup"
-            :disabled="!canDragAndDrop"
-            @start="onDragStart"
-            @end="onDragEnd"
-            @add="(evt) => onChannelAddedToCategory(evt, category.id)"
-            @remove="onChannelRemovedFromCategory"
-            item-key="id"
-            :class="{ 
-              'category-items': true, 
-              'drag-disabled': !canDragAndDrop,
-              'drag-over': dragState.isOver && dragState.targetCategoryId === category.id
-            }"
-            tag="div"
+          <div 
+            v-if="canCreateChannels" 
+            class="create-channel" 
+            @click="emitCreateChannel(category.id)"
           >
-            <template #item="{ element }">
-              <div 
-                :key="element.id" 
-                :class="['channel-item', 'category-channel', { 
-                  'selected': element.id === currentChannelId,
-                  'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id
-                }]" 
-                @click="selectChannel(element.id)"
-                :style="{ cursor: getDragCursor('channel') }"
-                :data-channel-id="element.id"
-                :data-category-id="category.id"
-              >
-                <div class="channel-content">
-                  <HashTagIcon v-if="element.type === 0" />
-                  <SpeakerIcon v-else /> 
-                  {{ element.name }}
-                </div>
-                <!-- Voice channel controls -->
-                <div v-if="element.type === 1" class="voice-controls">
-                  <button
-                    v-if="!isUserInVoiceChannel(element.id)"
-                    @click.stop="joinVoiceChannel(element.id)"
-                    class="voice-btn join-btn"
-                    title="Join voice channel"
-                  >
-                    🎤
-                  </button>
-                  <button
-                    v-else
-                    @click.stop="leaveVoiceChannel(element.id)"
-                    class="voice-btn leave-btn"
-                    title="Leave voice channel"
-                  >
-                    🔇
-                  </button>
-                  <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
-                    {{ getUsersInVoiceChannel(element.id).length }}
-                  </span>
-                </div>
-              </div>
-            </template>
-          </draggable>
+            +
+          </div>
         </div>
-      </template>
-    </draggable>
+        
+        <!-- Category drop zone -->
+        <draggable
+          v-model="category.channels"
+          :group="dragGroup"
+          :disabled="!canDragAndDrop"
+          @start="onDragStart"
+          @end="onDragEnd"
+          @add="(evt: any) => onChannelAddedToCategory(evt, category.id)"
+          @remove="onChannelRemovedFromCategory"
+          item-key="id"
+          :class="{ 
+            'category-items': true, 
+            'drag-disabled': !canDragAndDrop,
+            'drag-over': dragState.isOver && dragState.targetCategoryId === category.id
+          }"
+          tag="div"
+        >
+          <template #item="{ element }">
+            <div 
+              :key="element.id" 
+              :class="['channel-item', 'category-channel', { 
+                'selected': element.id === currentChannelId,
+                'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id
+              }]" 
+              @click="selectChannel(element.id)"
+              :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
+              :data-channel-id="element.id"
+              :data-category-id="category.id"
+            >
+              <div class="channel-content">
+                <HashTagIcon v-if="element.type === 0" />
+                <SpeakerIcon v-else /> 
+                {{ element.name }}
+              </div>
+              <!-- Voice channel controls -->
+              <div v-if="element.type === 1" class="voice-controls">
+                <button
+                  v-if="!isUserInVoiceChannel(element.id)"
+                  @click.stop="joinVoiceChannel(element.id)"
+                  class="voice-btn join-btn"
+                  title="Join voice channel"
+                >
+                  🎤
+                </button>
+                <button
+                  v-else
+                  @click.stop="leaveVoiceChannel(element.id)"
+                  class="voice-btn leave-btn"
+                  title="Leave voice channel"
+                >
+                  🔇
+                </button>
+                <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
+                  {{ getUsersInVoiceChannel(element.id).length }}
+                </span>
+              </div>
+            </div>
+          </template>
+        </draggable>
+      </div>
+    </div>
     
     <UserProfileComponent />
   </div>
@@ -294,8 +282,16 @@ export default defineComponent({
         return [];
       }
       return props.categories.map(category => {
-        const savedState = localStorage.getItem(`category-${category.id}-expanded`);
-        const isExpanded = savedState !== null ? savedState === 'true' : true;
+        // Check reactive state first, then fall back to localStorage
+        let isExpanded;
+        if (category.id in categoryOpenState.value) {
+          isExpanded = categoryOpenState.value[category.id];
+        } else {
+          const savedState = localStorage.getItem(`category-${category.id}-expanded`);
+          isExpanded = savedState !== null ? savedState === 'true' : true;
+          // Initialize the reactive state with the saved value
+          categoryOpenState.value[category.id] = isExpanded;
+        }
         
         return {
           ...category,
@@ -429,26 +425,6 @@ export default defineComponent({
       console.log('Channel removed from category');
     };
 
-    // Category drag handlers
-    const onCategoryDragStart = (evt: any) => {
-      if (!canDragAndDrop.value) {
-        evt.preventDefault();
-        return false;
-      }
-      
-      document.body.classList.add('dragging-category');
-    };
-
-    const onCategoryDragEnd = async (evt: any) => {
-      document.body.classList.remove('dragging-category');
-      
-      const wasSuccessfulMove = evt.to !== evt.from || evt.newIndex !== evt.oldIndex;
-      
-      if (wasSuccessfulMove) {
-        console.log('Category reorder completed successfully');
-      }
-    };
-
     // Other methods
     const toggleDropdown = () => {
       isDropdownOpen.value = !isDropdownOpen.value;
@@ -463,8 +439,14 @@ export default defineComponent({
     };
 
     const toggleCategory = (categoryId: string) => {
-      const newState = !categoryOpenState.value[categoryId];
+      // Get current state (default to true if not set)
+      const currentState = categoryOpenState.value[categoryId] ?? true;
+      const newState = !currentState;
+      
+      // Update reactive state
       categoryOpenState.value[categoryId] = newState;
+      
+      // Save to localStorage
       localStorage.setItem(`category-${categoryId}-expanded`, newState.toString());
     };
 
@@ -569,8 +551,6 @@ export default defineComponent({
       onChannelAddedToCategory,
       onChannelAddedToOrphans,
       onChannelRemovedFromCategory,
-      onCategoryDragStart,
-      onCategoryDragEnd,
       
       // Permissions
       canDragAndDrop,
@@ -824,13 +804,13 @@ export default defineComponent({
 }
 
 /* Disable drag styles */
-.drag-disabled {
+/* .drag-disabled {
   cursor: not-allowed !important;
 }
 
 .drag-disabled .channel-item {
   cursor: not-allowed !important;
-}
+} */
 
 .drag-disabled .channel-item:hover {
   transform: none !important;

@@ -75,9 +75,22 @@ export function useChannelPermissions() {
     return true
   }
 
-  const getDragCursor = (itemType: string) => {
-    if (!canDragAndDrop.value) return 'not-allowed'
-    return itemType === 'channel' ? 'move' : 'grab'
+  const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => {
+    if (itemType === 'channel') {
+      if (!canDragAndDrop.value) {
+        return 'pointer'; // Allow selection even without drag permission
+      }
+      return isDragging ? 'grabbing' : 'grab';
+    }
+    
+    if (itemType === 'category') {
+      if (!canDragAndDrop.value) {
+        return 'pointer'; // Allow selection even without drag permission
+      }
+      return isDragging ? 'grabbing' : 'grab';
+    }
+    
+    return 'pointer';
   }
 
   const validateDragAndDrop = (itemType: string, dropType: string) => {
