@@ -141,10 +141,17 @@ export default defineComponent({
       if (!Array.isArray(props.categories)) {
         return [];
       }
-      return props.categories.map(category => ({
-        ...category,
-        channels: props.categoryChannels[category.id] || [],
-      }));
+      return props.categories.map(category => {
+        // Get saved state from localStorage, default to true (expanded)
+        const savedState = localStorage.getItem(`category-${category.id}-expanded`);
+        const isExpanded = savedState !== null ? savedState === 'true' : true;
+        
+        return {
+          ...category,
+          expanded: isExpanded,
+          channels: props.categoryChannels[category.id] || [],
+        };
+      });
     });
 
     const orphanChannels = computed(() => {
@@ -278,9 +285,25 @@ export default defineComponent({
     }
 
     const toggleCategory = (categoryId: string) => {
-      const category = serverChannelStore.categories.find(c => c.id === categoryId);
-      if (category) {
-        category.expanded = !category.expanded;
+      // Find the category in combinedCategories to get current expanded state
+      const categoryIndex = combinedCategories.value.findIndex(c => c.id === categoryId);
+      if (categoryIndex !== -1) {
+        const category = combinedCategories.value[categoryIndex];
+        const newExpandedState = !category.expanded;
+        
+        // Save to localStorage
+        localStorage.setItem(`category-${categoryId}-expanded`, newExpandedState.toString());
+        
+        // Update the category in the store (if it has expanded property)
+        const storeCategory = serverChannelStore.categories.find(c => c.id === categoryId);
+        if (storeCategory) {
+          storeCategory.expanded = newExpandedState;
+        }
+        
+        // Force reactivity update by updating the computed property
+        // This will trigger the combinedCategories computed to re-evaluate
+        // and pick up the new localStorage value
+        category.expanded = newExpandedState;
       }
     };
 
