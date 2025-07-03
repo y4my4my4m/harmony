@@ -5,16 +5,18 @@
       @showCategoryCreator="showCategoryCreator"
       @createCategory="createCategory"
     />
-    <div class="server-name" @click="toggleDropdown">
-      {{ currentServer.name }}
+    <div class="server-header">
+      <div class="server-name" @click.stop="toggleDropdown">
+        {{ currentServer.name }}
+      </div>
+      <ServerDropdown
+        :serverId="currentServer.id"
+        :isVisible="isDropdownOpen"
+        @toggle="toggleDropdown"
+        @showCategoryCreator="showCategoryCreator"
+        @createChannel="emitCreateChannel"
+      />
     </div>
-    <ServerDropdown
-      :serverId="currentServer.id"
-      :isVisible="isDropdownOpen"
-      @toggle="toggleDropdown"
-      @showCategoryCreator="showCategoryCreator"
-      @createChannel="emitCreateChannel"
-    />
     
     <!-- Orphan Channels (not in any category) -->
     <div class="orphan-channels">
@@ -173,7 +175,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, nextTick } from 'vue';
+import { defineComponent, ref, computed } from 'vue';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
@@ -652,6 +654,11 @@ export default defineComponent({
   min-width: 240px;
   background-color: var(--h-sidebar);
   overflow-y: auto;
+}
+
+.server-header {
+  position: relative;
+  z-index: 10;
 }
 
 .server-name {
