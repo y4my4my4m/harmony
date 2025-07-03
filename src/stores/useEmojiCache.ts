@@ -363,7 +363,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
           await this.handleEmojiInsert(newEmoji);
           break;
         case 'UPDATE':
-          await this.handleEmojiUpdate(newEmoji);
+          await this.handleEmojiUpdateEntry(newEmoji);
           break;
         case 'DELETE':
           await this.handleEmojiDelete(oldEmoji);
@@ -397,6 +397,52 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
 
       this.rebuildResolvedEmojis();
       console.log('➕ Added new emoji to cache:', emoji.name);
+    },
+
+    // Handle emoji updates - distinct from handleEmojiUpdate to avoid recursion
+    async handleEmojiUpdateEntry(emoji: Emoji) {
+      const cache = this.serverCaches.get(emoji.server_id);
+      if (!cache) {
+        // Server not in cache, might need to reload
+        this.markServerStale(emoji.server_id);
+        return;
+      }
+
+      const existingEntry = cache.emojis.get(emoji.id);
+      if (existingEntry) {
+        // Remove old name index entry if name changed
+        if (existingEntry.emoji.name !== emoji.name) {
+          const oldNameEntries = this.nameIndex.get(existingEntry.emoji.name);
+          if (oldNameEntries) {
+            const index = oldNameEntries.indexOf(existingEntry);
+            if (index > -1) {
+              oldNameEntries.splice(index, 1);
+            }
+            if (oldNameEntries.length === 0) {
+              this.nameIndex.delete(existingEntry.emoji.name);
+            }
+          }
+
+          // Add new name index entry
+          if (!this.nameIndex.has(emoji.name)) {
+            this.nameIndex.set(emoji.name, []);
+          }
+          this.nameIndex.get(emoji.name)!.push(existingEntry);
+        }
+
+        // Update the cache entry with new emoji data
+        existingEntry.emoji = emoji;
+        existingEntry.lastUpdated = new Date();
+        
+        // Update global index
+        this.globalEmojiIndex.set(emoji.id, existingEntry);
+
+        this.rebuildResolvedEmojis();
+        console.log('🔄 Updated emoji in cache:', emoji.name);
+      } else {
+        // Entry doesn't exist, treat as insert
+        await this.handleEmojiInsert(emoji);
+      }
     },
 
     // Handle emoji deletion

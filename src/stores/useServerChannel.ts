@@ -104,7 +104,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const { data: categories, error: categoriesError } = await supabase
         .from('channel_categories')
         .select('*')
-        .eq('server_id', serverId);
+        .eq('server_id', serverId)
+        .order('order', { ascending: true });
 
       if (signal?.aborted) return;
       
@@ -163,9 +164,27 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async createCategory(name: string, serverId: string) {
+      // Get the highest order value for existing categories in this server
+      const { data: existingCategories, error: fetchError } = await supabase
+        .from('channel_categories')
+        .select('order')
+        .eq('server_id', serverId)
+        .order('order', { ascending: false })
+        .limit(1);
+
+      if (fetchError) {
+        console.error('Error fetching existing categories for ordering:', fetchError);
+        // Continue with default order if fetch fails
+      }
+
+      // Calculate the next order value (highest + 1, or 0 if no categories exist)
+      const nextOrder = existingCategories && existingCategories.length > 0 
+        ? (existingCategories[0].order || 0) + 1 
+        : 0;
+
       const { data, error } = await supabase
         .from('channel_categories')
-        .insert([{ name, server_id: serverId }])
+        .insert([{ name, server_id: serverId, order: nextOrder }])
         .select()
         .single();
 
