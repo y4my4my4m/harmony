@@ -610,9 +610,19 @@ export default defineComponent({
       isCategoryCreatorOpen.value = !isCategoryCreatorOpen.value;
     };
 
-    const createCategory = (categoryName: string) => {
-      emit('createCategory', categoryName);
-      isCategoryCreatorOpen.value = false;
+    const createCategory = async (categoryName: string) => {
+      try {
+        const category = await serverChannelStore.createCategory(categoryName, props.currentServer.id);
+        if (category) {
+          // Refresh categories and channels to show the new category
+          await serverChannelStore.fetchCategoriesAndChannels(props.currentServer.id);
+          console.log('Category created successfully:', category);
+        }
+      } catch (error) {
+        console.error('Failed to create category:', error);
+      } finally {
+        isCategoryCreatorOpen.value = false;
+      }
     };
 
     const handleChannelCreated = (channel: Channel) => {

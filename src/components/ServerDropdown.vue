@@ -39,13 +39,14 @@
 
       const createChannel = () => {
         emit('createChannel', null);
+        closeDropdown();
       };
 
       const closeDropdown = () => {
         emit('toggle');
       };
 
-      const createCategory = async () => {
+      const createCategory = () => {
         emit('showCategoryCreator', true);
         closeDropdown();
       };
