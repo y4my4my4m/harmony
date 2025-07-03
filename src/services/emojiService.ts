@@ -16,6 +16,14 @@ const cleanFileName = (originalName: string) => {
     const extension = parts.pop(); // Extract the extension
     let fileNameWithoutExtension = parts.join('.').trim();
 
+    // Remove ALL spaces from the emoji name
+    fileNameWithoutExtension = fileNameWithoutExtension.replace(/\s+/g, '');
+
+    // Limit to 20 characters
+    if (fileNameWithoutExtension.length > 20) {
+        fileNameWithoutExtension = fileNameWithoutExtension.substring(0, 20);
+    }
+
     // Avoid empty filenames
     if (!fileNameWithoutExtension) {
         fileNameWithoutExtension = 'emoji';
@@ -382,8 +390,6 @@ async function getServerEmojiAnalytics(serverId: string) {
 
 // Preload frequently used emojis
 async function preloadFrequentEmojis(serverIds: string[] = []) {
-    const emojiCache = useEmojiCacheStore();
-    
     try {
         // Get most used emojis from analytics
         const { data, error } = await supabase
