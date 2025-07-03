@@ -168,8 +168,8 @@
                   </div>
                 </div>
               </template>
-              <!-- Empty state for drag target -->
-              <template #footer v-if="getCachedCategoryChannels(category.id).value.length === 0">
+              <!-- Empty state for drag target - only show when dragging channels -->
+              <template #footer v-if="getCachedCategoryChannels(category.id).value.length === 0 && dragState.isDragging">
                 <div class="empty-category-placeholder">
                   Drop channels here
                 </div>
@@ -560,7 +560,7 @@ export default defineComponent({
       // - Unread messages
       // - Mentions
       // - Important announcements
-      console.log('Checking notifications for channel:', channel.id);
+      // console.log('Checking notifications for channel:', channel.id);
       return false;
     };
 
