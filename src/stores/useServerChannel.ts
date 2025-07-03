@@ -355,7 +355,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       if (error) {
         console.error('Error creating server:', error);
-        throw error; // Throw error instead of returning null
+        throw error;
       }
 
       // Add the new server to the user's server list
@@ -364,7 +364,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       // Add server to local state
       this.servers.push(data);
       
-      console.log('✅ Server created successfully:', data);
+      console.log('✅ Server created successfully with default structure:', data);
       return data;
     },
 
