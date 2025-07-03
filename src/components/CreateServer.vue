@@ -280,27 +280,24 @@ export default {
       try {
         const serverData = {
           name: serverName.value.trim(),
-          description: description.value.trim() || null,
+          description: description.value.trim() || undefined,
           public: isPublic.value,
           owner: userId
         };
 
         console.log('Creating server with data:', serverData);
-        const success = await serverChannelStore.createServer(serverData.name, userId);
+        const result = await serverChannelStore.createServer(serverData);
+        console.log('Server creation result:', result);
         
-        if (success) {
-          // TODO: Handle icon upload if file exists
-          if (iconFile.value) {
-            console.log('Server icon upload would be handled here', iconFile.value);
-          }
-
-          toast.success('Server created successfully!');
-          closeModal();
-          // Refresh the page to show the new server
-          router.go(0);
-        } else {
-          errorMessage.value = "Failed to create server. Please try again.";
+        // TODO: Handle icon upload if file exists
+        if (iconFile.value) {
+          console.log('Server icon upload would be handled here', iconFile.value);
         }
+
+        toast.success('Server created successfully!');
+        closeModal();
+        // Refresh the page to show the new server
+        router.go(0);
       } catch (error: any) {
         console.error('Server creation error:', error);
         errorMessage.value = error.message || "An unexpected error occurred";

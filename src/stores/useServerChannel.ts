@@ -341,20 +341,42 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.channels = data;
     },
 
-    async createServer(name: string, userId: string) {
+    async createServer(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
       const { data, error } = await supabase
         .from('servers')
-        .insert([{ name, owner: userId }])
+        .insert([{
+          name: serverData.name,
+          description: serverData.description || null,
+          public: serverData.public || false,
+          owner: serverData.owner
+        }])
         .select()
         .single();
 
       if (error) {
         console.error('Error creating server:', error);
-        return null;
+        throw error; // Throw error instead of returning null
       }
 
+      // Add the new server to the user's server list
+      await this.addUserToServer(data.id, serverData.owner);
+      
+      // Add server to local state
       this.servers.push(data);
+      
+      console.log('✅ Server created successfully:', data);
       return data;
+    },
+
+    async addUserToServer(serverId: string, userId: string) {
+      const { error } = await supabase
+        .from('user_servers')
+        .insert([{ server_id: serverId, user_id: userId }]);
+
+      if (error) {
+        console.error('Error adding user to server:', error);
+        throw error;
+      }
     },
 
     async getCurrentServer() {
