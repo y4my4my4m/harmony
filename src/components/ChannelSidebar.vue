@@ -74,10 +74,20 @@
     </div>
 
     <!-- Categories with their channels -->
-    <template v-if="categories && categories.length > 0">
-      <template v-for="category in combinedCategories" :key="category.id">
-        <div class="category" :class="{ 'expanded': category.expanded }">
-          <div class="category-name">
+    <draggable
+      v-if="categories && categories.length > 0"
+      v-model="reorderableCategories"
+      :group="{ name: 'categories', pull: false, put: false }"
+      :disabled="!canDragAndDrop"
+      @start="onCategoryDragStart"
+      @end="onCategoryDragEnd"
+      item-key="id"
+      :class="{ 'categories-container': true, 'drag-disabled': !canDragAndDrop }"
+      tag="div"
+    >
+      <template #item="{ element: category }">
+        <div class="category" :class="{ 'expanded': category.expanded }" :key="category.id">
+          <div class="category-name" :data-category-id="category.id">
             <div class="category-name-holder" @click="toggleCategory(category.id)">
               <ArrowDownIcon /> 
               {{ category.name }}
@@ -152,14 +162,14 @@
           </draggable>
         </div>
       </template>
-    </template>
+    </draggable>
     
     <UserProfileComponent />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch } from 'vue';
+import { defineComponent, ref, computed } from 'vue';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
@@ -235,7 +245,6 @@ export default defineComponent({
       canCreateChannels,
       canMoveChannelsBetweenCategories,
       getDragCursor,
-      validateDragAndDrop,
     } = useChannelPermissions();
 
     const categoryOpenState = ref<CategoryOpenState>({});
@@ -294,6 +303,15 @@ export default defineComponent({
           channels: props.categoryChannels[category.id] || [],
         };
       });
+    });
+
+    // Reorderable categories for drag and drop
+    const reorderableCategories = computed({
+      get: () => combinedCategories.value,
+      set: (newCategories) => {
+        // Handle category reordering
+        serverChannelStore.updateCategoryOrder(newCategories);
+      }
     });
 
     // Drag event handlers
@@ -356,7 +374,7 @@ export default defineComponent({
       };
     };
 
-    const onChannelAddedToCategory = async (evt: any, categoryId: string) => {
+    const onChannelAddedToCategory = async (evt: { item: HTMLElement }, categoryId: string) => {
       if (!canMoveChannelsBetweenCategories.value) {
         console.warn('No permission to move channels between categories');
         return;
@@ -406,9 +424,29 @@ export default defineComponent({
       }
     };
 
-    const onChannelRemovedFromCategory = (evt: any) => {
+    const onChannelRemovedFromCategory = () => {
       // This is handled by the add events, just logging for debugging
       console.log('Channel removed from category');
+    };
+
+    // Category drag handlers
+    const onCategoryDragStart = (evt: any) => {
+      if (!canDragAndDrop.value) {
+        evt.preventDefault();
+        return false;
+      }
+      
+      document.body.classList.add('dragging-category');
+    };
+
+    const onCategoryDragEnd = async (evt: any) => {
+      document.body.classList.remove('dragging-category');
+      
+      const wasSuccessfulMove = evt.to !== evt.from || evt.newIndex !== evt.oldIndex;
+      
+      if (wasSuccessfulMove) {
+        console.log('Category reorder completed successfully');
+      }
     };
 
     // Other methods
@@ -520,6 +558,7 @@ export default defineComponent({
       showCategoryCreator,
       createCategory,
       combinedCategories,
+      reorderableCategories,
       orphanChannels,
       
       // Drag & Drop
@@ -530,6 +569,8 @@ export default defineComponent({
       onChannelAddedToCategory,
       onChannelAddedToOrphans,
       onChannelRemovedFromCategory,
+      onCategoryDragStart,
+      onCategoryDragEnd,
       
       // Permissions
       canDragAndDrop,

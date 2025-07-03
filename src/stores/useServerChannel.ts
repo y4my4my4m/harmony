@@ -115,11 +115,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
       this.categories = categories;
 
-      // Fetch channels
+      // Fetch channels ordered by order column
       const { data: channels, error: channelsError } = await supabase
         .from('channels')
         .select('*')
-        .eq('server_id', serverId);
+        .eq('server_id', serverId)
+        .order('order', { ascending: true });
 
       if (signal?.aborted) return;
       
@@ -138,6 +139,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
           }
           this.categoryChannels[channel.category].push(channel);
         }
+      });
+
+      // Sort channels within each category by order
+      Object.keys(this.categoryChannels).forEach(categoryId => {
+        this.categoryChannels[categoryId].sort((a, b) => (a.order || 0) - (b.order || 0));
       });
     },
 
@@ -186,6 +192,29 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.channels = this.channels.map(channel => {
         const update = updates.find(u => u.id === channel.id);
         return update ? { ...channel, order: update.order, category: update.category } : channel;
+      });
+    },
+
+    async updateCategoryOrder(categories: Category[]) {
+      // Update the order of categories
+      const updates = categories.map((category, index) => ({
+        id: category.id,
+        order: index
+      }));
+
+      const { error } = await supabase
+        .from('channel_categories')
+        .upsert(updates);
+
+      if (error) {
+        console.error('Error updating category order:', error);
+        throw error;
+      }
+
+      // Update local state
+      this.categories = this.categories.map(category => {
+        const update = updates.find(u => u.id === category.id);
+        return update ? { ...category, order: update.order } : category;
       });
     },
 
