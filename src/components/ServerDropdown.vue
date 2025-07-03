@@ -5,7 +5,7 @@
         {{ canManageServer ? 'Server Settings' : 'View Server Info' }}
       </li>
       <li v-if="canCreateCategories" @click="createCategory">Create Category</li>
-      <li v-if="canCreateChannels" @click="createChannel">Create channel</li>
+      <li v-if="canCreateChannels" @click="createChannel">Create Channel</li>
       <li @click="generateInviteLink">Get Invite Link</li>
     </ul>
   </div>

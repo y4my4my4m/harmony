@@ -93,6 +93,46 @@ export const useServerStore = defineStore('server', {
         console.error('Error leaving server:', error);
         return false;
       }
+    },
+
+    async deleteServer(serverId: string, userId: string): Promise<boolean> {
+      try {
+        // First verify the user is the owner
+        const server = await this.getServer(serverId);
+        if (!server || server.owner !== userId) {
+          throw new Error('Only the server owner can delete the server');
+        }
+
+        // Delete the server (this will cascade delete related data due to foreign key constraints)
+        const { error } = await supabase
+          .from('servers')
+          .delete()
+          .eq('id', serverId)
+          .eq('owner', userId); // Double check ownership in the query
+
+        if (error) throw error;
+
+        // Also delete server icon from storage if it exists
+        if (server.icon && server.icon !== '/default_server_icon.png') {
+          try {
+            const iconPath = server.icon.split('/').pop();
+            if (iconPath) {
+              await supabase.storage
+                .from('server_icons')
+                .remove([`${serverId}/${iconPath}`]);
+            }
+          } catch (iconError) {
+            console.warn('Failed to delete server icon:', iconError);
+            // Don't fail the entire operation if icon deletion fails
+          }
+        }
+
+        console.log("Server deleted successfully");
+        return true;
+      } catch (error) {
+        console.error('Error deleting server:', error);
+        return false;
+      }
     }
   }
 });

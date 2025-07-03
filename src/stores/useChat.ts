@@ -473,6 +473,8 @@ export const useChatStore = defineStore('chat', {
 
     async addReaction(messageId: string, emojiId: string, userId: string) {
       try {
+        console.log('🎯 Adding reaction:', { messageId, emojiId, userId });
+        
         // Attempt to insert new reaction
         const { data: reactionData, error: insertError } = await supabase
           .from('reactions')
@@ -486,8 +488,10 @@ export const useChatStore = defineStore('chat', {
         let wasRemoval = false;
         let removedReactionId: string;
         if (insertError) {
+          console.log('🎯 Insert error detected:', insertError);
           // Check for unique constraint violation (duplicate reaction)
           if (insertError.code === "23505") {
+            console.log('🎯 Duplicate reaction detected, removing...');
             // Delete the reaction if it already exists
             const {data: removedReaction, error: removedError} = await supabase
               .from('reactions')
@@ -500,10 +504,12 @@ export const useChatStore = defineStore('chat', {
               console.error('Error removing reaction:', removedError);
               return;
             } else {
-              console.log('Reaction removed: ', removedReactionId);
+              console.log('🎯 Reaction successfully deleted from DB:', removedReactionId);
             }
             wasRemoval = true;
           }
+        } else {
+          console.log('🎯 Reaction successfully added to DB:', reactionData);
         }
     
         // Fetch and update reaction data in messages
@@ -604,6 +610,7 @@ export const useChatStore = defineStore('chat', {
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'reactions' },
           async (payload) => {
+            console.log('🟢 INSERT event received for reaction:', payload);
             const updatedReactionData = await this.fetchAndPopulateReactions(payload.new.message_id);
             const messageIndex = this.messages.findIndex(msg => msg.id === payload.new.message_id);
             if (messageIndex !== -1) {
@@ -622,41 +629,68 @@ export const useChatStore = defineStore('chat', {
         )
         .on(
           'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'reactions' },
+          { 
+            event: 'DELETE', 
+            schema: 'public', 
+            table: 'reactions',
+            // Try to get more fields in the DELETE payload
+            filter: undefined
+          },
           async (payload) => {
-            const reactionIdToDelete = payload.old.id;
-        
-            for (const message of this.messages) {
-              if (message.reactions) {
-                for (const reactionObj of message.reactions) {
-                  const reactionArray = reactionObj.reactions;
-                  if (reactionArray && Array.isArray(reactionArray)) {
-                    const reactionIndex = reactionArray.findIndex(reaction => reaction.id === reactionIdToDelete);
-                    if (reactionIndex !== -1) {
-                      reactionArray.splice(reactionIndex, 1);
-                      reactionObj.count = reactionArray.length;
-        
-                      try {
-                        const updatedReactionData = await this.fetchAndPopulateReactions(message.id);
-                        message.reactions = updatedReactionData;
-
-                        // Update cache
-                        this.messageCache.forEach((cache) => {
-                          const cacheIndex = cache.messages.findIndex(msg => msg.id === message.id);
-                          if (cacheIndex !== -1) {
-                            cache.messages[cacheIndex].reactions = updatedReactionData;
-                            cache.lastModified = new Date();
-                          }
-                        });
-                      } catch (error) {
-                        console.error('Error during reaction deletion handling:', error);
+            console.log('🔥 DELETE event received for reaction:', payload);
+            console.log('🔥 Full payload.old:', payload.old);
+            console.log('🔥 Full payload.new:', payload.new);
+            console.log('🔥 Deleted reaction ID:', payload.old.id);
+            console.log('🔥 Message ID from old:', payload.old.message_id);
+            
+            // If we don't have message_id in the payload, we need to find it another way
+            let messageId = payload.old.message_id;
+            
+            if (!messageId) {
+              console.log('🔥 No message_id in payload, searching current messages for reaction references...');
+              // As a fallback, search through current messages to find which one had this reaction
+              for (const message of this.messages) {
+                if (message.reactions) {
+                  for (const reactionGroup of message.reactions) {
+                    if (reactionGroup.reactions && Array.isArray(reactionGroup.reactions)) {
+                      const hasReaction = reactionGroup.reactions.some(r => r.reaction_id === payload.old.id);
+                      if (hasReaction) {
+                        messageId = message.id;
+                        console.log('🔥 Found message ID by searching:', messageId);
+                        break;
                       }
-                      break;
                     }
                   }
                 }
+                if (messageId) break;
               }
             }
+            
+            if (!messageId) {
+              console.error('🔥 Could not determine message_id for deleted reaction, skipping update');
+              return;
+            }
+            
+            // Fetch fresh reaction data for this message
+            const updatedReactionData = await this.fetchAndPopulateReactions(messageId);
+            
+            // Update the message in current messages
+            const messageIndex = this.messages.findIndex(msg => msg.id === messageId);
+            if (messageIndex !== -1) {
+              console.log('🔥 Updating reactions for message:', messageId);
+              this.messages[messageIndex].reactions = updatedReactionData;
+            } else {
+              console.log('🔥 Message not found in current messages:', messageId);
+            }
+
+            // Update cache for all channels containing this message
+            this.messageCache.forEach((cache) => {
+              const cacheIndex = cache.messages.findIndex(msg => msg.id === messageId);
+              if (cacheIndex !== -1) {
+                cache.messages[cacheIndex].reactions = updatedReactionData;
+                cache.lastModified = new Date();
+              }
+            });
           }
         )
         .subscribe();            

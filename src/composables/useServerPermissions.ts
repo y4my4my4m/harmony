@@ -128,7 +128,8 @@ export function useServerPermissions() {
     canDeleteEmojis: canManageEmojis.value,
     canManageCrossServerEmojis: canManageServer.value,
     canViewSettings: canViewServerSettings.value,
-    canSaveChanges: canManageServer.value
+    canSaveChanges: canManageServer.value,
+    canDeleteServer: isCurrentUserServerOwner.value
   }))
 
   const channelPermissions = computed(() => ({
