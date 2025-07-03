@@ -192,7 +192,9 @@
 }
 
 .icon-button.muted {
-  background-color: #f04747;
+  color:#f04747;
+  fill:#f04747;
+  background-color: #f047472f;
 }
 
 /* Shared Form Styles */

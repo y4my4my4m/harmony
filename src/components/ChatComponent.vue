@@ -64,6 +64,7 @@
   import { useServerUsersStore } from '@/stores/useServerUsers'; 
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { handleFileDrop } from '@/services/fileService';
+  import { recordEmojiUsage } from '@/services/emojiService';
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
   import GifComponent from '@/components/GifComponent.vue';
@@ -381,15 +382,36 @@
 
       const handleSendEmoji = async (emoji: Emoji) => {
         closeEmojiList();
-
+        
         if (isPopupForReaction.value) {
-          if (authStore.session?.user) {
+          if (authStore.session?.user && serverChannelStore.currentServerId) {
             reactionSound2.value.volume = 0.5;
             reactionSound2.value.play();
+            
+            // Track emoji usage when used as reaction
+            await recordEmojiUsage(
+              emoji.id,
+              authStore.session.user.id,
+              serverChannelStore.currentServerId,
+              'reaction',
+              selectedMessageId.value
+            );
+            
             await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
           }
         }
         else {
+          // Track emoji usage when used in message content
+          if (authStore.session?.user && serverChannelStore.currentServerId) {
+            await recordEmojiUsage(
+              emoji.id,
+              authStore.session.user.id,
+              serverChannelStore.currentServerId,
+              'message'
+              // contextId will be null for message content since the message hasn't been created yet
+            );
+          }
+          
           // Append emoji name to the existing message content
           messageContent.value += `:${emoji.name}:`;
           console.log("Emoji added in Parent:", messageContent.value);

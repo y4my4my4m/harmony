@@ -176,15 +176,20 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
     }
 
     const input = inputElement.value;
-    const cursorPosition = input.selectionStart || 0;
-
-    // Get input element position
     const inputRect = input.getBoundingClientRect();
     
-    // For better positioning, we'll use a simpler approach
-    // Position the popup above the input with some margin
+    // Calculate dynamic height based on number of suggestions
+    const suggestionCount = suggestions.value.length;
+    const baseHeight = 40; // Header height
+    const itemHeight = 40; // Each suggestion item height
+    const maxHeight = 200; // Maximum popup height
+    
+    // Calculate actual popup height needed
+    const popupHeight = Math.min(baseHeight + (suggestionCount * itemHeight), maxHeight);
+    
+    // Position above the input with dynamic spacing
     const x = inputRect.left + 10; // Small left margin
-    const y = inputRect.top - 250; // Position well above the input (250px)
+    const y = inputRect.top - popupHeight - 30; // Position above with 30px margin
     
     // Make sure the popup doesn't go off-screen
     const viewportWidth = window.innerWidth;
@@ -194,7 +199,11 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
     const adjustedX = Math.min(x, viewportWidth - 320); // 320px = max popup width + margin
     
     // Adjust y position if it would go off the top edge
-    const adjustedY = Math.max(y, 10); // Minimum 10px from top
+    let adjustedY = y;
+    if (y < 10) {
+      // If not enough space above, position below the input instead
+      adjustedY = inputRect.bottom + 10;
+    }
     
     return {
       x: Math.max(adjustedX, 10), // Minimum 10px from left
@@ -220,8 +229,15 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
           query,
           triggerPosition: cursorPosition - match[0].length,
           selectedIndex: 0,
-          position: calculateCursorPosition()
+          position: { x: 0, y: 0 } // Will be updated after suggestions are computed
         };
+        
+        // Update position after suggestions are computed in the next tick
+        nextTick(() => {
+          if (state.value.isActive) {
+            state.value.position = calculateCursorPosition();
+          }
+        });
         
         matchFound = true;
         break;
@@ -234,7 +250,7 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
   };
 
   // Handle keyboard navigation
-  const handleKeyDown = (event: KeyboardEvent): boolean => {
+  const handleKeyDown = (event: KeyboardEvent): boolean => {    
     if (!state.value.isActive || suggestions.value.length === 0) {
       return false;
     }
@@ -252,11 +268,8 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
 
       case 'Enter':
       case 'Tab':
-        event.preventDefault();
-        if (suggestions.value[state.value.selectedIndex]) {
-          selectSuggestion(suggestions.value[state.value.selectedIndex]);
-        }
-        return true;
+        // Don't handle Enter/Tab here - let MessageInput handle it
+        return false; // Let MessageInput handle the Enter key
 
       case 'Escape':
         event.preventDefault();
@@ -284,11 +297,11 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
     // Calculate replacement text
     let insertText = '';
 
-    if (state.value.triggerType === 'emoji' && suggestion.emoji) {
+    if (state.value.triggerType === 'emoji') {
       // For emojis, replace with :emoji_name: format
       insertText = `:${suggestion.name}:`;
-    } else if (state.value.triggerType === 'mention' && suggestion.user) {
-      // For mentions, we already have @ at triggerStart, so just add username
+    } else if (state.value.triggerType === 'mention') {
+      // For mentions, replace the entire @query with @username
       const username = suggestion.username || suggestion.display_name;
       insertText = `${username}`;
     }

@@ -31,7 +31,7 @@ export default defineComponent({
     }
 
     .headphonesIconDeafened .headphonesIconDeafenedPath {
-        fill: #DD0000;
+        fill: #f04747;
         transition: .2s;
         cursor:pointer;
         opacity: 0.75;

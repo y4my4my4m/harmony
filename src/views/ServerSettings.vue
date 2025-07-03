@@ -62,6 +62,7 @@
             :owner-id="server.owner"
             :loading="loading"
             @emoji-uploaded="handleEmojiUploaded"
+            @emoji-deleted="handleEmojiDeleted"
           />
 
           <!-- Privacy Settings Section -->
@@ -177,6 +178,13 @@ const handleFileChange = (file: File | null) => {
 const handleEmojiUploaded = (newEmoji: Emoji) => {
   emojis.value.push(newEmoji)
   toast.success('Emoji uploaded successfully')
+}
+
+const handleEmojiDeleted = (emojiId: string) => {
+  const index = emojis.value.findIndex(emoji => emoji.id === emojiId)
+  if (index > -1) {
+    emojis.value.splice(index, 1)
+  }
 }
 
 const handleSave = async () => {

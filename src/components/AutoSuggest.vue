@@ -159,6 +159,14 @@ export default defineComponent({
   background: #5865f2;
 }
 
+.suggest-item.selected .suggest-server {
+  color: #dcddde !important; /* Better contrast on selected background */
+}
+
+.suggest-item:hover .suggest-server {
+  color: #dcddde; /* Better contrast on hover background */
+}
+
 .suggest-item-default {
   display: flex;
   align-items: center;
