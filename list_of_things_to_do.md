@@ -5,6 +5,8 @@
 5. video
 6. search
 7. streaming
+8. better invite system
+9. currently there's a bug where users can be invited and join the same server multiple times (should probably be fixed in the backend)
 
 ---
 
