@@ -135,13 +135,30 @@ export default defineComponent({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Let auto-suggest handle its own key events first
-      if (autoSuggest.handleKeyDown(event)) {
+      console.log('💬 MessageInput handleKeyDown called:', event.key, 'autoSuggest active:', autoSuggest.state.value.isActive);
+      
+      // Special handling for Enter key when autosuggestion is active
+      if (event.key === 'Enter' && autoSuggest.state.value.isActive && autoSuggest.suggestions.value.length > 0) {
+        event.preventDefault();
+        console.log('🎯 Enter pressed with active autosuggestion, selecting suggestion');
+        const selectedSuggestion = autoSuggest.suggestions.value[autoSuggest.state.value.selectedIndex];
+        if (selectedSuggestion) {
+          handleSuggestionSelect(selectedSuggestion);
+        }
+        return;
+      }
+      
+      // Let auto-suggest handle navigation keys (arrows, escape)
+      const autoSuggestHandled = autoSuggest.handleKeyDown(event);
+      console.log('🤖 AutoSuggest handled:', autoSuggestHandled);
+      
+      if (autoSuggestHandled) {
         return; // Auto-suggest handled the event
       }
       
       // Handle Enter key for sending messages (only if auto-suggest is not active)
       if (event.key === 'Enter' && !event.shiftKey) {
+        console.log('📤 Sending message via Enter key');
         event.preventDefault();
         send();
       }
@@ -151,6 +168,12 @@ export default defineComponent({
       if (textareaRef.value) {
         const newValue = autoSuggest.selectSuggestion(suggestion);
         emit('update:modelValue', newValue);
+        
+        // Also manually trigger the input event to ensure Vue reactivity
+        if (textareaRef.value) {
+          const event = new Event('input', { bubbles: true });
+          textareaRef.value.dispatchEvent(event);
+        }
       }
     };
 
