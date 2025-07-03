@@ -14,8 +14,16 @@
     <!-- Filtered emoji results -->
     <div class="emoji-content">
       <div v-if="filteredEmojiList.length === 0" class="no-results">
-        <p v-if="searchQuery.trim()">No emojis found for "{{ searchQuery }}"</p>
-        <p v-else>No emojis available</p>
+        <div v-if="searchQuery.trim()" class="no-results-content">
+          <div class="no-results-icon">🔍</div>
+          <p>No emojis found for "{{ searchQuery }}"</p>
+          <small>Try a different search term</small>
+        </div>
+        <div v-else class="no-results-content">
+          <div class="no-results-icon">😔</div>
+          <p>No custom emojis available</p>
+          <small>Ask your server admin to add some emojis!</small>
+        </div>
       </div>
       
       <div v-for="(emojiData, serverId) in filteredEmojiList" :key="serverId">
@@ -64,29 +72,38 @@
 
         // Computed property to filter emojis based on search query
         const filteredEmojiList = computed(() => {
-          if (!searchQuery.value.trim()) {
-            return Object.entries(resolvedEmojiList.value).map(([serverId, data]) => ({
-              serverId,
-              ...data
-            }));
-          }
-
-          const query = searchQuery.value.toLowerCase().trim();
           const filtered: any[] = [];
 
           Object.entries(resolvedEmojiList.value).forEach(([serverId, data]) => {
-            const matchingEmojis = data.emojis.filter(emoji => 
-              emoji.name.toLowerCase().includes(query) ||
-              emoji.display_name.toLowerCase().includes(query)
-            );
+            // Always filter out servers with no emojis
+            if (data.emojis.length === 0) {
+              return;
+            }
 
-            if (matchingEmojis.length > 0) {
+            if (!searchQuery.value.trim()) {
+              // No search query - include all servers that have emojis
               filtered.push({
                 serverId,
                 server_name: data.server_name,
                 server_icon: data.server_icon,
-                emojis: matchingEmojis
+                emojis: data.emojis
               });
+            } else {
+              // Search query present - filter emojis by search term
+              const query = searchQuery.value.toLowerCase().trim();
+              const matchingEmojis = data.emojis.filter(emoji => 
+                emoji.name.toLowerCase().includes(query) ||
+                emoji.display_name.toLowerCase().includes(query)
+              );
+
+              if (matchingEmojis.length > 0) {
+                filtered.push({
+                  serverId,
+                  server_name: data.server_name,
+                  server_icon: data.server_icon,
+                  emojis: matchingEmojis
+                });
+              }
             }
           });
 
@@ -265,8 +282,25 @@
     text-align: center;
   }
 
+  .no-results-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .no-results-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+  }
+
   .no-results p {
-    margin: 0;
+    margin: 0 0 4px 0;
+    font-weight: 500;
+  }
+
+  .no-results small {
+    color: #6f7177;
+    font-size: 12px;
   }
 
   /* Scrollbar styling */

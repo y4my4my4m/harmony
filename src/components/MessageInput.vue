@@ -135,12 +135,12 @@ export default defineComponent({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      console.log('💬 MessageInput handleKeyDown called:', event.key, 'autoSuggest active:', autoSuggest.state.value.isActive);
+      // console.log('💬 MessageInput handleKeyDown called:', event.key, 'autoSuggest active:', autoSuggest.state.value.isActive);
       
       // Special handling for Enter key when autosuggestion is active
       if (event.key === 'Enter' && autoSuggest.state.value.isActive && autoSuggest.suggestions.value.length > 0) {
         event.preventDefault();
-        console.log('🎯 Enter pressed with active autosuggestion, selecting suggestion');
+        // console.log('🎯 Enter pressed with active autosuggestion, selecting suggestion');
         const selectedSuggestion = autoSuggest.suggestions.value[autoSuggest.state.value.selectedIndex];
         if (selectedSuggestion) {
           handleSuggestionSelect(selectedSuggestion);
@@ -150,7 +150,7 @@ export default defineComponent({
       
       // Let auto-suggest handle navigation keys (arrows, escape)
       const autoSuggestHandled = autoSuggest.handleKeyDown(event);
-      console.log('🤖 AutoSuggest handled:', autoSuggestHandled);
+      // console.log('🤖 AutoSuggest handled:', autoSuggestHandled);
       
       if (autoSuggestHandled) {
         return; // Auto-suggest handled the event
@@ -158,7 +158,7 @@ export default defineComponent({
       
       // Handle Enter key for sending messages (only if auto-suggest is not active)
       if (event.key === 'Enter' && !event.shiftKey) {
-        console.log('📤 Sending message via Enter key');
+        // console.log('📤 Sending message via Enter key');
         event.preventDefault();
         send();
       }
