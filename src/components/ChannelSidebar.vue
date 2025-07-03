@@ -399,11 +399,11 @@ export default defineComponent({
     // Reorderable categories for drag and drop - now reactive to store changes
     const reorderableCategories = computed({
       get: () => {
-        console.log('🔄 Categories getter called, current order:', serverChannelStore.categories.map(c => `${c.name}(${c.order})`));
+        // console.log('🔄 Categories getter called, current order:', serverChannelStore.categories.map(c => `${c.name}(${c.order})`));
         return combinedCategories.value;
       },
       set: (newCategories) => {
-        console.log('🎯 Setting new category order:', newCategories.map(c => `${c.name}(${c.order})`));
+        // console.log('🎯 Setting new category order:', newCategories.map(c => `${c.name}(${c.order})`));
         // Handle category reordering
         serverChannelStore.updateCategoryOrder(newCategories);
       }
