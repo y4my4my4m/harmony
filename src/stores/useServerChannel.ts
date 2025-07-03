@@ -1,10 +1,9 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { Server, Category, Channel, Emoji, ResolvedEmoji } from '@/types';
+import type { Server, Category, Channel, ResolvedEmoji } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { 
-  subscribeToServerNotifications,
-  listenInServer
+  subscribeToServerNotifications
 } from '@/services/notificationService';
 
 export const useServerChannelStore = defineStore('serverChannel', {
@@ -86,7 +85,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return;
       }
 
-      this.servers = data.map(item => item.server).filter(Boolean);
+      this.servers = data?.map((item: any) => item.server).filter(Boolean) || [];
       console.log(`📊 Loaded ${this.servers.length} servers for user`);
     },
 
@@ -148,50 +147,116 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async moveChannelToCategory(channelId: string, newCategoryId: string | null) {
-      const { data, error } = await supabase
-        .from('channels')
-        .update({ category: newCategoryId })
-        .eq('id', channelId)
-        .select()
-        .single();
+      // Store original state for potential rollback
+      const originalChannels = [...this.channels];
+      const originalCategoryChannels = { ...this.categoryChannels };
 
-      if (error) {
-        console.error('Error moving channel to category:', error);
+      try {
+        // Optimistic update: Update local state immediately
+        const channelIndex = this.channels.findIndex(c => c.id === channelId);
+        if (channelIndex !== -1) {
+          this.channels[channelIndex] = { 
+            ...this.channels[channelIndex], 
+            category: newCategoryId 
+          };
+          // Refresh category channels mapping optimistically
+          this.refreshCategoryChannels();
+        }
+
+        // Now perform the server update in the background
+        const { data, error } = await supabase
+          .from('channels')
+          .update({ category: newCategoryId })
+          .eq('id', channelId)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error moving channel to category:', error);
+          throw error;
+        }
+
+        console.log(`✅ Successfully moved channel ${channelId} to category ${newCategoryId || 'orphan'}`);
+        return data;
+      } catch (error) {
+        // Rollback on error: Restore original state
+        console.error('❌ Server update failed, rolling back channel move:', error);
+        this.channels = originalChannels;
+        this.categoryChannels = originalCategoryChannels;
         throw error;
       }
-
-      // Update local state
-      const channelIndex = this.channels.findIndex(c => c.id === channelId);
-      if (channelIndex !== -1) {
-        this.channels[channelIndex] = data;
-        // Refresh categoryChannels mapping
-        await this.fetchCategoriesAndChannels(this.currentServerId!);
-      }
-
-      return data;
     },
 
     async updateChannelOrder(channels: Channel[], categoryId: string | null) {
-      // Update the order of channels within a category or orphan channels
-      const updates = channels.map((channel, index) => ({
-        id: channel.id,
-        order: index,
-        category: categoryId
-      }));
+      // Store original state for potential rollback
+      const originalChannels = [...this.channels];
+      const originalCategoryChannels = { ...this.categoryChannels };
 
-      const { error } = await supabase
-        .from('channels')
-        .upsert(updates);
+      try {
+        // Optimistic update: Update local state immediately
+        const updateMap = new Map(channels.map((channel, index) => [channel.id, { order: index, category: categoryId }]));
+        this.channels = this.channels.map(channel => {
+          const update = updateMap.get(channel.id);
+          return update ? { ...channel, order: update.order, category: update.category } : channel;
+        });
 
-      if (error) {
-        console.error('Error updating channel order:', error);
+        // Refresh category channels mapping optimistically
+        this.refreshCategoryChannels();
+
+        // Now perform the server update in the background
+        for (let i = 0; i < channels.length; i++) {
+          const channel = channels[i];
+          const { error } = await supabase
+            .from('channels')
+            .update({ 
+              order: i, 
+              category: categoryId 
+            })
+            .eq('id', channel.id);
+
+          if (error) {
+            console.error(`Error updating channel ${channel.id}:`, error);
+            throw error;
+          }
+        }
+
+        console.log(`✅ Successfully updated order for ${channels.length} channels`);
+      } catch (error) {
+        // Rollback on error: Restore original state
+        console.error('❌ Server update failed, rolling back changes:', error);
+        this.channels = originalChannels;
+        this.categoryChannels = originalCategoryChannels;
         throw error;
       }
+    },
 
-      // Update local state
-      this.channels = this.channels.map(channel => {
-        const update = updates.find(u => u.id === channel.id);
-        return update ? { ...channel, order: update.order, category: update.category } : channel;
+    async reorderChannelsInCategory(categoryId: string | null, newChannelOrder: Channel[]) {
+      // Specifically handle reordering within the same category
+      try {
+        await this.updateChannelOrder(newChannelOrder, categoryId);
+        console.log(`✅ Reordered ${newChannelOrder.length} channels in category ${categoryId || 'orphan'}`);
+      } catch (error) {
+        console.error('❌ Failed to reorder channels in category:', error);
+        throw error;
+      }
+    },
+
+    refreshCategoryChannels() {
+      // Rebuild the categoryChannels mapping from current channels
+      this.categoryChannels = {};
+      
+      this.channels.forEach(channel => {
+        if (channel.category) {
+          if (!this.categoryChannels[channel.category]) {
+            this.categoryChannels[channel.category] = [];
+          }
+          this.categoryChannels[channel.category].push(channel);
+        }
+      });
+
+      // Sort channels within each category by order
+      Object.keys(this.categoryChannels).forEach(categoryId => {
+        this.categoryChannels[categoryId].sort((a, b) => (a.order || 0) - (b.order || 0));
       });
     },
 
@@ -312,7 +377,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       return this.resolvedEmojiList;
     },
 
-    cacheEmojis(emojisByServer: Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }>) {
+    cacheEmojis(_emojisByServer: Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }>) {
       console.log('⚠️ cacheEmojis is deprecated, caching is automatic');
       // Caching is now handled automatically by the emoji cache store
     },

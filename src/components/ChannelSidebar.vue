@@ -102,14 +102,16 @@
             <span class="category-name">{{ category.name.toUpperCase() }}</span>
           </div>
 
-          <!-- Channel List -->
+          <!-- Channel List - Always show for drag & drop, even if empty -->
           <div 
-            v-if="shouldShowCategoryContent(category)"
             class="channel-list"
-            :class="{ 'collapsed-list': collapsedCategories.has(category.id) }"
+            :class="{ 
+              'collapsed-list': collapsedCategories.has(category.id),
+              'empty-category': getCachedCategoryChannels(category.id).value.length === 0
+            }"
           >
             <draggable
-              :model-value="getVisibleChannelsForCategory(category)"
+              v-model="getCachedCategoryChannels(category.id).value"
               :group="dragGroup"
               :disabled="!canDragAndDrop"
               @start="onDragStart"
@@ -119,6 +121,7 @@
               item-key="id"
               tag="div"
               class="category-channels"
+              :class="{ 'empty-drop-zone': getCachedCategoryChannels(category.id).value.length === 0 }"
             >
               <template #item="{ element: channel }">
                 <div
@@ -164,6 +167,12 @@
                   </div>
                 </div>
               </template>
+              <!-- Empty state for drag target -->
+              <template #footer v-if="getCachedCategoryChannels(category.id).value.length === 0">
+                <div class="empty-category-placeholder">
+                  Drop channels here
+                </div>
+              </template>
             </draggable>
           </div>
         </div>
@@ -175,7 +184,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed } from 'vue';
+import { defineComponent, ref, computed, watch } from 'vue';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
@@ -290,13 +299,64 @@ export default defineComponent({
           channels.forEach(channel => categoryChannelIds.add(channel.id));
         });
         
-        return props.channels.filter(channel => !categoryChannelIds.has(channel.id));
+        return props.channels
+          .filter(channel => !categoryChannelIds.has(channel.id))
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
       },
-      set: (newChannels) => {
+      set: async (newChannels) => {
         // Handle reordering of orphan channels
-        serverChannelStore.updateChannelOrder(newChannels, null);
+        try {
+          await serverChannelStore.reorderChannelsInCategory(null, newChannels);
+        } catch (error) {
+          console.error('Failed to reorder orphan channels:', error);
+        }
       }
     });
+
+    // Create computed properties for each category's channels with proper setters
+    const getCategoryChannelsComputed = (categoryId: string) => {
+      return computed({
+        get: () => {
+          const categoryChannels = props.categoryChannels?.[categoryId] || [];
+          const channelsInCategory = props.channels
+            .filter(channel => categoryChannels.some(catChannel => catChannel.id === channel.id))
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+          
+          // If category is collapsed, only show selected channel and channels with notifications
+          if (collapsedCategories.value.has(categoryId)) {
+            return channelsInCategory.filter(channel => 
+              channel.id === props.currentChannelId || hasNotifications(channel)
+            );
+          }
+          
+          // If expanded, show all channels
+          return channelsInCategory;
+        },
+        set: async (newChannels: Channel[]) => {
+          // Handle reordering within the same category
+          try {
+            await serverChannelStore.reorderChannelsInCategory(categoryId, newChannels);
+          } catch (error) {
+            console.error(`Failed to reorder channels in category ${categoryId}:`, error);
+          }
+        }
+      });
+    };
+
+    // Cache computed properties for categories to avoid recreation
+    const categoryChannelsCache = ref<Map<string, any>>(new Map());
+    
+    const getCachedCategoryChannels = (categoryId: string) => {
+      if (!categoryChannelsCache.value.has(categoryId)) {
+        categoryChannelsCache.value.set(categoryId, getCategoryChannelsComputed(categoryId));
+      }
+      return categoryChannelsCache.value.get(categoryId);
+    };
+
+    // Clear cache when categories change
+    watch(() => props.categories, () => {
+      categoryChannelsCache.value.clear();
+    }, { deep: true });
 
     const combinedCategories = computed(() => {
       if (!Array.isArray(props.categories)) {
@@ -408,11 +468,10 @@ export default defineComponent({
       try {
         console.log(`Moving channel ${channelId} to category ${categoryId}`);
         await serverChannelStore.moveChannelToCategory(channelId, categoryId);
-        
-        // Refresh data to ensure consistency
-        await serverChannelStore.fetchChannels(props.currentServer.id);
+        // No need to refresh data - optimistic updates handle this
       } catch (error) {
         console.error('Failed to move channel to category:', error);
+        // The store will automatically rollback on error
       }
     };
 
@@ -433,11 +492,10 @@ export default defineComponent({
       try {
         console.log(`Moving channel ${channelId} to orphan channels (no category)`);
         await serverChannelStore.moveChannelToCategory(channelId, null);
-        
-        // Refresh data to ensure consistency
-        await serverChannelStore.fetchChannels(props.currentServer.id);
+        // No need to refresh data - optimistic updates handle this
       } catch (error) {
         console.error('Failed to move channel to orphan channels:', error);
+        // The store will automatically rollback on error
       }
     };
 
@@ -478,12 +536,13 @@ export default defineComponent({
     };
 
     // Enhanced notification checking
-    const hasNotifications = (_channel: Channel): boolean => {
+    const hasNotifications = (channel: Channel): boolean => {
       // TODO: Implement actual notification checking logic
       // For now, return false, but this should check for:
       // - Unread messages
       // - Mentions
       // - Important announcements
+      console.log('Checking notifications for channel:', channel.id);
       return false;
     };
 
@@ -623,6 +682,7 @@ export default defineComponent({
       getChannelIcon,
       hasNotifications,
       shouldShowCategoryContent,
+      getCachedCategoryChannels,
       
       // Drag & Drop
       dragState,
@@ -901,5 +961,21 @@ export default defineComponent({
 
 :global(.dragging-channel *) {
   cursor: grabbing !important;
+}
+
+/* Empty category placeholder */
+.empty-category-placeholder {
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: rgb(142, 146, 151);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  margin: 4px 0;
+  transition: background-color 0.2s ease;
+}
+
+.empty-category-placeholder:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 </style>
