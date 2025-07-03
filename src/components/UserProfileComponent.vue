@@ -16,7 +16,7 @@
     </div>
 
     <div class="buttons">
-      <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }"><MicIcon :isMicActive="isMicActive" /></div>
+      <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }"><MicIcon v-if="isMicActive" /><MicMutedIcon v-else /></div>
       <div class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }"><HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" /></div>
       <div class="icon-button settings" @click="goToSettings"><SettingsIcon/></div>
     </div>
@@ -47,6 +47,7 @@
   import { updateUserStatus } from '@/services/profileService';
   import { UserStatus } from '@/types';
   import MicIcon from '@/components/icons/Mic.vue';
+  import MicMutedIcon from '@/components/icons/MicMuted.vue';
   import HeadphonesIcon from '@/components/icons/Headphones.vue';
   import SettingsIcon from '@/components/icons/Settings.vue';
   
@@ -54,6 +55,7 @@
     name: 'UserProfileComponent',
     components: {
       MicIcon,
+      MicMutedIcon,
       HeadphonesIcon,
       SettingsIcon
     },
@@ -345,31 +347,6 @@
   color: white;
   font-weight: bold;
   font-size: 0.9rem;
-}
-
-.icon-button {
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s;
-  color: #b9bbbe;
-}
-
-.icon-button:hover {
-  background: #4f545c;
-  color: #dcddde;
-}
-
-.icon-button.muted {
-  color: #f04747;
-}
-
-.icon-button.settings:hover {
-  color: #dcddde;
 }
 
 .dropdown-arrow {
