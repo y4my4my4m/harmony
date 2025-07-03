@@ -44,7 +44,7 @@
             <div class="channel-content">
               <HashTagIcon v-if="element.type === 0" />
               <SpeakerIcon v-else /> 
-              {{ element.name }}
+              <span class="channel-name">{{ element.name }}</span>
             </div>
             <!-- Voice channel controls -->
             <div v-if="element.type === 1" class="voice-controls">
@@ -73,91 +73,107 @@
       </draggable>
     </div>
 
-    <!-- Categories with their channels -->
-    <div v-if="categories && categories.length > 0" class="categories-container">
-      <div v-for="category in combinedCategories" :key="category.id" class="category" :class="{ 'expanded': category.expanded }">
-        <div class="category-name" :data-category-id="category.id">
-          <div class="category-name-holder" @click="toggleCategory(category.id)" style="cursor: pointer;">
-            <ArrowDownIcon /> 
-            {{ category.name }}
-          </div>
+    <!-- Categories and Channels -->
+    <draggable
+      v-model="reorderableCategories"
+      :group="{ name: 'categories', put: false, pull: false }"
+      :disabled="!canDragAndDrop"
+      item-key="id"
+      tag="div"
+      class="categories-container"
+    >
+      <template #item="{ element: category }">
+        <div :key="category.id" class="category-section">
+          <!-- Category Header -->
           <div 
-            v-if="canCreateChannels" 
-            class="create-channel" 
-            @click="emitCreateChannel(category.id)"
+            class="category-header"
+            @click="toggleCategory(category.id)"
+            :class="{ 
+              'collapsed': collapsedCategories.has(category.id),
+              'has-visible-channels': shouldShowCategoryContent(category)
+            }"
           >
-            +
+            <ArrowDownIcon 
+              class="category-arrow" 
+              :class="{ 'rotated': collapsedCategories.has(category.id) }"
+            />
+            <span class="category-name">{{ category.name.toUpperCase() }}</span>
+          </div>
+
+          <!-- Channel List -->
+          <div 
+            v-if="shouldShowCategoryContent(category)"
+            class="channel-list"
+            :class="{ 'collapsed-list': collapsedCategories.has(category.id) }"
+          >
+            <draggable
+              :model-value="getVisibleChannelsForCategory(category)"
+              :group="dragGroup"
+              :disabled="!canDragAndDrop"
+              @start="onDragStart"
+              @end="onDragEnd"
+              @add="(evt: any) => onChannelAddedToCategory(evt, category.id)"
+              @remove="onChannelRemovedFromCategory"
+              item-key="id"
+              tag="div"
+              class="category-channels"
+            >
+              <template #item="{ element: channel }">
+                <div
+                  :key="channel.id"
+                  class="channel-item"
+                  :class="{ 
+                    'selected': currentChannelId === channel.id,
+                    'in-collapsed-category': collapsedCategories.has(category.id),
+                    'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id
+                  }"
+                  @click="selectChannel(channel.id)"
+                  :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
+                  :data-channel-id="channel.id"
+                  :data-category-id="category.id"
+                >
+                  <div class="channel-content">
+                    <HashTagIcon v-if="channel.type === 0" />
+                    <SpeakerIcon v-else />
+                    <span class="channel-name">{{ channel.name }}</span>
+                  </div>
+                  <div v-if="hasNotifications(channel)" class="notification-badge"></div>
+                  <!-- Voice channel controls -->
+                  <div v-if="channel.type === 1" class="voice-controls">
+                    <button
+                      v-if="!isUserInVoiceChannel(channel.id)"
+                      @click.stop="joinVoiceChannel(channel.id)"
+                      class="voice-btn join-btn"
+                      title="Join voice channel"
+                    >
+                      🎤
+                    </button>
+                    <button
+                      v-else
+                      @click.stop="leaveVoiceChannel(channel.id)"
+                      class="voice-btn leave-btn"
+                      title="Leave voice channel"
+                    >
+                      🔇
+                    </button>
+                    <span v-if="getUsersInVoiceChannel(channel.id).length > 0" class="user-count">
+                      {{ getUsersInVoiceChannel(channel.id).length }}
+                    </span>
+                  </div>
+                </div>
+              </template>
+            </draggable>
           </div>
         </div>
-        
-        <!-- Category drop zone -->
-        <draggable
-          v-model="category.channels"
-          :group="dragGroup"
-          :disabled="!canDragAndDrop"
-          @start="onDragStart"
-          @end="onDragEnd"
-          @add="(evt: any) => onChannelAddedToCategory(evt, category.id)"
-          @remove="onChannelRemovedFromCategory"
-          item-key="id"
-          :class="{ 
-            'category-items': true, 
-            'drag-disabled': !canDragAndDrop,
-            'drag-over': dragState.isOver && dragState.targetCategoryId === category.id
-          }"
-          tag="div"
-        >
-          <template #item="{ element }">
-            <div 
-              :key="element.id" 
-              :class="['channel-item', 'category-channel', { 
-                'selected': element.id === currentChannelId,
-                'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id
-              }]" 
-              @click="selectChannel(element.id)"
-              :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
-              :data-channel-id="element.id"
-              :data-category-id="category.id"
-            >
-              <div class="channel-content">
-                <HashTagIcon v-if="element.type === 0" />
-                <SpeakerIcon v-else /> 
-                {{ element.name }}
-              </div>
-              <!-- Voice channel controls -->
-              <div v-if="element.type === 1" class="voice-controls">
-                <button
-                  v-if="!isUserInVoiceChannel(element.id)"
-                  @click.stop="joinVoiceChannel(element.id)"
-                  class="voice-btn join-btn"
-                  title="Join voice channel"
-                >
-                  🎤
-                </button>
-                <button
-                  v-else
-                  @click.stop="leaveVoiceChannel(element.id)"
-                  class="voice-btn leave-btn"
-                  title="Leave voice channel"
-                >
-                  🔇
-                </button>
-                <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
-                  {{ getUsersInVoiceChannel(element.id).length }}
-                </span>
-              </div>
-            </div>
-          </template>
-        </draggable>
-      </div>
-    </div>
+      </template>
+    </draggable>
     
     <UserProfileComponent />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed } from 'vue';
+import { defineComponent, ref, computed, nextTick } from 'vue';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
@@ -256,6 +272,9 @@ export default defineComponent({
     const userId = computed(() => {
       return authStore.session?.user?.id || '';
     });
+
+    // Add collapsed categories state
+    const collapsedCategories = ref(new Set<string>())
 
     // Compute orphan channels (channels not in any category)
     const orphanChannels = computed({
@@ -425,7 +444,77 @@ export default defineComponent({
       console.log('Channel removed from category');
     };
 
-    // Other methods
+    // Channel filtering and organization
+    const getVisibleChannelsForCategory = (category: Category): Channel[] => {
+      const categoryChannels = props.categoryChannels?.[category.id] || [];
+      const channelsInCategory = props.channels.filter(channel => 
+        categoryChannels.some(catChannel => catChannel.id === channel.id)
+      );
+      
+      // If category is collapsed, only show selected channel and channels with notifications
+      if (collapsedCategories.value.has(category.id)) {
+        return channelsInCategory.filter(channel => 
+          channel.id === props.currentChannelId || hasNotifications(channel)
+        );
+      }
+      
+      // If expanded, show all channels
+      return channelsInCategory;
+    };
+
+    // Channel icon mapping
+    const getChannelIcon = (channelType: number): string => {
+      // Updated to handle numeric channel types
+      const iconMap: Record<number, string> = {
+        0: 'HashTagIcon', // text channel
+        1: 'SpeakerIcon', // voice channel
+        2: 'mdi-video', // video channel
+        3: 'mdi-bullhorn', // announcement channel
+        4: 'mdi-forum' // forum channel
+      };
+      return iconMap[channelType] || 'HashTagIcon';
+    };
+
+    // Enhanced notification checking
+    const hasNotifications = (_channel: Channel): boolean => {
+      // TODO: Implement actual notification checking logic
+      // For now, return false, but this should check for:
+      // - Unread messages
+      // - Mentions
+      // - Important announcements
+      return false;
+    };
+
+    // Updated helper to determine if category content should be shown
+    const shouldShowCategoryContent = (category: Category): boolean => {
+      const categoryChannels = props.categoryChannels?.[category.id] || [];
+      const channelsInCategory = props.channels.filter(channel => 
+        categoryChannels.some(catChannel => catChannel.id === channel.id)
+      );
+      
+      // Always show if category is expanded
+      if (!collapsedCategories.value.has(category.id)) {
+        return channelsInCategory.length > 0;
+      }
+      
+      // If collapsed, show if there are important channels (selected or with notifications)
+      const hasImportantChannels = channelsInCategory.some(channel => 
+        channel.id === props.currentChannelId || hasNotifications(channel)
+      );
+      
+      return hasImportantChannels;
+    };
+
+    // Category collapse toggle
+    const toggleCategory = (categoryId: string) => {
+      if (collapsedCategories.value.has(categoryId)) {
+        collapsedCategories.value.delete(categoryId)
+      } else {
+        collapsedCategories.value.add(categoryId)
+      }
+    }
+
+    // Helper functions for Discord-like behavior
     const toggleDropdown = () => {
       isDropdownOpen.value = !isDropdownOpen.value;
     };
@@ -436,22 +525,6 @@ export default defineComponent({
 
     const emitCreateChannel = (categoryId?: string) => {
       emit('createChannel', categoryId);
-    };
-
-    const toggleCategory = (categoryId: string) => {
-      // Get current state (default to true if not set)
-      const currentState = categoryOpenState.value[categoryId] ?? true;
-      const newState = !currentState;
-      
-      // Update reactive state
-      categoryOpenState.value[categoryId] = newState;
-      
-      // Save to localStorage
-      localStorage.setItem(`category-${categoryId}-expanded`, newState.toString());
-    };
-
-    const isCategoryOpen = (categoryId: string) => {
-      return categoryOpenState.value[categoryId] !== false;
     };
 
     const showCategoryCreator = () => {
@@ -535,13 +608,19 @@ export default defineComponent({
       emitCreateChannel,
       handleChannelCreated,
       toggleCategory,
-      isCategoryOpen,
+      collapsedCategories,
       isCategoryCreatorOpen,
       showCategoryCreator,
       createCategory,
       combinedCategories,
       reorderableCategories,
       orphanChannels,
+      
+      // Channel filtering functions
+      getVisibleChannelsForCategory,
+      getChannelIcon,
+      hasNotifications,
+      shouldShowCategoryContent,
       
       // Drag & Drop
       dragState,
@@ -596,8 +675,9 @@ export default defineComponent({
   padding: 6px 10px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  display: inline-flex;
-  width: 100%;
+  display: flex;
+  align-items: center;
+  width: calc(100% - 8px);
   font-size: 14px;
   font-weight: 500;
   color: rgb(173, 173, 173);
@@ -626,348 +706,108 @@ export default defineComponent({
   border: 1px solid #5865f2;
 }
 
-.channel-item > svg {
-  margin-right: 10px;
+.channel-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0; /* Prevents flex item from growing beyond container */
+}
+
+.channel-content > svg {
+  margin-right: 8px;
   width: 16px;
   height: 16px;
-  position: relative;
-  top: 3px;
+  flex-shrink: 0;
+}
+
+.channel-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .category .channel-item {
   padding-left: 20px;
 }
 
-.category {
-  margin-bottom: 2px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.category-section {
+  margin-bottom: 8px;
 }
 
-.category-name {
+.category-header {
   cursor: pointer;
-  padding: 8px 6px;
+  padding: 8px 10px;
   margin-top: 6px;
-  vertical-align: middle;
   display: flex;
-  font-size: 16px;
+  font-size: 12px;
+  font-weight: 600;
   align-items: center;
-  justify-content: space-between;
   transition: all 0.15s ease;
   border-radius: 4px;
   margin: 2px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgb(142, 146, 151);
 }
 
-.category-name:hover {
+.category-header:hover {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
-.category-name .category-name-holder {
-  flex-grow: 1;
+.category-arrow {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin: 2px 3px auto 0;
 }
 
-.category-name svg {
-  margin-right: 5px;
-  width: 16px;
-  height: 16px;
-  top: 2px;
-  position: relative;
-  transition: 0.2s ease-in-out;
+.category-arrow.rotated {
   transform: rotate(-90deg);
 }
 
-.category.expanded .category-name svg {
-  transform: rotate(0deg);
+.channel-list {
+  padding-left: 10px;
+  transition: all 0.2s ease;
 }
 
-.category .category-items {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              background-color 0.2s ease,
-              border 0.2s ease,
-              min-height 0.2s ease;
+.collapsed-list {
+  display: block; /* Always show if there are important channels */
 }
 
-.category.expanded .category-items {
-  max-height: 100vh;
+/* Channels in collapsed categories should be styled differently */
+.channel-item.in-collapsed-category {
+  opacity: 0.8;
 }
 
-.create-channel {
-  cursor: pointer;
-  padding: 0 10px;
-  transition: all 0.15s ease;
-  border-radius: 4px;
-  font-size: 16px;
-  font-weight: 500;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.7;
-}
-
-.create-channel:hover {
+.channel-item.in-collapsed-category.selected {
   opacity: 1;
-  background-color: rgba(255, 255, 255, 0.1);
-  transform: scale(1.1);
-}
-
-/* Enhanced Drag & Drop Styles */
-.channel-item {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 4px;
-  margin: 1px 4px;
-  position: relative;
-}
-
-.channel-item.dragging {
-  opacity: 0.6;
-  transform: scale(1.02) rotate(2deg);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-  background-color: rgba(88, 101, 242, 0.2);
-  border: 1px solid #5865f2;
-}
-
-/* Global drag feedback */
-:global(.dragging-channel) {
-  cursor: grabbing !important;
-}
-
-:global(.dragging-channel *) {
-  cursor: grabbing !important;
-}
-
-/* Drop zone feedback */
-.category-items {
-  min-height: 20px;
-  transition: all 0.2s ease;
-  border-radius: 4px;
-  position: relative;
-}
-
-.category-items:empty::after {
-  content: '';
-  display: block;
-  height: 20px;
-  background: transparent;
-}
-
-.category-items.drag-over {
-  background-color: rgba(88, 101, 242, 0.1);
-  border: 2px dashed #5865f2;
-  min-height: 40px;
-}
-
-.category-items.drag-over::before {
-  content: 'Drop channel here';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: #5865f2;
-  font-size: 12px;
-  font-weight: 500;
-  pointer-events: none;
-  opacity: 0.8;
-}
-
-/* Orphan channels drop zone */
-.orphan-channels {
-  min-height: 20px;
-  transition: all 0.2s ease;
-  border-radius: 4px;
-  position: relative;
-  margin-bottom: 12px;
-  padding: 4px;
-}
-
-.orphan-channels.drag-over {
-  background-color: rgba(87, 242, 135, 0.1);
-  border: 2px dashed #57f287;
-  min-height: 40px;
-}
-
-.orphan-channels.drag-over::before {
-  content: 'Drop to remove from category';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: #57f287;
-  font-size: 12px;
-  font-weight: 500;
-  pointer-events: none;
-  opacity: 0.8;
-}
-
-/* Disable drag styles */
-/* .drag-disabled {
-  cursor: not-allowed !important;
-}
-
-.drag-disabled .channel-item {
-  cursor: not-allowed !important;
-} */
-
-.drag-disabled .channel-item:hover {
-  transform: none !important;
-}
-
-/* Permission feedback */
-.channel-item.no-permission {
-  opacity: 0.6;
-  position: relative;
-}
-
-.channel-item.no-permission::after {
-  content: '🔒';
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-/* Smooth animations */
-/* Hover effects */
-.channel-item:hover {
-  transform: translateX(2px);
   background-color: var(--h-sidebar-light);
+  color: #FFF;
 }
 
-.channel-item.selected:hover {
-  transform: translateX(2px);
+/* Category header styling when collapsed but has visible channels */
+.category-header.has-visible-channels.collapsed {
+  opacity: 0.8;
 }
 
-/* Focus improvements */
-.channel-item:focus-visible {
-  outline: 2px solid #5865f2;
-  outline-offset: 2px;
-  border-radius: 4px;
+.category-header.has-visible-channels.collapsed .category-name {
+  font-size: 12px;
 }
 
-/* Loading states for drag operations */
-.channel-item.moving {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.channel-item.moving::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  transform: translateY(-50%);
-  width: 12px;
-  height: 12px;
-  border: 2px solid #5865f2;
-  border-top: 2px solid transparent;
+/* Notification badge for channels with notifications */
+.notification-badge {
+  width: 6px;
+  height: 6px;
+  background-color: #f23f42;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: translateY(-50%) rotate(0deg); }
-  100% { transform: translateY(-50%) rotate(360deg); }
-}
-
-/* Category expansion improvements */
-.category-name {
-  transition: all 0.15s ease;
-  border-radius: 4px;
-  margin: 2px 4px;
-}
-
-/* Create channel button improvements */
-.create-channel {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  opacity: 0.7;
-  transition: all 0.15s ease;
-}
-
-.create-channel:hover {
-  opacity: 1;
-  background-color: rgba(255, 255, 255, 0.1);
-  transform: scale(1.1);
-}
-
-/* Mobile improvements */
-@media (max-width: 768px) {
-  .channel-item {
-    padding: 12px 16px;
-    margin: 2px 0;
-  }
-  
-  .channel-item:hover {
-    transform: none;
-  }
-  
-  .category-items.drag-over::before,
-  .orphan-channels.drag-over::before {
-    font-size: 14px;
-  }
-}
-
-/* Accessibility improvements */
-@media (prefers-reduced-motion: reduce) {
-  .channel-item,
-  .category,
-  .category-items,
-  .category-name,
-  .create-channel {
-    transition: none;
-  }
-  
-  .channel-item.dragging {
-    transform: none;
-  }
-  
-  .channel-item:hover {
-    transform: none;
-  }
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  .category-items.drag-over {
-    border-color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.1);
-  }
-  
-  .orphan-channels.drag-over {
-    border-color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.1);
-  }
+  margin-left: auto;
+  margin-right: 8px;
 }
 
 /* Voice channel controls */
-.channel-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.channel-content {
-  display: flex;
-  align-items: center;
-  flex: 1;
-}
-
-.channel-content > svg {
-  margin-right: 10px;
-  width: 16px;
-  height: 16px;
-}
-
 .voice-controls {
   display: flex;
   align-items: center;
@@ -1029,13 +869,30 @@ export default defineComponent({
   text-align: center;
 }
 
-/* Voice channel active state */
-.channel-item.voice-active {
-  background-color: rgba(87, 242, 135, 0.1);
-  border-left: 3px solid #57f287;
+/* Enhanced Drag & Drop Styles */
+.orphan-channels {
+  min-height: 20px;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  position: relative;
+  margin-bottom: 12px;
+  padding: 4px;
 }
 
-.channel-item.voice-active .voice-controls {
-  opacity: 1;
+.categories-container {
+  flex: 1;
+}
+
+.category-channels {
+  padding-left: 8px;
+}
+
+/* Global drag feedback */
+:global(.dragging-channel) {
+  cursor: grabbing !important;
+}
+
+:global(.dragging-channel *) {
+  cursor: grabbing !important;
 }
 </style>
