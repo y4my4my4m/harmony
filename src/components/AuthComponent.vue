@@ -430,7 +430,7 @@ onMounted(() => {
 
 .harmony-logo {
   display: inline-block;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
 }
 
