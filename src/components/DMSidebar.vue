@@ -1,0 +1,626 @@
+<template>
+  <div class="dm-sidebar">
+    <!-- Header -->
+    <div class="dm-header">
+      <h2 class="dm-title">Direct Messages</h2>
+      <button 
+        class="new-dm-btn"
+        @click="showUserSearch = !showUserSearch"
+        title="Start a new DM"
+      >
+        <svg viewBox="0 0 24 24" class="icon">
+          <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- User Search -->
+    <div v-if="showUserSearch" class="user-search-section">
+      <div class="search-input-container">
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search for a user..."
+          class="search-input"
+          @input="handleSearch"
+          @keydown.escape="closeSearch"
+        />
+        <button 
+          v-if="searchQuery"
+          @click="clearSearch"
+          class="clear-search-btn"
+        >
+          <svg viewBox="0 0 24 24" class="icon">
+            <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Search Results -->
+      <div v-if="searchQuery" class="search-results">
+        <div v-if="dmStore.isSearching" class="search-loading">
+          Searching...
+        </div>
+        <div v-else-if="dmStore.searchResults.length === 0" class="no-results">
+          No users found
+        </div>
+        <div 
+          v-else
+          v-for="user in dmStore.searchResults"
+          :key="user.id"
+          class="search-result-item"
+          @click="startConversation(user)"
+        >
+          <div class="user-avatar">
+            <img 
+              v-if="user.avatar_url" 
+              :src="user.avatar_url" 
+              :alt="user.display_name || user.username"
+              class="avatar-image"
+            />
+            <div v-else class="avatar-placeholder">
+              {{ (user.display_name || user.username).charAt(0).toUpperCase() }}
+            </div>
+            <div v-if="user.is_online" class="online-indicator"></div>
+          </div>
+          <div class="user-info">
+            <div class="user-name">{{ user.display_name || user.username }}</div>
+            <div v-if="user.display_name" class="username">@{{ user.username }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Conversations List -->
+    <div class="conversations-section">
+      <div v-if="dmStore.loadingConversations" class="loading-state">
+        <div class="loading-spinner"></div>
+        <span>Loading conversations...</span>
+      </div>
+      
+      <div v-else-if="sortedConversations.length === 0" class="empty-state">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M5,9V19H19V9A5,5 0 0,0 14,4H10A5,5 0 0,0 5,9Z" fill="currentColor"/>
+          </svg>
+        </div>
+        <h3>No conversations yet</h3>
+        <p>Start a conversation by searching for a user above</p>
+      </div>
+
+      <div v-else class="conversations-list">
+        <div 
+          v-for="conversation in sortedConversations"
+          :key="conversation.id"
+          class="conversation-item"
+          :class="{ 
+            'active': conversation.id === dmStore.currentConversationId,
+            'unread': conversation.unread_count && conversation.unread_count > 0
+          }"
+          @click="selectConversation(conversation.id)"
+        >
+          <div class="conversation-avatar">
+            <img 
+              v-if="conversation.other_user?.avatar_url" 
+              :src="conversation.other_user.avatar_url" 
+              :alt="conversation.other_user.display_name || conversation.other_user.username"
+              class="avatar-image"
+            />
+            <div v-else class="avatar-placeholder">
+              {{ getInitial(conversation.other_user) }}
+            </div>
+            <div 
+              v-if="conversation.other_user?.is_online" 
+              class="online-indicator"
+            ></div>
+          </div>
+          
+          <div class="conversation-content">
+            <div class="conversation-header">
+              <div class="conversation-name">
+                {{ conversation.other_user?.display_name || conversation.other_user?.username }}
+              </div>
+              <div class="conversation-time">
+                {{ formatMessageTime(conversation.last_activity || conversation.created_at) }}
+              </div>
+            </div>
+            
+            <div class="conversation-preview">
+              <div class="last-message">
+                {{ getLastMessagePreview(conversation.last_message) }}
+              </div>
+              <div 
+                v-if="conversation.unread_count && conversation.unread_count > 0"
+                class="unread-count"
+              >
+                {{ conversation.unread_count > 99 ? '99+' : conversation.unread_count }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
+import { useAuthStore } from '@/stores/auth'
+import type { Message, MessagePart } from '@/types'
+
+const emit = defineEmits<{
+  'conversationSelected': [conversationId: string]
+}>()
+
+const dmStore = useDMStore()
+const authStore = useAuthStore()
+
+// State
+const showUserSearch = ref(false)
+const searchQuery = ref('')
+const searchTimeout = ref<NodeJS.Timeout | null>(null)
+
+// Computed
+const sortedConversations = computed(() => dmStore.getSortedConversations)
+
+// Methods
+const handleSearch = () => {
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value)
+  }
+
+  searchTimeout.value = setTimeout(() => {
+    if (searchQuery.value.trim() && authStore.session?.user?.id) {
+      dmStore.searchUsers(searchQuery.value.trim(), authStore.session.user.id)
+    }
+  }, 300)
+}
+
+const clearSearch = () => {
+  searchQuery.value = ''
+  dmStore.searchResults = []
+}
+
+const closeSearch = () => {
+  showUserSearch.value = false
+  clearSearch()
+}
+
+const startConversation = async (user: DMUser) => {
+  if (!authStore.session?.user?.id) return
+
+  const conversationId = await dmStore.createOrGetConversation(
+    authStore.session.user.id,
+    user.id
+  )
+
+  if (conversationId) {
+    selectConversation(conversationId)
+    closeSearch()
+  }
+}
+
+const selectConversation = (conversationId: string) => {
+  emit('conversationSelected', conversationId)
+}
+
+const getInitial = (user?: DMUser): string => {
+  if (!user) return '?'
+  return (user.display_name || user.username).charAt(0).toUpperCase()
+}
+
+const formatMessageTime = (timestamp: string): string => {
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+  
+  if (diffInMinutes < 1) return 'now'
+  if (diffInMinutes < 60) return `${diffInMinutes}m`
+  if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h`
+  if (diffInMinutes < 10080) return `${Math.floor(diffInMinutes / 1440)}d`
+  
+  return date.toLocaleDateString()
+}
+
+const getLastMessagePreview = (message?: Message): string => {
+  if (!message?.content) return 'No messages yet'
+  
+  try {
+    const content = message.content as MessagePart[]
+    if (!Array.isArray(content)) return 'No messages yet'
+    
+    // Extract text from message parts
+    const textParts = content
+      .filter(part => part.type === 'text')
+      .map(part => part.text)
+      .join(' ')
+    
+    if (textParts) return textParts.length > 50 ? textParts.substring(0, 50) + '...' : textParts
+    
+    // Check for other content types
+    const filePart = content.find(part => part.type === 'file')
+    if (filePart) return '📎 File'
+    
+    const emojiPart = content.find(part => part.type === 'emoji')
+    if (emojiPart) return '😊 Emoji'
+    
+    return 'Message'
+  } catch (error) {
+    return 'Message'
+  }
+}
+
+// Lifecycle
+onMounted(() => {
+  if (authStore.session?.user?.id) {
+    dmStore.initializeDMEnvironment(authStore.session.user.id)
+  }
+})
+
+onUnmounted(() => {
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value)
+  }
+})
+</script>
+
+<style scoped>
+.dm-sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: var(--h-channel-sidebar, #2f3136);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  border-right: 1px solid var(--h-chat-light, #40444b);
+}
+
+.dm-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--h-chat-light, #40444b);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dm-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.new-dm-btn {
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  color: #b9bbbe;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px;
+  transition: all 0.15s ease;
+}
+
+.new-dm-btn:hover {
+  color: #ffffff;
+  background: var(--h-chat-light, #40444b);
+}
+
+.icon {
+  width: 100%;
+  height: 100%;
+}
+
+.user-search-section {
+  padding: 16px;
+  border-bottom: 1px solid var(--h-chat-light, #40444b);
+}
+
+.search-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  background: var(--h-chat, #36393f);
+  border: 1px solid var(--h-chat-light, #40444b);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.search-input:focus {
+  border-color: var(--h-brand, #5865f2);
+}
+
+.search-input::placeholder {
+  color: #72767d;
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  background: none;
+  border: none;
+  color: #72767d;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.clear-search-btn:hover {
+  color: #ffffff;
+}
+
+.search-results {
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.search-loading,
+.no-results {
+  padding: 12px;
+  text-align: center;
+  color: #72767d;
+  font-size: 14px;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  gap: 12px;
+}
+
+.search-result-item:hover {
+  background: var(--h-chat-light, #40444b);
+}
+
+.conversations-section {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 40px 20px;
+  color: #72767d;
+  gap: 12px;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--h-chat-light, #40444b);
+  border-top: 2px solid var(--h-brand, #5865f2);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: #72767d;
+  flex: 1;
+}
+
+.empty-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.empty-state h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.conversations-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.conversation-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  gap: 12px;
+  border-radius: 0;
+  margin: 0 8px;
+  border-radius: 4px;
+}
+
+.conversation-item:hover {
+  background: var(--h-chat-light, #40444b);
+}
+
+.conversation-item.active {
+  background: var(--h-brand, #5865f2);
+}
+
+.conversation-item.unread {
+  background: rgba(114, 118, 125, 0.1);
+}
+
+.conversation-item.unread:hover {
+  background: var(--h-chat-light, #40444b);
+}
+
+.user-avatar,
+.conversation-avatar {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--h-brand, #5865f2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.online-indicator {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  background: #3ba55c;
+  border: 2px solid var(--h-channel-sidebar, #2f3136);
+  border-radius: 50%;
+}
+
+.user-info,
+.conversation-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name,
+.conversation-name {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 14px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.username {
+  font-size: 12px;
+  color: #72767d;
+}
+
+.conversation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.conversation-time {
+  font-size: 11px;
+  color: #72767d;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.conversation-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.last-message {
+  font-size: 12px;
+  color: #72767d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.conversation-item.unread .last-message {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.unread-count {
+  background: #f04747;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .dm-sidebar {
+    width: 100%;
+    max-width: 320px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dm-sidebar {
+    width: 100%;
+    max-width: none;
+  }
+  
+  .dm-header {
+    padding: 12px 16px;
+  }
+  
+  .user-search-section {
+    padding: 12px 16px;
+  }
+  
+  .conversation-item {
+    padding: 12px 16px;
+    margin: 0 8px;
+  }
+}
+</style>

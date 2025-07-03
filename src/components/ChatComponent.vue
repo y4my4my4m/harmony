@@ -62,6 +62,7 @@
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
   import { useServerUsersStore } from '@/stores/useServerUsers'; 
+  import { useDMStore } from '@/stores/useDM';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { handleFileDrop } from '@/services/fileService';
   import { recordEmojiUsage } from '@/services/emojiService';
@@ -90,13 +91,19 @@
         type: Boolean,
         default: false
       },
-      loadMoreMessages: Function as PropType<() => void>
+      loadMoreMessages: Function as PropType<() => void>,
+      isDM: {
+        type: Boolean,
+        default: false
+      }
     },
-    setup() {
+    emits: ['sendMessage'],
+    setup(props, { emit }) {
       const chatStore = useChatStore();
       const authStore = useAuthStore();
       const serverChannelStore = useServerChannelStore();
       const serverUsersStore = useServerUsersStore();
+      const dmStore = useDMStore();
       const showDragDropArea = ref(false);
       const uploading = ref(false);
       const emojiListOpen = ref(false);
@@ -106,7 +113,17 @@
       const replyToUserDisplayName = ref('');
       const giphyOpen = ref(false);
       const messageContent = ref('');
-      const resolvedEmojiList = computed(() => serverChannelStore.resolvedEmojiList);
+      
+      // Dynamic emoji list based on context (DM vs Server)
+      const resolvedEmojiList = computed(() => {
+        if (props.isDM) {
+          // For DMs, we might want to show emojis from all servers the user is in
+          // For now, return server emojis or a default set
+          return serverChannelStore.resolvedEmojiList;
+        }
+        return serverChannelStore.resolvedEmojiList;
+      });
+      
       const reactionSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
       const currentUserId = computed(() => authStore.session?.user?.id);
       const hasActiveUploads = ref(false);
@@ -198,7 +215,6 @@
         console.log("triggerFileDrop called - File dropped on chat container:", event);
         showDragDropArea.value = false;
         
-        // Forward the files to MessageInput via the attached files
         const files = event.dataTransfer.files;
         if (files.length > 0) {
           console.log("ChatComponent forwarding", files.length, "files to MessageInput");
@@ -310,9 +326,24 @@
         return undefined;
       };
 
+      // Updated handleSendMessage to support both DMs and server channels
       const handleSendMessage = async (content: string, files: FilePreviewData[] = []) => {
-        if (!authStore.session?.user || !serverChannelStore.currentChannelId || !serverChannelStore.currentServerId) {
+        if (!authStore.session?.user) {
           return;
+        }
+
+        // For DMs: check if we have a conversation ID
+        // For server channels: check if we have channel and server IDs
+        if (props.isDM) {
+          if (!dmStore.currentConversationId) {
+            console.warn('Cannot send DM: no conversation selected');
+            return;
+          }
+        } else {
+          if (!serverChannelStore.currentChannelId || !serverChannelStore.currentServerId) {
+            console.warn('Cannot send message: no channel or server selected');
+            return;
+          }
         }
 
         // Check if all files are uploaded
@@ -355,27 +386,45 @@
 
           // Send the message with all parts
           if (messageParts.length > 0) {
-            await chatStore.sendMessage(
-              serverChannelStore.currentServerId,
-              serverChannelStore.currentChannelId,
-              authStore.session.user.id,
-              messageParts,
-              replyToMessageId.value || ''
-            );
+            if (props.isDM) {
+              // Emit event for DM messages to be handled by parent component
+              emit('sendMessage', messageParts, replyToMessageId.value || undefined);
+            } else {
+              // Handle server channel messages directly
+              await chatStore.sendMessage(
+                serverChannelStore.currentServerId,
+                serverChannelStore.currentChannelId,
+                authStore.session.user.id,
+                messageParts,
+                replyToMessageId.value || ''
+              );
+            }
             
             messageContent.value = '';
             handleDontReply();
           }
         } catch (error) {
-          console.error('Error sending message with files:', error);
+          console.error('Error sending message:', error);
         }
       };
 
-      const handleSendGif = (gif: Gif ) => {
+      const handleSendGif = (gif: Gif) => {
         const gifUrl = gif.media_formats.gif.url;
         closeGiphy();
-        if (serverChannelStore.currentChannelId && authStore.session?.user) {
-          chatStore.sendMessage(serverChannelStore.currentServerId, serverChannelStore.currentChannelId, authStore.session.user.id, [{type: "file", url: gifUrl, fileType: "image"}], replyToMessageId.value);
+        
+        if (props.isDM && dmStore.currentConversationId && authStore.session?.user) {
+          // Emit for DM
+          emit('sendMessage', [{type: "file", url: gifUrl, fileType: "image"}], replyToMessageId.value);
+          handleDontReply();
+        } else if (!props.isDM && serverChannelStore.currentChannelId && authStore.session?.user) {
+          // Handle server channel directly
+          chatStore.sendMessage(
+            serverChannelStore.currentServerId, 
+            serverChannelStore.currentChannelId, 
+            authStore.session.user.id, 
+            [{type: "file", url: gifUrl, fileType: "image"}], 
+            replyToMessageId.value
+          );
           handleDontReply();
         }
       };
@@ -384,31 +433,37 @@
         closeEmojiList();
         
         if (isPopupForReaction.value) {
-          if (authStore.session?.user && serverChannelStore.currentServerId) {
+          if (authStore.session?.user) {
             reactionSound2.value.volume = 0.5;
             reactionSound2.value.play();
             
             // Track emoji usage when used as reaction
-            await recordEmojiUsage(
-              emoji.id,
-              authStore.session.user.id,
-              serverChannelStore.currentServerId,
-              'reaction',
-              selectedMessageId.value
-            );
+            if (!props.isDM && serverChannelStore.currentServerId) {
+              await recordEmojiUsage(
+                emoji.id,
+                authStore.session.user.id,
+                serverChannelStore.currentServerId,
+                'reaction',
+                selectedMessageId.value
+              );
+            }
             
-            await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
+            // Add reaction - for DMs this might need different handling
+            if (props.isDM) {
+              // TODO: Implement DM reactions if needed
+              console.log('DM reactions not yet implemented');
+            } else {
+              await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
+            }
           }
-        }
-        else {
+        } else {
           // Track emoji usage when used in message content
-          if (authStore.session?.user && serverChannelStore.currentServerId) {
+          if (authStore.session?.user && !props.isDM && serverChannelStore.currentServerId) {
             await recordEmojiUsage(
               emoji.id,
               authStore.session.user.id,
               serverChannelStore.currentServerId,
               'message'
-              // contextId will be null for message content since the message hasn't been created yet
             );
           }
           

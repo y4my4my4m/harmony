@@ -23,6 +23,19 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/dm/:conversationId?',
+      name: 'DM',
+      component: () => import('@/views/DMView.vue'),
+      props: true,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/dm',
+      name: 'DMHome',
+      component: () => import('@/views/DMView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/login',
       name: 'Login',
       component: LoginView,
