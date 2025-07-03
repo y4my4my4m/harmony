@@ -341,19 +341,69 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.channels = data;
     },
 
-    async createServer(name: string, userId: string) {
+    async createServer(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
       const { data, error } = await supabase
         .from('servers')
-        .insert([{ name, owner: userId }])
+        .insert([{
+          name: serverData.name,
+          description: serverData.description || null,
+          public: serverData.public || false,
+          owner: serverData.owner
+        }])
         .select()
         .single();
 
       if (error) {
         console.error('Error creating server:', error);
-        return null;
+        throw error;
       }
 
+      // Add the new server to the user's server list
+      await this.addUserToServer(data.id, serverData.owner);
+      
+      // Add server to local state
       this.servers.push(data);
+      
+      console.log('✅ Server created successfully with default structure:', data);
+      return data;
+    },
+
+    async addUserToServer(serverId: string, userId: string) {
+      const { error } = await supabase
+        .from('user_servers')
+        .insert([{ server_id: serverId, user_id: userId }]);
+
+      if (error) {
+        console.error('Error adding user to server:', error);
+        throw error;
+      }
+    },
+
+    async updateServer(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
+      const { data, error } = await supabase
+        .from('servers')
+        .update({
+          ...(serverData.icon && { icon: serverData.icon }),
+          ...(serverData.name && { name: serverData.name }),
+          ...(serverData.description !== undefined && { description: serverData.description }),
+          ...(serverData.public !== undefined && { public: serverData.public })
+        })
+        .eq('id', serverData.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating server:', error);
+        throw error;
+      }
+
+      // Update local state
+      const serverIndex = this.servers.findIndex(server => server.id === serverData.id);
+      if (serverIndex !== -1) {
+        this.servers[serverIndex] = { ...this.servers[serverIndex], ...data };
+      }
+
+      console.log('✅ Server updated successfully:', data);
       return data;
     },
 

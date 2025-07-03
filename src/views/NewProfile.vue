@@ -1,146 +1,1141 @@
 <template>
-    <div class="new-profile">
-        <h2>Create Your Profile</h2>
-        <div class="input-wrapper">
-            <span class="at-symbol">@</span>
-            <input v-model="username" maxlength="24" @input="formatUsername" type="text" class="username-input" placeholder="username">
-            <span class="domain" :style="{ left: usernameOffset + 'px' }">@{{ domain }}</span>
-        </div>
-        <input v-model="displayName" placeholder="Display Name" />
-        <!-- <textarea v-model="about" placeholder="About"></textarea> -->
-        <button @click="createProfile">Create Profile</button>
+  <div class="new-profile-container">
+    <!-- Animated background -->
+    <div class="background-overlay">
+      <div class="floating-particles">
+        <div v-for="i in 12" :key="i" class="particle" :style="getParticleStyle(i)"></div>
+      </div>
     </div>
+
+    <!-- Main content -->
+    <div class="profile-creation-card">
+      <!-- Header section -->
+      <div class="card-header">
+        <div class="logo-section">
+          <div class="logo-icon">
+            <div class="icon-glow"></div>
+            <svg viewBox="0 0 24 24" class="harmony-icon">
+              <path d="M12 2L2 7v10c0 5.55 3.84 9.74 9 11 5.16-1.26 9-5.45 9-11V7l-10-5z" fill="currentColor"/>
+            </svg>
+          </div>
+          <h1 class="welcome-title">Welcome to Harmony</h1>
+          <p class="welcome-subtitle">Let's create your digital identity</p>
+        </div>
+        <div class="progress-indicator">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: progressWidth }"></div>
+          </div>
+          <span class="progress-text">{{ currentStep }} of 3</span>
+        </div>
+      </div>
+
+      <!-- Step content -->
+      <div class="card-content">
+        <!-- Step 1: Avatar -->
+        <div v-if="currentStep === 1" class="step-content" key="step1">
+          <div class="step-header">
+            <h2>Choose Your Avatar</h2>
+            <p>Upload a photo or use a default avatar</p>
+          </div>
+          
+          <div class="avatar-section">
+            <div class="avatar-upload-container">
+              <div class="avatar-preview" @click="triggerAvatarUpload">
+                <img v-if="avatarPreview" :src="avatarPreview" alt="Avatar preview" />
+                <div v-else class="default-avatar">
+                  <svg viewBox="0 0 24 24" class="avatar-icon">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div class="upload-overlay">
+                  <svg viewBox="0 0 24 24" class="upload-icon">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" fill="currentColor"/>
+                  </svg>
+                  <span>{{ avatarPreview ? 'Change' : 'Upload' }}</span>
+                </div>
+              </div>
+              <input 
+                ref="avatarInput" 
+                type="file" 
+                accept="image/*" 
+                @change="handleAvatarUpload" 
+                class="file-input"
+              />
+            </div>
+            <div class="avatar-options">
+              <button class="option-btn" :class="{ active: !avatarFile }" @click="useDefaultAvatar">
+                Use Default
+              </button>
+              <button class="option-btn primary" @click="triggerAvatarUpload">
+                Upload Image
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Basic Info -->
+        <div v-if="currentStep === 2" class="step-content" key="step2">
+          <div class="step-header">
+            <h2>Basic Information</h2>
+            <p>Tell us about yourself</p>
+          </div>
+
+          <div class="form-section">
+            <div class="input-group">
+              <label class="input-label">Display Name</label>
+              <div class="input-container">
+                <input
+                  v-model="displayName"
+                  type="text"
+                  class="modern-input"
+                  placeholder="How others will see you"
+                  maxlength="32"
+                  @input="validateDisplayName"
+                />
+                <div class="input-accent"></div>
+              </div>
+              <div class="input-feedback">
+                <span class="char-count">{{ displayName.length }}/32</span>
+                <span v-if="displayNameError" class="error-text">{{ displayNameError }}</span>
+              </div>
+            </div>
+
+            <div class="input-group">
+              <label class="input-label">Username</label>
+              <div class="input-container username-container">
+                <span class="username-prefix">@</span>
+                <input
+                  v-model="username"
+                  type="text"
+                  class="modern-input username-input"
+                  placeholder="uniqueusername"
+                  maxlength="24"
+                  @input="formatUsername"
+                />
+                <span class="username-suffix">@{{ domain }}</span>
+                <div class="input-accent"></div>
+              </div>
+              <div class="input-feedback">
+                <span class="char-count">{{ username.length }}/24</span>
+                <span v-if="usernameError" class="error-text">{{ usernameError }}</span>
+                <span v-else-if="username" class="success-text">✓ Available</span>
+              </div>
+            </div>
+
+            <div class="input-group">
+              <label class="input-label">About Me <span class="optional">(optional)</span></label>
+              <div class="input-container">
+                <textarea
+                  v-model="about"
+                  class="modern-textarea"
+                  placeholder="Tell others about yourself..."
+                  maxlength="190"
+                  rows="3"
+                ></textarea>
+                <div class="input-accent"></div>
+              </div>
+              <div class="input-feedback">
+                <span class="char-count">{{ about.length }}/190</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Customization -->
+        <div v-if="currentStep === 3" class="step-content" key="step3">
+          <div class="step-header">
+            <h2>Personalize Your Profile</h2>
+            <p>Choose your signature color</p>
+          </div>
+
+          <div class="customization-section">
+            <div class="profile-preview-card">
+              <div class="preview-banner" :style="{ background: selectedColor }"></div>
+              <div class="preview-content">
+                <div class="preview-avatar">
+                  <img v-if="avatarPreview" :src="avatarPreview" alt="Preview" />
+                  <div v-else class="default-preview-avatar">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="currentColor"/>
+                    </svg>
+                  </div>
+                </div>
+                <div class="preview-info">
+                  <h3 class="preview-display-name" :style="{ color: selectedColor }">
+                    {{ displayName || 'Your Name' }}
+                  </h3>
+                  <p class="preview-username">{{ formattedUsername || '@username@' + domain }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="color-picker-section">
+              <label class="input-label">Profile Color</label>
+              <div class="color-options">
+                <div 
+                  v-for="color in colorPresets" 
+                  :key="color"
+                  class="color-option"
+                  :class="{ active: selectedColor === color }"
+                  :style="{ backgroundColor: color }"
+                  @click="selectedColor = color"
+                ></div>
+                <div 
+                  class="color-option custom-color" 
+                  :class="{ active: !colorPresets.includes(selectedColor) }"
+                  @click="openCustomColorPicker"
+                >
+                  <svg viewBox="0 0 24 24" class="plus-icon">
+                    <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
+                  </svg>
+                </div>
+              </div>
+              <input 
+                ref="colorInput"
+                type="color" 
+                v-model="selectedColor" 
+                class="hidden-color-input"
+                @change="onColorChange"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="card-actions">
+        <button 
+          v-if="currentStep > 1" 
+          @click="previousStep" 
+          class="action-btn secondary"
+        >
+          <svg viewBox="0 0 24 24" class="btn-icon">
+            <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" fill="currentColor"/>
+          </svg>
+          Back
+        </button>
+        <button 
+          @click="nextStep" 
+          class="action-btn primary"
+          :disabled="!canProceed"
+        >
+          {{ currentStep === 3 ? 'Create Profile' : 'Continue' }}
+          <svg v-if="currentStep < 3" viewBox="0 0 24 24" class="btn-icon">
+            <path d="M4,11V13H16L10.5,18.5L11.92,19.92L19.84,12L11.92,4.08L10.5,5.5L16,11H4Z" fill="currentColor"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" class="btn-icon">
+            <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
-  
+
 <script lang="ts">
-    import { ref, computed } from 'vue';
-    import { useProfileStore } from '@/stores/useProfile';
-    import { useAuthStore } from '@/stores/auth';
-    import { useRouter } from 'vue-router';
-    import { useToast } from 'vue-toastification';
+import { ref, computed, nextTick } from 'vue';
+import { useProfileStore } from '@/stores/useProfile';
+import { useAuthStore } from '@/stores/auth';
+import { useRouter } from 'vue-router';
+import { useToast } from 'vue-toastification';
 
-    export default {
-        setup() {
-            const username = ref('');
-            const domain = import.meta.env.VITE_DOMAIN;
-            const displayName = ref('');
-            const about = ref('');
-            const profileStore = useProfileStore();
-            const authStore = useAuthStore();
-            const router = useRouter();
+export default {
+  setup() {
+    const username = ref('');
+    const displayName = ref('');
+    const about = ref('');
+    const currentStep = ref(1);
+    const avatarFile = ref<File | null>(null);
+    const avatarPreview = ref<string | null>(null);
+    const selectedColor = ref('#5865f2');
+    const usernameError = ref('');
+    const displayNameError = ref('');
+    
+    const domain = import.meta.env.VITE_DOMAIN;
+    const profileStore = useProfileStore();
+    const authStore = useAuthStore();
+    const router = useRouter();
+    const toast = useToast();
 
-            const toast = useToast();
+    const avatarInput = ref<HTMLInputElement>();
+    const colorInput = ref<HTMLInputElement>();
 
-            const usernameOffset = computed(() => {
-                let baseOffset = 28; // Adjust this based on the initial position of the '@' symbol
-                const charWidth = 8; // Approximate width of each character
-                // Calculate the offset based on the length of the username
-                if(username.value.length === 0){
-                    baseOffset = 93;
-                }
-                return baseOffset + username.value.length * charWidth;
-            });
+    const colorPresets = [
+      '#5865f2', '#57f287', '#fee75c', '#eb459e', '#ed4245',
+      '#f23f42', '#ff6b35', '#4f46e5', '#06b6d4', '#10b981',
+      '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'
+    ];
 
-            const formattedUsername = computed(() => {
-                return username.value ? `@${username.value}@${domain}` : '';
-            });
-            const formatUsername = (event: any) => {
-                username.value = event.target.value.replace(/[^a-zA-Z0-9]/g, ''); // This regex removes any non-alphanumeric characters
-            };
+    // Computed properties
+    const progressWidth = computed(() => `${(currentStep.value / 3) * 100}%`);
+    
+    const formattedUsername = computed(() => {
+      return username.value ? `@${username.value}@${domain}` : '';
+    });
 
-            const createProfile = async () => {
-            if (authStore.session?.user) {
-                try {
-                    await profileStore.createProfile({
-                        id: authStore.session.user.id,
-                        username: formattedUsername.value,
-                        display_name: displayName.value,
-                        color: '#ffffff',
-                    });
-                    toast.success('Profile created!');
-                    router.push('/chat');
-                } catch (error: any) {
-                    toast.error(error.message);
-                }
-            }
-            };
+    const canProceed = computed(() => {
+      switch (currentStep.value) {
+        case 1: return true; // Avatar is optional
+        case 2: return displayName.value.trim() && username.value.trim() && !usernameError.value && !displayNameError.value;
+        case 3: return true;
+        default: return false;
+      }
+    });
 
-            return { username, displayName, about, createProfile, domain, formatUsername, usernameOffset };
-        },
+    // Methods
+    const getParticleStyle = (index: number) => {
+      const delay = index * 0.5;
+      const duration = 3 + (index % 3);
+      return {
+        animationDelay: `${delay}s`,
+        animationDuration: `${duration}s`,
+        left: `${(index * 8.33) % 100}%`,
+        top: `${(index * 13) % 100}%`
+      };
     };
+
+    const triggerAvatarUpload = () => {
+      avatarInput.value?.click();
+    };
+
+    const handleAvatarUpload = (event: Event) => {
+      const target = event.target as HTMLInputElement;
+      const file = target.files?.[0];
+      
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+          toast.error('File size must be less than 5MB');
+          return;
+        }
+        
+        avatarFile.value = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          avatarPreview.value = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    const useDefaultAvatar = () => {
+      avatarFile.value = null;
+      avatarPreview.value = null;
+    };
+
+    const formatUsername = (event: Event) => {
+      const target = event.target as HTMLInputElement;
+      let value = target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      
+      // Validate username
+      if (value.length < 3 && value.length > 0) {
+        usernameError.value = 'Username must be at least 3 characters';
+      } else if (value.length === 0) {
+        usernameError.value = 'Username is required';
+      } else {
+        usernameError.value = '';
+      }
+      
+      username.value = value;
+    };
+
+    const validateDisplayName = () => {
+      if (displayName.value.trim().length < 1) {
+        displayNameError.value = 'Display name is required';
+      } else if (displayName.value.trim().length > 32) {
+        displayNameError.value = 'Display name is too long';
+      } else {
+        displayNameError.value = '';
+      }
+    };
+
+    const openCustomColorPicker = () => {
+      colorInput.value?.click();
+    };
+
+    const onColorChange = () => {
+      // Color is automatically updated via v-model
+    };
+
+    const nextStep = async () => {
+      if (currentStep.value < 3) {
+        currentStep.value++;
+      } else {
+        await createProfile();
+      }
+    };
+
+    const previousStep = () => {
+      if (currentStep.value > 1) {
+        currentStep.value--;
+      }
+    };
+
+    const createProfile = async () => {
+      if (!authStore.session?.user) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      // Add loading state and better error handling
+      try {
+        console.log('Creating profile with data:', {
+          id: authStore.session.user.id,
+          username: formattedUsername.value,
+          display_name: displayName.value.trim(),
+          about: about.value.trim() || null,
+          color: selectedColor.value,
+        });
+
+        const profileData = {
+          id: authStore.session.user.id,
+          username: formattedUsername.value,
+          display_name: displayName.value.trim(),
+          about: about.value.trim() || undefined,
+          color: selectedColor.value,
+        };
+
+        console.log('Calling profileStore.createProfile...');
+        const result = await profileStore.createProfile(profileData);
+        console.log('Profile creation result:', result);
+        
+        // Handle avatar upload if file exists
+        if (avatarFile.value && result) {
+          console.log('Uploading avatar...');
+          try {
+            const { uploadAvatar } = await import('@/utils/fileUpload');
+            const uploadResult = await uploadAvatar(avatarFile.value, authStore.session.user.id);
+            
+            if (uploadResult.success && uploadResult.url) {
+              // Update profile with avatar URL
+              await profileStore.updateProfile({
+                id: authStore.session.user.id,
+                avatar_url: uploadResult.url
+              });
+              console.log('Avatar uploaded successfully:', uploadResult.url);
+            } else {
+              console.error('Avatar upload failed:', uploadResult.error);
+              toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
+            }
+          } catch (uploadError) {
+            console.error('Avatar upload error:', uploadError);
+            toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
+          }
+        }
+
+        toast.success('Welcome to Harmony! Your profile has been created.');
+        console.log('Navigating to /chat...');
+        await router.push('/chat');
+      } catch (error: any) {
+        console.error('Profile creation error:', error);
+        
+        // More detailed error messaging
+        let errorMessage = 'Failed to create profile';
+        
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (error.code) {
+          switch (error.code) {
+            case '23505':
+              errorMessage = 'Username already exists. Please choose a different username.';
+              break;
+            case '23502':
+              errorMessage = 'Missing required information. Please fill in all required fields.';
+              break;
+            default:
+              errorMessage = `Database error: ${error.code}`;
+          }
+        }
+        
+        toast.error(errorMessage);
+      }
+    };
+
+    return {
+      // Data
+      username,
+      displayName,
+      about,
+      currentStep,
+      avatarFile,
+      avatarPreview,
+      selectedColor,
+      usernameError,
+      displayNameError,
+      domain,
+      avatarInput,
+      colorInput,
+      colorPresets,
+      
+      // Computed
+      progressWidth,
+      formattedUsername,
+      canProceed,
+      
+      // Methods
+      getParticleStyle,
+      triggerAvatarUpload,
+      handleAvatarUpload,
+      useDefaultAvatar,
+      formatUsername,
+      validateDisplayName,
+      openCustomColorPicker,
+      onColorChange,
+      nextStep,
+      previousStep,
+      createProfile
+    };
+  }
+};
 </script>
 
 <style scoped>
-    .new-profile {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 20px;
-        border-radius: 8px;
-        background-color: #36393f;
-        color: white;
-        max-width: 500px;
-        margin: auto;
-    }
+.new-profile-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1e1f22 0%, #2b2d31 50%, #1e1f22 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
 
-    .new-profile h2 {
-        color: white;
-        margin-bottom: 20px;
-    }
+.background-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0.3;
+  overflow: hidden;
+}
 
-    .new-profile input,
-    .new-profile textarea {
-        width: 100%;
-        padding: 10px;
-        margin: 10px 0;
-        border-radius: 5px;
-        border: 1px solid #40444b;
-        background-color: #2f3136;
-        color: white;
-    }
+.floating-particles {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
 
-    .new-profile button {
-        padding: 10px 15px;
-        margin-top: 10px;
-        background-color: #5865f2;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-    }
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: linear-gradient(45deg, #5865f2, #00d4ff);
+  border-radius: 50%;
+  animation: float infinite ease-in-out;
+  box-shadow: 0 0 10px rgba(88, 101, 242, 0.5);
+}
 
-    .new-profile button:hover {
-        background-color: #4e5cd1;
-    }
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  50% { transform: translateY(-20px) rotate(180deg); opacity: 1; }
+}
 
+.profile-creation-card {
+  background: rgba(47, 49, 54, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 32px 64px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  width: 100%;
+  max-width: 500px;
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+}
 
-    .input-wrapper {
-        position: relative;
-        width: 100%;
-    }
+.profile-creation-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(88, 101, 242, 0.5), transparent);
+}
 
-    .username-input {
-        padding: 10px 10px 10px 25px!important; /* Adjust left padding for "@" symbol */
-        color: white; /* Text color */
-        font-size:15px;
-    }
-    /* styling for username-input's placeholder */
-    .username-input::placeholder {
-        color: white;
-        font-size:15px;
-    }
+.card-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
 
-    .at-symbol, .domain {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        color: grey;
-        pointer-events: none;
-    }
+.logo-section {
+  margin-bottom: 24px;
+}
 
-    .at-symbol {
-        left: 10px;
-    }
+.logo-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+}
 
-</style>
+.icon-glow {
+  position: absolute;
+  inset: -8px;
+  background: conic-gradient(from 180deg, #5865f2, #00d4ff, #5865f2);
+  border-radius: 50%;
+  animation: spin 3s linear infinite;
+  opacity: 0.7;
+}
+
+.harmony-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #5865f2, #7289da);
+  padding: 12px;
+  border-radius: 50%;
+  z-index: 1;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.welcome-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 8px;
+  background: linear-gradient(135deg, #ffffff, #b9bbbe);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.welcome-subtitle {
+  font-size: 16px;
+  color: #b9bbbe;
+  margin: 0;
+}
+
+.progress-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #5865f2, #7289da);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #b9bbbe;
+  font-weight: 500;
+}
+
+.step-content {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.step-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.step-header h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 8px;
+}
+
+.step-header p {
+  font-size: 14px;
+  color: #b9bbbe;
+  margin: 0;
+}
+
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.avatar-upload-container {
+  position: relative;
+}
+
+.avatar-preview {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 4px solid rgba(88, 101, 242, 0.3);
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  background: linear-gradient(135deg, #36393f, #2f3136);
+  transition: all 0.3s ease;
+}
+
+.avatar-preview:hover {
+  border-color: #5865f2;
+  transform: scale(1.05);
+}
+
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.default-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #b9bbbe;
+}
+
+.avatar-icon {
+  width: 48px;
+  height: 48px;
+}
+
+.upload-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 4px;
+}
+
+.avatar-preview:hover .upload-overlay {
+  opacity: 1;
+}
+
+.upload-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.file-input {
+  display: none;
+}
+
+.avatar-options {
+  display: flex;
+  gap: 12px;
+}
+
+.option-btn {
+  padding: 12px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #b9bbbe;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.option-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.option-btn.active {
+  background: rgba(88, 101, 242, 0.2);
+  border-color: #5865f2;
+  color: #ffffff;
+}
+
+.option-btn.primary {
+  background: linear-gradient(135deg, #5865f2, #7289da);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.option-btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(88, 101, 242, 0.3);
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.optional {
+  font-weight: 400;
+  color: #b9bbbe;
+  font-size: 12px;
+}
+
+.input-container {
+  position: relative;
+}
+
+.modern-input,
+.modern-textarea {
+  width: 100%;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.modern-input:focus,
+.modern-textarea:focus {
+  outline: none;
+  border-color: #5865f2;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.1);
+}
+
+.modern-input::placeholder,
+.modern-textarea::placeholder {
+  color: #72767d;
+}
+
+.input-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #5865f2, #7289da);
+  border-radius: 1px;
+  width: 0;
+  transition: width 0.3s ease;
+}
+
+.modern-input:focus + .input-accent,
+.modern-textarea:focus + .input-accent {
+  width: 100%;
+}
+
+.username-container {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.3s ease;
+}
+
+.username-container:focus-within {
+  border-color: #5865f2;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.1);
+}
+
+.username-prefix,
+.username-suffix {
+  color: #72767d;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.username-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 0 8px;
+  min-width: 0;
+}
+
+.username-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.input-feedback {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 20px;
+}
+
+.char-count {
+  font-size: 12px;
+  color: #72767d;
+}
+
+.error-text {
+  font-size: 12px;
+  color: #ed4245;
+  font-weight: 500;
+}
+
+.success-text {
+  font-size: 12px;
+  color: #00d166;
+  font-weight: 500;
+}
+
+.customization-section {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.profile-preview-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.preview-banner {
+  height: 80px;
+  background: linear-gradient(135deg, #5865f2, #7289da);
+}
+
+.preview-content {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: -32px;
+  position: relative;
+}
+
+.preview-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 4px solid rgba(47, 49, 54, 1);
+  overflow: hidden;
+  background: #36393f;
+  flex-shrink: 0;
+}
+
+.preview-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.default-preview-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #b9bbbe;
+}
+
+.default-preview-avatar svg {
+  width: 32px;
+  height: 32px;
+}
+
+.preview-info {
+  flex: 1;
+}
+
+.preview-display-name {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: #5865f2;
+}
+
+.preview-username {
+  font-size: 14px;
+  color: #b9bbbe;
+  margin: 0;
+}
+
+.color-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.color-options {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 12px;
+}
+
+.color-option {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.color-option:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.color-option.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+.custom-color {
+  background: linear-gradient(135deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.plus-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.hidden-color-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 40px;
+}
+
+.action-btn {
+  flex: 1;
+  padding: 16px 24px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-btn.secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: #b9bbbe;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.action-btn.secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.action-btn.primary {
+  background: linear-gradient(135deg, #5865f2, #7289da);
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+}
+
+.action-btn.primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(88, 101, 242, 0.4);
+}
+
+.action-btn.primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.action-btn.primary:hover::before {
+  opacity: 1;
+}
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 768px) {
+  .new-profile-container {
+    padding: 16px;
+  }
   
+  .profile-creation-card {
+    padding: 24px;
+  }
+  
+  .welcome-title {
+    font-size: 24px;
+  }
+  
+  .color-options {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  
+  .color-option {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 480px) {
+  .card-actions {
+    flex-direction: column;
+  }
+  
+  .color-options {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+</style>

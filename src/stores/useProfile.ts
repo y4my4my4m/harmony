@@ -50,7 +50,7 @@ export const useProfileStore = defineStore('profile', {
         this.profile = data;
       } catch (error) {
         console.error('Error updating profile:', error);
-        // Handle error appropriately
+        throw error; // Re-throw to allow proper error handling in components
       }
     },
     async createProfile(profileData: Profile) {
@@ -58,14 +58,19 @@ export const useProfileStore = defineStore('profile', {
         const { data, error } = await supabase
           .from('profiles')
           .insert([profileData])
+          .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase error creating profile:', error);
+          throw error;
+        }
 
         this.profile = data;
+        return data;
       } catch (error) {
         console.error('Error creating profile:', error);
-        // Handle error appropriately
+        throw error; // Re-throw to allow proper error handling in components
       }
     }
   },
