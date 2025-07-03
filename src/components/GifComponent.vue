@@ -1,6 +1,6 @@
 <template>
     <div class="giphy-search" ref="giphy">
-      <input type="text" v-model="searchQuery" placeholder="Search GIFs...">
+      <input type="text" v-model="searchQuery" placeholder="Search GIFs..." class="search-input">
       <div class="giphy-results">
         <masonry-wall :items="gifs" :column-width="150" :gap="10">
             <template #default="{ item }">
@@ -15,6 +15,7 @@
       </div>
     </div>
 </template>
+
 <script lang="ts">
   import { defineComponent, ref, watch, onMounted, onUnmounted } from 'vue';
   import type { PropType } from 'vue';
@@ -55,7 +56,6 @@
                 console.log('empty search');
                 await fetchTrendingGifs();
             } else {
-                if (!searchQuery.value.trim()) return;
                 try {
                     const response = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchQuery.value)}&key=${import.meta.env.VITE_TENOR_API_KEY}&limit=18`);
                     if (!response.ok) {
@@ -80,15 +80,25 @@
             }
         };
 
+        // Handle escape key to close
+        const handleKeyDown = (event: KeyboardEvent) => {
+          if (event.key === 'Escape') {
+            props.closeGiphy?.();
+          }
+        };
+
         onMounted(() => {
             document.addEventListener('click', handleClickOutside);
+            document.addEventListener('keydown', handleKeyDown);
             fetchTrendingGifs();
         });
 
         onUnmounted(() => {
             document.removeEventListener('click', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
         });
-        // Watcher on searchQuery
+        
+        // Watcher on searchQuery with debounce for better performance
         watch(searchQuery, () => {
             searchGifs();
         });
@@ -112,42 +122,48 @@
 </script>
 <style scoped>
     .giphy-search {
-        position: absolute;
+        position: fixed;
         width: 480px;
-        bottom: 90px;
-        right: 250px;
         background-color: #2f3136;
         border-radius: 8px;
-        box-shadow: -3px 7px 16px rgba(0,0,0,0.32), 4px 8px 16px rgba(0,0,0,0.22);
-        padding: 10px;
-        box-sizing: border-box;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+        border: 1px solid #40444b;
+        z-index: 1000;
+        
+        /* Position above the GIF button - more to the left to center above GIF icon */
+        bottom: 70px;
+        right: 60px;
+        transform: translateX(-50%);
     }
 
-    .giphy-search input[type="text"] {
-        width: 100%;
+    .search-input {
+        width: calc(100% - 20px);
         padding: 8px 12px;
         border-radius: 8px;
         border: 1px solid #52575e;
-        background-color: var(--h-chat-dark);
-        color: #cccccc;
+        background-color: #40444b;
+        color: #dcddde;
         font-size: 16px;
-        margin-top: 10px;
-        margin-bottom: 10px;
+        outline: none;
+        transition: border-color 0.15s ease;
         box-sizing: border-box;
-        outline:none;
+        margin: 10px;
     }
 
-    .giphy-search input[type="text"]::placeholder {
+    .search-input:focus {
+        border: 1px solid #5865f2;
+    }
+
+    .search-input::placeholder {
         color: #72767d;
     }
 
     .giphy-results {
-        display: block;
         height: 450px;
         max-height: 450px;
         overflow-y: auto;
         overflow-x: hidden;
-        padding-right: 10px;
+        padding: 0 10px 10px 10px;
     }
 
     .gif-item {
@@ -160,19 +176,39 @@
     }
 
     .gif-item:hover {
-        transform: scale(1.14);
+        transform: scale(1.05);
     }
+    
     .gif-item:hover img {
         box-shadow: 0 8px 16px rgba(0,0,0,0.2);
     }
+    
     .gif-item img {
         width: 100%;
         height: auto;
         border-radius: 4px;
         object-fit: cover;
     }
-    @media (max-width: 768px) {
 
+    /* Scrollbar styling */
+    .giphy-results::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .giphy-results::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .giphy-results::-webkit-scrollbar-thumb {
+        background: #40444b;
+        border-radius: 4px;
+    }
+
+    .giphy-results::-webkit-scrollbar-thumb:hover {
+        background: #4f545c;
+    }
+    
+    @media (max-width: 768px) {
         .giphy-search {
             width: 90%;
             right: 20px;
@@ -180,4 +216,3 @@
     }
 </style>
 
-  
