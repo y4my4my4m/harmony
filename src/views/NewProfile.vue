@@ -390,7 +390,7 @@ export default {
           id: authStore.session.user.id,
           username: formattedUsername.value,
           display_name: displayName.value.trim(),
-          about: about.value.trim() || undefined, // Use undefined instead of null for optional fields
+          about: about.value.trim() || undefined,
           color: selectedColor.value,
         };
 
@@ -398,10 +398,28 @@ export default {
         const result = await profileStore.createProfile(profileData);
         console.log('Profile creation result:', result);
         
-        // TODO: Handle avatar upload if file exists
-        if (avatarFile.value) {
-          // Avatar upload would be handled here
-          console.log('Avatar upload would be handled here', avatarFile.value);
+        // Handle avatar upload if file exists
+        if (avatarFile.value && result) {
+          console.log('Uploading avatar...');
+          try {
+            const { uploadAvatar } = await import('@/utils/fileUpload');
+            const uploadResult = await uploadAvatar(avatarFile.value, authStore.session.user.id);
+            
+            if (uploadResult.success && uploadResult.url) {
+              // Update profile with avatar URL
+              await profileStore.updateProfile({
+                id: authStore.session.user.id,
+                avatar_url: uploadResult.url
+              });
+              console.log('Avatar uploaded successfully:', uploadResult.url);
+            } else {
+              console.error('Avatar upload failed:', uploadResult.error);
+              toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
+            }
+          } catch (uploadError) {
+            console.error('Avatar upload error:', uploadError);
+            toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
+          }
         }
 
         toast.success('Welcome to Harmony! Your profile has been created.');

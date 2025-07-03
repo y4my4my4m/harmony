@@ -289,9 +289,28 @@ export default {
         const result = await serverChannelStore.createServer(serverData);
         console.log('Server creation result:', result);
         
-        // TODO: Handle icon upload if file exists
-        if (iconFile.value) {
-          console.log('Server icon upload would be handled here', iconFile.value);
+        // Handle icon upload if file exists
+        if (iconFile.value && result) {
+          console.log('Uploading server icon...');
+          try {
+            const { uploadServerIcon } = await import('@/utils/fileUpload');
+            const uploadResult = await uploadServerIcon(iconFile.value, result.id);
+            
+            if (uploadResult.success && uploadResult.url) {
+              // Update server with icon URL
+              await serverChannelStore.updateServer({
+                id: result.id,
+                icon: uploadResult.url
+              });
+              console.log('Server icon uploaded successfully:', uploadResult.url);
+            } else {
+              console.error('Server icon upload failed:', uploadResult.error);
+              toast.warning('Server created but icon upload failed. You can update it later in server settings.');
+            }
+          } catch (uploadError) {
+            console.error('Server icon upload error:', uploadError);
+            toast.warning('Server created but icon upload failed. You can update it later in server settings.');
+          }
         }
 
         toast.success('Server created successfully!');

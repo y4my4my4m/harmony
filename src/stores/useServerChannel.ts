@@ -379,6 +379,34 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
     },
 
+    async updateServer(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
+      const { data, error } = await supabase
+        .from('servers')
+        .update({
+          ...(serverData.icon && { icon: serverData.icon }),
+          ...(serverData.name && { name: serverData.name }),
+          ...(serverData.description !== undefined && { description: serverData.description }),
+          ...(serverData.public !== undefined && { public: serverData.public })
+        })
+        .eq('id', serverData.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating server:', error);
+        throw error;
+      }
+
+      // Update local state
+      const serverIndex = this.servers.findIndex(server => server.id === serverData.id);
+      if (serverIndex !== -1) {
+        this.servers[serverIndex] = { ...this.servers[serverIndex], ...data };
+      }
+
+      console.log('✅ Server updated successfully:', data);
+      return data;
+    },
+
     async getCurrentServer() {
       if (this.currentServerId) {
         this.currentServer = this.servers.find(server => server.id === this.currentServerId) || {} as Server;
