@@ -25,14 +25,18 @@ const router = createRouter({
     {
       path: '/dm/:conversationId?',
       name: 'DM',
-      component: () => import('@/views/DMView.vue'),
-      props: true,
+      component: ChatView,
+      props: route => ({ 
+        isDM: true, 
+        conversationId: route.params.conversationId 
+      }),
       meta: { requiresAuth: true },
     },
     {
       path: '/dm',
       name: 'DMHome',
-      component: () => import('@/views/DMView.vue'),
+      component: ChatView,
+      props: { isDM: true },
       meta: { requiresAuth: true },
     },
     {

@@ -14,6 +14,7 @@
       @showPublicServers="handleShowPublicServers"
     />
     <ChannelSidebar
+      v-if="!isDM"
       :class="{ 'open': isSidebarsVisible }"
       :currentServer="currentServer"
       :channels="channels"
@@ -23,7 +24,13 @@
       @channelSelected="handleChannelSelected"
       @createChannel="handleCreateChannel"
     />
+    <DMSidebar
+      v-else
+      :class="{ 'open': isSidebarsVisible }"
+      @conversationSelected="handleDMConversationSelected"
+    />
     <CreateChannel
+      v-if="!isDM"
       :serverId="currentServer?.id || ''"
       :categoryId="currentCategoryId"
       :show="showCreateChannelForm"
@@ -32,13 +39,16 @@
     />
     <div :class="{ 'open': isSidebarsVisible, 'profile-open': isProfilesVisible}" class="chat-area">
       <VoiceChannelScene 
+        v-if="!isDM"
         :currentChannelId="currentChannelId"
       />
       <ChatComponent
         :messages="chatMessages"
         :isLoading="isLoading"
+        :isDM="isDM"
         @loadMoreMessages="fetchMoreMessages" 
         @update:isAtBottom="isAtBottom = $event" 
+        @sendMessage="handleSendMessage"
       />
     </div>
     <UserSidebar :class="{ 'open': isProfilesVisible }"  />
@@ -49,6 +59,7 @@
   import { defineComponent, computed, onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue';
   import ServerSidebar from '@/components/ServerSidebar.vue';
   import ChannelSidebar from '@/components/ChannelSidebar.vue';
+  import DMSidebar from '@/components/DMSidebar.vue';
   import ChatComponent from '@/components/ChatComponent.vue';
   import UserSidebar from '@/components/UserSidebar.vue';
   import NoServersSplash from '@/components/NoServersSplash.vue';
@@ -58,6 +69,7 @@
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
+  import { useDMStore } from '@/stores/useDM';
   import { useAuthStore } from '@/stores/auth';
   import { useRoute, useRouter } from 'vue-router';
   import { useProfileStore } from '@/stores/useProfile';
@@ -69,6 +81,7 @@
     components: {
       ServerSidebar,
       ChannelSidebar,
+      DMSidebar,
       ChatComponent,
       UserSidebar,
       NoServersSplash,
@@ -79,11 +92,17 @@
     props: {
       serverId: String,
       channelId: String,
+      isDM: {
+        type: Boolean,
+        default: false
+      },
+      conversationId: String,
     },
-    setup() {
+    setup(props) {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
       const chatStore = useChatStore();
+      const dmStore = useDMStore();
       const authStore = useAuthStore();
       const profileStore = useProfileStore();
       const toast = useToast();
@@ -109,7 +128,12 @@
       const channels = computed(() => serverChannelStore.channels);
       const categories = computed(() => serverChannelStore.categories);
       const categoryChannels = computed(() => serverChannelStore.categoryChannels);
-      const chatMessages = computed(() => chatStore.messages);
+      
+      // Use DM messages when in DM mode, otherwise use chat messages
+      const chatMessages = computed(() => {
+        return props.isDM ? dmStore.currentDMMessages : chatStore.messages;
+      });
+
       const currentServerName = computed(() => serverChannelStore.currentServer.name || '');
       const currentChannelId = computed(() => serverChannelStore.currentChannelId || '');
       const currentServer = computed(() => serverChannelStore.currentServer);
@@ -230,30 +254,93 @@
         scrollToBottom();
       };
 
+      // DM-specific handlers
+      const handleDMConversationSelected = async (conversationId: string) => {
+        if (props.isDM) {
+          router.push({ name: 'DM', params: { conversationId } });
+        }
+      };
+
+      const loadDMConversation = async () => {
+        if (props.isDM && props.conversationId) {
+          dmStore.setCurrentConversation(props.conversationId);
+          isLoading.value = true;
+          try {
+            dmStore.clearDMMessages();
+            await dmStore.fetchConversationMessages(props.conversationId);
+            scrollToBottom();
+          } catch (error) {
+            console.error('Error loading DM conversation:', error);
+            toast.error('Failed to load conversation');
+          } finally {
+            isLoading.value = false;
+          }
+        }
+      };
+
       const fetchMoreMessages = async () => {
-        // isAtBottom.value == false && 
-        if (!chatStore.allMessagesLoaded && !chatStore.loadingOlderMessages && serverChannelStore.currentChannelId) {
-          const oldestMessageId = chatMessages.value[0]?.id || '';
-          await chatStore.fetchMessages(serverChannelStore.currentChannelId, oldestMessageId);
+        if (props.isDM) {
+          // Handle DM message loading
+          if (!dmStore.loadingMessages && dmStore.currentConversationId) {
+            const oldestMessage = dmStore.currentDMMessages[0];
+            const oldestMessageId = oldestMessage?.id;
+            if (oldestMessageId) {
+              await dmStore.fetchConversationMessages(dmStore.currentConversationId, oldestMessageId);
+            }
+          }
+        } else {
+          // Handle server message loading
+          if (!chatStore.allMessagesLoaded && !chatStore.loadingOlderMessages && serverChannelStore.currentChannelId) {
+            const oldestMessageId = chatMessages.value[0]?.id || '';
+            await chatStore.fetchMessages(serverChannelStore.currentChannelId, oldestMessageId);
+          }
         }
       };
 
       const loadServerAndChannel = async () => {
-        const serverId = route.params.serverId;
-        const channelId = route.params.channelId;
-        if (serverId) {
-          await handleServerSelected(serverId.toString());
-          if (channelId) {
-            await handleChannelSelected(channelId.toString());
+        if (props.isDM) {
+          // For DM mode, initialize DM environment
+          const userId = authStore.session?.user?.id;
+          if (userId) {
+            await dmStore.initializeDMEnvironment(userId);
+            await loadDMConversation();
           }
-          else {
-            // Let handleServerSelected handle default channel selection
-            // The logic is now in handleServerSelected
+        } else {
+          // For server mode, use existing logic
+          const serverId = route.params.serverId;
+          const channelId = route.params.channelId;
+          if (serverId) {
+            await handleServerSelected(serverId.toString());
+            if (channelId) {
+              await handleChannelSelected(channelId.toString());
+            }
+          } else if (serverChannelStore.servers.length > 0) {
+            const firstServerId = serverChannelStore.servers[0].id;
+            router.replace({ name: 'Chat', params: { serverId: firstServerId } });
           }
-        } else if (serverChannelStore.servers.length > 0) {
-          const firstServerId = serverChannelStore.servers[0].id;
-          router.replace({ name: 'Chat', params: { serverId: firstServerId } });
         }
+      };
+
+      // Handle messages sent from ChatComponent
+      const handleSendMessage = async (content: any, replyTo?: string) => {
+        if (props.isDM) {
+          const currentUserId = authStore.session?.user?.id;
+          const conversationId = dmStore.currentConversationId;
+          
+          if (!currentUserId || !conversationId) return;
+
+          try {
+            const success = await dmStore.sendDMMessage(conversationId, currentUserId, content, replyTo);
+            if (!success) {
+              console.error('Failed to send DM message');
+              toast.error('Failed to send message');
+            }
+          } catch (error) {
+            console.error('Error sending DM message:', error);
+            toast.error('Error sending message');
+          }
+        }
+        // For server messages, ChatComponent handles them directly
       };
 
       const requestNotificationPermission = async () => {
@@ -403,7 +490,7 @@
           window.addEventListener('resize', handleResize);
 
           initialized = true;
-          if (servers.value.length === 0) {
+          if (servers.value.length === 0 && !props.isDM) {
             showNoServersSplash.value = true;
             return;
           }
@@ -415,6 +502,7 @@
           // Event listeners
           if (chatLayout) {
             chatLayout.addEventListener('touchstart', handleTouchStart as EventListener);
+            chatLayout.addEventListener('touchend', handleTouchEnd as EventListener);
           }
         }
       });
@@ -438,6 +526,13 @@
         }
       }, { immediate: true });
 
+      // Watch for conversation changes in DM mode
+      watch(() => props.conversationId, async (newConversationId) => {
+        if (props.isDM && newConversationId) {
+          await loadDMConversation();
+        }
+      });
+
       return { 
         servers, 
         channels, 
@@ -449,6 +544,8 @@
         currentChannelId,
         showNoServersSplash, 
         handleServerSelected,
+        handleDMConversationSelected,
+        handleSendMessage,
         showCreateChannelForm, 
         handleChannelSelected,
         fetchMoreMessages,
@@ -465,8 +562,8 @@
         handleShowPublicServers,
         isLoading,
       };
-  }
-});
+    }
+  });
 </script>
 
 <style scoped>
