@@ -54,7 +54,7 @@
           <div class="user-avatar">
             <img 
               v-if="user.avatar_url" 
-              :src="user.avatar_url" 
+              :src="getUserAvatarUrl(user)" 
               :alt="user.display_name || user.username"
               class="avatar-image"
             />
@@ -102,7 +102,7 @@
           <div class="conversation-avatar">
             <img 
               v-if="conversation.other_user?.avatar_url" 
-              :src="conversation.other_user.avatar_url" 
+              :src="getUserAvatarUrl(conversation.other_user)" 
               :alt="conversation.other_user.display_name || conversation.other_user.username"
               class="avatar-image"
             />
@@ -127,7 +127,7 @@
             
             <div class="conversation-preview">
               <div class="last-message">
-                {{ getLastMessagePreview(conversation.last_message) }}
+                {{ getLastMessagePreview(conversation) }}
               </div>
               <div 
                 v-if="conversation.unread_count && conversation.unread_count > 0"
@@ -148,6 +148,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import type { Message, MessagePart } from '@/types'
+import { getUserAvatarUrl } from '@/utils/avatarUtils'
 
 const emit = defineEmits<{
   'conversationSelected': [conversationId: string]
@@ -223,32 +224,44 @@ const formatMessageTime = (timestamp: string): string => {
   return date.toLocaleDateString()
 }
 
-const getLastMessagePreview = (message?: Message): string => {
-  if (!message?.content) return 'No messages yet'
+const getLastMessagePreview = (conversation: DMConversation): string => {
+  if (!conversation.last_message?.content) return 'No messages yet'
   
   try {
-    const content = message.content as MessagePart[]
-    if (!Array.isArray(content)) return 'No messages yet'
+    const message = conversation.last_message
+    const currentUserId = authStore.session?.user?.id
     
-    // Extract text from message parts
-    const textParts = content
-      .filter(part => part.type === 'text')
-      .map(part => part.text)
-      .join(' ')
+    // Only show preview if the message is from the other user (not from current user)
+    if (message.user_id === currentUserId) {
+      return 'You: ' + getMessagePreviewText(message)
+    }
     
-    if (textParts) return textParts.length > 50 ? textParts.substring(0, 50) + '...' : textParts
-    
-    // Check for other content types
-    const filePart = content.find(part => part.type === 'file')
-    if (filePart) return '📎 File'
-    
-    const emojiPart = content.find(part => part.type === 'emoji')
-    if (emojiPart) return '😊 Emoji'
-    
-    return 'Message'
+    return getMessagePreviewText(message)
   } catch (error) {
     return 'Message'
   }
+}
+
+const getMessagePreviewText = (message: Message): string => {
+  const content = message.content as MessagePart[]
+  if (!Array.isArray(content)) return 'No messages yet'
+  
+  // Extract text from message parts
+  const textParts = content
+    .filter(part => part.type === 'text')
+    .map(part => part.text)
+    .join(' ')
+  
+  if (textParts) return textParts.length > 50 ? textParts.substring(0, 50) + '...' : textParts
+  
+  // Check for other content types
+  const filePart = content.find(part => part.type === 'file')
+  if (filePart) return '📎 File'
+  
+  const emojiPart = content.find(part => part.type === 'emoji')
+  if (emojiPart) return '😊 Emoji'
+  
+  return 'Message'
 }
 
 // Lifecycle
