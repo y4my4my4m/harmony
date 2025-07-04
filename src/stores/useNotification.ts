@@ -606,6 +606,30 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    async deleteNotification(notificationId: string) {
+      try {
+        const index = this.notifications.findIndex(n => n.id === notificationId)
+        if (index === -1) return
+        const notification = this.notifications[index]
+        this.notifications.splice(index, 1)
+        this.updateUnreadCount()
+        const { error } = await supabase
+          .from('notifications')
+          .delete()
+          .eq('id', notificationId)
+        if (error) {
+          // Revert on error
+          this.notifications.splice(index, 0, notification)
+          this.updateUnreadCount()
+          throw error
+        }
+        // this.showToast('server_update', 'Notification deleted', '', 2000)
+      } catch (error) {
+        console.error('Failed to delete notification:', error)
+        this.showToast('server_update', 'Failed to delete notification', 'Please try again', 3000)
+      }
+    },  
+
     async markAllAsRead() {
       try {
         // Optimistic update
