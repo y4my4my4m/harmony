@@ -160,6 +160,21 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.currentChannelId = channelId;
         this.currentServerId = serverId;
         this.isConnected = true;
+        
+        // Get fresh state from WebRTC service
+        const newLocalState = unifiedWebRTC.getLocalState();
+        
+        // Apply any preemptive mute/deafen state
+        if (this.localState.isMuted && !newLocalState.isMuted) {
+          console.log('Applying preemptive mute state');
+          unifiedWebRTC.toggleMute();
+        }
+        if (this.localState.isDeafened && !newLocalState.isDeafened) {
+          console.log('Applying preemptive deafen state');
+          unifiedWebRTC.toggleDeafen();
+        }
+        
+        // Update state after applying preemptive settings
         this.localState = unifiedWebRTC.getLocalState();
         this.localStream = unifiedWebRTC.getLocalStream();
         
@@ -240,23 +255,45 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     /**
      * Toggle mute on/off
      */
-    toggleMute(): boolean {
-      const muted = unifiedWebRTC.toggleMute();
-      this.localState = unifiedWebRTC.getLocalState();
-      
-      this.playSound(muted ? 'mic_off.mp3' : 'mic_on.mp3');
-      return muted;
+    async toggleMute(): Promise<boolean> {
+      // Allow mute/unmute even when not connected (preemptive state)
+      if (this.isConnected) {
+        const muted = unifiedWebRTC.toggleMute();
+        this.localState = unifiedWebRTC.getLocalState();
+        this.playSound(muted ? 'mic_off.mp3' : 'mic_on.mp3');
+        return muted;
+      } else {
+        // Toggle local state when not connected
+        this.localState.isMuted = !this.localState.isMuted;
+        console.log('Setting preemptive mute state:', this.localState.isMuted);
+        this.playSound(this.localState.isMuted ? 'mic_off.mp3' : 'mic_on.mp3');
+        return this.localState.isMuted;
+      }
     },
 
     /**
      * Toggle deafen on/off
      */
-    toggleDeafen(): boolean {
-      const deafened = unifiedWebRTC.toggleDeafen();
-      this.localState = unifiedWebRTC.getLocalState();
-      
-      this.playSound(deafened ? 'deafen_on.mp3' : 'deafen_off.mp3');
-      return deafened;
+    async toggleDeafen(): Promise<boolean> {
+      // Allow deafen/undeafen even when not connected (preemptive state)
+      if (this.isConnected) {
+        const deafened = unifiedWebRTC.toggleDeafen();
+        this.localState = unifiedWebRTC.getLocalState();
+        this.playSound(deafened ? 'deafen_on.mp3' : 'deafen_off.mp3');
+        return deafened;
+      } else {
+        // Toggle local state when not connected
+        this.localState.isDeafened = !this.localState.isDeafened;
+        
+        // Deafening also mutes (Discord behavior)
+        if (this.localState.isDeafened) {
+          this.localState.isMuted = true;
+        }
+        
+        console.log('Setting preemptive deafen state:', this.localState.isDeafened);
+        this.playSound(this.localState.isDeafened ? 'deafen_on.mp3' : 'deafen_off.mp3');
+        return this.localState.isDeafened;
+      }
     },
 
     /**
@@ -340,6 +377,25 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       unifiedWebRTC.on('local-state-changed', (state) => {
         console.log('🎛️ Local state changed:', state);
         this.localState = state;
+      });
+      
+      unifiedWebRTC.on('local-stream-changed', (stream) => {
+        console.log('📹 Local stream changed:', stream);
+        this.localStream = stream;
+      });
+      
+      // Handle generic stream changes (for better compatibility)
+      unifiedWebRTC.on('stream-changed', (data) => {
+        console.log('📡 Stream changed:', data.userId, data.type, data.stream);
+        if (data.type === 'local' && data.userId === this.localState.userId) {
+          this.localStream = data.stream;
+        } else if (data.type === 'remote') {
+          if (data.stream) {
+            this.remoteStreams.set(data.userId, data.stream);
+          } else {
+            this.remoteStreams.delete(data.userId);
+          }
+        }
       });
 
       // Audio levels

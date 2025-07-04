@@ -179,44 +179,107 @@ export class UnifiedWebRTCService {
     try {
       if (!this.localMediaState.isVideoEnabled) {
         // Enable video
-        const videoStream = await navigator.mediaDevices.getUserMedia({
+        console.log('🎥 Enabling video camera...');
+        
+        const videoConstraints = {
           video: {
             width: { ideal: 1280, max: 1920 },
             height: { ideal: 720, max: 1080 },
-            frameRate: { ideal: 30 }
+            frameRate: { ideal: 30, max: 60 }
           },
           audio: false
-        });
+        };
         
+        const videoStream = await navigator.mediaDevices.getUserMedia(videoConstraints);
         const videoTrack = videoStream.getVideoTracks()[0];
-        if (this.localStream && videoTrack) {
+        
+        if (!videoTrack) {
+          throw new Error('No video track obtained from camera');
+        }
+        
+        console.log('✅ Video track obtained:', videoTrack.getSettings());
+        
+        if (this.localStream) {
+          // Add video track to local stream
           this.localStream.addTrack(videoTrack);
           this.localMediaState.isVideoEnabled = true;
           
-          // Add video track to all peer connections
-          this.connections.forEach(conn => {
-            const sender = conn.peerConnection.addTrack(videoTrack, this.localStream!);
-            console.log('📹 Added video track to peer:', conn.userId);
-          });
+          console.log('📹 Local stream now has', this.localStream.getTracks().length, 'tracks');
+          
+          // Add video track to all peer connections with renegotiation
+          for (const [userId, conn] of this.connections) {
+            try {
+              console.log('📹 Adding video track to peer:', userId);
+              const sender = conn.peerConnection.addTrack(videoTrack, this.localStream);
+              
+              // Force renegotiation for video track
+              const offer = await conn.peerConnection.createOffer();
+              await conn.peerConnection.setLocalDescription(offer);
+              
+              await this.sendSignal({
+                type: 'offer',
+                from: this.currentUserId!,
+                to: userId,
+                data: offer,
+                timestamp: Date.now()
+              });
+              
+              console.log('✅ Video track added and offer sent to:', userId);
+            } catch (error) {
+              console.error('❌ Error adding video track to peer', userId, ':', error);
+            }
+          }
+          
+          // Emit local stream change for UI update (important for self-view)
+          this.emit('local-stream-changed', this.localStream);
+          console.log('📺 Emitted local-stream-changed event for self-view update');
         }
       } else {
         // Disable video
+        console.log('🎥 Disabling video camera...');
+        
         if (this.localStream) {
           const videoTracks = this.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
+          
+          for (const track of videoTracks) {
+            console.log('🛑 Stopping video track:', track.id);
             track.stop();
-            this.localStream!.removeTrack(track);
+            this.localStream.removeTrack(track);
             
             // Remove from peer connections
-            this.connections.forEach(conn => {
-              const senders = conn.peerConnection.getSenders();
-              const videoSender = senders.find(s => s.track === track);
-              if (videoSender) {
-                conn.peerConnection.removeTrack(videoSender);
+            for (const [userId, conn] of this.connections) {
+              try {
+                const senders = conn.peerConnection.getSenders();
+                const videoSender = senders.find(s => s.track === track);
+                
+                if (videoSender) {
+                  console.log('📹 Removing video track from peer:', userId);
+                  conn.peerConnection.removeTrack(videoSender);
+                  
+                  // Force renegotiation
+                  const offer = await conn.peerConnection.createOffer();
+                  await conn.peerConnection.setLocalDescription(offer);
+                  
+                  await this.sendSignal({
+                    type: 'offer',
+                    from: this.currentUserId!,
+                    to: userId,
+                    data: offer,
+                    timestamp: Date.now()
+                  });
+                }
+              } catch (error) {
+                console.error('❌ Error removing video track from peer', userId, ':', error);
               }
-            });
-          });
+            }
+          }
+          
           this.localMediaState.isVideoEnabled = false;
+          console.log('✅ Video disabled, local stream now has', this.localStream.getTracks().length, 'tracks');
+          
+          // Emit local stream change for UI update
+          this.emit('local-stream-changed', this.localStream);
+          console.log('📺 Emitted local-stream-changed event (video disabled)');
         }
       }
       
@@ -226,6 +289,9 @@ export class UnifiedWebRTCService {
       return this.localMediaState.isVideoEnabled;
     } catch (error) {
       console.error('❌ Error toggling video:', error);
+      
+      // Reset state on error
+      this.localMediaState.isVideoEnabled = false;
       return false;
     }
   }
@@ -451,6 +517,10 @@ export class UnifiedWebRTCService {
       this.setupAudioLevelMonitoring();
       
       console.log('🎤 Local audio initialized');
+      
+      // Emit initial local stream for UI
+      this.emit('local-stream-changed', this.localStream);
+      this.emit('stream-changed', { userId: this.currentUserId, stream: this.localStream, type: 'local' });
     } catch (error) {
       console.error('❌ Failed to get audio stream:', error);
       throw error;
@@ -703,11 +773,15 @@ export class UnifiedWebRTCService {
     
     // Handle remote stream
     pc.ontrack = (event) => {
-      console.log('📹 Received track from:', userId, event.track.kind);
+      console.log('📹 Received track from:', userId, event.track.kind, 'Stream ID:', event.streams[0]?.id);
       
       if (event.streams[0]) {
         connection.remoteStream = event.streams[0];
+        console.log('📡 Setting remote stream for user:', userId, 'Tracks:', event.streams[0].getTracks().length);
         this.emit('user-stream-changed', { userId, stream: event.streams[0] });
+        
+        // Also emit generic stream change event
+        this.emit('stream-changed', { userId, stream: event.streams[0], type: 'remote' });
       }
     };
     

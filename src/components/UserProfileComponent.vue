@@ -63,6 +63,7 @@
   import { useAuthStore } from '@/stores/auth';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useVoiceChannelStore } from '@/stores/voiceChannel';
+  import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
   import { getProfileWithAvatarUrl } from '@/services/profileService';
   import { useRouter } from 'vue-router';
   import type { User } from '@/types';
@@ -85,6 +86,7 @@
       const authStore = useAuthStore();
       const serverUsersStore = useServerUsersStore();
       const voiceChannelStore = useVoiceChannelStore();
+      const unifiedVoiceChannelStore = useUnifiedVoiceChannelStore();
       const router = useRouter();
       const profile = ref<User | null>(null);
       const showStatusDropdown = ref(false);
@@ -104,10 +106,40 @@
         { value: UserStatus.Offline, label: 'Invisible', class: 'status-offline' }
       ];
 
-      // Unified voice state from store
-      const isMicActive = computed(() => !voiceChannelStore.isMuted);
-      const isHeadphonesActive = computed(() => !voiceChannelStore.isDeafened);
-      const isInVoiceChannel = computed(() => voiceChannelStore.isConnected);
+      // Determine which voice system is active and sync with it
+      const activeVoiceStore = computed(() => {
+        // Prioritize unified system if connected, fallback to legacy
+        if (unifiedVoiceChannelStore.isConnected) {
+          return 'unified';
+        } else if (voiceChannelStore.isConnected) {
+          return 'legacy';
+        }
+        return 'none';
+      });
+      
+      const isMicActive = computed(() => {
+        if (activeVoiceStore.value === 'unified') {
+          return !unifiedVoiceChannelStore.localState.isMuted;
+        } else if (activeVoiceStore.value === 'legacy') {
+          return !voiceChannelStore.isMuted;
+        }
+        // Return preemptive state when not connected
+        return !voiceChannelStore.isMuted; // Use legacy as default for preemptive state
+      });
+      
+      const isHeadphonesActive = computed(() => {
+        if (activeVoiceStore.value === 'unified') {
+          return !unifiedVoiceChannelStore.localState.isDeafened;
+        } else if (activeVoiceStore.value === 'legacy') {
+          return !voiceChannelStore.isDeafened;
+        }
+        // Return preemptive state when not connected
+        return !voiceChannelStore.isDeafened; // Use legacy as default for preemptive state
+      });
+      
+      const isInVoiceChannel = computed(() => {
+        return unifiedVoiceChannelStore.isConnected || voiceChannelStore.isConnected;
+      });
       
       // Voice sound effects (proper ones for voice, not camera)
       const micOnSound = ref(new Audio('/assets/sounds/mic_on.mp3'));
@@ -115,8 +147,16 @@
 
       const toggleMic = async () => {
         try {
-          const wasMuted = voiceChannelStore.isMuted;
-          await voiceChannelStore.toggleMute();
+          let wasMuted = false;
+          
+          if (activeVoiceStore.value === 'unified') {
+            wasMuted = unifiedVoiceChannelStore.localState.isMuted;
+            await unifiedVoiceChannelStore.toggleMute();
+          } else {
+            // Use legacy store for both connected and preemptive state
+            wasMuted = voiceChannelStore.isMuted;
+            await voiceChannelStore.toggleMute();
+          }
           
           // Play appropriate sound effect
           const sound = wasMuted ? micOnSound.value : micOffSound.value;
@@ -129,8 +169,16 @@
 
       const toggleHeadphones = async () => {
         try {
-          const wasDeafened = voiceChannelStore.isDeafened;
-          await voiceChannelStore.toggleDeafen();
+          let wasDeafened = false;
+          
+          if (activeVoiceStore.value === 'unified') {
+            wasDeafened = unifiedVoiceChannelStore.localState.isDeafened;
+            await unifiedVoiceChannelStore.toggleDeafen();
+          } else {
+            // Use legacy store for both connected and preemptive state
+            wasDeafened = voiceChannelStore.isDeafened;
+            await voiceChannelStore.toggleDeafen();
+          }
           
           // Play appropriate sound effect
           // Deafening always results in muting, so play mute sound
@@ -225,6 +273,7 @@
         isMicActive,
         isHeadphonesActive,
         isInVoiceChannel,
+        activeVoiceStore,
         selectStatus,
         targetRef,
         currentStatus,
