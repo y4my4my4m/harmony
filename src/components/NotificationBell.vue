@@ -147,7 +147,7 @@
             <!-- Notification Items -->
             <TransitionGroup name="notification-list" tag="div" class="notifications-container">
               <NotificationItem
-                v-for="notification in filteredNotifications"
+                v-for="notification in notifications"
                 :key="notification.id"
                 :notification="notification"
                 @click="handleNotificationClick"
@@ -197,76 +197,24 @@ const router = useRouter()
 const isOpen = ref(false)
 const isMarkingAllAsRead = ref(false)
 const isLoadingMore = ref(false)
-const activeFilter = ref<string>('all')
 const hasMoreNotifications = ref(false)
 
 // Computed properties
-const notifications = computed(() => notificationStore.notifications)
+const notifications = computed(() => notificationStore.filteredNotifications)
 const unreadCount = computed(() => notificationStore.unreadCount)
 const hasUnread = computed(() => unreadCount.value > 0)
 const isDndActive = computed(() => notificationStore.isDndActive)
 const isLoading = computed(() => notificationStore.isLoading)
-
-// Notification filters for better UX
-const notificationFilters = computed(() => [
-  {
-    key: 'all',
-    label: 'All',
-    icon: '📋',
-    count: notifications.value.length
-  },
-  {
-    key: 'unread',
-    label: 'Unread',
-    icon: '🔴',
-    count: notifications.value.filter(n => !n.is_read).length
-  },
-  {
-    key: 'mentions',
-    label: 'Mentions',
-    icon: '@',
-    count: notifications.value.filter(n => n.type === 'mention').length
-  },
-  {
-    key: 'dms',
-    label: 'Messages',
-    icon: '💬',
-    count: notifications.value.filter(n => n.type === 'dm').length
-  }
-])
-
-const filteredNotifications = computed(() => {
-  let filtered = [...notifications.value]
-  
-  switch (activeFilter.value) {
-    case 'unread':
-      filtered = filtered.filter(n => !n.is_read)
-      break
-    case 'mentions':
-      filtered = filtered.filter(n => n.type === 'mention')
-      break
-    case 'dms':
-      filtered = filtered.filter(n => n.type === 'dm')
-      break
-    default:
-      // 'all' - no filtering needed
-      break
-  }
-  
-  // Sort: unread first, then by creation date
-  return filtered.sort((a, b) => {
-    if (a.is_read !== b.is_read) {
-      return a.is_read ? 1 : -1
-    }
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  })
+const notificationFilters = computed(() => notificationStore.notificationFilters)
+const activeFilter = computed({
+  get: () => notificationStore.currentFilter,
+  set: (value) => notificationStore.setFilter(value)
 })
 
 // Methods
 const togglePanel = () => {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
-    // Mark panel as opened for analytics/tracking
     document.body.style.overflow = 'hidden'
   } else {
     document.body.style.overflow = ''
@@ -285,7 +233,6 @@ const markAllAsRead = async () => {
     isMarkingAllAsRead.value = true
     await notificationStore.markAllAsRead(authStore.session.user.id)
     
-    // Show success feedback
     notificationStore.showToast(
       'server_update',
       'All notifications marked as read',
@@ -310,16 +257,8 @@ const markAsRead = async (notificationId: string) => {
 }
 
 const dismissNotification = async (notificationId: string) => {
-  // Add dismiss functionality
   try {
-    // Remove from local state immediately for better UX
-    const index = notifications.value.findIndex(n => n.id === notificationId)
-    if (index >= 0) {
-      notifications.value.splice(index, 1)
-    }
-    
-    // Mark as read in the backend
-    await notificationStore.markAsRead(notificationId)
+    await notificationStore.deleteNotification(notificationId)
   } catch (error) {
     console.error('Failed to dismiss notification:', error)
   }
@@ -337,14 +276,16 @@ const openSettings = () => {
 }
 
 const loadMoreNotifications = async () => {
-  if (isLoadingMore.value) return
+  if (isLoadingMore.value || !authStore.session?.user?.id) return
   
   try {
     isLoadingMore.value = true
-    // Implementation for loading more notifications
-    // This would typically fetch older notifications from the server
-    await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate loading
-    hasMoreNotifications.value = false // No more to load for now
+    const newNotifications = await notificationStore.fetchNotifications(
+      authStore.session.user.id, 
+      25, 
+      notifications.value.length
+    )
+    hasMoreNotifications.value = newNotifications.length === 25
   } catch (error) {
     console.error('Failed to load more notifications:', error)
   } finally {
@@ -523,8 +464,8 @@ onUnmounted(() => {
 /* Modern notification panel */
 .notification-panel {
   position: absolute;
-  top: calc(100% + 12px);
-  right: 0;
+  bottom: calc(100% + 12px);
+  left: 0;
   width: 420px;
   max-height: 80vh;
   background: var(--h-chat);
