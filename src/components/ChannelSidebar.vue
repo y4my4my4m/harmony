@@ -189,6 +189,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
@@ -629,6 +630,7 @@ export default defineComponent({
 
     // Voice channel methods
     const serverUsersStore = useServerUsersStore();
+    const voiceChannelStore = useUnifiedVoiceChannelStore();
     
     // Voice connection audio and state
     const voiceOnSound = ref(new Audio('/assets/sounds/voice_connect.mp3'));
@@ -636,7 +638,8 @@ export default defineComponent({
 
     const isUserInVoiceChannel = (channelId: string): boolean => {
       if (!userId.value) return false;
-      return serverUsersStore.isUserInVoiceChannel(userId.value, channelId);
+      // Check if we're connected to this specific voice channel via the voice store
+      return voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId;
     };
 
     const getUsersInVoiceChannel = (channelId: string): string[] => {
@@ -647,22 +650,19 @@ export default defineComponent({
       if (!userId.value || !props.currentServer?.id) return;
       
       try {
-        // Leave any other voice channels first (user can only be in one at a time)
-        await serverUsersStore.leaveAllVoiceChannels(props.currentServer.id, userId.value);
+        console.log(`🎯 Joining voice channel ${channelId} directly`);
         
-        // Join the new voice channel
-        const success = await serverUsersStore.joinVoiceChannel(
-          props.currentServer.id, 
-          channelId, 
-          userId.value
-        );
+        // Join voice channel directly without navigating away from current text channel
+        const success = await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id);
         
         if (success) {
-          console.log(`Successfully joined voice channel ${channelId}`);
+          console.log(`✅ Successfully joined voice channel ${channelId}`);
           voiceOnSound.value.play();
+        } else {
+          console.error('❌ Failed to join voice channel');
         }
       } catch (error) {
-        console.error('Failed to join voice channel:', error);
+        console.error('❌ Error joining voice channel:', error);
       }
     };
 
@@ -670,11 +670,8 @@ export default defineComponent({
       if (!userId.value || !props.currentServer?.id) return;
       
       try {
-        const success = await serverUsersStore.leaveVoiceChannel(
-          props.currentServer.id, 
-          channelId, 
-          userId.value
-        );
+        // Use the voice channel store which handles both WebRTC disconnection and server presence
+        const success = await voiceChannelStore.leaveVoiceChannel();
         
         if (success) {
           console.log(`Successfully left voice channel ${channelId}`);

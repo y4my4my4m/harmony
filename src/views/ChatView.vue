@@ -50,6 +50,7 @@
       <VoiceChannelScene 
         v-if="!isDM"
         :currentChannelId="currentChannelId"
+        :serverId="currentServer?.id || ''"
       />
       <ChatComponent
         :messages="chatMessages"
@@ -61,6 +62,14 @@
       />
     </div>
     <UserSidebar :class="{ 'open': isProfilesVisible }"  />
+    
+    <!-- Global Unified WebRTC Component - Always present for voice functionality -->
+    <UnifiedWebRTCComponent 
+      v-if="!isDM && currentServer && voiceChannelStore.currentChannelId"
+      :channelId="voiceChannelStore.currentChannelId"
+      :serverId="currentServer.id"
+      :channel-name="getVoiceChannelName()"
+    />
   </div>
 </template>
 
@@ -74,11 +83,13 @@
   import UserProfileComponent from '@/components/UserProfileComponent.vue';
   import NoServersSplash from '@/components/NoServersSplash.vue';
   import VoiceChannelScene from '@/components/VoiceChannelScene.vue';
+  import UnifiedWebRTCComponent from '@/components/UnifiedWebRTCComponent.vue';
   import CreateChannel from '@/components/CreateChannel.vue';
   import PublicServers from '@/components/PublicServers.vue';
   import NotificationBell from '@/components/NotificationBell.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
+  import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
   import { useChatStore } from '@/stores/useChat';
   import { useDMStore } from '@/stores/useDM';
   import { useAuthStore } from '@/stores/auth';
@@ -99,6 +110,7 @@
       UserProfileComponent,
       NoServersSplash,
       VoiceChannelScene,
+      UnifiedWebRTCComponent,
       CreateChannel,
       PublicServers,
       NotificationBell,
@@ -115,6 +127,7 @@
     setup(props) {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
+      const voiceChannelStore = useUnifiedVoiceChannelStore();
       const chatStore = useChatStore();
       const dmStore = useDMStore();
       const authStore = useAuthStore();
@@ -634,6 +647,17 @@
         }
       });
 
+      // Voice channel helper function
+      const getVoiceChannelName = () => {
+        if (voiceChannelStore.currentChannelId) {
+          const voiceChannel = serverChannelStore.channels.find(
+            channel => channel.id === voiceChannelStore.currentChannelId
+          );
+          return voiceChannel?.name || 'Voice Channel';
+        }
+        return 'Voice Channel';
+      };
+
       return { 
         servers, 
         channels, 
@@ -662,6 +686,8 @@
         showPublicServers,
         handleShowPublicServers,
         isLoading,
+        voiceChannelStore,
+        getVoiceChannelName,
       };
     }
   });

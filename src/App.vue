@@ -1,10 +1,14 @@
 <template>
   <RouterView />
   <NotificationToast />
+  
+  <!-- Persistent Voice Connection -->
+  <PersistentVoiceConnection />
 </template>
 
 <script setup lang="ts">
 import NotificationToast from '@/components/NotificationToast.vue'
+import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 </script>
 
 <style>
