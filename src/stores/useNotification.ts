@@ -660,6 +660,10 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    setFilter(filter: string) {
+      this.currentFilter = filter;
+    },
+
     handleNotificationClick(notification: Notification) {
       try {
         // Mark as read and clicked

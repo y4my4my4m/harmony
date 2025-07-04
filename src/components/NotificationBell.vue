@@ -231,7 +231,7 @@ const markAllAsRead = async () => {
   
   try {
     isMarkingAllAsRead.value = true
-    await notificationStore.markAllAsRead(authStore.session.user.id)
+    await notificationStore.markAllAsRead()
     
     notificationStore.showToast(
       'server_update',
