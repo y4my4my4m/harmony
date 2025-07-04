@@ -117,10 +117,21 @@
     @hide="closeLightbox"
   />
 
-  <!-- User Profile Card -->
-  <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
-    <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
-  </div>
+  <!-- Modern User Profile Modal -->
+  <UserProfileModal 
+    :show="showProfileModal" 
+    :user="selectedUser" 
+    @close="closeProfile"
+    @invite="openInviteModal"
+  />
+
+  <!-- Invite Modal -->
+  <InviteModal 
+    :show="showInviteModal" 
+    :server-id="serverChannelStore.currentServerId"
+    :server-data="currentServerData"
+    @close="closeInviteModal"
+  />
 
   <!-- Tooltip for reactions -->
   <div
@@ -146,7 +157,8 @@ import { useChatStore } from '@/stores/useChat';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel'; 
 import { format } from 'date-fns';
-import UserPreviewComponent from '@/components/UserPreviewComponent.vue';
+import UserProfileModal from '@/components/UserProfileModal.vue';
+import InviteModal from '@/components/InviteModal.vue';
 import MessageContent from '@/components/MessageContent.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
 import ReplyIcon from '@/components/icons/Reply.vue';
@@ -172,7 +184,8 @@ export default defineComponent({
   // Add the missing emits declaration
   emits: ['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom'],
   components: { 
-    UserPreviewComponent,
+    UserProfileModal,
+    InviteModal,
     ReplyIcon,
     EditIcon,
     ReactionIcon,
@@ -501,60 +514,49 @@ export default defineComponent({
       useChat.deleteMessage(messageId);
     };
 
-    const profileCardStyle = ref({ top: '0px', left: '0px'});
     const selectedUser = ref<User | null>(null);
-    const showUserProfile = (userId: string, event: MouseEvent) => {
+    const showProfileModal = ref(false);
+    const showInviteModal = ref(false);
+    const showUserProfile = (userId: string, event?: MouseEvent) => {
       const user = serverUsersStore.userProfiles[userId];
       if (!user) {
         console.error("User not found for ID:", userId);
         return;
       }
 
-      const userMention = (event.currentTarget as HTMLElement);
-      if (userMention) {
-        const userMentionRect = userMention.getBoundingClientRect();
-        const viewportHeight = window.innerHeight;
-        const viewportWidth = window.innerWidth;
-        const popupHeight = 400;
-        const popupWidth = 320;
-        
-        // Calculate position ensuring popup stays within viewport
-        let top = userMentionRect.y - popupHeight;
-        let left = userMentionRect.x + userMentionRect.width + 10;
-        
-        // Adjust if popup would go above viewport
-        if (top < 0) {
-          top = userMentionRect.y + userMentionRect.height + 10;
-        }
-        
-        // Adjust if popup would go below viewport
-        if (top + popupHeight > viewportHeight) {
-          top = viewportHeight - popupHeight - 10;
-        }
-        
-        // Adjust if popup would go beyond right edge of viewport
-        if (left + popupWidth > viewportWidth) {
-          left = userMentionRect.x - popupWidth - 10;
-        }
-        
-        // Ensure minimum left position
-        if (left < 10) {
-          left = 10;
-        }
-
-        profileCardStyle.value = {
-          left: `${left}px`,
-          top: `${top}px`,
-        };
-      }
-
       selectedUser.value = user;
-      event.stopPropagation();
+      showProfileModal.value = true;
+      event?.stopPropagation();
     };
 
     const closeProfile = () => {
+      showProfileModal.value = false;
       selectedUser.value = null;
     };
+
+    const openInviteModal = () => {
+      showProfileModal.value = false;
+      showInviteModal.value = true;
+    };
+
+    const closeInviteModal = () => {
+      showInviteModal.value = false;
+    };
+
+    // Current server data for invite modal
+    const currentServerData = computed(() => {
+      const serverId = serverChannelStore.currentServerId;
+      if (!serverId) return null;
+      
+      // Get server data from the server store
+      const currentServer = serverChannelStore.currentServer;
+      return {
+        id: serverId,
+        name: currentServer?.name || 'Unknown Server',
+        icon_url: currentServer?.icon_url,
+        member_count: Object.keys(serverUsersStore.userProfiles).length
+      };
+    });
 
     const getUserIdFromMessage = (messageId:string) => {
       return useChat.messages.find(message => message.id === messageId)?.user_id || 'Unknown Message Id';
@@ -774,7 +776,12 @@ export default defineComponent({
       editableMessageContent,
       showUserProfile,
       selectedUser,
-      profileCardStyle, 
+      showProfileModal,
+      showInviteModal,
+      currentServerData,
+      serverChannelStore,
+      openInviteModal,
+      closeInviteModal, 
       closeProfile,
       isSingleEmojiMessage,
       openEmojiReactor,
@@ -1116,28 +1123,7 @@ export default defineComponent({
   border:1px solid hsl( 235 calc( 1 * 85.6%) 64.7% / 1);
 }
 /* FIXME: this should all be inside the userProfileComponent */
-.user-profile-card {
-  position: absolute;
-  /* left: -332px; */
-  left: 0px;
-  top: 0px;
-  width: 320px; 
-  height: 400px;
-  border-radius: 12px;
-  background-color: #2f3339; 
-  z-index: 1000;
-  padding: 10px;
-  opacity: 0;
-  transition: 0.2s ease-in-out;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
-  transition: all 0.3s cubic-bezier(.25,.8,.25,1);
-}
-.user-profile-card:hover {
-  box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
-}
-.user-profile-card.selected {
-  opacity: 1
-}
+/* Removed old profile card styles - now using modal */
 
 .tooltip {
   position: fixed;

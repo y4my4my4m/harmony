@@ -15,6 +15,7 @@
         @toggle="toggleDropdown"
         @showCategoryCreator="showCategoryCreator"
         @createChannel="emitCreateChannel"
+        @openInviteModal="openInviteModal"
       />
     </div>
     
@@ -179,6 +180,14 @@
         </div>
       </template>
     </draggable>
+
+    <!-- Invite Modal -->
+    <InviteModal 
+      :show="showInviteModal" 
+      :server-id="currentServer.id"
+      :server-data="currentServerData"
+      @close="closeInviteModal"
+    />
   </div>
 </template>
 
@@ -199,6 +208,7 @@ import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
+import InviteModal from './InviteModal.vue';
 
 import draggable from "vuedraggable";
 
@@ -223,6 +233,7 @@ export default defineComponent({
     HashTagIcon,
     SpeakerIcon,
     draggable,
+    InviteModal,
   },
   props: {
     currentServer: {
@@ -247,6 +258,7 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const isDropdownOpen = ref(false);
+    const showInviteModal = ref(false);
     const isCategoryCreatorOpen = ref(false);
     const serverChannelStore = useServerChannelStore();
     const authStore = useAuthStore();
@@ -607,6 +619,27 @@ export default defineComponent({
       isCategoryCreatorOpen.value = !isCategoryCreatorOpen.value;
     };
 
+    const openInviteModal = () => {
+      showInviteModal.value = true;
+    };
+
+    const closeInviteModal = () => {
+      showInviteModal.value = false;
+    };
+
+    // Current server data for invite modal
+    const currentServerData = computed(() => {
+      // Get member count from the users store since it's more accurate
+      const memberCount = Object.keys(serverUsersStore.userProfiles).length || props.currentServer.member_count || 0;
+      
+      return {
+        id: props.currentServer.id,
+        name: props.currentServer.name,
+        icon_url: props.currentServer.icon_url,
+        member_count: memberCount
+      };
+    });
+
     const createCategory = async (categoryName: string) => {
       try {
         const category = await serverChannelStore.createCategory(categoryName, props.currentServer.id);
@@ -698,6 +731,10 @@ export default defineComponent({
       reorderableCategories,
       orphanChannels,
       categoriesKey, // Add this to expose it to the template
+      showInviteModal,
+      openInviteModal,
+      closeInviteModal,
+      currentServerData,
       
       // Channel filtering functions
       getVisibleChannelsForCategory,
