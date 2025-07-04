@@ -609,6 +609,10 @@ onUnmounted(() => {
   margin-left: 8px;
   flex-shrink: 0;
 }
+.active .conversation-time,
+.active .conversation-preview .last-message {
+  color: #ffffff86;
+}
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
