@@ -65,7 +65,7 @@
           </div>
           <div class="user-info">
             <div class="user-name">{{ user.display_name || user.username }}</div>
-            <div v-if="user.display_name" class="username">@{{ user.username }}</div>
+            <div v-if="user.display_name" class="username">{{ user.username }}</div>
           </div>
         </div>
       </div>

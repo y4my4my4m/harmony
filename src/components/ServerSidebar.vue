@@ -1,5 +1,11 @@
 <template>
   <div class="server-sidebar">
+    <div 
+      :style="{ backgroundImage: 'url(/icon16.png)' }"
+      class="portal"
+      @click="togglePublicServers"
+    >
+    </div>
     <!-- DM Button at the top -->
     <div 
       class="dm-button"
@@ -12,12 +18,6 @@
       </svg>
     </div>
     
-    <div 
-      :style="{ backgroundImage: 'url(/icon16.png)' }"
-      class="portal"
-      @click="togglePublicServers"
-    >
-    </div>
     <div class="separator"></div>
     <div v-for="server in servers" 
       :key="server.id" 
