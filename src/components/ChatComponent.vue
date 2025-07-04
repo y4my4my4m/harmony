@@ -97,7 +97,7 @@
         default: false
       }
     },
-    emits: ['sendMessage'],
+    emits: ['sendMessage', 'loadMoreMessages'],
     setup(props, { emit }) {
       const chatStore = useChatStore();
       const authStore = useAuthStore();

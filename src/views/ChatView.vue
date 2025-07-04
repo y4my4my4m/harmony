@@ -263,31 +263,66 @@
       // DM-specific handlers
       const handleDMConversationSelected = async (conversationId: string) => {
         if (props.isDM) {
+          // Check if messages are cached for instant loading
+          const isCached = dmStore.isCacheValid(conversationId);
+          
+          // ALWAYS set current conversation first to establish subscription
+          dmStore.setCurrentConversation(conversationId);
+          
+          if (isCached) {
+            // Load cached messages instantly
+            dmStore.loadCachedMessages(conversationId);
+            scrollToBottom();
+          } else {
+            // Load fresh messages
+            isLoading.value = true;
+            try {
+              dmStore.clearDMMessages();
+              await dmStore.fetchConversationMessages(conversationId);
+              scrollToBottom();
+            } catch (error) {
+              console.error('Error loading DM conversation:', error);
+              toast.error('Failed to load conversation');
+            } finally {
+              isLoading.value = false;
+            }
+          }
+          
           router.push({ name: 'DM', params: { conversationId } });
         }
       };
 
       const loadDMConversation = async () => {
         if (props.isDM && props.conversationId) {
+          // ALWAYS set current conversation first to establish subscription
           dmStore.setCurrentConversation(props.conversationId);
-          isLoading.value = true;
-          try {
-            dmStore.clearDMMessages();
-            await dmStore.fetchConversationMessages(props.conversationId);
+          
+          // Check cache first for instant loading
+          const isCached = dmStore.isCacheValid(props.conversationId);
+          
+          if (isCached) {
+            dmStore.loadCachedMessages(props.conversationId);
             scrollToBottom();
-          } catch (error) {
-            console.error('Error loading DM conversation:', error);
-            toast.error('Failed to load conversation');
-          } finally {
-            isLoading.value = false;
+          } else {
+            isLoading.value = true;
+            try {
+              dmStore.clearDMMessages();
+              await dmStore.fetchConversationMessages(props.conversationId);
+              scrollToBottom();
+            } catch (error) {
+              console.error('Error loading DM conversation:', error);
+              toast.error('Failed to load conversation');
+            } finally {
+              isLoading.value = false;
+            }
           }
         }
       };
 
       const fetchMoreMessages = async () => {
         if (props.isDM) {
-          // Handle DM message loading
-          if (!dmStore.loadingMessages && dmStore.currentConversationId) {
+          // Handle DM message loading with proper loading state check
+          if (!dmStore.loadingMessages && !dmStore.allMessagesLoaded && dmStore.currentConversationId) {
             const oldestMessage = dmStore.currentDMMessages[0];
             const oldestMessageId = oldestMessage?.id;
             if (oldestMessageId) {
@@ -349,7 +384,7 @@
       };
 
       // Handle messages sent from ChatComponent
-      const handleSendMessage = async (content: any) => {
+      const handleSendMessage = async (content: any, replyTo?: string) => {
         if (props.isDM) {
           const currentUserId = authStore.session?.user?.id;
           const conversationId = dmStore.currentConversationId;
@@ -357,11 +392,13 @@
           if (!currentUserId || !conversationId) return;
 
           try {
-            const success = await dmStore.sendDMMessage(conversationId, currentUserId, content);
+            const success = await dmStore.sendDMMessage(conversationId, currentUserId, content, replyTo);
             if (!success) {
               console.error('Failed to send DM message');
               toast.error('Failed to send message');
             }
+            // Scroll to bottom after sending message
+            scrollToBottom();
           } catch (error) {
             console.error('Error sending DM message:', error);
             toast.error('Error sending message');
@@ -537,6 +574,11 @@
       onBeforeUnmount(() => {
         // Clean up presence when component unmounts
         serverUsersStore.cleanup();
+        
+        // Clean up DM subscriptions if in DM mode
+        if (props.isDM) {
+          dmStore.cleanup();
+        }
       });
 
       watch(route, async () => {

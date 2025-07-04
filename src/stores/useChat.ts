@@ -343,6 +343,12 @@ export const useChatStore = defineStore('chat', {
 
     // Update cache when new message arrives via real-time
     addMessageToCache(message: Message) {
+      // Skip DM messages - they should be handled by the DM store
+      if (!message.channel_id || message.conversation_id) {
+        console.log('Skipping DM message in chat store - should be handled by DM store');
+        return;
+      }
+
       // Add to current messages if it's the current channel
       if (this.currentChannelId === message.channel_id.toString()) {
         if (!this.messages.some(msg => msg.id === message.id)) {
@@ -589,7 +595,12 @@ export const useChatStore = defineStore('chat', {
         .channel(channelName)
         .on(
           'postgres_changes', 
-          { event: 'INSERT', schema: 'public', table: 'messages'},
+          { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'messages',
+            filter: `channel_id=eq.${channelId}` // FIXED: Only listen to messages for this channel
+          },
           (payload) => {
             const newMessage: Message = {
               id: payload.new.id,
