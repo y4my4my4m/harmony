@@ -490,7 +490,7 @@ export default defineComponent({
 .participants-grid.speaker-mode {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   max-height: 300px;
-  overflow-y: auto;
+  overflow-y: visible;
 }
 
 .layout-speaker .participants-grid {
