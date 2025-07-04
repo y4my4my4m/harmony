@@ -159,7 +159,7 @@ export default defineComponent({
 
     // Computed properties
     const isInVoiceChannel = computed(() => voiceChannelStore.isConnected);
-    const connectedUsers = computed(() => voiceChannelStore.connectedUsers);
+    const connectedUsers = computed(() => voiceChannelStore.getAllParticipants);
     const isMuted = computed(() => voiceChannelStore.isMuted);
     const isDeafened = computed(() => voiceChannelStore.isDeafened);
     const hasVideo = computed(() => voiceChannelStore.isVideoEnabled);
