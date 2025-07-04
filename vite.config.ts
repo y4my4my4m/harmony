@@ -37,6 +37,7 @@ export default defineConfig({
     // Fix for simple-peer and other Node.js libraries
     global: 'globalThis',
     'process.env': {},
+    'process.nextTick': 'setTimeout',
   },
   optimizeDeps: {
     include: ['simple-peer'],

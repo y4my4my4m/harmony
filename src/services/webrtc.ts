@@ -5,7 +5,12 @@ if (typeof global === 'undefined') {
 }
 // @ts-ignore
 if (typeof process === 'undefined') {
-  (window as any).process = { env: {} };
+  (window as any).process = { 
+    env: {},
+    nextTick: (callback: Function, ...args: any[]) => {
+      setTimeout(() => callback(...args), 0);
+    }
+  };
 }
 import { supabase } from '@/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -43,6 +48,19 @@ export interface MediaToggle {
   audio: boolean;
   video: boolean;
   screen: boolean;
+}
+
+export interface UserState {
+  userId: string;
+  audio: boolean;
+  video: boolean;
+  screen: boolean;
+  connectionState: 'connecting' | 'connected' | 'disconnected';
+}
+
+export interface ChannelState {
+  participants: UserState[];
+  requesterId: string;
 }
 
 export class WebRTCService {
@@ -256,18 +274,34 @@ export class WebRTCService {
       })
       .on('broadcast', { event: 'media-toggle' }, (payload) => {
         this.handleMediaToggle(payload.payload as MediaToggle);
+      })
+      .on('broadcast', { event: 'state-request' }, (payload) => {
+        this.handleStateRequest(payload.payload.requesterId);
+      })
+      .on('broadcast', { event: 'state-response' }, (payload) => {
+        this.handleStateResponse(payload.payload as ChannelState);
       });
 
     // Subscribe to channel
     await new Promise<void>((resolve, reject) => {
       this.signalChannel!.subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
-          // Announce joining
+          // First request current state from existing participants
           this.signalChannel!.send({
             type: 'broadcast',
-            event: 'user-joined',
-            payload: { userId },
+            event: 'state-request',
+            payload: { requesterId: userId },
           });
+          
+          // Small delay then announce joining
+          setTimeout(() => {
+            this.signalChannel!.send({
+              type: 'broadcast',
+              event: 'user-joined',
+              payload: { userId },
+            });
+          }, 100);
+          
           resolve();
         } else if (status === 'CHANNEL_ERROR') {
           reject(new Error('Failed to subscribe to signaling channel'));
@@ -333,7 +367,12 @@ export class WebRTCService {
     const shouldInitiate = currentUserId > userId;
     console.log('Should initiate connection to', userId, ':', shouldInitiate);
     
-    this.createPeerConnection(userId, shouldInitiate);
+    if (shouldInitiate) {
+      this.createPeerConnection(userId, true);
+    }
+    
+    // Always emit userJoined to update UI
+    this.emit('userJoined', userId);
   }
 
   // Handle user leaving
@@ -355,6 +394,90 @@ export class WebRTCService {
       user.isScreenSharing = data.screen;
       this.emit('userMediaToggled', data);
     }
+  }
+
+  // Get screen sharing state for a user
+  isUserScreenSharing(userId: string): boolean {
+    const user = this.state.users.get(userId);
+    return user?.isScreenSharing || false;
+  }
+
+  // Handle state request from new joiner
+  private handleStateRequest(requesterId: string): void {
+    const currentUserId = this.getCurrentUserId();
+    
+    // Only respond if we're not the requester
+    if (requesterId === currentUserId) {
+      return;
+    }
+
+    console.log('Responding to state request from:', requesterId);
+    
+    // Build current participants state
+    const participants: UserState[] = [
+      // Include ourselves
+      {
+        userId: currentUserId,
+        audio: this.state.isAudioEnabled,
+        video: this.state.isVideoEnabled,
+        screen: this.state.isScreenSharing,
+        connectionState: 'connected'
+      },
+      // Include all connected users
+      ...Array.from(this.state.users.entries()).map(([userId, user]) => ({
+        userId,
+        audio: user.isAudioEnabled,
+        video: user.isVideoEnabled,
+        screen: user.isScreenSharing,
+        connectionState: 'connected' as const
+      }))
+    ];
+
+    // Send state response
+    this.signalChannel?.send({
+      type: 'broadcast',
+      event: 'state-response',
+      payload: {
+        participants,
+        requesterId
+      }
+    });
+  }
+
+  // Handle state response with current participants
+  private handleStateResponse(data: ChannelState): void {
+    const currentUserId = this.getCurrentUserId();
+    
+    // Only process if this response is for us
+    if (data.requesterId !== currentUserId) {
+      return;
+    }
+
+    console.log('Received channel state:', data.participants);
+    
+    // Update our knowledge of existing participants
+    data.participants.forEach(participant => {
+      if (participant.userId === currentUserId) {
+        return; // Skip ourselves
+      }
+
+      // Create user state if we don't have it
+      if (!this.state.users.has(participant.userId)) {
+        // Don't create peer connection yet, just track the user
+        console.log('Learning about existing participant:', participant.userId);
+      }
+
+      // Update/create user state
+      const existingUser = this.state.users.get(participant.userId);
+      if (existingUser) {
+        existingUser.isAudioEnabled = participant.audio;
+        existingUser.isVideoEnabled = participant.video;
+        existingUser.isScreenSharing = participant.screen;
+      }
+
+      // Emit to update UI
+      this.emit('userJoined', participant.userId);
+    });
   }
 
   // Create peer connection
@@ -426,8 +549,6 @@ export class WebRTCService {
       this.pendingSignals.delete(userId);
       this.emit('peerError', userId, error);
     });
-
-    this.emit('userJoined', userId);
   }
 
   // Send signaling message

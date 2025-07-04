@@ -180,6 +180,7 @@
 import { defineComponent, computed, ref, onMounted, onUnmounted } from 'vue';
 import { useVoiceChannelStore } from '@/stores/voiceChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
+import { webRTCService } from '@/services/webrtc';
 import VoiceUserCard from './VoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -212,8 +213,11 @@ export default defineComponent({
     const isEntering = ref(false);
     const isLeaving = ref(false);
 
-    // Computed properties
-    const connectedUsers = computed(() => voiceChannelStore.connectedUsers);
+    // Computed properties  
+    const connectedUsers = computed(() => {
+      // Get all participants including self
+      return voiceChannelStore.getAllParticipants;
+    });
     const isMuted = computed(() => voiceChannelStore.isMuted);
     const isDeafened = computed(() => voiceChannelStore.isDeafened);
     const hasVideo = computed(() => voiceChannelStore.isVideoEnabled);
@@ -221,18 +225,26 @@ export default defineComponent({
 
     // Participants data
     const participants = computed(() => {
-      return voiceChannelStore.getAllParticipants.map(userId => ({
-        userId,
-        user: serverUsersStore.userProfiles[userId] || { id: userId, username: 'Unknown' },
-        stream: voiceChannelStore.getUserStream(userId),
-        audioLevel: voiceChannelStore.getAudioLevel(userId),
-        isMuted: userId === getCurrentUserId() ? isMuted.value : false,
-        isDeafened: userId === getCurrentUserId() ? isDeafened.value : false,
-        hasVideo: !!voiceChannelStore.getUserStream(userId)?.getVideoTracks().length,
-        isScreenSharing: false, // TODO: implement screen sharing detection
-        connectionState: voiceChannelStore.getConnectionState(userId),
-        isSelf: userId === getCurrentUserId()
-      }));
+      // Use Set to ensure unique participants
+      const uniqueParticipants = new Set(voiceChannelStore.getAllParticipants);
+      return Array.from(uniqueParticipants).map(userId => {
+        const stream = voiceChannelStore.getUserStream(userId);
+        const currentUserId = getCurrentUserId();
+        const isSelfUser = userId === currentUserId;
+        
+        return {
+          userId,
+          user: serverUsersStore.userProfiles[userId] || { id: userId, username: 'Unknown' },
+          stream,
+          audioLevel: voiceChannelStore.getAudioLevel(userId),
+          isMuted: isSelfUser ? isMuted.value : false,
+          isDeafened: isSelfUser ? isDeafened.value : false,
+          hasVideo: stream?.getVideoTracks().length > 0 && !(isSelfUser ? voiceChannelStore.isScreenSharing : webRTCService.isUserScreenSharing(userId)),
+          isScreenSharing: isSelfUser ? voiceChannelStore.isScreenSharing : webRTCService.isUserScreenSharing(userId),
+          connectionState: voiceChannelStore.getConnectionState(userId),
+          isSelf: isSelfUser
+        };
+      });
     });
 
     // Featured speaker (loudest or screen sharing)
@@ -278,9 +290,51 @@ export default defineComponent({
       layoutMode.value = modes[(currentIndex + 1) % modes.length] as any;
     };
 
-    const togglePictureInPicture = () => {
-      isPipMode.value = !isPipMode.value;
-      // TODO: Implement PiP functionality
+    const togglePictureInPicture = async () => {
+      try {
+        if (!isPipMode.value) {
+          // Find the main video element (featured speaker or first participant with video)
+          const mainParticipant = featuredSpeaker.value || 
+            participants.value.find(p => p.hasVideo || p.isScreenSharing);
+          
+          if (mainParticipant && mainParticipant.stream) {
+            // Create a video element for PiP
+            const video = document.createElement('video');
+            video.srcObject = mainParticipant.stream;
+            video.autoplay = true;
+            video.muted = mainParticipant.isSelf;
+            
+            // Wait for video to load
+            await new Promise((resolve) => {
+              video.onloadedmetadata = resolve;
+            });
+            
+            // Request Picture-in-Picture
+            if (video.requestPictureInPicture) {
+              await video.requestPictureInPicture();
+              isPipMode.value = true;
+              
+              // Handle PiP exit
+              video.addEventListener('leavepictureinpicture', () => {
+                isPipMode.value = false;
+              });
+            } else {
+              console.warn('Picture-in-Picture not supported');
+            }
+          } else {
+            console.warn('No video stream available for Picture-in-Picture');
+          }
+        } else {
+          // Exit PiP mode
+          if (document.pictureInPictureElement) {
+            await document.exitPictureInPicture();
+          }
+          isPipMode.value = false;
+        }
+      } catch (error) {
+        console.error('Error toggling Picture-in-Picture:', error);
+        isPipMode.value = false;
+      }
     };
 
     const handleOverlayClick = () => {

@@ -198,7 +198,7 @@ export default defineComponent({
     // User activity text
     const getUserActivity = computed(() => {
       if (props.isScreenSharing) return 'Screen sharing';
-      if (props.hasVideo) return 'Camera on';
+      if (props.hasVideo && !props.isScreenSharing) return 'Camera on';
       if (props.isMuted) return 'Muted';
       if (props.isDeafened) return 'Deafened';
       if (isActivelySpeaking.value) return 'Speaking';
@@ -288,14 +288,51 @@ export default defineComponent({
   height: 160px;
   border-radius: 12px;
   overflow: hidden;
-  background: #000;
+  background: linear-gradient(145deg, #1a1a1a, #0d0d0d);
   margin-bottom: 12px;
+  border: 2px solid transparent;
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.video-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(145deg, 
+    rgba(255, 255, 255, 0.05) 0%, 
+    transparent 50%, 
+    rgba(0, 0, 0, 0.1) 100%);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .video-stream {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 10px;
+  background: #000;
+}
+
+.voice-user-card.self .video-container {
+  border-color: rgba(88, 101, 242, 0.5);
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(88, 101, 242, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.voice-user-card.screen-sharing .video-container {
+  border-color: rgba(87, 242, 135, 0.5);
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(87, 242, 135, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .video-overlay {
@@ -306,14 +343,16 @@ export default defineComponent({
   bottom: 0;
   background: linear-gradient(
     to bottom,
-    transparent 0%,
+    rgba(0, 0, 0, 0.1) 0%,
+    transparent 30%,
     transparent 70%,
-    rgba(0, 0, 0, 0.8) 100%
+    rgba(0, 0, 0, 0.9) 100%
   );
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   padding: 12px;
+  z-index: 2;
 }
 
 .video-controls {
@@ -322,28 +361,61 @@ export default defineComponent({
 }
 
 .control-btn {
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  border: none;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 50%;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   color: #ffffff;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.control-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(145deg, 
+    rgba(255, 255, 255, 0.1) 0%, 
+    transparent 50%, 
+    rgba(0, 0, 0, 0.1) 100%);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
 .control-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-  transform: scale(1.1);
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn:hover::before {
+  opacity: 1;
 }
 
 .control-btn.active {
-  background: #5865f2;
+  background: linear-gradient(145deg, #5865f2, #4752c4);
   color: white;
+  border-color: rgba(88, 101, 242, 0.5);
+  box-shadow: 
+    0 2px 8px rgba(88, 101, 242, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.control-btn.active:hover {
+  background: linear-gradient(145deg, #4752c4, #3c4693);
+  transform: scale(1.05);
 }
 
 /* Avatar Container */

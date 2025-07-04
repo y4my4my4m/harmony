@@ -212,9 +212,12 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     // WebRTC event handlers
     setupWebRTCListeners() {
       webRTCService.on('userJoined', (userId: string) => {
-        this.connectedUsers.push(userId);
-        this.connectionStates.set(userId, 'connecting');
-        this.playSound('voice_connect.mp3');
+        // Prevent duplicates
+        if (!this.connectedUsers.includes(userId)) {
+          this.connectedUsers.push(userId);
+          this.connectionStates.set(userId, 'connecting');
+          this.playSound('voice_connect.mp3');
+        }
       });
       
       webRTCService.on('userLeft', (userId: string) => {
@@ -242,6 +245,11 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
       webRTCService.on('localStreamChanged', (stream: MediaStream) => {
         this.localStream = stream;
         this.setupAudioLevelMonitoring('local', stream);
+      });
+      
+      webRTCService.on('userMediaToggled', (data: any) => {
+        console.log('User media toggled:', data);
+        // Media states are tracked in WebRTC service, UI will update automatically
       });
       
       webRTCService.on('error', (error: Error) => {
