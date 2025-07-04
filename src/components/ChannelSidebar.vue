@@ -189,7 +189,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
-import { useVoiceChannelStore } from '@/stores/voiceChannel';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
@@ -630,7 +630,7 @@ export default defineComponent({
 
     // Voice channel methods
     const serverUsersStore = useServerUsersStore();
-    const voiceChannelStore = useVoiceChannelStore();
+    const voiceChannelStore = useUnifiedVoiceChannelStore();
     
     // Voice connection audio and state
     const voiceOnSound = ref(new Audio('/assets/sounds/voice_connect.mp3'));
@@ -652,19 +652,14 @@ export default defineComponent({
         // Leave any other voice channels first (user can only be in one at a time)
         await serverUsersStore.leaveAllVoiceChannels(props.currentServer.id, userId.value);
         
-        // Join the new voice channel using the voice channel store
-        // This handles both server presence and WebRTC connection
-        const success = await voiceChannelStore.joinVoiceChannel(
-          channelId,
-          props.currentServer.id
-        );
+        // Navigate to the voice channel (this will show the UnifiedWebRTCComponent)
+        selectChannel(channelId);
         
-        if (success) {
-          console.log(`Successfully joined voice channel ${channelId}`);
-          // Note: voiceChannelStore.joinVoiceChannel() already plays the sound via playSound()
-          // but we keep this for backward compatibility
-          voiceOnSound.value.play();
-        }
+        // Set a flag in session storage to trigger auto-join when the component loads
+        sessionStorage.setItem('autoJoinVoiceChannel', 'true');
+        
+        console.log(`Navigating to voice channel ${channelId} with auto-join`);
+        voiceOnSound.value.play();
       } catch (error) {
         console.error('Failed to join voice channel:', error);
       }
@@ -679,8 +674,6 @@ export default defineComponent({
         
         if (success) {
           console.log(`Successfully left voice channel ${channelId}`);
-          // Note: voiceChannelStore.leaveVoiceChannel() already plays the sound via playSound()
-          // but we keep this for backward compatibility
           voiceOffSound.value.play();
         }
       } catch (error) {

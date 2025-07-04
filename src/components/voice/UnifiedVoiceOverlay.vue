@@ -64,7 +64,7 @@
 
         <!-- Featured Speaker (Speaker mode) -->
         <div v-if="voiceStore.layoutMode === 'speaker' && featuredSpeaker" class="featured-speaker">
-          <DiscordVoiceUserCard
+          <UnifiedVoiceUserCard
             :user-state="featuredSpeaker"
             :user-profile="voiceStore.getUserProfile(featuredSpeaker.userId)"
             :user-stream="voiceStore.getUserStream(featuredSpeaker.userId)"
@@ -84,7 +84,7 @@
             class="participants-grid"
             :class="{ 'speaker-mode': voiceStore.layoutMode === 'speaker' }"
           >
-            <DiscordVoiceUserCard
+            <UnifiedVoiceUserCard
               v-for="participant in displayedParticipants"
               :key="participant.userId"
               :user-state="participant"
@@ -167,14 +167,14 @@
 
 <script lang="ts">
 import { defineComponent, computed, ref, onMounted, onUnmounted } from 'vue';
-import { useDiscordVoiceChannelStore } from '@/stores/discordVoiceChannel';
-import DiscordVoiceUserCard from './DiscordVoiceUserCard.vue';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import Icon from '@/components/common/Icon.vue';
 
 export default defineComponent({
-  name: 'DiscordVoiceOverlay',
+  name: 'UnifiedVoiceOverlay',
   components: {
-    DiscordVoiceUserCard,
+    UnifiedVoiceUserCard,
     Icon
   },
   
@@ -188,7 +188,7 @@ export default defineComponent({
   emits: ['close', 'minimize'],
   
   setup(props, { emit }) {
-    const voiceStore = useDiscordVoiceChannelStore();
+    const voiceStore = useUnifiedVoiceChannelStore();
     const isEntering = ref(false);
     const isLeaving = ref(false);
     

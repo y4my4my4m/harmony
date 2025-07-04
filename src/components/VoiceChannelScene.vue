@@ -1,45 +1,51 @@
 <template>
-  <div v-if="isVoiceChannelPopupVisible" class="overlay" @click="closePopup">
-    <div class="voice-channel-grid" @click.stop>
-      <div ref="gridContainer" class="voice-channel-grid-container">
-        <div 
-          v-for="userId in usersInCurrentChannel" 
-          :key="userId" 
-          class="profile-avatar" 
-          :style="getProfileStyle(userId)"
-          @mousedown="startDrag(userId, $event)"
-        >
-          <img 
-            :src="getUserAvatar(userId)" 
-            alt="User Avatar"
-            draggable="false"
+  <div>
+    <!-- 3D Spatial Audio Grid (shown when users are in voice channel) -->
+    <div v-if="isVoiceChannelPopupVisible" class="overlay" @click="closePopup">
+      <div class="voice-channel-grid" @click.stop>
+        <div ref="gridContainer" class="voice-channel-grid-container">
+          <div 
+            v-for="userId in usersInCurrentChannel" 
+            :key="userId" 
+            class="profile-avatar" 
+            :style="getProfileStyle(userId)"
+            @mousedown="startDrag(userId, $event)"
           >
+            <img 
+              :src="getUserAvatar(userId)" 
+              alt="User Avatar"
+              draggable="false"
+            >
+          </div>
         </div>
+        <!-- TODO: implement this, this is for 3D audio spacial awareness -->
+        <!-- <SpaceTimeGrid 
+          :width="containerWidth" 
+          :height="containerHeight" 
+          :avatars="avatarPositions" /> -->
       </div>
-      <!-- TODO: implement this, this is for 3D audio spacial awareness -->
-      <!-- <SpaceTimeGrid 
-        :width="containerWidth" 
-        :height="containerHeight" 
-        :avatars="avatarPositions" /> -->
-      
-      <!-- Discord WebRTC Video/Audio Component -->
-      <DiscordWebRTCComponent 
-        :channelId="currentChannelId"
-        :serverId="serverId"
-        :channel-name="getChannelName()"
-      />
     </div>
+    
+    <!-- Unified WebRTC Component (always present for voice channels to handle auto-join) -->
+    <UnifiedWebRTCComponent 
+      v-if="isVoiceChannel"
+      :channelId="currentChannelId"
+      :serverId="serverId"
+      :channel-name="getChannelName()"
+      :auto-join="shouldAutoJoin"
+    />
   </div>
 </template>
 
 <script lang="ts">
   import { defineComponent, ref, onMounted, nextTick, computed, watch } from 'vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
-  import { useDiscordVoiceChannelStore } from '@/stores/discordVoiceChannel';
+  import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+  import { useServerChannelStore } from '@/stores/useServerChannel';
   import type { Point } from '@/types';
 
   import SpaceTimeGrid from '@/components/SpaceTimeGrid.vue'
-  import DiscordWebRTCComponent from '@/components/DiscordWebRTCComponent.vue'
+  import UnifiedWebRTCComponent from '@/components/UnifiedWebRTCComponent.vue'
 
   export default defineComponent({
     name: 'VoiceChannelGrid',
@@ -55,18 +61,28 @@
     },
     components: {
       SpaceTimeGrid,
-      DiscordWebRTCComponent
+      UnifiedWebRTCComponent
     },
     setup(props) {
       const serverUsersStore = useServerUsersStore();
-      const voiceChannelStore = useDiscordVoiceChannelStore();
+      const voiceChannelStore = useUnifiedVoiceChannelStore();
+      const serverChannelStore = useServerChannelStore();
       const isVoiceChannelPopupVisible = ref(false);
+      const shouldAutoJoin = ref(false);
       const gridContainer = ref<HTMLElement | null>(null);
       const containerWidth = ref(0);
       const containerHeight = ref(0);
       const avatarPositions = ref<Point[]>([]);
       const usersInCurrentChannel = computed(() => {
         return serverUsersStore.usersInVoiceChannels[props.currentChannelId] || [];
+      });
+
+      // Check if this is a voice channel by looking up the channel data
+      const isVoiceChannel = computed(() => {
+        const currentChannel = serverChannelStore.channels.find(
+          channel => channel.id === props.currentChannelId
+        );
+        return currentChannel?.type === 1; // 1 = voice channel
       });
 
       // Note: Spatial positioning is disabled for now since it's part of the 3D audio feature
@@ -77,10 +93,25 @@
       //   });
       // }, { deep: true });
 
+      // Check for auto-join flag on mount and whenever the channel changes
+      watch(() => props.currentChannelId, () => {
+        const hasAutoJoinFlag = sessionStorage.getItem('autoJoinVoiceChannel') === 'true';
+        shouldAutoJoin.value = hasAutoJoinFlag && isVoiceChannel.value;
+        
+        console.log('🔍 VoiceChannelScene - Channel changed:', {
+          channelId: props.currentChannelId,
+          isVoiceChannel: isVoiceChannel.value,
+          hasAutoJoinFlag,
+          shouldAutoJoin: shouldAutoJoin.value
+        });
+      }, { immediate: true });
+
       // Show voice channel popup based on connection status and participants
       watch(() => [usersInCurrentChannel.value, voiceChannelStore.isConnected], () => {
         // Show popup if we're connected to this channel or if there are users in it
         const isCurrentChannelActive = voiceChannelStore.currentChannelId === props.currentChannelId;
+        
+        // Show if: connected to this channel or has users
         isVoiceChannelPopupVisible.value = isCurrentChannelActive || usersInCurrentChannel.value.length > 0;
       }, { immediate: true });
 
@@ -176,13 +207,15 @@
       watch(() => window.innerWidth, updateDimensions);
 
       const getChannelName = () => {
-        // You can implement this to get the actual channel name
-        // For now, return a default name
-        return 'Voice Channel';
+        const currentChannel = serverChannelStore.channels.find(
+          channel => channel.id === props.currentChannelId
+        );
+        return currentChannel?.name || 'Voice Channel';
       };
 
       return { 
         isVoiceChannelPopupVisible, 
+        isVoiceChannel,
         usersInCurrentChannel, 
         getUserAvatar, 
         startDrag, 
@@ -193,6 +226,7 @@
         containerHeight,
         avatarPositions,
         getChannelName,
+        shouldAutoJoin,
       };
     }
   });

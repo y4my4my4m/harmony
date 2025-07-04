@@ -41,7 +41,7 @@ export interface ChannelState {
 // MAIN WEBRTC SERVICE
 // =============================================================================
 
-export class DiscordWebRTCService {
+export class UnifiedWebRTCService {
   private channelId: string | null = null;
   private currentUserId: string | null = null;
   private signalChannel: RealtimeChannel | null = null;
@@ -470,12 +470,21 @@ export class DiscordWebRTCService {
       
       const dataArray = new Uint8Array(this.localAudioAnalyser.frequencyBinCount);
       
+      let lastBroadcast = 0;
       const updateLevel = () => {
         if (this.localAudioAnalyser && this.audioContext?.state === 'running') {
           this.localAudioAnalyser.getByteFrequencyData(dataArray);
           const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
           this.localMediaState.audioLevel = average;
           this.emit('audio-level', { userId: this.currentUserId, level: average });
+          
+          // Broadcast audio level to other users every 100ms if speaking
+          const now = Date.now();
+          if ((average > 20 || now - lastBroadcast > 1000) && now - lastBroadcast > 100) {
+            this.broadcastAudioLevel();
+            lastBroadcast = now;
+          }
+          
           requestAnimationFrame(updateLevel);
         }
       };
@@ -497,6 +506,10 @@ export class DiscordWebRTCService {
     
     this.signalChannel.on('broadcast', { event: 'signal' }, (payload) => {
       this.handleSignalingMessage(payload.payload as SignalingMessage);
+    });
+    
+    this.signalChannel.on('broadcast', { event: 'audio-level' }, (payload) => {
+      this.handleAudioLevel(payload.payload);
     });
     
     return new Promise<void>((resolve, reject) => {
@@ -596,6 +609,17 @@ export class DiscordWebRTCService {
     
     this.allUserStates.set(userId, mediaState);
     this.emit('user-state-changed', { userId, mediaState });
+  }
+
+  private handleAudioLevel(data: { userId: string; audioLevel: number; timestamp: number }): void {
+    const { userId, audioLevel } = data;
+    
+    // Update the user's audio level in our state
+    const userState = this.allUserStates.get(userId);
+    if (userState) {
+      userState.audioLevel = audioLevel;
+      this.emit('audio-level', { userId, level: audioLevel });
+    }
   }
 
   private async handleStateSync(from: string, data: any): Promise<void> {
@@ -809,6 +833,20 @@ export class DiscordWebRTCService {
     });
   }
 
+  private broadcastAudioLevel(): void {
+    if (!this.signalChannel || !this.currentUserId) return;
+    
+    this.signalChannel.send({
+      type: 'broadcast',
+      event: 'audio-level',
+      payload: {
+        userId: this.currentUserId,
+        audioLevel: this.localMediaState.audioLevel,
+        timestamp: Date.now()
+      }
+    });
+  }
+
   private setupCleanup(): void {
     window.addEventListener('beforeunload', () => {
       this.leaveChannel();
@@ -820,4 +858,4 @@ export class DiscordWebRTCService {
 // SINGLETON EXPORT
 // =============================================================================
 
-export const discordWebRTC = new DiscordWebRTCService();
+export const unifiedWebRTC = new UnifiedWebRTCService();

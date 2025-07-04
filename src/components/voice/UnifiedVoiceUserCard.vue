@@ -128,11 +128,11 @@
 
 <script lang="ts">
 import { defineComponent, computed, ref, watch, type PropType } from 'vue';
-import type { UserMediaState } from '@/services/discordWebRTC';
+import type { UserMediaState } from '@/services/unifiedWebRTC';
 import Icon from '@/components/common/Icon.vue';
 
 export default defineComponent({
-  name: 'DiscordVoiceUserCard',
+  name: 'UnifiedVoiceUserCard',
   components: { Icon },
   
   props: {

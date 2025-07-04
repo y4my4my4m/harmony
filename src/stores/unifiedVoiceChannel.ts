@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { discordWebRTC, type UserMediaState } from '@/services/discordWebRTC';
+import { unifiedWebRTC, type UserMediaState } from '@/services/unifiedWebRTC';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 
@@ -30,7 +30,7 @@ interface VoiceChannelState {
 // STORE
 // =============================================================================
 
-export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
+export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
   state: (): VoiceChannelState => ({
     currentChannelId: null,
     currentServerId: null,
@@ -149,7 +149,7 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
         this.setupWebRTCListeners();
         
         // Join WebRTC channel
-        const webrtcSuccess = await discordWebRTC.joinChannel(channelId, userId);
+        const webrtcSuccess = await unifiedWebRTC.joinChannel(channelId, userId);
         if (!webrtcSuccess) {
           // Rollback server presence
           await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
@@ -160,11 +160,11 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
         this.currentChannelId = channelId;
         this.currentServerId = serverId;
         this.isConnected = true;
-        this.localState = discordWebRTC.getLocalState();
-        this.localStream = discordWebRTC.getLocalStream();
+        this.localState = unifiedWebRTC.getLocalState();
+        this.localStream = unifiedWebRTC.getLocalStream();
         
-        // Show overlay
-        this.isOverlayVisible = true;
+        // Start in dock mode, not overlay mode
+        this.isOverlayVisible = false;
         
         // Play join sound
         this.playSound('voice_connect.mp3');
@@ -193,7 +193,7 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
         console.log('👋 Leaving voice channel');
         
         // Leave WebRTC first
-        await discordWebRTC.leaveChannel();
+        await unifiedWebRTC.leaveChannel();
         
         // Update server presence
         if (this.currentServerId) {
@@ -217,9 +217,9 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
      * Toggle video on/off
      */
     async toggleVideo(): Promise<boolean> {
-      const enabled = await discordWebRTC.toggleVideo();
-      this.localState = discordWebRTC.getLocalState();
-      this.localStream = discordWebRTC.getLocalStream();
+      const enabled = await unifiedWebRTC.toggleVideo();
+      this.localState = unifiedWebRTC.getLocalState();
+      this.localStream = unifiedWebRTC.getLocalStream();
       
       this.playSound(enabled ? 'camera_on.mp3' : 'camera_off.mp3');
       return enabled;
@@ -229,9 +229,9 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
      * Toggle screen share on/off
      */
     async toggleScreenShare(): Promise<boolean> {
-      const enabled = await discordWebRTC.toggleScreenShare();
-      this.localState = discordWebRTC.getLocalState();
-      this.localStream = discordWebRTC.getLocalStream();
+      const enabled = await unifiedWebRTC.toggleScreenShare();
+      this.localState = unifiedWebRTC.getLocalState();
+      this.localStream = unifiedWebRTC.getLocalStream();
       
       this.playSound(enabled ? 'screenshare_on.mp3' : 'screenshare_off.mp3');
       return enabled;
@@ -241,8 +241,8 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
      * Toggle mute on/off
      */
     toggleMute(): boolean {
-      const muted = discordWebRTC.toggleMute();
-      this.localState = discordWebRTC.getLocalState();
+      const muted = unifiedWebRTC.toggleMute();
+      this.localState = unifiedWebRTC.getLocalState();
       
       this.playSound(muted ? 'mic_off.mp3' : 'mic_on.mp3');
       return muted;
@@ -252,8 +252,8 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
      * Toggle deafen on/off
      */
     toggleDeafen(): boolean {
-      const deafened = discordWebRTC.toggleDeafen();
-      this.localState = discordWebRTC.getLocalState();
+      const deafened = unifiedWebRTC.toggleDeafen();
+      this.localState = unifiedWebRTC.getLocalState();
       
       this.playSound(deafened ? 'deafen_on.mp3' : 'deafen_off.mp3');
       return deafened;
@@ -278,21 +278,21 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
      */
     setupWebRTCListeners(): void {
       // Channel events
-      discordWebRTC.on('channel-joined', (data) => {
+      unifiedWebRTC.on('channel-joined', (data) => {
         console.log('✅ Channel joined:', data);
       });
 
-      discordWebRTC.on('channel-left', (data) => {
+      unifiedWebRTC.on('channel-left', (data) => {
         console.log('👋 Channel left:', data);
       });
 
-      discordWebRTC.on('channel-state-synced', (data) => {
+      unifiedWebRTC.on('channel-state-synced', (data) => {
         console.log('🔄 Channel state synced:', data);
         this.allUsers = data.users;
       });
 
       // User events
-      discordWebRTC.on('user-joined', (data) => {
+      unifiedWebRTC.on('user-joined', (data) => {
         console.log('👋 User joined:', data);
         
         // Add user if not already in list
@@ -306,7 +306,7 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
         this.playSound('voice_connect.mp3');
       });
 
-      discordWebRTC.on('user-left', (data) => {
+      unifiedWebRTC.on('user-left', (data) => {
         console.log('👋 User left:', data);
         
         // Remove user from list
@@ -316,7 +316,7 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
         this.playSound('voice_disconnect.mp3');
       });
 
-      discordWebRTC.on('user-state-changed', (data) => {
+      unifiedWebRTC.on('user-state-changed', (data) => {
         console.log('🎛️ User state changed:', data);
         
         // Update user state
@@ -326,7 +326,7 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
         }
       });
 
-      discordWebRTC.on('user-stream-changed', (data) => {
+      unifiedWebRTC.on('user-stream-changed', (data) => {
         console.log('📹 User stream changed:', data.userId, data.stream);
         
         if (data.stream) {
@@ -337,13 +337,13 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
       });
 
       // Local events
-      discordWebRTC.on('local-state-changed', (state) => {
+      unifiedWebRTC.on('local-state-changed', (state) => {
         console.log('🎛️ Local state changed:', state);
         this.localState = state;
       });
 
       // Audio levels
-      discordWebRTC.on('audio-level', (data) => {
+      unifiedWebRTC.on('audio-level', (data) => {
         if (data.userId === this.localState.userId) {
           this.localState.audioLevel = data.level;
         } else {
@@ -355,12 +355,12 @@ export const useDiscordVoiceChannelStore = defineStore('discordVoiceChannel', {
       });
 
       // Connection events
-      discordWebRTC.on('connection-state-changed', (data) => {
+      unifiedWebRTC.on('connection-state-changed', (data) => {
         console.log('🔗 Connection state changed:', data);
       });
 
       // Error handling
-      discordWebRTC.on('error', (error) => {
+      unifiedWebRTC.on('error', (error) => {
         console.error('❌ WebRTC error:', error);
         // Could show notification to user
       });
