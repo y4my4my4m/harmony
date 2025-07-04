@@ -154,14 +154,13 @@ const UnreadIcon = defineAsyncComponent(() => import('@/components/icons/UnreadI
 const DismissIcon = defineAsyncComponent(() => import('@/components/icons/DismissIcon.vue'))
 const AcceptIcon = defineAsyncComponent(() => import('@/components/icons/AcceptIcon.vue'))
 const DeclineIcon = defineAsyncComponent(() => import('@/components/icons/DeclineIcon.vue'))
-const ReplyIcon = defineAsyncComponent(() => import('@/components/icons/ReplyIcon.vue'))
+const ReplyIcon = defineAsyncComponent(() => import('@/components/icons/Reply.vue'))
 const JumpIcon = defineAsyncComponent(() => import('@/components/icons/JumpIcon.vue'))
 
 // Type icons
 const MentionIcon = defineAsyncComponent(() => import('@/components/icons/MentionIcon.vue'))
 const DMIcon = defineAsyncComponent(() => import('@/components/icons/DMIcon.vue'))
-const ReactionIcon = defineAsyncComponent(() => import('@/components/icons/ReactionIcon.vue'))
-const ReplyTypeIcon = defineAsyncComponent(() => import('@/components/icons/ReplyIcon.vue'))
+const ReactionIcon = defineAsyncComponent(() => import('@/components/icons/Reaction.vue'))
 const ServerInviteIcon = defineAsyncComponent(() => import('@/components/icons/ServerInviteIcon.vue'))
 const VoiceIcon = defineAsyncComponent(() => import('@/components/icons/VoiceIcon.vue'))
 const EmojiIcon = defineAsyncComponent(() => import('@/components/icons/EmojiIcon.vue'))
@@ -237,7 +236,7 @@ const typeIcon = computed(() => {
     mention: MentionIcon,
     dm: DMIcon,
     reaction: ReactionIcon,
-    reply: ReplyTypeIcon,
+    reply: ReplyIcon,
     server_invite: ServerInviteIcon,
     voice_channel_activity: VoiceIcon,
     emoji_added: EmojiIcon
