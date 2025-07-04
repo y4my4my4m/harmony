@@ -254,7 +254,8 @@ const getLastMessagePreview = (message?: Message): string => {
 // Lifecycle
 onMounted(() => {
   if (authStore.session?.user?.id) {
-    dmStore.initializeDMEnvironment(authStore.session.user.id)
+    // Use the enhanced initialization that ensures user profiles are loaded
+    dmStore.initializeDMEnvironmentForDirectAccess(authStore.session.user.id)
   }
 })
 

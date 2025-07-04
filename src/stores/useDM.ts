@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
+import { useServerUsersStore } from './useServerUsers'
 
 // Types for DM functionality
 export interface DMUser {
@@ -65,6 +66,113 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  // Add method to fetch conversation details and ensure user profiles are loaded
+  const fetchConversationDetails = async (conversationId: string, currentUserId: string) => {
+    try {
+      // First check if we already have this conversation
+      const existingConv = conversations.value.find(c => c.id === conversationId)
+      if (existingConv) {
+        return existingConv
+      }
+
+      // Fetch the specific conversation
+      const { data: convData, error: convError } = await supabase
+        .from('conversations')
+        .select('id, user1, user2, created_at')
+        .eq('id', conversationId)
+        .single()
+
+      if (convError || !convData) {
+        console.error('Error fetching conversation:', convError)
+        return null
+      }
+
+      // Determine the other user
+      const otherUserId = convData.user1 === currentUserId ? convData.user2 : convData.user1
+      
+      // Get user profiles for both users and ensure they're in the server users store
+      const serverUsersStore = useServerUsersStore()
+      await serverUsersStore.fetchUserProfiles([currentUserId, otherUserId])
+
+      // Get other user's profile for the conversation
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', otherUserId)
+        .single()
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError)
+        return null
+      }
+
+      // Get last message for conversation
+      const { data: lastMessageData } = await supabase
+        .from('messages')
+        .select('id, user_id, content, created_at')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      const processedConv: DMConversation = {
+        id: convData.id,
+        user1_id: convData.user1,
+        user2_id: convData.user2,
+        created_at: convData.created_at,
+        last_activity: lastMessageData?.created_at || convData.created_at,
+        last_message: lastMessageData ? {
+          id: lastMessageData.id,
+          user_id: lastMessageData.user_id,
+          content: lastMessageData.content,
+          created_at: new Date(lastMessageData.created_at),
+          channel_id: '', // Empty string for DMs
+          reactions: []
+        } : undefined,
+        unread_count: 0,
+        other_user: {
+          id: profileData.id,
+          username: profileData.username,
+          display_name: profileData.display_name,
+          avatar_url: profileData.avatar_url,
+          is_online: false
+        }
+      }
+
+      // Add to conversations if not already there
+      if (!conversations.value.find(c => c.id === conversationId)) {
+        conversations.value.push(processedConv)
+      }
+
+      return processedConv
+    } catch (error) {
+      console.error('Failed to fetch conversation details:', error)
+      return null
+    }
+  }
+
+  // Enhanced initialization for direct DM access
+  const initializeDMEnvironmentForDirectAccess = async (userId: string, conversationId?: string) => {
+    try {
+      // Always initialize basic DM environment
+      await initializeDMEnvironment(userId)
+      
+      // If we have a specific conversation ID, ensure it's loaded
+      if (conversationId) {
+        const conversation = await fetchConversationDetails(conversationId, userId)
+        if (conversation) {
+          setCurrentConversation(conversationId)
+        }
+        return conversation
+      }
+      
+      return null
+    } catch (error) {
+      console.error('Failed to initialize DM environment for direct access:', error)
+      return null
+    }
+  }
+
   const fetchUserConversations = async (userId: string) => {
     try {
       loadingConversations.value = true
@@ -87,6 +195,17 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       if (!conversationsData) return
+
+      // Get all unique user IDs to ensure profiles are loaded
+      const allUserIds = new Set<string>()
+      conversationsData.forEach(conv => {
+        allUserIds.add(conv.user1)
+        allUserIds.add(conv.user2)
+      })
+
+      // Ensure all user profiles are loaded in the server users store
+      const serverUsersStore = useServerUsersStore()
+      await serverUsersStore.fetchUserProfiles(Array.from(allUserIds))
 
       // Process conversations and get other user details
       const processedConversations: DMConversation[] = []
@@ -129,7 +248,7 @@ export const useDMStore = defineStore('dm', () => {
             user_id: lastMessageData.user_id,
             content: lastMessageData.content,
             created_at: new Date(lastMessageData.created_at),
-            channel_id: 0, // Not applicable for DMs
+            channel_id: '', // Empty string for DMs
             reactions: []
           } : undefined,
           unread_count: unreadCount,
@@ -330,7 +449,7 @@ export const useDMStore = defineStore('dm', () => {
           user_id: newMessage.user_id,
           content: newMessage.content,
           created_at: new Date(newMessage.created_at),
-          channel_id: 0,
+          channel_id: '', // Empty string for DMs
           reply_to: newMessage.reply_to,
           reactions: []
         }
@@ -346,7 +465,7 @@ export const useDMStore = defineStore('dm', () => {
           user_id: newMessage.user_id,
           content: newMessage.content,
           created_at: new Date(newMessage.created_at),
-          channel_id: 0,
+          channel_id: '', // Empty string for DMs
           reactions: []
         }
       }
@@ -409,7 +528,7 @@ export const useDMStore = defineStore('dm', () => {
               user_id: message.user_id,
               content: message.content,
               created_at: new Date(message.created_at),
-              channel_id: 0,
+              channel_id: '', // Empty string for DMs
               reply_to: message.reply_to,
               reactions: message.reactions || []
             }
@@ -425,7 +544,7 @@ export const useDMStore = defineStore('dm', () => {
               user_id: message.user_id,
               content: message.content,
               created_at: new Date(message.created_at),
-              channel_id: 0,
+              channel_id: '', // Empty string for DMs
               reactions: []
             }
             if (message.user_id !== userId) {
@@ -472,6 +591,8 @@ export const useDMStore = defineStore('dm', () => {
     
     // Actions
     initializeDMEnvironment,
+    initializeDMEnvironmentForDirectAccess,
+    fetchConversationDetails,
     fetchUserConversations,
     fetchConversationMessages,
     searchUsers,

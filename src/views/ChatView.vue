@@ -299,11 +299,32 @@
 
       const loadServerAndChannel = async () => {
         if (props.isDM) {
-          // For DM mode, initialize DM environment
+          // For DM mode, use enhanced initialization that handles direct access
           const userId = authStore.session?.user?.id;
           if (userId) {
-            await dmStore.initializeDMEnvironment(userId);
-            await loadDMConversation();
+            try {
+              isLoading.value = true;
+              
+              // Use the enhanced initialization that handles conversation details and user profiles
+              const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(userId, props.conversationId);
+              
+              if (props.conversationId) {
+                if (conversation) {
+                  // Conversation loaded successfully, now load messages
+                  await loadDMConversation();
+                } else {
+                  // Conversation not found or error
+                  console.error('Conversation not found:', props.conversationId);
+                  toast.error('Conversation not found');
+                  router.push({ name: 'DMHome' });
+                }
+              }
+            } catch (error) {
+              console.error('Error initializing DM environment:', error);
+              toast.error('Failed to load DM');
+            } finally {
+              isLoading.value = false;
+            }
           }
         } else {
           // For server mode, use existing logic
