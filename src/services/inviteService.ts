@@ -86,9 +86,10 @@ async function generateInviteUrl(
         server_id: serverId, 
         created_by: userId, 
         expires_at: expiresAt,
-        max_uses: maxUses || null,
-        uses: 0,
-        temporary,
+        // TODO: Uncomment when max_uses is implemented
+        // max_uses: maxUses || null,
+        // uses: 0,
+        // temporary,
         used: false
       }])
       .select()

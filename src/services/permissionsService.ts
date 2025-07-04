@@ -166,6 +166,9 @@ function getDefaultServerSettings(serverId: string): ServerSettings {
 
 async function canUserCreateInvites(userId: string, serverId: string): Promise<boolean> {
   try {
+    //  PLACEHOLDER until we create userpermissions and server roles and server settings tables
+    return true;
+    /// TODO: Implement proper permission checks
     const [userPermissions, serverSettings] = await Promise.all([
       getUserPermissions(userId, serverId),
       getServerSettings(serverId)
@@ -211,6 +214,17 @@ async function getInviteConstraints(userId: string, serverId: string): Promise<{
   defaultExpiration: number
 }> {
   try {
+
+    //  PLACEHOLDER until we create userpermissions and server roles and server settings tables
+  
+    return {
+      canCreate: true,
+      maxExpiration: 0,
+      allowTemporary: true,
+      maxUses: 0,
+      defaultExpiration: 1440
+    }
+    /// TODO: Implement proper permission checks
     const [userPermissions, serverSettings] = await Promise.all([
       getUserPermissions(userId, serverId),
       getServerSettings(serverId)

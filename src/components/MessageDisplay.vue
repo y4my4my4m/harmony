@@ -548,10 +548,12 @@ export default defineComponent({
       const serverId = serverChannelStore.currentServerId;
       if (!serverId) return null;
       
+      // Get server data from the server store
+      const currentServer = serverChannelStore.currentServer;
       return {
         id: serverId,
-        name: 'Current Server', // Replace with actual server name from store
-        icon_url: undefined, // Replace with actual server icon
+        name: currentServer?.name || 'Unknown Server',
+        icon_url: currentServer?.icon_url,
         member_count: Object.keys(serverUsersStore.userProfiles).length
       };
     });

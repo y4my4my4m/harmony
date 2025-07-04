@@ -13,7 +13,6 @@
   
 <script lang="ts">
   import { defineComponent, computed } from 'vue';
-  import { generateInviteUrl } from '@/services/inviteService';
   import { useAuthStore } from '@/stores/auth';
   import { useToast } from "vue-toastification";
   import { useRouter } from 'vue-router';
@@ -24,7 +23,7 @@
       serverId: String,
       isVisible: Boolean,
     },
-    emits: ['toggle', 'showCategoryCreator', 'createChannel'],
+    emits: ['toggle', 'showCategoryCreator', 'createChannel', 'openInviteModal'],
     setup(props, { emit }) {
       const auth = useAuthStore();
       const router = useRouter();
@@ -56,20 +55,8 @@
         router.push(`/server/${props.serverId}`);
         closeDropdown();
       };
-      const generateInviteLink = async () => {
-        const userId = auth.session?.user?.id;
-        if (!props.serverId || !userId) {
-          toast.error('Unable to generate invite link');
-          closeDropdown();
-          return;
-        }
-        
-        const inviteUrl = await generateInviteUrl(props.serverId, userId);
-        if (inviteUrl) {
-            console.log('Invite URL:', inviteUrl);
-            navigator.clipboard.writeText(inviteUrl); // Copy to clipboard
-            toast.success('Invite URL copied to clipboard'); // Show toast
-        }
+      const generateInviteLink = () => {
+        emit('openInviteModal');
         closeDropdown();
       };
   

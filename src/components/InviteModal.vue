@@ -22,9 +22,9 @@
             <div class="invite-preview">
               <div class="server-icon">
                 <img 
-                  v-if="serverData?.icon_url" 
-                  :src="serverData.icon_url" 
-                  :alt="serverData.name"
+                  v-if="props.serverData?.icon_url" 
+                  :src="props.serverData.icon_url" 
+                  :alt="props.serverData.name"
                   class="server-image"
                 />
                 <div v-else class="default-server-icon">
@@ -32,7 +32,7 @@
                 </div>
               </div>
               <div class="server-info">
-                <h4 class="server-name">{{ serverData?.name || 'Server' }}</h4>
+                <h4 class="server-name">{{ props.serverData?.name || 'Server' }}</h4>
                 <p class="member-count">{{ memberCount }} members</p>
               </div>
             </div>
@@ -246,6 +246,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useToast } from 'vue-toastification'
 import { generateInviteUrl, getInviteHistory, revokeInvite, type Invite, type InviteOptions } from '@/services/inviteService'
+import { getInviteConstraints } from '@/services/permissionsService'
 import { useAuthStore } from '@/stores/auth'
 import BaseModal from '@/components/common/BaseModal.vue'
 import InviteIcon from '@/components/icons/ServerInviteIcon.vue'
@@ -280,6 +281,15 @@ const maxUses = ref(0) // 0 = no limit
 const temporaryMembership = ref(false)
 const inviteHistory = ref<Invite[]>([])
 const inviteInput = ref<HTMLInputElement>()
+const canCreateInvites = ref(true) // Start with true, will be updated by constraints
+const inviteConstraints = ref({
+  canCreate: true,
+  maxExpiration: 0,
+  allowTemporary: true,
+  maxUses: 0,
+  defaultExpiration: 1440
+})
+const permissionError = ref('')
 
 // Computed
 const serverInitial = computed(() => {
@@ -295,6 +305,7 @@ const generateInvite = async () => {
   if (!props.serverId || !authStore.session?.user?.id) return
 
   isGenerating.value = true
+  permissionError.value = ''
   
   try {
     const options: InviteOptions = {
@@ -303,16 +314,21 @@ const generateInvite = async () => {
       temporary: temporaryMembership.value
     }
     
-    const url = await generateInviteUrl(props.serverId, authStore.session.user.id, options)
-    if (url) {
-      inviteUrl.value = url
+    const result = await generateInviteUrl(props.serverId, authStore.session.user.id, options)
+    
+    if (result.success && result.url) {
+      inviteUrl.value = result.url
       await loadInviteHistory()
+      toast.success('Invite link generated successfully!')
     } else {
-      toast.error('Failed to generate invite link')
+      permissionError.value = result.error || 'Failed to generate invite link'
+      toast.error(result.error || 'Failed to generate invite link')
     }
   } catch (error) {
     console.error('Error generating invite:', error)
-    toast.error('Failed to generate invite link')
+    const errorMsg = 'Failed to generate invite link'
+    permissionError.value = errorMsg
+    toast.error(errorMsg)
   } finally {
     isGenerating.value = false
   }
@@ -435,6 +451,35 @@ const shareToSocial = (platform: string) => {
   }
 }
 
+const loadInviteConstraints = async () => {
+  if (!props.serverId || !authStore.session?.user?.id) return
+  
+  try {
+    const constraints = await getInviteConstraints(authStore.session.user.id, props.serverId)
+    inviteConstraints.value = constraints
+    canCreateInvites.value = constraints.canCreate
+    
+    // Set defaults based on constraints
+    expirationTime.value = constraints.defaultExpiration
+    
+    
+    if (!constraints.canCreate) {
+      permissionError.value = 'You do not have permission to create invites for this server'
+    }
+  } catch (error) {
+    console.error('Error loading invite constraints:', error)
+    // Temporarily allow invite creation even if constraints fail
+    canCreateInvites.value = true
+    inviteConstraints.value = {
+      canCreate: true,
+      maxExpiration: 0,
+      allowTemporary: true,
+      maxUses: 0,
+      defaultExpiration: 1440
+    }
+  }
+}
+
 const loadInviteHistory = async () => {
   if (!authStore.session?.user?.id) return
   
@@ -449,7 +494,10 @@ const loadInviteHistory = async () => {
 // Lifecycle
 onMounted(async () => {
   if (props.show && props.serverId) {
-    await generateInvite()
+    await loadInviteConstraints()
+    if (canCreateInvites.value) {
+      await generateInvite()
+    }
     await loadInviteHistory()
   }
 })
@@ -457,7 +505,10 @@ onMounted(async () => {
 // Watch for modal opening
 watch(() => props.show, async (newValue) => {
   if (newValue && props.serverId) {
-    await generateInvite()
+    await loadInviteConstraints()
+    if (canCreateInvites.value) {
+      await generateInvite()
+    }
     await loadInviteHistory()
   }
 })
