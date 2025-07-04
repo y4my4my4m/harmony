@@ -36,6 +36,7 @@ export default defineConfig({
   define: {
     // Fix for simple-peer and other Node.js libraries
     global: 'globalThis',
+    'process.env': {},
   },
   optimizeDeps: {
     include: ['simple-peer'],

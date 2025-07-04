@@ -3,6 +3,10 @@ import SimplePeer from 'simple-peer';
 if (typeof global === 'undefined') {
   (window as any).global = window;
 }
+// @ts-ignore
+if (typeof process === 'undefined') {
+  (window as any).process = { env: {} };
+}
 import { supabase } from '@/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -164,17 +168,14 @@ export class WebRTCService {
   // Get user media (audio/video)
   private async getUserMedia(): Promise<MediaStream> {
     try {
+      // Always start with audio only, video will be added when toggled
       const constraints: MediaStreamConstraints = {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
         },
-        video: this.state.isVideoEnabled ? {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 },
-        } : false,
+        video: false, // We'll add video separately when needed
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -185,6 +186,52 @@ export class WebRTCService {
     } catch (error) {
       console.error('Error getting user media:', error);
       throw error;
+    }
+  }
+
+  // Update all peer connections with current local stream
+  private updatePeerStreams(): void {
+    if (!this.state.localStream) return;
+    
+    this.state.users.forEach((user) => {
+      try {
+        // Access the underlying RTCPeerConnection
+        const pc = (user.peer as any)._pc;
+        if (pc && pc.getSenders) {
+          const senders = pc.getSenders();
+          
+          // Replace video track if it exists
+          const videoSender = senders.find((s: RTCRtpSender) => 
+            s.track && s.track.kind === 'video'
+          );
+          
+          const localVideoTrack = this.state.localStream.getVideoTracks()[0];
+          
+          if (videoSender && localVideoTrack) {
+            // Replace existing video track
+            videoSender.replaceTrack(localVideoTrack);
+          } else if (localVideoTrack && !videoSender) {
+            // Add new video track
+            pc.addTrack(localVideoTrack, this.state.localStream);
+          } else if (!localVideoTrack && videoSender) {
+            // Remove video track
+            pc.removeTrack(videoSender);
+          }
+        }
+      } catch (error) {
+        console.warn('Error updating peer stream for user', user.id, ':', error);
+        // Fallback: signal a renegotiation
+        this.signalRenegotiation(user.id);
+      }
+    });
+  }
+
+  // Signal renegotiation (fallback)
+  private signalRenegotiation(userId: string): void {
+    const user = this.state.users.get(userId);
+    if (user) {
+      // Send a custom signal to indicate stream change
+      this.sendSignal(userId, { type: 'renegotiate' } as any);
     }
   }
 
@@ -231,21 +278,62 @@ export class WebRTCService {
 
   // Handle signaling messages
   private handleSignalingMessage(data: SignalData): void {
-    const { from, signal } = data;
+    const { from, to, signal } = data;
+    const currentUserId = this.getCurrentUserId();
     
-    const user = this.state.users.get(from);
+    // Only process signals meant for us
+    if (to && to !== currentUserId) {
+      return;
+    }
+    
+    console.log('Received signal from:', from, 'Type:', signal.type);
+    
+    let user = this.state.users.get(from);
+    
+    // If we don't have a peer connection yet, create one (incoming connection)
+    if (!user) {
+      console.log('Creating peer connection for incoming signal from:', from);
+      this.createPeerConnection(from, false); // We are not the initiator
+      user = this.state.users.get(from);
+    }
+    
     if (user) {
-      user.peer.signal(signal);
+      try {
+        user.peer.signal(signal);
+      } catch (error) {
+        console.error('Error processing signal from', from, ':', error);
+        // Store signal for later if peer isn't ready
+        if (!this.pendingSignals.has(from)) {
+          this.pendingSignals.set(from, []);
+        }
+        this.pendingSignals.get(from)!.push(signal);
+      }
     }
   }
 
   // Handle user joining
   private handleUserJoined(userId: string): void {
-    if (userId === this.getCurrentUserId() || this.state.users.has(userId)) {
+    const currentUserId = this.getCurrentUserId();
+    console.log('User joined:', userId, 'Current user:', currentUserId);
+    
+    // Don't create peer connection with ourselves
+    if (userId === currentUserId) {
+      console.log('Ignoring self join event');
+      return;
+    }
+    
+    // Don't create duplicate connections
+    if (this.state.users.has(userId)) {
+      console.log('Peer connection already exists for:', userId);
       return;
     }
 
-    this.createPeerConnection(userId, true);
+    // Only create outgoing connection if we have the "higher" user ID (deterministic)
+    // This prevents duplicate peer connections
+    const shouldInitiate = currentUserId > userId;
+    console.log('Should initiate connection to', userId, ':', shouldInitiate);
+    
+    this.createPeerConnection(userId, shouldInitiate);
   }
 
   // Handle user leaving
@@ -271,6 +359,8 @@ export class WebRTCService {
 
   // Create peer connection
   private createPeerConnection(userId: string, initiator: boolean): void {
+    console.log('Creating peer connection with user:', userId, 'Initiator:', initiator, 'Local stream tracks:', this.state.localStream?.getTracks().length || 0);
+    
     const peer = new SimplePeer({
       initiator,
       stream: this.state.localStream || undefined,
@@ -298,23 +388,42 @@ export class WebRTCService {
     });
 
     peer.on('stream', (stream) => {
+      console.log('Received stream from user:', userId, 'Video tracks:', stream.getVideoTracks().length, 'Audio tracks:', stream.getAudioTracks().length);
       webrtcUser.stream = stream;
       this.emit('userStreamChanged', userId, stream);
     });
 
     peer.on('connect', () => {
       console.log('Peer connected:', userId);
+      
+      // Process any pending signals
+      const pendingSignals = this.pendingSignals.get(userId);
+      if (pendingSignals && pendingSignals.length > 0) {
+        console.log('Processing', pendingSignals.length, 'pending signals for', userId);
+        pendingSignals.forEach(signal => {
+          try {
+            peer.signal(signal);
+          } catch (error) {
+            console.warn('Error processing pending signal:', error);
+          }
+        });
+        this.pendingSignals.delete(userId);
+      }
+      
       this.emit('userConnected', userId);
     });
 
     peer.on('close', () => {
       console.log('Peer disconnected:', userId);
       this.state.users.delete(userId);
+      this.pendingSignals.delete(userId);
       this.emit('userDisconnected', userId);
     });
 
     peer.on('error', (error) => {
-      console.error('Peer error:', error);
+      console.error('Peer error for', userId, ':', error);
+      this.state.users.delete(userId);
+      this.pendingSignals.delete(userId);
       this.emit('peerError', userId, error);
     });
 
@@ -325,15 +434,19 @@ export class WebRTCService {
   private sendSignal(to: string, signal: SimplePeer.SignalData): void {
     if (!this.signalChannel) return;
 
+    const signalData = {
+      from: this.getCurrentUserId(),
+      to,
+      signal,
+      type: signal.type,
+    };
+    
+    console.log('Sending signal to:', to, 'Type:', signal.type);
+
     this.signalChannel.send({
       type: 'broadcast',
       event: 'webrtc-signal',
-      payload: {
-        from: this.getCurrentUserId(),
-        to,
-        signal,
-        type: signal.type,
-      },
+      payload: signalData,
     });
   }
 
@@ -356,11 +469,19 @@ export class WebRTCService {
     try {
       if (!this.state.isVideoEnabled) {
         // Enable video
-        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const videoStream = await navigator.mediaDevices.getUserMedia({ 
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+          }
+        });
         const videoTrack = videoStream.getVideoTracks()[0];
         
         if (this.state.localStream) {
           this.state.localStream.addTrack(videoTrack);
+          // Update all existing peer connections with the new video track
+          this.updatePeerStreams();
         }
         
         this.state.isVideoEnabled = true;
@@ -372,6 +493,8 @@ export class WebRTCService {
             track.stop();
             this.state.localStream!.removeTrack(track);
           });
+          // Update all existing peer connections
+          this.updatePeerStreams();
         }
         
         this.state.isVideoEnabled = false;
@@ -412,9 +535,13 @@ export class WebRTCService {
           screenTrack.onended = () => {
             this.toggleScreenShare();
           };
+          
+          // Update all peer connections
+          this.updatePeerStreams();
         }
         
         this.state.isScreenSharing = true;
+        this.state.isVideoEnabled = true; // Screen sharing counts as video
       } else {
         // Stop screen sharing
         if (this.state.localStream) {
@@ -423,9 +550,12 @@ export class WebRTCService {
             track.stop();
             this.state.localStream!.removeTrack(track);
           });
+          // Update all peer connections
+          this.updatePeerStreams();
         }
         
         this.state.isScreenSharing = false;
+        this.state.isVideoEnabled = false;
       }
       
       this.broadcastMediaToggle();
@@ -497,12 +627,11 @@ export class WebRTCService {
 
   // Helper to get current user ID
   private getCurrentUserId(): string {
-    // Use the stored user ID from when we joined the channel
-    // This avoids import issues and is more reliable
     return this.currentUserId || 'anonymous';
   }
   
   private currentUserId: string = 'anonymous';
+  private pendingSignals: Map<string, SimplePeer.SignalData[]> = new Map();
 
   // Cleanup
   async disconnect(): Promise<void> {

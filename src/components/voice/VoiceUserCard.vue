@@ -216,14 +216,18 @@ export default defineComponent({
     // Video ref management
     const setVideoRef = (el: HTMLVideoElement | null) => {
       videoRef.value = el;
+      // Set initial stream if available
+      if (el && props.videoStream) {
+        el.srcObject = props.videoStream;
+      }
     };
     
     // Update video stream when prop changes
     watch(() => props.videoStream, (newStream) => {
-      if (videoRef.value && newStream) {
+      if (videoRef.value) {
         videoRef.value.srcObject = newStream;
       }
-    });
+    }, { immediate: true });
     
     return {
       isActivelySpeaking,

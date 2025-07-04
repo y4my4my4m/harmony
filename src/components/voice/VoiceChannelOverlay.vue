@@ -221,7 +221,7 @@ export default defineComponent({
 
     // Participants data
     const participants = computed(() => {
-      return connectedUsers.value.map(userId => ({
+      return voiceChannelStore.getAllParticipants.map(userId => ({
         userId,
         user: serverUsersStore.userProfiles[userId] || { id: userId, username: 'Unknown' },
         stream: voiceChannelStore.getUserStream(userId),
@@ -269,8 +269,7 @@ export default defineComponent({
 
     // Methods
     const getCurrentUserId = () => {
-      // TODO: Get from auth store
-      return 'current-user-id';
+      return voiceChannelStore.currentUserId;
     };
 
     const toggleLayoutMode = () => {

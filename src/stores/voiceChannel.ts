@@ -13,6 +13,8 @@ interface VoiceChannelState {
   profiles: Profile[];
   positions: Record<string, ProfilePosition>;
   currentChannelId: string | null;
+  currentServerId: string | null;
+  currentUserId: string | null;
   isConnected: boolean;
   isAudioEnabled: boolean;
   isVideoEnabled: boolean;
@@ -31,6 +33,8 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     profiles: [],
     positions: {},
     currentChannelId: null,
+    currentServerId: null,
+    currentUserId: null,
     isConnected: false,
     isAudioEnabled: true,
     isVideoEnabled: false,
@@ -50,7 +54,20 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     },
     
     getUserStream: (state) => (userId: string) => {
+      // Return local stream for current user, remote stream for others
+      if (userId === state.currentUserId) {
+        return state.localStream;
+      }
       return state.remoteStreams.get(userId);
+    },
+    
+    getAllParticipants: (state) => {
+      // Include current user in participants list
+      const participants = [...state.connectedUsers];
+      if (state.currentUserId && !participants.includes(state.currentUserId)) {
+        participants.unshift(state.currentUserId); // Add self at the beginning
+      }
+      return participants;
     },
     
     getConnectionState: (state) => (userId: string) => {
@@ -79,6 +96,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         }
         
         const userId = authStore.session.user.id;
+        this.currentUserId = userId; // Store current user ID
         
         // Join through server users store for presence
         const success = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId);
@@ -95,6 +113,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         }
         
         this.currentChannelId = channelId;
+        this.currentServerId = serverId;
         this.isConnected = true;
         
         // Setup WebRTC event listeners
@@ -122,10 +141,9 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         await webRTCService.leaveChannel();
         
         // Leave through server users store
-        // Find server ID from current channel (you might need to store this)
-        const serverId = this.getServerIdFromChannel(this.currentChannelId);
-        if (serverId) {
-          await serverUsersStore.leaveVoiceChannel(serverId, this.currentChannelId, userId);
+        // Use stored server ID
+        if (this.currentServerId) {
+          await serverUsersStore.leaveVoiceChannel(this.currentServerId, this.currentChannelId, userId);
         }
         
         this.resetState();
@@ -216,6 +234,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
       });
       
       webRTCService.on('userStreamChanged', (userId: string, stream: MediaStream) => {
+        console.log('Voice store received stream for user:', userId, 'Video tracks:', stream.getVideoTracks().length);
         this.remoteStreams.set(userId, stream);
         this.setupAudioLevelMonitoring(userId, stream);
       });
@@ -233,23 +252,46 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     
     // Audio level monitoring
     setupAudioLevelMonitoring(userId: string, stream: MediaStream) {
-      const audioContext = new AudioContext();
-      const analyser = audioContext.createAnalyser();
-      const microphone = audioContext.createMediaStreamSource(stream);
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      
-      microphone.connect(analyser);
-      analyser.fftSize = 256;
-      
-      const updateLevel = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-        this.audioLevels.set(userId, average);
+      try {
+        const audioContext = new AudioContext();
+        const analyser = audioContext.createAnalyser();
+        const microphone = audioContext.createMediaStreamSource(stream);
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
         
-        requestAnimationFrame(updateLevel);
-      };
-      
-      updateLevel();
+        microphone.connect(analyser);
+        analyser.fftSize = 256;
+        
+        let isActive = true;
+        
+        const updateLevel = () => {
+          if (!isActive) return;
+          
+          try {
+            analyser.getByteFrequencyData(dataArray);
+            const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            this.audioLevels.set(userId, average);
+            
+            requestAnimationFrame(updateLevel);
+          } catch (error) {
+            console.warn('Error updating audio level:', error);
+            isActive = false;
+          }
+        };
+        
+        updateLevel();
+        
+        // Cleanup when stream ends
+        stream.addEventListener('inactive', () => {
+          isActive = false;
+          try {
+            audioContext.close();
+          } catch (error) {
+            console.warn('Error closing audio context:', error);
+          }
+        });
+      } catch (error) {
+        console.warn('Error setting up audio level monitoring:', error);
+      }
     },
     
     // Sound effects
@@ -263,15 +305,10 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
       }
     },
     
-    // Helper methods
-    getServerIdFromChannel(channelId: string): string | null {
-      // You'll need to implement this based on your channel structure
-      // For now, return null - you might want to store server ID in state
-      return null;
-    },
-    
     resetState() {
       this.currentChannelId = null;
+      this.currentServerId = null;
+      this.currentUserId = null;
       this.isConnected = false;
       this.isAudioEnabled = true;
       this.isVideoEnabled = false;
