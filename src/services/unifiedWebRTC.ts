@@ -20,6 +20,7 @@ export interface UserConnection {
   peerConnection: RTCPeerConnection;
   mediaState: UserMediaState;
   remoteStream: MediaStream | null;
+  audioElement: HTMLAudioElement | null;
   connectionState: RTCPeerConnectionState;
   iceConnectionState: RTCIceConnectionState;
 }
@@ -139,8 +140,9 @@ export class UnifiedWebRTCService {
       });
     }
     
-    // Close all peer connections
+    // Close all peer connections and cleanup audio
     this.connections.forEach(conn => {
+      this.cleanupRemoteAudio(conn);
       conn.peerConnection.close();
     });
     this.connections.clear();
@@ -408,12 +410,11 @@ export class UnifiedWebRTCService {
       }
     }
     
-    // Mute/unmute all remote streams
+    // Mute/unmute all remote audio elements
     this.connections.forEach(conn => {
-      if (conn.remoteStream) {
-        conn.remoteStream.getAudioTracks().forEach(track => {
-          track.enabled = !this.localMediaState.isDeafened;
-        });
+      if (conn.audioElement) {
+        conn.audioElement.muted = this.localMediaState.isDeafened;
+        console.log('🔊 Audio element for', conn.userId, this.localMediaState.isDeafened ? 'muted' : 'unmuted');
       }
     });
     
@@ -678,6 +679,7 @@ export class UnifiedWebRTCService {
     
     const connection = this.connections.get(userId);
     if (connection) {
+      this.cleanupRemoteAudio(connection);
       connection.peerConnection.close();
       this.connections.delete(userId);
     }
@@ -770,6 +772,7 @@ export class UnifiedWebRTCService {
         audioLevel: 0
       },
       remoteStream: null,
+      audioElement: null,
       connectionState: pc.connectionState,
       iceConnectionState: pc.iceConnectionState
     };
@@ -792,6 +795,10 @@ export class UnifiedWebRTCService {
       if (event.streams[0]) {
         connection.remoteStream = event.streams[0];
         console.log('📡 Setting remote stream for user:', userId, 'Tracks:', event.streams[0].getTracks().length);
+        
+        // Create audio element for remote audio playback
+        this.setupRemoteAudio(connection, event.streams[0]);
+        
         this.emit('user-stream-changed', { userId, stream: event.streams[0] });
         
         // Also emit generic stream change event
@@ -933,6 +940,46 @@ export class UnifiedWebRTCService {
         timestamp: Date.now()
       }
     });
+  }
+
+  private setupRemoteAudio(connection: UserConnection, stream: MediaStream): void {
+    const audioTracks = stream.getAudioTracks();
+    
+    if (audioTracks.length > 0) {
+      // Create audio element for remote audio playback
+      if (!connection.audioElement) {
+        connection.audioElement = new Audio();
+        connection.audioElement.autoplay = true;
+        connection.audioElement.playsInline = true;
+      }
+      
+      // Set the stream
+      connection.audioElement.srcObject = stream;
+      
+      // Apply current deafen state
+      connection.audioElement.muted = this.localMediaState.isDeafened;
+      
+      console.log('🔊 Audio element created for user:', connection.userId, 'muted:', connection.audioElement.muted);
+      
+      // Handle audio element errors
+      connection.audioElement.onerror = (error) => {
+        console.error('❌ Audio element error for user', connection.userId, ':', error);
+      };
+      
+      // Log when audio starts playing
+      connection.audioElement.onplay = () => {
+        console.log('▶️ Audio started playing for user:', connection.userId);
+      };
+    }
+  }
+
+  private cleanupRemoteAudio(connection: UserConnection): void {
+    if (connection.audioElement) {
+      connection.audioElement.pause();
+      connection.audioElement.srcObject = null;
+      connection.audioElement = null;
+      console.log('🔇 Audio element cleaned up for user:', connection.userId);
+    }
   }
 
   private setupCleanup(): void {

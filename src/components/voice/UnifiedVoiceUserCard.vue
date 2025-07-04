@@ -231,14 +231,21 @@ export default defineComponent({
     // Update video element when stream changes
     watch(() => props.userStream, (newStream) => {
       if (videoElement.value) {
-        videoElement.value.srcObject = newStream;
+        // Create a video-only stream to prevent audio echoing through video element
+        let videoOnlyStream: MediaStream | null = null;
         
         if (newStream) {
-          console.log('📹 Stream updated for user:', props.userState.userId, {
-            videoTracks: newStream.getVideoTracks().length,
-            audioTracks: newStream.getAudioTracks().length
-          });
+          const videoTracks = newStream.getVideoTracks();
+          if (videoTracks.length > 0) {
+            videoOnlyStream = new MediaStream(videoTracks);
+            console.log('📹 Video-only stream created for user:', props.userState.userId, {
+              videoTracks: videoOnlyStream.getVideoTracks().length,
+              originalAudioTracks: newStream.getAudioTracks().length
+            });
+          }
         }
+        
+        videoElement.value.srcObject = videoOnlyStream;
       }
     }, { immediate: true });
     
