@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase';
+import { canUserCreateInvites, getInviteConstraints } from './permissionsService';
 
 export interface InviteOptions {
   expiresIn?: number; // minutes, 0 = never expires
@@ -33,13 +34,41 @@ async function generateInviteUrl(
   serverId: string, 
   userId: string, 
   options: InviteOptions = {}
-): Promise<string | null> {
+): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
+    // Check if user has permission to create invites
+    const canCreate = await canUserCreateInvites(userId, serverId);
+    if (!canCreate) {
+      return { success: false, error: 'You do not have permission to create invites for this server' };
+    }
+
+    // Get invite constraints for this user
+    const constraints = await getInviteConstraints(userId, serverId);
+    
     const {
-      expiresIn = 1440, // 24 hours default
-      maxUses = 0, // unlimited default
+      expiresIn = constraints.defaultExpiration,
+      maxUses = 0,
       temporary = false
     } = options;
+
+    // Validate against constraints
+    if (constraints.maxExpiration > 0 && expiresIn > constraints.maxExpiration) {
+      return { 
+        success: false, 
+        error: `Expiration time cannot exceed ${Math.floor(constraints.maxExpiration / (24 * 60))} days` 
+      };
+    }
+
+    if (!constraints.allowTemporary && temporary) {
+      return { success: false, error: 'Temporary invites are not allowed in this server' };
+    }
+
+    if (constraints.maxUses > 0 && (maxUses === 0 || maxUses > constraints.maxUses)) {
+      return { 
+        success: false, 
+        error: `Maximum uses cannot exceed ${constraints.maxUses}` 
+      };
+    }
 
     // Generate a secure invite code
     const code = generateSecureCode();
@@ -69,10 +98,12 @@ async function generateInviteUrl(
 
     // Construct the invite URL
     const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-    return `${baseUrl}/invite/${code}`;
+    const url = `${baseUrl}/invite/${code}`;
+    
+    return { success: true, url };
   } catch (error) {
     console.error('Error generating invite URL:', error);
-    return null;
+    return { success: false, error: 'Failed to generate invite link' };
   }
 }
 async function acceptInvite(code: string, userId: string): Promise<{ success: boolean; serverId?: string; error?: string }> {

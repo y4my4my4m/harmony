@@ -115,7 +115,15 @@
           </div>
 
           <!-- Generate New Link -->
-          <div class="generate-section">
+          <!-- Permission Error Message -->
+          <div v-if="permissionError" class="permission-error">
+            <svg viewBox="0 0 24 24" class="error-icon">
+              <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
+            </svg>
+            <span>{{ permissionError }}</span>
+          </div>
+
+          <div v-if="canCreateInvites" class="generate-section">
             <button 
               @click="generateNewLink" 
               class="generate-button"
@@ -759,6 +767,38 @@ watch(() => props.show, async (newValue) => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.permission-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(237, 66, 69, 0.1);
+  border: 1px solid rgba(237, 66, 69, 0.2);
+  border-radius: 8px;
+  color: #ed4245;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.error-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.setting-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-slider.disabled {
+  opacity: 0.5;
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+  cursor: not-allowed;
 }
 
 .invite-history-section {
