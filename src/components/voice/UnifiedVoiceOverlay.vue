@@ -1,13 +1,13 @@
 <template>
   <Teleport to="body">
+      <!-- Background blur -->
+      <div class="overlay-backdrop" :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"></div>
     <div 
       v-if="voiceStore.isOverlayVisible" 
-      class="discord-voice-overlay"
+      class="voice-overlay"
       :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"
       @click.self="handleBackdropClick"
     >
-      <!-- Background blur -->
-      <div class="overlay-backdrop"></div>
       
       <!-- Main container -->
       <div class="voice-container" :class="voiceStore.layoutMode">
@@ -313,7 +313,7 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.discord-voice-overlay {
+.voice-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -327,7 +327,7 @@ export default defineComponent({
   animation: overlay-enter 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-.discord-voice-overlay.overlay-leaving {
+.voice-overlay.overlay-leaving {
   animation: overlay-leave 0.3s cubic-bezier(0.55, 0.06, 0.68, 0.19);
 }
 
@@ -337,8 +337,17 @@ export default defineComponent({
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(20px);
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  opacity: 1;
+}
+.overlay-backdrop.overlay-entering {
+  opacity: 1;
+}
+.overlay-backdrop.overlay-leaving {
+  opacity: 0;
 }
 
 .voice-container {
@@ -616,7 +625,7 @@ export default defineComponent({
 }
 
 @media (max-width: 768px) {
-  .discord-voice-overlay {
+  .voice-overlay {
     padding: 10px;
   }
   

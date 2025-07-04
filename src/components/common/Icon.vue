@@ -101,6 +101,20 @@
     <!-- Keyboard -->
     <rect v-if="name === 'keyboard'" x="2" y="4" width="20" height="16" rx="2"></rect>
     <path v-if="name === 'keyboard'" d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"></path>
+
+    <!-- Maximize -->
+    <rect v-if="name === 'maximize'" x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+    <polyline v-if="name === 'maximize'" points="7 7 7 5 5 5 5 7"></polyline>
+    <polyline v-if="name === 'maximize'" points="17 7 19 7 19 5 17 5"></polyline>
+    <polyline v-if="name === 'maximize'" points="17 17 19 17 19 19 17 19"></polyline>
+    <polyline v-if="name === 'maximize'" points="7 17 7 19 5 19 5 17"></polyline>
+
+    <!-- Minimize -->
+    <rect v-if="name === 'minimize'" x="3" y="11" width="18" height="2" rx="1" ry="1"></rect>
+    
+    <!-- User -->
+    <circle v-if="name === 'user'" cx="12" cy="7" r="4"></circle>
+    <path v-if="name === 'user'" d="M20 21v-2a7 5 0 0 0-16 0v2"></path>
   </svg>
 </template>
 
