@@ -32,82 +32,36 @@ export default defineComponent({
       type: String,
       default: 'Voice Channel'
     },
-    autoJoin: {
-      type: Boolean,
-      default: false
-    }
   },
   
   setup(props) {
     const voiceStore = useUnifiedVoiceChannelStore();
     
     // =============================================================================
-    // AUTO-JOIN FUNCTIONALITY
+    // LIFECYCLE
     // =============================================================================
     
-    const joinVoiceChannel = async () => {
-      try {
-        const success = await voiceStore.joinVoiceChannel(props.channelId, props.serverId);
-        if (!success) {
-          console.error('Failed to join voice channel');
-        } else {
-          // Clear the auto-join flag after successful join
-          sessionStorage.removeItem('autoJoinVoiceChannel');
-        }
-      } catch (error) {
-        console.error('Error joining voice channel:', error);
-      }
-    };
+    // Note: DO NOT auto-leave when component unmounts or channel changes
+    // Users should stay connected to voice channels until they explicitly leave
+    // The voice dock should remain visible and functional across channel/server navigation
     
-    // =============================================================================
-    // WATCHERS & LIFECYCLE
-    // =============================================================================
-    
-    // Check for auto-join on mount (triggered by microphone click)
-    onMounted(() => {
-      const shouldAutoJoin = sessionStorage.getItem('autoJoinVoiceChannel') === 'true';
-      if (shouldAutoJoin && !voiceStore.isConnected) {
-        console.log('🎯 Auto-joining voice channel via microphone click');
-        joinVoiceChannel();
-      }
-    });
-    
-    // Auto-join when autoJoin prop is true (fallback)
-    watch(() => props.autoJoin, (shouldAutoJoin) => {
-      if (shouldAutoJoin && !voiceStore.isConnected) {
-        console.log('🎯 Auto-joining voice channel via prop');
-        joinVoiceChannel();
-      }
-    }, { immediate: true });
-    
-    // Auto-leave when component unmounts or channel changes
     onUnmounted(() => {
-      if (voiceStore.isConnected && voiceStore.currentChannelId === props.channelId) {
-        voiceStore.leaveVoiceChannel();
-      }
+      // Component unmounting should not disconnect voice - user stays connected
+      // Only disconnect if the entire page is closing (handled by beforeunload in WebRTC service)
+      console.log('🔄 UnifiedWebRTCComponent unmounted, keeping voice connection alive');
     });
     
-    // Handle channel changes
+    // Handle channel changes - stay connected to voice channel
     watch(() => props.channelId, (newChannelId, oldChannelId) => {
       if (oldChannelId && newChannelId !== oldChannelId && voiceStore.isConnected) {
-        // Channel changed while connected - leave old and potentially join new
-        voiceStore.leaveVoiceChannel();
+        // Channel changed while connected - keep voice connection but log the change
+        console.log('🔄 Channel changed while in voice call, staying connected to voice channel');
       }
     });
     
     return {
-      voiceStore,
-      joinVoiceChannel
+      voiceStore
     };
   }
 });
 </script>
-
-<style scoped>
-.unified-webrtc-wrapper {
-  /* Container for the WebRTC system - dock positioning is handled internally */
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-</style>

@@ -316,12 +316,35 @@ export default defineComponent({
 </script>
 
 <style scoped>
+/* Base dock positioning */
 .unified-voice-dock {
   position: fixed;
+  z-index: 1000;
+}
+
+/* Normal dock mode - centered */
+.unified-voice-dock.dock-mode {
   bottom: 0px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1000;
+}
+
+/* Minimized dock mode - above UserProfileComponent in left sidebar */
+.unified-voice-dock.minimized-mode {
+  bottom: 72px; /* Height of UserProfileComponent */
+  left: 72px;   /* Offset from ServerSidebar (72px width) */
+  width: 240px; /* Width of channel sidebar */
+  transform: none;
+  z-index: 10;  /* Above UserProfileComponent but below global overlays */
+}
+
+/* Overlay mode - full screen */
+.unified-voice-dock.overlay-mode {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: none;
 }
 
 /* =============================================================================
@@ -505,12 +528,12 @@ export default defineComponent({
   padding: 12px 16px;
   cursor: pointer;
   transition: all 0.3s ease;
-  min-width: 240px;
+  width: 100%; /* Use full width of minimized dock container */
   box-shadow: 
     0 6px 20px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(10px);
-  margin-bottom: 40px;
+  margin-bottom: 0; /* Remove bottom margin for tight positioning */
 }
 
 .minimized-container:hover {

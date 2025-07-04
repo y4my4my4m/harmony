@@ -638,7 +638,8 @@ export default defineComponent({
 
     const isUserInVoiceChannel = (channelId: string): boolean => {
       if (!userId.value) return false;
-      return serverUsersStore.isUserInVoiceChannel(userId.value, channelId);
+      // Check if we're connected to this specific voice channel via the voice store
+      return voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId;
     };
 
     const getUsersInVoiceChannel = (channelId: string): string[] => {
@@ -649,19 +650,19 @@ export default defineComponent({
       if (!userId.value || !props.currentServer?.id) return;
       
       try {
-        // Leave any other voice channels first (user can only be in one at a time)
-        await serverUsersStore.leaveAllVoiceChannels(props.currentServer.id, userId.value);
+        console.log(`🎯 Joining voice channel ${channelId} directly`);
         
-        // Navigate to the voice channel (this will show the UnifiedWebRTCComponent)
-        selectChannel(channelId);
+        // Join voice channel directly without navigating away from current text channel
+        const success = await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id);
         
-        // Set a flag in session storage to trigger auto-join when the component loads
-        sessionStorage.setItem('autoJoinVoiceChannel', 'true');
-        
-        console.log(`Navigating to voice channel ${channelId} with auto-join`);
-        voiceOnSound.value.play();
+        if (success) {
+          console.log(`✅ Successfully joined voice channel ${channelId}`);
+          voiceOnSound.value.play();
+        } else {
+          console.error('❌ Failed to join voice channel');
+        }
       } catch (error) {
-        console.error('Failed to join voice channel:', error);
+        console.error('❌ Error joining voice channel:', error);
       }
     };
 

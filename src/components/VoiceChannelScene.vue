@@ -26,14 +26,7 @@
       </div>
     </div>
     
-    <!-- Unified WebRTC Component (always present for voice channels to handle auto-join) -->
-    <UnifiedWebRTCComponent 
-      v-if="isVoiceChannel"
-      :channelId="currentChannelId"
-      :serverId="serverId"
-      :channel-name="getChannelName()"
-      :auto-join="shouldAutoJoin"
-    />
+    <!-- Note: UnifiedWebRTCComponent is now handled globally in ChatView for persistence across navigation -->
   </div>
 </template>
 
@@ -45,7 +38,6 @@
   import type { Point } from '@/types';
 
   import SpaceTimeGrid from '@/components/SpaceTimeGrid.vue'
-  import UnifiedWebRTCComponent from '@/components/UnifiedWebRTCComponent.vue'
 
   export default defineComponent({
     name: 'VoiceChannelGrid',
@@ -60,15 +52,13 @@
       },
     },
     components: {
-      SpaceTimeGrid,
-      UnifiedWebRTCComponent
+      SpaceTimeGrid
     },
     setup(props) {
       const serverUsersStore = useServerUsersStore();
       const voiceChannelStore = useUnifiedVoiceChannelStore();
       const serverChannelStore = useServerChannelStore();
       const isVoiceChannelPopupVisible = ref(false);
-      const shouldAutoJoin = ref(false);
       const gridContainer = ref<HTMLElement | null>(null);
       const containerWidth = ref(0);
       const containerHeight = ref(0);
@@ -93,18 +83,6 @@
       //   });
       // }, { deep: true });
 
-      // Check for auto-join flag on mount and whenever the channel changes
-      watch(() => props.currentChannelId, () => {
-        const hasAutoJoinFlag = sessionStorage.getItem('autoJoinVoiceChannel') === 'true';
-        shouldAutoJoin.value = hasAutoJoinFlag && isVoiceChannel.value;
-        
-        console.log('🔍 VoiceChannelScene - Channel changed:', {
-          channelId: props.currentChannelId,
-          isVoiceChannel: isVoiceChannel.value,
-          hasAutoJoinFlag,
-          shouldAutoJoin: shouldAutoJoin.value
-        });
-      }, { immediate: true });
 
       // Show voice channel popup based on connection status and participants
       watch(() => [usersInCurrentChannel.value, voiceChannelStore.isConnected], () => {
@@ -226,7 +204,6 @@
         containerHeight,
         avatarPositions,
         getChannelName,
-        shouldAutoJoin,
       };
     }
   });
