@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
-import { useRouter } from 'vue-router'
+import router from '@/router'
 import { useAuthStore } from './auth'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import type { 
@@ -666,8 +666,6 @@ export const useNotificationStore = defineStore('notification', {
         this.markAsRead(notification.id)
         
         // Navigate to the notification source
-        const router = useRouter()
-        
         if (notification.data?.conversation_id) {
           // Navigate to DM
           router.push(`/dm/${notification.data.conversation_id}`)
