@@ -26,7 +26,7 @@
       <WebRTCComponent 
         :channelId="currentChannelId"
         :serverId="serverId"
-        :showDebugInfo="false"
+        :channel-name="getChannelName()"
       />
     </div>
   </div>
@@ -181,6 +181,12 @@
 
       watch(() => window.innerWidth, updateDimensions);
 
+      const getChannelName = () => {
+        // You can implement this to get the actual channel name
+        // For now, return a default name
+        return 'Voice Channel';
+      };
+
       return { 
         isVoiceChannelPopupVisible, 
         usersInCurrentChannel, 
@@ -192,6 +198,7 @@
         containerWidth,
         containerHeight,
         avatarPositions,
+        getChannelName,
       };
     }
   });

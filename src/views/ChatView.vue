@@ -62,10 +62,6 @@
       />
     </div>
     <UserSidebar :class="{ 'open': isProfilesVisible }"  />
-    
-    <!-- Voice Control Panel -->
-    <!-- TODO: isheadphonesactive should reflect the real state and probably doesnt need to be passed as a prop -->
-    <VoiceControlPanel :isHeadphonesActive="true" />
   </div>
 </template>
 
@@ -82,7 +78,6 @@
   import CreateChannel from '@/components/CreateChannel.vue';
   import PublicServers from '@/components/PublicServers.vue';
   import NotificationBell from '@/components/NotificationBell.vue';
-  import VoiceControlPanel from '@/components/VoiceControlPanel.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
@@ -108,7 +103,6 @@
       CreateChannel,
       PublicServers,
       NotificationBell,
-      VoiceControlPanel,
     },
     props: {
       serverId: String,
