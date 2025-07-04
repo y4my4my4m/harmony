@@ -207,39 +207,30 @@ export class WebRTCService {
     }
   }
 
-  // Update all peer connections with current local stream
-  private updatePeerStreams(): void {
-    if (!this.state.localStream) return;
+  // Replace stream in all peer connections
+  private replaceStreamInPeers(newStream: MediaStream): void {
+    console.log('Replacing stream in', this.state.users.size, 'peer connections');
     
-    this.state.users.forEach((user) => {
+    this.state.users.forEach((user, userId) => {
       try {
-        // Access the underlying RTCPeerConnection
-        const pc = (user.peer as any)._pc;
-        if (pc && pc.getSenders) {
-          const senders = pc.getSenders();
+        // Simple approach: use the replaceStream method if available
+        if (typeof (user.peer as any).replaceStream === 'function') {
+          console.log('Using replaceStream for user:', userId);
+          (user.peer as any).replaceStream(newStream);
+        } else {
+          // Fallback: recreate the peer connection with new stream
+          console.log('Recreating peer connection for user:', userId);
+          const wasInitiator = (user.peer as any).initiator;
+          user.peer.destroy();
+          this.state.users.delete(userId);
           
-          // Replace video track if it exists
-          const videoSender = senders.find((s: RTCRtpSender) => 
-            s.track && s.track.kind === 'video'
-          );
-          
-          const localVideoTrack = this.state.localStream.getVideoTracks()[0];
-          
-          if (videoSender && localVideoTrack) {
-            // Replace existing video track
-            videoSender.replaceTrack(localVideoTrack);
-          } else if (localVideoTrack && !videoSender) {
-            // Add new video track
-            pc.addTrack(localVideoTrack, this.state.localStream);
-          } else if (!localVideoTrack && videoSender) {
-            // Remove video track
-            pc.removeTrack(videoSender);
-          }
+          // Recreate with new stream
+          setTimeout(() => {
+            this.createPeerConnection(userId, wasInitiator);
+          }, 100);
         }
       } catch (error) {
-        console.warn('Error updating peer stream for user', user.id, ':', error);
-        // Fallback: signal a renegotiation
-        this.signalRenegotiation(user.id);
+        console.warn('Error replacing stream for user', userId, ':', error);
       }
     });
   }
@@ -362,17 +353,16 @@ export class WebRTCService {
       return;
     }
 
-    // Only create outgoing connection if we have the "higher" user ID (deterministic)
-    // This prevents duplicate peer connections
+    // Always emit userJoined to update UI first
+    this.emit('userJoined', userId);
+
+    // Simple deterministic peer creation: higher user ID initiates
     const shouldInitiate = currentUserId > userId;
     console.log('Should initiate connection to', userId, ':', shouldInitiate);
     
     if (shouldInitiate) {
       this.createPeerConnection(userId, true);
     }
-    
-    // Always emit userJoined to update UI
-    this.emit('userJoined', userId);
   }
 
   // Handle user leaving
@@ -482,7 +472,10 @@ export class WebRTCService {
 
   // Create peer connection
   private createPeerConnection(userId: string, initiator: boolean): void {
-    console.log('Creating peer connection with user:', userId, 'Initiator:', initiator, 'Local stream tracks:', this.state.localStream?.getTracks().length || 0);
+    console.log('=== Creating peer connection ===');
+    console.log('User:', userId, 'Initiator:', initiator);
+    console.log('Local stream available:', !!this.state.localStream);
+    console.log('Local stream tracks:', this.state.localStream?.getTracks().length || 0);
     
     const peer = new SimplePeer({
       initiator,
@@ -512,6 +505,13 @@ export class WebRTCService {
 
     peer.on('stream', (stream) => {
       console.log('Received stream from user:', userId, 'Video tracks:', stream.getVideoTracks().length, 'Audio tracks:', stream.getAudioTracks().length);
+      webrtcUser.stream = stream;
+      this.emit('userStreamChanged', userId, stream);
+    });
+
+    peer.on('track', (track, stream) => {
+      console.log('Received track from user:', userId, 'Track kind:', track.kind, 'Stream ID:', stream.id);
+      // This handles individual track additions/removals
       webrtcUser.stream = stream;
       this.emit('userStreamChanged', userId, stream);
     });
@@ -589,36 +589,58 @@ export class WebRTCService {
   async toggleVideo(): Promise<boolean> {
     try {
       if (!this.state.isVideoEnabled) {
-        // Enable video
-        const videoStream = await navigator.mediaDevices.getUserMedia({ 
+        // Enable video - get new stream with video
+        const newStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
           video: {
             width: { ideal: 1280 },
             height: { ideal: 720 },
             frameRate: { ideal: 30 },
           }
         });
-        const videoTrack = videoStream.getVideoTracks()[0];
         
+        // Stop old stream
         if (this.state.localStream) {
-          this.state.localStream.addTrack(videoTrack);
-          // Update all existing peer connections with the new video track
-          this.updatePeerStreams();
+          this.state.localStream.getTracks().forEach(track => track.stop());
         }
         
+        // Set new stream
+        this.state.localStream = newStream;
         this.state.isVideoEnabled = true;
+        
+        console.log('Video enabled - new stream tracks:', newStream.getTracks().length);
+        
+        // Update all peer connections with new stream
+        this.replaceStreamInPeers(newStream);
+        
       } else {
-        // Disable video
+        // Disable video - get audio-only stream
+        const newStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+          video: false
+        });
+        
+        // Stop old stream
         if (this.state.localStream) {
-          const videoTracks = this.state.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            track.stop();
-            this.state.localStream!.removeTrack(track);
-          });
-          // Update all existing peer connections
-          this.updatePeerStreams();
+          this.state.localStream.getTracks().forEach(track => track.stop());
         }
         
+        // Set new stream
+        this.state.localStream = newStream;
         this.state.isVideoEnabled = false;
+        
+        console.log('Video disabled - new stream tracks:', newStream.getTracks().length);
+        
+        // Update all peer connections with new stream
+        this.replaceStreamInPeers(newStream);
       }
       
       this.broadcastMediaToggle();
@@ -635,48 +657,66 @@ export class WebRTCService {
   async toggleScreenShare(): Promise<boolean> {
     try {
       if (!this.state.isScreenSharing) {
-        // Start screen sharing
+        // Start screen sharing - get screen + audio stream
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
         });
         
-        // Replace video track with screen share
+        // Add audio from current stream if available
         if (this.state.localStream) {
-          const videoTracks = this.state.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            track.stop();
-            this.state.localStream!.removeTrack(track);
-          });
-          
-          const screenTrack = screenStream.getVideoTracks()[0];
-          this.state.localStream.addTrack(screenTrack);
-          
-          // Handle screen share ending
-          screenTrack.onended = () => {
-            this.toggleScreenShare();
-          };
-          
-          // Update all peer connections
-          this.updatePeerStreams();
+          const audioTrack = this.state.localStream.getAudioTracks()[0];
+          if (audioTrack) {
+            screenStream.addTrack(audioTrack.clone());
+          }
         }
         
+        // Stop old stream
+        if (this.state.localStream) {
+          this.state.localStream.getTracks().forEach(track => track.stop());
+        }
+        
+        // Set screen share stream
+        this.state.localStream = screenStream;
         this.state.isScreenSharing = true;
-        this.state.isVideoEnabled = true; // Screen sharing counts as video
+        this.state.isVideoEnabled = true;
+        
+        // Handle screen share ending
+        const videoTrack = screenStream.getVideoTracks()[0];
+        videoTrack.onended = () => {
+          this.toggleScreenShare();
+        };
+        
+        console.log('Screen sharing enabled - stream tracks:', screenStream.getTracks().length);
+        
+        // Update all peer connections
+        this.replaceStreamInPeers(screenStream);
+        
       } else {
-        // Stop screen sharing
+        // Stop screen sharing - get audio-only stream
+        const audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+          video: false
+        });
+        
+        // Stop old stream
         if (this.state.localStream) {
-          const videoTracks = this.state.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            track.stop();
-            this.state.localStream!.removeTrack(track);
-          });
-          // Update all peer connections
-          this.updatePeerStreams();
+          this.state.localStream.getTracks().forEach(track => track.stop());
         }
         
+        // Set audio-only stream
+        this.state.localStream = audioStream;
         this.state.isScreenSharing = false;
         this.state.isVideoEnabled = false;
+        
+        console.log('Screen sharing disabled - stream tracks:', audioStream.getTracks().length);
+        
+        // Update all peer connections
+        this.replaceStreamInPeers(audioStream);
       }
       
       this.broadcastMediaToggle();

@@ -243,8 +243,11 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
       });
       
       webRTCService.on('localStreamChanged', (stream: MediaStream) => {
+        console.log('Local stream changed in voice store:', stream?.getTracks().length || 0, 'tracks');
         this.localStream = stream;
-        this.setupAudioLevelMonitoring('local', stream);
+        if (stream) {
+          this.setupAudioLevelMonitoring('local', stream);
+        }
       });
       
       webRTCService.on('userMediaToggled', (data: any) => {
