@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { nextTick } from 'vue';
 import { unifiedWebRTC, type UserMediaState } from '@/services/unifiedWebRTC';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -233,10 +234,26 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     async toggleVideo(): Promise<boolean> {
       const enabled = await unifiedWebRTC.toggleVideo();
+      
+      // Force sync with WebRTC service state
       this.localState = unifiedWebRTC.getLocalState();
       this.localStream = unifiedWebRTC.getLocalStream();
       
-      this.playSound(enabled ? 'camera_on.mp3' : 'camera_off.mp3');
+      // Give UI time to update before playing sound
+      setTimeout(() => {
+        this.playSound(enabled ? 'camera_on.mp3' : 'camera_off.mp3');
+      }, 100);
+      
+      console.log('📹 Video toggled, local stream updated:', {
+        enabled,
+        streamId: this.localStream?.id,
+        videoTracks: this.localStream?.getVideoTracks().length || 0,
+        audioTracks: this.localStream?.getAudioTracks().length || 0
+      });
+      
+      // Force refresh UI reactivity
+      this.refreshStreamState();
+      
       return enabled;
     },
 
@@ -245,10 +262,26 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     async toggleScreenShare(): Promise<boolean> {
       const enabled = await unifiedWebRTC.toggleScreenShare();
+      
+      // Force sync with WebRTC service state
       this.localState = unifiedWebRTC.getLocalState();
       this.localStream = unifiedWebRTC.getLocalStream();
       
-      this.playSound(enabled ? 'screenshare_on.mp3' : 'screenshare_off.mp3');
+      // Give UI time to update before playing sound
+      setTimeout(() => {
+        this.playSound(enabled ? 'screenshare_on.mp3' : 'screenshare_off.mp3');
+      }, 100);
+      
+      console.log('📺 Screen share toggled, local stream updated:', {
+        enabled,
+        streamId: this.localStream?.id,
+        videoTracks: this.localStream?.getVideoTracks().length || 0,
+        audioTracks: this.localStream?.getAudioTracks().length || 0
+      });
+      
+      // Force refresh UI reactivity
+      this.refreshStreamState();
+      
       return enabled;
     },
 
@@ -468,6 +501,21 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         display_name: 'Unknown User',
         avatar_url: null
       };
+    },
+
+    /**
+     * Force refresh stream state for UI reactivity
+     */
+    refreshStreamState(): void {
+      // Force Vue reactivity by creating a new reference
+      const currentStream = unifiedWebRTC.getLocalStream();
+      if (currentStream) {
+        this.localStream = null;
+        nextTick(() => {
+          this.localStream = currentStream;
+          console.log('🔄 Forced stream state refresh for UI reactivity');
+        });
+      }
     }
   }
 });

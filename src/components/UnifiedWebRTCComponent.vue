@@ -1,23 +1,16 @@
 <template>
   <div class="unified-webrtc-wrapper">
-    <!-- Unified Voice Dock - Shows when connected -->
-    <UnifiedVoiceDock
-      v-if="voiceStore.isConnected"
-      :channel-name="channelName"
-    />
+    <!-- Voice dock is now handled globally by PersistentVoiceConnection in App.vue -->
+    <!-- This component just manages voice connection state for the current channel -->
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, onMounted, onUnmounted, watch } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
-import UnifiedVoiceDock from '@/components/voice/UnifiedVoiceDock.vue';
 
 export default defineComponent({
   name: 'UnifiedWebRTCComponent',
-  components: {
-    UnifiedVoiceDock
-  },
   
   props: {
     channelId: {

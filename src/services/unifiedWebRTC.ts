@@ -216,7 +216,7 @@ export class UnifiedWebRTCService {
               const offer = await conn.peerConnection.createOffer();
               await conn.peerConnection.setLocalDescription(offer);
               
-              await this.sendSignal({
+              this.sendDirectMessage(userId, {
                 type: 'offer',
                 from: this.currentUserId!,
                 to: userId,
@@ -260,7 +260,7 @@ export class UnifiedWebRTCService {
                   const offer = await conn.peerConnection.createOffer();
                   await conn.peerConnection.setLocalDescription(offer);
                   
-                  await this.sendSignal({
+                  this.sendDirectMessage(userId, {
                     type: 'offer',
                     from: this.currentUserId!,
                     to: userId,
@@ -514,9 +514,21 @@ export class UnifiedWebRTCService {
       });
       
       this.localStream = stream;
+      
+      // Ensure audio track is enabled based on mute state
+      const audioTrack = this.localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !this.localMediaState.isMuted;
+        console.log('🎤 Audio track enabled:', audioTrack.enabled, 'muted:', this.localMediaState.isMuted);
+      }
+      
       this.setupAudioLevelMonitoring();
       
-      console.log('🎤 Local audio initialized');
+      console.log('🎤 Local audio initialized with tracks:', {
+        audioTracks: this.localStream.getAudioTracks().length,
+        videoTracks: this.localStream.getVideoTracks().length,
+        totalTracks: this.localStream.getTracks().length
+      });
       
       // Emit initial local stream for UI
       this.emit('local-stream-changed', this.localStream);
@@ -767,8 +779,10 @@ export class UnifiedWebRTCService {
     // Add local stream tracks
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
+        console.log('🔗 Adding track to peer', userId, ':', track.kind, 'enabled:', track.enabled);
         pc.addTrack(track, this.localStream!);
       });
+      console.log('✅ Added', this.localStream.getTracks().length, 'tracks to peer connection with', userId);
     }
     
     // Handle remote stream

@@ -1,41 +1,29 @@
 <template>
   <div class="persistent-voice">
-    <!-- Voice Control Dock - always visible when in voice -->
-    <VoiceControlDock 
+    <!-- Unified Voice Dock - handles all modes (dock, minimized, overlay) -->
+    <UnifiedVoiceDock 
       v-if="isConnected"
       :channel-name="currentChannelName"
-      @show-voice-overlay="showOverlay = true"
-    />
-
-    <!-- Voice Channel Overlay -->
-    <VoiceChannelOverlay
-      :is-visible="showOverlay"
-      :channel-name="currentChannelName"
-      @close="showOverlay = false"
-      @leave-channel="handleLeaveChannel"
     />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch } from 'vue';
-import { useVoiceChannelStore } from '@/stores/voiceChannel';
+import { defineComponent, computed, watch } from 'vue';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useRouter } from 'vue-router';
-import VoiceControlDock from './voice/VoiceControlDock.vue';
-import VoiceChannelOverlay from './voice/VoiceChannelOverlay.vue';
+import UnifiedVoiceDock from './voice/UnifiedVoiceDock.vue';
 
 export default defineComponent({
   name: 'PersistentVoiceConnection',
   components: {
-    VoiceControlDock,
-    VoiceChannelOverlay
+    UnifiedVoiceDock
   },
   setup() {
-    const voiceChannelStore = useVoiceChannelStore();
+    const voiceChannelStore = useUnifiedVoiceChannelStore();
     const serverUsersStore = useServerUsersStore();
     const router = useRouter();
-    const showOverlay = ref(false);
 
     // Computed properties
     const isConnected = computed(() => voiceChannelStore.isConnected);
@@ -52,12 +40,6 @@ export default defineComponent({
       return `Voice Channel`; // Fallback
     });
 
-    // Handle leaving voice channel
-    const handleLeaveChannel = async () => {
-      await voiceChannelStore.leaveVoiceChannel();
-      showOverlay.value = false;
-    };
-
     // Auto-reconnect logic for when user navigates
     watch(() => router.currentRoute.value.path, (newPath) => {
       // Keep voice connection active regardless of navigation
@@ -66,9 +48,7 @@ export default defineComponent({
 
     return {
       isConnected,
-      currentChannelName,
-      showOverlay,
-      handleLeaveChannel
+      currentChannelName
     };
   }
 });
