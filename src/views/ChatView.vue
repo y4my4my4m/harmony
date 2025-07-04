@@ -50,7 +50,7 @@
       <VoiceChannelScene 
         v-if="!isDM"
         :currentChannelId="currentChannelId"
-        :serverId="currentServer?.id || ''"
+        :serverId="currentServer?.id"
       />
       <ChatComponent
         :messages="chatMessages"
@@ -399,10 +399,21 @@
                   // Conversation loaded successfully, now load messages
                   await loadDMConversation();
                 } else {
-                  // Conversation not found or error
-                  console.error('Conversation not found:', props.conversationId);
-                  toast.error('Conversation not found');
-                  router.push({ name: 'DMHome' });
+                  // Conversation not found, attempt to create it
+                  try {
+                    // Use createOrGetConversation with current user and other user ID
+                    const created = await dmStore.createOrGetConversation(userId, props.conversationId);
+                    if (created) {
+                      await loadDMConversation();
+                    } else {
+                      toast.error('Failed to create conversation');
+                      router.push({ name: 'DMHome' });
+                    }
+                  } catch (err) {
+                    console.error('Error creating conversation:', err);
+                    toast.error('Failed to create conversation');
+                    router.push({ name: 'DMHome' });
+                  }
                 }
               }
             } catch (error) {
