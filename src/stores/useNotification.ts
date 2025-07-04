@@ -691,7 +691,7 @@ export const useNotificationStore = defineStore('notification', {
               router.push(`/dm/${navData.conversationId}`)
               break
               
-            case 'channel':
+            case 'channel': {
               // Navigate to server channel
               let path = `/chat/${navData.serverId}/${navData.channelId}`
               if (navData.messageId) {
@@ -699,6 +699,7 @@ export const useNotificationStore = defineStore('notification', {
               }
               router.push(path)
               break
+            }
               
             case 'server':
               // Navigate to server
@@ -747,7 +748,8 @@ export const useNotificationStore = defineStore('notification', {
           is_clicked: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          title: ''
         },
         {
           id: '2',
@@ -772,7 +774,8 @@ export const useNotificationStore = defineStore('notification', {
           is_clicked: false,
           created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
           updated_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          title: ''
         }
       ]
 
