@@ -546,9 +546,15 @@ export default defineComponent({
 .user-info {
   text-align: center;
   position: relative;
+  padding-bottom: 0px;
   bottom: 20px;
   margin: 0 auto;
   width: 100%;
+}
+.video-enabled .user-info,
+.screen-sharing .user-info {
+  padding-bottom: 20px;
+  bottom: 0px;
 }
 
 .username {
