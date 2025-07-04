@@ -50,7 +50,7 @@ import { getAvatarUrl } from '@/utils/avatarUtils'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 // Types
-type AvatarSize = 'sm' | 'md' | 'lg' | 'xl'
+type AvatarSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline'
 
 // Props
@@ -158,18 +158,28 @@ const handleImageLoad = () => {
   object-fit: cover;
   background-color: var(--h-chat-light);
   transition: all 0.2s ease;
-  border: 2px solid var(--h-chat-darker);
+  /* border: 2px solid var(--h-chat-darker); */
 }
 
-.avatar-container.interactive .avatar-image:hover {
+/* .avatar-container.interactive .avatar-image:hover {
   transform: scale(1.05);
   border-color: #5865f2;
-}
+} */
 
 /* Size classes - following voice overlay pattern */
+.avatar-mini {
+  width: 16px;
+  height: 16px;
+}
+
+.avatar-xs {
+  width: 20px;
+  height: 20px;
+}
+
 .avatar-sm {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
 }
 
 .avatar-md {

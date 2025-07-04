@@ -65,9 +65,10 @@
       <div class="avatar-wrapper">
         <!-- User avatar -->
         <div class="avatar-frame" :class="{ speaking: isSpeaking }">
-          <img 
-            :src="userProfile.avatar_url || '/default_avatar.png'"
+          <Avatar
+            :src="userProfile.avatar_url"
             :alt="displayName"
+            size="xl"
             class="user-avatar"
           />
           
@@ -130,10 +131,11 @@
 import { defineComponent, computed, ref, watch, type PropType } from 'vue';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '@/components/common/Avatar.vue';
 
 export default defineComponent({
   name: 'UnifiedVoiceUserCard',
-  components: { Icon },
+  components: { Icon, Avatar },
   
   props: {
     userState: {
@@ -482,10 +484,6 @@ export default defineComponent({
 }
 
 .user-avatar {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
   border: 2px solid #36393f;
 }
 

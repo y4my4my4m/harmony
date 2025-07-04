@@ -6,9 +6,10 @@
       <!-- User Info -->
       <div class="user-section">
         <div class="user-avatar-container">
-          <img 
-            :src="currentUserProfile.avatar_url || '/default_avatar.png'"
+          <Avatar
+            :src="currentUserProfile.avatar_url"
             :alt="currentUserProfile.display_name || 'User'"
+            size="sm"
             class="user-avatar"
             :class="{ speaking: isCurrentUserSpeaking }"
           />
@@ -165,13 +166,15 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import UnifiedVoiceOverlay from './UnifiedVoiceOverlay.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '@/components/common/Avatar.vue';
 
 export default defineComponent({
   name: 'UnifiedVoiceDock',
   components: {
     UnifiedVoiceOverlay,
     VoiceSettingsPanel,
-    Icon
+    Icon,
+    Avatar
   },
   
   props: {

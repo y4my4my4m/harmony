@@ -1,10 +1,13 @@
 <template>
   <div class="user-sidebar">
     <div v-for="user in users" :key="user.id" class="user-item" @click="showUserProfile(user)">
-      <div class="user-avatar-container">
-        <img :src="user.avatar_url || '/default_avatar.png'" alt="User avatar" class="user-avatar">
-        <span :class="getUserStatusClass(user.status)" class="user-status"></span>
-      </div>
+      <Avatar
+        :src="user.avatar_url"
+        :alt="user.display_name || 'Unknown User'"
+        size="sm"
+        :status="getStatusForAvatar(user.status)"
+        class="user-avatar"
+      />
       <span class="user-name">{{ user.display_name || 'Unknown User' }}</span>
     </div>
 
@@ -31,6 +34,7 @@ import { defineComponent, ref, watch, computed, onMounted } from 'vue';
 import type { User } from '@/types';
 import UserProfileModal from './UserProfileModal.vue';
 import InviteModal from './InviteModal.vue';
+import Avatar from '@/components/common/Avatar.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { getUserIdsForServer} from '@/services/usersService';
@@ -40,7 +44,8 @@ export default defineComponent({
   name: 'UserSidebar',
   components: { 
     UserProfileModal,
-    InviteModal
+    InviteModal,
+    Avatar
   },
   setup() {
     const serverChannelStore = useServerChannelStore();
@@ -102,6 +107,20 @@ export default defineComponent({
           return 'status-offline';
       }
     };
+
+    const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'offline' => {
+      switch (status) {
+        case UserStatus.Online:
+          return 'online';
+        case UserStatus.Away:
+          return 'away';
+        case UserStatus.Busy:
+          return 'busy';
+        case UserStatus.Offline:
+        default:
+          return 'offline';
+      }
+    };
   
     const closeProfile = () => {
       showProfileModal.value = false;
@@ -135,7 +154,8 @@ export default defineComponent({
       closeProfile, 
       openInviteModal,
       closeInviteModal,
-      getUserStatusClass 
+      getUserStatusClass,
+      getStatusForAvatar
     };
   }
 });

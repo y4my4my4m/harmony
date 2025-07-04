@@ -51,18 +51,13 @@
           class="search-result-item"
           @click="startConversation(user)"
         >
-          <div class="user-avatar">
-            <img 
-              v-if="user.avatar_url" 
-              :src="getUserAvatarUrl(user)" 
-              :alt="user.display_name || user.username"
-              class="avatar-image"
-            />
-            <div v-else class="avatar-placeholder">
-              {{ (user.display_name || user.username).charAt(0).toUpperCase() }}
-            </div>
-            <div v-if="user.is_online" class="online-indicator"></div>
-          </div>
+          <Avatar
+            :src="getUserAvatarUrl(user)"
+            :alt="user.display_name || user.username"
+            size="sm"
+            :status="user.is_online ? 'online' : 'offline'"
+            class="user-avatar"
+          />
           <div class="user-info">
             <div class="user-name">{{ user.display_name || user.username }}</div>
             <div v-if="user.display_name" class="username">{{ user.username }}</div>
@@ -99,21 +94,13 @@
           }"
           @click="selectConversation(conversation.id)"
         >
-          <div class="conversation-avatar">
-            <img 
-              v-if="conversation.other_user?.avatar_url" 
-              :src="getUserAvatarUrl(conversation.other_user)" 
-              :alt="conversation.other_user.display_name || conversation.other_user.username"
-              class="avatar-image"
-            />
-            <div v-else class="avatar-placeholder">
-              {{ getInitial(conversation.other_user) }}
-            </div>
-            <div 
-              v-if="conversation.other_user?.is_online" 
-              class="online-indicator"
-            ></div>
-          </div>
+          <Avatar
+            :src="getUserAvatarUrl(conversation.other_user)"
+            :alt="conversation.other_user?.display_name || conversation.other_user?.username"
+            size="sm"
+            :status="conversation.other_user?.is_online ? 'online' : 'offline'"
+            class="conversation-avatar"
+          />
           
           <div class="conversation-content">
             <div class="conversation-header">
@@ -149,6 +136,12 @@ import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import type { Message, MessagePart } from '@/types'
 import { getUserAvatarUrl } from '@/utils/avatarUtils'
+import Avatar from '@/components/common/Avatar.vue'
+
+// Register component (needed for script setup)
+const components = {
+  Avatar
+}
 
 const emit = defineEmits<{
   'conversationSelected': [conversationId: string]

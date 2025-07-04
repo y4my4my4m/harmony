@@ -262,6 +262,12 @@ export default defineComponent({
         emit('sendMessage', content, attachedFiles.value);
         emit('update:modelValue', '');
         
+        // Reset textarea height after sending
+        if (textareaRef.value) {
+          textareaRef.value.style.height = 'auto';
+          textareaRef.value.style.height = '44px'; // Reset to minimum height
+        }
+        
         // Clear files after sending (uploads should be completed by now)
         attachedFiles.value.forEach(file => {
           if (file.preview) {

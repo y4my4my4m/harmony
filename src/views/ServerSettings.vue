@@ -167,6 +167,7 @@ const permissions = computed(() => serverSettingsPermissions.value)
 const emojiPermissions = computed(() => ({
   canUpload: permissions.value.canUploadEmojis,
   canDelete: permissions.value.canDeleteEmojis,
+  canRename: permissions.value.canDeleteEmojis, // Same permission as delete for now
   canManageCrossServer: permissions.value.canManageCrossServerEmojis
 }))
 

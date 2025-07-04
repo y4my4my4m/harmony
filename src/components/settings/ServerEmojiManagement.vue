@@ -164,7 +164,7 @@
             <!-- Editable emoji name -->
             <div v-if="renamingEmoji === emoji.id" class="emoji-name-edit">
               <input
-                ref="emojiRenameInput"
+                :ref="el => { if (el) emojiRenameInput = el }"
                 v-model="tempEmojiName"
                 @keyup.enter="saveEmojiRename(emoji)"
                 @keyup.escape="cancelEmojiRename"

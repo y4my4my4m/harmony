@@ -22,11 +22,11 @@
     <!-- Avatar Section -->
     <div class="notification-avatar">
       <div class="avatar-container">
-        <img 
-          :src="avatarUrl" 
+        <Avatar
+          :src="avatarUrl"
           :alt="`${username || 'User'} avatar`"
+          size="md"
           class="avatar-image"
-          @error="handleAvatarError"
         />
         
         <!-- Type Icon Overlay -->
@@ -147,6 +147,7 @@ import { ref, computed, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
 import type { Notification } from '@/types'
+import Avatar from '@/components/common/Avatar.vue'
 
 // Icons - using dynamic imports for better performance
 const MarkReadIcon = defineAsyncComponent(() => import('@/components/icons/MarkReadIcon.vue'))
@@ -270,10 +271,7 @@ const handleDismiss = () => {
   emit('dismiss', props.notification.id)
 }
 
-const handleAvatarError = (event: Event) => {
-  const target = event.target as HTMLImageElement
-  target.src = '/default_avatar.png'
-}
+// Avatar error handling is now handled by the Avatar component
 
 // Quick action handlers using NotificationFormatter navigation data
 const acceptInvite = () => {

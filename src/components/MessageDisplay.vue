@@ -15,7 +15,11 @@
         <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="repliedMessage">
           <!-- TODO: dont make "gets" for everything -->
           <div class="replyContainer">
-            <img draggable="false" :src="getReplyUserAvatar(message.reply_to)" class="replyAvatar">
+            <Avatar 
+              :src="getReplyUserAvatar(message.reply_to)"
+              size="mini"
+              class="replyAvatar"
+            />
             <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getReplyUserColor(message.reply_to) }">{{ getReplyUserDisplayName(message.reply_to) }}</div>
             <div class="repliedTextPreview" role="button" tabindex="0">
               <div id="message-content" class="repliedTextContent">
@@ -40,7 +44,12 @@
           </div>
         </div>
         <div class="message-header">
-          <img draggable="false" :src="getUserAvatar(message.user_id)" class="user-avatar" @click="showUserProfile(message.user_id, $event)"/>
+          <Avatar 
+            :src="getUserAvatar(message.user_id)"
+            size="sm" 
+            :interactive="true"
+            @click="showUserProfile(message.user_id, $event)"
+          />
           <div>
             <span>
               <strong class="user-display-name" :style="{color: getUserColor(message.user_id)}" @click="showUserProfile(message.user_id, $event)">
@@ -140,7 +149,11 @@
     :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
   >
     <div v-for="user in tooltip.content" :key="user.id">
-      <img :src="user.avatarUrl || '/default_avatar.png'" :alt="user.displayName" class="tooltip-avatar">
+      <Avatar 
+        :src="user.avatarUrl"
+        size="xs"
+        class="tooltip-avatar"
+      />
       <span>{{ user.displayName }}</span>
     </div>
   </div>
@@ -165,6 +178,7 @@ import ReplyIcon from '@/components/icons/Reply.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
+import Avatar from '@/components/common/Avatar.vue';
 
 export default defineComponent({
   props: {
@@ -191,7 +205,8 @@ export default defineComponent({
     ReactionIcon,
     DeleteIcon,
     MoreIcon,
-    MessageContent
+    MessageContent,
+    Avatar
   },
   setup(props, { emit }) {
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
@@ -920,14 +935,10 @@ export default defineComponent({
   height: 100%;
 
 }
-.user-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+.message-header .avatar-container {
   margin-right: 10px;
   position: relative;
   top: 4.5px;
-  cursor: pointer;
 }
 .user-display-name {
   cursor: pointer;
@@ -1150,12 +1161,9 @@ export default defineComponent({
   border-radius: 4px
 }
 .tooltip .tooltip-avatar {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
   margin-right: 4px;
   position: relative;
-  top: 4px
+  top: 4px;
 }
 
 @media (max-width: 768px) {

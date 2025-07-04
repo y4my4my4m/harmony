@@ -1,9 +1,10 @@
 <template>
   <div class="user-profile" ref="targetRef">
-    <div class="avatar-container">
-      <img :src="profile?.avatar_url" alt="User Avatar" class="avatar">
-      <span :class="getUserStatusClass(currentStatus)" class="status-indicator"></span>
-    </div>
+    <Avatar 
+      :src="profile?.avatar_url"
+      size="md"
+      :status="getStatusForAvatar(currentStatus)"
+    />
     <div class="user-info">
       <p class="user-name">{{ profile?.display_name }}</p>
       <div class="user-status-container" @click="toggleStatusDropdown">
@@ -72,6 +73,7 @@
   import MicMutedIcon from '@/components/icons/MicMuted.vue';
   import HeadphonesIcon from '@/components/icons/Headphones.vue';
   import SettingsIcon from '@/components/icons/Settings.vue';
+  import Avatar from '@/components/common/Avatar.vue';
   
   export default defineComponent({
     name: 'UserProfileComponent',
@@ -79,7 +81,8 @@
       MicIcon,
       MicMutedIcon,
       HeadphonesIcon,
-      SettingsIcon
+      SettingsIcon,
+      Avatar
     },
     setup() {
       const authStore = useAuthStore();
@@ -219,6 +222,20 @@
         document.removeEventListener('click', onClickOutside);
       });
 
+      const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'offline' => {
+        switch (status) {
+          case UserStatus.Online:
+            return 'online';
+          case UserStatus.Away:
+            return 'away';
+          case UserStatus.Busy:
+            return 'busy';
+          case UserStatus.Offline:
+          default:
+            return 'offline';
+        }
+      };
+
       return { 
         profile, 
         goToSettings, 
@@ -236,7 +253,8 @@
         selectStatus,
         targetRef,
         currentStatus,
-        statusOptions
+        statusOptions,
+        getStatusForAvatar
       };
     },
   });
