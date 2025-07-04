@@ -7,6 +7,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
+import { useAuthStore } from '@/stores/auth'
 
 import Toast from 'vue-toastification';
 import "vue-toastification/dist/index.css";
@@ -53,6 +54,11 @@ app.directive('click-outside', ClickOutsideDirective);
 
 async function initializeApp() {
   try {
+    // Initialize auth store first to check for existing sessions
+    const authStore = useAuthStore()
+    await authStore.initializeAuth()
+    console.log('✅ Auth initialized')
+    
     // Register service worker for enhanced notification handling
     const swSupported = await serviceWorkerManager.initialize()
     console.log('🔔 Service Worker supported:', swSupported)

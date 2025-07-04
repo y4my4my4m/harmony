@@ -2,13 +2,13 @@ import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './auth'
+import { viewContextTracker } from '@/services/ViewContextTracker'
 import type { 
   Notification, 
   NotificationType, 
   NotificationData, 
   NotificationPreferences,
-  NotificationToast,
-  ToastAction
+  NotificationToast
 } from '@/types'
 
 interface NotificationState {
@@ -16,7 +16,6 @@ interface NotificationState {
   unreadCount: number
   isLoading: boolean
   lastFetchedAt: Date | null
-  settings: NotificationPreferences
   preferences: NotificationPreferences | null
   isDndActive: boolean
   toasts: NotificationToast[]
@@ -71,33 +70,6 @@ export const useNotificationStore = defineStore('notification', {
     unreadCount: 0,
     isLoading: false,
     lastFetchedAt: null,
-    settings: {
-      push_enabled: true,
-      desktop_enabled: true,
-      sound_enabled: true,
-      email_enabled: false,
-      mentions_only: false,
-      dm_enabled: true,
-      reaction_enabled: true,
-      reply_enabled: true,
-      server_invite_enabled: true,
-      voice_activity_enabled: false,
-      quiet_hours_enabled: false,
-      quiet_hours_start: '22:00',
-      quiet_hours_end: '08:00',
-      preview_enabled: true,
-      desktop_mentions: true,
-      desktop_dms: true,
-      desktop_reactions: false,
-      desktop_replies: true,
-      sound_mentions: true,
-      sound_dms: true,
-      sound_reactions: false,
-      sound_voice_activity: true,
-      dnd_enabled: false,
-      dnd_start_time: '22:00',
-      dnd_end_time: '08:00'
-    },
     preferences: null,
     isDndActive: false,
     toasts: [],
@@ -140,36 +112,6 @@ export const useNotificationStore = defineStore('notification', {
             return true
         }
       })
-    },
-
-    notificationsByType: (state) => {
-      const grouped: Record<NotificationType, Notification[]> = {
-        mention: [],
-        dm: [],
-        reaction: [],
-        reply: [],
-        server_invite: [],
-        voice_channel_activity: [],
-        emoji_added: [],
-        server_update: [],
-        friend_request: []
-      }
-
-      state.notifications.forEach(notification => {
-        if (grouped[notification.type]) {
-          grouped[notification.type].push(notification)
-        }
-      })
-
-      return grouped
-    },
-
-    hasUnreadMentions: (state) => {
-      return state.notifications.some(n => n.type === 'mention' && !n.is_read)
-    },
-
-    hasUnreadDMs: (state) => {
-      return state.notifications.some(n => n.type === 'dm' && !n.is_read)
     },
 
     isQuietHours: (state) => {
@@ -258,12 +200,15 @@ export const useNotificationStore = defineStore('notification', {
   },
 
   actions: {
+    /**
+     * STABLE INITIALIZATION with proper error handling
+     */
     async initialize(userId: string) {
       if (this.isInitialized) return
       
       try {
         this.isLoading = true
-        console.log('Initializing notification store for user:', userId)
+        console.log('🔔 Notification Store: Initializing for user:', userId)
         
         // Check notification permission first
         this.hasPermission = await this.checkNotificationPermission()
@@ -274,16 +219,16 @@ export const useNotificationStore = defineStore('notification', {
         // Load notifications
         await this.fetchNotifications(userId)
         
-        // Setup realtime subscription
-        this.setupRealtimeSubscription(userId)
+        // Setup context-aware realtime subscription
+        this.setupContextAwareRealtimeSubscription(userId)
         
         // Setup DND status check
         this.setupDndCheck()
         
         this.isInitialized = true
-        console.log('Notification store initialized successfully')
+        console.log('✅ Notification Store: Initialized successfully')
       } catch (error) {
-        console.error('Failed to initialize notifications:', error)
+        console.error('❌ Notification Store: Failed to initialize:', error)
         this.showToast('server_update', 'Failed to load notifications', 'Please refresh the page', 5000)
       } finally {
         this.isLoading = false
@@ -292,7 +237,7 @@ export const useNotificationStore = defineStore('notification', {
 
     async fetchNotifications(userId: string, limit = 50, offset = 0) {
       try {
-        console.log('Fetching notifications for user:', userId)
+        console.log('🔔 Fetching notifications for user:', userId)
         
         const { data, error } = await supabase
           .from('notifications')
@@ -302,11 +247,11 @@ export const useNotificationStore = defineStore('notification', {
           .limit(limit)
 
         if (error) {
-          console.error('Error fetching notifications:', error)
+          console.error('❌ Error fetching notifications:', error)
           throw error
         }
 
-        console.log('Fetched notifications:', data?.length || 0)
+        console.log(`✅ Fetched ${data?.length || 0} notifications`)
         
         if (offset === 0) {
           this.notifications = data || []
@@ -319,357 +264,27 @@ export const useNotificationStore = defineStore('notification', {
 
         return data || []
       } catch (error) {
-        console.error('Failed to fetch notifications:', error)
+        console.error('❌ Failed to fetch notifications:', error)
         // Create mock notifications for development/testing
-        this.createMockNotifications(userId)
+        if (process.env.NODE_ENV === 'development') {
+          this.createMockNotifications(userId)
+        }
         throw error
       }
     },
 
-    // Helper method to create mock notifications for testing
-    createMockNotifications(userId: string) {
-      if (process.env.NODE_ENV === 'development') {
-        const mockNotifications: Notification[] = [
-          {
-            id: 'mock-1',
-            user_id: userId,
-            type: 'mention',
-            title: 'You were mentioned',
-            message: 'Hey @you, check this out!',
-            data: {
-              username: 'TestUser',
-              avatar_url: '/default_avatar.png',
-              server_name: 'Test Server',
-              channel_name: 'general',
-              message_id: 'msg-1',
-              server_id: 'server-1',
-              channel_id: 'channel-1'
-            },
-            is_read: false,
-            is_clicked: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-          },
-          {
-            id: 'mock-2',
-            user_id: userId,
-            type: 'dm',
-            title: 'New direct message',
-            message: 'Hello! How are you doing?',
-            data: {
-              username: 'Friend',
-              avatar_url: '/default_avatar.png',
-              conversation_id: 'conv-1',
-              user_id: 'user-2'
-            },
-            is_read: false,
-            is_clicked: false,
-            created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-            updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-          },
-          {
-            id: 'mock-3',
-            user_id: userId,
-            type: 'reaction',
-            title: 'Someone reacted to your message',
-            message: 'with 👍 in #general',
-            data: {
-              username: 'ReactUser',
-              avatar_url: '/default_avatar.png',
-              server_name: 'Test Server',
-              channel_name: 'general',
-              emoji_name: '👍',
-              message_id: 'msg-2'
-            },
-            is_read: true,
-            is_clicked: false,
-            created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-          }
-        ]
-        
-        this.notifications = mockNotifications
-        this.updateUnreadCount()
-        console.log('Created mock notifications for development')
-      }
-    },
-
-    async loadPreferences(userId: string) {
-      try {
-        const { data, error } = await supabase
-          .from('notification_preferences')
-          .select('*')
-          .eq('user_id', userId)
-          .single()
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error loading preferences:', error)
-        }
-
-        if (data) {
-          this.preferences = data
-        } else {
-          // Create default preferences
-          await this.createDefaultPreferences(userId)
-        }
-      } catch (error) {
-        console.error('Failed to load notification preferences:', error)
-        // Use default preferences
-        this.preferences = {
-          id: 'temp',
-          user_id: userId,
-          ...DEFAULT_PREFERENCES,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      }
-    },
-
-    async createDefaultPreferences(userId: string) {
-      try {
-        const { data, error } = await supabase
-          .from('notification_preferences')
-          .insert({
-            user_id: userId,
-            ...DEFAULT_PREFERENCES
-          })
-          .select()
-          .single()
-
-        if (error) throw error
-        
-        this.preferences = data
-      } catch (error) {
-        console.error('Failed to create default preferences:', error)
-        // Fallback to local preferences
-        this.preferences = {
-          id: 'temp',
-          user_id: userId,
-          ...DEFAULT_PREFERENCES,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      }
-    },
-
-    async updatePreferences(newPreferences: Partial<NotificationPreferences>) {
-      if (!this.preferences) return
-
-      try {
-        const updatedPreferences = { ...this.preferences, ...newPreferences }
-        this.preferences = updatedPreferences
-
-        const { error } = await supabase
-          .from('notification_preferences')
-          .upsert({
-            user_id: this.preferences.user_id,
-            ...newPreferences
-          })
-
-        if (error) throw error
-
-        this.showToast('server_update', 'Settings updated', 'Your notification preferences have been saved', 2000)
-      } catch (error) {
-        console.error('Failed to update notification preferences:', error)
-        this.showToast('server_update', 'Failed to update settings', 'Please try again', 3000)
-      }
-    },
-
-    setFilter(filter: string) {
-      this.currentFilter = filter
-    },
-
-    async markAsRead(notificationId: string) {
-      try {
-        // Optimistic update
-        const notification = this.notifications.find(n => n.id === notificationId)
-        if (notification && !notification.is_read) {
-          notification.is_read = true
-          this.updateUnreadCount()
-        }
-
-        const { error } = await supabase
-          .from('notifications')
-          .update({ is_read: true, read_at: new Date().toISOString() })
-          .eq('id', notificationId)
-
-        if (error) {
-          // Revert optimistic update on error
-          if (notification) {
-            notification.is_read = false
-            this.updateUnreadCount()
-          }
-          throw error
-        }
-      } catch (error) {
-        console.error('Failed to mark notification as read:', error)
-      }
-    },
-
-    async markAllAsRead(userId: string) {
-      try {
-        // Optimistic update
-        const unreadNotifications = this.notifications.filter(n => !n.is_read)
-        unreadNotifications.forEach(n => n.is_read = true)
-        this.updateUnreadCount()
-
-        const { error } = await supabase
-          .from('notifications')
-          .update({ is_read: true, read_at: new Date().toISOString() })
-          .eq('user_id', userId)
-          .eq('is_read', false)
-
-        if (error) {
-          // Revert optimistic update on error
-          unreadNotifications.forEach(n => n.is_read = false)
-          this.updateUnreadCount()
-          throw error
-        }
-      } catch (error) {
-        console.error('Failed to mark all notifications as read:', error)
-      }
-    },
-
-    async createNotification(
-      userId: string,
-      type: NotificationType,
-      title: string,
-      message: string,
-      data: NotificationData = {}
-    ) {
-      try {
-        const { data: notification, error } = await supabase
-          .from('notifications')
-          .insert({
-            user_id: userId,
-            type,
-            title,
-            message,
-            data,
-            is_read: false
-          })
-          .select()
-          .single()
-
-        if (error) throw error
-
-        const authStore = useAuthStore()
-        if (authStore.session?.user?.id === userId) {
-          this.showToast(type, title, message, 4000, data.avatar_url)
-          
-          // Show desktop notification if enabled
-          if (this.shouldShowDesktopNotification(type) && 
-              typeof Notification !== 'undefined' && 
-              Notification.permission === 'granted') {
-            
-            const desktopNotification = new Notification(title, {
-              body: message,
-              icon: data.avatar_url || '/harmony_icon1.png',
-              badge: '/harmony_icon1.png',
-              tag: `harmony-${type}`,
-              requireInteraction: type === 'mention' || type === 'dm',
-              silent: false
-            })
-
-            desktopNotification.onclick = () => {
-              window.focus()
-              this.handleNotificationClick(notification)
-              desktopNotification.close()
-            }
-
-            if (type !== 'mention' && type !== 'dm') {
-              setTimeout(() => desktopNotification.close(), 8000)
-            }
-          }
-        }
-
-        return notification
-      } catch (error) {
-        console.error('Failed to create notification:', error)
-        throw error
-      }
-    },
-
-    async deleteNotification(notificationId: string) {
-      try {
-        // Optimistic update
-        const index = this.notifications.findIndex(n => n.id === notificationId)
-        let removedNotification: Notification | null = null
-        
-        if (index >= 0) {
-          removedNotification = this.notifications.splice(index, 1)[0]
-          this.updateUnreadCount()
-        }
-
-        const { error } = await supabase
-          .from('notifications')
-          .delete()
-          .eq('id', notificationId)
-
-        if (error) {
-          // Revert optimistic update on error
-          if (removedNotification && index >= 0) {
-            this.notifications.splice(index, 0, removedNotification)
-            this.updateUnreadCount()
-          }
-          throw error
-        }
-      } catch (error) {
-        console.error('Failed to delete notification:', error)
-      }
-    },
-
-    async loadSettings(userId: string) {
-      try {
-        const { data, error } = await supabase
-          .from('user_notification_settings')
-          .select('*')
-          .eq('user_id', userId)
-          .single()
-
-        if (error && error.code !== 'PGRST116') {
-          throw error
-        }
-
-        if (data) {
-          this.settings = { ...this.settings, ...data.settings }
-        }
-      } catch (error) {
-        console.error('Failed to load notification settings:', error)
-      }
-    },
-
-    async updateSettings(userId: string, newSettings: Partial<NotificationSettings>) {
-      try {
-        const updatedSettings = { ...this.settings, ...newSettings }
-        this.settings = updatedSettings
-
-        const { error } = await supabase
-          .from('user_notification_settings')
-          .upsert({
-            user_id: userId,
-            settings: updatedSettings
-          })
-
-        if (error) throw error
-
-        this.showToast('server_update', 'Settings updated', 'Your notification preferences have been saved', 2000)
-      } catch (error) {
-        console.error('Failed to update notification settings:', error)
-        this.showToast('server_update', 'Failed to update settings', 'Please try again', 3000)
-      }
-    },
-
-    setupRealtimeSubscription(userId: string) {
+    /**
+     * CONTEXT-AWARE REALTIME SUBSCRIPTION
+     * Uses ViewContextTracker to make intelligent decisions about UI notifications
+     */
+    setupContextAwareRealtimeSubscription(userId: string) {
+      // Clean up existing subscription
       if (this.realtimeSubscription) {
         supabase.removeChannel(this.realtimeSubscription)
       }
 
       this.realtimeSubscription = supabase
-        .channel('notifications')
+        .channel('notifications-context-aware')
         .on(
           'postgres_changes',
           {
@@ -678,89 +293,142 @@ export const useNotificationStore = defineStore('notification', {
             table: 'notifications',
             filter: `user_id=eq.${userId}`
           },
-          (payload) => {
-            const newNotification = payload.new as Notification
-            
-            // Add to notifications if not already present
-            if (!this.notifications.find(n => n.id === newNotification.id)) {
+          async (payload) => {
+            try {
+              const newNotification = payload.new as Notification
+              console.log('🔔 Real-time notification received:', newNotification)
+              
+              // Prevent duplicates
+              if (this.notifications.find(n => n.id === newNotification.id)) {
+                console.log('⚠️ Duplicate notification ignored:', newNotification.id)
+                return
+              }
+
+              // Add to notifications list
               this.notifications.unshift(newNotification)
               this.updateUnreadCount()
 
-              // Show desktop notification if enabled
-              if (this.shouldShowDesktopNotification(newNotification.type) && 
-                  typeof Notification !== 'undefined' && 
-                  Notification.permission === 'granted') {
-                
-                const desktopNotification = new Notification(newNotification.title, {
-                  body: newNotification.message || '',
-                  icon: newNotification.data?.avatar_url || '/harmony_icon1.png',
-                  badge: '/harmony_icon1.png',
-                  tag: `harmony-${newNotification.type}`, // Prevents duplicate notifications
-                  requireInteraction: newNotification.type === 'mention' || newNotification.type === 'dm',
-                  silent: false
-                })
+              // Use ViewContextTracker to make smart UI decisions
+              const uiDecision = viewContextTracker.shouldShowNotificationUI({
+                server_id: newNotification.data.server_id,
+                channel_id: newNotification.data.channel_id,
+                conversation_id: newNotification.data.conversation_id,
+                type: newNotification.type
+              })
 
-                // Navigate to notification source on click
-                desktopNotification.onclick = () => {
-                  window.focus()
-                  this.handleNotificationClick(newNotification)
-                  desktopNotification.close()
-                }
+              console.log('🎯 UI Decision:', uiDecision)
 
-                // Auto-close after 8 seconds for non-critical notifications
-                if (newNotification.type !== 'mention' && newNotification.type !== 'dm') {
-                  setTimeout(() => desktopNotification.close(), 8000)
-                }
-              }
-
-              // Play sound if enabled
-              if (this.shouldPlaySound(newNotification.type)) {
-                this.playNotificationSound(newNotification.type)
-              }
-
-              // Show toast for important notifications
-              if (['mention', 'dm'].includes(newNotification.type)) {
+              // Show toast notification if appropriate
+              if (uiDecision.showToast) {
                 this.showToast(
                   newNotification.type,
                   newNotification.title,
                   newNotification.message || '',
-                  4000
+                  4000,
+                  newNotification.data?.avatar_url
                 )
               }
+
+              // Show desktop notification if appropriate
+              if (uiDecision.showDesktop && this.shouldShowDesktopNotification(newNotification.type)) {
+                this.showDesktopNotification(newNotification)
+              }
+
+              // Play sound if appropriate
+              if (uiDecision.playSound && this.shouldPlaySound(newNotification.type)) {
+                this.playNotificationSound(newNotification.type)
+              }
+
+            } catch (error) {
+              console.error('❌ Error handling real-time notification:', error)
             }
           }
         )
-        .subscribe()
+        .subscribe((status) => {
+          console.log('🔔 Real-time subscription status:', status)
+          
+          if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Real-time subscription error, retrying in 5s...')
+            setTimeout(() => {
+              this.setupContextAwareRealtimeSubscription(userId)
+            }, 5000)
+          }
+        })
     },
 
-    async playNotificationSound(type: NotificationType) {
-      if (!this.shouldPlaySound(type)) return
-      
-      const soundPath = NOTIFICATION_SOUNDS[type]
-      if (!soundPath) return
-
-      // Rate limiting - prevent spam
-      const now = Date.now()
-      const lastPlayed = this.lastNotificationTime.get(type) || 0
-      if (now - lastPlayed < 1000) return // 1 second rate limit
-      
+    /**
+     * Show desktop notification with proper error handling
+     */
+    async showDesktopNotification(notification: Notification) {
       try {
-        let audio = this.soundCache.get(soundPath)
-        
-        if (!audio) {
-          audio = new Audio(soundPath)
-          audio.volume = 0.6
-          audio.preload = 'auto'
-          this.soundCache.set(soundPath, audio)
+        if (typeof Notification === 'undefined') {
+          console.log('Desktop notifications not supported')
+          return
         }
-        
-        // Reset audio to beginning and play
-        audio.currentTime = 0
-        await audio.play()
-        
-        this.lastNotificationTime.set(type, now)
+
+        if (Notification.permission !== 'granted') {
+          console.log('Desktop notification permission not granted')
+          return
+        }
+
+        const desktopNotification = new Notification(notification.title, {
+          body: notification.message || '',
+          icon: notification.data?.avatar_url || '/harmony_icon1.png',
+          badge: '/harmony_icon1.png',
+          tag: `harmony-${notification.type}-${notification.id}`,
+          requireInteraction: notification.type === 'mention' || notification.type === 'dm',
+          silent: false
+        })
+
+        // Handle click to navigate and close
+        desktopNotification.onclick = () => {
+          window.focus()
+          this.handleNotificationClick(notification)
+          desktopNotification.close()
+        }
+
+        // Auto-close non-critical notifications
+        if (notification.type !== 'mention' && notification.type !== 'dm') {
+          setTimeout(() => desktopNotification.close(), 8000)
+        }
+
+        console.log(`✅ Desktop notification shown for ${notification.type}`)
       } catch (error) {
-        console.warn('Failed to play notification sound:', error)
+        console.error('❌ Error showing desktop notification:', error)
+      }
+    },
+
+    /**
+     * SIMPLIFIED createNotification - only handles database creation
+     */
+    async createNotification(
+      userId: string,
+      type: NotificationType,
+      title: string,
+      message: string,
+      data: NotificationData = {}
+    ) {
+      try {
+        // Use the database function to respect DND settings
+        const { data: notificationId, error } = await supabase
+          .rpc('create_notification', {
+            p_user_id: userId,
+            p_type: type,
+            p_title: title,
+            p_message: message,
+            p_data: data
+          })
+
+        if (error) {
+          console.error('❌ Error creating notification:', error)
+          throw error
+        }
+
+        // Return the notification ID if created (not blocked by DND)
+        return notificationId
+      } catch (error) {
+        console.error('❌ Failed to create notification:', error)
+        throw error
       }
     },
 
@@ -769,8 +437,7 @@ export const useNotificationStore = defineStore('notification', {
       title: string,
       message: string,
       duration = 4000,
-      avatar?: string,
-      actions?: ToastAction[]
+      avatar?: string
     ) {
       if (this.isQuietHours && type !== 'server_update') return
       
@@ -780,7 +447,6 @@ export const useNotificationStore = defineStore('notification', {
         title,
         message,
         avatar,
-        actions,
         duration,
         timestamp: new Date()
       }
@@ -800,99 +466,26 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    handleNotificationClick(notification: Notification) {
-      const router = useRouter()
-      const data = notification.data
-
+    async playNotificationSound(type: NotificationType) {
       try {
-        switch (notification.type) {
-          case 'mention':
-          case 'reply':
-            if (data.server_id && data.channel_id) {
-              router.push({
-                name: 'Chat',
-                params: { 
-                  serverId: data.server_id, 
-                  channelId: data.channel_id 
-                }
-              })
-            }
-            break
-            
-          case 'dm':
-            if (data.conversation_id) {
-              router.push({
-                name: 'DM',
-                params: { conversationId: data.conversation_id }
-              })
-            }
-            break
-            
-          case 'server_invite':
-            if (data.server_id) {
-              router.push({
-                name: 'ServerInvite',
-                params: { serverId: data.server_id }
-              })
-            }
-            break
-            
-          case 'voice_channel_activity':
-            if (data.server_id && data.channel_id) {
-              router.push({
-                name: 'Chat',
-                params: { 
-                  serverId: data.server_id, 
-                  channelId: data.channel_id 
-                }
-              })
-            }
-            break
+        if (!this.shouldPlaySound(type)) return
+
+        const soundUrl = NOTIFICATION_SOUNDS[type]
+        if (!soundUrl) return
+
+        // Use cached audio or create new
+        let audio = this.soundCache.get(soundUrl)
+        if (!audio) {
+          audio = new Audio(soundUrl)
+          audio.volume = 0.5
+          this.soundCache.set(soundUrl, audio)
         }
-        
-        // Mark as read
-        this.markAsRead(notification.id)
+
+        await audio.play()
+        console.log(`🔊 Played sound for ${type}`)
       } catch (error) {
-        console.error('Failed to handle notification click:', error)
+        console.error(`❌ Failed to play sound for ${type}:`, error)
       }
-    },
-
-    async checkNotificationPermission() {
-      if (!('Notification' in window)) {
-        console.warn('This browser does not support desktop notification')
-        return false
-      }
-
-      if (Notification.permission === 'granted') {
-        return true
-      }
-
-      if (Notification.permission === 'denied') {
-        return false
-      }
-
-      try {
-        const permission = await Notification.requestPermission()
-        this.hasPermission = permission === 'granted'
-        return permission === 'granted'
-      } catch (error) {
-        console.error('Failed to request notification permission:', error);
-      }
-    },
-
-    async requestNotificationPermission() {
-      return await this.checkNotificationPermission()
-    },
-
-    setupDndCheck() {
-      // Check DND status based on quiet hours
-      const checkDndStatus = () => {
-        this.isDndActive = this.isQuietHours
-      }
-
-      // Check every minute
-      setInterval(checkDndStatus, 60000)
-      checkDndStatus() // Initial check
     },
 
     updateUnreadCount() {
@@ -918,34 +511,167 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    cleanup() {
-      if (this.realtimeSubscription) {
-        supabase.removeChannel(this.realtimeSubscription)
-        this.realtimeSubscription = null
+    // Helper actions
+    async loadPreferences(userId: string) {
+      try {
+        const { data, error } = await supabase
+          .from('notification_preferences')
+          .select('*')
+          .eq('user_id', userId)
+          .single()
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error loading preferences:', error)
+          // Use defaults if no preferences found
+          this.preferences = { 
+            ...DEFAULT_PREFERENCES,
+            id: crypto.randomUUID(),
+            user_id: userId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          return
+        }
+
+        this.preferences = data || {
+          ...DEFAULT_PREFERENCES,
+          id: crypto.randomUUID(),
+          user_id: userId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+
+        console.log('✅ Loaded notification preferences')
+      } catch (error) {
+        console.error('❌ Failed to load preferences:', error)
+        this.preferences = {
+          ...DEFAULT_PREFERENCES,
+          id: crypto.randomUUID(),
+          user_id: userId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
       }
-      
-      // Clear sound cache
-      this.soundCache.clear()
-      this.lastNotificationTime.clear()
-      
-      // Reset state
-      this.isInitialized = false
-      this.notifications = []
-      this.unreadCount = 0
-      this.toasts = []
-      
-      console.log('Notification store cleaned up')
     },
 
-    // Development helper methods
-    async createTestNotification(type: NotificationType = 'mention') {
-      if (process.env.NODE_ENV !== 'development') return
-      
-      const authStore = useAuthStore()
-      if (!authStore.session?.user?.id) return
+    async checkNotificationPermission(): Promise<boolean> {
+      if (typeof Notification === 'undefined') {
+        console.log('Notifications not supported')
+        return false
+      }
 
-      const testNotifications = {
-        mention: {
+      if (Notification.permission === 'granted') {
+        return true
+      }
+
+      if (Notification.permission !== 'denied') {
+        const permission = await Notification.requestPermission()
+        return permission === 'granted'
+      }
+
+      return false
+    },
+
+    setupDndCheck() {
+      // Check DND status every minute
+      setInterval(() => {
+        this.isDndActive = this.isQuietHours
+      }, 60000)
+    },
+
+    async markAsRead(notificationId: string) {
+      try {
+        // Optimistic update
+        const notification = this.notifications.find(n => n.id === notificationId)
+        if (notification) {
+          notification.is_read = true
+          this.updateUnreadCount()
+        }
+
+        const { error } = await supabase
+          .from('notifications')
+          .update({ is_read: true, updated_at: new Date().toISOString() })
+          .eq('id', notificationId)
+
+        if (error) {
+          // Revert on error
+          if (notification) {
+            notification.is_read = false
+            this.updateUnreadCount()
+          }
+          throw error
+        }
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error)
+      }
+    },
+
+    async markAllAsRead() {
+      try {
+        // Optimistic update
+        const previousReadStates = this.notifications.map(n => ({ id: n.id, is_read: n.is_read }))
+        this.notifications.forEach(n => { n.is_read = true })
+        this.updateUnreadCount()
+
+        const authStore = useAuthStore()
+        if (!authStore.session?.user?.id) return
+
+        const { error } = await supabase
+          .rpc('mark_all_notifications_read', { p_user_id: authStore.session.user.id })
+
+        if (error) {
+          // Revert on error
+          previousReadStates.forEach(({ id, is_read }) => {
+            const notification = this.notifications.find(n => n.id === id)
+            if (notification) notification.is_read = is_read
+          })
+          this.updateUnreadCount()
+          throw error
+        }
+
+        this.showToast('server_update', 'All notifications marked as read', '', 2000)
+      } catch (error) {
+        console.error('Failed to mark all notifications as read:', error)
+        this.showToast('server_update', 'Failed to mark notifications as read', 'Please try again', 3000)
+      }
+    },
+
+    handleNotificationClick(notification: Notification) {
+      try {
+        // Mark as read and clicked
+        this.markAsRead(notification.id)
+        
+        // Navigate to the notification source
+        const router = useRouter()
+        
+        if (notification.data?.conversation_id) {
+          // Navigate to DM
+          router.push(`/dm/${notification.data.conversation_id}`)
+        } else if (notification.data?.server_id && notification.data?.channel_id) {
+          // Navigate to server channel
+          let path = `/chat/${notification.data.server_id}/${notification.data.channel_id}`
+          if (notification.data?.message_id) {
+            path += `?message=${notification.data.message_id}`
+          }
+          router.push(path)
+        } else if (notification.data?.server_id) {
+          // Navigate to server
+          router.push(`/servers/${notification.data.server_id}`)
+        }
+
+        console.log('📍 Navigated to notification source')
+      } catch (error) {
+        console.error('❌ Error handling notification click:', error)
+      }
+    },
+
+    createMockNotifications(userId: string) {
+      // Development helper for testing
+      const mockNotifications: Notification[] = [
+        {
+          id: '1',
+          user_id: userId,
+          type: 'mention',
           title: 'You were mentioned',
           message: 'Check out this cool feature!',
           data: {
@@ -953,65 +679,35 @@ export const useNotificationStore = defineStore('notification', {
             avatar_url: '/default_avatar.png',
             server_name: 'Test Server',
             channel_name: 'general'
-          }
+          },
+          is_read: false,
+          is_clicked: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         },
-        dm: {
+        {
+          id: '2',
+          user_id: userId,
+          type: 'dm',
           title: 'New direct message',
           message: 'Hey! How are you doing?',
           data: {
             username: 'Friend',
             avatar_url: '/default_avatar.png',
             conversation_id: 'test-conv'
-          }
-        },
-        reaction: {
-          title: 'Someone reacted to your message',
-          message: 'with 🚀 in #general',
-          data: {
-            username: 'ReactUser',
-            emoji_name: '🚀',
-            server_name: 'Test Server',
-            channel_name: 'general'
-          }
+          },
+          is_read: false,
+          is_clicked: false,
+          created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         }
-      }
+      ]
 
-      const notification = testNotifications[type] || testNotifications.mention
-      
-      try {
-        await this.createNotification(
-          authStore.session.user.id,
-          type,
-          notification.title,
-          notification.message,
-          notification.data
-        )
-        console.log(`Created test ${type} notification`)
-      } catch (error) {
-        console.error('Failed to create test notification:', error)
-      }
-    },
-
-    async clearAllNotifications() {
-      if (process.env.NODE_ENV !== 'development') return
-      
-      const authStore = useAuthStore()
-      if (!authStore.session?.user?.id) return
-
-      try {
-        const { error } = await supabase
-          .from('notifications')
-          .delete()
-          .eq('user_id', authStore.session.user.id)
-
-        if (error) throw error
-
-        this.notifications = []
-        this.updateUnreadCount()
-        console.log('Cleared all notifications')
-      } catch (error) {
-        console.error('Failed to clear notifications:', error)
-      }
+      this.notifications = mockNotifications
+      this.updateUnreadCount()
+      console.log('📝 Created mock notifications for development')
     }
   }
 })

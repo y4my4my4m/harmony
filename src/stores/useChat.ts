@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Message, MessagePart, ChannelCache, CacheMetadata, MentionContent } from '@/types';
-import { notificationOrchestrator } from '@/services/NotificationOrchestrator';
+import { NotificationOrchestrator } from '@/services/NotificationOrchestrator';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { GetUserIdFromUsername } from '@/utils/getFromUser';
 
@@ -463,26 +463,97 @@ export const useChatStore = defineStore('chat', {
           // Real-time subscription will handle adding to cache
           this.addMessageToCache(message);
 
-          // 🔔 NEW: Use NotificationOrchestrator for comprehensive notification handling
-          const serverChannelStore = useServerChannelStore();
-          const serverDetails = serverChannelStore.getServerDetails(serverId);
-          const channelDetails = serverChannelStore.channels.find(c => c.id === channelId);
-          
-          await notificationOrchestrator.handleMessageEvent(message, {
-            serverId,
-            channelId,
-            channelName: channelDetails?.name,
-            serverName: serverDetails?.name
-          });
+          // 🔔 Handle reply notifications
+          if (replyTo) {
+            // Get the original message to find its author
+            const { data: originalMessage } = await supabase
+              .from('messages')
+              .select('user_id')
+              .eq('id', replyTo)
+              .single();
 
-          // Legacy mention handling (keeping for backward compatibility)
+            if (originalMessage && originalMessage.user_id !== userId) {
+              // Get user details for the notification
+              const { data: userData } = await supabase
+                .from('profiles')
+                .select('username, avatar_url')
+                .eq('id', userId)
+                .single();
+
+              const serverChannelStore = useServerChannelStore();
+              const channelDetails = serverChannelStore.channels.find(c => c.id === channelId);
+              const serverDetails = serverChannelStore.getServerDetails(serverId);
+              
+              // Extract message text from content
+              const messageText = content
+                .map((part: any) => {
+                  if (typeof part === 'string') return part;
+                  if (part.text) return part.text;
+                  if (part.type === 'mention') return `@${part.mention}`;
+                  return '';
+                })
+                .join('');
+
+              await NotificationOrchestrator.createReplyNotification(
+                originalMessage.user_id,
+                userData?.username || 'Someone',
+                messageText,
+                {
+                  server_id: serverId,
+                  channel_id: channelId,
+                  server_name: serverDetails?.name,
+                  channel_name: channelDetails?.name,
+                  avatar_url: userData?.avatar_url,
+                  message_id: message.id,
+                  original_message_id: replyTo
+                }
+              );
+            }
+          }
+
+          // Handle mention notifications
           for (const part of Array.from(content) as MessagePart[]) {
             console.log(part);
             if (part.type === 'mention' && 'mention' in part) {
               const mentionPart = part as MentionContent;
               const toUserId = await GetUserIdFromUsername(mentionPart.mention);
-              // Simplified legacy calls - the NotificationOrchestrator handles the comprehensive logic
-              // broadcastInServer('mention', serverId, { userId: toUserId, messageId: message.id });
+              
+              if (toUserId && toUserId !== userId) {
+                // Get user details for the notification
+                const { data: userData } = await supabase
+                  .from('profiles')
+                  .select('username, avatar_url')
+                  .eq('id', userId)
+                  .single();
+
+                const serverChannelStore = useServerChannelStore();
+                const channelDetails = serverChannelStore.channels.find(c => c.id === channelId);
+                const serverDetails = serverChannelStore.getServerDetails(serverId);
+                
+                // Extract message text from content
+                const messageText = content
+                  .map((part: any) => {
+                    if (typeof part === 'string') return part;
+                    if (part.text) return part.text;
+                    if (part.type === 'mention') return `@${part.mention}`;
+                    return '';
+                  })
+                  .join('');
+
+                await NotificationOrchestrator.createMentionNotification(
+                  toUserId,
+                  userData?.username || 'Someone',
+                  messageText,
+                  {
+                    server_id: serverId,
+                    channel_id: channelId,
+                    server_name: serverDetails?.name,
+                    channel_name: channelDetails?.name,
+                    avatar_url: userData?.avatar_url,
+                    message_id: message.id
+                  }
+                );
+              }
             }
           }
         }
@@ -538,7 +609,7 @@ export const useChatStore = defineStore('chat', {
         }
 
         // 🔔 NEW: Trigger reaction notification via NotificationOrchestrator
-        if (!wasRemoval && messageAuthorId) {
+        if (!wasRemoval && messageAuthorId && messageAuthorId !== userId) {
           // Get emoji details for notification
           const { data: emoji } = await supabase
             .from('emojis')
@@ -548,28 +619,47 @@ export const useChatStore = defineStore('chat', {
           
           const emojiName = emoji?.name || 'unknown';
           
+          // Get user details for the notification
+          const { data: userData } = await supabase
+            .from('profiles')
+            .select('username, avatar_url')
+            .eq('id', userId)
+            .single();
+
           // Get proper context information (server/channel or conversation)
           const serverChannelStore = useServerChannelStore();
-          const context = message?.conversation_id 
-            ? { 
-                conversationId: message.conversation_id,
-                isRemoval: false
+          
+          if (message?.conversation_id) {
+            // DM reaction notification
+            await NotificationOrchestrator.createReactionNotification(
+              messageAuthorId,
+              userData?.username || 'Someone',
+              emojiName,
+              {
+                conversation_id: message.conversation_id,
+                avatar_url: userData?.avatar_url,
+                message_id: messageId
               }
-            : { 
-                serverId: serverChannelStore.currentServerId || undefined,
-                channelId: this.currentChannelId || undefined,
-                channelName: serverChannelStore.channels.find(c => c.id === this.currentChannelId)?.name,
-                serverName: serverChannelStore.currentServer?.name,
-                isRemoval: false
-              };
-
-          await notificationOrchestrator.handleReactionEvent(
-            messageId,
-            messageAuthorId,
-            userId,
-            emojiName,
-            context
-          );
+            );
+          } else {
+            // Server channel reaction notification
+            const channelDetails = serverChannelStore.channels.find(c => c.id === this.currentChannelId);
+            const serverDetails = serverChannelStore.getServerDetails(serverChannelStore.currentServerId || '');
+            
+            await NotificationOrchestrator.createReactionNotification(
+              messageAuthorId,
+              userData?.username || 'Someone',
+              emojiName,
+              {
+                server_id: serverChannelStore.currentServerId || undefined,
+                channel_id: this.currentChannelId || undefined,
+                server_name: serverDetails?.name,
+                channel_name: channelDetails?.name,
+                avatar_url: userData?.avatar_url,
+                message_id: messageId
+              }
+            );
+          }
         }
     
         // Fetch and update reaction data in messages

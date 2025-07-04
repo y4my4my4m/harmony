@@ -87,6 +87,7 @@
   import { useToast } from "vue-toastification";
   import type { Channel } from "@/types";
   import { useChannelSelection } from '@/composables/useUserProfile'
+  import { viewContextTracker } from '@/services/ViewContextTracker'
 
   export default defineComponent({
     components: {
@@ -243,6 +244,14 @@
       const handleChannelSelected = async (channelId: string) => {
         serverChannelStore.setCurrentChannel(channelId);
         
+        // 🎯 UPDATE VIEW CONTEXT - Server Channel
+        viewContextTracker.updateContext({
+          server_id: currentServer.value?.id,
+          channel_id: channelId,
+          conversation_id: undefined,
+          view_type: 'server_channel'
+        });
+        
         // Check if messages are cached with enhanced validation
         const isCached = chatStore.isMessageCached(channelId);
         
@@ -270,6 +279,14 @@
       // DM-specific handlers
       const handleDMConversationSelected = async (conversationId: string) => {
         if (props.isDM) {
+          // 🎯 UPDATE VIEW CONTEXT - DM Conversation
+          viewContextTracker.updateContext({
+            server_id: undefined,
+            channel_id: undefined,
+            conversation_id: conversationId,
+            view_type: 'dm'
+          });
+          
           // Check if messages are cached for instant loading
           const isCached = dmStore.isCacheValid(conversationId);
           
@@ -301,6 +318,14 @@
 
       const loadDMConversation = async () => {
         if (props.isDM && props.conversationId) {
+          // 🎯 UPDATE VIEW CONTEXT - DM Conversation (direct load)
+          viewContextTracker.updateContext({
+            server_id: undefined,
+            channel_id: undefined,
+            conversation_id: props.conversationId,
+            view_type: 'dm'
+          });
+          
           // ALWAYS set current conversation first to establish subscription
           dmStore.setCurrentConversation(props.conversationId);
           

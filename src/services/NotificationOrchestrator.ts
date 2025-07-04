@@ -1,647 +1,274 @@
-import { supabase } from '@/supabase'
-import { useNotificationStore } from '@/stores/useNotification'
-import { useAuthStore } from '@/stores/auth'
-import type { NotificationType, NotificationData, Message, MessagePart, MentionContent } from '@/types'
-
 /**
- * Professional Discord-like Notification Orchestrator
- * 
- * Handles all notification logic with:
- * - Rate limiting and deduplication
- * - Smart recipient detection
- * - Discord-like notification rules
- * - Batch processing for performance
- * - Comprehensive event handling
+ * NotificationOrchestrator - Coordinates notification creation across different contexts
+ * This service handles the business logic for when and how to create notifications
  */
+
+import { useNotificationStore } from '@/stores/useNotification'
+import type { NotificationType, NotificationData } from '@/types'
+
 export class NotificationOrchestrator {
-  private static instance: NotificationOrchestrator
-  private pendingNotifications: Map<string, any> = new Map()
-  private rateLimitMap: Map<string, number> = new Map()
-  private readonly RATE_LIMIT_WINDOW = 60000 // 1 minute
-  private readonly MAX_NOTIFICATIONS_PER_MINUTE = 10
-
-  public static getInstance(): NotificationOrchestrator {
-    if (!NotificationOrchestrator.instance) {
-      NotificationOrchestrator.instance = new NotificationOrchestrator()
-    }
-    return NotificationOrchestrator.instance
-  }
-
   /**
-   * Handle new message notifications (mentions, DMs, replies)
+   * Create a mention notification
    */
-  async handleMessageEvent(
-    message: Message,
-    context: {
-      serverId?: string
-      channelId?: string
-      conversationId?: string
-      channelName?: string
-      serverName?: string
-      isEdit?: boolean
-    }
-  ) {
-    try {
-      console.log('🔔 Orchestrator: Processing message event', { messageId: message.id, context })
-
-      if (context.isEdit) {
-        // Don't send notifications for message edits
-        return
-      }
-
-      // Get sender details
-      const senderDetails = await this.getUserDetails(message.user_id)
-      if (!senderDetails) return
-
-      // Process different notification types
-      await Promise.all([
-        this.processMentions(message, senderDetails, context),
-        this.processReplyNotification(message, senderDetails, context),
-        this.processDMNotification(message, senderDetails, context)
-      ])
-
-    } catch (error) {
-      console.error('❌ Orchestrator: Error handling message event:', error)
-    }
-  }
-
-  /**
-   * Handle reaction notifications
-   */
-  async handleReactionEvent(
-    messageId: string,
-    messageAuthorId: string,
-    reactorUserId: string,
-    emojiName: string,
-    context: {
-      serverId?: string
-      channelId?: string
-      conversationId?: string
-      channelName?: string
-      serverName?: string
-      isRemoval?: boolean
-    }
-  ) {
-    try {
-      console.log('🔔 Orchestrator: Processing reaction event', { messageId, context })
-
-      // Don't notify for reaction removals or self-reactions
-      if (context.isRemoval || messageAuthorId === reactorUserId) {
-        return
-      }
-
-      // Check rate limiting
-      if (this.isRateLimited(`reaction-${reactorUserId}-${messageAuthorId}`)) {
-        console.log('⏰ Orchestrator: Reaction notification rate limited')
-        return
-      }
-
-      const reactorDetails = await this.getUserDetails(reactorUserId)
-      if (!reactorDetails) return
-
-      if (context.conversationId) {
-        // DM reaction notification
-        await this.createNotificationSafely(
-          messageAuthorId,
-          'reaction',
-          `${reactorDetails.username} reacted to your message`,
-          `with ${emojiName}`,
-          {
-            message_id: messageId,
-            conversation_id: context.conversationId,
-            user_id: reactorUserId,
-            username: reactorDetails.username,
-            avatar_url: reactorDetails.avatar_url,
-            emoji_name: emojiName
-          }
-        )
-      } else if (context.serverId && context.channelId) {
-        // Server reaction notification
-        await this.createNotificationSafely(
-          messageAuthorId,
-          'reaction',
-          `${reactorDetails.username} reacted to your message`,
-          `with ${emojiName} in #${context.channelName || 'unknown'}`,
-          {
-            message_id: messageId,
-            server_id: context.serverId,
-            channel_id: context.channelId,
-            user_id: reactorUserId,
-            username: reactorDetails.username,
-            avatar_url: reactorDetails.avatar_url,
-            server_name: context.serverName,
-            channel_name: context.channelName,
-            emoji_name: emojiName
-          }
-        )
-      }
-
-    } catch (error) {
-      console.error('❌ Orchestrator: Error handling reaction event:', error)
-    }
-  }
-
-  /**
-   * Handle voice channel activity notifications
-   */
-  async handleVoiceEvent(
+  static async createMentionNotification(
     userId: string,
-    serverId: string,
-    channelId: string,
-    event: 'join' | 'leave',
+    mentionedBy: string,
+    message: string,
     context: {
-      channelName?: string
-      serverName?: string
-      notifyUserIds?: string[]
+      server_id?: string
+      channel_id?: string
+      conversation_id?: string
+      server_name?: string
+      channel_name?: string
+      avatar_url?: string
+      message_id?: string
     }
   ) {
-    try {
-      console.log('🔔 Orchestrator: Processing voice event', { userId, event, context })
-
-      const userDetails = await this.getUserDetails(userId)
-      if (!userDetails) return
-
-      const title = event === 'join' 
-        ? `${userDetails.username} joined voice chat`
-        : `${userDetails.username} left voice chat`
-
-      const message = `in ${context.channelName || 'voice channel'}`
-
-      // Notify relevant users (e.g., friends, channel members)
-      const notifyUserIds = context.notifyUserIds || []
-      
-      await Promise.all(
-        notifyUserIds.map(notifyUserId => 
-          this.createNotificationSafely(
-            notifyUserId,
-            'voice_channel_activity',
-            title,
-            message,
-            {
-              server_id: serverId,
-              channel_id: channelId,
-              user_id: userId,
-              username: userDetails.username,
-              avatar_url: userDetails.avatar_url,
-              server_name: context.serverName,
-              channel_name: context.channelName,
-              voice_event: event
-            }
-          )
-        )
-      )
-
-    } catch (error) {
-      console.error('❌ Orchestrator: Error handling voice event:', error)
-    }
-  }
-
-  /**
-   * Handle server invite notifications
-   */
-  async handleServerInviteEvent(
-    invitedUserId: string,
-    inviterUserId: string,
-    serverId: string,
-    inviteId: string,
-    serverName: string
-  ) {
-    try {
-      console.log('🔔 Orchestrator: Processing server invite event')
-
-      const inviterDetails = await this.getUserDetails(inviterUserId)
-      if (!inviterDetails) return
-
-      await this.createNotificationSafely(
-        invitedUserId,
-        'server_invite',
-        `Server invite from ${inviterDetails.username}`,
-        `You've been invited to join ${serverName}`,
-        {
-          server_id: serverId,
-          invite_id: inviteId,
-          user_id: inviterUserId,
-          username: inviterDetails.username,
-          avatar_url: inviterDetails.avatar_url,
-          server_name: serverName
-        }
-      )
-
-    } catch (error) {
-      console.error('❌ Orchestrator: Error handling server invite event:', error)
-    }
-  }
-
-  /**
-   * Process mentions in message content
-   */
-  private async processMentions(
-    message: Message,
-    senderDetails: any,
-    context: any
-  ) {
-    if (!message.content || !Array.isArray(message.content)) return
-
-    const mentions = message.content
-      .filter((part: MessagePart) => part.type === 'mention' && 'mention' in part)
-      .map((part: MessagePart) => (part as MentionContent).mention)
-
-    if (mentions.length === 0) return
-
-    console.log('🔔 Orchestrator: Processing mentions', mentions)
-
-    for (const mentionedUsername of mentions) {
-      // Get mentioned user ID
-      const mentionedUserId = await this.getUserIdFromUsername(mentionedUsername)
-      if (!mentionedUserId || mentionedUserId === message.user_id) continue
-
-      // Check rate limiting
-      if (this.isRateLimited(`mention-${message.user_id}-${mentionedUserId}`)) {
-        console.log('⏰ Orchestrator: Mention notification rate limited')
-        continue
-      }
-
-      const messageText = this.extractTextFromContent(message.content)
-
-      if (context.conversationId) {
-        // DM mention
-        await this.createNotificationSafely(
-          mentionedUserId,
-          'mention',
-          `${senderDetails.username} mentioned you`,
-          this.truncateMessage(messageText),
-          {
-            message_id: message.id,
-            conversation_id: context.conversationId,
-            user_id: message.user_id,
-            username: senderDetails.username,
-            avatar_url: senderDetails.avatar_url
-          }
-        )
-      } else if (context.serverId && context.channelId) {
-        // Server mention
-        await this.createNotificationSafely(
-          mentionedUserId,
-          'mention',
-          `${senderDetails.username} mentioned you`,
-          `in #${context.channelName || 'unknown'}: ${this.truncateMessage(messageText)}`,
-          {
-            message_id: message.id,
-            server_id: context.serverId,
-            channel_id: context.channelId,
-            user_id: message.user_id,
-            username: senderDetails.username,
-            avatar_url: senderDetails.avatar_url,
-            server_name: context.serverName,
-            channel_name: context.channelName
-          }
-        )
-      }
-    }
-  }
-
-  /**
-   * Process reply notifications
-   */
-  private async processReplyNotification(
-    message: Message,
-    senderDetails: any,
-    context: any
-  ) {
-    if (!message.reply_to) return
-
-    console.log('🔔 Orchestrator: Processing reply notification', { replyTo: message.reply_to })
-
-    // Get original message author
-    const originalMessage = await this.getMessageById(message.reply_to)
-    if (!originalMessage || originalMessage.user_id === message.user_id) return
-
-    // Check rate limiting
-    if (this.isRateLimited(`reply-${message.user_id}-${originalMessage.user_id}`)) {
-      console.log('⏰ Orchestrator: Reply notification rate limited')
-      return
+    const notificationStore = useNotificationStore()
+    
+    const title = context.conversation_id 
+      ? `${mentionedBy} mentioned you`
+      : `${mentionedBy} mentioned you in #${context.channel_name}`
+    
+    const notificationData: NotificationData = {
+      username: mentionedBy,
+      avatar_url: context.avatar_url,
+      server_id: context.server_id,
+      channel_id: context.channel_id,
+      conversation_id: context.conversation_id,
+      server_name: context.server_name,
+      channel_name: context.channel_name,
+      message_id: context.message_id
     }
 
-    const messageText = this.extractTextFromContent(message.content)
-
-    if (context.conversationId) {
-      // DM reply
-      await this.createNotificationSafely(
-        originalMessage.user_id,
-        'reply',
-        `${senderDetails.username} replied to your message`,
-        this.truncateMessage(messageText),
-        {
-          message_id: message.id,
-          reply_to_message_id: message.reply_to,
-          conversation_id: context.conversationId,
-          user_id: message.user_id,
-          username: senderDetails.username,
-          avatar_url: senderDetails.avatar_url
-        }
-      )
-    } else if (context.serverId && context.channelId) {
-      // Server reply
-      await this.createNotificationSafely(
-        originalMessage.user_id,
-        'reply',
-        `${senderDetails.username} replied to your message`,
-        `in #${context.channelName || 'unknown'}: ${this.truncateMessage(messageText)}`,
-        {
-          message_id: message.id,
-          reply_to_message_id: message.reply_to,
-          server_id: context.serverId,
-          channel_id: context.channelId,
-          user_id: message.user_id,
-          username: senderDetails.username,
-          avatar_url: senderDetails.avatar_url,
-          server_name: context.serverName,
-          channel_name: context.channelName
-        }
-      )
-    }
-  }
-
-  /**
-   * Process DM notifications for non-mentioned users
-   */
-  private async processDMNotification(
-    message: Message,
-    senderDetails: any,
-    context: any
-  ) {
-    if (!context.conversationId) return
-
-    console.log('🔔 Orchestrator: Processing DM notification')
-
-    // Get conversation participants
-    const { data: conversation, error } = await supabase
-      .from('conversations')
-      .select('user1, user2')
-      .eq('id', context.conversationId)
-      .single()
-
-    if (error || !conversation) return
-
-    // Determine recipient (the other user in the conversation)
-    const recipientId = conversation.user1 === message.user_id 
-      ? conversation.user2 
-      : conversation.user1
-
-    // Check rate limiting
-    if (this.isRateLimited(`dm-${message.user_id}-${recipientId}`)) {
-      console.log('⏰ Orchestrator: DM notification rate limited')
-      return
-    }
-
-    const messageText = this.extractTextFromContent(message.content)
-
-    await this.createNotificationSafely(
-      recipientId,
-      'dm',
-      `New message from ${senderDetails.username}`,
-      this.truncateMessage(messageText),
-      {
-        message_id: message.id,
-        conversation_id: context.conversationId,
-        user_id: message.user_id,
-        username: senderDetails.username,
-        avatar_url: senderDetails.avatar_url
-      }
+    return await notificationStore.createNotification(
+      userId,
+      'mention',
+      title,
+      message,
+      notificationData
     )
   }
 
   /**
-   * Safely create notification with error handling and immediate desktop notification
+   * Create a DM notification
    */
-  private async createNotificationSafely(
+  static async createDMNotification(
     userId: string,
-    type: NotificationType,
-    title: string,
+    senderName: string,
     message: string,
-    data: NotificationData
+    context: {
+      conversation_id: string
+      avatar_url?: string
+      message_id?: string
+    }
   ) {
-    try {
-      const notificationStore = useNotificationStore()
-      
-      // Create database notification
-      const notification = await notificationStore.createNotification(userId, type, title, message, data)
-      
-      // 🔔 CRITICAL FIX: Also trigger immediate desktop notification for current user
-      const authStore = useAuthStore()
-      if (authStore.session?.user?.id === userId) {
-        // Show immediate desktop notification for current user
-        await this.showImmediateDesktopNotification(type, title, message, data)
-        
-        // Show toast notification
-        notificationStore.showToast(type, title, message, 4000, data.avatar_url)
-        
-        // Play sound if enabled
-        if (notificationStore.shouldPlaySound(type)) {
-          notificationStore.playNotificationSound(type)
-        }
-      }
-      
-      // Update rate limiting
-      const key = `${type}-${data.user_id}-${userId}`
-      this.rateLimitMap.set(key, Date.now())
-      
-      console.log(`✅ Orchestrator: ${type} notification created for user ${userId}`)
-      return notification
-    } catch (error) {
-      console.error(`❌ Orchestrator: Failed to create ${type} notification:`, error)
-    }
-  }
-
-  /**
-   * Show immediate desktop notification
-   */
-  private async showImmediateDesktopNotification(
-    type: NotificationType,
-    title: string,
-    message: string,
-    data: NotificationData
-  ) {
-    try {
-      // Check if desktop notifications are supported and permitted
-      if (typeof Notification === 'undefined') {
-        console.log('Desktop notifications not supported')
-        return
-      }
-
-      if (Notification.permission !== 'granted') {
-        console.log('Desktop notification permission not granted')
-        return
-      }
-
-      // Check user preferences
-      const notificationStore = useNotificationStore()
-      if (!notificationStore.shouldShowDesktopNotification(type)) {
-        console.log(`Desktop notifications disabled for ${type}`)
-        return
-      }
-
-      // Create and show desktop notification
-      const notification = new Notification(title, {
-        body: message,
-        icon: data.avatar_url || '/harmony_icon1.png',
-        badge: '/harmony_icon1.png',
-        tag: `harmony-${type}-${data.user_id || 'unknown'}`,
-        requireInteraction: type === 'mention' || type === 'dm',
-        silent: false
-      })
-
-      // Handle click to navigate to source
-      notification.onclick = () => {
-        window.focus()
-        this.navigateToNotificationSource(data)
-        notification.close()
-      }
-
-      // Auto-close non-critical notifications
-      if (type !== 'mention' && type !== 'dm') {
-        setTimeout(() => notification.close(), 8000)
-      }
-
-      console.log(`✅ Desktop notification shown for ${type}`)
-    } catch (error) {
-      console.error('❌ Error showing desktop notification:', error)
-    }
-  }
-
-  /**
-   * Navigate to notification source
-   */
-  private async navigateToNotificationSource(data: NotificationData) {
-    try {
-      // Use dynamic import to avoid circular dependencies
-      const { useRouter } = await import('vue-router')
-      const router = useRouter()
-
-      if (data.conversation_id) {
-        await router.push(`/dm/${data.conversation_id}`)
-      } else if (data.server_id && data.channel_id) {
-        let path = `/servers/${data.server_id}/channels/${data.channel_id}`
-        if (data.message_id) {
-          path += `?message=${data.message_id}`
-        }
-        await router.push(path)
-      } else if (data.server_id) {
-        await router.push(`/servers/${data.server_id}`)
-      }
-    } catch (error) {
-      console.error('❌ Error navigating to notification source:', error)
-    }
-  }
-
-  /**
-   * Get vibration pattern for notification type
-   */
-  private getVibrationPattern(type: NotificationType): number[] {
-    switch (type) {
-      case 'mention':
-        return [200, 100, 200] // Strong vibration for mentions
-      case 'dm':
-        return [150, 50, 150] // Medium vibration for DMs
-      case 'reaction':
-        return [100] // Light vibration for reactions
-      default:
-        return [100, 50, 100] // Default pattern
-    }
-  }
-
-  /**
-   * Rate limiting check
-   */
-  private isRateLimited(key: string): boolean {
-    const lastNotification = this.rateLimitMap.get(key)
-    if (!lastNotification) return false
+    const notificationStore = useNotificationStore()
     
-    const timeSinceLastNotification = Date.now() - lastNotification
-    return timeSinceLastNotification < this.RATE_LIMIT_WINDOW
+    const notificationData: NotificationData = {
+      username: senderName,
+      avatar_url: context.avatar_url,
+      conversation_id: context.conversation_id,
+      message_id: context.message_id
+    }
+
+    return await notificationStore.createNotification(
+      userId,
+      'dm',
+      `${senderName} sent you a message`,
+      message,
+      notificationData
+    )
   }
 
   /**
-   * Helper methods
+   * Create a reaction notification
    */
-  private async getUserDetails(userId: string) {
-    try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url')
-        .eq('id', userId)
-        .single()
-
-      if (error) {
-        console.error('Error fetching user details:', error)
-        return null
-      }
-
-      return {
-        id: profile.id,
-        username: profile.username,
-        display_name: profile.display_name,
-        avatar_url: profile.avatar_url
-      }
-    } catch (error) {
-      console.error('Error fetching user details:', error)
-      return null
+  static async createReactionNotification(
+    userId: string,
+    reactedBy: string,
+    emoji: string,
+    context: {
+      server_id?: string
+      channel_id?: string
+      conversation_id?: string
+      server_name?: string
+      channel_name?: string
+      avatar_url?: string
+      message_id?: string
     }
-  }
-
-  private async getUserIdFromUsername(username: string): Promise<string | null> {
-    try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', username)
-        .single()
-
-      return error ? null : profile.id
-    } catch (error) {
-      console.error('Error getting user ID from username:', error)
-      return null
+  ) {
+    const notificationStore = useNotificationStore()
+    
+    const location = context.conversation_id 
+      ? 'your message'
+      : `your message in #${context.channel_name}`
+    
+    const notificationData: NotificationData = {
+      username: reactedBy,
+      avatar_url: context.avatar_url,
+      server_id: context.server_id,
+      channel_id: context.channel_id,
+      conversation_id: context.conversation_id,
+      server_name: context.server_name,
+      channel_name: context.channel_name,
+      message_id: context.message_id,
+      emoji
     }
-  }
 
-  private async getMessageById(messageId: string) {
-    try {
-      const { data: message, error } = await supabase
-        .from('messages')
-        .select('id, user_id, content, channel_id, conversation_id')
-        .eq('id', messageId)
-        .single()
-
-      return error ? null : message
-    } catch (error) {
-      console.error('Error fetching message:', error)
-      return null
-    }
-  }
-
-  private extractTextFromContent(content: MessagePart[]): string {
-    return content
-      .filter(part => part.type === 'text')
-      .map(part => (part as any).text)
-      .join(' ')
-  }
-
-  private truncateMessage(content: string, maxLength = 100): string {
-    if (typeof content === 'string' && content.length > maxLength) {
-      return content.substring(0, maxLength) + '...'
-    }
-    return content || ''
+    return await notificationStore.createNotification(
+      userId,
+      'reaction',
+      `${reactedBy} reacted to ${location}`,
+      `${emoji}`,
+      notificationData
+    )
   }
 
   /**
-   * Cleanup method
+   * Create a reply notification
    */
-  cleanup() {
-    this.pendingNotifications.clear()
-    this.rateLimitMap.clear()
-    console.log('🧹 NotificationOrchestrator cleaned up')
+  static async createReplyNotification(
+    userId: string,
+    repliedBy: string,
+    message: string,
+    context: {
+      server_id?: string
+      channel_id?: string
+      conversation_id?: string
+      server_name?: string
+      channel_name?: string
+      avatar_url?: string
+      message_id?: string
+      original_message_id?: string
+    }
+  ) {
+    const notificationStore = useNotificationStore()
+    
+    const location = context.conversation_id 
+      ? 'your message'
+      : `your message in #${context.channel_name}`
+    
+    const notificationData: NotificationData = {
+      username: repliedBy,
+      avatar_url: context.avatar_url,
+      server_id: context.server_id,
+      channel_id: context.channel_id,
+      conversation_id: context.conversation_id,
+      server_name: context.server_name,
+      channel_name: context.channel_name,
+      message_id: context.message_id,
+      original_message_id: context.original_message_id
+    }
+
+    return await notificationStore.createNotification(
+      userId,
+      'reply',
+      `${repliedBy} replied to ${location}`,
+      message,
+      notificationData
+    )
+  }
+
+  /**
+   * Create a server invite notification
+   */
+  static async createServerInviteNotification(
+    userId: string,
+    invitedBy: string,
+    serverName: string,
+    context: {
+      server_id: string
+      avatar_url?: string
+      invite_code?: string
+    }
+  ) {
+    const notificationStore = useNotificationStore()
+    
+    const notificationData: NotificationData = {
+      username: invitedBy,
+      avatar_url: context.avatar_url,
+      server_id: context.server_id,
+      server_name: serverName,
+      invite_code: context.invite_code
+    }
+
+    return await notificationStore.createNotification(
+      userId,
+      'server_invite',
+      `${invitedBy} invited you to ${serverName}`,
+      `You've been invited to join ${serverName}`,
+      notificationData
+    )
+  }
+
+  /**
+   * Create a friend request notification
+   */
+  static async createFriendRequestNotification(
+    userId: string,
+    requesterName: string,
+    context: {
+      requester_id: string
+      avatar_url?: string
+    }
+  ) {
+    const notificationStore = useNotificationStore()
+    
+    const notificationData: NotificationData = {
+      username: requesterName,
+      avatar_url: context.avatar_url,
+      requester_id: context.requester_id
+    }
+
+    return await notificationStore.createNotification(
+      userId,
+      'friend_request',
+      `${requesterName} sent you a friend request`,
+      `${requesterName} wants to be your friend`,
+      notificationData
+    )
+  }
+
+  /**
+   * Create a voice channel activity notification
+   */
+  static async createVoiceActivityNotification(
+    userId: string,
+    userName: string,
+    activity: 'joined' | 'left' | 'speaking',
+    context: {
+      server_id: string
+      channel_id: string
+      server_name: string
+      channel_name: string
+      avatar_url?: string
+    }
+  ) {
+    const notificationStore = useNotificationStore()
+    
+    const activityText = {
+      joined: 'joined',
+      left: 'left',
+      speaking: 'started speaking in'
+    }[activity]
+    
+    const notificationData: NotificationData = {
+      username: userName,
+      avatar_url: context.avatar_url,
+      server_id: context.server_id,
+      channel_id: context.channel_id,
+      server_name: context.server_name,
+      channel_name: context.channel_name,
+      activity
+    }
+
+    return await notificationStore.createNotification(
+      userId,
+      'voice_channel_activity',
+      `${userName} ${activityText} ${context.channel_name}`,
+      `Voice activity in ${context.server_name}`,
+      notificationData
+    )
   }
 }
-
-// Export singleton instance
-export const notificationOrchestrator = NotificationOrchestrator.getInstance()

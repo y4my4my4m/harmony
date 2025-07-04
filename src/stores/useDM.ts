@@ -4,7 +4,7 @@ import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
 import { useAuthStore } from './auth'
-import { notificationOrchestrator } from '@/services/NotificationOrchestrator'
+import { NotificationOrchestrator } from '@/services/NotificationOrchestrator'
 
 // Types for DM functionality
 export interface DMUser {
@@ -690,9 +690,28 @@ export const useDMStore = defineStore('dm', () => {
       console.log('✅ DM message sent successfully to database:', newMessage)
       
       // 🔔 NEW: Use NotificationOrchestrator for comprehensive DM notification handling
-      await notificationOrchestrator.handleMessageEvent(newMessage, {
-        conversationId
-      })
+      // For DM messages, we need to determine who should receive the notification
+      const authStore = useAuthStore()
+      
+      // Get the conversation to find the other user
+      const conversation = conversations.value.find(c => c.id === conversationId)
+      if (conversation && conversation.other_user && newMessage.user_id !== conversation.other_user.id) {
+        // Send notification to the other user in the conversation
+        const messageText = Array.isArray(newMessage.content) 
+          ? newMessage.content.map((part: any) => part.text || '').join('') 
+          : String(newMessage.content)
+          
+        await NotificationOrchestrator.createDMNotification(
+          conversation.other_user.id,
+          authStore.session?.user?.user_metadata?.username || 'Someone',
+          messageText,
+          {
+            conversation_id: conversationId,
+            avatar_url: authStore.session?.user?.user_metadata?.avatar_url,
+            message_id: newMessage.id
+          }
+        )
+      }
 
       // Real-time subscription will handle adding to cache via addMessageToCache
       // Don't manually add here to prevent duplicates
