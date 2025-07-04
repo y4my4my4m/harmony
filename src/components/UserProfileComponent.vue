@@ -16,9 +16,30 @@
     </div>
 
     <div class="buttons">
-      <div class="icon-button" @click="toggleMic" :class="{ muted: !isMicActive }"><MicIcon v-if="isMicActive" /><MicMutedIcon v-else /></div>
-      <div class="icon-button" @click="toggleHeadphones" :class="{ muted: !isHeadphonesActive }"><HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" /></div>
-      <div class="icon-button settings" @click="goToSettings"><SettingsIcon/></div>
+      <div 
+        class="icon-button" 
+        @click="toggleMic" 
+        :class="{ 
+          muted: !isMicActive,
+          'voice-active': isInVoiceChannel
+        }"
+        :title="isMicActive ? 'Mute' : 'Unmute'"
+      >
+        <MicIcon v-if="isMicActive" />
+        <MicMutedIcon v-else />
+      </div>
+      <div 
+        class="icon-button" 
+        @click="toggleHeadphones" 
+        :class="{ 
+          muted: !isHeadphonesActive,
+          'voice-active': isInVoiceChannel
+        }"
+        :title="isHeadphonesActive ? 'Deafen' : 'Undeafen'"
+      >
+        <HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" />
+      </div>
+      <div class="icon-button settings" @click="goToSettings" title="Settings"><SettingsIcon/></div>
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
@@ -41,6 +62,7 @@
   import { defineComponent, ref, onMounted, onBeforeUnmount, computed } from 'vue';
   import { useAuthStore } from '@/stores/auth';
   import { useServerUsersStore } from '@/stores/useServerUsers';
+  import { useVoiceChannelStore } from '@/stores/voiceChannel';
   import { getProfileWithAvatarUrl } from '@/services/profileService';
   import { useRouter } from 'vue-router';
   import type { User } from '@/types';
@@ -62,12 +84,11 @@
     setup() {
       const authStore = useAuthStore();
       const serverUsersStore = useServerUsersStore();
+      const voiceChannelStore = useVoiceChannelStore();
       const router = useRouter();
       const profile = ref<User | null>(null);
       const showStatusDropdown = ref(false);
       const selectedStatus = ref(UserStatus.Offline);
-      const isMicActive = ref(false);
-      const isHeadphonesActive = ref(true);
       const targetRef = ref<HTMLElement | null>(null);
 
       // Make status reactive to store changes
@@ -83,33 +104,41 @@
         { value: UserStatus.Offline, label: 'Invisible', class: 'status-offline' }
       ];
 
-      // Audio effects
-      const cameraOnSound = ref(new Audio('/assets/sounds/camera_on.mp3'));
-      const cameraOffSound = ref(new Audio('/assets/sounds/camera_off.mp3'));
+      // Unified voice state from store
+      const isMicActive = computed(() => !voiceChannelStore.isMuted);
+      const isHeadphonesActive = computed(() => !voiceChannelStore.isDeafened);
+      const isInVoiceChannel = computed(() => voiceChannelStore.isConnected);
+      
+      // Voice sound effects (proper ones for voice, not camera)
+      const micOnSound = ref(new Audio('/assets/sounds/mic_on.mp3'));
+      const micOffSound = ref(new Audio('/assets/sounds/mic_off.mp3'));
 
-      const toggleMic = () => {
-        isMicActive.value = !isMicActive.value;
-        if (!isHeadphonesActive.value) {
-          isMicActive.value = false;
-          cameraOffSound.value.volume = 0.35;
-          cameraOffSound.value.play();
-        } else {
-          // TODO: only turn back on the mic if it was already set to "on" (observe the inspiration app's behaviour for this)
-          cameraOnSound.value.volume = 0.35;
-          cameraOnSound.value.play();
+      const toggleMic = async () => {
+        try {
+          const wasMuted = voiceChannelStore.isMuted;
+          await voiceChannelStore.toggleMute();
+          
+          // Play appropriate sound effect
+          const sound = wasMuted ? micOnSound.value : micOffSound.value;
+          sound.volume = 0.35;
+          sound.play().catch(e => console.log('Could not play sound:', e));
+        } catch (error) {
+          console.error('Failed to toggle mute:', error);
         }
       };
 
-      const toggleHeadphones = () => {
-        isHeadphonesActive.value = !isHeadphonesActive.value;
-        if (!isHeadphonesActive.value) {
-          isMicActive.value = false;
-          cameraOffSound.value.volume = 0.35;
-          cameraOffSound.value.play();
-        } else {
-          // TODO: only turn back on the mic if it was already set to "on" (observe the inspiration app's behaviour for this)
-          cameraOnSound.value.volume = 0.35;
-          cameraOnSound.value.play();
+      const toggleHeadphones = async () => {
+        try {
+          const wasDeafened = voiceChannelStore.isDeafened;
+          await voiceChannelStore.toggleDeafen();
+          
+          // Play appropriate sound effect
+          // Deafening always results in muting, so play mute sound
+          const sound = wasDeafened ? micOnSound.value : micOffSound.value;
+          sound.volume = 0.35;
+          sound.play().catch(e => console.log('Could not play sound:', e));
+        } catch (error) {
+          console.error('Failed to toggle deafen:', error);
         }
       };
 
@@ -195,6 +224,7 @@
         toggleHeadphones,
         isMicActive,
         isHeadphonesActive,
+        isInVoiceChannel,
         selectStatus,
         targetRef,
         currentStatus,
@@ -309,6 +339,16 @@
 
 .icon-button.muted:hover {
   background-color: #d73c3c;
+}
+
+.icon-button.voice-active {
+  border: 1px solid rgba(88, 101, 242, 0.3);
+  box-shadow: 0 0 4px rgba(88, 101, 242, 0.2);
+}
+
+.icon-button.voice-active:hover {
+  border-color: rgba(88, 101, 242, 0.5);
+  box-shadow: 0 0 6px rgba(88, 101, 242, 0.3);
 }
 
 .icon-button.settings:hover {

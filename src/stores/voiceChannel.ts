@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { nativeWebRTCService } from '@/services/nativeWebRTC';
+import { webRTCService } from '@/services/webrtc';
 import type { Profile } from '@/types';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -105,7 +105,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         }
         
         // Connect WebRTC
-        const webrtcSuccess = await nativeWebRTCService.joinChannel(channelId, userId);
+        const webrtcSuccess = await webRTCService.joinChannel(channelId, userId);
         if (!webrtcSuccess) {
           // Rollback server join
           await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
@@ -118,6 +118,16 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         
         // Setup WebRTC event listeners
         this.setupWebRTCListeners();
+        
+        // Apply any preemptive mute/deafen state
+        if (this.isMuted) {
+          console.log('Applying preemptive mute state');
+          await webRTCService.toggleMute();
+        }
+        if (this.isDeafened) {
+          console.log('Applying preemptive deafen state');
+          await webRTCService.toggleDeafen();
+        }
         
         return true;
       } catch (error) {
@@ -138,7 +148,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         const userId = authStore.session.user.id;
         
         // Leave WebRTC first
-        await nativeWebRTCService.leaveChannel();
+        await webRTCService.leaveChannel();
         
         // Leave through server users store
         // Use stored server ID
@@ -157,38 +167,41 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     
     // Media controls
     async toggleAudio() {
-      const enabled = nativeWebRTCService.toggleAudio();
-      this.isAudioEnabled = enabled;
+      // Toggle mute (unified behavior)
+      const isMuted = await webRTCService.toggleMute();
+      this.isAudioEnabled = !isMuted;
+      this.isMuted = isMuted;
       
       // Play sound effect
-      this.playSound(enabled ? 'mic_on.mp3' : 'mic_off.mp3');
+      this.playSound(isMuted ? 'mic_off.mp3' : 'mic_on.mp3');
       
-      return enabled;
+      return this.isAudioEnabled;
     },
     
     async toggleVideo() {
-      const enabled = await nativeWebRTCService.toggleVideo();
-      this.isVideoEnabled = enabled;
-      
-      // Play sound effect
-      this.playSound(enabled ? 'camera_on.mp3' : 'camera_off.mp3');
-      
-      return enabled;
+      // Video is not supported in this Discord-style voice-only implementation
+      console.log('Video chat not implemented in Discord-style voice service');
+      return false;
     },
     
     async toggleScreenShare() {
-      const enabled = await nativeWebRTCService.toggleScreenShare();
-      this.isScreenSharing = enabled;
-      
-      // Play sound effect
-      this.playSound(enabled ? 'screenshare_on.mp3' : 'screenshare_off.mp3');
-      
-      return enabled;
+      // Screen sharing is not supported in this Discord-style voice-only implementation
+      console.log('Screen sharing not implemented in Discord-style voice service');
+      return false;
     },
     
-    toggleMute() {
-      this.isMuted = !this.isMuted;
-      nativeWebRTCService.setMuted(this.isMuted);
+    async toggleMute() {
+      // Allow mute/unmute even when not connected (preemptive state)
+      if (this.isConnected) {
+        const isMuted = await webRTCService.toggleMute();
+        this.isMuted = isMuted;
+        this.isAudioEnabled = !isMuted;
+      } else {
+        // Toggle local state when not connected
+        this.isMuted = !this.isMuted;
+        this.isAudioEnabled = !this.isMuted;
+        console.log('Setting preemptive mute state:', this.isMuted);
+      }
       
       // Play sound effect
       this.playSound(this.isMuted ? 'mic_off.mp3' : 'mic_on.mp3');
@@ -196,14 +209,28 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
       return this.isMuted;
     },
     
-    toggleDeafen() {
-      this.isDeafened = !this.isDeafened;
-      nativeWebRTCService.setDeafened(this.isDeafened);
-      
-      // If deafened, also mute
-      if (this.isDeafened) {
-        this.isMuted = true;
-        nativeWebRTCService.setMuted(true);
+    async toggleDeafen() {
+      // Allow deafen/undeafen even when not connected (preemptive state)
+      if (this.isConnected) {
+        const isDeafened = await webRTCService.toggleDeafen();
+        this.isDeafened = isDeafened;
+        
+        // Deafening also mutes in connected state
+        if (isDeafened) {
+          this.isMuted = true;
+          this.isAudioEnabled = false;
+        }
+      } else {
+        // Toggle local state when not connected
+        this.isDeafened = !this.isDeafened;
+        
+        // Deafening also mutes (Discord behavior)
+        if (this.isDeafened) {
+          this.isMuted = true;
+          this.isAudioEnabled = false;
+        }
+        
+        console.log('Setting preemptive deafen state:', this.isDeafened);
       }
       
       return this.isDeafened;
@@ -211,7 +238,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     
     // WebRTC event handlers
     setupWebRTCListeners() {
-      nativeWebRTCService.on('userJoined', (userId: string) => {
+      webRTCService.on('userJoined', (userId: string) => {
         // Prevent duplicates
         if (!this.connectedUsers.includes(userId)) {
           this.connectedUsers.push(userId);
@@ -220,7 +247,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         }
       });
       
-      nativeWebRTCService.on('userLeft', (userId: string) => {
+      webRTCService.on('userLeft', (userId: string) => {
         this.connectedUsers = this.connectedUsers.filter(id => id !== userId);
         this.remoteStreams.delete(userId);
         this.connectionStates.delete(userId);
@@ -228,42 +255,59 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         this.playSound('voice_disconnect.mp3');
       });
       
-      nativeWebRTCService.on('userConnected', (userId: string) => {
+      webRTCService.on('userConnected', (userId: string) => {
         this.connectionStates.set(userId, 'connected');
       });
       
-      nativeWebRTCService.on('userDisconnected', (userId: string) => {
+      webRTCService.on('userDisconnected', (userId: string) => {
         this.connectionStates.set(userId, 'disconnected');
       });
       
-      nativeWebRTCService.on('userStreamChanged', (userId: string, stream: MediaStream) => {
-        console.log('Voice store received stream for user:', userId, 'Video tracks:', stream.getVideoTracks().length);
+      webRTCService.on('userStreamChanged', (userId: string, stream: MediaStream) => {
+        console.log('Voice store received stream for user:', userId, 'Audio tracks:', stream.getAudioTracks().length);
         this.remoteStreams.set(userId, stream);
         this.setupAudioLevelMonitoring(userId, stream);
       });
       
-      nativeWebRTCService.on('localStreamChanged', (stream: MediaStream) => {
-        console.log('Local stream changed in voice store:', stream?.getTracks().length || 0, 'tracks');
-        this.localStream = stream;
-        if (stream) {
-          this.setupAudioLevelMonitoring('local', stream);
+      webRTCService.on('channelJoined', (channelId: string) => {
+        console.log('Joined voice channel:', channelId);
+        this.localStream = webRTCService.getLocalStream();
+        if (this.localStream) {
+          this.setupAudioLevelMonitoring('local', this.localStream);
         }
       });
       
-      nativeWebRTCService.on('userMediaToggled', (state: any) => {
-        console.log('User media toggled:', state);
+      webRTCService.on('muteToggled', (isMuted: boolean) => {
+        this.isMuted = isMuted;
+        this.isAudioEnabled = !isMuted;
+      });
+      
+      webRTCService.on('deafenToggled', (isDeafened: boolean) => {
+        this.isDeafened = isDeafened;
+        if (isDeafened) {
+          this.isMuted = true;
+          this.isAudioEnabled = false;
+        }
+      });
+      
+      webRTCService.on('userSpeakingChanged', (userId: string, isSpeaking: boolean) => {
+        console.log('User speaking changed:', userId, isSpeaking);
         // Force UI update by triggering reactivity
-        // This ensures the UI components see the media state changes
         this.connectedUsers = [...this.connectedUsers];
       });
       
-      nativeWebRTCService.on('error', (error: Error) => {
+      webRTCService.on('connectionStateChanged', (state: string) => {
+        console.log('Connection state changed:', state);
+        this.isConnected = state === 'connected';
+      });
+      
+      webRTCService.on('error', (error: Error) => {
         console.error('WebRTC error:', error);
         // Handle error (show notification, etc.)
       });
     },
     
-    // Audio level monitoring
+    // Audio level monitoring - simplified for Discord-style service
     setupAudioLevelMonitoring(userId: string, stream: MediaStream) {
       try {
         const audioContext = new AudioContext();
@@ -273,6 +317,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         
         microphone.connect(analyser);
         analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.8;
         
         let isActive = true;
         
@@ -339,6 +384,23 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     getConnectedUserInfo(userId: string) {
       const serverUsersStore = useServerUsersStore();
       return serverUsersStore.userProfiles[userId];
+    },
+    
+    // Voice-specific methods
+    isUserSpeaking(userId: string): boolean {
+      return webRTCService.isUserSpeaking(userId);
+    },
+    
+    getUserAudioLevel(userId: string): number {
+      return webRTCService.getUserAudioLevel(userId);
+    },
+    
+    setInputVolume(volume: number) {
+      webRTCService.setInputVolume(volume);
+    },
+    
+    setOutputVolume(volume: number) {
+      webRTCService.setOutputVolume(volume);
     },
   },
 });

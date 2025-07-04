@@ -1,60 +1,49 @@
-import SimplePeer from 'simple-peer';
-// @ts-ignore
-if (typeof global === 'undefined') {
-  (window as any).global = window;
-}
-// @ts-ignore
-if (typeof process === 'undefined') {
-  (window as any).process = { 
-    env: {},
-    nextTick: (callback: Function, ...args: any[]) => {
-      setTimeout(() => callback(...args), 0);
-    }
-  };
-}
+// Native WebRTC implementation without SimplePeer for better control and Discord-like behavior
 import { supabase } from '@/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export interface WebRTCUser {
   id: string;
-  peer: SimplePeer.Instance;
+  peer: RTCPeerConnection;
   stream?: MediaStream;
-  isAudioEnabled: boolean;
-  isVideoEnabled: boolean;
-  isScreenSharing: boolean;
+  isMuted: boolean;
+  isDeafened: boolean;
+  isSpeaking: boolean;
+  audioLevel: number;
+  connectionState: 'connecting' | 'connected' | 'disconnected' | 'failed';
 }
 
 export interface WebRTCState {
   localStream: MediaStream | null;
   users: Map<string, WebRTCUser>;
   isConnected: boolean;
-  isAudioEnabled: boolean;
-  isVideoEnabled: boolean;
-  isScreenSharing: boolean;
   isMuted: boolean;
   isDeafened: boolean;
   currentChannelId: string | null;
+  connectionQuality: 'excellent' | 'good' | 'poor' | 'disconnected';
+  audioContext: AudioContext | null;
 }
 
 export interface SignalData {
   from: string;
   to: string;
-  signal: SimplePeer.SignalData;
+  data: RTCSessionDescriptionInit | RTCIceCandidateInit;
   type: 'offer' | 'answer' | 'ice-candidate';
 }
 
-export interface MediaToggle {
+export interface UserStateUpdate {
   userId: string;
-  audio: boolean;
-  video: boolean;
-  screen: boolean;
+  isMuted: boolean;
+  isDeafened: boolean;
+  isSpeaking: boolean;
+  timestamp: number;
 }
 
 export interface UserState {
   userId: string;
-  audio: boolean;
-  video: boolean;
-  screen: boolean;
+  isMuted: boolean;
+  isDeafened: boolean;
+  isSpeaking: boolean;
   connectionState: 'connecting' | 'connected' | 'disconnected';
 }
 
@@ -68,12 +57,11 @@ export class WebRTCService {
     localStream: null,
     users: new Map(),
     isConnected: false,
-    isAudioEnabled: true,
-    isVideoEnabled: false,
-    isScreenSharing: false,
     isMuted: false,
     isDeafened: false,
     currentChannelId: null,
+    connectionQuality: 'disconnected',
+    audioContext: null,
   };
 
   private signalChannel: RealtimeChannel | null = null;
@@ -120,187 +108,199 @@ export class WebRTCService {
     return { ...this.state };
   }
 
-  // Join a voice channel
+  // Join voice channel with robust error handling
   async joinChannel(channelId: string, userId: string): Promise<boolean> {
     try {
       // Leave current channel first
-      if (this.state.currentChannelId) {
+      if (this.state.isConnected) {
         await this.leaveChannel();
       }
 
       this.state.currentChannelId = channelId;
-      this.currentUserId = userId; // Store user ID for later use
+      this.currentUserId = userId;
       
-      console.log('=== Joining voice channel ===');
-      console.log('Channel:', channelId, 'User:', userId);
+      console.log('🎤 Joining voice channel:', channelId);
       
-      // Get user media (audio only initially)
+      // Initialize audio context
+      await this.initializeAudioContext();
+      
+      // Get audio stream - critical for voice chat
       await this.getUserMedia();
       
-      console.log('Local stream obtained:', this.state.localStream?.getTracks().length, 'tracks');
+      if (!this.state.localStream || this.state.localStream.getAudioTracks().length === 0) {
+        throw new Error('Failed to obtain audio stream - microphone access required for voice chat');
+      }
       
       // Setup signaling channel
       await this.setupSignalingChannel(channelId, userId);
       
       this.state.isConnected = true;
+      this.state.connectionQuality = 'good';
+      
       this.emit('channelJoined', channelId);
+      this.emit('connectionStateChanged', 'connected');
       
       return true;
     } catch (error) {
-      console.error('Error joining channel:', error);
+      console.error('❌ Failed to join voice channel:', error);
+      this.cleanup();
       this.emit('error', error);
       return false;
     }
   }
 
-  // Leave current voice channel
+  // Leave voice channel with proper cleanup
   async leaveChannel(): Promise<void> {
     try {
-      // Close all peer connections
-      this.state.users.forEach(user => {
-        user.peer.destroy();
-      });
-      this.state.users.clear();
-
-      // Stop local stream
-      if (this.state.localStream) {
-        this.state.localStream.getTracks().forEach(track => {
-          track.stop();
-        });
-        this.state.localStream = null;
-      }
-
-      // Cleanup signaling channel
-      if (this.signalChannel) {
-        await this.signalChannel.unsubscribe();
-        this.signalChannel = null;
-      }
-
-      const channelId = this.state.currentChannelId;
-      this.state.currentChannelId = null;
-      this.state.isConnected = false;
-      this.currentUserId = 'anonymous'; // Reset user ID
+      console.log('👋 Leaving voice channel');
       
+      // Announce leaving
+      if (this.signalChannel) {
+        this.signalChannel.send({
+          type: 'broadcast',
+          event: 'user-left',
+          payload: { userId: this.currentUserId },
+        });
+      }
+      
+      this.cleanup();
+      
+      const channelId = this.state.currentChannelId;
       this.emit('channelLeft', channelId);
+      this.emit('connectionStateChanged', 'disconnected');
+      
     } catch (error) {
-      console.error('Error leaving channel:', error);
+      console.error('❌ Error leaving channel:', error);
       this.emit('error', error);
     }
   }
 
-  // Get user media (audio/video)
+  // Cleanup all resources
+  private cleanup(): void {
+    // Stop audio monitoring
+    if (this.audioLevelCheckInterval) {
+      clearInterval(this.audioLevelCheckInterval);
+      this.audioLevelCheckInterval = null;
+    }
+    
+    // Close all peer connections
+    this.state.users.forEach(user => {
+      try {
+        user.peer.close();
+      } catch (error) {
+        console.warn('Error closing peer connection:', error);
+      }
+    });
+    this.state.users.clear();
+
+    // Stop local stream
+    if (this.state.localStream) {
+      this.state.localStream.getTracks().forEach(track => {
+        track.stop();
+      });
+      this.state.localStream = null;
+    }
+
+    // Close audio context
+    if (this.state.audioContext) {
+      this.state.audioContext.close();
+      this.state.audioContext = null;
+    }
+
+    // Cleanup signaling channel
+    if (this.signalChannel) {
+      this.signalChannel.unsubscribe();
+      this.signalChannel = null;
+    }
+
+    // Reset state
+    this.state.currentChannelId = null;
+    this.state.isConnected = false;
+    this.state.connectionQuality = 'disconnected';
+    this.state.isMuted = false;
+    this.state.isDeafened = false;
+    this.currentUserId = 'anonymous';
+  }
+
+  // Initialize audio context for advanced audio processing
+  private async initializeAudioContext(): Promise<void> {
+    try {
+      this.state.audioContext = new AudioContext();
+      console.log('✅ Audio context initialized');
+    } catch (error) {
+      console.error('❌ Failed to initialize audio context:', error);
+    }
+  }
+
+  // Get high-quality audio stream for voice chat
   private async getUserMedia(): Promise<MediaStream> {
     try {
-      // Always start with audio only, video will be added when toggled
       const constraints: MediaStreamConstraints = {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           sampleRate: 48000,
-          sampleSize: 16,
-          channelCount: 1
+          channelCount: 1,
+          latency: 0
         },
-        video: false, // We'll add video separately when needed
+        video: false
       };
 
+      console.log('🎤 Requesting audio stream...');
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        throw new Error('No audio tracks available - microphone access required');
+      }
+      
+      console.log('✅ Audio stream obtained:', audioTracks.length, 'tracks');
       this.state.localStream = stream;
+      
+      // Setup audio monitoring
+      this.setupAudioLevelMonitoring();
       
       this.emit('localStreamChanged', stream);
       return stream;
     } catch (error) {
-      console.error('Error getting user media:', error);
+      console.error('❌ Error getting audio stream:', error);
       throw error;
     }
   }
 
-  // Add video track to all existing peer connections
-  private addVideoTrackToPeers(videoTrack: MediaStreamTrack): void {
-    console.log('Adding video track to', this.state.users.size, 'peer connections');
-    
-    this.state.users.forEach((user, userId) => {
-      try {
-        const pc = (user.peer as any)._pc;
-        if (pc && pc.addTrack && this.state.localStream) {
-          console.log('Adding video track to peer:', userId);
-          pc.addTrack(videoTrack, this.state.localStream);
-          
-          // Trigger renegotiation if needed
-          if (pc.onnegotiationneeded) {
-            pc.onnegotiationneeded();
-          }
-        }
-      } catch (error) {
-        console.warn('Error adding video track to peer', userId, ':', error);
-      }
-    });
-  }
+  // Setup audio level monitoring and speaking detection
+  private setupAudioLevelMonitoring(): void {
+    if (!this.state.audioContext || !this.state.localStream) return;
 
-  // Remove video track from all peer connections
-  private removeVideoTrackFromPeers(): void {
-    console.log('Removing video tracks from', this.state.users.size, 'peer connections');
-    
-    this.state.users.forEach((user, userId) => {
-      try {
-        const pc = (user.peer as any)._pc;
-        if (pc && pc.getSenders) {
-          const senders = pc.getSenders();
-          const videoSender = senders.find((s: RTCRtpSender) => 
-            s.track && s.track.kind === 'video'
-          );
-          
-          if (videoSender) {
-            console.log('Removing video track from peer:', userId);
-            pc.removeTrack(videoSender);
-            
-            // Trigger renegotiation if needed
-            if (pc.onnegotiationneeded) {
-              pc.onnegotiationneeded();
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('Error removing video track from peer', userId, ':', error);
-      }
-    });
-  }
-
-  // Replace video track in all peer connections (for screen share)
-  private replaceVideoTrackInPeers(newVideoTrack: MediaStreamTrack): void {
-    console.log('Replacing video track in', this.state.users.size, 'peer connections');
-    
-    this.state.users.forEach((user, userId) => {
-      try {
-        const pc = (user.peer as any)._pc;
-        if (pc && pc.getSenders) {
-          const senders = pc.getSenders();
-          const videoSender = senders.find((s: RTCRtpSender) => 
-            s.track && s.track.kind === 'video'
-          );
-          
-          if (videoSender) {
-            console.log('Replacing video track for peer:', userId);
-            videoSender.replaceTrack(newVideoTrack);
-          } else if (this.state.localStream) {
-            console.log('Adding new video track for peer:', userId);
-            pc.addTrack(newVideoTrack, this.state.localStream);
-          }
-        }
-      } catch (error) {
-        console.warn('Error replacing video track for peer', userId, ':', error);
-      }
-    });
-  }
-
-  // Signal renegotiation (fallback)
-  private signalRenegotiation(userId: string): void {
-    const user = this.state.users.get(userId);
-    if (user) {
-      // Send a custom signal to indicate stream change
-      this.sendSignal(userId, { type: 'renegotiate' } as any);
+    try {
+      const source = this.state.audioContext.createMediaStreamSource(this.state.localStream);
+      const analyser = this.state.audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      
+      source.connect(analyser);
+      
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      
+      this.audioLevelCheckInterval = window.setInterval(() => {
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+        const audioLevel = Math.round(average);
+        
+        // Speaking detection
+        const isSpeaking = audioLevel > this.speakingThreshold && !this.state.isMuted;
+        
+        this.emit('audioLevel', audioLevel);
+        this.emit('speaking', isSpeaking);
+      }, 100);
+      
+    } catch (error) {
+      console.error('Failed to setup audio monitoring:', error);
     }
   }
+
+  // Audio-only implementation - video methods removed for voice chat
 
   // Setup signaling channel for WebRTC
   private async setupSignalingChannel(channelId: string, userId: string): Promise<void> {
@@ -321,8 +321,8 @@ export class WebRTCService {
       .on('broadcast', { event: 'user-left' }, (payload) => {
         this.handleUserLeft(payload.payload.userId);
       })
-      .on('broadcast', { event: 'media-toggle' }, (payload) => {
-        this.handleMediaToggle(payload.payload as MediaToggle);
+      .on('broadcast', { event: 'user-state' }, (payload) => {
+        this.handleUserStateUpdate(payload.payload as UserStateUpdate);
       })
       .on('broadcast', { event: 'state-request' }, (payload) => {
         this.handleStateRequest(payload.payload.requesterId);
@@ -360,8 +360,8 @@ export class WebRTCService {
   }
 
   // Handle signaling messages
-  private handleSignalingMessage(data: SignalData): void {
-    const { from, to, signal } = data;
+  private async handleSignalingMessage(data: SignalData): Promise<void> {
+    const { from, to, data: signalData, type } = data;
     const currentUserId = this.getCurrentUserId();
     
     // Only process signals meant for us
@@ -369,27 +369,41 @@ export class WebRTCService {
       return;
     }
     
-    console.log('Received signal from:', from, 'Type:', signal.type);
+    console.log('📥 Received signal from:', from, 'Type:', type);
     
     let user = this.state.users.get(from);
     
     // If we don't have a peer connection yet, create one (incoming connection)
     if (!user) {
-      console.log('Creating peer connection for incoming signal from:', from);
-      this.createPeerConnection(from, false); // We are not the initiator
-      user = this.state.users.get(from);
+      console.log('🔗 Creating peer connection for incoming signal from:', from);
+      user = this.createPeerConnection(from, false); // We are not the initiator
     }
     
     if (user) {
       try {
-        user.peer.signal(signal);
-      } catch (error) {
-        console.error('Error processing signal from', from, ':', error);
-        // Store signal for later if peer isn't ready
-        if (!this.pendingSignals.has(from)) {
-          this.pendingSignals.set(from, []);
+        const peerConnection = user.peer;
+        
+        switch (type) {
+          case 'offer':
+            await peerConnection.setRemoteDescription(signalData as RTCSessionDescriptionInit);
+            await this.createAndSendAnswer(peerConnection, from);
+            break;
+            
+          case 'answer':
+            await peerConnection.setRemoteDescription(signalData as RTCSessionDescriptionInit);
+            break;
+            
+          case 'ice-candidate':
+            const candidate = new RTCIceCandidate(signalData as RTCIceCandidateInit);
+            await peerConnection.addIceCandidate(candidate);
+            break;
+            
+          default:
+            console.warn('Unknown signal type:', type);
         }
-        this.pendingSignals.get(from)!.push(signal);
+      } catch (error) {
+        console.error('❌ Error processing signal from', from, ':', error);
+        this.emit('peerError', from, error);
       }
     }
   }
@@ -421,36 +435,33 @@ export class WebRTCService {
     console.log('Other user ID:', userId);
     console.log('Comparison result:', currentUserId.localeCompare(userId));
     
-    // TEMPORARY FIX: Always create connection to debug the issue
-    console.log('TEMPORARILY: Creating peer connection regardless of initiator logic');
-    this.createPeerConnection(userId, shouldInitiate);
-    
-    // if (shouldInitiate) {
-    //   console.log('Creating outgoing peer connection as initiator');
-    //   this.createPeerConnection(userId, true);
-    // } else {
-    //   console.log('Not initiating - waiting for incoming connection from', userId);
-    // }
+    // Only create peer connection if we should initiate
+    if (shouldInitiate) {
+      console.log('Creating outgoing peer connection as initiator');
+      this.createPeerConnection(userId, true);
+    } else {
+      console.log('Not initiating - waiting for incoming connection from', userId);
+    }
   }
 
   // Handle user leaving
   private handleUserLeft(userId: string): void {
     const user = this.state.users.get(userId);
     if (user) {
-      user.peer.destroy();
+      user.peer.close();
       this.state.users.delete(userId);
       this.emit('userLeft', userId);
     }
   }
 
-  // Handle media toggle events
-  private handleMediaToggle(data: MediaToggle): void {
+  // Handle user state updates
+  private handleUserStateUpdate(data: UserStateUpdate): void {
     const user = this.state.users.get(data.userId);
     if (user) {
-      user.isAudioEnabled = data.audio;
-      user.isVideoEnabled = data.video;
-      user.isScreenSharing = data.screen;
-      this.emit('userMediaToggled', data);
+      user.isMuted = data.isMuted;
+      user.isDeafened = data.isDeafened;
+      user.isSpeaking = data.isSpeaking;
+      this.emit('userStateChanged', data);
     }
   }
 
@@ -538,316 +549,297 @@ export class WebRTCService {
     });
   }
 
-  // Create peer connection
-  private createPeerConnection(userId: string, initiator: boolean): void {
-    console.log('=== Creating peer connection ===');
-    console.log('User:', userId, 'Initiator:', initiator);
-    console.log('Local stream available:', !!this.state.localStream);
-    console.log('Local stream tracks:', this.state.localStream?.getTracks().length || 0);
-    console.log('Current connections:', Array.from(this.state.users.keys()));
+  // Create native WebRTC peer connection
+  private createPeerConnection(userId: string, initiator: boolean): WebRTCUser {
+    console.log('🔗 Creating peer connection:', { userId, initiator });
     
-    const peer = new SimplePeer({
-      initiator,
-      stream: this.state.localStream || undefined,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
-      },
+    if (!this.state.localStream) {
+      throw new Error('No local stream available for peer connection');
+    }
+
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+      ],
     });
 
     const webrtcUser: WebRTCUser = {
       id: userId,
-      peer,
-      isAudioEnabled: true,
-      isVideoEnabled: false,
-      isScreenSharing: false,
+      peer: peerConnection,
+      isMuted: false,
+      isDeafened: false,
+      isSpeaking: false,
+      audioLevel: 0,
+      connectionState: 'connecting',
     };
 
     this.state.users.set(userId, webrtcUser);
 
-    // Handle peer events
-    peer.on('signal', (signal) => {
-      console.log('Sending signal to', userId, 'Type:', signal.type, 'From initiator:', initiator);
-      this.sendSignal(userId, signal);
+    // Add local stream tracks to peer connection
+    this.state.localStream.getTracks().forEach(track => {
+      console.log('➕ Adding track to peer connection:', track.kind, 'for user:', userId);
+      peerConnection.addTrack(track, this.state.localStream!);
     });
 
-    peer.on('stream', (stream) => {
-      console.log('=== RECEIVED STREAM ===');
-      console.log('From user:', userId);
-      console.log('Video tracks:', stream.getVideoTracks().length);
-      console.log('Audio tracks:', stream.getAudioTracks().length);
-      console.log('Stream ID:', stream.id);
-      console.log('========================');
-      
-      webrtcUser.stream = stream;
-      this.emit('userStreamChanged', userId, stream);
-    });
+    // Setup peer connection event handlers
+    this.setupPeerEventHandlers(peerConnection, webrtcUser, initiator);
 
-    peer.on('track', (track, stream) => {
-      console.log('=== RECEIVED TRACK ===');
-      console.log('From user:', userId);
-      console.log('Track kind:', track.kind);
-      console.log('Track ID:', track.id);
-      console.log('Stream ID:', stream.id);
-      console.log('=====================');
-      
-      // This handles individual track additions/removals
-      webrtcUser.stream = stream;
-      this.emit('userStreamChanged', userId, stream);
-    });
+    return webrtcUser;
+  }
 
-    peer.on('connect', () => {
-      console.log('Peer connected:', userId);
-      
-      // Process any pending signals
-      const pendingSignals = this.pendingSignals.get(userId);
-      if (pendingSignals && pendingSignals.length > 0) {
-        console.log('Processing', pendingSignals.length, 'pending signals for', userId);
-        pendingSignals.forEach(signal => {
-          try {
-            peer.signal(signal);
-          } catch (error) {
-            console.warn('Error processing pending signal:', error);
-          }
+  // Setup comprehensive peer event handlers
+  private setupPeerEventHandlers(peerConnection: RTCPeerConnection, webrtcUser: WebRTCUser, initiator: boolean): void {
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log('🧊 Sending ICE candidate to', webrtcUser.id);
+        this.sendSignal(webrtcUser.id, {
+          type: 'ice-candidate',
+          data: event.candidate.toJSON()
         });
-        this.pendingSignals.delete(userId);
+      }
+    };
+
+    // Handle incoming stream
+    peerConnection.ontrack = (event) => {
+      console.log('🎵 Received track from:', webrtcUser.id, 'Kind:', event.track.kind);
+      const [remoteStream] = event.streams;
+      if (remoteStream) {
+        webrtcUser.stream = remoteStream;
+        console.log('📡 Remote stream set for user:', webrtcUser.id, 'Audio tracks:', remoteStream.getAudioTracks().length);
+        this.setupRemoteAudioProcessing(webrtcUser, remoteStream);
+        this.emit('userStreamChanged', webrtcUser.id, remoteStream);
+      }
+    };
+
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = () => {
+      const state = peerConnection.connectionState;
+      console.log('🔄 Connection state changed for', webrtcUser.id, ':', state);
+      
+      switch (state) {
+        case 'connected':
+          webrtcUser.connectionState = 'connected';
+          this.emit('userConnected', webrtcUser.id);
+          break;
+        case 'disconnected':
+        case 'failed':
+          webrtcUser.connectionState = 'disconnected';
+          this.emit('userDisconnected', webrtcUser.id);
+          break;
       }
       
-      this.emit('userConnected', userId);
-    });
+      this.updateConnectionQuality();
+    };
 
-    // Handle negotiation events for track changes
-    const pc = (peer as any)._pc;
-    if (pc) {
-      pc.onnegotiationneeded = async () => {
-        console.log('Negotiation needed for peer:', userId);
-        try {
-          if ((peer as any).initiator) {
-            // Only initiator creates offers for renegotiation
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            this.sendSignal(userId, offer);
-          }
-        } catch (error) {
-          console.warn('Error handling negotiation for peer', userId, ':', error);
-        }
-      };
+    // Handle ICE connection state changes
+    peerConnection.oniceconnectionstatechange = () => {
+      console.log('🧊 ICE connection state for', webrtcUser.id, ':', peerConnection.iceConnectionState);
+      
+      if (peerConnection.iceConnectionState === 'failed') {
+        console.error('❌ ICE connection failed for', webrtcUser.id);
+        this.emit('peerError', webrtcUser.id, new Error('ICE connection failed'));
+      }
+    };
+
+    // If we're the initiator, create and send offer
+    if (initiator) {
+      this.createAndSendOffer(peerConnection, webrtcUser.id);
+    }
+  }
+
+  // Create and send offer
+  private async createAndSendOffer(peerConnection: RTCPeerConnection, userId: string): Promise<void> {
+    try {
+      console.log('📝 Creating offer for', userId);
+      const offer = await peerConnection.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false,
+      });
+      
+      await peerConnection.setLocalDescription(offer);
+      
+      console.log('📤 Sending offer to', userId);
+      this.sendSignal(userId, {
+        type: 'offer',
+        data: offer
+      });
+    } catch (error) {
+      console.error('❌ Error creating offer for', userId, ':', error);
+    }
+  }
+
+  // Create and send answer
+  private async createAndSendAnswer(peerConnection: RTCPeerConnection, userId: string): Promise<void> {
+    try {
+      console.log('📝 Creating answer for', userId);
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      
+      console.log('📤 Sending answer to', userId);
+      this.sendSignal(userId, {
+        type: 'answer',
+        data: answer
+      });
+    } catch (error) {
+      console.error('❌ Error creating answer for', userId, ':', error);
+    }
+  }
+
+  // Setup remote audio processing and speaking detection
+  private setupRemoteAudioProcessing(webrtcUser: WebRTCUser, stream: MediaStream): void {
+    if (!this.state.audioContext || !stream.getAudioTracks().length) {
+      return;
     }
 
-    peer.on('close', () => {
-      console.log('Peer disconnected:', userId);
-      this.state.users.delete(userId);
-      this.pendingSignals.delete(userId);
-      this.emit('userDisconnected', userId);
-    });
-
-    peer.on('error', (error) => {
-      console.error('Peer error for', userId, ':', error);
-      this.state.users.delete(userId);
-      this.pendingSignals.delete(userId);
-      this.emit('peerError', userId, error);
-    });
+    try {
+      const source = this.state.audioContext.createMediaStreamSource(stream);
+      const analyser = this.state.audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      
+      source.connect(analyser);
+      
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      
+      const checkAudioLevel = () => {
+        if (webrtcUser.connectionState === 'disconnected') return;
+        
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+        const audioLevel = Math.round(average);
+        
+        webrtcUser.audioLevel = audioLevel;
+        
+        // Speaking detection
+        const isSpeaking = audioLevel > this.speakingThreshold && !webrtcUser.isMuted;
+        if (isSpeaking !== webrtcUser.isSpeaking) {
+          webrtcUser.isSpeaking = isSpeaking;
+          this.emit('userSpeakingChanged', webrtcUser.id, isSpeaking);
+        }
+        
+        requestAnimationFrame(checkAudioLevel);
+      };
+      
+      checkAudioLevel();
+    } catch (error) {
+      console.error('Failed to setup remote audio processing:', error);
+    }
   }
 
   // Send signaling message
-  private sendSignal(to: string, signal: SimplePeer.SignalData): void {
+  private sendSignal(to: string, signalData: { type: string; data: any }): void {
     if (!this.signalChannel) return;
 
-    const signalData = {
+    const message: SignalData = {
       from: this.getCurrentUserId(),
       to,
-      signal,
-      type: signal.type,
+      data: signalData.data,
+      type: signalData.type as any,
     };
     
-    console.log('Sending signal to:', to, 'Type:', signal.type);
+    console.log('📤 Sending signal to:', to, 'Type:', signalData.type);
 
     this.signalChannel.send({
       type: 'broadcast',
       event: 'webrtc-signal',
-      payload: signalData,
+      payload: message,
     });
   }
 
-  // Media control methods
-  async toggleAudio(): Promise<boolean> {
-    if (!this.state.localStream) return false;
+  // Unified mute control (Discord-style)
+  async toggleMute(): Promise<boolean> {
+    if (!this.state.localStream) {
+      console.error('❌ No local stream available to toggle mute');
+      return false;
+    }
 
     const audioTrack = this.state.localStream.getAudioTracks()[0];
     if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      this.state.isAudioEnabled = audioTrack.enabled;
-      this.broadcastMediaToggle();
-      this.emit('audioToggled', this.state.isAudioEnabled);
+      this.state.isMuted = !this.state.isMuted;
+      audioTrack.enabled = !this.state.isMuted;
+      
+      console.log('🎤 Mute toggled:', this.state.isMuted);
+      
+      this.broadcastUserState();
+      this.emit('muteToggled', this.state.isMuted);
+      
+      return this.state.isMuted;
+    } else {
+      console.error('❌ No audio track found in local stream');
+      return false;
+    }
+  }
+
+  // Unified deafen control (Discord-style)
+  async toggleDeafen(): Promise<boolean> {
+    this.state.isDeafened = !this.state.isDeafened;
+    
+    // Discord behavior: deafening also mutes
+    if (this.state.isDeafened && !this.state.isMuted) {
+      await this.toggleMute();
     }
     
-    return this.state.isAudioEnabled;
-  }
-
-  async toggleVideo(): Promise<boolean> {
-    try {
-      if (!this.state.isVideoEnabled) {
-        // Enable video - add video track to existing stream
-        const videoStream = await navigator.mediaDevices.getUserMedia({ 
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 },
-          },
-          audio: false // Only get video track
-        });
-        
-        const videoTrack = videoStream.getVideoTracks()[0];
-        
-        if (this.state.localStream && videoTrack) {
-          // Add video track to existing stream
-          this.state.localStream.addTrack(videoTrack);
-          this.state.isVideoEnabled = true;
-          
-          console.log('Video enabled - added video track. Stream now has:', this.state.localStream.getTracks().length, 'tracks');
-          
-          // Add track to all existing peer connections
-          this.addVideoTrackToPeers(videoTrack);
-        }
-        
-      } else {
-        // Disable video - remove video tracks from stream and peers
-        if (this.state.localStream) {
-          const videoTracks = this.state.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            track.stop();
-            this.state.localStream!.removeTrack(track);
-          });
-          
-          this.state.isVideoEnabled = false;
-          console.log('Video disabled - removed video tracks. Stream now has:', this.state.localStream.getTracks().length, 'tracks');
-          
-          // Remove video tracks from all peer connections
-          this.removeVideoTrackFromPeers();
-        }
-      }
-      
-      this.broadcastMediaToggle();
-      this.emit('videoToggled', this.state.isVideoEnabled);
-      this.emit('localStreamChanged', this.state.localStream);
-      
-      return this.state.isVideoEnabled;
-    } catch (error) {
-      console.error('Error toggling video:', error);
-      return false;
-    }
-  }
-
-  async toggleScreenShare(): Promise<boolean> {
-    try {
-      if (!this.state.isScreenSharing) {
-        // Start screen sharing - replace video track with screen share
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: false, // Don't capture system audio for now to avoid conflicts
-        });
-        
-        const screenVideoTrack = screenStream.getVideoTracks()[0];
-        
-        if (this.state.localStream && screenVideoTrack) {
-          // Remove existing video tracks
-          const videoTracks = this.state.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            track.stop();
-            this.state.localStream!.removeTrack(track);
-          });
-          
-          // Add screen share video track
-          this.state.localStream.addTrack(screenVideoTrack);
-          this.state.isScreenSharing = true;
-          this.state.isVideoEnabled = true;
-          
-          // Handle screen share ending
-          screenVideoTrack.onended = () => {
-            this.toggleScreenShare();
-          };
-          
-          console.log('Screen sharing enabled - replaced video track. Stream tracks:', this.state.localStream.getTracks().length);
-          
-          // Replace video track in all peer connections
-          this.replaceVideoTrackInPeers(screenVideoTrack);
-        }
-        
-      } else {
-        // Stop screen sharing - remove video tracks
-        if (this.state.localStream) {
-          const videoTracks = this.state.localStream.getVideoTracks();
-          videoTracks.forEach(track => {
-            track.stop();
-            this.state.localStream!.removeTrack(track);
-          });
-          
-          this.state.isScreenSharing = false;
-          this.state.isVideoEnabled = false;
-          
-          console.log('Screen sharing disabled - removed video tracks. Stream tracks:', this.state.localStream.getTracks().length);
-          
-          // Remove video tracks from all peer connections
-          this.removeVideoTrackFromPeers();
-        }
-      }
-      
-      this.broadcastMediaToggle();
-      this.emit('screenShareToggled', this.state.isScreenSharing);
-      this.emit('localStreamChanged', this.state.localStream);
-      
-      return this.state.isScreenSharing;
-    } catch (error) {
-      console.error('Error toggling screen share:', error);
-      return false;
-    }
-  }
-
-  // Broadcast media toggle to other users
-  private broadcastMediaToggle(): void {
-    if (!this.signalChannel) return;
-
-    this.signalChannel.send({
-      type: 'broadcast',
-      event: 'media-toggle',
-      payload: {
-        userId: this.getCurrentUserId(),
-        audio: this.state.isAudioEnabled,
-        video: this.state.isVideoEnabled,
-        screen: this.state.isScreenSharing,
-      },
-    });
-  }
-
-  // Mute/deafen controls
-  setMuted(muted: boolean): void {
-    console.log('Setting muted:', muted);
-    this.state.isMuted = muted;
-    if (this.state.localStream) {
-      const audioTrack = this.state.localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !muted;
-        console.log('Local audio track enabled:', audioTrack.enabled);
-      }
-    }
-    this.emit('muteToggled', muted);
-  }
-
-  setDeafened(deafened: boolean): void {
-    console.log('Setting deafened:', deafened);
-    this.state.isDeafened = deafened;
-    // Mute all remote streams
+    // Mute/unmute all remote audio
     this.state.users.forEach(user => {
       if (user.stream) {
         user.stream.getAudioTracks().forEach(track => {
-          track.enabled = !deafened;
-          console.log(`Remote audio track from ${user.id} enabled:`, track.enabled);
+          track.enabled = !this.state.isDeafened;
         });
       }
     });
-    this.emit('deafenToggled', deafened);
+    
+    console.log('🔇 Deafen toggled:', this.state.isDeafened);
+    
+    this.broadcastUserState();
+    this.emit('deafenToggled', this.state.isDeafened);
+    
+    return this.state.isDeafened;
+  }
+
+  // Video not supported in voice-only implementation
+  async toggleVideo(): Promise<boolean> {
+    console.log('Video not supported in voice-only implementation');
+    return false;
+  }
+
+  async toggleScreenShare(): Promise<boolean> {
+    console.log('Screen sharing not supported in voice-only implementation');
+    return false;
+  }
+
+  // Broadcast user state to other users
+  private broadcastUserState(): void {
+    if (!this.signalChannel) return;
+
+    const update: UserStateUpdate = {
+      userId: this.getCurrentUserId(),
+      isMuted: this.state.isMuted,
+      isDeafened: this.state.isDeafened,
+      isSpeaking: false, // Will be updated by audio monitoring
+      timestamp: Date.now(),
+    };
+
+    this.signalChannel.send({
+      type: 'broadcast',
+      event: 'user-state',
+      payload: update,
+    });
+  }
+
+  // Legacy mute/deafen setters (for compatibility)
+  setMuted(muted: boolean): void {
+    if (muted !== this.state.isMuted) {
+      this.toggleMute();
+    }
+  }
+
+  setDeafened(deafened: boolean): void {
+    if (deafened !== this.state.isDeafened) {
+      this.toggleDeafen();
+    }
   }
 
   // Get user stream
@@ -871,7 +863,90 @@ export class WebRTCService {
   }
   
   private currentUserId: string = 'anonymous';
-  private pendingSignals: Map<string, SimplePeer.SignalData[]> = new Map();
+  private pendingSignals: Map<string, RTCSessionDescriptionInit[]> = new Map();
+  private speakingThreshold = 30;
+  private audioLevelCheckInterval: number | null = null;
+
+  // Update connection quality based on peer states
+  private updateConnectionQuality(): void {
+    const connectedUsers = Array.from(this.state.users.values()).filter(
+      user => user.connectionState === 'connected'
+    );
+    
+    if (connectedUsers.length === 0) {
+      this.state.connectionQuality = 'disconnected';
+    } else if (connectedUsers.length === this.state.users.size) {
+      this.state.connectionQuality = 'excellent';
+    } else {
+      this.state.connectionQuality = 'good';
+    }
+    
+    this.emit('connectionQualityChanged', this.state.connectionQuality);
+  }
+
+  // Getters for external access
+  getUserStream(userId: string): MediaStream | undefined {
+    return this.state.users.get(userId)?.stream;
+  }
+
+  getLocalStream(): MediaStream | null {
+    return this.state.localStream;
+  }
+
+  getConnectedUsers(): string[] {
+    return Array.from(this.state.users.keys());
+  }
+
+  getUserAudioLevel(userId: string): number {
+    return this.state.users.get(userId)?.audioLevel || 0;
+  }
+
+  isUserSpeaking(userId: string): boolean {
+    return this.state.users.get(userId)?.isSpeaking || false;
+  }
+
+  isUserMuted(userId: string): boolean {
+    return this.state.users.get(userId)?.isMuted || false;
+  }
+
+  isUserDeafened(userId: string): boolean {
+    return this.state.users.get(userId)?.isDeafened || false;
+  }
+
+  // Volume controls (simplified for now)
+  setInputVolume(volume: number): void {
+    console.log('Setting input volume:', volume);
+    // Implementation would involve audio processing
+  }
+
+  setOutputVolume(volume: number): void {
+    console.log('Setting output volume:', volume);
+    // Implementation would involve audio processing
+  }
+
+  // Legacy compatibility methods (will be removed)
+  async toggleVideo(): Promise<boolean> {
+    console.log('Video not supported in voice-only implementation');
+    return false;
+  }
+
+  async toggleScreenShare(): Promise<boolean> {
+    console.log('Screen sharing not supported in voice-only implementation');
+    return false;
+  }
+
+  // Legacy mute/deafen setters (for compatibility)
+  setMuted(muted: boolean): void {
+    if (muted !== this.state.isMuted) {
+      this.toggleMute();
+    }
+  }
+
+  setDeafened(deafened: boolean): void {
+    if (deafened !== this.state.isDeafened) {
+      this.toggleDeafen();
+    }
+  }
 
   // Cleanup
   async disconnect(): Promise<void> {
