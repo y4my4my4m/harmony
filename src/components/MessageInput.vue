@@ -26,14 +26,42 @@
         </div>
       </div>
       <div class="textarea-wrapper">
+        <!-- Rich text container for rendering emojis -->
+        <div 
+          ref="richTextContainer"
+          class="rich-text-container"
+          :class="{ 'is-empty': !modelValue, 'single-line': isSingleLine }"
+          @click="focusTextarea"
+        >
+          <div class="rich-text-content">
+            <template v-for="(part, index) in parsedInputContent" :key="index">
+              <span v-if="part.type === 'text'" class="text-part">{{ part.text }}</span>
+              <img 
+                v-else-if="part.type === 'emoji'" 
+                :src="part.emoji.url" 
+                :alt="part.emoji.name" 
+                :title="`:${part.emoji.name}:`"
+                class="input-emoji"
+                draggable="false"
+              />
+              <span v-else class="text-part">{{ part.text }}</span>
+            </template>
+          </div>
+          <div v-if="!modelValue" class="placeholder-text">
+            {{ attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...' }}
+          </div>
+        </div>
         <textarea 
           ref="textareaRef"
           draggable="false" 
           @dragstart.prevent 
-          class="selectableText auto-expand" 
+          class="selectableText auto-expand hidden-textarea" 
           :value="modelValue"
           @input="handleInput"
           @keydown="handleKeyDown" 
+          @focus="handleFocus"
+          @blur="handleBlur"
+          @scroll="syncScroll"
           :placeholder="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
           rows="1"
         ></textarea>
@@ -80,7 +108,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { defineComponent, ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
 import EmojiUI from '@/components/EmojiUI.vue'
@@ -93,6 +121,7 @@ import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { backgroundUploadManager } from '@/services/fileService';
 import { useAuthStore } from '@/stores/auth';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
+import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { v4 as uuidv4 } from 'uuid';
 
 export default defineComponent({
@@ -124,15 +153,82 @@ export default defineComponent({
   emits: ['update:modelValue', 'sendMessage', 'toggleGiphy', 'toggleEmojiList', 'update:replyMessageId', 'files-attached', 'upload-status-changed'],
   setup(props, { emit }) {
     const authStore = useAuthStore();
+    const emojiCache = useEmojiCacheStore();
     const showUploadMenu = ref(false);
     const attachedFiles = ref<FilePreviewData[]>([]);
     const isDragging = ref(false);
     const showInlineEmoji = ref(false);
     const recentEmojis = ref<any[]>([]);
+    const richTextContainer = ref<HTMLDivElement | null>(null);
+    const isTextareaFocused = ref(false);
     
     // Auto-suggest setup
     const textareaRef = ref<HTMLTextAreaElement | null>(null);
     const autoSuggest = useAutoSuggest(textareaRef);
+
+    // Computed property to check if content is single line
+    const isSingleLine = computed(() => {
+      return !props.modelValue.includes('\n');
+    });
+
+    // Parse input content to render emojis visually
+    const parsedInputContent = computed(() => {
+      if (!props.modelValue) return [];
+      return parseInputForDisplay(props.modelValue);
+    });
+
+    // Parse input text to show emojis as images
+    const parseInputForDisplay = (text: string) => {
+      const parts = [];
+      const emojiRegex = /:(\w+):/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = emojiRegex.exec(text)) !== null) {
+        // Add text before emoji
+        if (match.index > lastIndex) {
+          const textPart = text.substring(lastIndex, match.index);
+          if (textPart) {
+            parts.push({ type: 'text', text: textPart });
+          }
+        }
+
+        // Try to find emoji
+        const emojiName = match[1];
+        const emoji = findEmojiByName(emojiName);
+        if (emoji) {
+          parts.push({ type: 'emoji', emoji, text: match[0] });
+        } else {
+          parts.push({ type: 'text', text: match[0] });
+        }
+
+        lastIndex = match.index + match[0].length;
+      }
+
+      // Add remaining text
+      if (lastIndex < text.length) {
+        const remaining = text.substring(lastIndex);
+        if (remaining) {
+          parts.push({ type: 'text', text: remaining });
+        }
+      }
+
+      return parts.length > 0 ? parts : [{ type: 'text', text }];
+    };
+
+    // Find emoji by name in cache
+    const findEmojiByName = (name: string) => {
+      // Get all server emojis from cache
+      const allServerIds = Array.from(emojiCache.serverCaches.keys());
+      for (const serverId of allServerIds) {
+        const serverEmojis = emojiCache.getServerEmojis(serverId);
+        const emoji = serverEmojis.find(e => e.name === name);
+        if (emoji) {
+          return emoji;
+        }
+      }
+      return null;
+    };
 
     const handleInput = (event: Event) => {
       const target = event.target as HTMLTextAreaElement;
@@ -160,13 +256,36 @@ export default defineComponent({
       const maxHeight = 200; // Maximum height in pixels (about 8-10 lines)
       const minHeight = 44; // Minimum height for single line
       
-      if (scrollHeight <= maxHeight) {
-        textarea.style.height = Math.max(scrollHeight, minHeight) + 'px';
-        textarea.style.overflowY = 'hidden';
-      } else {
-        textarea.style.height = maxHeight + 'px';
-        textarea.style.overflowY = 'auto';
+      const newHeight = scrollHeight <= maxHeight ? Math.max(scrollHeight, minHeight) : maxHeight;
+      
+      textarea.style.height = newHeight + 'px';
+      textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+      
+      // Sync rich text container height
+      if (richTextContainer.value) {
+        richTextContainer.value.style.height = newHeight + 'px';
       }
+    };
+
+    const syncScroll = () => {
+      if (textareaRef.value && richTextContainer.value) {
+        richTextContainer.value.scrollTop = textareaRef.value.scrollTop;
+        richTextContainer.value.scrollLeft = textareaRef.value.scrollLeft;
+      }
+    };
+
+    const focusTextarea = () => {
+      if (textareaRef.value) {
+        textareaRef.value.focus();
+      }
+    };
+
+    const handleFocus = () => {
+      isTextareaFocused.value = true;
+    };
+
+    const handleBlur = () => {
+      isTextareaFocused.value = false;
     };
 
     const checkEmojiTrigger = (value: string, cursorPosition: number) => {
@@ -496,6 +615,14 @@ export default defineComponent({
       showInlineEmoji,
       recentEmojis,
       insertEmoji,
+      richTextContainer,
+      parsedInputContent,
+      isSingleLine,
+      isTextareaFocused,
+      focusTextarea,
+      handleFocus,
+      handleBlur,
+      syncScroll,
     };
   }
 });
@@ -575,6 +702,80 @@ export default defineComponent({
     margin-right: 10px;
   }
 
+  .rich-text-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 12px 0;
+    color: white;
+    font-size: 16px;
+    font-family: inherit;
+    line-height: 1.375;
+    pointer-events: none;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    z-index: 1;
+  }
+
+  .rich-text-container.single-line {
+    display: flex;
+    align-items: center;
+    padding: 0;
+    min-height: 44px;
+  }
+
+  .rich-text-content {
+    display: inline;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .text-part {
+    white-space: pre-wrap;
+  }
+
+  .input-emoji {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    margin: 0 1px;
+  }
+
+  .placeholder-text {
+    color: #72767d;
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+  }
+
+  .rich-text-container.single-line .placeholder-text {
+    padding: 0;
+    min-height: 44px;
+  }
+
+  .hidden-textarea {
+    position: relative;
+    z-index: 2;
+    background: transparent;
+    color: transparent;
+    caret-color: white;
+    resize: none;
+  }
+
+  .hidden-textarea::selection {
+    background: rgba(114, 137, 218, 0.3);
+  }
+
   textarea.auto-expand {
     width: 100%;
     padding: 12px 0;
@@ -591,6 +792,11 @@ export default defineComponent({
     overflow-y: hidden;
     box-sizing: border-box;
     transition: height 0.1s ease;
+  }
+
+  textarea.auto-expand.hidden-textarea {
+    color: transparent;
+    caret-color: white;
   }
 
   textarea::placeholder {
