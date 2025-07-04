@@ -1,15 +1,15 @@
 import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from './auth'
+import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
 import type { 
   Notification, 
   NotificationType, 
-  NotificationSettings,
-  NotificationToast,
-  ToastAction,
-  NotificationData,
-  NotificationPreferences
+  NotificationData, 
+  NotificationPreferences,
+  NotificationFilter 
 } from '@/types'
 
 interface NotificationState {
@@ -17,7 +17,7 @@ interface NotificationState {
   unreadCount: number
   isLoading: boolean
   lastFetchedAt: Date | null
-  settings: NotificationSettings
+  settings: NotificationPreferences
   preferences: NotificationPreferences | null
   isDndActive: boolean
   toasts: NotificationToast[]

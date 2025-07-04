@@ -4,6 +4,7 @@ import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
 import { useAuthStore } from './auth'
+import { notificationOrchestrator } from '@/services/NotificationOrchestrator'
 
 // Types for DM functionality
 export interface DMUser {
@@ -688,6 +689,11 @@ export const useDMStore = defineStore('dm', () => {
 
       console.log('✅ DM message sent successfully to database:', newMessage)
       
+      // 🔔 NEW: Use NotificationOrchestrator for comprehensive DM notification handling
+      await notificationOrchestrator.handleMessageEvent(newMessage, {
+        conversationId
+      })
+
       // Real-time subscription will handle adding to cache via addMessageToCache
       // Don't manually add here to prevent duplicates
 
