@@ -54,8 +54,12 @@ export const useServerUsersStore = defineStore('serverUsers', {
     },
 
     subscribeToUserStatuses() {
-      // Unsubscribe from existing subscription if any
-      supabase.removeAllChannels();
+      // Only unsubscribe from the specific user-status channel if it exists
+      // DO NOT use removeAllChannels() as it destroys ALL subscriptions including notifications!
+      const existingChannel = supabase.getChannels().find(ch => ch.topic === 'user-statuses');
+      if (existingChannel) {
+        supabase.removeChannel(existingChannel);
+      }
       
       supabase.channel('user-statuses')
       .on(

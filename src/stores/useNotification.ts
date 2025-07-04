@@ -276,17 +276,20 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * DISCORD-LIKE REALTIME SUBSCRIPTION
+     * REAL-TIME NOTIFICATION SUBSCRIPTION
      * Database triggers send us structured data, we format messages client-side
      */
     setupContextAwareRealtimeSubscription(userId: string) {
       // Clean up existing subscription
       if (this.realtimeSubscription) {
+        console.log('🧹 Cleaning up existing notification subscription')
         supabase.removeChannel(this.realtimeSubscription)
       }
 
+      console.log('🔔 Setting up real-time notification subscription for user:', userId)
+
       this.realtimeSubscription = supabase
-        .channel('notifications-discord-client')
+        .channel(`harmony-notifications-${userId}`)
         .on(
           'postgres_changes',
           {
@@ -297,6 +300,7 @@ export const useNotificationStore = defineStore('notification', {
           },
           async (payload) => {
             try {
+              console.log('🚨 RAW NOTIFICATION PAYLOAD RECEIVED:', payload)
               const newNotification = payload.new as Notification
               console.log('🔔 Structured notification received from database:', newNotification)
               
@@ -322,10 +326,11 @@ export const useNotificationStore = defineStore('notification', {
                 type: newNotification.type
               })
 
-              console.log('🎯 Discord-like UI Decision:', uiDecision)
+              console.log('🎯 UI Decision:', uiDecision)
 
               // Show toast notification if appropriate
               if (uiDecision.showToast) {
+                console.log('🍞 Showing toast notification')
                 this.showToast(
                   newNotification.type,
                   formatted.title,
@@ -333,16 +338,24 @@ export const useNotificationStore = defineStore('notification', {
                   4000,
                   NotificationFormatter.getAvatarUrl(newNotification)
                 )
+              } else {
+                console.log('🚫 Toast notification suppressed by UI decision')
               }
 
               // Show desktop notification if appropriate
               if (uiDecision.showDesktop && this.shouldShowDesktopNotification(newNotification.type)) {
+                console.log('🖥️ Showing desktop notification')
                 this.showDesktopNotification(newNotification, formatted)
+              } else {
+                console.log('🚫 Desktop notification suppressed')
               }
 
               // Play sound if appropriate
               if (uiDecision.playSound && this.shouldPlaySound(newNotification.type)) {
+                console.log('🔊 Playing notification sound')
                 this.playNotificationSound(newNotification.type)
+              } else {
+                console.log('🔇 Sound notification suppressed')
               }
 
             } catch (error) {
@@ -351,13 +364,23 @@ export const useNotificationStore = defineStore('notification', {
           }
         )
         .subscribe((status) => {
-          console.log('🔔 Discord-like real-time subscription status:', status)
+          console.log('🔔 Real-time notification subscription status:', status)
           
-          if (status === 'CHANNEL_ERROR') {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Notification real-time subscription CONNECTED successfully!')
+            console.log(`📡 Listening for notifications on table: notifications, filter: user_id=eq.${userId}`)
+          } else if (status === 'CHANNEL_ERROR') {
             console.error('❌ Real-time subscription error, retrying in 5s...')
             setTimeout(() => {
               this.setupContextAwareRealtimeSubscription(userId)
             }, 5000)
+          } else if (status === 'TIMED_OUT') {
+            console.error('⏰ Real-time subscription timed out, retrying...')
+            setTimeout(() => {
+              this.setupContextAwareRealtimeSubscription(userId)
+            }, 2000)
+          } else if (status === 'CLOSED') {
+            console.warn('🔒 Real-time subscription closed')
           }
         })
     },

@@ -157,6 +157,12 @@ export const useAuthStore = defineStore('auth', {
         const { useNotificationStore } = await import('@/stores/useNotification');
         const notificationStore = useNotificationStore();
         
+        // Check if already initialized
+        if (notificationStore.isInitialized) {
+          console.log('⚠️ Notification system already initialized, skipping...');
+          return;
+        }
+        
         // Initialize the notification store
         await notificationStore.initialize(userId);
         
