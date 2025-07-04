@@ -179,8 +179,6 @@
         </div>
       </template>
     </draggable>
-    
-    <UserProfileComponent />
   </div>
 </template>
 
@@ -198,7 +196,6 @@ import type { Channel, Category } from '@/types';
 import ArrowDownIcon from '@/components/icons/ArrowDown.vue';
 import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
-import UserProfileComponent from './UserProfileComponent.vue';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 
@@ -219,7 +216,6 @@ interface CategoryOpenState {
 export default defineComponent({
   name: 'ChannelSidebar',
   components: {
-    UserProfileComponent,
     ServerDropdown,
     CategoryCreator,
     ArrowDownIcon,
@@ -743,11 +739,15 @@ export default defineComponent({
   min-width: 240px;
   background-color: var(--h-sidebar);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
 }
 
 .server-header {
   position: relative;
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .server-name {

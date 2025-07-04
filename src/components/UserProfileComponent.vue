@@ -209,11 +209,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  position: fixed;
-  bottom: 0;
-  width: 240px;
+  width: 100%;
   background: var(--h-black-dark);
   padding: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  /* Remove position: fixed since it's now inside the left sidebar container */
 }
 
 .avatar-container {
@@ -273,6 +273,7 @@
   padding: 4px 6px;
   border-radius: 3px;
   transition: background 0.2s;
+  margin-right: 10px;
 }
 
 .user-status-container:hover {
@@ -282,6 +283,36 @@
 .buttons {
   display: flex;
   gap: 4px;
+}
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: #b9bbbe;
+}
+
+.icon-button:hover {
+  background-color: rgba(79, 84, 92, 0.4);
+  color: #dcddde;
+}
+
+.icon-button.muted {
+  background-color: #f04747;
+  color: #ffffff;
+}
+
+.icon-button.muted:hover {
+  background-color: #d73c3c;
+}
+
+.icon-button.settings:hover {
+  background-color: rgba(79, 84, 92, 0.6);
 }
 
 .status-dropdown {
@@ -361,15 +392,17 @@
 
 @media screen and (max-width: 768px) {
   .user-profile {
-    width: 0;
-    overflow: hidden;
-    padding: 0;
-    display: none;
+    width: 100%;
+    padding: 8px;
   }
-  .user-profile.open {
-    width: calc(100% - 60px);
-    display: flex;
-    padding: 10px;
+  
+  .user-name {
+    font-size: 0.8em;
+  }
+  
+  .icon-button {
+    width: 28px;
+    height: 28px;
   }
 }
 </style>

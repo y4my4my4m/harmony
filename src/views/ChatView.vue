@@ -8,27 +8,31 @@
     @showPublicServers="handleShowPublicServers"
   />
   <div v-else class="chat-layout">
-    <ServerSidebar
-      :class="{ 'open': isSidebarsVisible }"
-      :servers="servers"
-      @showPublicServers="handleShowPublicServers"
-    />
-    <ChannelSidebar
-      v-if="!isDM"
-      :class="{ 'open': isSidebarsVisible }"
-      :currentServer="currentServer"
-      :channels="channels"
-      :currentChannelId="currentChannelId"
-      :categories="categories"
-      :categoryChannels="categoryChannels"
-      @channelSelected="handleChannelSelected"
-      @createChannel="handleCreateChannel"
-    />
-    <DMSidebar
-      v-else
-      :class="{ 'open': isSidebarsVisible }"
-      @conversationSelected="handleDMConversationSelected"
-    />
+    <!-- Left sidebar container that holds both server and channel/DM sidebars -->
+    <div class="left-sidebar-container" :class="{ 'open': isSidebarsVisible }">
+      <ServerSidebar
+        :servers="servers"
+        @showPublicServers="handleShowPublicServers"
+      />
+      <ChannelSidebar
+        v-if="!isDM"
+        :currentServer="currentServer"
+        :channels="channels"
+        :currentChannelId="currentChannelId"
+        :categories="categories"
+        :categoryChannels="categoryChannels"
+        @channelSelected="handleChannelSelected"
+        @createChannel="handleCreateChannel"
+      />
+      <DMSidebar
+        v-else
+        @conversationSelected="handleDMConversationSelected"
+      />
+      
+      <!-- User Profile spanning the full width of both sidebars -->
+      <UserProfileComponent />
+    </div>
+    
     <CreateChannel
       v-if="!isDM"
       :serverId="currentServer?.id || ''"
@@ -62,6 +66,7 @@
   import DMSidebar from '@/components/DMSidebar.vue';
   import ChatComponent from '@/components/ChatComponent.vue';
   import UserSidebar from '@/components/UserSidebar.vue';
+  import UserProfileComponent from '@/components/UserProfileComponent.vue';
   import NoServersSplash from '@/components/NoServersSplash.vue';
   import VoiceChannelScene from '@/components/VoiceChannelScene.vue';
   import CreateChannel from '@/components/CreateChannel.vue';
@@ -84,6 +89,7 @@
       DMSidebar,
       ChatComponent,
       UserSidebar,
+      UserProfileComponent,
       NoServersSplash,
       VoiceChannelScene,
       CreateChannel,
@@ -595,6 +601,43 @@
   position: relative;
 }
 
+.left-sidebar-container {
+  display: flex;
+  position: relative;
+  width: 312px; /* 72px (server) + 240px (channel/DM) */
+  min-width: 312px;
+  background: var(--h-sidebar);
+  transition: width 0.3s ease;
+  flex-direction: column;
+}
+
+.left-sidebar-container .server-sidebar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 72px;
+  z-index: 1;
+}
+
+.left-sidebar-container .channel-sidebar,
+.left-sidebar-container .dm-sidebar {
+  margin-left: 72px;
+  width: 240px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.left-sidebar-container .user-profile {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  width: 100%;
+}
+
 .chat-area {
   position: relative;
   flex-grow: 1;
@@ -603,56 +646,57 @@
   background: var(--h-chat);
   padding-top: 6px;
 }
+
 .top-bar {
   display: none;
 }
+
 /* Mobile styles */
 @media (max-width: 768px) {
-  .server-sidebar, .channel-sidebar {
+  .left-sidebar-container {
     width: 0;
     min-width: 0;
     overflow: hidden;
-    /* Transition for smooth opening/closing */
     transition: 0.3s ease-in-out;
-    /* margin-top: 40px; */
+  }
+  
+  .left-sidebar-container.open {
+    width: 100%;
   }
 
   .user-sidebar {
     overflow: hidden;
-    width:0;
+    width: 0;
     transition: 0.3s ease-in-out;
     padding: 0;
-    /* margin-top:40px; */
   }
+  
   .chat-area {
     transition: 0.3s ease-in-out;
     width: 100%;
     overflow: hidden;
-    /* margin-top: 40px; */
   }
+  
   .chat-container {
     width: 100%;
     overflow: hidden;
   }
+  
   .chat-area.open {
     position: absolute;
     overflow: hidden;
-    left:100%;
-    width:0;
+    left: 100%;
+    width: 0;
   }
+  
   .chat-area.profile-open {
     overflow: hidden;
-    right:100%;
-    width:0;
+    right: 100%;
+    width: 0;
   }
-  .server-sidebar.open {
-    width: 72px;
-  }
-  .channel-sidebar.open {
-    width: 100%;
-  }
+  
   .user-sidebar.open {
-    display:block;
+    display: block;
     width: 100%;
     padding: 10px;
   }
