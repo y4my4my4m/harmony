@@ -818,9 +818,24 @@ export const useDMStore = defineStore('dm', () => {
         schema: 'public',
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
-      }, (payload) => {
+      }, async (payload) => {
         console.log('🔄 DM message updated:', payload)
         const message = payload.new as any
+        
+        // Fetch properly formatted reactions if the message has any
+        let formattedReactions = []
+        if (message.reactions && message.reactions.length > 0) {
+          try {
+            const { data: reactions, error: reactionsError } = await supabase
+              .rpc('get_message_reactions', { message_id: message.id })
+        
+            if (!reactionsError && reactions) {
+              formattedReactions = reactions
+            }
+          } catch (error) {
+            console.error('Error fetching reactions for updated DM message:', error)
+          }
+        }
         
         const updatedMessage: Message = {
           id: message.id,
@@ -830,7 +845,7 @@ export const useDMStore = defineStore('dm', () => {
           channel_id: '', // Empty string for DMs
           conversation_id: message.conversation_id,
           reply_to: message.reply_to,
-          reactions: message.reactions || []
+          reactions: formattedReactions
         }
         
         updateMessageInCache(message.id, updatedMessage)
