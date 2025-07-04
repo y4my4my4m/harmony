@@ -1,71 +1,170 @@
 <template>
   <div 
-    class="notification-item" 
-    :class="{ 
-      'unread': !notification.is_read,
-      'clicked': notification.is_clicked 
-    }"
+    class="notification-item"
+    :class="[
+      `notification-item--${notification.type}`,
+      {
+        'notification-item--unread': !notification.is_read,
+        'notification-item--clickable': isClickable,
+        'notification-item--hovering': isHovering
+      }
+    ]"
     @click="handleClick"
+    @mouseenter="isHovering = true"
+    @mouseleave="isHovering = false"
+    :tabindex="isClickable ? 0 : -1"
+    @keydown.enter="handleClick"
+    @keydown.space.prevent="handleClick"
   >
+    <!-- Visual Indicator Bar -->
+    <div class="notification-indicator" :class="`indicator--${notification.type}`"></div>
+    
+    <!-- Avatar Section -->
     <div class="notification-avatar">
-      <img 
-        :src="avatarUrl" 
-        :alt="notification.data.username || 'User'"
-        @error="handleAvatarError"
-      />
-      <div class="notification-type-icon" :class="`type-${notification.type}`">
-        <component :is="getTypeIcon()" />
+      <div class="avatar-container">
+        <img 
+          :src="avatarUrl" 
+          :alt="`${username || 'User'} avatar`"
+          class="avatar-image"
+          @error="handleAvatarError"
+        />
+        
+        <!-- Type Icon Overlay -->
+        <div class="type-icon-overlay" :class="`overlay--${notification.type}`">
+          <component :is="typeIcon" class="type-icon" />
+        </div>
+        
+        <!-- Unread Pulse -->
+        <div v-if="!notification.is_read" class="unread-pulse"></div>
       </div>
     </div>
     
+    <!-- Content Section -->
     <div class="notification-content">
+      <!-- Header -->
       <div class="notification-header">
-        <h4 class="notification-title">{{ notification.title }}</h4>
-        <span class="notification-time">{{ formatTime(notification.created_at) }}</span>
+        <div class="notification-title-section">
+          <h4 class="notification-title">{{ notification.title }}</h4>
+          <div class="notification-metadata">
+            <span class="username">{{ username }}</span>
+            <span class="separator">•</span>
+            <span class="timestamp" :title="fullTimestamp">{{ relativeTime }}</span>
+            <span v-if="serverName" class="separator">•</span>
+            <span v-if="serverName" class="server-name">{{ serverName }}</span>
+          </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="notification-actions" @click.stop>
+          <!-- Mark as Read/Unread -->
+          <button 
+            @click="toggleRead"
+            class="action-btn read-toggle"
+            :class="{ active: !notification.is_read }"
+            :aria-label="notification.is_read ? 'Mark as unread' : 'Mark as read'"
+          >
+            <MarkReadIcon v-if="notification.is_read" class="action-icon" />
+            <UnreadIcon v-else class="action-icon" />
+          </button>
+          
+          <!-- Dismiss -->
+          <button 
+            @click="handleDismiss"
+            class="action-btn dismiss-btn"
+            aria-label="Dismiss notification"
+          >
+            <DismissIcon class="action-icon" />
+          </button>
+        </div>
       </div>
       
-      <p v-if="notification.message" class="notification-message">
-        {{ notification.message }}
-      </p>
+      <!-- Message Content -->
+      <div class="notification-message">
+        <p class="message-text">{{ notification.message }}</p>
+        
+        <!-- Rich Content for certain types -->
+        <div v-if="hasRichContent" class="rich-content">
+          <!-- Message Preview for mentions/replies -->
+          <div v-if="messagePreview" class="message-preview">
+            <div class="preview-content">
+              <span class="preview-text">{{ messagePreview }}</span>
+            </div>
+          </div>
+          
+          <!-- Channel/Server Info -->
+          <div v-if="channelInfo" class="channel-info">
+            <span class="channel-name">#{{ channelInfo }}</span>
+            <span v-if="serverName" class="in-server">in {{ serverName }}</span>
+          </div>
+          
+          <!-- Reaction Display -->
+          <div v-if="reactionEmoji" class="reaction-display">
+            <span class="reaction-emoji">{{ reactionEmoji }}</span>
+            <span class="reaction-text">{{ reactionEmoji }} reaction</span>
+          </div>
+        </div>
+      </div>
       
-      <div v-if="hasMetadata" class="notification-metadata">
-        <span v-if="notification.data.server_name" class="server-name">
-          {{ notification.data.server_name }}
-        </span>
-        <span v-if="notification.data.channel_name" class="channel-name">
-          #{{ notification.data.channel_name }}
-        </span>
+      <!-- Quick Actions for specific types -->
+      <div v-if="hasQuickActions" class="quick-actions" @click.stop>
+        <!-- For server invites -->
+        <template v-if="notification.type === 'server_invite'">
+          <button @click="acceptInvite" class="quick-action-btn accept">
+            <AcceptIcon class="quick-action-icon" />
+            Join Server
+          </button>
+          <button @click="declineInvite" class="quick-action-btn decline">
+            <DeclineIcon class="quick-action-icon" />
+            Decline
+          </button>
+        </template>
+        
+        <!-- For DMs -->
+        <template v-if="notification.type === 'dm'">
+          <button @click="replyToDM" class="quick-action-btn reply">
+            <ReplyIcon class="quick-action-icon" />
+            Reply
+          </button>
+        </template>
+        
+        <!-- For mentions -->
+        <template v-if="notification.type === 'mention'">
+          <button @click="jumpToMessage" class="quick-action-btn jump">
+            <JumpIcon class="quick-action-icon" />
+            Jump to Message
+          </button>
+        </template>
       </div>
     </div>
     
-    <div class="notification-actions">
-      <button 
-        v-if="!notification.is_read"
-        @click.stop="markAsRead"
-        class="mark-read-btn"
-        title="Mark as read"
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-        </svg>
-      </button>
-      
-      <button 
-        @click.stop="dismissNotification"
-        class="dismiss-btn"
-        title="Dismiss"
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-        </svg>
-      </button>
-    </div>
+    <!-- Hover Gradient Effect -->
+    <div class="hover-gradient"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
+import { useRouter } from 'vue-router'
+import { formatDistanceToNow, format } from 'date-fns'
 import type { Notification } from '@/types'
+
+// Icons - using dynamic imports for better performance
+const MarkReadIcon = defineAsyncComponent(() => import('@/components/icons/MarkReadIcon.vue'))
+const UnreadIcon = defineAsyncComponent(() => import('@/components/icons/UnreadIcon.vue'))
+const DismissIcon = defineAsyncComponent(() => import('@/components/icons/DismissIcon.vue'))
+const AcceptIcon = defineAsyncComponent(() => import('@/components/icons/AcceptIcon.vue'))
+const DeclineIcon = defineAsyncComponent(() => import('@/components/icons/DeclineIcon.vue'))
+const ReplyIcon = defineAsyncComponent(() => import('@/components/icons/ReplyIcon.vue'))
+const JumpIcon = defineAsyncComponent(() => import('@/components/icons/JumpIcon.vue'))
+
+// Type icons
+const MentionIcon = defineAsyncComponent(() => import('@/components/icons/MentionIcon.vue'))
+const DMIcon = defineAsyncComponent(() => import('@/components/icons/DMIcon.vue'))
+const ReactionIcon = defineAsyncComponent(() => import('@/components/icons/ReactionIcon.vue'))
+const ReplyTypeIcon = defineAsyncComponent(() => import('@/components/icons/ReplyIcon.vue'))
+const ServerInviteIcon = defineAsyncComponent(() => import('@/components/icons/ServerInviteIcon.vue'))
+const VoiceIcon = defineAsyncComponent(() => import('@/components/icons/VoiceIcon.vue'))
+const EmojiIcon = defineAsyncComponent(() => import('@/components/icons/EmojiIcon.vue'))
 
 interface Props {
   notification: Notification
@@ -80,25 +179,96 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// Computed properties
-const avatarUrl = computed(() => 
-  props.notification.data.avatar_url || '/default_avatar.png'
-)
+const router = useRouter()
+const isHovering = ref(false)
 
-const hasMetadata = computed(() => 
-  props.notification.data.server_name || props.notification.data.channel_name
-)
+// Computed properties
+const avatarUrl = computed(() => {
+  if (props.notification.data?.avatar_url) {
+    return props.notification.data.avatar_url
+  }
+  return '/default_avatar.png'
+})
+
+const username = computed(() => {
+  return props.notification.data?.username || 'Unknown User'
+})
+
+const serverName = computed(() => {
+  return props.notification.data?.server_name
+})
+
+const channelInfo = computed(() => {
+  return props.notification.data?.channel_name
+})
+
+const messagePreview = computed(() => {
+  if (props.notification.type === 'mention' || props.notification.type === 'reply') {
+    return props.notification.message
+  }
+  return null
+})
+
+const reactionEmoji = computed(() => {
+  if (props.notification.type === 'reaction') {
+    return props.notification.data?.emoji_name || '👍'
+  }
+  return null
+})
+
+const relativeTime = computed(() => {
+  try {
+    return formatDistanceToNow(new Date(props.notification.created_at), { addSuffix: true })
+  } catch {
+    return 'recently'
+  }
+})
+
+const fullTimestamp = computed(() => {
+  try {
+    return format(new Date(props.notification.created_at), 'PPpp')
+  } catch {
+    return 'Invalid date'
+  }
+})
+
+const typeIcon = computed(() => {
+  const iconMap = {
+    mention: MentionIcon,
+    dm: DMIcon,
+    reaction: ReactionIcon,
+    reply: ReplyTypeIcon,
+    server_invite: ServerInviteIcon,
+    voice_channel_activity: VoiceIcon,
+    emoji_added: EmojiIcon
+  }
+  return iconMap[props.notification.type] || MentionIcon
+})
+
+const isClickable = computed(() => {
+  return ['mention', 'dm', 'reply', 'reaction'].includes(props.notification.type)
+})
+
+const hasRichContent = computed(() => {
+  return messagePreview.value || channelInfo.value || reactionEmoji.value
+})
+
+const hasQuickActions = computed(() => {
+  return ['server_invite', 'dm', 'mention'].includes(props.notification.type)
+})
 
 // Methods
 const handleClick = () => {
-  emit('click', props.notification)
+  if (isClickable.value) {
+    emit('click', props.notification)
+  }
 }
 
-const markAsRead = () => {
+const toggleRead = () => {
   emit('mark-read', props.notification.id)
 }
 
-const dismissNotification = () => {
+const handleDismiss = () => {
   emit('dismiss', props.notification.id)
 }
 
@@ -107,169 +277,206 @@ const handleAvatarError = (event: Event) => {
   target.src = '/default_avatar.png'
 }
 
-const formatTime = (timestamp: string): string => {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-  
-  if (diffInSeconds < 60) {
-    return 'just now'
-  } else if (diffInSeconds < 3600) {
-    const minutes = Math.floor(diffInSeconds / 60)
-    return `${minutes}m ago`
-  } else if (diffInSeconds < 86400) {
-    const hours = Math.floor(diffInSeconds / 3600)
-    return `${hours}h ago`
-  } else if (diffInSeconds < 604800) {
-    const days = Math.floor(diffInSeconds / 86400)
-    return `${days}d ago`
-  } else {
-    return date.toLocaleDateString()
-  }
+// Quick action handlers
+const acceptInvite = () => {
+  // Handle server invite acceptance
+  console.log('Accepting server invite:', props.notification.data?.invite_id)
+  emit('dismiss', props.notification.id)
 }
 
-const getTypeIcon = () => {
-  const iconMap = {
-    mention: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor' }, [
-      h('path', { d: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.5 0 2.91-.33 4.18-.93L21 24l-2.07-4.82C20.26 17.07 21 14.63 21 12c0-5.52-4.48-10-10-10zm0 15c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm1-3h-2V7h2v7z' })
-    ]),
-    dm: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor' }, [
-      h('path', { d: 'M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z' })
-    ]),
-    reaction: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor' }, [
-      h('path', { d: 'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z' })
-    ]),
-    reply: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor' }, [
-      h('path', { d: 'M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z' })
-    ]),
-    server_invite: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor' }, [
-      h('path', { d: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' })
-    ]),
-    friend_request: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor' }, [
-      h('path', { d: 'M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A3.014 3.014 0 0 0 16.96 6c-.8 0-1.54.37-2.01.97L12.5 10 8 6H6v4h2l3.5 4v8z' })
-    ]),
-    voice_channel_activity: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor' }, [
-      h('path', { d: 'M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z' })
-    ]),
-    server_update: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor' }, [
-      h('path', { d: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z' })
-    ]),
-    emoji_added: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'currentColor' }, [
-      h('path', { d: 'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11z' })
-    ])
+const declineInvite = () => {
+  // Handle server invite decline
+  console.log('Declining server invite:', props.notification.data?.invite_id)
+  emit('dismiss', props.notification.id)
+}
+
+const replyToDM = () => {
+  // Navigate to DM conversation
+  if (props.notification.data?.conversation_id) {
+    router.push(`/dm/${props.notification.data.conversation_id}`)
+  } else if (props.notification.data?.user_id) {
+    router.push(`/dm/@${props.notification.data.user_id}`)
   }
-  
-  return iconMap[props.notification.type] || iconMap.mention
+  emit('dismiss', props.notification.id)
+}
+
+const jumpToMessage = () => {
+  // Navigate to the specific message
+  const { server_id, channel_id, message_id } = props.notification.data || {}
+  if (server_id && channel_id) {
+    router.push(`/servers/${server_id}/channels/${channel_id}${message_id ? `?message=${message_id}` : ''}`)
+  }
+  emit('dismiss', props.notification.id)
 }
 </script>
 
 <style scoped>
 .notification-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-left: 3px solid transparent;
   position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+  background: transparent;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+  overflow: hidden;
+  border-radius: 0;
 }
 
-.notification-item:hover {
+.notification-item--clickable {
+  cursor: pointer;
+}
+
+.notification-item--clickable:hover {
   background: rgba(79, 84, 92, 0.16);
 }
 
-.notification-item.unread {
+.notification-item--clickable:focus {
+  outline: none;
   background: rgba(88, 101, 242, 0.1);
-  border-left-color: var(--h-brand);
+  box-shadow: inset 3px 0 0 var(--h-brand);
 }
 
-.notification-item.unread::before {
-  content: '';
+.notification-item--unread {
+  background: rgba(88, 101, 242, 0.04);
+}
+
+.notification-item--unread.notification-item--clickable:hover {
+  background: rgba(88, 101, 242, 0.08);
+}
+
+.notification-item--hovering .hover-gradient {
+  opacity: 1;
+}
+
+/* Visual indicator bar */
+.notification-indicator {
   position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 8px;
-  height: 8px;
-  background: var(--h-brand);
-  border-radius: 50%;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-.notification-item.clicked {
-  opacity: 0.7;
+.notification-item--unread .notification-indicator {
+  opacity: 1;
 }
 
+.indicator--mention {
+  background: linear-gradient(180deg, #f04747, #d63031);
+}
+
+.indicator--dm {
+  background: linear-gradient(180deg, #7289da, #5865f2);
+}
+
+.indicator--reaction {
+  background: linear-gradient(180deg, #faa61a, #f39c12);
+}
+
+.indicator--reply {
+  background: linear-gradient(180deg, #43b581, #00b894);
+}
+
+.indicator--server_invite {
+  background: linear-gradient(180deg, #9c88ff, #7c3aed);
+}
+
+.indicator--voice_channel_activity {
+  background: linear-gradient(180deg, #1dd1a1, #55a3ff);
+}
+
+.indicator--emoji_added {
+  background: linear-gradient(180deg, #fd79a8, #e84393);
+}
+
+/* Avatar section */
 .notification-avatar {
-  position: relative;
   flex-shrink: 0;
 }
 
-.notification-avatar img {
+.avatar-container {
+  position: relative;
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
 }
 
-.notification-type-icon {
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.notification-item--unread .avatar-image {
+  border-color: rgba(88, 101, 242, 0.3);
+  box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.1);
+}
+
+.type-icon-overlay {
   position: absolute;
   bottom: -2px;
   right: -2px;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 2px solid var(--h-chat);
-}
-
-.type-mention {
-  background: #f04747;
+  font-size: 8px;
   color: #ffffff;
 }
 
-.type-dm {
-  background: #7289da;
-  color: #ffffff;
+.overlay--mention {
+  background: linear-gradient(135deg, #f04747, #d63031);
 }
 
-.type-reaction {
-  background: #faa61a;
-  color: #ffffff;
+.overlay--dm {
+  background: linear-gradient(135deg, #7289da, #5865f2);
 }
 
-.type-reply {
-  background: #43b581;
-  color: #ffffff;
+.overlay--reaction {
+  background: linear-gradient(135deg, #faa61a, #f39c12);
 }
 
-.type-server_invite {
-  background: #9c84ef;
-  color: #ffffff;
+.overlay--reply {
+  background: linear-gradient(135deg, #43b581, #00b894);
 }
 
-.type-friend_request {
-  background: #43b581;
-  color: #ffffff;
+.overlay--server_invite {
+  background: linear-gradient(135deg, #9c88ff, #7c3aed);
 }
 
-.type-voice_channel_activity {
-  background: #7289da;
-  color: #ffffff;
+.overlay--voice_channel_activity {
+  background: linear-gradient(135deg, #1dd1a1, #55a3ff);
 }
 
-.type-server_update {
-  background: #99aab5;
-  color: #ffffff;
+.overlay--emoji_added {
+  background: linear-gradient(135deg, #fd79a8, #e84393);
 }
 
-.type-emoji_added {
-  background: #faa61a;
-  color: #ffffff;
+.type-icon {
+  width: 10px;
+  height: 10px;
 }
 
+.unread-pulse {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  background: radial-gradient(circle, rgba(88, 101, 242, 0.8) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: notification-pulse 2s ease-in-out infinite;
+}
+
+/* Content section */
 .notification-content {
   flex: 1;
   min-width: 0;
@@ -279,108 +486,366 @@ const getTypeIcon = () => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   margin-bottom: 4px;
 }
 
+.notification-title-section {
+  flex: 1;
+  min-width: 0;
+}
+
 .notification-title {
-  margin: 0;
+  margin: 0 0 2px 0;
   font-size: 14px;
   font-weight: 600;
   color: #ffffff;
   line-height: 1.3;
-  flex: 1;
-}
-
-.notification-time {
-  font-size: 11px;
-  color: #72767d;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.notification-message {
-  margin: 0 0 8px 0;
-  font-size: 13px;
-  color: #dcddde;
-  line-height: 1.4;
   word-wrap: break-word;
+}
+
+.notification-item--unread .notification-title {
+  color: #ffffff;
 }
 
 .notification-metadata {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 11px;
   color: #72767d;
+  line-height: 1;
+}
+
+.username {
+  font-weight: 600;
+  color: #b9bbbe;
+}
+
+.separator {
+  color: #4f545c;
+}
+
+.timestamp {
+  font-weight: 500;
 }
 
 .server-name {
-  font-weight: 600;
-}
-
-.channel-name {
+  font-weight: 500;
   color: #7289da;
 }
 
+/* Actions */
 .notification-actions {
   display: flex;
   align-items: center;
   gap: 4px;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s ease;
 }
 
-.notification-item:hover .notification-actions {
+.notification-item--hovering .notification-actions,
+.notification-item:focus .notification-actions {
   opacity: 1;
 }
 
-.mark-read-btn,
-.dismiss-btn {
-  background: transparent;
-  border: none;
-  color: #72767d;
-  padding: 6px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #72767d;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.mark-read-btn:hover {
-  background: rgba(67, 181, 129, 0.1);
-  color: #43b581;
+.action-btn:hover {
+  background: rgba(79, 84, 92, 0.32);
+  color: #dcddde;
+}
+
+.read-toggle.active {
+  color: var(--h-brand);
+}
+
+.read-toggle.active:hover {
+  background: rgba(88, 101, 242, 0.15);
 }
 
 .dismiss-btn:hover {
-  background: rgba(240, 71, 71, 0.1);
+  background: rgba(240, 71, 71, 0.15);
   color: #f04747;
 }
 
+.action-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Message content */
+.notification-message {
+  margin-bottom: 8px;
+}
+
+.message-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #dcddde;
+  word-wrap: break-word;
+}
+
+.notification-item--unread .message-text {
+  color: #ffffff;
+}
+
+/* Rich content */
+.rich-content {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.message-preview {
+  background: rgba(79, 84, 92, 0.3);
+  border-radius: 6px;
+  padding: 8px 10px;
+  border-left: 3px solid rgba(88, 101, 242, 0.5);
+}
+
+.preview-content {
+  font-size: 12px;
+  color: #b9bbbe;
+  line-height: 1.3;
+}
+
+.preview-text {
+  font-style: italic;
+}
+
+.channel-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.channel-name {
+  font-weight: 600;
+  color: #7289da;
+}
+
+.in-server {
+  color: #72767d;
+}
+
+.reaction-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.reaction-emoji {
+  font-size: 16px;
+}
+
+.reaction-text {
+  color: #b9bbbe;
+  font-weight: 500;
+}
+
+/* Quick actions */
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.3s ease;
+}
+
+.notification-item--hovering .quick-actions,
+.notification-item:focus .quick-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.quick-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.quick-action-btn.accept {
+  background: linear-gradient(135deg, rgba(67, 181, 129, 0.15), rgba(67, 181, 129, 0.25));
+  color: #43b581;
+  border: 1px solid rgba(67, 181, 129, 0.3);
+}
+
+.quick-action-btn.accept:hover {
+  background: linear-gradient(135deg, rgba(67, 181, 129, 0.25), rgba(67, 181, 129, 0.35));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(67, 181, 129, 0.2);
+}
+
+.quick-action-btn.decline {
+  background: linear-gradient(135deg, rgba(240, 71, 71, 0.15), rgba(240, 71, 71, 0.25));
+  color: #f04747;
+  border: 1px solid rgba(240, 71, 71, 0.3);
+}
+
+.quick-action-btn.decline:hover {
+  background: linear-gradient(135deg, rgba(240, 71, 71, 0.25), rgba(240, 71, 71, 0.35));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(240, 71, 71, 0.2);
+}
+
+.quick-action-btn.reply,
+.quick-action-btn.jump {
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.15), rgba(88, 101, 242, 0.25));
+  color: var(--h-brand);
+  border: 1px solid rgba(88, 101, 242, 0.3);
+}
+
+.quick-action-btn.reply:hover,
+.quick-action-btn.jump:hover {
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.25), rgba(88, 101, 242, 0.35));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.2);
+}
+
+.quick-action-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* Hover gradient effect */
+.hover-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(88, 101, 242, 0.03), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+/* Animations */
+@keyframes notification-pulse {
+  0%, 100% { 
+    transform: scale(1); 
+    opacity: 0.8; 
+  }
+  50% { 
+    transform: scale(1.2); 
+    opacity: 1; 
+  }
+}
+
+/* Type-specific styling */
+.notification-item--mention {
+  border-left: 3px solid transparent;
+}
+
+.notification-item--mention.notification-item--unread {
+  border-left-color: #f04747;
+}
+
+.notification-item--dm.notification-item--unread {
+  border-left-color: #7289da;
+}
+
+.notification-item--reaction.notification-item--unread {
+  border-left-color: #faa61a;
+}
+
+.notification-item--reply.notification-item--unread {
+  border-left-color: #43b581;
+}
+
 /* Responsive design */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .notification-item {
-    padding: 10px 12px;
+    padding: 12px 16px;
+    gap: 10px;
   }
   
-  .notification-avatar img {
-    width: 32px;
-    height: 32px;
+  .avatar-container {
+    width: 36px;
+    height: 36px;
   }
   
-  .notification-type-icon {
-    width: 14px;
-    height: 14px;
+  .type-icon-overlay {
+    width: 16px;
+    height: 16px;
   }
   
   .notification-title {
     font-size: 13px;
   }
   
-  .notification-message {
+  .message-text {
     font-size: 12px;
+  }
+  
+  .notification-metadata {
+    font-size: 10px;
+  }
+  
+  .notification-actions {
+    opacity: 1; /* Always show on mobile */
+  }
+  
+  .quick-actions {
+    opacity: 1;
+    transform: translateY(0);
+    flex-wrap: wrap;
+  }
+  
+  .quick-action-btn {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .notification-item {
+    border: 1px solid currentColor;
+  }
+  
+  .avatar-image {
+    border: 2px solid currentColor;
+  }
+  
+  .type-icon-overlay {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .unread-pulse {
+    animation: none;
   }
 }
 </style>

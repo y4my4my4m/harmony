@@ -1,79 +1,183 @@
 <template>
-  <div class="notification-bell" @click="togglePanel" :class="{ 'has-unread': hasUnread }">
-    <div class="bell-icon">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
-      </svg>
-      
-      <!-- Unread badge -->
-      <div v-if="unreadCount > 0" class="notification-badge">
-        {{ unreadCount > 99 ? '99+' : unreadCount }}
-      </div>
-      
-      <!-- Do not disturb indicator -->
-      <div v-if="isDndActive" class="dnd-indicator">
-        <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v2h-2v-2zm0-8h2v6h-2V9z"/>
+  <div class="notification-bell-container">
+    <!-- Notification Bell Button -->
+    <button
+      class="notification-bell"
+      :class="{ 
+        'has-unread': hasUnread,
+        'is-open': isOpen,
+        'dnd-active': isDndActive
+      }"
+      @click="togglePanel"
+      :aria-label="`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`"
+      :aria-expanded="isOpen"
+    >
+      <!-- Bell Icon with Glow Effect -->
+      <div class="bell-icon-wrapper">
+        <svg class="bell-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
         </svg>
+        
+        <!-- Animated Glow Ring for Unread -->
+        <div v-if="hasUnread" class="notification-glow"></div>
+        
+        <!-- Pulsing Dot Animation -->
+        <div v-if="hasUnread" class="notification-pulse"></div>
       </div>
-    </div>
-    
-    <!-- Notification panel -->
-    <Transition name="notification-panel">
+      
+      <!-- Unread Badge with Modern Design -->
+      <Transition name="badge-bounce" appear>
+        <div v-if="unreadCount > 0" class="notification-badge">
+          <span class="badge-text">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          <div class="badge-shine"></div>
+        </div>
+      </Transition>
+      
+      <!-- Do Not Disturb Indicator -->
+      <Transition name="dnd-fade" appear>
+        <div v-if="isDndActive" class="dnd-indicator">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/>
+          </svg>
+        </div>
+      </Transition>
+    </button>
+
+    <!-- Modern Notification Panel -->
+    <Transition name="panel-slide" appear>
       <div v-if="isOpen" class="notification-panel" @click.stop>
+        <!-- Panel Header with Gradient -->
         <div class="panel-header">
-          <h3>Notifications</h3>
-          <div class="header-actions">
-            <button 
-              v-if="unreadCount > 0" 
-              @click="markAllAsRead" 
-              class="mark-all-read-btn"
-              :disabled="isMarkingAllAsRead"
-            >
-              Mark all as read
-            </button>
-            <button @click="openSettings" class="settings-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.82,11.69,4.82,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-              </svg>
-            </button>
+          <div class="header-content">
+            <div class="header-title-section">
+              <h3 class="panel-title">Notifications</h3>
+              <div v-if="unreadCount > 0" class="unread-indicator">
+                {{ unreadCount }} new
+              </div>
+            </div>
+            
+            <div class="header-actions">
+              <!-- Mark All Read Button -->
+              <Transition name="button-fade">
+                <button 
+                  v-if="unreadCount > 0" 
+                  @click="markAllAsRead"
+                  class="action-button mark-all-read"
+                  :disabled="isMarkingAllAsRead"
+                  :aria-label="'Mark all notifications as read'"
+                >
+                  <svg v-if="!isMarkingAllAsRead" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                  </svg>
+                  <div v-else class="loading-spinner"></div>
+                  <span>Mark all read</span>
+                </button>
+              </Transition>
+              
+              <!-- Settings Button -->
+              <button @click="openSettings" class="action-button settings-btn" aria-label="Notification settings">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.82,11.69,4.82,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                </svg>
+              </button>
+              
+              <!-- Close Button -->
+              <button @click="closePanel" class="action-button close-btn" aria-label="Close notifications">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
           </div>
+          
+          <!-- Decorative Gradient Line -->
+          <div class="header-gradient-line"></div>
         </div>
         
+        <!-- Panel Content -->
         <div class="panel-content">
-          <!-- Loading state -->
-          <div v-if="isLoading" class="notification-loading">
-            <div class="loading-spinner"></div>
-            <p>Loading notifications...</p>
-          </div>
-          
-          <!-- Empty state -->
-          <div v-else-if="notifications.length === 0" class="notification-empty">
-            <div class="empty-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
-                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
-              </svg>
+          <!-- Loading State -->
+          <div v-if="isLoading" class="notification-state loading-state">
+            <div class="state-animation">
+              <div class="loading-rings">
+                <div class="ring ring-1"></div>
+                <div class="ring ring-2"></div>
+                <div class="ring ring-3"></div>
+              </div>
             </div>
-            <h4>No notifications yet</h4>
-            <p>When you get mentions, messages, or other updates, they'll show up here.</p>
+            <h4 class="state-title">Loading notifications...</h4>
+            <p class="state-description">Fetching your latest updates</p>
           </div>
           
-          <!-- Notifications list -->
+          <!-- Empty State -->
+          <div v-else-if="notifications.length === 0" class="notification-state empty-state">
+            <div class="state-animation">
+              <div class="empty-bell">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
+                  <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+                </svg>
+                <div class="empty-sparkles">
+                  <div class="sparkle sparkle-1">✨</div>
+                  <div class="sparkle sparkle-2">⭐</div>
+                  <div class="sparkle sparkle-3">💫</div>
+                </div>
+              </div>
+            </div>
+            <h4 class="state-title">All caught up!</h4>
+            <p class="state-description">No new notifications. When you get mentions, messages, or other updates, they'll show up here.</p>
+          </div>
+          
+          <!-- Notifications List -->
           <div v-else class="notifications-list">
-            <NotificationItem
-              v-for="notification in sortedNotifications"
-              :key="notification.id"
-              :notification="notification"
-              @click="handleNotificationClick"
-              @mark-read="markAsRead"
-            />
+            <!-- Quick Filter Tabs -->
+            <div v-if="notifications.length > 5" class="notification-filters">
+              <button 
+                v-for="filter in notificationFilters"
+                :key="filter.key"
+                @click="activeFilter = filter.key"
+                class="filter-tab"
+                :class="{ active: activeFilter === filter.key }"
+              >
+                <span class="filter-icon">{{ filter.icon }}</span>
+                <span class="filter-label">{{ filter.label }}</span>
+                <span v-if="filter.count > 0" class="filter-count">{{ filter.count }}</span>
+              </button>
+            </div>
+            
+            <!-- Notification Items -->
+            <TransitionGroup name="notification-list" tag="div" class="notifications-container">
+              <NotificationItem
+                v-for="notification in filteredNotifications"
+                :key="notification.id"
+                :notification="notification"
+                @click="handleNotificationClick"
+                @mark-read="markAsRead"
+                @dismiss="dismissNotification"
+                class="notification-item-wrapper"
+              />
+            </TransitionGroup>
+            
+            <!-- Load More Button -->
+            <div v-if="hasMoreNotifications" class="load-more-section">
+              <button @click="loadMoreNotifications" class="load-more-btn" :disabled="isLoadingMore">
+                <span v-if="!isLoadingMore">Load more notifications</span>
+                <span v-else class="loading-text">
+                  <div class="loading-dots">
+                    <span></span><span></span><span></span>
+                  </div>
+                  Loading...
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </Transition>
     
-    <!-- Backdrop -->
-    <div v-if="isOpen" class="notification-backdrop" @click="closePanel"></div>
+    <!-- Modern Backdrop with Blur -->
+    <Transition name="backdrop-fade">
+      <div v-if="isOpen" class="notification-backdrop" @click="closePanel"></div>
+    </Transition>
   </div>
 </template>
 
@@ -89,8 +193,12 @@ const notificationStore = useNotificationStore()
 const authStore = useAuthStore()
 const router = useRouter()
 
+// Reactive state
 const isOpen = ref(false)
 const isMarkingAllAsRead = ref(false)
+const isLoadingMore = ref(false)
+const activeFilter = ref<string>('all')
+const hasMoreNotifications = ref(false)
 
 // Computed properties
 const notifications = computed(() => notificationStore.notifications)
@@ -99,9 +207,54 @@ const hasUnread = computed(() => unreadCount.value > 0)
 const isDndActive = computed(() => notificationStore.isDndActive)
 const isLoading = computed(() => notificationStore.isLoading)
 
-const sortedNotifications = computed(() => {
-  return [...notifications.value].sort((a, b) => {
-    // Show unread first, then sort by creation date
+// Notification filters for better UX
+const notificationFilters = computed(() => [
+  {
+    key: 'all',
+    label: 'All',
+    icon: '📋',
+    count: notifications.value.length
+  },
+  {
+    key: 'unread',
+    label: 'Unread',
+    icon: '🔴',
+    count: notifications.value.filter(n => !n.is_read).length
+  },
+  {
+    key: 'mentions',
+    label: 'Mentions',
+    icon: '@',
+    count: notifications.value.filter(n => n.type === 'mention').length
+  },
+  {
+    key: 'dms',
+    label: 'Messages',
+    icon: '💬',
+    count: notifications.value.filter(n => n.type === 'dm').length
+  }
+])
+
+const filteredNotifications = computed(() => {
+  let filtered = [...notifications.value]
+  
+  switch (activeFilter.value) {
+    case 'unread':
+      filtered = filtered.filter(n => !n.is_read)
+      break
+    case 'mentions':
+      filtered = filtered.filter(n => n.type === 'mention')
+      break
+    case 'dms':
+      filtered = filtered.filter(n => n.type === 'dm')
+      break
+    default:
+      // 'all' - no filtering needed
+      break
+  }
+  
+  // Sort: unread first, then by creation date
+  return filtered.sort((a, b) => {
     if (a.is_read !== b.is_read) {
       return a.is_read ? 1 : -1
     }
@@ -112,10 +265,17 @@ const sortedNotifications = computed(() => {
 // Methods
 const togglePanel = () => {
   isOpen.value = !isOpen.value
+  if (isOpen.value) {
+    // Mark panel as opened for analytics/tracking
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+  }
 }
 
 const closePanel = () => {
   isOpen.value = false
+  document.body.style.overflow = ''
 }
 
 const markAllAsRead = async () => {
@@ -124,8 +284,22 @@ const markAllAsRead = async () => {
   try {
     isMarkingAllAsRead.value = true
     await notificationStore.markAllAsRead(authStore.session.user.id)
+    
+    // Show success feedback
+    notificationStore.showToast(
+      'server_update',
+      'All notifications marked as read',
+      'Successfully updated all notifications',
+      2000
+    )
   } catch (error) {
     console.error('Failed to mark all notifications as read:', error)
+    notificationStore.showToast(
+      'server_update',
+      'Failed to mark notifications as read',
+      'Please try again',
+      3000
+    )
   } finally {
     isMarkingAllAsRead.value = false
   }
@@ -133,6 +307,22 @@ const markAllAsRead = async () => {
 
 const markAsRead = async (notificationId: string) => {
   await notificationStore.markAsRead(notificationId)
+}
+
+const dismissNotification = async (notificationId: string) => {
+  // Add dismiss functionality
+  try {
+    // Remove from local state immediately for better UX
+    const index = notifications.value.findIndex(n => n.id === notificationId)
+    if (index >= 0) {
+      notifications.value.splice(index, 1)
+    }
+    
+    // Mark as read in the backend
+    await notificationStore.markAsRead(notificationId)
+  } catch (error) {
+    console.error('Failed to dismiss notification:', error)
+  }
 }
 
 const handleNotificationClick = (notification: Notification) => {
@@ -146,10 +336,33 @@ const openSettings = () => {
   router.push({ name: 'UserSettings', params: { section: 'notifications' } })
 }
 
+const loadMoreNotifications = async () => {
+  if (isLoadingMore.value) return
+  
+  try {
+    isLoadingMore.value = true
+    // Implementation for loading more notifications
+    // This would typically fetch older notifications from the server
+    await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate loading
+    hasMoreNotifications.value = false // No more to load for now
+  } catch (error) {
+    console.error('Failed to load more notifications:', error)
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+
 // Click outside handler
 const handleClickOutside = (event: Event) => {
   const target = event.target as HTMLElement
-  if (!target.closest('.notification-bell')) {
+  if (!target.closest('.notification-bell-container')) {
+    closePanel()
+  }
+}
+
+// Keyboard navigation
+const handleKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && isOpen.value) {
     closePanel()
   }
 }
@@ -161,102 +374,205 @@ onMounted(() => {
   }
   
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleKeydown)
+  document.body.style.overflow = ''
 })
 </script>
 
 <style scoped>
-.notification-bell {
+/* Modern notification bell with gaming aesthetics */
+.notification-bell-container {
   position: relative;
-  cursor: pointer;
-  user-select: none;
+  z-index: 1000;
 }
 
-.bell-icon {
+.notification-bell {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   color: #b9bbbe;
-  transition: all 0.2s ease;
+  outline: none;
 }
 
-.bell-icon:hover {
+.notification-bell:hover {
+  background: rgba(79, 84, 92, 0.32);
   color: #dcddde;
-  background-color: rgba(79, 84, 92, 0.16);
+  transform: translateY(-1px);
 }
 
-.notification-bell.has-unread .bell-icon {
+.notification-bell:focus {
+  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.3);
+}
+
+.notification-bell.has-unread {
   color: #ffffff;
 }
 
+.notification-bell.is-open {
+  background: rgba(88, 101, 242, 0.15);
+  color: var(--h-brand);
+}
+
+.notification-bell.dnd-active {
+  filter: saturate(0.7);
+}
+
+/* Bell icon with wrapper for effects */
+.bell-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bell-icon {
+  transition: transform 0.3s ease;
+}
+
+.notification-bell:hover .bell-icon {
+  transform: rotate(-5deg) scale(1.05);
+}
+
+/* Glowing ring effect for unread notifications */
+.notification-glow {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--h-brand), #7c3aed, var(--h-brand));
+  opacity: 0.6;
+  animation: rotate 3s linear infinite;
+  z-index: -1;
+}
+
+.notification-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(88, 101, 242, 0.4) 0%, transparent 70%);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Modern notification badge */
 .notification-badge {
   position: absolute;
   top: -2px;
   right: -2px;
-  background: #f04747;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
+  min-width: 20px;
+  height: 20px;
+  background: linear-gradient(135deg, #ff4757, #ff3742);
   border-radius: 10px;
-  min-width: 16px;
-  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 0 2px var(--h-chat-dark);
+  box-shadow: 
+    0 0 0 3px var(--h-chat-dark),
+    0 4px 12px rgba(255, 71, 87, 0.4);
+  overflow: hidden;
+  backdrop-filter: blur(8px);
 }
 
+.badge-text {
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  z-index: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.badge-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shine 2s ease-in-out infinite;
+}
+
+/* DND indicator */
 .dnd-indicator {
   position: absolute;
   bottom: -2px;
   right: -2px;
-  background: #faa61a;
-  color: #ffffff;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #ffa502, #ff6348);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 0 2px var(--h-chat-dark);
+  color: #ffffff;
+  box-shadow: 0 0 0 3px var(--h-chat-dark);
+  font-size: 8px;
 }
 
+/* Modern notification panel */
 .notification-panel {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 12px);
   right: 0;
-  width: 400px;
-  max-height: 600px;
+  width: 420px;
+  max-height: 80vh;
   background: var(--h-chat);
-  border: 1px solid var(--h-chat-light);
-  border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-  z-index: 1000;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 
+    0 16px 32px rgba(0, 0, 0, 0.24),
+    0 8px 16px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
   overflow: hidden;
+  z-index: 1001;
 }
 
+/* Panel header with gradient */
 .panel-header {
+  background: linear-gradient(135deg, var(--h-chat-darker) 0%, rgba(88, 101, 242, 0.1) 100%);
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+}
+
+.header-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--h-chat-light);
-  background: var(--h-chat-darker);
+  gap: 16px;
 }
 
-.panel-header h3 {
+.header-title-section {
+  flex: 1;
+}
+
+.panel-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.unread-indicator {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--h-brand);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .header-actions {
@@ -265,65 +581,331 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-.mark-all-read-btn {
-  background: transparent;
-  border: 1px solid var(--h-brand);
-  color: var(--h-brand);
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.mark-all-read-btn:hover:not(:disabled) {
-  background: var(--h-brand);
-  color: #ffffff;
-}
-
-.mark-all-read-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.settings-btn {
-  background: transparent;
-  border: none;
-  color: #b9bbbe;
-  padding: 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.action-button {
   display: flex;
   align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.mark-all-read {
+  background: linear-gradient(135deg, rgba(67, 181, 129, 0.15), rgba(67, 181, 129, 0.25));
+  color: #43b581;
+  border: 1px solid rgba(67, 181, 129, 0.3);
+}
+
+.mark-all-read:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(67, 181, 129, 0.25), rgba(67, 181, 129, 0.35));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(67, 181, 129, 0.2);
+}
+
+.mark-all-read:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.settings-btn, .close-btn {
+  background: rgba(79, 84, 92, 0.3);
+  color: #b9bbbe;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px;
+  min-width: 32px;
   justify-content: center;
 }
 
-.settings-btn:hover {
+.settings-btn:hover, .close-btn:hover {
+  background: rgba(79, 84, 92, 0.5);
   color: #dcddde;
-  background: rgba(79, 84, 92, 0.16);
+  transform: translateY(-1px);
 }
 
+.header-gradient-line {
+  position: absolute;
+  bottom: 0;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--h-brand), transparent);
+  opacity: 0.6;
+}
+
+/* Panel content */
 .panel-content {
-  max-height: 500px;
+  max-height: calc(80vh - 100px);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.notification-loading {
+/* Custom scrollbar */
+.panel-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--h-brand), #7c3aed);
+  border-radius: 3px;
+}
+
+/* Notification states */
+.notification-state {
   padding: 40px 20px;
   text-align: center;
   color: #b9bbbe;
 }
 
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--h-chat-light);
+.state-animation {
+  margin-bottom: 20px;
+  position: relative;
+}
+
+/* Loading state */
+.loading-rings {
+  display: inline-block;
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.ring {
+  position: absolute;
+  border: 3px solid transparent;
   border-top: 3px solid var(--h-brand);
   border-radius: 50%;
+  animation: spin 1.2s linear infinite;
+}
+
+.ring-1 {
+  width: 64px;
+  height: 64px;
+  animation-delay: 0s;
+}
+
+.ring-2 {
+  width: 48px;
+  height: 48px;
+  top: 8px;
+  left: 8px;
+  animation-delay: -0.4s;
+  border-top-color: #7c3aed;
+}
+
+.ring-3 {
+  width: 32px;
+  height: 32px;
+  top: 16px;
+  left: 16px;
+  animation-delay: -0.8s;
+  border-top-color: #a855f7;
+}
+
+/* Empty state */
+.empty-bell {
+  position: relative;
+  display: inline-block;
+}
+
+.empty-sparkles {
+  position: absolute;
+  inset: 0;
+}
+
+.sparkle {
+  position: absolute;
+  font-size: 12px;
+  animation: float 3s ease-in-out infinite;
+}
+
+.sparkle-1 {
+  top: 10px;
+  right: 10px;
+  animation-delay: 0s;
+}
+
+.sparkle-2 {
+  bottom: 15px;
+  left: 5px;
+  animation-delay: 1s;
+}
+
+.sparkle-3 {
+  top: 20px;
+  left: 60px;
+  animation-delay: 2s;
+}
+
+.state-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.state-description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+/* Notification filters */
+.notification-filters {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-x: auto;
+}
+
+.filter-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(79, 84, 92, 0.3);
+  color: #b9bbbe;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.filter-tab:hover {
+  background: rgba(79, 84, 92, 0.5);
+  color: #dcddde;
+}
+
+.filter-tab.active {
+  background: linear-gradient(135deg, var(--h-brand), #7c3aed);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+}
+
+.filter-count {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* Notifications container */
+.notifications-container {
+  padding: 8px 0;
+}
+
+.notification-item-wrapper {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.notification-item-wrapper:last-child {
+  border-bottom: none;
+}
+
+/* Load more section */
+.load-more-section {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.load-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(79, 84, 92, 0.3);
+  color: #b9bbbe;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background: rgba(79, 84, 92, 0.5);
+  color: #dcddde;
+}
+
+.load-more-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.loading-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.loading-dots span {
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: loading-dot 1.4s ease-in-out infinite both;
+}
+
+.loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+.loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
+}
+
+/* Backdrop */
+.notification-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+}
+
+/* Animations */
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+@keyframes shine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
 }
 
 @keyframes spin {
@@ -331,63 +913,179 @@ onUnmounted(() => {
   100% { transform: rotate(360deg); }
 }
 
-.notification-empty {
-  padding: 40px 20px;
-  text-align: center;
-  color: #b9bbbe;
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-10px) rotate(120deg); }
+  66% { transform: translateY(-5px) rotate(240deg); }
 }
 
-.empty-icon {
-  margin-bottom: 16px;
-}
-
-.notification-empty h4 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  color: #ffffff;
-}
-
-.notification-empty p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.notifications-list {
-  padding: 8px 0;
-}
-
-.notification-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 999;
-  background: transparent;
+@keyframes loading-dot {
+  0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
 }
 
 /* Transitions */
-.notification-panel-enter-active,
-.notification-panel-leave-active {
+.badge-bounce-enter-active {
+  animation: badge-bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.badge-bounce-leave-active {
+  animation: badge-bounce-in 0.3s reverse;
+}
+
+@keyframes badge-bounce-in {
+  0% { transform: scale(0) rotate(180deg); opacity: 0; }
+  50% { transform: scale(1.3) rotate(90deg); opacity: 0.8; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.dnd-fade-enter-active, .dnd-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.dnd-fade-enter-from, .dnd-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.panel-slide-enter-active {
+  animation: panel-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.panel-slide-leave-active {
+  animation: panel-slide-in 0.3s reverse;
+}
+
+@keyframes panel-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.backdrop-fade-enter-active, .backdrop-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.backdrop-fade-enter-from, .backdrop-fade-leave-to {
+  opacity: 0;
+}
+
+.button-fade-enter-active, .button-fade-leave-active {
   transition: all 0.2s ease;
 }
 
-.notification-panel-enter-from,
-.notification-panel-leave-to {
+.button-fade-enter-from, .button-fade-leave-to {
   opacity: 0;
-  transform: translateY(-8px) scale(0.95);
+  transform: scale(0.9);
+}
+
+.notification-list-enter-active {
+  transition: all 0.4s ease;
+}
+
+.notification-list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.notification-list-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.notification-list-leave-to {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
+.notification-list-move {
+  transition: transform 0.3s ease;
 }
 
 /* Responsive design */
 @media (max-width: 768px) {
   .notification-panel {
-    width: 320px;
-    max-height: 80vh;
+    width: calc(100vw - 24px);
+    right: 12px;
+    left: 12px;
+    max-height: 70vh;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .notification-filters {
+    padding: 12px 16px 8px;
+  }
+  
+  .filter-tab {
+    font-size: 11px;
+    padding: 6px 10px;
   }
 }
 
 @media (max-width: 480px) {
   .notification-panel {
-    width: calc(100vw - 32px);
-    right: -16px;
+    width: calc(100vw - 16px);
+    right: 8px;
+    left: 8px;
+    border-radius: 12px;
+  }
+  
+  .panel-header {
+    padding: 16px;
+  }
+  
+  .panel-title {
+    font-size: 16px;
+  }
+  
+  .action-button {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .notification-bell {
+    border: 2px solid currentColor;
+  }
+  
+  .notification-panel {
+    border: 2px solid currentColor;
+  }
+  
+  .notification-badge {
+    background: #ff0000;
+    box-shadow: 0 0 0 2px var(--h-chat-dark);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .notification-glow,
+  .notification-pulse,
+  .badge-shine {
+    animation: none;
   }
 }
 </style>

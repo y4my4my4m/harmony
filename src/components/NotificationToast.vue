@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { h } from 'vue'
+import { computed, h } from 'vue'
 import { useNotificationStore } from '@/stores/useNotification'
 import type { NotificationToast, NotificationType } from '@/types'
 

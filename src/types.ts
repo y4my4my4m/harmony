@@ -326,15 +326,43 @@ export interface NotificationToast {
   id: string;
   type: NotificationType;
   title: string;
-  message?: string;
-  duration: number;
-  actions?: NotificationAction[];
+  message: string;
   avatar?: string;
+  actions?: ToastAction[];
+  duration: number;
   timestamp: Date;
 }
 
-export interface NotificationAction {
+export interface ToastAction {
   label: string;
   action: () => void;
   style?: 'primary' | 'secondary' | 'danger';
+}
+
+export interface NotificationSettings {
+  push_enabled: boolean
+  desktop_enabled: boolean
+  sound_enabled: boolean
+  email_enabled: boolean
+  mentions_only: boolean
+  dm_enabled: boolean
+  reaction_enabled: boolean
+  reply_enabled: boolean
+  server_invite_enabled: boolean
+  voice_activity_enabled: boolean
+  quiet_hours_enabled: boolean
+  quiet_hours_start: string
+  quiet_hours_end: string
+  preview_enabled: boolean
+  desktop_mentions: boolean
+  desktop_dms: boolean
+  desktop_reactions: boolean
+  desktop_replies: boolean
+  sound_mentions: boolean
+  sound_dms: boolean
+  sound_reactions: boolean
+  sound_voice_activity: boolean
+  dnd_enabled: boolean
+  dnd_start_time: string
+  dnd_end_time: string
 }

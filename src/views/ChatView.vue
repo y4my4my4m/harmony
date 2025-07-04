@@ -29,6 +29,11 @@
         @conversationSelected="handleDMConversationSelected"
       />
       
+      <!-- Notification Bell positioned above user profile -->
+      <div class="notification-section">
+        <NotificationBell />
+      </div>
+      
       <!-- User Profile spanning the full width of both sidebars -->
       <UserProfileComponent />
     </div>
@@ -71,6 +76,7 @@
   import VoiceChannelScene from '@/components/VoiceChannelScene.vue';
   import CreateChannel from '@/components/CreateChannel.vue';
   import PublicServers from '@/components/PublicServers.vue';
+  import NotificationBell from '@/components/NotificationBell.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
@@ -94,6 +100,7 @@
       VoiceChannelScene,
       CreateChannel,
       PublicServers,
+      NotificationBell,
     },
     props: {
       serverId: String,
@@ -678,6 +685,17 @@
   right: 0;
   z-index: 2;
   width: 100%;
+}
+
+.notification-section {
+  position: absolute;
+  bottom: 72px; /* Height of user profile */
+  left: 72px; /* Offset from server sidebar */
+  right: 0;
+  padding: 12px 16px;
+  background: var(--h-sidebar);
+  border-top: 1px solid var(--h-chat-light);
+  z-index: 2;
 }
 
 .chat-area {

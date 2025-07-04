@@ -354,7 +354,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useAuthStore } from '@/stores/auth'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
