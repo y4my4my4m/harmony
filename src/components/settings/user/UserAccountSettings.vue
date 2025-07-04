@@ -11,15 +11,15 @@
       <div class="profile-preview">
         <div class="profile-banner" :style="{ backgroundColor: profile?.color || '#5865f2' }"></div>
         <div class="profile-info">
-          <div class="avatar-container">
-            <img 
-              :src="profile?.avatar_url || '/default_avatar.png'" 
-              alt="Profile Avatar" 
-              class="profile-avatar"
+          <div class="avatar-wrapper">
+            <Avatar 
+              :src="profile?.avatar_url"
+              alt="Profile Avatar"
+              size="xl"
+              :editable="true"
+              :loading="loading"
+              @upload="handleAvatarUpload"
             />
-            <button class="avatar-edit-btn" @click="triggerAvatarUpload">
-              <CameraIcon />
-            </button>
           </div>
           <div class="user-info">
             <h3 class="display-name" :style="{ color: profile?.color || '#ffffff' }">
@@ -146,14 +146,6 @@
       </button>
     </div>
 
-    <!-- Hidden file input for avatar upload -->
-    <input
-      ref="avatarInput"
-      type="file"
-      accept="image/*"
-      style="display: none"
-      @change="handleAvatarUpload"
-    />
   </div>
 </template>
 
@@ -166,7 +158,7 @@ import { format } from 'date-fns'
 // Components
 import { ColorPicker } from 'vue-color-kit'
 import 'vue-color-kit/dist/vue-color-kit.css'
-import CameraIcon from '@/components/icons/Camera.vue'
+import Avatar from '@/components/common/Avatar.vue'
 
 // Props
 interface Props {
@@ -188,7 +180,6 @@ const authStore = useAuthStore()
 // State
 const localProfile = ref<Partial<User>>({})
 const showColorPicker = ref(false)
-const avatarInput = ref<HTMLInputElement>()
 
 // Refs
 const colorPickerRef = ref<InstanceType<typeof ColorPicker>>()
@@ -257,32 +248,8 @@ const resetColor = () => {
   localProfile.value.color = '#5865f2'
 }
 
-const triggerAvatarUpload = () => {
-  avatarInput.value?.click()
-}
-
-const handleAvatarUpload = (event: Event) => {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  
-  if (file) {
-    // Validate file size (max 8MB)
-    if (file.size > 8 * 1024 * 1024) {
-      alert('File size must be less than 8MB')
-      return
-    }
-    
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please select a valid image file')
-      return
-    }
-    
-    emit('upload-avatar', file)
-  }
-  
-  // Reset input
-  target.value = ''
+const handleAvatarUpload = (file: File) => {
+  emit('upload-avatar', file)
 }
 
 const saveChanges = () => {
@@ -377,38 +344,8 @@ onMounted(() => {
   position: relative;
 }
 
-.avatar-container {
-  position: relative;
+.avatar-wrapper {
   margin-right: 16px;
-}
-
-.profile-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  border: 4px solid var(--h-chat);
-  object-fit: cover;
-}
-
-.avatar-edit-btn {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: none;
-  background-color: #5865f2;
-  color: #ffffff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-}
-
-.avatar-edit-btn:hover {
-  background-color: #4752c4;
 }
 
 .user-info {
@@ -658,7 +595,7 @@ onMounted(() => {
     padding: 20px;
   }
   
-  .avatar-container {
+  .avatar-wrapper {
     margin-right: 0;
     margin-bottom: 12px;
   }

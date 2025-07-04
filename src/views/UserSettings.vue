@@ -122,10 +122,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar } from '@/services/profileService'
+import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
+import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
 import type { User } from '@/types'
 import { useToast } from 'vue-toastification'
 
@@ -151,15 +153,26 @@ import CogIcon from '@/components/icons/Cog.vue'
 import LogoutIcon from '@/components/icons/Logout.vue'
 import CloseIcon from '@/components/icons/Close.vue'
 
+// Props
+interface Props {
+  section?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  section: 'account'
+})
+
 // Composables
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
+const settingsNav = createSettingsNavigator(router)
 
 // State
 const loading = ref(false)
 const profile = ref<User | null>(null)
-const activeSection = ref('account')
+const activeSection = ref(props.section || 'account')
 
 // Navigation sections
 const userSections = computed(() => [
@@ -176,9 +189,17 @@ const appSections = computed(() => [
   { id: 'advanced', label: 'Advanced', icon: CogIcon },
 ])
 
+// Valid sections
+const validSections = computed(() => [
+  ...userSections.value.map(s => s.id),
+  ...appSections.value.map(s => s.id)
+])
+
 // Methods
 const setActiveSection = (sectionId: string) => {
   activeSection.value = sectionId
+  // Update URL to reflect the active section
+  settingsNav.replaceSection(sectionId as SettingsSection)
 }
 
 const closeSettings = () => {
@@ -217,8 +238,10 @@ const handleAvatarUpload = async (file: File) => {
   try {
     loading.value = true
     const filePath = await uploadAvatar(authStore.session.user.id, file)
-    await updateProfile(authStore.session.user.id, { avatar_url: filePath })
-    profile.value = { ...profile.value, avatar_url: filePath } as User
+    // Ensure we normalize the avatar URL for storage
+    const normalizedPath = normalizeAvatarForStorage(filePath)
+    await updateProfile(authStore.session.user.id, { avatar_url: normalizedPath })
+    profile.value = { ...profile.value, avatar_url: normalizedPath } as User
     toast.success('Avatar updated successfully')
   } catch (error) {
     console.error('Error uploading avatar:', error)
@@ -263,8 +286,36 @@ const handleAdvancedUpdate = async (advancedSettings: any) => {
   console.log('Advanced settings updated:', advancedSettings)
 }
 
+// Watchers
+watch(() => route.params.section, (newSection) => {
+  const sectionStr = Array.isArray(newSection) ? newSection[0] : newSection
+  if (sectionStr && validSections.value.includes(sectionStr)) {
+    activeSection.value = sectionStr
+  } else if (sectionStr && !validSections.value.includes(sectionStr)) {
+    // Invalid section, redirect to default
+    router.replace({ name: 'UserSettings', params: { section: 'account' } })
+  }
+}, { immediate: true })
+
+watch(() => props.section, (newSection) => {
+  if (newSection && validSections.value.includes(newSection)) {
+    activeSection.value = newSection
+  }
+}, { immediate: true })
+
 // Initialize
 onMounted(async () => {
+  // Validate and set initial section
+  const routeSection = Array.isArray(route.params.section) ? route.params.section[0] : route.params.section
+  const initialSection = routeSection || props.section || 'account'
+  
+  if (validSections.value.includes(initialSection)) {
+    activeSection.value = initialSection
+  } else {
+    activeSection.value = 'account'
+    router.replace({ name: 'UserSettings', params: { section: 'account' } })
+  }
+
   if (authStore.session?.user) {
     try {
       loading.value = true

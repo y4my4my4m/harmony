@@ -264,6 +264,103 @@ async function deleteEmoji(emojiId: string): Promise<boolean> {
     }
 }
 
+// Rename emoji with cache invalidation
+async function renameEmoji(emojiId: string, newName: string, serverId: string): Promise<boolean> {
+    const emojiCache = useEmojiCacheStore();
+    
+    try {
+        // Clean and validate the new name
+        const { name: cleanedName } = cleanFileName(`${newName}.png`);
+        
+        if (!cleanedName || cleanedName.length === 0) {
+            throw new Error('Invalid emoji name');
+        }
+        
+        // Check if the new name already exists
+        if (await doesEmojiNameExist(serverId, cleanedName)) {
+            throw new Error('An emoji with this name already exists');
+        }
+        
+        // Update the emoji name in the database
+        const { error } = await supabase
+            .from('emojis')
+            .update({ name: cleanedName })
+            .eq('id', emojiId);
+
+        if (error) throw error;
+
+        // Invalidate cache to reflect the changes
+        await emojiCache.invalidate({ serverId });
+
+        console.log('Emoji renamed successfully:', cleanedName);
+        return true;
+    } catch (error) {
+        console.error('Error renaming emoji:', error);
+        return false;
+    }
+}
+
+// Bulk delete emojis with cache invalidation
+async function bulkDeleteEmojis(emojiIds: string[]): Promise<{ success: string[], failed: string[] }> {
+    const emojiCache = useEmojiCacheStore();
+    const results = { success: [] as string[], failed: [] as string[] };
+    const serverIds = new Set<string>();
+    
+    console.log(`Starting bulk deletion of ${emojiIds.length} emojis`);
+    
+    for (const emojiId of emojiIds) {
+        try {
+            // Get emoji details before deletion
+            const emoji = await getEmoji(emojiId);
+            if (emoji) {
+                serverIds.add(emoji.server_id);
+                
+                // Delete from storage
+                const urlParts = emoji.url.split('/');
+                const fileName = urlParts[urlParts.length - 1];
+                const filePath = `${emoji.server_id}/${emoji.uploader}/${fileName}`;
+                
+                const { error: storageError } = await supabase.storage
+                    .from('emojis')
+                    .remove([filePath]);
+
+                if (storageError) {
+                    console.warn('Storage deletion failed for emoji:', emoji.name, storageError);
+                    // Continue with database deletion
+                }
+                
+                // Delete from database
+                const { error: dbError } = await supabase
+                    .from('emojis')
+                    .delete()
+                    .eq('id', emojiId);
+
+                if (dbError) throw dbError;
+                
+                results.success.push(emojiId);
+                console.log('Emoji deleted successfully:', emoji.name);
+            } else {
+                results.failed.push(emojiId);
+            }
+            
+            // Small delay to prevent overwhelming the server
+            await new Promise(resolve => setTimeout(resolve, 50));
+        } catch (error) {
+            console.error(`Failed to delete emoji ${emojiId}:`, error);
+            results.failed.push(emojiId);
+        }
+    }
+    
+    // Invalidate cache for all affected servers
+    for (const serverId of serverIds) {
+        await emojiCache.invalidate({ serverId });
+    }
+    
+    console.log(`Bulk deletion completed: ${results.success.length}/${emojiIds.length} successful`);
+    
+    return results;
+}
+
 // Enhanced name existence check with caching
 async function doesEmojiNameExist(serverId: string, name: string): Promise<boolean> {
     const emojiCache = useEmojiCacheStore();
@@ -419,6 +516,8 @@ export {
     uploadEmoji, 
     getEmoji, 
     deleteEmoji, 
+    renameEmoji,
+    bulkDeleteEmojis,
     doesEmojiNameExist,
     bulkUploadEmojis,
     searchEmojis,

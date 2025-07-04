@@ -33,7 +33,7 @@
 
     <div class="settings-card" v-if="permissions.canUpload">
       <div class="form-group">
-        <label class="form-label">Upload Emoji</label>
+        <label class="form-label">Upload Emojis</label>
         <div 
           class="emoji-upload-area"
           :class="{ 'dragover': isDragOver }"
@@ -46,24 +46,80 @@
             <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
           </svg>
           <h3 class="upload-text">Click to upload or drag and drop</h3>
-          <p class="upload-hint">PNG, JPG, GIF up to 256KB</p>
+          <p class="upload-hint">PNG, JPG, GIF up to 256KB • Select multiple files for bulk upload</p>
           
           <input
             ref="emojiFileInput"
             type="file"
             accept="image/*"
+            multiple
             class="hidden-file-input"
             @change="handleEmojiUpload"
-            :disabled="loading"
+            :disabled="loading || uploadingEmoji"
           />
+        </div>
+        
+        <!-- Upload Progress -->
+        <div v-if="uploadProgress.total > 0" class="upload-progress">
+          <div class="progress-header">
+            <span class="progress-text">
+              Uploading {{ uploadProgress.current }} of {{ uploadProgress.total }} emojis...
+            </span>
+            <span class="progress-count">{{ uploadProgress.completed }}/{{ uploadProgress.total }}</span>
+          </div>
+          <div class="progress-bar">
+            <div 
+              class="progress-fill" 
+              :style="{ width: (uploadProgress.completed / uploadProgress.total * 100) + '%' }"
+            ></div>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="settings-card">
       <div class="emoji-list-header">
-        <h3 class="emoji-list-title">Server Emojis</h3>
-        <div class="emoji-count">{{ emojis.length }} / 50</div>
+        <div class="header-left">
+          <h3 class="emoji-list-title">Server Emojis</h3>
+          <div class="emoji-count">{{ emojis.length }} / 50</div>
+        </div>
+        
+        <div class="header-right" v-if="emojis.length > 0">
+          <button
+            v-if="!selectionMode"
+            class="btn btn-secondary"
+            @click="enterSelectionMode"
+            :disabled="!permissions.canDelete && !permissions.canRename"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M19,19H5V5H19V19M17,17H7V16L12,11L17,16V17Z"/>
+            </svg>
+            Select
+          </button>
+          
+          <div v-else class="selection-controls">
+            <span class="selection-count">{{ selectedEmojis.length }} selected</span>
+            <div class="selection-actions">
+              <button
+                class="btn btn-danger"
+                @click="bulkDeleteSelected"
+                :disabled="selectedEmojis.length === 0 || deletingEmoji"
+                v-if="permissions.canDelete"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                </svg>
+                Delete ({{ selectedEmojis.length }})
+              </button>
+              <button
+                class="btn btn-secondary"
+                @click="exitSelectionMode"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
       
       <div v-if="emojis.length === 0" class="empty-state">
@@ -84,18 +140,48 @@
           v-for="emoji in emojis" 
           :key="emoji.id"
           class="emoji-item"
+          :class="{ 
+            'selected': selectedEmojis.includes(emoji.id),
+            'selection-mode': selectionMode,
+            'renaming': renamingEmoji === emoji.id
+          }"
+          @click="selectionMode ? toggleEmojiSelection(emoji.id) : null"
         >
+          <!-- Selection Checkbox -->
+          <div v-if="selectionMode" class="selection-checkbox">
+            <input
+              type="checkbox"
+              :checked="selectedEmojis.includes(emoji.id)"
+              @change="toggleEmojiSelection(emoji.id)"
+            />
+          </div>
+          
           <div class="emoji-preview">
             <img :src="emoji.url" :alt="emoji.name" class="emoji-image" />
           </div>
+          
           <div class="emoji-details">
-            <div class="emoji-name">:{{ emoji.name }}:</div>
+            <!-- Editable emoji name -->
+            <div v-if="renamingEmoji === emoji.id" class="emoji-name-edit">
+              <input
+                ref="emojiRenameInput"
+                v-model="tempEmojiName"
+                @keyup.enter="saveEmojiRename(emoji)"
+                @keyup.escape="cancelEmojiRename"
+                @blur="saveEmojiRename(emoji)"
+                class="emoji-name-input"
+                :placeholder="emoji.name"
+              />
+            </div>
+            <div v-else class="emoji-name">:{{ emoji.name }}:</div>
+            
             <div class="emoji-meta">
               <span>{{ formatFileSize(emoji.file_size || 0) }}</span>
               <span>{{ formatDate(emoji.created_at) }}</span>
             </div>
           </div>
-          <div class="emoji-actions">
+          
+          <div class="emoji-actions" v-if="!selectionMode">
             <button
               class="action-btn copy-btn"
               @click="copyEmojiName(emoji.name)"
@@ -103,6 +189,17 @@
             >
               <svg width="16" height="16" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/>
+              </svg>
+            </button>
+            <button
+              v-if="permissions.canRename"
+              class="action-btn rename-btn"
+              @click="startEmojiRename(emoji)"
+              :disabled="renamingEmoji === emoji.id"
+              title="Rename emoji"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
               </svg>
             </button>
             <button
@@ -137,15 +234,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import { useToast } from 'vue-toastification'
-import { uploadEmoji, deleteEmoji } from '@/services/emojiService'
+import { uploadEmoji, deleteEmoji, renameEmoji, bulkUploadEmojis, bulkDeleteEmojis } from '@/services/emojiService'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import type { Emoji } from '@/types'
 
 interface EmojiPermissions {
   canUpload: boolean
   canDelete: boolean
+  canRename: boolean
   canManageCrossServer: boolean
 }
 
@@ -175,6 +273,23 @@ const uploadingEmoji = ref(false)
 const deletingEmoji = ref<string | null>(null)
 const isDragOver = ref(false)
 
+// Selection mode state
+const selectionMode = ref(false)
+const selectedEmojis = ref<string[]>([])
+
+// Renaming state  
+const renamingEmoji = ref<string | null>(null)
+const tempEmojiName = ref('')
+const emojiRenameInput = ref<HTMLInputElement>()
+
+// Upload progress tracking
+const uploadProgress = ref({
+  total: 0,
+  current: 0,
+  completed: 0,
+  currentFile: ''
+})
+
 const handleCrossServerToggle = (event: Event) => {
   if (!props.permissions.canManageCrossServer) return
   const target = event.target as HTMLInputElement
@@ -192,16 +307,26 @@ const handleDrop = (event: DragEvent) => {
   isDragOver.value = false
   const files = event.dataTransfer?.files
   if (files && files.length > 0) {
-    handleEmojiFile(files[0])
+    const fileArray = Array.from(files)
+    if (fileArray.length === 1) {
+      handleEmojiFile(fileArray[0])
+    } else {
+      handleBulkEmojiUpload(fileArray)
+    }
   }
 }
 
 const handleEmojiUpload = (event: Event) => {
   if (!props.permissions.canUpload) return
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) {
-    handleEmojiFile(file)
+  const files = input.files
+  if (files && files.length > 0) {
+    const fileArray = Array.from(files)
+    if (fileArray.length === 1) {
+      handleEmojiFile(fileArray[0])
+    } else {
+      handleBulkEmojiUpload(fileArray)
+    }
   }
   // Clear input
   if (input) {
@@ -275,6 +400,170 @@ const confirmDeleteEmoji = async (emoji: Emoji) => {
   } finally {
     deletingEmoji.value = null
   }
+}
+
+const handleBulkEmojiUpload = async (files: File[]) => {
+  if (!props.permissions.canUpload) {
+    toast.error('You do not have permission to upload emojis')
+    return
+  }
+
+  // Validate files
+  const validFiles = files.filter(file => {
+    if (!file.type.startsWith('image/')) {
+      toast.warning(`${file.name} is not an image file and will be skipped`)
+      return false
+    }
+    if (file.size > 256 * 1024) {
+      toast.warning(`${file.name} is too large (over 256KB) and will be skipped`)
+      return false
+    }
+    return true
+  })
+
+  if (validFiles.length === 0) {
+    toast.error('No valid image files selected')
+    return
+  }
+
+  if (props.emojis.length + validFiles.length > 50) {
+    toast.error(`Cannot upload ${validFiles.length} emojis. Server limit is 50 emojis (currently ${props.emojis.length})`)
+    return
+  }
+
+  try {
+    uploadingEmoji.value = true
+    uploadProgress.value = {
+      total: validFiles.length,
+      current: 0,
+      completed: 0,
+      currentFile: ''
+    }
+
+    console.log('🎭 Starting bulk emoji upload...')
+    const results = await bulkUploadEmojis(props.serverId, props.ownerId, validFiles)
+    
+    const successCount = results.filter(r => r !== null).length
+    const failedCount = results.length - successCount
+    
+    // Emit successful uploads
+    results.forEach(emoji => {
+      if (emoji) {
+        emit('emoji-uploaded', emoji)
+      }
+    })
+
+    if (successCount > 0) {
+      toast.success(`Successfully uploaded ${successCount} emoji${successCount > 1 ? 's' : ''}!`)
+    }
+    if (failedCount > 0) {
+      toast.warning(`${failedCount} emoji${failedCount > 1 ? 's' : ''} failed to upload`)
+    }
+  } catch (error) {
+    console.error('Error in bulk emoji upload:', error)
+    toast.error('Failed to upload emojis')
+  } finally {
+    uploadingEmoji.value = false
+    uploadProgress.value = { total: 0, current: 0, completed: 0, currentFile: '' }
+  }
+}
+
+// Selection mode methods
+const enterSelectionMode = () => {
+  selectionMode.value = true
+  selectedEmojis.value = []
+}
+
+const exitSelectionMode = () => {
+  selectionMode.value = false
+  selectedEmojis.value = []
+}
+
+const toggleEmojiSelection = (emojiId: string) => {
+  const index = selectedEmojis.value.indexOf(emojiId)
+  if (index > -1) {
+    selectedEmojis.value.splice(index, 1)
+  } else {
+    selectedEmojis.value.push(emojiId)
+  }
+}
+
+const bulkDeleteSelected = async () => {
+  if (!props.permissions.canDelete || selectedEmojis.value.length === 0) return
+
+  const confirmMessage = `Are you sure you want to delete ${selectedEmojis.value.length} emoji${selectedEmojis.value.length > 1 ? 's' : ''}?`
+  if (!confirm(confirmMessage)) return
+
+  try {
+    deletingEmoji.value = 'bulk'
+    console.log('🗑️ Starting bulk emoji deletion...')
+    
+    const results = await bulkDeleteEmojis(selectedEmojis.value)
+    
+    // Emit deletions for successful ones
+    results.success.forEach(emojiId => {
+      emit('emoji-deleted', emojiId)
+    })
+
+    if (results.success.length > 0) {
+      toast.success(`Successfully deleted ${results.success.length} emoji${results.success.length > 1 ? 's' : ''}!`)
+    }
+    if (results.failed.length > 0) {
+      toast.warning(`${results.failed.length} emoji${results.failed.length > 1 ? 's' : ''} failed to delete`)
+    }
+
+    // Exit selection mode
+    exitSelectionMode()
+  } catch (error) {
+    console.error('Error in bulk emoji deletion:', error)
+    toast.error('Failed to delete emojis')
+  } finally {
+    deletingEmoji.value = null
+  }
+}
+
+// Renaming methods
+const startEmojiRename = async (emoji: Emoji) => {
+  if (!props.permissions.canRename) return
+  
+  renamingEmoji.value = emoji.id
+  tempEmojiName.value = emoji.name
+  
+  await nextTick()
+  emojiRenameInput.value?.focus()
+  emojiRenameInput.value?.select()
+}
+
+const saveEmojiRename = async (emoji: Emoji) => {
+  if (!tempEmojiName.value.trim() || tempEmojiName.value === emoji.name) {
+    cancelEmojiRename()
+    return
+  }
+
+  try {
+    const success = await renameEmoji(emoji.id, tempEmojiName.value.trim(), props.serverId)
+    
+    if (success) {
+      // Update the emoji in the list
+      const updatedEmojis = props.emojis.map(e => 
+        e.id === emoji.id ? { ...e, name: tempEmojiName.value.trim() } : e
+      )
+      emit('update:emojis', updatedEmojis)
+      toast.success(`Emoji renamed to :${tempEmojiName.value.trim()}:`)
+    } else {
+      toast.error('Failed to rename emoji')
+    }
+  } catch (error) {
+    console.error('Error renaming emoji:', error)
+    toast.error('Failed to rename emoji')
+  } finally {
+    cancelEmojiRename()
+  }
+}
+
+const cancelEmojiRename = () => {
+  renamingEmoji.value = null
+  tempEmojiName.value = ''
 }
 
 const copyEmojiName = (name: string) => {
@@ -496,6 +785,12 @@ input:checked + .toggle-slider:before {
   margin-bottom: 16px;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .emoji-list-title {
   font-size: 16px;
   font-weight: 600;
@@ -509,6 +804,108 @@ input:checked + .toggle-slider:before {
   background-color: var(--h-chat-darker);
   padding: 4px 8px;
   border-radius: 12px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Upload Progress */
+.upload-progress {
+  margin-top: 16px;
+  padding: 12px;
+  background-color: var(--h-chat-darker);
+  border-radius: 6px;
+  border: 1px solid var(--h-chat-light);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.progress-text {
+  font-size: 13px;
+  color: #b9bbbe;
+}
+
+.progress-count {
+  font-size: 12px;
+  color: #72767d;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background-color: var(--h-chat-light);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #5865f2;
+  transition: width 0.3s ease;
+}
+
+/* Selection Controls */
+.selection-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selection-count {
+  font-size: 13px;
+  color: #b9bbbe;
+}
+
+.selection-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Buttons */
+.btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: var(--h-chat-darker);
+  color: #b9bbbe;
+  border: 1px solid var(--h-chat-light);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--h-chat-light);
+  color: #ffffff;
+}
+
+.btn-danger {
+  background-color: #ed4245;
+  color: #ffffff;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #c53030;
 }
 
 .empty-state {
@@ -547,6 +944,37 @@ input:checked + .toggle-slider:before {
   background-color: var(--h-chat-darker);
   border-radius: 6px;
   border: 1px solid var(--h-chat-light);
+  transition: all 0.15s ease;
+}
+
+.emoji-item.selection-mode {
+  cursor: pointer;
+}
+
+.emoji-item.selection-mode:hover {
+  background-color: rgba(88, 101, 242, 0.1);
+  border-color: rgba(88, 101, 242, 0.3);
+}
+
+.emoji-item.selected {
+  background-color: rgba(88, 101, 242, 0.2);
+  border-color: #5865f2;
+}
+
+.emoji-item.renaming {
+  border-color: #57f287;
+  background-color: rgba(87, 242, 135, 0.1);
+}
+
+/* Selection Checkbox */
+.selection-checkbox {
+  flex-shrink: 0;
+}
+
+.selection-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 .emoji-preview {
@@ -569,6 +997,27 @@ input:checked + .toggle-slider:before {
   font-weight: 500;
   color: #ffffff;
   margin-bottom: 2px;
+}
+
+.emoji-name-edit {
+  margin-bottom: 2px;
+}
+
+.emoji-name-input {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  background-color: var(--h-chat);
+  border: 1px solid #57f287;
+  border-radius: 4px;
+  outline: none;
+}
+
+.emoji-name-input:focus {
+  border-color: #43b581;
+  box-shadow: 0 0 0 2px rgba(67, 181, 129, 0.2);
 }
 
 .emoji-meta {
@@ -602,6 +1051,10 @@ input:checked + .toggle-slider:before {
 }
 
 .copy-btn:hover {
+  color: #57f287;
+}
+
+.rename-btn:hover {
   color: #57f287;
 }
 

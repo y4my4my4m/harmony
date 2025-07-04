@@ -1,0 +1,318 @@
+<template>
+  <div class="avatar-container" :class="[sizeClass, { 'interactive': interactive }]">
+    <!-- Avatar Image -->
+    <img
+      :src="avatarUrl"
+      :alt="alt"
+      class="avatar-image"
+      @click="handleClick"
+      @error="handleImageError"
+      @load="handleImageLoad"
+    />
+
+    <!-- Loading State -->
+    <div v-if="loading" class="avatar-loading">
+      <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Status Indicator -->
+    <div
+      v-if="status"
+      class="avatar-status"
+      :class="`status-${status}`"
+    ></div>
+
+    <!-- Edit Button -->
+    <button
+      v-if="editable"
+      class="avatar-edit-btn"
+      @click="handleEdit"
+      :disabled="loading"
+    >
+      <CameraIcon />
+    </button>
+
+    <!-- Hidden file input -->
+    <input
+      v-if="editable"
+      ref="fileInput"
+      type="file"
+      accept="image/*"
+      style="display: none"
+      @change="handleFileSelect"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { getAvatarUrl } from '@/utils/avatarUtils'
+import CameraIcon from '@/components/icons/Camera.vue'
+
+// Types
+type AvatarSize = 'sm' | 'md' | 'lg' | 'xl'
+type UserStatus = 'online' | 'away' | 'busy' | 'offline'
+
+// Props
+interface Props {
+  src?: string | null
+  alt?: string
+  size?: AvatarSize
+  status?: UserStatus
+  editable?: boolean
+  interactive?: boolean
+  loading?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  alt: 'Avatar',
+  size: 'md',
+  editable: false,
+  interactive: false,
+  loading: false
+})
+
+// Emits
+const emit = defineEmits<{
+  'click': []
+  'upload': [file: File]
+  'edit': []
+}>()
+
+// State
+const imageError = ref(false)
+
+// Refs
+const fileInput = ref<HTMLInputElement>()
+
+// Computed
+const avatarUrl = computed(() => {
+  if (imageError.value) return '/default_avatar.png'
+  return getAvatarUrl(props.src)
+})
+
+const sizeClass = computed(() => `avatar-${props.size}`)
+
+// Methods
+const handleClick = () => {
+  if (props.interactive) {
+    emit('click')
+  }
+}
+
+const handleEdit = () => {
+  if (props.editable) {
+    emit('edit')
+    fileInput.value?.click()
+  }
+}
+
+const handleFileSelect = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  
+  if (file) {
+    // Validate file size (max 8MB)
+    if (file.size > 8 * 1024 * 1024) {
+      alert('File size must be less than 8MB')
+      return
+    }
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file')
+      return
+    }
+    
+    emit('upload', file)
+  }
+  
+  // Reset input
+  target.value = ''
+}
+
+const handleImageError = () => {
+  imageError.value = true
+}
+
+const handleImageLoad = () => {
+  imageError.value = false
+}
+</script>
+
+<style scoped>
+.avatar-container {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.avatar-container.interactive {
+  cursor: pointer;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background-color: var(--h-chat-light);
+  transition: all 0.2s ease;
+  border: 2px solid var(--h-chat-darker);
+}
+
+.avatar-container.interactive .avatar-image:hover {
+  transform: scale(1.05);
+  border-color: #5865f2;
+}
+
+/* Size classes - following voice overlay pattern */
+.avatar-sm {
+  width: 32px;
+  height: 32px;
+}
+
+.avatar-md {
+  width: 48px;
+  height: 48px;
+}
+
+.avatar-lg {
+  width: 64px;
+  height: 64px;
+}
+
+.avatar-xl {
+  width: 80px;
+  height: 80px;
+}
+
+/* Loading state */
+.avatar-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  background-color: var(--h-chat-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #5865f2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Status indicator - following voice overlay pattern */
+.avatar-status {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid var(--h-chat);
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+}
+
+.avatar-sm .avatar-status {
+  width: 8px;
+  height: 8px;
+  border-width: 1px;
+}
+
+.avatar-md .avatar-status {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
+.avatar-lg .avatar-status {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.avatar-xl .avatar-status {
+  width: 20px;
+  height: 20px;
+  border-width: 3px;
+}
+
+.avatar-status.status-online {
+  background-color: #43b581;
+}
+
+.avatar-status.status-away {
+  background-color: #faa81a;
+}
+
+.avatar-status.status-busy {
+  background-color: #f04747;
+}
+
+.avatar-status.status-offline {
+  background-color: #747f8d;
+}
+
+/* Edit button */
+.avatar-edit-btn {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background-color: #5865f2;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.avatar-edit-btn:hover:not(:disabled) {
+  background-color: #4752c4;
+  transform: scale(1.1);
+}
+
+.avatar-edit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.avatar-sm .avatar-edit-btn {
+  width: 18px;
+  height: 18px;
+}
+
+.avatar-md .avatar-edit-btn {
+  width: 24px;
+  height: 24px;
+}
+
+.avatar-lg .avatar-edit-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.avatar-xl .avatar-edit-btn {
+  width: 32px;
+  height: 32px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>

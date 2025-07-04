@@ -25,16 +25,25 @@
           />
         </div>
       </div>
-      <textarea 
-        ref="textareaRef"
-        draggable="false" 
-        @dragstart.prevent 
-        class="selectableText" 
-        :value="modelValue"
-        @input="handleInput"
-        @keydown="handleKeyDown" 
-        :placeholder="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
-      ></textarea>
+      <div class="textarea-wrapper">
+        <textarea 
+          ref="textareaRef"
+          draggable="false" 
+          @dragstart.prevent 
+          class="selectableText auto-expand" 
+          :value="modelValue"
+          @input="handleInput"
+          @keydown="handleKeyDown" 
+          :placeholder="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
+          rows="1"
+        ></textarea>
+        <!-- Emoji popup for inline emoji display -->
+        <div v-if="showInlineEmoji" class="inline-emoji-container">
+          <div class="emoji-preview">
+            <img v-for="emoji in recentEmojis" :key="emoji.id" :src="emoji.url" :alt="emoji.name" class="emoji-preview-item" @click="insertEmoji(emoji)" />
+          </div>
+        </div>
+      </div>
       <div class="right-icons">
         <GifIcon @click="toggleGiphy" />
         <EmojiUI @click="toggleEmojiList" />
@@ -71,7 +80,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch, onMounted, onUnmounted } from 'vue';
+import { defineComponent, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
 import EmojiUI from '@/components/EmojiUI.vue'
@@ -118,6 +127,8 @@ export default defineComponent({
     const showUploadMenu = ref(false);
     const attachedFiles = ref<FilePreviewData[]>([]);
     const isDragging = ref(false);
+    const showInlineEmoji = ref(false);
+    const recentEmojis = ref<any[]>([]);
     
     // Auto-suggest setup
     const textareaRef = ref<HTMLTextAreaElement | null>(null);
@@ -130,8 +141,73 @@ export default defineComponent({
       
       emit('update:modelValue', value);
       
+      // Auto-expand textarea
+      autoExpandTextarea(target);
+      
       // Handle auto-suggest
       autoSuggest.handleInput(value, cursorPosition);
+      
+      // Check for emoji triggers (: followed by characters)
+      checkEmojiTrigger(value, cursorPosition);
+    };
+
+    const autoExpandTextarea = (textarea: HTMLTextAreaElement) => {
+      // Reset height to auto to get the natural scrollHeight
+      textarea.style.height = 'auto';
+      
+      // Calculate the new height based on content
+      const scrollHeight = textarea.scrollHeight;
+      const maxHeight = 200; // Maximum height in pixels (about 8-10 lines)
+      const minHeight = 44; // Minimum height for single line
+      
+      if (scrollHeight <= maxHeight) {
+        textarea.style.height = Math.max(scrollHeight, minHeight) + 'px';
+        textarea.style.overflowY = 'hidden';
+      } else {
+        textarea.style.height = maxHeight + 'px';
+        textarea.style.overflowY = 'auto';
+      }
+    };
+
+    const checkEmojiTrigger = (value: string, cursorPosition: number) => {
+      // Simple emoji trigger detection - look for : followed by 2+ characters
+      const textBeforeCursor = value.substring(0, cursorPosition);
+      const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]{2,})$/);
+      
+      if (emojiMatch) {
+        // Show emoji suggestions (simplified for now)
+        showInlineEmoji.value = true;
+        // In a real implementation, you'd search for emojis matching the pattern
+      } else {
+        showInlineEmoji.value = false;
+      }
+    };
+
+    const insertEmoji = (emoji: any) => {
+      if (textareaRef.value) {
+        const textarea = textareaRef.value;
+        const cursorPosition = textarea.selectionStart || 0;
+        const currentValue = textarea.value;
+        
+        // Find the emoji trigger pattern to replace
+        const textBeforeCursor = currentValue.substring(0, cursorPosition);
+        const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]*)$/);
+        
+        if (emojiMatch) {
+          const matchStart = cursorPosition - emojiMatch[0].length;
+          const newValue = currentValue.substring(0, matchStart) + `:${emoji.name}:` + currentValue.substring(cursorPosition);
+          emit('update:modelValue', newValue);
+          
+          nextTick(() => {
+            const newCursorPosition = matchStart + `:${emoji.name}:`.length;
+            textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+            textarea.focus();
+            autoExpandTextarea(textarea);
+          });
+        }
+        
+        showInlineEmoji.value = false;
+      }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -366,6 +442,11 @@ export default defineComponent({
 
     onMounted(() => {
       document.addEventListener('external-file-drop', handleExternalFileDrop as EventListener);
+      
+      // Initialize textarea auto-expand
+      if (textareaRef.value) {
+        autoExpandTextarea(textareaRef.value);
+      }
     });
 
     onUnmounted(() => {
@@ -406,6 +487,9 @@ export default defineComponent({
       handleSuggestionSelect,
       textareaRef,
       autoSuggest,
+      showInlineEmoji,
+      recentEmojis,
+      insertEmoji,
     };
   }
 });
@@ -478,21 +562,29 @@ export default defineComponent({
     transition: .2s;
   }
 
-  textarea {
+  .textarea-wrapper {
     flex-grow: 1;
-    padding: 0;
+    position: relative;
     margin-left: 10px;
     margin-right: 10px;
+  }
+
+  textarea.auto-expand {
+    width: 100%;
+    padding: 12px 0;
     border: none;
     background-color: transparent;
     color: white;
     font-size: 16px;
     resize: none;
-    overflow: auto;
     outline: none;
-    position: relative;
-    top: 10px;
-    font-family: Arial, sans-serif;
+    font-family: inherit;
+    line-height: 1.375;
+    min-height: 44px;
+    max-height: 200px;
+    overflow-y: hidden;
+    box-sizing: border-box;
+    transition: height 0.1s ease;
   }
 
   textarea::placeholder {
@@ -502,6 +594,38 @@ export default defineComponent({
   textarea:focus,
   textarea:active {
     outline: none;
+  }
+
+  /* Inline emoji suggestions */
+  .inline-emoji-container {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--h-chat);
+    border: 1px solid var(--h-chat-light);
+    border-radius: 8px 8px 0 0;
+    padding: 8px;
+    z-index: 1000;
+  }
+
+  .emoji-preview {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .emoji-preview-item {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+
+  .emoji-preview-item:hover {
+    background-color: var(--h-chat-light);
+    transform: scale(1.1);
   }
   /* party mode RGB */
   /* .message-container::before,
@@ -558,9 +682,15 @@ export default defineComponent({
       bottom: 0;
     }
     
-    textarea {
+    textarea.auto-expand {
       font-size: 14px;
-      top: 7px;
+      padding: 10px 0;
+      min-height: 40px;
+    }
+
+    .emoji-preview-item {
+      width: 20px;
+      height: 20px;
     }
   }
 
