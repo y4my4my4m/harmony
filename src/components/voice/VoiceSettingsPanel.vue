@@ -767,6 +767,7 @@ export default defineComponent({
 
 .preview-placeholder {
   display: flex;
+  position:absolute;
   flex-direction: column;
   align-items: center;
   gap: 12px;

@@ -1,6 +1,6 @@
 <template>
   <div 
-    class="discord-voice-card"
+    class="harmony-voice-card"
     :class="{
       'speaking': isSpeaking,
       'muted': userState.isMuted,
@@ -106,7 +106,7 @@
       <div class="username" :class="{ speaking: isSpeaking }">
         {{ displayName }}
       </div>
-      <div class="user-status">
+      <div class="harmony-voice-card-user-status">
         {{ userStatus }}
       </div>
     </div>
@@ -259,7 +259,7 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.discord-voice-card {
+.harmony-voice-card {
   position: relative;
   background: linear-gradient(145deg, #2f3136, #36393f);
   border-radius: 16px;
@@ -274,7 +274,7 @@ export default defineComponent({
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-.discord-voice-card:hover {
+.harmony-voice-card:hover {
   transform: translateY(-2px);
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.4),
@@ -283,7 +283,7 @@ export default defineComponent({
 }
 
 /* Speaking state */
-.discord-voice-card.speaking {
+.harmony-voice-card.speaking {
   border-color: #00d4aa;
   background: linear-gradient(145deg, #1a2f2a, #2a4a3f);
   box-shadow: 
@@ -293,13 +293,13 @@ export default defineComponent({
 }
 
 /* Self user */
-.discord-voice-card.self {
+.harmony-voice-card.self {
   border-color: #5865f2;
   background: linear-gradient(145deg, #1e2140, #2a2d50);
 }
 
 /* Connection states */
-.discord-voice-card.connection-poor {
+.harmony-voice-card.connection-poor {
   border-color: #ed4245;
   background: linear-gradient(145deg, #3a2528, #4a2f32);
 }
@@ -483,7 +483,7 @@ export default defineComponent({
   pointer-events: none;
 }
 
-.discord-voice-card.speaking .voice-ring {
+.harmony-voice-card.speaking .voice-ring {
   opacity: 1;
 }
 
@@ -545,6 +545,10 @@ export default defineComponent({
 /* User Info */
 .user-info {
   text-align: center;
+  position: relative;
+  bottom: 20px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .username {
@@ -561,7 +565,7 @@ export default defineComponent({
   text-shadow: 0 0 8px rgba(0, 212, 170, 0.3);
 }
 
-.user-status {
+.harmony-voice-card-user-status {
   font-size: 12px;
   color: #b9bbbe;
   opacity: 0.8;
@@ -604,7 +608,7 @@ export default defineComponent({
 
 /* Responsive */
 @media (max-width: 768px) {
-  .discord-voice-card {
+  .harmony-voice-card {
     min-height: 160px;
     padding: 12px;
   }

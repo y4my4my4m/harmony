@@ -500,7 +500,7 @@ export class UnifiedWebRTCService {
       throw new Error('Channel ID or User ID not set');
     }
     
-    this.signalChannel = supabase.channel(`discord-voice-${this.channelId}`, {
+    this.signalChannel = supabase.channel(`harmony-voice-${this.channelId}`, {
       config: { broadcast: { self: false } }
     });
     

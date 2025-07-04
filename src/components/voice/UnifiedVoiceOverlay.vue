@@ -473,7 +473,11 @@ export default defineComponent({
   flex: 1;
   padding: 20px 24px;
   overflow-y: auto;
-  min-height: 200px;
+  min-height: 300px;
+  align-content: center;
+  justify-content: center;
+  display: flex;  /* Added display property */
+  flex-direction: column; /* Ensure children stack vertically */
 }
 
 .participants-grid {
@@ -485,7 +489,7 @@ export default defineComponent({
 
 .participants-grid.speaker-mode {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  max-height: 200px;
+  max-height: 300px;
   overflow-y: auto;
 }
 
