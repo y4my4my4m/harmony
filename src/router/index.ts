@@ -23,6 +23,23 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/dm/:conversationId?',
+      name: 'DM',
+      component: ChatView,
+      props: route => ({ 
+        isDM: true, 
+        conversationId: route.params.conversationId 
+      }),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/dm',
+      name: 'DMHome',
+      component: ChatView,
+      props: { isDM: true },
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/login',
       name: 'Login',
       component: LoginView,

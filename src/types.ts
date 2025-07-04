@@ -98,7 +98,8 @@ export interface Reaction {
 export interface Message {
   id: string;
   created_at: Date;
-  channel_id: number;
+  channel_id?: string;
+  conversation_id?: string; // for DMs
   user_id: string;
   content: MessagePart[];
   reply_to?: string;

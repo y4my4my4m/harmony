@@ -453,6 +453,17 @@ export default defineComponent({
 
   .plus-icon-container {
     position: relative;
+    background-color: #aaaaaa29;
+    border-radius: 100%;
+    width: 28px;
+    height: 28px;
+    text-align: center;
+    cursor: pointer;
+    padding: 4px;
+    transition: 0.25s;
+  }
+  .plus-icon-container:hover {
+    background-color: #ffffff3d;
   }
 
   .message-container {

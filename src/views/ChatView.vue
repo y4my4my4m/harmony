@@ -8,22 +8,33 @@
     @showPublicServers="handleShowPublicServers"
   />
   <div v-else class="chat-layout">
-    <ServerSidebar
-      :class="{ 'open': isSidebarsVisible }"
-      :servers="servers"
-      @showPublicServers="handleShowPublicServers"
-    />
-    <ChannelSidebar
-      :class="{ 'open': isSidebarsVisible }"
-      :currentServer="currentServer"
-      :channels="channels"
-      :currentChannelId="currentChannelId"
-      :categories="categories"
-      :categoryChannels="categoryChannels"
-      @channelSelected="handleChannelSelected"
-      @createChannel="handleCreateChannel"
-    />
+    <!-- Left sidebar container that holds both server and channel/DM sidebars -->
+    <div class="left-sidebar-container" :class="{ 'open': isSidebarsVisible }">
+      <ServerSidebar
+        :servers="servers"
+        @showPublicServers="handleShowPublicServers"
+      />
+      <ChannelSidebar
+        v-if="!isDM"
+        :currentServer="currentServer"
+        :channels="channels"
+        :currentChannelId="currentChannelId"
+        :categories="categories"
+        :categoryChannels="categoryChannels"
+        @channelSelected="handleChannelSelected"
+        @createChannel="handleCreateChannel"
+      />
+      <DMSidebar
+        v-else
+        @conversationSelected="handleDMConversationSelected"
+      />
+      
+      <!-- User Profile spanning the full width of both sidebars -->
+      <UserProfileComponent />
+    </div>
+    
     <CreateChannel
+      v-if="!isDM"
       :serverId="currentServer?.id || ''"
       :categoryId="currentCategoryId"
       :show="showCreateChannelForm"
@@ -32,13 +43,16 @@
     />
     <div :class="{ 'open': isSidebarsVisible, 'profile-open': isProfilesVisible}" class="chat-area">
       <VoiceChannelScene 
+        v-if="!isDM"
         :currentChannelId="currentChannelId"
       />
       <ChatComponent
         :messages="chatMessages"
         :isLoading="isLoading"
+        :isDM="isDM"
         @loadMoreMessages="fetchMoreMessages" 
         @update:isAtBottom="isAtBottom = $event" 
+        @sendMessage="handleSendMessage"
       />
     </div>
     <UserSidebar :class="{ 'open': isProfilesVisible }"  />
@@ -49,8 +63,10 @@
   import { defineComponent, computed, onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue';
   import ServerSidebar from '@/components/ServerSidebar.vue';
   import ChannelSidebar from '@/components/ChannelSidebar.vue';
+  import DMSidebar from '@/components/DMSidebar.vue';
   import ChatComponent from '@/components/ChatComponent.vue';
   import UserSidebar from '@/components/UserSidebar.vue';
+  import UserProfileComponent from '@/components/UserProfileComponent.vue';
   import NoServersSplash from '@/components/NoServersSplash.vue';
   import VoiceChannelScene from '@/components/VoiceChannelScene.vue';
   import CreateChannel from '@/components/CreateChannel.vue';
@@ -58,6 +74,7 @@
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
+  import { useDMStore } from '@/stores/useDM';
   import { useAuthStore } from '@/stores/auth';
   import { useRoute, useRouter } from 'vue-router';
   import { useProfileStore } from '@/stores/useProfile';
@@ -69,8 +86,10 @@
     components: {
       ServerSidebar,
       ChannelSidebar,
+      DMSidebar,
       ChatComponent,
       UserSidebar,
+      UserProfileComponent,
       NoServersSplash,
       VoiceChannelScene,
       CreateChannel,
@@ -79,11 +98,17 @@
     props: {
       serverId: String,
       channelId: String,
+      isDM: {
+        type: Boolean,
+        default: false
+      },
+      conversationId: String,
     },
-    setup() {
+    setup(props) {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
       const chatStore = useChatStore();
+      const dmStore = useDMStore();
       const authStore = useAuthStore();
       const profileStore = useProfileStore();
       const toast = useToast();
@@ -109,7 +134,12 @@
       const channels = computed(() => serverChannelStore.channels);
       const categories = computed(() => serverChannelStore.categories);
       const categoryChannels = computed(() => serverChannelStore.categoryChannels);
-      const chatMessages = computed(() => chatStore.messages);
+      
+      // Use DM messages when in DM mode, otherwise use chat messages
+      const chatMessages = computed(() => {
+        return props.isDM ? dmStore.currentDMMessages : chatStore.messages;
+      });
+
       const currentServerName = computed(() => serverChannelStore.currentServer.name || '');
       const currentChannelId = computed(() => serverChannelStore.currentChannelId || '');
       const currentServer = computed(() => serverChannelStore.currentServer);
@@ -230,30 +260,151 @@
         scrollToBottom();
       };
 
+      // DM-specific handlers
+      const handleDMConversationSelected = async (conversationId: string) => {
+        if (props.isDM) {
+          // Check if messages are cached for instant loading
+          const isCached = dmStore.isCacheValid(conversationId);
+          
+          // ALWAYS set current conversation first to establish subscription
+          dmStore.setCurrentConversation(conversationId);
+          
+          if (isCached) {
+            // Load cached messages instantly
+            dmStore.loadCachedMessages(conversationId);
+            scrollToBottom();
+          } else {
+            // Load fresh messages
+            isLoading.value = true;
+            try {
+              dmStore.clearDMMessages();
+              await dmStore.fetchConversationMessages(conversationId);
+              scrollToBottom();
+            } catch (error) {
+              console.error('Error loading DM conversation:', error);
+              toast.error('Failed to load conversation');
+            } finally {
+              isLoading.value = false;
+            }
+          }
+          
+          router.push({ name: 'DM', params: { conversationId } });
+        }
+      };
+
+      const loadDMConversation = async () => {
+        if (props.isDM && props.conversationId) {
+          // ALWAYS set current conversation first to establish subscription
+          dmStore.setCurrentConversation(props.conversationId);
+          
+          // Check cache first for instant loading
+          const isCached = dmStore.isCacheValid(props.conversationId);
+          
+          if (isCached) {
+            dmStore.loadCachedMessages(props.conversationId);
+            scrollToBottom();
+          } else {
+            isLoading.value = true;
+            try {
+              dmStore.clearDMMessages();
+              await dmStore.fetchConversationMessages(props.conversationId);
+              scrollToBottom();
+            } catch (error) {
+              console.error('Error loading DM conversation:', error);
+              toast.error('Failed to load conversation');
+            } finally {
+              isLoading.value = false;
+            }
+          }
+        }
+      };
+
       const fetchMoreMessages = async () => {
-        // isAtBottom.value == false && 
-        if (!chatStore.allMessagesLoaded && !chatStore.loadingOlderMessages && serverChannelStore.currentChannelId) {
-          const oldestMessageId = chatMessages.value[0]?.id || '';
-          await chatStore.fetchMessages(serverChannelStore.currentChannelId, oldestMessageId);
+        if (props.isDM) {
+          // Handle DM message loading with proper loading state check
+          if (!dmStore.loadingMessages && !dmStore.allMessagesLoaded && dmStore.currentConversationId) {
+            const oldestMessage = dmStore.currentDMMessages[0];
+            const oldestMessageId = oldestMessage?.id;
+            if (oldestMessageId) {
+              await dmStore.fetchConversationMessages(dmStore.currentConversationId, oldestMessageId);
+            }
+          }
+        } else {
+          // Handle server message loading
+          if (!chatStore.allMessagesLoaded && !chatStore.loadingOlderMessages && serverChannelStore.currentChannelId) {
+            const oldestMessageId = chatMessages.value[0]?.id || '';
+            await chatStore.fetchMessages(serverChannelStore.currentChannelId, oldestMessageId);
+          }
         }
       };
 
       const loadServerAndChannel = async () => {
-        const serverId = route.params.serverId;
-        const channelId = route.params.channelId;
-        if (serverId) {
-          await handleServerSelected(serverId.toString());
-          if (channelId) {
-            await handleChannelSelected(channelId.toString());
+        if (props.isDM) {
+          // For DM mode, use enhanced initialization that handles direct access
+          const userId = authStore.session?.user?.id;
+          if (userId) {
+            try {
+              isLoading.value = true;
+              
+              // Use the enhanced initialization that handles conversation details and user profiles
+              const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(userId, props.conversationId);
+              
+              if (props.conversationId) {
+                if (conversation) {
+                  // Conversation loaded successfully, now load messages
+                  await loadDMConversation();
+                } else {
+                  // Conversation not found or error
+                  console.error('Conversation not found:', props.conversationId);
+                  toast.error('Conversation not found');
+                  router.push({ name: 'DMHome' });
+                }
+              }
+            } catch (error) {
+              console.error('Error initializing DM environment:', error);
+              toast.error('Failed to load DM');
+            } finally {
+              isLoading.value = false;
+            }
           }
-          else {
-            // Let handleServerSelected handle default channel selection
-            // The logic is now in handleServerSelected
+        } else {
+          // For server mode, use existing logic
+          const serverId = route.params.serverId;
+          const channelId = route.params.channelId;
+          if (serverId) {
+            await handleServerSelected(serverId.toString());
+            if (channelId) {
+              await handleChannelSelected(channelId.toString());
+            }
+          } else if (serverChannelStore.servers.length > 0) {
+            const firstServerId = serverChannelStore.servers[0].id;
+            router.replace({ name: 'Chat', params: { serverId: firstServerId } });
           }
-        } else if (serverChannelStore.servers.length > 0) {
-          const firstServerId = serverChannelStore.servers[0].id;
-          router.replace({ name: 'Chat', params: { serverId: firstServerId } });
         }
+      };
+
+      // Handle messages sent from ChatComponent
+      const handleSendMessage = async (content: any, replyTo?: string) => {
+        if (props.isDM) {
+          const currentUserId = authStore.session?.user?.id;
+          const conversationId = dmStore.currentConversationId;
+          
+          if (!currentUserId || !conversationId) return;
+
+          try {
+            const success = await dmStore.sendDMMessage(conversationId, currentUserId, content, replyTo);
+            if (!success) {
+              console.error('Failed to send DM message');
+              toast.error('Failed to send message');
+            }
+            // Scroll to bottom after sending message
+            scrollToBottom();
+          } catch (error) {
+            console.error('Error sending DM message:', error);
+            toast.error('Error sending message');
+          }
+        }
+        // For server messages, ChatComponent handles them directly
       };
 
       const requestNotificationPermission = async () => {
@@ -403,7 +554,7 @@
           window.addEventListener('resize', handleResize);
 
           initialized = true;
-          if (servers.value.length === 0) {
+          if (servers.value.length === 0 && !props.isDM) {
             showNoServersSplash.value = true;
             return;
           }
@@ -415,6 +566,7 @@
           // Event listeners
           if (chatLayout) {
             chatLayout.addEventListener('touchstart', handleTouchStart as EventListener);
+            chatLayout.addEventListener('touchend', handleTouchEnd as EventListener);
           }
         }
       });
@@ -422,6 +574,11 @@
       onBeforeUnmount(() => {
         // Clean up presence when component unmounts
         serverUsersStore.cleanup();
+        
+        // Clean up DM subscriptions if in DM mode
+        if (props.isDM) {
+          dmStore.cleanup();
+        }
       });
 
       watch(route, async () => {
@@ -438,6 +595,13 @@
         }
       }, { immediate: true });
 
+      // Watch for conversation changes in DM mode
+      watch(() => props.conversationId, async (newConversationId) => {
+        if (props.isDM && newConversationId) {
+          await loadDMConversation();
+        }
+      });
+
       return { 
         servers, 
         channels, 
@@ -449,6 +613,8 @@
         currentChannelId,
         showNoServersSplash, 
         handleServerSelected,
+        handleDMConversationSelected,
+        handleSendMessage,
         showCreateChannelForm, 
         handleChannelSelected,
         fetchMoreMessages,
@@ -465,8 +631,8 @@
         handleShowPublicServers,
         isLoading,
       };
-  }
-});
+    }
+  });
 </script>
 
 <style scoped>
@@ -477,6 +643,43 @@
   position: relative;
 }
 
+.left-sidebar-container {
+  display: flex;
+  position: relative;
+  width: 312px; /* 72px (server) + 240px (channel/DM) */
+  min-width: 312px;
+  background: var(--h-sidebar);
+  transition: width 0.3s ease;
+  flex-direction: column;
+}
+
+.left-sidebar-container .server-sidebar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 72px;
+  z-index: 1;
+}
+
+.left-sidebar-container .channel-sidebar,
+.left-sidebar-container .dm-sidebar {
+  margin-left: 72px;
+  width: 240px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.left-sidebar-container .user-profile {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  width: 100%;
+}
+
 .chat-area {
   position: relative;
   flex-grow: 1;
@@ -485,56 +688,57 @@
   background: var(--h-chat);
   padding-top: 6px;
 }
+
 .top-bar {
   display: none;
 }
+
 /* Mobile styles */
 @media (max-width: 768px) {
-  .server-sidebar, .channel-sidebar {
+  .left-sidebar-container {
     width: 0;
     min-width: 0;
     overflow: hidden;
-    /* Transition for smooth opening/closing */
     transition: 0.3s ease-in-out;
-    /* margin-top: 40px; */
+  }
+  
+  .left-sidebar-container.open {
+    width: 100%;
   }
 
   .user-sidebar {
     overflow: hidden;
-    width:0;
+    width: 0;
     transition: 0.3s ease-in-out;
     padding: 0;
-    /* margin-top:40px; */
   }
+  
   .chat-area {
     transition: 0.3s ease-in-out;
     width: 100%;
     overflow: hidden;
-    /* margin-top: 40px; */
   }
+  
   .chat-container {
     width: 100%;
     overflow: hidden;
   }
+  
   .chat-area.open {
     position: absolute;
     overflow: hidden;
-    left:100%;
-    width:0;
+    left: 100%;
+    width: 0;
   }
+  
   .chat-area.profile-open {
     overflow: hidden;
-    right:100%;
-    width:0;
+    right: 100%;
+    width: 0;
   }
-  .server-sidebar.open {
-    width: 72px;
-  }
-  .channel-sidebar.open {
-    width: 100%;
-  }
+  
   .user-sidebar.open {
-    display:block;
+    display: block;
     width: 100%;
     padding: 10px;
   }

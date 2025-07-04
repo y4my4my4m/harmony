@@ -1,5 +1,17 @@
 <template>
   <div class="server-sidebar">
+    <!-- DM Button at the top -->
+    <div 
+      class="dm-button"
+      :class="{ 'selected': isDMSelected }"
+      @click="goToDMs"
+      title="Direct Messages"
+    >
+      <svg viewBox="0 0 24 24" class="dm-icon">
+        <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M4,4H20V16H5.17L4,17.17V4Z" fill="currentColor"/>
+      </svg>
+    </div>
+    
     <div 
       :style="{ backgroundImage: 'url(/icon16.png)' }"
       class="portal"
@@ -18,10 +30,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch } from 'vue';
+import { defineComponent, ref, watch, computed } from 'vue';
 import type { Server } from '@/types';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 
 export default defineComponent({
   props: {
@@ -32,9 +44,14 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const showPublicServers = ref(false);
-    // TODO: were using the store but maybe it should just be passed as a prop from ChatView?
     const serverChannelStore = useServerChannelStore();
     const router = useRouter();
+    const route = useRoute();
+
+    // Check if we're currently in DM mode
+    const isDMSelected = computed(() => {
+      return route.name === 'DM' || route.name === 'DMHome';
+    });
 
     const togglePublicServers = () => {
       showPublicServers.value = !showPublicServers.value;
@@ -50,9 +67,15 @@ export default defineComponent({
       router.push({ name: 'Chat', params: { serverId: serverId } });
     };
 
+    const goToDMs = () => {
+      router.push({ name: 'DMHome' });
+    };
+
     return {
       showPublicServers,
       selectServer,
+      goToDMs,
+      isDMSelected,
       serverChannelStore,
       togglePublicServers
     };
@@ -68,6 +91,48 @@ export default defineComponent({
   flex-direction: column;
   align-items: center;
 }
+
+.dm-button {
+  width: 48px;
+  height: 48px;
+  background-color: var(--h-black-light);
+  margin: 10px;
+  padding: 4px;
+  border-radius: 50%;
+  text-align: center;
+  vertical-align: middle;
+  cursor: pointer;
+  position: relative;
+  left: 0;
+  transition: border 0.6s ease-in-out, all 0.2s ease-in-out;
+  border: 3px solid transparent;
+  background-origin: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.dm-icon {
+  width: 24px;
+  height: 24px;
+  color: #b9bbbe;
+  transition: color 0.2s ease;
+}
+
+.dm-button:hover .dm-icon {
+  color: #ffffff;
+}
+
+.dm-button.selected {
+  background: var(--h-brand, #5865f2);
+  border-radius: 50%;
+}
+
+.dm-button.selected .dm-icon {
+  color: #ffffff;
+}
+
 .portal,
 .server-item {
   width: 48px;
@@ -97,10 +162,12 @@ export default defineComponent({
   border-bottom: 1px solid #2d2d2d;
   margin-bottom: 5px;
 }
+.dm-button:hover,
 .portal:hover,
 .server-item:hover {
   left:5px;
 }
+.dm-button::before,
 .portal::before,
 .server-item::before {
   opacity:0;
@@ -114,12 +181,14 @@ export default defineComponent({
   height: 8px;
   background-color: var(--vt-c-divider-dark-1);
 }
+.dm-button:hover::before,
 .portal:hover::before,
 .server-item:hover::before {
   left:-16px;
   opacity:1;
 }
 
+.dm-button.selected,
 .portal.selected,
 .server-item.selected {
   border: 3px solid var(--h-primary);
