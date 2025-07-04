@@ -1,6 +1,6 @@
 <template>
   <div class="user-sidebar">
-    <div v-for="user in users" :key="user.id" class="user-item" @click="showUserProfile(user, $event)">
+    <div v-for="user in users" :key="user.id" class="user-item" @click="showUserProfile(user)">
       <div class="user-avatar-container">
         <img :src="user.avatar_url || '/default_avatar.png'" alt="User avatar" class="user-avatar">
         <span :class="getUserStatusClass(user.status)" class="user-status"></span>
@@ -8,17 +8,29 @@
       <span class="user-name">{{ user.display_name || 'Unknown User' }}</span>
     </div>
 
-    <!-- User profile card (reusable component) -->
-    <div v-if="selectedUser" :class="['user-profile-card', { 'selected': selectedUser }]" :style="profileCardStyle" @click.stop>
-      <UserPreviewComponent :user="selectedUser" :closeProfile="closeProfile" />
-    </div>
+    <!-- Modern User Profile Modal -->
+    <UserProfileModal 
+      :show="showProfileModal" 
+      :user="selectedUser" 
+      @close="closeProfile"
+      @invite="openInviteModal"
+    />
+
+    <!-- Invite Modal -->
+    <InviteModal 
+      :show="showInviteModal" 
+      :server-id="serverChannelStore.currentServerId"
+      :server-data="currentServerData"
+      @close="closeInviteModal"
+    />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, ref, watch, computed, onMounted } from 'vue';
 import type { User } from '@/types';
-import UserPreviewComponent from './UserPreviewComponent.vue';
+import UserProfileModal from './UserProfileModal.vue';
+import InviteModal from './InviteModal.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { getUserIdsForServer} from '@/services/usersService';
@@ -26,12 +38,16 @@ import { UserStatus } from '@/types';
 
 export default defineComponent({
   name: 'UserSidebar',
-  components: { UserPreviewComponent },
+  components: { 
+    UserProfileModal,
+    InviteModal
+  },
   setup() {
     const serverChannelStore = useServerChannelStore();
     const serverUsersStore = useServerUsersStore();
     const selectedUser = ref<User | null>(null);
-    const profileCardStyle = ref({ top: '0px', left: '-332px' });
+    const showProfileModal = ref(false);
+    const showInviteModal = ref(false);
 
     // Make users reactive to store changes
     const users = computed(() => {
@@ -39,6 +55,20 @@ export default defineComponent({
       if (!serverId) return [];
       
       return Object.values(serverUsersStore.userProfiles).filter(user => user && user.id);
+    });
+
+    // Current server data for invite modal
+    const currentServerData = computed(() => {
+      const serverId = serverChannelStore.currentServerId;
+      if (!serverId) return null;
+      
+      // You'll need to get this from your server store
+      return {
+        id: serverId,
+        name: 'Current Server', // Replace with actual server name
+        icon_url: undefined, // Replace with actual server icon
+        member_count: users.value.length
+      };
     });
 
     const fetchAndSetUsers = async (serverId: string | null) => {
@@ -53,22 +83,9 @@ export default defineComponent({
       selectedUser.value = null; // Close profile when switching servers
     });
 
-    const showUserProfile = (user: User, event: MouseEvent) => {
-      const userItemElement = (event.currentTarget as HTMLElement);
-      const userSidebar = (event.currentTarget as HTMLElement).closest('.user-sidebar');
-
-      if (userSidebar) {
-        const userSidebarRect = userSidebar.getBoundingClientRect();
-        const userItemRect = userItemElement.getBoundingClientRect();
-
-        profileCardStyle.value = {
-          top: `${userItemRect.top - userSidebarRect.top}px`,
-          left: '-332px'
-        };
-      }
-
+    const showUserProfile = (user: User) => {
       selectedUser.value = user;
-      event.stopPropagation();
+      showProfileModal.value = true;
     };
 
     const getUserStatusClass = (status: UserStatus) => {
@@ -86,7 +103,17 @@ export default defineComponent({
     };
   
     const closeProfile = () => {
+      showProfileModal.value = false;
       selectedUser.value = null;
+    };
+
+    const openInviteModal = () => {
+      showProfileModal.value = false;
+      showInviteModal.value = true;
+    };
+
+    const closeInviteModal = () => {
+      showInviteModal.value = false;
     };
 
     // Initialize on mount and ensure status subscription is active
@@ -96,7 +123,19 @@ export default defineComponent({
       serverUsersStore.subscribeToUserStatuses();
     });
 
-    return { users, showUserProfile, selectedUser, profileCardStyle, closeProfile, getUserStatusClass };
+    return { 
+      users, 
+      showUserProfile, 
+      selectedUser, 
+      showProfileModal,
+      showInviteModal,
+      currentServerData,
+      serverChannelStore,
+      closeProfile, 
+      openInviteModal,
+      closeInviteModal,
+      getUserStatusClass 
+    };
   }
 });
 </script>
@@ -164,26 +203,5 @@ export default defineComponent({
   background-color: #747f8d;
 }
 
-.user-profile-card {
-  position: absolute;
-  left: -332px;
-  width: 320px; 
-  height: 400px;
-  border-radius: 12px;
-  background-color: #2f3339; 
-  z-index: 1000;
-  padding: 10px;
-  opacity: 0;
-  transition: 0.2s ease-in-out;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
-  transition: all 0.3s cubic-bezier(.25,.8,.25,1);
-}
-
-.user-profile-card:hover {
-  box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
-}
-
-.user-profile-card.selected {
-  opacity: 1
-}
+/* Removed old profile card styles - now using modal */
 </style>
