@@ -224,8 +224,22 @@ export default defineComponent({
     
     // Update video stream when prop changes
     watch(() => props.videoStream, (newStream) => {
+      console.log('VoiceUserCard: Stream changed for user', props.user.username || props.user.id);
+      console.log('New stream:', newStream);
+      console.log('Video tracks:', newStream?.getVideoTracks().length || 0);
+      console.log('Audio tracks:', newStream?.getAudioTracks().length || 0);
+      
       if (videoRef.value) {
         videoRef.value.srcObject = newStream;
+        
+        // Debug video element
+        setTimeout(() => {
+          if (videoRef.value) {
+            console.log('Video element readyState:', videoRef.value.readyState);
+            console.log('Video element videoWidth:', videoRef.value.videoWidth);
+            console.log('Video element videoHeight:', videoRef.value.videoHeight);
+          }
+        }, 100);
       }
     }, { immediate: true });
     

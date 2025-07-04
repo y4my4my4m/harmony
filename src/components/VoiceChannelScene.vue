@@ -22,8 +22,8 @@
         :height="containerHeight" 
         :avatars="avatarPositions" /> -->
       
-      <!-- WebRTC Video/Audio Component -->
-      <WebRTCComponent 
+      <!-- Discord WebRTC Video/Audio Component -->
+      <DiscordWebRTCComponent 
         :channelId="currentChannelId"
         :serverId="serverId"
         :channel-name="getChannelName()"
@@ -35,11 +35,11 @@
 <script lang="ts">
   import { defineComponent, ref, onMounted, nextTick, computed, watch } from 'vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
-  import { useVoiceChannelStore } from '@/stores/voiceChannel';
+  import { useDiscordVoiceChannelStore } from '@/stores/discordVoiceChannel';
   import type { Point } from '@/types';
 
   import SpaceTimeGrid from '@/components/SpaceTimeGrid.vue'
-  import WebRTCComponent from '@/components/WebRTCComponent.vue'
+  import DiscordWebRTCComponent from '@/components/DiscordWebRTCComponent.vue'
 
   export default defineComponent({
     name: 'VoiceChannelGrid',
@@ -55,11 +55,11 @@
     },
     components: {
       SpaceTimeGrid,
-      WebRTCComponent
+      DiscordWebRTCComponent
     },
     setup(props) {
       const serverUsersStore = useServerUsersStore();
-      const voiceChannelStore = useVoiceChannelStore();
+      const voiceChannelStore = useDiscordVoiceChannelStore();
       const isVoiceChannelPopupVisible = ref(false);
       const gridContainer = ref<HTMLElement | null>(null);
       const containerWidth = ref(0);
@@ -69,20 +69,20 @@
         return serverUsersStore.usersInVoiceChannels[props.currentChannelId] || [];
       });
 
-      watch(() => voiceChannelStore.positions, (newPositions) => {
-        avatarPositions.value = usersInCurrentChannel.value.map(userId => {
-          return {x: newPositions[userId].x, y: newPositions[userId].y, color: getUserColorInRGB(userId)};
-        });
-      }, { deep: true });
+      // Note: Spatial positioning is disabled for now since it's part of the 3D audio feature
+      // that's not currently implemented in the Discord-style WebRTC system
+      // watch(() => voiceChannelStore.positions, (newPositions) => {
+      //   avatarPositions.value = usersInCurrentChannel.value.map(userId => {
+      //     return {x: newPositions[userId].x, y: newPositions[userId].y, color: getUserColorInRGB(userId)};
+      //   });
+      // }, { deep: true });
 
-      watch (usersInCurrentChannel, () => {
-        // console.log(usersInCurrentChannel.value);
-        if (usersInCurrentChannel.value.length > 0) {
-          isVoiceChannelPopupVisible.value = true;
-        } else {
-          isVoiceChannelPopupVisible.value = false;
-        }
-      });
+      // Show voice channel popup based on connection status and participants
+      watch(() => [usersInCurrentChannel.value, voiceChannelStore.isConnected], () => {
+        // Show popup if we're connected to this channel or if there are users in it
+        const isCurrentChannelActive = voiceChannelStore.currentChannelId === props.currentChannelId;
+        isVoiceChannelPopupVisible.value = isCurrentChannelActive || usersInCurrentChannel.value.length > 0;
+      }, { immediate: true });
 
       const getUserAvatar = (userId: string): string => {
         return serverUsersStore.userProfiles[userId]?.avatar_url || '';
@@ -93,7 +93,13 @@
       };
 
       const getProfileStyle = (userId: string) => {
-        const position = voiceChannelStore.positions[userId] || { x: 0, y: 0 };
+        // For now, use a simple grid layout since 3D spatial positioning is disabled
+        // TODO: Re-implement when 3D spatial audio feature is added back
+        const index = usersInCurrentChannel.value.indexOf(userId);
+        const position = { 
+          x: (index % 3) * 100 + 50, 
+          y: Math.floor(index / 3) * 100 + 50 
+        };
         return {
           top: `${position.y}px`,
           left: `${position.x}px`
@@ -132,27 +138,15 @@
       let originalPosition = ref({ x: 0, y: 0 });
 
       const startDrag = (userId: string, event: MouseEvent) => {
-        selectedUserId.value = userId;
-        const currentPosition = voiceChannelStore.positions[userId] || { x: 0, y: 0 };
-        originalPosition.value.x = event.clientX - currentPosition.x;
-        originalPosition.value.y = event.clientY - currentPosition.y;
-        window.addEventListener('mousemove', onDrag);
-        window.addEventListener('mouseup', endDrag);
+        // Dragging is disabled for now since 3D spatial audio positioning is not implemented
+        // in the Discord-style WebRTC system
+        console.log('Dragging disabled - 3D spatial audio not implemented');
+        return;
       };
 
       const onDrag = (event: MouseEvent) => {
-        if (!selectedUserId.value || !gridContainer.value) return;
-        const containerBounds = gridContainer.value.getBoundingClientRect();
-
-        updateDimensions();
-        const newPosition = {
-          x: event.clientX - originalPosition.value.x,
-          y: event.clientY - originalPosition.value.y
-        };
-        let newX = Math.max(0, Math.min(newPosition.x, containerBounds.width - 24)); // Assume avatar width is 48px
-        let newY = Math.max(0, Math.min(newPosition.y, containerBounds.height - 24)); // Assume avatar height is 48px
-
-        voiceChannelStore.setProfilePosition(selectedUserId.value, { x: newX, y: newY });
+        // Dragging is disabled for now
+        return;
       };
 
 

@@ -180,7 +180,7 @@
 import { defineComponent, computed, ref, onMounted, onUnmounted } from 'vue';
 import { useVoiceChannelStore } from '@/stores/voiceChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
-import { webRTCService } from '@/services/webrtc';
+import { nativeWebRTCService } from '@/services/nativeWebRTC';
 import VoiceUserCard from './VoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -232,6 +232,14 @@ export default defineComponent({
         const currentUserId = getCurrentUserId();
         const isSelfUser = userId === currentUserId;
         
+        // Get user media state from native WebRTC service
+        const webrtcState = nativeWebRTCService.getState();
+        const userState = webrtcState.users.get(userId);
+        
+        // For self user, use store state; for others, use WebRTC service state
+        const isVideoEnabled = isSelfUser ? voiceChannelStore.isVideoEnabled : (userState?.isVideoEnabled || false);
+        const isScreenSharing = isSelfUser ? voiceChannelStore.isScreenSharing : (userState?.isScreenSharing || false);
+        
         return {
           userId,
           user: serverUsersStore.userProfiles[userId] || { id: userId, username: 'Unknown' },
@@ -239,8 +247,8 @@ export default defineComponent({
           audioLevel: voiceChannelStore.getAudioLevel(userId),
           isMuted: isSelfUser ? isMuted.value : false,
           isDeafened: isSelfUser ? isDeafened.value : false,
-          hasVideo: stream?.getVideoTracks().length > 0 && !(isSelfUser ? voiceChannelStore.isScreenSharing : webRTCService.isUserScreenSharing(userId)),
-          isScreenSharing: isSelfUser ? voiceChannelStore.isScreenSharing : webRTCService.isUserScreenSharing(userId),
+          hasVideo: stream?.getVideoTracks().length > 0 && isVideoEnabled && !isScreenSharing,
+          isScreenSharing: isScreenSharing,
           connectionState: voiceChannelStore.getConnectionState(userId),
           isSelf: isSelfUser
         };

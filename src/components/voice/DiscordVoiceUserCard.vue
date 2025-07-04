@@ -1,0 +1,630 @@
+<template>
+  <div 
+    class="discord-voice-card"
+    :class="{
+      'speaking': isSpeaking,
+      'muted': userState.isMuted,
+      'deafened': userState.isDeafened,
+      'video-enabled': hasVideo,
+      'screen-sharing': userState.isScreenSharing,
+      'self': isSelf,
+      'connection-poor': connectionState === 'disconnected' || connectionState === 'failed'
+    }"
+  >
+    <!-- Video Container -->
+    <div v-if="hasVideo || userState.isScreenSharing" class="video-container">
+      <video
+        ref="videoElement"
+        :srcObject="userStream"
+        autoplay
+        playsinline
+        :muted="isSelf"
+        class="video-stream"
+        @loadedmetadata="onVideoLoaded"
+      />
+      
+      <!-- Video Overlay -->
+      <div class="video-overlay">
+        <!-- Screen share indicator -->
+        <div v-if="userState.isScreenSharing" class="screen-share-indicator">
+          <Icon name="screen-share" />
+          <span>Screen Sharing</span>
+        </div>
+        
+        <!-- Connection quality indicator -->
+        <div class="connection-indicator" :class="connectionQuality">
+          <div class="connection-dots">
+            <span v-for="i in 3" :key="i"></span>
+          </div>
+        </div>
+        
+        <!-- Self controls -->
+        <div v-if="isSelf" class="video-controls">
+          <button 
+            @click="$emit('toggle-video')"
+            class="control-btn"
+            :class="{ active: userState.isVideoEnabled && !userState.isScreenSharing }"
+            :title="userState.isVideoEnabled && !userState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
+          >
+            <Icon name="camera" />
+          </button>
+          <button 
+            @click="$emit('toggle-screen-share')"
+            class="control-btn"
+            :class="{ active: userState.isScreenSharing }"
+            :title="userState.isScreenSharing ? 'Stop screen share' : 'Share screen'"
+          >
+            <Icon name="screen-share" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Avatar Container (when no video) -->
+    <div v-else class="avatar-container">
+      <div class="avatar-wrapper">
+        <!-- User avatar -->
+        <div class="avatar-frame" :class="{ speaking: isSpeaking }">
+          <img 
+            :src="userProfile.avatar_url || '/default_avatar.png'"
+            :alt="displayName"
+            class="user-avatar"
+          />
+          
+          <!-- Voice activity ring -->
+          <div class="voice-ring" :style="{ '--intensity': voiceIntensity }">
+            <svg class="voice-ring-svg" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="45" class="voice-ring-bg" />
+              <circle 
+                cx="50" 
+                cy="50" 
+                r="45" 
+                class="voice-ring-active"
+                :style="{ strokeDashoffset: voiceRingOffset }"
+              />
+            </svg>
+          </div>
+        </div>
+        
+        <!-- Status indicators -->
+        <div class="status-indicators">
+          <div v-if="userState.isMuted" class="status-badge muted" title="Muted">
+            <Icon name="mic-off" />
+          </div>
+          <div v-if="userState.isDeafened" class="status-badge deafened" title="Deafened">
+            <Icon name="headphones-off" />
+          </div>
+          <div v-if="connectionQuality === 'poor'" class="status-badge connection-poor" title="Poor connection">
+            <Icon name="wifi-low" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- User Info -->
+    <div class="user-info">
+      <div class="username" :class="{ speaking: isSpeaking }">
+        {{ displayName }}
+      </div>
+      <div class="user-status">
+        {{ userStatus }}
+      </div>
+    </div>
+
+    <!-- Audio Visualizer -->
+    <div v-if="isSpeaking && !hasVideo" class="audio-visualizer">
+      <div 
+        v-for="i in 5" 
+        :key="i"
+        class="audio-bar"
+        :style="{ 
+          '--delay': `${i * 100}ms`,
+          '--height': `${getBarHeight(i)}%`
+        }"
+      ></div>
+    </div>
+  </div>
+</template>
+
+<script lang="ts">
+import { defineComponent, computed, ref, watch, type PropType } from 'vue';
+import type { UserMediaState } from '@/services/discordWebRTC';
+import Icon from '@/components/common/Icon.vue';
+
+export default defineComponent({
+  name: 'DiscordVoiceUserCard',
+  components: { Icon },
+  
+  props: {
+    userState: {
+      type: Object as PropType<UserMediaState>,
+      required: true
+    },
+    userProfile: {
+      type: Object,
+      required: true
+    },
+    userStream: {
+      type: MediaStream,
+      default: null
+    },
+    isSelf: {
+      type: Boolean,
+      default: false
+    },
+    connectionState: {
+      type: String,
+      default: 'connected'
+    }
+  },
+  
+  emits: ['toggle-video', 'toggle-screen-share'],
+  
+  setup(props) {
+    const videoElement = ref<HTMLVideoElement | null>(null);
+    
+    // =============================================================================
+    // COMPUTED PROPERTIES
+    // =============================================================================
+    
+    const displayName = computed(() => {
+      return props.userProfile.display_name || props.userProfile.username || 'Unknown User';
+    });
+    
+    const isSpeaking = computed(() => {
+      return props.userState.audioLevel > 20 && !props.userState.isMuted;
+    });
+    
+    const voiceIntensity = computed(() => {
+      return Math.min(props.userState.audioLevel / 100, 1);
+    });
+    
+    const hasVideo = computed(() => {
+      return props.userStream?.getVideoTracks().length > 0 && 
+             (props.userState.isVideoEnabled || props.userState.isScreenSharing);
+    });
+    
+    const connectionQuality = computed(() => {
+      if (props.connectionState === 'connecting') return 'connecting';
+      if (props.connectionState === 'disconnected' || props.connectionState === 'failed') return 'poor';
+      if (props.userState.audioLevel > 30) return 'excellent';
+      if (props.userState.audioLevel > 15) return 'good';
+      return 'fair';
+    });
+    
+    const userStatus = computed(() => {
+      if (props.userState.isScreenSharing) return 'Screen sharing';
+      if (props.userState.isVideoEnabled && !props.userState.isScreenSharing) return 'Camera on';
+      if (props.userState.isDeafened) return 'Deafened';
+      if (props.userState.isMuted) return 'Muted';
+      if (isSpeaking.value) return 'Speaking';
+      return 'In voice';
+    });
+    
+    // Voice ring animation
+    const voiceRingOffset = computed(() => {
+      const circumference = 2 * Math.PI * 45;
+      const progress = voiceIntensity.value;
+      return circumference - (progress * circumference);
+    });
+    
+    // Audio bar heights for visualization
+    const getBarHeight = (barIndex: number) => {
+      const baseHeight = 20;
+      const intensity = voiceIntensity.value;
+      const variation = Math.sin(Date.now() / 150 + barIndex * 0.5) * 0.4;
+      return Math.max(baseHeight + (intensity * 80) + (variation * 30), 15);
+    };
+    
+    // =============================================================================
+    // METHODS
+    // =============================================================================
+    
+    const onVideoLoaded = () => {
+      console.log('📹 Video loaded for user:', props.userState.userId);
+    };
+    
+    // =============================================================================
+    // WATCHERS
+    // =============================================================================
+    
+    // Update video element when stream changes
+    watch(() => props.userStream, (newStream) => {
+      if (videoElement.value) {
+        videoElement.value.srcObject = newStream;
+        
+        if (newStream) {
+          console.log('📹 Stream updated for user:', props.userState.userId, {
+            videoTracks: newStream.getVideoTracks().length,
+            audioTracks: newStream.getAudioTracks().length
+          });
+        }
+      }
+    }, { immediate: true });
+    
+    return {
+      videoElement,
+      displayName,
+      isSpeaking,
+      voiceIntensity,
+      hasVideo,
+      connectionQuality,
+      userStatus,
+      voiceRingOffset,
+      getBarHeight,
+      onVideoLoaded
+    };
+  }
+});
+</script>
+
+<style scoped>
+.discord-voice-card {
+  position: relative;
+  background: linear-gradient(145deg, #2f3136, #36393f);
+  border-radius: 16px;
+  padding: 16px;
+  border: 2px solid transparent;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  overflow: hidden;
+  min-height: 200px;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.discord-voice-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Speaking state */
+.discord-voice-card.speaking {
+  border-color: #00d4aa;
+  background: linear-gradient(145deg, #1a2f2a, #2a4a3f);
+  box-shadow: 
+    0 4px 16px rgba(0, 212, 170, 0.3),
+    0 0 32px rgba(0, 212, 170, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Self user */
+.discord-voice-card.self {
+  border-color: #5865f2;
+  background: linear-gradient(145deg, #1e2140, #2a2d50);
+}
+
+/* Connection states */
+.discord-voice-card.connection-poor {
+  border-color: #ed4245;
+  background: linear-gradient(145deg, #3a2528, #4a2f32);
+}
+
+/* Video Container */
+.video-container {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  margin-bottom: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.video-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.1) 0%,
+    transparent 30%,
+    transparent 70%,
+    rgba(0, 0, 0, 0.8) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  pointer-events: none;
+}
+
+.screen-share-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(87, 242, 135, 0.9);
+  color: #000;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  align-self: flex-start;
+  pointer-events: auto;
+}
+
+.connection-indicator {
+  align-self: flex-end;
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+.connection-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.connection-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #40444b;
+  transition: all 0.3s ease;
+}
+
+.connection-indicator.excellent .connection-dots span {
+  background: #00d4aa;
+}
+
+.connection-indicator.good .connection-dots span:nth-child(-n+2) {
+  background: #faa61a;
+}
+
+.connection-indicator.fair .connection-dots span:first-child {
+  background: #faa61a;
+}
+
+.connection-indicator.poor .connection-dots span:first-child {
+  background: #ed4245;
+}
+
+.connection-indicator.connecting .connection-dots span {
+  background: #5865f2;
+  animation: pulse 1s infinite;
+}
+
+.video-controls {
+  display: flex;
+  gap: 8px;
+  align-self: flex-end;
+  pointer-events: auto;
+}
+
+.control-btn {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.05);
+}
+
+.control-btn.active {
+  background: linear-gradient(145deg, #5865f2, #4752c4);
+  border-color: rgba(88, 101, 242, 0.6);
+  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4);
+}
+
+/* Avatar Container */
+.avatar-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 160px;
+  margin-bottom: 12px;
+}
+
+.avatar-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-frame {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(145deg, #40444b, #2f3136);
+  transition: all 0.3s ease;
+}
+
+.avatar-frame.speaking {
+  background: linear-gradient(145deg, #00d4aa, #00b894);
+  box-shadow: 0 0 20px rgba(0, 212, 170, 0.4);
+}
+
+.user-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #36393f;
+}
+
+/* Voice Ring */
+.voice-ring {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.discord-voice-card.speaking .voice-ring {
+  opacity: 1;
+}
+
+.voice-ring-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.voice-ring-bg {
+  fill: none;
+  stroke: rgba(0, 212, 170, 0.3);
+  stroke-width: 2;
+}
+
+.voice-ring-active {
+  fill: none;
+  stroke: #00d4aa;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 283;
+  transition: stroke-dashoffset 0.15s ease;
+  filter: drop-shadow(0 0 6px #00d4aa);
+}
+
+/* Status Indicators */
+.status-indicators {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  display: flex;
+  gap: 4px;
+}
+
+.status-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  border: 2px solid #2f3136;
+  color: white;
+}
+
+.status-badge.muted {
+  background: #ed4245;
+}
+
+.status-badge.deafened {
+  background: #faa61a;
+}
+
+.status-badge.connection-poor {
+  background: #ed4245;
+}
+
+/* User Info */
+.user-info {
+  text-align: center;
+}
+
+.username {
+  font-weight: 600;
+  font-size: 14px;
+  color: #dcddde;
+  margin-bottom: 4px;
+  transition: color 0.3s ease;
+  line-height: 1.2;
+}
+
+.username.speaking {
+  color: #00d4aa;
+  text-shadow: 0 0 8px rgba(0, 212, 170, 0.3);
+}
+
+.user-status {
+  font-size: 12px;
+  color: #b9bbbe;
+  opacity: 0.8;
+}
+
+/* Audio Visualizer */
+.audio-visualizer {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 20px;
+}
+
+.audio-bar {
+  width: 3px;
+  background: linear-gradient(to top, #00d4aa, #00f5d4);
+  border-radius: 2px;
+  transition: height 0.1s ease;
+  animation: audioWave 1s ease-in-out infinite;
+  animation-delay: var(--delay);
+  height: var(--height);
+  min-height: 4px;
+  max-height: 20px;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes audioWave {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.4); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .discord-voice-card {
+    min-height: 160px;
+    padding: 12px;
+  }
+  
+  .video-container,
+  .avatar-container {
+    height: 120px;
+  }
+  
+  .avatar-frame {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .username {
+    font-size: 13px;
+  }
+  
+  .user-status {
+    font-size: 11px;
+  }
+}
+</style>

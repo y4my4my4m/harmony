@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { webRTCService } from '@/services/webrtc';
+import { nativeWebRTCService } from '@/services/nativeWebRTC';
 import type { Profile } from '@/types';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -105,7 +105,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         }
         
         // Connect WebRTC
-        const webrtcSuccess = await webRTCService.joinChannel(channelId, userId);
+        const webrtcSuccess = await nativeWebRTCService.joinChannel(channelId, userId);
         if (!webrtcSuccess) {
           // Rollback server join
           await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
@@ -138,7 +138,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         const userId = authStore.session.user.id;
         
         // Leave WebRTC first
-        await webRTCService.leaveChannel();
+        await nativeWebRTCService.leaveChannel();
         
         // Leave through server users store
         // Use stored server ID
@@ -157,7 +157,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     
     // Media controls
     async toggleAudio() {
-      const enabled = await webRTCService.toggleAudio();
+      const enabled = nativeWebRTCService.toggleAudio();
       this.isAudioEnabled = enabled;
       
       // Play sound effect
@@ -167,7 +167,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     },
     
     async toggleVideo() {
-      const enabled = await webRTCService.toggleVideo();
+      const enabled = await nativeWebRTCService.toggleVideo();
       this.isVideoEnabled = enabled;
       
       // Play sound effect
@@ -177,7 +177,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     },
     
     async toggleScreenShare() {
-      const enabled = await webRTCService.toggleScreenShare();
+      const enabled = await nativeWebRTCService.toggleScreenShare();
       this.isScreenSharing = enabled;
       
       // Play sound effect
@@ -188,7 +188,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     
     toggleMute() {
       this.isMuted = !this.isMuted;
-      webRTCService.setMuted(this.isMuted);
+      nativeWebRTCService.setMuted(this.isMuted);
       
       // Play sound effect
       this.playSound(this.isMuted ? 'mic_off.mp3' : 'mic_on.mp3');
@@ -198,12 +198,12 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     
     toggleDeafen() {
       this.isDeafened = !this.isDeafened;
-      webRTCService.setDeafened(this.isDeafened);
+      nativeWebRTCService.setDeafened(this.isDeafened);
       
       // If deafened, also mute
       if (this.isDeafened) {
         this.isMuted = true;
-        webRTCService.setMuted(true);
+        nativeWebRTCService.setMuted(true);
       }
       
       return this.isDeafened;
@@ -211,7 +211,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
     
     // WebRTC event handlers
     setupWebRTCListeners() {
-      webRTCService.on('userJoined', (userId: string) => {
+      nativeWebRTCService.on('userJoined', (userId: string) => {
         // Prevent duplicates
         if (!this.connectedUsers.includes(userId)) {
           this.connectedUsers.push(userId);
@@ -220,7 +220,7 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         }
       });
       
-      webRTCService.on('userLeft', (userId: string) => {
+      nativeWebRTCService.on('userLeft', (userId: string) => {
         this.connectedUsers = this.connectedUsers.filter(id => id !== userId);
         this.remoteStreams.delete(userId);
         this.connectionStates.delete(userId);
@@ -228,21 +228,21 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         this.playSound('voice_disconnect.mp3');
       });
       
-      webRTCService.on('userConnected', (userId: string) => {
+      nativeWebRTCService.on('userConnected', (userId: string) => {
         this.connectionStates.set(userId, 'connected');
       });
       
-      webRTCService.on('userDisconnected', (userId: string) => {
+      nativeWebRTCService.on('userDisconnected', (userId: string) => {
         this.connectionStates.set(userId, 'disconnected');
       });
       
-      webRTCService.on('userStreamChanged', (userId: string, stream: MediaStream) => {
+      nativeWebRTCService.on('userStreamChanged', (userId: string, stream: MediaStream) => {
         console.log('Voice store received stream for user:', userId, 'Video tracks:', stream.getVideoTracks().length);
         this.remoteStreams.set(userId, stream);
         this.setupAudioLevelMonitoring(userId, stream);
       });
       
-      webRTCService.on('localStreamChanged', (stream: MediaStream) => {
+      nativeWebRTCService.on('localStreamChanged', (stream: MediaStream) => {
         console.log('Local stream changed in voice store:', stream?.getTracks().length || 0, 'tracks');
         this.localStream = stream;
         if (stream) {
@@ -250,12 +250,14 @@ export const useVoiceChannelStore = defineStore('voiceChannel', {
         }
       });
       
-      webRTCService.on('userMediaToggled', (data: any) => {
-        console.log('User media toggled:', data);
-        // Media states are tracked in WebRTC service, UI will update automatically
+      nativeWebRTCService.on('userMediaToggled', (state: any) => {
+        console.log('User media toggled:', state);
+        // Force UI update by triggering reactivity
+        // This ensures the UI components see the media state changes
+        this.connectedUsers = [...this.connectedUsers];
       });
       
-      webRTCService.on('error', (error: Error) => {
+      nativeWebRTCService.on('error', (error: Error) => {
         console.error('WebRTC error:', error);
         // Handle error (show notification, etc.)
       });
