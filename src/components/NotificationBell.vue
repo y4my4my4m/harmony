@@ -130,7 +130,7 @@
           <!-- Notifications List -->
           <div v-else class="notifications-list">
             <!-- Quick Filter Tabs -->
-            <div v-if="notifications.length > 5" class="notification-filters">
+            <div class="notification-filters">
               <button 
                 v-for="filter in notificationFilters"
                 :key="filter.key"

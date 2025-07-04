@@ -17,6 +17,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     usersInVoiceChannels: {} as Record<string, string[]>,
     presenceChannel: null as RealtimeChannel | null,
     onlineUsers: new Set<string>(),
+    offlineBroadcastChannel: null as RealtimeChannel | null,
   }),
   getters: {
     usernameToUserIdMap: (state) => {
