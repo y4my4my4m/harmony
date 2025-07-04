@@ -107,6 +107,7 @@ export class WebRTCService {
       }
 
       this.state.currentChannelId = channelId;
+      this.currentUserId = userId; // Store user ID for later use
       
       // Get user media
       await this.getUserMedia();
@@ -151,6 +152,7 @@ export class WebRTCService {
       const channelId = this.state.currentChannelId;
       this.state.currentChannelId = null;
       this.state.isConnected = false;
+      this.currentUserId = 'anonymous'; // Reset user ID
       
       this.emit('channelLeft', channelId);
     } catch (error) {
@@ -495,11 +497,12 @@ export class WebRTCService {
 
   // Helper to get current user ID
   private getCurrentUserId(): string {
-    // Import useAuthStore dynamically to avoid circular dependencies
-    const { useAuthStore } = require('@/stores/auth');
-    const authStore = useAuthStore();
-    return authStore.session?.user?.id || 'anonymous';
+    // Use the stored user ID from when we joined the channel
+    // This avoids import issues and is more reliable
+    return this.currentUserId || 'anonymous';
   }
+  
+  private currentUserId: string = 'anonymous';
 
   // Cleanup
   async disconnect(): Promise<void> {

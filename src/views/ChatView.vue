@@ -50,6 +50,7 @@
       <VoiceChannelScene 
         v-if="!isDM"
         :currentChannelId="currentChannelId"
+        :serverId="currentServer?.id || ''"
       />
       <ChatComponent
         :messages="chatMessages"
@@ -63,7 +64,8 @@
     <UserSidebar :class="{ 'open': isProfilesVisible }"  />
     
     <!-- Voice Control Panel -->
-    <VoiceControlPanel />
+    <!-- TODO: isheadphonesactive should reflect the real state and probably doesnt need to be passed as a prop -->
+    <VoiceControlPanel :isHeadphonesActive="true" />
   </div>
 </template>
 

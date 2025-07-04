@@ -16,10 +16,11 @@
           >
         </div>
       </div>
-      <SpaceTimeGrid 
+      <!-- TODO: implement this, this is for 3D audio spacial awareness -->
+      <!-- <SpaceTimeGrid 
         :width="containerWidth" 
         :height="containerHeight" 
-        :avatars="avatarPositions" />
+        :avatars="avatarPositions" /> -->
       
       <!-- WebRTC Video/Audio Component -->
       <WebRTCComponent 
