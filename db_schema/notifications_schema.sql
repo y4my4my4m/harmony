@@ -200,7 +200,7 @@ BEGIN
     IF jsonb_typeof(NEW.content) = 'array' THEN
         SELECT LEFT(string_agg(
             CASE 
-                WHEN item->>'type' = 'mention' THEN '@' || (item->>'mention')
+                WHEN item->>'type' = 'mention' THEN item->>'mention'
                 ELSE COALESCE(item->>'text', item::text)
             END, ''
         ), 100) INTO content_preview
