@@ -182,16 +182,17 @@ export default defineComponent({
   },
   
   setup(props) {
-    const voiceStore = useUnifiedVoiceChannelStore();
-    const authStore = useAuthStore();
-    const serverUsersStore = useServerUsersStore();
-    
-    const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
-    const showSettings = ref(false);
-    
-    // =============================================================================
-    // COMPUTED PROPERTIES
-    // =============================================================================
+      // Explicitly type as 'any' to avoid leaking private types
+      const voiceStore: any = useUnifiedVoiceChannelStore();
+      const authStore = useAuthStore();
+      const serverUsersStore = useServerUsersStore();
+      
+      const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
+      const showSettings = ref(false);
+      
+      // =============================================================================
+      // COMPUTED PROPERTIES
+      // =============================================================================
     
     const currentUserId = computed(() => authStore.session?.user?.id);
     
@@ -317,10 +318,10 @@ export default defineComponent({
 <style scoped>
 .unified-voice-dock {
   position: fixed;
-  bottom: 20px;
-  left: 20px;
+  bottom: 0px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 1000;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* =============================================================================
@@ -342,6 +343,7 @@ export default defineComponent({
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  margin-bottom: 40px;
 }
 
 .dock-container:hover {
@@ -508,6 +510,7 @@ export default defineComponent({
     0 6px 20px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(10px);
+  margin-bottom: 40px;
 }
 
 .minimized-container:hover {
