@@ -240,8 +240,11 @@ const typeIcon = computed(() => {
     server_invite: ServerInviteIcon,
     voice_channel_activity: VoiceIcon,
     emoji_added: EmojiIcon
-  }
-  return iconMap[props.notification.type] || MentionIcon
+  } as const
+
+  type IconMapKey = keyof typeof iconMap
+  const type = props.notification.type as IconMapKey
+  return iconMap[type] ?? MentionIcon
 })
 
 const isClickable = computed(() => {
