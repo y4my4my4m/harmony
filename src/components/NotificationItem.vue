@@ -44,7 +44,7 @@
       <!-- Header -->
       <div class="notification-header">
         <div class="notification-title-section">
-          <h4 class="notification-title">{{ notification.title }}</h4>
+          <h4 class="notification-title">{{ formattedMessage.title }}</h4>
           <div class="notification-metadata">
             <span class="username">{{ username }}</span>
             <span class="separator">•</span>
@@ -80,7 +80,7 @@
       
       <!-- Message Content -->
       <div class="notification-message">
-        <p class="message-text">{{ notification.message }}</p>
+        <p class="message-text">{{ formattedMessage.message }}</p>
         
         <!-- Rich Content for certain types -->
         <div v-if="hasRichContent" class="rich-content">
@@ -127,8 +127,8 @@
           </button>
         </template>
         
-        <!-- For mentions -->
-        <template v-if="notification.type === 'mention'">
+        <!-- For mentions/replies -->
+        <template v-if="notification.type === 'mention' || notification.type === 'reply'">
           <button @click="jumpToMessage" class="quick-action-btn jump">
             <JumpIcon class="quick-action-icon" />
             Jump to Message
@@ -137,15 +137,15 @@
       </div>
     </div>
     
-    <!-- Hover Gradient Effect -->
+    <!-- Hover gradient effect -->
     <div class="hover-gradient"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineAsyncComponent } from 'vue'
+import { ref, computed, h } from 'vue'
 import { useRouter } from 'vue-router'
-import { formatDistanceToNow, format } from 'date-fns'
+import { NotificationFormatter } from '@/services/NotificationFormatter'
 import type { Notification } from '@/types'
 
 // Icons - using dynamic imports for better performance
@@ -177,78 +177,74 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
-
 const router = useRouter()
+
+// State
 const isHovering = ref(false)
 
-// Computed properties
-const avatarUrl = computed(() => {
-  if (props.notification.data?.avatar_url) {
-    return props.notification.data.avatar_url
-  }
-  return '/default_avatar.png'
-})
+// Use NotificationFormatter for all message formatting
+const formattedMessage = computed(() => 
+  NotificationFormatter.formatNotification(props.notification)
+)
 
-const username = computed(() => {
-  return props.notification.data?.username || 'Unknown User'
-})
+const username = computed(() => 
+  NotificationFormatter.getUsername(props.notification)
+)
 
-const serverName = computed(() => {
-  return props.notification.data?.server_name
+const avatarUrl = computed(() => 
+  NotificationFormatter.getAvatarUrl(props.notification)
+)
+
+const serverName = computed(() => 
+  NotificationFormatter.getServerName(props.notification)
+)
+
+const channelName = computed(() => 
+  NotificationFormatter.getChannelName(props.notification)
+)
+
+const isClickable = computed(() => 
+  NotificationFormatter.isClickable(props.notification)
+)
+
+// Rich content computed properties
+const messagePreview = computed(() => {
+  const data = props.notification.data
+  return data.message?.content_preview || null
 })
 
 const channelInfo = computed(() => {
-  return props.notification.data?.channel_name
-})
-
-const messagePreview = computed(() => {
-  if (props.notification.type === 'mention' || props.notification.type === 'reply') {
-    return props.notification.message
-  }
-  return null
+  return channelName.value
 })
 
 const reactionEmoji = computed(() => {
   if (props.notification.type === 'reaction') {
-    return props.notification.data?.emoji_name || '👍'
+    return props.notification.data.reaction?.emoji_name || '👍'
   }
   return null
 })
 
 const relativeTime = computed(() => {
-  try {
-    return formatDistanceToNow(new Date(props.notification.created_at), { addSuffix: true })
-  } catch {
-    return 'recently'
-  }
+  const now = new Date()
+  const created = new Date(props.notification.created_at)
+  const diffMs = now.getTime() - created.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffMins < 1) return 'now'
+  if (diffMins < 60) return `${diffMins}m`
+  if (diffHours < 24) return `${diffHours}h`
+  if (diffDays < 7) return `${diffDays}d`
+  
+  return created.toLocaleDateString(undefined, { 
+    month: 'short', 
+    day: 'numeric' 
+  })
 })
 
 const fullTimestamp = computed(() => {
-  try {
-    return format(new Date(props.notification.created_at), 'PPpp')
-  } catch {
-    return 'Invalid date'
-  }
-})
-
-const typeIcon = computed(() => {
-  const iconMap = {
-    mention: MentionIcon,
-    dm: DMIcon,
-    reaction: ReactionIcon,
-    reply: ReplyIcon,
-    server_invite: ServerInviteIcon,
-    voice_channel_activity: VoiceIcon,
-    emoji_added: EmojiIcon
-  } as const
-
-  type IconMapKey = keyof typeof iconMap
-  const type = props.notification.type as IconMapKey
-  return iconMap[type] ?? MentionIcon
-})
-
-const isClickable = computed(() => {
-  return ['mention', 'dm', 'reply', 'reaction'].includes(props.notification.type)
+  return new Date(props.notification.created_at).toLocaleString()
 })
 
 const hasRichContent = computed(() => {
@@ -256,7 +252,7 @@ const hasRichContent = computed(() => {
 })
 
 const hasQuickActions = computed(() => {
-  return ['server_invite', 'dm', 'mention'].includes(props.notification.type)
+  return ['server_invite', 'dm', 'mention', 'reply'].includes(props.notification.type)
 })
 
 // Methods
@@ -279,37 +275,53 @@ const handleAvatarError = (event: Event) => {
   target.src = '/default_avatar.png'
 }
 
-// Quick action handlers
+// Quick action handlers using NotificationFormatter navigation data
 const acceptInvite = () => {
-  // Handle server invite acceptance
   console.log('Accepting server invite:', props.notification.data?.invite_id)
   emit('dismiss', props.notification.id)
 }
 
 const declineInvite = () => {
-  // Handle server invite decline
   console.log('Declining server invite:', props.notification.data?.invite_id)
   emit('dismiss', props.notification.id)
 }
 
 const replyToDM = () => {
-  // Navigate to DM conversation
-  if (props.notification.data?.conversation_id) {
-    router.push(`/dm/${props.notification.data.conversation_id}`)
-  } else if (props.notification.data?.user_id) {
-    router.push(`/dm/@${props.notification.data.user_id}`)
+  const navData = NotificationFormatter.getNavigationData(props.notification)
+  if (navData?.type === 'conversation') {
+    router.push(`/dm/${navData.conversationId}`)
   }
   emit('dismiss', props.notification.id)
 }
 
 const jumpToMessage = () => {
-  // Navigate to the specific message
-  const { server_id, channel_id, message_id } = props.notification.data || {}
-  if (server_id && channel_id) {
-    router.push(`/servers/${server_id}/channels/${channel_id}${message_id ? `?message=${message_id}` : ''}`)
+  const navData = NotificationFormatter.getNavigationData(props.notification)
+  if (navData?.type === 'channel') {
+    let path = `/chat/${navData.serverId}/${navData.channelId}`
+    if (navData.messageId) {
+      path += `?message=${navData.messageId}`
+    }
+    router.push(path)
   }
   emit('dismiss', props.notification.id)
 }
+
+// Computed properties for type icons
+const typeIcon = computed(() => {
+  const iconMap = {
+    mention: MentionIcon,
+    dm: DMIcon,
+    reaction: ReactionIcon,
+    reply: ReplyIcon,
+    server_invite: ServerInviteIcon,
+    voice_channel_activity: VoiceIcon,
+    emoji_added: EmojiIcon
+  } as const
+
+  type IconMapKey = keyof typeof iconMap
+  const type = props.notification.type as IconMapKey
+  return iconMap[type] ?? MentionIcon
+})
 </script>
 
 <style scoped>

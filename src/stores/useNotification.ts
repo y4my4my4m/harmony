@@ -3,6 +3,7 @@ import { supabase } from '@/supabase'
 import router from '@/router'
 import { useAuthStore } from './auth'
 import { viewContextTracker } from '@/services/ViewContextTracker'
+import { NotificationFormatter } from '@/services/NotificationFormatter'
 import type { 
   Notification, 
   NotificationType, 
@@ -201,14 +202,15 @@ export const useNotificationStore = defineStore('notification', {
 
   actions: {
     /**
-     * STABLE INITIALIZATION with proper error handling
+     * Initialize notification system - Discord-like client setup
+     * Database handles all notification creation via triggers
      */
     async initialize(userId: string) {
       if (this.isInitialized) return
       
       try {
         this.isLoading = true
-        console.log('🔔 Notification Store: Initializing for user:', userId)
+        console.log('🔔 Notification Store: Initializing Discord-like client for user:', userId)
         
         // Check notification permission first
         this.hasPermission = await this.checkNotificationPermission()
@@ -216,17 +218,17 @@ export const useNotificationStore = defineStore('notification', {
         // Load user preferences
         await this.loadPreferences(userId)
         
-        // Load notifications
+        // Load existing notifications
         await this.fetchNotifications(userId)
         
-        // Setup context-aware realtime subscription
+        // Setup context-aware realtime subscription (database sends us notifications)
         this.setupContextAwareRealtimeSubscription(userId)
         
         // Setup DND status check
         this.setupDndCheck()
         
         this.isInitialized = true
-        console.log('✅ Notification Store: Initialized successfully')
+        console.log('✅ Notification Store: Discord-like client initialized successfully')
       } catch (error) {
         console.error('❌ Notification Store: Failed to initialize:', error)
         this.showToast('server_update', 'Failed to load notifications', 'Please refresh the page', 5000)
@@ -274,8 +276,8 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * CONTEXT-AWARE REALTIME SUBSCRIPTION
-     * Uses ViewContextTracker to make intelligent decisions about UI notifications
+     * DISCORD-LIKE REALTIME SUBSCRIPTION
+     * Database triggers send us structured data, we format messages client-side
      */
     setupContextAwareRealtimeSubscription(userId: string) {
       // Clean up existing subscription
@@ -284,7 +286,7 @@ export const useNotificationStore = defineStore('notification', {
       }
 
       this.realtimeSubscription = supabase
-        .channel('notifications-context-aware')
+        .channel('notifications-discord-client')
         .on(
           'postgres_changes',
           {
@@ -296,7 +298,7 @@ export const useNotificationStore = defineStore('notification', {
           async (payload) => {
             try {
               const newNotification = payload.new as Notification
-              console.log('🔔 Real-time notification received:', newNotification)
+              console.log('🔔 Structured notification received from database:', newNotification)
               
               // Prevent duplicates
               if (this.notifications.find(n => n.id === newNotification.id)) {
@@ -308,30 +310,34 @@ export const useNotificationStore = defineStore('notification', {
               this.notifications.unshift(newNotification)
               this.updateUnreadCount()
 
-              // Use ViewContextTracker to make smart UI decisions
+              // Format message using client-side formatter
+              const formatted = NotificationFormatter.formatNotification(newNotification)
+              console.log('✨ Formatted notification message:', formatted)
+
+              // Use ViewContextTracker for smart UI decisions (Discord-like behavior)
               const uiDecision = viewContextTracker.shouldShowNotificationUI({
-                server_id: newNotification.data.server_id,
-                channel_id: newNotification.data.channel_id,
-                conversation_id: newNotification.data.conversation_id,
+                server_id: newNotification.data.location?.server_id,
+                channel_id: newNotification.data.location?.channel_id,
+                conversation_id: newNotification.data.conversation?.id,
                 type: newNotification.type
               })
 
-              console.log('🎯 UI Decision:', uiDecision)
+              console.log('🎯 Discord-like UI Decision:', uiDecision)
 
               // Show toast notification if appropriate
               if (uiDecision.showToast) {
                 this.showToast(
                   newNotification.type,
-                  newNotification.title,
-                  newNotification.message || '',
+                  formatted.title,
+                  formatted.message,
                   4000,
-                  newNotification.data?.avatar_url
+                  NotificationFormatter.getAvatarUrl(newNotification)
                 )
               }
 
               // Show desktop notification if appropriate
               if (uiDecision.showDesktop && this.shouldShowDesktopNotification(newNotification.type)) {
-                this.showDesktopNotification(newNotification)
+                this.showDesktopNotification(newNotification, formatted)
               }
 
               // Play sound if appropriate
@@ -345,7 +351,7 @@ export const useNotificationStore = defineStore('notification', {
           }
         )
         .subscribe((status) => {
-          console.log('🔔 Real-time subscription status:', status)
+          console.log('🔔 Discord-like real-time subscription status:', status)
           
           if (status === 'CHANNEL_ERROR') {
             console.error('❌ Real-time subscription error, retrying in 5s...')
@@ -357,9 +363,9 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
-     * Show desktop notification with proper error handling
+     * Updated desktop notification method to use formatted messages
      */
-    async showDesktopNotification(notification: Notification) {
+    async showDesktopNotification(notification: Notification, formatted?: any) {
       try {
         if (typeof Notification === 'undefined') {
           console.log('Desktop notifications not supported')
@@ -371,9 +377,14 @@ export const useNotificationStore = defineStore('notification', {
           return
         }
 
-        const desktopNotification = new Notification(notification.title, {
-          body: notification.message || '',
-          icon: notification.data?.avatar_url || '/harmony_icon1.png',
+        // Use formatter if not provided
+        if (!formatted) {
+          formatted = NotificationFormatter.formatNotification(notification)
+        }
+
+        const desktopNotification = new Notification(formatted.title, {
+          body: formatted.message,
+          icon: NotificationFormatter.getAvatarUrl(notification),
           badge: '/harmony_icon1.png',
           tag: `harmony-${notification.type}-${notification.id}`,
           requireInteraction: notification.type === 'mention' || notification.type === 'dm',
@@ -395,40 +406,6 @@ export const useNotificationStore = defineStore('notification', {
         console.log(`✅ Desktop notification shown for ${notification.type}`)
       } catch (error) {
         console.error('❌ Error showing desktop notification:', error)
-      }
-    },
-
-    /**
-     * SIMPLIFIED createNotification - only handles database creation
-     */
-    async createNotification(
-      userId: string,
-      type: NotificationType,
-      title: string,
-      message: string,
-      data: NotificationData = {}
-    ) {
-      try {
-        // Use the database function to respect DND settings
-        const { data: notificationId, error } = await supabase
-          .rpc('create_notification', {
-            p_user_id: userId,
-            p_type: type,
-            p_title: title,
-            p_message: message,
-            p_data: data
-          })
-
-        if (error) {
-          console.error('❌ Error creating notification:', error)
-          throw error
-        }
-
-        // Return the notification ID if created (not blocked by DND)
-        return notificationId
-      } catch (error) {
-        console.error('❌ Failed to create notification:', error)
-        throw error
       }
     },
 
@@ -511,7 +488,9 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    // Helper actions
+    /**
+     * PREFERENCE MANAGEMENT - Client-side only
+     */
     async loadPreferences(userId: string) {
       try {
         const { data, error } = await supabase
@@ -554,6 +533,34 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    async updatePreferences(newPreferences: Partial<NotificationPreferences>) {
+      try {
+        if (!this.preferences) return
+
+        // Optimistic update
+        const previousPreferences = { ...this.preferences }
+        Object.assign(this.preferences, newPreferences)
+
+        const { error } = await supabase
+          .from('notification_preferences')
+          .upsert({
+            ...this.preferences,
+            updated_at: new Date().toISOString()
+          })
+
+        if (error) {
+          // Revert on error
+          this.preferences = previousPreferences
+          throw error
+        }
+
+        console.log('✅ Updated notification preferences')
+      } catch (error) {
+        console.error('❌ Failed to update preferences:', error)
+        throw error
+      }
+    },
+
     async checkNotificationPermission(): Promise<boolean> {
       if (typeof Notification === 'undefined') {
         console.log('Notifications not supported')
@@ -579,6 +586,9 @@ export const useNotificationStore = defineStore('notification', {
       }, 60000)
     },
 
+    /**
+     * NOTIFICATION MANAGEMENT - UI actions only
+     */
     async markAsRead(notificationId: string) {
       try {
         // Optimistic update
@@ -623,7 +633,6 @@ export const useNotificationStore = defineStore('notification', {
           this.updateUnreadCount()
           throw error
         }
-        // this.showToast('server_update', 'Notification deleted', '', 2000)
       } catch (error) {
         console.error('Failed to delete notification:', error)
         this.showToast('server_update', 'Failed to delete notification', 'Please try again', 3000)
@@ -664,33 +673,51 @@ export const useNotificationStore = defineStore('notification', {
       this.currentFilter = filter;
     },
 
+    /**
+     * Updated notification click handler to use formatter navigation data
+     */
     handleNotificationClick(notification: Notification) {
       try {
         // Mark as read and clicked
         this.markAsRead(notification.id)
         
-        // Navigate to the notification source
-        if (notification.data?.conversation_id) {
-          // Navigate to DM
-          router.push(`/dm/${notification.data.conversation_id}`)
-        } else if (notification.data?.server_id && notification.data?.channel_id) {
-          // Navigate to server channel
-          let path = `/chat/${notification.data.server_id}/${notification.data.channel_id}`
-          if (notification.data?.message_id) {
-            path += `?message=${notification.data.message_id}`
+        // Get navigation data from formatter
+        const navData = NotificationFormatter.getNavigationData(notification)
+        
+        if (navData) {
+          switch (navData.type) {
+            case 'conversation':
+              // Navigate to DM
+              router.push(`/dm/${navData.conversationId}`)
+              break
+              
+            case 'channel':
+              // Navigate to server channel
+              let path = `/chat/${navData.serverId}/${navData.channelId}`
+              if (navData.messageId) {
+                path += `?message=${navData.messageId}`
+              }
+              router.push(path)
+              break
+              
+            case 'server':
+              // Navigate to server
+              router.push(`/servers/${navData.serverId}`)
+              break
           }
-          router.push(path)
-        } else if (notification.data?.server_id) {
-          // Navigate to server
-          router.push(`/servers/${notification.data.server_id}`)
+          
+          console.log('📍 Navigated to notification source using formatted data')
+        } else {
+          console.log('⚠️ No navigation data available for notification')
         }
-
-        console.log('📍 Navigated to notification source')
       } catch (error) {
         console.error('❌ Error handling notification click:', error)
       }
     },
 
+    /**
+     * DEVELOPMENT HELPER - Updated to use structured data
+     */
     createMockNotifications(userId: string) {
       // Development helper for testing
       const mockNotifications: Notification[] = [
@@ -698,13 +725,23 @@ export const useNotificationStore = defineStore('notification', {
           id: '1',
           user_id: userId,
           type: 'mention',
-          title: 'You were mentioned',
-          message: 'Check out this cool feature!',
           data: {
-            username: 'Developer',
-            avatar_url: '/default_avatar.png',
-            server_name: 'Test Server',
-            channel_name: 'general'
+            sender: {
+              user_id: 'dev-user-1',
+              username: 'Developer',
+              avatar_url: '/default_avatar.png'
+            },
+            location: {
+              server_id: 'test-server',
+              server_name: 'Test Server',
+              channel_id: 'test-channel',
+              channel_name: 'general'
+            },
+            message: {
+              id: 'test-message-1',
+              content_preview: 'Check out this cool feature!',
+              created_at: new Date().toISOString()
+            }
           },
           is_read: false,
           is_clicked: false,
@@ -716,12 +753,20 @@ export const useNotificationStore = defineStore('notification', {
           id: '2',
           user_id: userId,
           type: 'dm',
-          title: 'New direct message',
-          message: 'Hey! How are you doing?',
           data: {
-            username: 'Friend',
-            avatar_url: '/default_avatar.png',
-            conversation_id: 'test-conv'
+            sender: {
+              user_id: 'dev-user-2',
+              username: 'Friend',
+              avatar_url: '/default_avatar.png'
+            },
+            conversation: {
+              id: 'test-conv'
+            },
+            message: {
+              id: 'test-message-2',
+              content_preview: 'Hey! How are you doing?',
+              created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString()
+            }
           },
           is_read: false,
           is_clicked: false,
@@ -733,7 +778,7 @@ export const useNotificationStore = defineStore('notification', {
 
       this.notifications = mockNotifications
       this.updateUnreadCount()
-      console.log('📝 Created mock notifications for development')
+      console.log('📝 Created mock notifications with structured data for development')
     }
   }
 })
