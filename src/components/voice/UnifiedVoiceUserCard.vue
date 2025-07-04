@@ -231,21 +231,32 @@ export default defineComponent({
     // Update video element when stream changes
     watch(() => props.userStream, (newStream) => {
       if (videoElement.value) {
-        // Create a video-only stream to prevent audio echoing through video element
-        let videoOnlyStream: MediaStream | null = null;
+        let displayStream: MediaStream | null = null;
         
         if (newStream) {
           const videoTracks = newStream.getVideoTracks();
+          const audioTracks = newStream.getAudioTracks();
+          
           if (videoTracks.length > 0) {
-            videoOnlyStream = new MediaStream(videoTracks);
-            console.log('📹 Video-only stream created for user:', props.userState.userId, {
-              videoTracks: videoOnlyStream.getVideoTracks().length,
-              originalAudioTracks: newStream.getAudioTracks().length
-            });
+            if (props.userState.isScreenSharing && audioTracks.length > 0) {
+              // For screensharing, include both video and system audio
+              displayStream = newStream;
+              console.log('📺 Screen share stream with audio for user:', props.userState.userId, {
+                videoTracks: videoTracks.length,
+                audioTracks: audioTracks.length
+              });
+            } else {
+              // For regular video, only show video (no audio to prevent echo)
+              displayStream = new MediaStream(videoTracks);
+              console.log('📹 Video-only stream for user:', props.userState.userId, {
+                videoTracks: displayStream.getVideoTracks().length,
+                excludedAudioTracks: audioTracks.length
+              });
+            }
           }
         }
         
-        videoElement.value.srcObject = videoOnlyStream;
+        videoElement.value.srcObject = displayStream;
       }
     }, { immediate: true });
     

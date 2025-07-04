@@ -212,7 +212,20 @@ export class UnifiedWebRTCService {
           for (const [userId, conn] of this.connections) {
             try {
               console.log('📹 Adding video track to peer:', userId);
-              const sender = conn.peerConnection.addTrack(videoTrack, this.localStream);
+              
+              // Check if we already have a video sender
+              const existingSenders = conn.peerConnection.getSenders();
+              const videoSender = existingSenders.find(s => s.track?.kind === 'video');
+              
+              if (videoSender) {
+                // Replace existing video track
+                await videoSender.replaceTrack(videoTrack);
+                console.log('🔄 Replaced video track for peer:', userId);
+              } else {
+                // Add new video track
+                conn.peerConnection.addTrack(videoTrack, this.localStream);
+                console.log('➕ Added new video track for peer:', userId);
+              }
               
               // Force renegotiation for video track
               const offer = await conn.peerConnection.createOffer();
@@ -226,7 +239,7 @@ export class UnifiedWebRTCService {
                 timestamp: Date.now()
               });
               
-              console.log('✅ Video track added and offer sent to:', userId);
+              console.log('✅ Video renegotiation offer sent to:', userId);
             } catch (error) {
               console.error('❌ Error adding video track to peer', userId, ':', error);
             }
@@ -304,46 +317,64 @@ export class UnifiedWebRTCService {
   async toggleScreenShare(): Promise<boolean> {
     try {
       if (!this.localMediaState.isScreenSharing) {
-        // Start screen sharing
+        // Start screen sharing with audio (like Discord)
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: { frameRate: { ideal: 30 } },
-          audio: false
+          audio: true // Include system audio for app streaming
         });
         
-        const screenTrack = screenStream.getVideoTracks()[0];
-        if (this.localStream && screenTrack) {
-          // Remove existing video tracks
+        const screenVideoTrack = screenStream.getVideoTracks()[0];
+        const screenAudioTrack = screenStream.getAudioTracks()[0]; // System audio
+        
+        if (this.localStream && screenVideoTrack) {
+          // Remove existing video tracks (keep microphone audio)
           const videoTracks = this.localStream.getVideoTracks();
           videoTracks.forEach(track => {
             track.stop();
             this.localStream!.removeTrack(track);
           });
           
-          // Add screen track
-          this.localStream.addTrack(screenTrack);
+          // Add screen video track
+          this.localStream.addTrack(screenVideoTrack);
+          
+          // Add screen audio track if available (system audio)
+          if (screenAudioTrack) {
+            this.localStream.addTrack(screenAudioTrack);
+            console.log('🔊 Screen sharing with system audio enabled');
+          }
+          
           this.localMediaState.isScreenSharing = true;
           this.localMediaState.isVideoEnabled = true;
           
-          // Replace video track in peer connections
-          this.connections.forEach(conn => {
+          // Replace tracks in peer connections
+          this.connections.forEach(async (conn) => {
             const senders = conn.peerConnection.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
             
+            // Replace video track
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
             if (videoSender) {
-              videoSender.replaceTrack(screenTrack);
+              await videoSender.replaceTrack(screenVideoTrack);
             } else {
-              conn.peerConnection.addTrack(screenTrack, this.localStream!);
+              conn.peerConnection.addTrack(screenVideoTrack, this.localStream!);
+            }
+            
+            // Add screen audio track if available
+            if (screenAudioTrack) {
+              // Check if we need to add a new audio sender for screen audio
+              // (we keep the mic audio, this is additional system audio)
+              conn.peerConnection.addTrack(screenAudioTrack, this.localStream!);
             }
           });
           
           // Handle screen share ending
-          screenTrack.onended = () => {
+          screenVideoTrack.onended = () => {
             this.toggleScreenShare();
           };
         }
       } else {
         // Stop screen sharing
         if (this.localStream) {
+          // Remove screen video tracks
           const videoTracks = this.localStream.getVideoTracks();
           videoTracks.forEach(track => {
             track.stop();
@@ -357,6 +388,29 @@ export class UnifiedWebRTCService {
                 conn.peerConnection.removeTrack(videoSender);
               }
             });
+          });
+          
+          // Remove screen audio tracks (system audio)
+          // We need to be careful to only remove non-microphone audio tracks
+          const audioTracks = this.localStream.getAudioTracks();
+          audioTracks.forEach(track => {
+            // Check if this is a screen audio track (has different label/source)
+            if (track.label.includes('System Audio') || track.label.includes('Screen') || 
+                track.getSettings().deviceId?.includes('screen')) {
+              track.stop();
+              this.localStream!.removeTrack(track);
+              
+              // Remove from peer connections
+              this.connections.forEach(conn => {
+                const senders = conn.peerConnection.getSenders();
+                const audioSender = senders.find(s => s.track === track);
+                if (audioSender) {
+                  conn.peerConnection.removeTrack(audioSender);
+                }
+              });
+              
+              console.log('🔇 Removed screen audio track:', track.label);
+            }
           });
           
           this.localMediaState.isScreenSharing = false;
