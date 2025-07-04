@@ -339,30 +339,10 @@ export interface ToastAction {
   style?: 'primary' | 'secondary' | 'danger';
 }
 
-export interface NotificationSettings {
-  push_enabled: boolean
-  desktop_enabled: boolean
-  sound_enabled: boolean
-  email_enabled: boolean
-  mentions_only: boolean
-  dm_enabled: boolean
-  reaction_enabled: boolean
-  reply_enabled: boolean
-  server_invite_enabled: boolean
-  voice_activity_enabled: boolean
-  quiet_hours_enabled: boolean
-  quiet_hours_start: string
-  quiet_hours_end: string
-  preview_enabled: boolean
-  desktop_mentions: boolean
-  desktop_dms: boolean
-  desktop_reactions: boolean
-  desktop_replies: boolean
-  sound_mentions: boolean
-  sound_dms: boolean
-  sound_reactions: boolean
-  sound_voice_activity: boolean
-  dnd_enabled: boolean
-  dnd_start_time: string
-  dnd_end_time: string
+export interface NotificationFilter {
+  type?: NotificationType;
+  read?: boolean;
+  userId?: string;
+  serverId?: string;
+  conversationId?: string;
 }

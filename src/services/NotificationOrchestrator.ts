@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { useNotificationStore } from '@/stores/useNotification'
+import { useAuthStore } from '@/stores/auth'
 import type { NotificationType, NotificationData, Message, MessagePart, MentionContent } from '@/types'
 
 /**
@@ -411,7 +412,7 @@ export class NotificationOrchestrator {
   }
 
   /**
-   * Safely create notification with error handling
+   * Safely create notification with error handling and immediate desktop notification
    */
   private async createNotificationSafely(
     userId: string,
@@ -422,15 +423,130 @@ export class NotificationOrchestrator {
   ) {
     try {
       const notificationStore = useNotificationStore()
-      await notificationStore.createNotification(userId, type, title, message, data)
+      
+      // Create database notification
+      const notification = await notificationStore.createNotification(userId, type, title, message, data)
+      
+      // 🔔 CRITICAL FIX: Also trigger immediate desktop notification for current user
+      const authStore = useAuthStore()
+      if (authStore.session?.user?.id === userId) {
+        // Show immediate desktop notification for current user
+        await this.showImmediateDesktopNotification(type, title, message, data)
+        
+        // Show toast notification
+        notificationStore.showToast(type, title, message, 4000, data.avatar_url)
+        
+        // Play sound if enabled
+        if (notificationStore.shouldPlaySound(type)) {
+          notificationStore.playNotificationSound(type)
+        }
+      }
       
       // Update rate limiting
       const key = `${type}-${data.user_id}-${userId}`
       this.rateLimitMap.set(key, Date.now())
       
       console.log(`✅ Orchestrator: ${type} notification created for user ${userId}`)
+      return notification
     } catch (error) {
       console.error(`❌ Orchestrator: Failed to create ${type} notification:`, error)
+    }
+  }
+
+  /**
+   * Show immediate desktop notification
+   */
+  private async showImmediateDesktopNotification(
+    type: NotificationType,
+    title: string,
+    message: string,
+    data: NotificationData
+  ) {
+    try {
+      // Check if desktop notifications are supported and permitted
+      if (typeof Notification === 'undefined') {
+        console.log('Desktop notifications not supported')
+        return
+      }
+
+      if (Notification.permission !== 'granted') {
+        console.log('Desktop notification permission not granted')
+        return
+      }
+
+      // Check user preferences
+      const notificationStore = useNotificationStore()
+      if (!notificationStore.shouldShowDesktopNotification(type)) {
+        console.log(`Desktop notifications disabled for ${type}`)
+        return
+      }
+
+      // Create and show desktop notification
+      const notification = new Notification(title, {
+        body: message,
+        icon: data.avatar_url || '/harmony_icon1.png',
+        badge: '/harmony_icon1.png',
+        tag: `harmony-${type}-${data.user_id || 'unknown'}`,
+        requireInteraction: type === 'mention' || type === 'dm',
+        silent: false
+      })
+
+      // Handle click to navigate to source
+      notification.onclick = () => {
+        window.focus()
+        this.navigateToNotificationSource(data)
+        notification.close()
+      }
+
+      // Auto-close non-critical notifications
+      if (type !== 'mention' && type !== 'dm') {
+        setTimeout(() => notification.close(), 8000)
+      }
+
+      console.log(`✅ Desktop notification shown for ${type}`)
+    } catch (error) {
+      console.error('❌ Error showing desktop notification:', error)
+    }
+  }
+
+  /**
+   * Navigate to notification source
+   */
+  private async navigateToNotificationSource(data: NotificationData) {
+    try {
+      // Use dynamic import to avoid circular dependencies
+      const { useRouter } = await import('vue-router')
+      const router = useRouter()
+
+      if (data.conversation_id) {
+        await router.push(`/dm/${data.conversation_id}`)
+      } else if (data.server_id && data.channel_id) {
+        let path = `/servers/${data.server_id}/channels/${data.channel_id}`
+        if (data.message_id) {
+          path += `?message=${data.message_id}`
+        }
+        await router.push(path)
+      } else if (data.server_id) {
+        await router.push(`/servers/${data.server_id}`)
+      }
+    } catch (error) {
+      console.error('❌ Error navigating to notification source:', error)
+    }
+  }
+
+  /**
+   * Get vibration pattern for notification type
+   */
+  private getVibrationPattern(type: NotificationType): number[] {
+    switch (type) {
+      case 'mention':
+        return [200, 100, 200] // Strong vibration for mentions
+      case 'dm':
+        return [150, 50, 150] // Medium vibration for DMs
+      case 'reaction':
+        return [100] // Light vibration for reactions
+      default:
+        return [100, 50, 100] // Default pattern
     }
   }
 
@@ -506,7 +622,7 @@ export class NotificationOrchestrator {
   private extractTextFromContent(content: MessagePart[]): string {
     return content
       .filter(part => part.type === 'text')
-      .map(part => part.text)
+      .map(part => (part as any).text)
       .join(' ')
   }
 

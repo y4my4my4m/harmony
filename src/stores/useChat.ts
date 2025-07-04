@@ -1,9 +1,6 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Message, MessagePart, ChannelCache, CacheMetadata, MentionContent } from '@/types';
-import { 
-  broadcastInServer,
-} from '@/services/notificationService';
 import { notificationOrchestrator } from '@/services/NotificationOrchestrator';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { GetUserIdFromUsername } from '@/utils/getFromUser';
@@ -485,7 +482,7 @@ export const useChatStore = defineStore('chat', {
               const mentionPart = part as MentionContent;
               const toUserId = await GetUserIdFromUsername(mentionPart.mention);
               // Simplified legacy calls - the NotificationOrchestrator handles the comprehensive logic
-              broadcastInServer('mention', serverId, { userId: toUserId, messageId: message.id });
+              // broadcastInServer('mention', serverId, { userId: toUserId, messageId: message.id });
             }
           }
         }

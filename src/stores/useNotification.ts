@@ -1,15 +1,14 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './auth'
-import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
 import type { 
   Notification, 
   NotificationType, 
   NotificationData, 
   NotificationPreferences,
-  NotificationFilter 
+  NotificationToast,
+  ToastAction
 } from '@/types'
 
 interface NotificationState {
@@ -111,7 +110,7 @@ export const useNotificationStore = defineStore('notification', {
   }),
 
   getters: {
-    sortedNotifications(state) {
+    sortedNotifications: (state) => {
       return [...state.notifications].sort((a, b) => {
         // Unread notifications first
         if (a.is_read !== b.is_read) {
@@ -122,13 +121,13 @@ export const useNotificationStore = defineStore('notification', {
       })
     },
 
-    filteredNotifications(state) {
-      if (state.currentFilter === 'all') {
+    filteredNotifications(): Notification[] {
+      if (this.currentFilter === 'all') {
         return this.sortedNotifications
       }
       
-      return this.sortedNotifications.filter(notification => {
-        switch (state.currentFilter) {
+      return this.sortedNotifications.filter((notification: Notification) => {
+        switch (this.currentFilter) {
           case 'unread':
             return !notification.is_read
           case 'mentions':
@@ -143,7 +142,7 @@ export const useNotificationStore = defineStore('notification', {
       })
     },
 
-    notificationsByType(state) {
+    notificationsByType: (state) => {
       const grouped: Record<NotificationType, Notification[]> = {
         mention: [],
         dm: [],
@@ -165,15 +164,15 @@ export const useNotificationStore = defineStore('notification', {
       return grouped
     },
 
-    hasUnreadMentions(state) {
+    hasUnreadMentions: (state) => {
       return state.notifications.some(n => n.type === 'mention' && !n.is_read)
     },
 
-    hasUnreadDMs(state) {
+    hasUnreadDMs: (state) => {
       return state.notifications.some(n => n.type === 'dm' && !n.is_read)
     },
 
-    isQuietHours(state) {
+    isQuietHours: (state) => {
       if (!state.preferences?.dnd_enabled) return false
       
       const now = new Date()
@@ -188,9 +187,10 @@ export const useNotificationStore = defineStore('notification', {
       return currentTime >= startTime && currentTime <= endTime
     },
 
-    shouldShowDesktopNotification(state) {
+    shouldShowDesktopNotification: (state) => {
       return (type: NotificationType) => {
-        if (!state.preferences?.desktop_notifications || this.isQuietHours) return false
+        const store = useNotificationStore()
+        if (!state.preferences?.desktop_notifications || store.isQuietHours) return false
         
         switch (type) {
           case 'mention':
@@ -207,9 +207,10 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    shouldPlaySound(state) {
+    shouldPlaySound: (state) => {
       return (type: NotificationType) => {
-        if (!state.preferences?.sound_notifications || this.isQuietHours) return false
+        const store = useNotificationStore()
+        if (!state.preferences?.sound_notifications || store.isQuietHours) return false
         
         switch (type) {
           case 'mention':
@@ -226,7 +227,7 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
-    notificationFilters(state) {
+    notificationFilters: (state) => {
       return [
         {
           key: 'all',
