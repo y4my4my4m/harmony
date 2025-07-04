@@ -26,10 +26,10 @@
 - [x] channel categories
 - [x] channel type
 - [x] channel drag & drop
-- [ ] channel order
-- [ ] category order
+- [x] channel order
+- [x] category order
   - [x] has or
-  - [ ] reorganize order
+  - [x] reorganize order
 - [x] realtime status
   - [x] changes
   - [x] bug in self status display
@@ -66,7 +66,7 @@
 - [ ] server order
 - [ ] forgot password
 - [ ] reset password
-- [ ] notifications
+- [x] notifications
 - [x] mentions
 - [x] reactions
 - [ ] threads
@@ -75,19 +75,20 @@
 - [ ] activitypub
 - [ ] spaces
 - [x] public/private
-- [ ] voice
+- [x] voice
   - [ ] e2ee
 - [ ] voice positioning
   - [x] voice positioning UI
   - [ ] functionality
-- [ ] video
+- [x] video
   - [ ] e2ee
-  - [ ] screen share
+  - [x] screen share
   - [ ] video filters
   - [ ] video backgrounds
 - [ ] federation
 - [ ] e2e encryption
 - [ ] permissions
+  - [x] db somewhat
 - [ ] moderation
 - [ ] admin
 - [ ] smart fetching
