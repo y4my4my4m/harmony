@@ -67,7 +67,7 @@
 
     .user_display_name {
         font-weight: bold;
-        color: #ddd; /* Discord blue */
+        color: #ddd;
     }
 
     .text-sm-normal {

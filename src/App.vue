@@ -1,6 +1,12 @@
 <template>
   <RouterView />
+  <NotificationToast />
 </template>
+
+<script setup lang="ts">
+import NotificationToast from '@/components/NotificationToast.vue'
+</script>
+
 <style>
 
   /* @font-face {

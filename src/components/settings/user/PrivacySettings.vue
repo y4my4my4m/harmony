@@ -126,9 +126,9 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Use data to improve Discord</h4>
+          <h4 class="setting-label">Use data to improve Harmony</h4>
           <p class="setting-description">
-            Allow Discord to use your data to improve the service.
+            Allow Harmony to use your data to improve the service.
           </p>
         </div>
         <div class="setting-control">
@@ -143,7 +143,7 @@
         <div class="setting-info">
           <h4 class="setting-label">Use data for personalization</h4>
           <p class="setting-description">
-            Allow Discord to personalize your experience based on your activity.
+            Allow Harmony to personalize your experience based on your activity.
           </p>
         </div>
         <div class="setting-control">

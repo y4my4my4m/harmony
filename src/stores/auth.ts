@@ -17,10 +17,11 @@ export const useAuthStore = defineStore('auth', {
       const { data: getSessionData } = await supabase.auth.getSession();
       this.session = getSessionData.session;
 
-      // Set user as online when they initialize auth
+      // Initialize notification system for existing session
       if (this.session?.user?.id) {
         await this.setUserOnline(this.session.user.id);
         this.setupOfflineHandlers(this.session.user.id);
+        await this.initializeNotificationSystem(this.session.user.id);
       }
 
       supabase.auth.onAuthStateChange(async (_, session) => {
@@ -33,9 +34,11 @@ export const useAuthStore = defineStore('auth', {
           // User logged in
           await this.setUserOnline(session.user.id);
           this.setupOfflineHandlers(session.user.id);
+          await this.initializeNotificationSystem(session.user.id);
         } else if (wasLoggedIn && previousUserId) {
           // User logged out
           await this.setUserOffline(previousUserId);
+          this.cleanupNotificationSystem();
         }
       });
     },
@@ -141,6 +144,70 @@ export const useAuthStore = defineStore('auth', {
       
       // Redirect to login page
       router.push('/login');
+    },
+
+    /**
+     * Initialize the Discord-like notification system
+     */
+    async initializeNotificationSystem(userId: string) {
+      try {
+        console.log('🔔 Initializing notification system for user:', userId);
+        
+        // Dynamic import to avoid circular dependencies
+        const { useNotificationStore } = await import('@/stores/useNotification');
+        const notificationStore = useNotificationStore();
+        
+        // Check if already initialized
+        if (notificationStore.isInitialized) {
+          console.log('⚠️ Notification system already initialized, skipping...');
+          return;
+        }
+        
+        // Initialize the notification store
+        await notificationStore.initialize(userId);
+        
+        console.log('✅ Notification system initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize notification system:', error);
+      }
+    },
+
+    /**
+     * Cleanup notification system on logout
+     */
+    cleanupNotificationSystem() {
+      try {
+        console.log('🔔 Cleaning up notification system');
+        
+        // Dynamic import to avoid issues during cleanup
+        import('@/stores/useNotification').then(({ useNotificationStore }) => {
+          const notificationStore = useNotificationStore();
+          
+          // Clean up real-time subscriptions
+          if (notificationStore.realtimeSubscription) {
+            supabase.removeChannel(notificationStore.realtimeSubscription);
+            notificationStore.realtimeSubscription = null;
+          }
+          
+          // Reset state
+          notificationStore.$reset();
+          notificationStore.isInitialized = false;
+          
+          console.log('✅ Notification system cleaned up');
+        }).catch(error => {
+          console.error('❌ Error during notification cleanup:', error);
+        });
+        
+        // Reset view context
+        import('@/services/ViewContextTracker').then(({ viewContextTracker }) => {
+          viewContextTracker.reset();
+        }).catch(error => {
+          console.error('❌ Error resetting view context:', error);
+        });
+        
+      } catch (error) {
+        console.error('❌ Error cleaning up notification system:', error);
+      }
     },
   },
 });

@@ -29,6 +29,11 @@
         @conversationSelected="handleDMConversationSelected"
       />
       
+      <!-- Notification Bell positioned above user profile -->
+      <div class="notification-section">
+        <NotificationBell />
+      </div>
+      
       <!-- User Profile spanning the full width of both sidebars -->
       <UserProfileComponent />
     </div>
@@ -71,6 +76,7 @@
   import VoiceChannelScene from '@/components/VoiceChannelScene.vue';
   import CreateChannel from '@/components/CreateChannel.vue';
   import PublicServers from '@/components/PublicServers.vue';
+  import NotificationBell from '@/components/NotificationBell.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
@@ -81,6 +87,7 @@
   import { useToast } from "vue-toastification";
   import type { Channel } from "@/types";
   import { useChannelSelection } from '@/composables/useUserProfile'
+  import { viewContextTracker } from '@/services/ViewContextTracker'
 
   export default defineComponent({
     components: {
@@ -94,6 +101,7 @@
       VoiceChannelScene,
       CreateChannel,
       PublicServers,
+      NotificationBell,
     },
     props: {
       serverId: String,
@@ -236,6 +244,14 @@
       const handleChannelSelected = async (channelId: string) => {
         serverChannelStore.setCurrentChannel(channelId);
         
+        // 🎯 UPDATE VIEW CONTEXT - Server Channel
+        viewContextTracker.updateContext({
+          server_id: currentServer.value?.id,
+          channel_id: channelId,
+          conversation_id: undefined,
+          view_type: 'server_channel'
+        });
+        
         // Check if messages are cached with enhanced validation
         const isCached = chatStore.isMessageCached(channelId);
         
@@ -263,6 +279,14 @@
       // DM-specific handlers
       const handleDMConversationSelected = async (conversationId: string) => {
         if (props.isDM) {
+          // 🎯 UPDATE VIEW CONTEXT - DM Conversation
+          viewContextTracker.updateContext({
+            server_id: undefined,
+            channel_id: undefined,
+            conversation_id: conversationId,
+            view_type: 'dm'
+          });
+          
           // Check if messages are cached for instant loading
           const isCached = dmStore.isCacheValid(conversationId);
           
@@ -294,6 +318,14 @@
 
       const loadDMConversation = async () => {
         if (props.isDM && props.conversationId) {
+          // 🎯 UPDATE VIEW CONTEXT - DM Conversation (direct load)
+          viewContextTracker.updateContext({
+            server_id: undefined,
+            channel_id: undefined,
+            conversation_id: props.conversationId,
+            view_type: 'dm'
+          });
+          
           // ALWAYS set current conversation first to establish subscription
           dmStore.setCurrentConversation(props.conversationId);
           
@@ -678,6 +710,17 @@
   right: 0;
   z-index: 2;
   width: 100%;
+}
+
+.notification-section {
+  position: absolute;
+  bottom: 72px; /* Height of user profile */
+  left: 72px; /* Offset from server sidebar */
+  right: 0;
+  padding: 12px 16px;
+  background: var(--h-sidebar);
+  border-top: 1px solid var(--h-chat-light);
+  z-index: 2;
 }
 
 .chat-area {

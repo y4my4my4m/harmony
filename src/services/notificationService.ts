@@ -1,68 +1,46 @@
-import { supabase } from '@/supabase';
+import { supabase } from '@/supabase'
+import type { NotificationType } from '@/types'
 
+// 🔔 CLEANED UP: Removed duplicate notification functions - now using NotificationOrchestrator
+// Legacy broadcast system - kept for backward compatibility but simplified
 export const subscribeToServerNotifications = async (userId: string, serverId: string) => {
-    // subscribe from notification events in server
-    const channel = supabase.channel(`notificationsFromServer-${serverId}`, {
-        config: {
-            broadcast: { self: true },
-        },
-    }).subscribe();
-
-    channel.on('broadcast', { event: 'mention' }, (payload) => {
-        console.log("received broadcast in server");
-        console.log(payload);
-    });
+  console.log('⚠️ subscribeToServerNotifications is deprecated - notifications now handled by NotificationOrchestrator')
+  return null
 }
-
 
 export const unsubscribeToServerNotifications = async (userId: string, serverId: string) => {
-    // unsubscribe from notification events in server
-    supabase.channel(`notificationsFromServer-${serverId}`, {
-        config: {
-            broadcast: { self: true },
-        },
-    }).unsubscribe();
+  console.log('⚠️ unsubscribeToServerNotifications is deprecated')
 }
 
-export const broadcastInServer = async (event: string, serverId: string, to?: string, from?: string, content?: string, messageId?: string) => {
-    // broadcast notification to server listeners
-    const channel = supabase.channel(`notificationsFromServer-${serverId}`);
-
-    channel.send({
-        type: 'broadcast',
-        event,
-        payload: {
-            serverId,
-            to,
-            from,
-            content,
-            messageId
-        }
-    });
+export const broadcastInServer = async (
+  event: string, 
+  serverId: string, 
+  data: any = {}
+) => {
+  console.log('⚠️ broadcastInServer is deprecated - notifications now handled by NotificationOrchestrator')
+  // Keeping minimal implementation for backward compatibility
 }
 
+// Legacy function for backward compatibility
 export const listenInServer = async (event: string, serverId: string) => {
-    // listen to broadcast notifications for server
-    const channel = supabase.channel(`notificationsFromServer-${serverId}`);
-    // , from?: string, content?: string, messageId?: string
-    // console.log(from, content, messageId);
-
-    channel.on('broadcast', { event }, (payload) => {
-        console.log("received broadcast in server");
-        console.log(payload);
-        // const { event, userId } = payload.payload;
-
-        // if (event === 'user-joined') {
-        //     // console.log(channel,event);
-        //     if (!this.usersInVoiceChannels[channelId]) {
-        //     this.usersInVoiceChannels[channelId] = [];
-        //     }
-        //     if (!this.usersInVoiceChannels[channelId].includes(userId)) {
-        //     this.usersInVoiceChannels[channelId].push(userId);
-        //     }
-        // } else if (event === 'user-left') {
-        //     this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
-        // }
-        // console.log(this.usersInVoiceChannels[channelId]);
-    })
+  console.log('⚠️ listenInServer is deprecated, notifications are now handled automatically by NotificationOrchestrator')
 }
+
+// 🗑️ REMOVED: All duplicate notification creation functions 
+// (createMentionNotification, createDMNotification, etc.)
+// These are now handled by the NotificationOrchestrator which:
+// - Provides consistent notification logic
+// - Handles rate limiting and deduplication  
+// - Triggers immediate desktop notifications
+// - Integrates with service worker properly
+// - Eliminates DRY violations
+
+// The NotificationOrchestrator replaces these functions:
+// ❌ createMentionNotification -> ✅ notificationOrchestrator.handleMessageEvent()
+// ❌ createDMNotification -> ✅ notificationOrchestrator.handleMessageEvent() 
+// ❌ createReactionNotification -> ✅ notificationOrchestrator.handleReactionEvent()
+// ❌ createReplyNotification -> ✅ notificationOrchestrator.handleMessageEvent()
+// ❌ createServerInviteNotification -> ✅ notificationOrchestrator.handleServerInviteEvent()
+// ❌ createVoiceChannelNotification -> ✅ notificationOrchestrator.handleVoiceEvent()
+
+// Utility functions moved to NotificationOrchestrator for better organization

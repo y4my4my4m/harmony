@@ -688,6 +688,10 @@ export const useDMStore = defineStore('dm', () => {
 
       console.log('✅ DM message sent successfully to database:', newMessage)
       
+      // 🔔 Database triggers now handle DM notifications automatically
+      // No need for manual notification creation - the database trigger will detect
+      // the new message insert and create appropriate notifications based on conversation participants
+
       // Real-time subscription will handle adding to cache via addMessageToCache
       // Don't manually add here to prevent duplicates
 

@@ -4,10 +4,10 @@ import './assets/main.css'
 import './assets/shared.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-
 import App from './App.vue'
-import { useAuthStore } from './stores/auth';
 import router from './router'
+import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
+import { useAuthStore } from '@/stores/auth'
 
 import Toast from 'vue-toastification';
 import "vue-toastification/dist/index.css";
@@ -35,14 +35,6 @@ app.use(Toast, {
 const pinia = createPinia();
 app.use(pinia);
 
-const authStore = useAuthStore();
-try {
-  await authStore.initializeAuth();
-} catch (error) {
-  console.error('Failed to initialize app:', error);
-}
-
-
 app.use(VueEasyLightbox);
 app.use(MasonryWall)
 
@@ -60,17 +52,28 @@ app.directive('scroll-bottom', {
   
 app.directive('click-outside', ClickOutsideDirective);
 
-app.use(router).mount('#app');
-
-// src/main.ts or main.js
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(registration => {
-        // console.log('SW registered: ', registration);
-      })
-      .catch(registrationError => {
-        console.log('SW registration failed: ', registrationError);
-      });
-  });
+async function initializeApp() {
+  try {
+    // Initialize auth store first to check for existing sessions
+    const authStore = useAuthStore()
+    await authStore.initializeAuth()
+    console.log('✅ Auth initialized')
+    
+    // Register service worker for enhanced notification handling
+    const swSupported = await serviceWorkerManager.initialize()
+    console.log('🔔 Service Worker supported:', swSupported)
+    
+    // Request notification permission if supported
+    if (swSupported) {
+      await serviceWorkerManager.requestNotificationPermission()
+    }
+  } catch (error) {
+    console.error('❌ Error initializing service worker:', error)
+  }
+  
+  // Mount the app
+  app.use(router).mount('#app')
 }
+
+// Initialize the application
+initializeApp()

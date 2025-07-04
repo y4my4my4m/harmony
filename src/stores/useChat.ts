@@ -1,10 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import type { Message, MessagePart, ChannelCache, CacheMetadata } from '@/types';
-import { 
-  broadcastInServer,
-} from '@/services/notificationService';
-
+import type { Message, MessagePart, ChannelCache, CacheMetadata, MentionContent } from '@/types';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 import { GetUserIdFromUsername } from '@/utils/getFromUser';
 
 // import { getEmoji } from '@/services/emojiService';
@@ -458,18 +455,14 @@ export const useChatStore = defineStore('chat', {
           console.error('Error sending message:', error);
           return;
         }
+        
         if (data && data.length > 0) {
+          const message = data[0];
+          
           // Real-time subscription will handle adding to cache
-          this.addMessageToCache(data[0]);
+          this.addMessageToCache(message);
 
-          // if content contains a mention, send to the notification service
-          for (const part of Array.from(content) as MessagePart[]) {
-            console.log(part);
-            if (part.type === 'mention') {
-              const toUserId = await GetUserIdFromUsername(part.mention);
-              broadcastInServer('mention', serverId, toUserId, userId, part.mention, data[0].id );
-            }
-          }
+          // Database trigger will handle mention notifications automatically when message is inserted
         }
         console.log('Message sent:', data);
       } catch (e) {
@@ -480,6 +473,9 @@ export const useChatStore = defineStore('chat', {
     async addReaction(messageId: string, emojiId: string, userId: string) {
       try {
         console.log('🎯 Adding reaction:', { messageId, emojiId, userId });
+        
+        // Get message details for context
+        const message = this.messages.find(msg => msg.id === messageId);
         
         // Attempt to insert new reaction
         const { data: reactionData, error: insertError } = await supabase
@@ -517,6 +513,10 @@ export const useChatStore = defineStore('chat', {
         } else {
           console.log('🎯 Reaction successfully added to DB:', reactionData);
         }
+
+        // 🔔 Database triggers now handle reaction notifications automatically
+        // No need for manual notification creation - the database trigger will detect
+        // the new reaction insert and create appropriate notifications
     
         // Fetch and update reaction data in messages
         const updatedReactionData = await this.fetchAndPopulateReactions(messageId);
@@ -664,7 +664,7 @@ export const useChatStore = defineStore('chat', {
                 if (message.reactions) {
                   for (const reactionGroup of message.reactions) {
                     if (reactionGroup.reactions && Array.isArray(reactionGroup.reactions)) {
-                      const hasReaction = reactionGroup.reactions.some(r => r.reaction_id === payload.old.id);
+                      const hasReaction = reactionGroup.reactions.some(r => r.id === payload.old.id);
                       if (hasReaction) {
                         messageId = message.id;
                         console.log('🔥 Found message ID by searching:', messageId);
