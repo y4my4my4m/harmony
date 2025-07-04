@@ -599,7 +599,7 @@ export const useChatStore = defineStore('chat', {
             event: 'INSERT', 
             schema: 'public', 
             table: 'messages',
-            filter: `channel_id=eq.${channelId}` // FIXED: Only listen to messages for this channel
+            filter: `channel_id=eq.${channelId}`
           },
           (payload) => {
             const newMessage: Message = {

@@ -448,13 +448,8 @@
               );
             }
             
-            // Add reaction - for DMs this might need different handling
-            if (props.isDM) {
-              // TODO: Implement DM reactions if needed
-              console.log('DM reactions not yet implemented');
-            } else {
-              await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
-            }
+            // Add reaction - works for both DMs and server messages
+            await chatStore.addReaction(selectedMessageId.value, emoji.id, authStore.session.user.id);
           }
         } else {
           // Track emoji usage when used in message content
