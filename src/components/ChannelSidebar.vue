@@ -189,6 +189,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
+import { useVoiceChannelStore } from '@/stores/voiceChannel';
 
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
@@ -629,6 +630,7 @@ export default defineComponent({
 
     // Voice channel methods
     const serverUsersStore = useServerUsersStore();
+    const voiceChannelStore = useVoiceChannelStore();
     
     // Voice connection audio and state
     const voiceOnSound = ref(new Audio('/assets/sounds/voice_connect.mp3'));
@@ -650,15 +652,17 @@ export default defineComponent({
         // Leave any other voice channels first (user can only be in one at a time)
         await serverUsersStore.leaveAllVoiceChannels(props.currentServer.id, userId.value);
         
-        // Join the new voice channel
-        const success = await serverUsersStore.joinVoiceChannel(
-          props.currentServer.id, 
-          channelId, 
-          userId.value
+        // Join the new voice channel using the voice channel store
+        // This handles both server presence and WebRTC connection
+        const success = await voiceChannelStore.joinVoiceChannel(
+          channelId,
+          props.currentServer.id
         );
         
         if (success) {
           console.log(`Successfully joined voice channel ${channelId}`);
+          // Note: voiceChannelStore.joinVoiceChannel() already plays the sound via playSound()
+          // but we keep this for backward compatibility
           voiceOnSound.value.play();
         }
       } catch (error) {
@@ -670,14 +674,13 @@ export default defineComponent({
       if (!userId.value || !props.currentServer?.id) return;
       
       try {
-        const success = await serverUsersStore.leaveVoiceChannel(
-          props.currentServer.id, 
-          channelId, 
-          userId.value
-        );
+        // Use the voice channel store which handles both WebRTC disconnection and server presence
+        const success = await voiceChannelStore.leaveVoiceChannel();
         
         if (success) {
           console.log(`Successfully left voice channel ${channelId}`);
+          // Note: voiceChannelStore.leaveVoiceChannel() already plays the sound via playSound()
+          // but we keep this for backward compatibility
           voiceOffSound.value.play();
         }
       } catch (error) {

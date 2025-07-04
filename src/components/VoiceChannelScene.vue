@@ -20,6 +20,13 @@
         :width="containerWidth" 
         :height="containerHeight" 
         :avatars="avatarPositions" />
+      
+      <!-- WebRTC Video/Audio Component -->
+      <WebRTCComponent 
+        :channelId="currentChannelId"
+        :serverId="serverId"
+        :showDebugInfo="false"
+      />
     </div>
   </div>
 </template>
@@ -31,6 +38,7 @@
   import type { Point } from '@/types';
 
   import SpaceTimeGrid from '@/components/SpaceTimeGrid.vue'
+  import WebRTCComponent from '@/components/WebRTCComponent.vue'
 
   export default defineComponent({
     name: 'VoiceChannelGrid',
@@ -39,9 +47,14 @@
         type: String,
         required: true
       },
+      serverId: {
+        type: String,
+        required: true
+      },
     },
     components: {
-      SpaceTimeGrid
+      SpaceTimeGrid,
+      WebRTCComponent
     },
     setup(props) {
       const serverUsersStore = useServerUsersStore();

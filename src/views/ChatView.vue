@@ -61,6 +61,9 @@
       />
     </div>
     <UserSidebar :class="{ 'open': isProfilesVisible }"  />
+    
+    <!-- Voice Control Panel -->
+    <VoiceControlPanel />
   </div>
 </template>
 
@@ -77,6 +80,7 @@
   import CreateChannel from '@/components/CreateChannel.vue';
   import PublicServers from '@/components/PublicServers.vue';
   import NotificationBell from '@/components/NotificationBell.vue';
+  import VoiceControlPanel from '@/components/VoiceControlPanel.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
   import { useChatStore } from '@/stores/useChat';
@@ -102,6 +106,7 @@
       CreateChannel,
       PublicServers,
       NotificationBell,
+      VoiceControlPanel,
     },
     props: {
       serverId: String,

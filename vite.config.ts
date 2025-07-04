@@ -33,6 +33,13 @@ export default defineConfig({
   },
   // to access the Tauri environment variables set by the CLI with information about the current target
   envPrefix: ['VITE_', 'TAURI_PLATFORM', 'TAURI_ARCH', 'TAURI_FAMILY', 'TAURI_PLATFORM_VERSION', 'TAURI_PLATFORM_TYPE', 'TAURI_DEBUG'],
+  define: {
+    // Fix for simple-peer and other Node.js libraries
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    include: ['simple-peer'],
+  },
   build: {
     // Tauri uses Chromium on Windows and WebKit on macOS and Linux
     target: process.env.TAURI_PLATFORM == 'windows' ? 'chrome105' : 'safari13',
