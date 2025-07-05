@@ -33,22 +33,23 @@
           :class="{ 'is-empty': !modelValue, 'single-line': isSingleLine }"
           @click="focusTextarea"
         >
-          <div class="rich-text-content">
+          <div v-if="!modelValue" class="placeholder-text">
+            {{ attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...' }}
+          </div>
+          <div v-else class="rich-text-content">
             <template v-for="(part, index) in parsedInputContent" :key="index">
               <span v-if="part.type === 'text'" class="text-part">{{ part.text }}</span>
               <img 
-                v-else-if="part.type === 'emoji'" 
+                v-else-if="part.type === 'emoji' && part.emoji?.url" 
                 :src="part.emoji.url" 
                 :alt="part.emoji.name" 
                 :title="`:${part.emoji.name}:`"
                 class="input-emoji"
                 draggable="false"
+                @error="console.warn('Failed to load emoji:', part.emoji)"
               />
               <span v-else class="text-part">{{ part.text }}</span>
             </template>
-          </div>
-          <div v-if="!modelValue" class="placeholder-text">
-            {{ attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...' }}
           </div>
         </div>
         <textarea 
@@ -174,7 +175,14 @@ export default defineComponent({
     // Parse input content to render emojis visually
     const parsedInputContent = computed(() => {
       if (!props.modelValue) return [];
-      return parseInputForDisplay(props.modelValue);
+      const parsed = parseInputForDisplay(props.modelValue);
+      
+      // Debug: Log parsed content when it changes
+      if (parsed.some(part => part.type === 'emoji')) {
+        console.log('Parsed emojis in input:', parsed.filter(part => part.type === 'emoji'));
+      }
+      
+      return parsed;
     });
 
     // Parse input text to show emojis as images
@@ -218,16 +226,26 @@ export default defineComponent({
 
     // Find emoji by name in cache
     const findEmojiByName = (name: string) => {
-      // Get all server emojis from cache
-      const allServerIds = Array.from(emojiCache.serverCaches.keys());
-      for (const serverId of allServerIds) {
-        const serverEmojis = emojiCache.getServerEmojis(serverId);
-        const emoji = serverEmojis.find(e => e.name === name);
-        if (emoji) {
-          return emoji;
+      try {
+        // Get all server emojis from cache
+        const allServerIds = Array.from(emojiCache.serverCaches.keys());
+        for (const serverId of allServerIds) {
+          const serverEmojis = emojiCache.getServerEmojis(serverId);
+          if (serverEmojis && serverEmojis.length > 0) {
+            const emoji = serverEmojis.find(e => e.name === name);
+            if (emoji && emoji.url) {
+              return emoji;
+            }
+          }
         }
+        
+        // Also check if there are any default emojis or global emojis
+        // This is a fallback in case server-specific emojis aren't found
+        return null;
+      } catch (error) {
+        console.warn('Error finding emoji by name:', error);
+        return null;
       }
-      return null;
     };
 
     const handleInput = (event: Event) => {
@@ -261,9 +279,13 @@ export default defineComponent({
       textarea.style.height = newHeight + 'px';
       textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
       
-      // Sync rich text container height
+      // Sync rich text container height and alignment
       if (richTextContainer.value) {
         richTextContainer.value.style.height = newHeight + 'px';
+        // Force re-alignment after height change
+        nextTick(() => {
+          syncScroll();
+        });
       }
     };
 
@@ -377,7 +399,8 @@ export default defineComponent({
       autoSuggest.closeSuggestions();
       
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
-        const content = props.modelValue?.trim() || '';
+        // Preserve newlines in the message content - don't trim them away
+        const content = props.modelValue || '';
         emit('sendMessage', content, attachedFiles.value);
         emit('update:modelValue', '');
         
@@ -385,6 +408,11 @@ export default defineComponent({
         if (textareaRef.value) {
           textareaRef.value.style.height = 'auto';
           textareaRef.value.style.height = '44px'; // Reset to minimum height
+        }
+        
+        // Reset rich text container height
+        if (richTextContainer.value) {
+          richTextContainer.value.style.height = '44px';
         }
         
         // Clear files after sending (uploads should be completed by now)
@@ -572,6 +600,23 @@ export default defineComponent({
       if (textareaRef.value) {
         autoExpandTextarea(textareaRef.value);
       }
+      
+      // Debug: Check emoji cache state
+      console.log('MessageInput mounted, emoji cache servers:', Array.from(emojiCache.serverCaches.keys()));
+      
+      // Ensure emoji cache is populated
+      nextTick(() => {
+        const allServerIds = Array.from(emojiCache.serverCaches.keys());
+        if (allServerIds.length === 0) {
+          console.warn('No emoji servers found in cache. Emojis may not display properly.');
+        } else {
+          console.log('Available emoji servers:', allServerIds);
+          allServerIds.forEach(serverId => {
+            const emojis = emojiCache.getServerEmojis(serverId);
+            console.log(`Server ${serverId} has ${emojis?.length || 0} emojis`);
+          });
+        }
+      });
     });
 
     onUnmounted(() => {
@@ -718,19 +763,38 @@ export default defineComponent({
     white-space: pre-wrap;
     word-wrap: break-word;
     z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .rich-text-container.is-empty {
+    z-index: 0;
   }
 
   .rich-text-container.single-line {
     display: flex;
     align-items: center;
-    padding: 0;
+    justify-content: flex-start;
+    padding: 0 0;
     min-height: 44px;
   }
 
+  .rich-text-container:not(.single-line) {
+    justify-content: flex-start;
+    align-items: stretch;
+  }
+
   .rich-text-content {
-    display: inline;
+    display: block;
     white-space: pre-wrap;
     word-wrap: break-word;
+    min-height: 1.375em;
+  }
+
+  .rich-text-container.single-line .rich-text-content {
+    display: inline-block;
+    min-height: unset;
   }
 
   .text-part {
@@ -743,6 +807,8 @@ export default defineComponent({
     height: 20px;
     vertical-align: middle;
     margin: 0 1px;
+    object-fit: contain;
+    user-select: none;
   }
 
   .placeholder-text {
@@ -756,11 +822,13 @@ export default defineComponent({
     display: flex;
     align-items: center;
     padding: 12px 0;
+    z-index: 0;
   }
 
   .rich-text-container.single-line .placeholder-text {
     padding: 0;
     min-height: 44px;
+    justify-content: flex-start;
   }
 
   .hidden-textarea {
@@ -770,10 +838,16 @@ export default defineComponent({
     color: transparent;
     caret-color: white;
     resize: none;
+    border: none;
+    outline: none;
   }
 
   .hidden-textarea::selection {
     background: rgba(114, 137, 218, 0.3);
+  }
+
+  .hidden-textarea:focus {
+    outline: none;
   }
 
   textarea.auto-expand {
@@ -792,11 +866,15 @@ export default defineComponent({
     overflow-y: hidden;
     box-sizing: border-box;
     transition: height 0.1s ease;
+    display: flex;
+    align-items: center;
   }
 
   textarea.auto-expand.hidden-textarea {
     color: transparent;
     caret-color: white;
+    position: relative;
+    z-index: 2;
   }
 
   textarea::placeholder {
@@ -888,16 +966,161 @@ export default defineComponent({
     box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
   }
 
+  /* Rich Editor Styling */
+  .rich-editor {
+    width: 100%;
+    min-height: 44px;
+    max-height: 200px;
+    padding: 12px 0;
+    border: none;
+    background-color: transparent;
+    color: white;
+    font-size: 16px;
+    font-family: inherit;
+    line-height: 1.375;
+    outline: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    resize: none;
+    cursor: text;
+    position: relative;
+  }
+
+  .rich-editor.single-line {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 0;
+  }
+
+  .rich-editor:focus {
+    outline: none;
+  }
+
+  /* Placeholder styling */
+  .editor-placeholder {
+    color: #72767d;
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    z-index: 1;
+    cursor: text;
+  }
+
+  .rich-editor.single-line .editor-placeholder {
+    padding: 0;
+  }
+
+  /* Editor Block Styling */
+  .editor-block {
+    position: relative;
+    margin: 0;
+    min-height: 1.375em;
+  }
+
+  .editor-block:not(:last-child) {
+    margin-bottom: 0;
+  }
+
+  /* Node Styling */
+  .editor-text-node {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .editor-emoji-node {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0 1px;
+  }
+
+  .editor-emoji-image {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    object-fit: contain;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .editor-mention-node {
+    position: relative;
+    display: inline-block;
+    vertical-align: baseline;
+  }
+
+  .editor-mention-text {
+    background-color: rgba(88, 101, 242, 0.3);
+    color: #5865f2;
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-weight: 500;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .editor-emoji-spacer,
+  .editor-mention-spacer {
+    position: absolute;
+    height: 0px;
+    color: transparent;
+    outline: none;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* Custom scrollbar */
+  .rich-editor::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .rich-editor::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .rich-editor::-webkit-scrollbar-thumb {
+    background: #40444b;
+    border-radius: 2px;
+  }
+
+  .rich-editor::-webkit-scrollbar-thumb:hover {
+    background: #4f545c;
+  }
+
+  /* Focus styling */
+  .rich-editor:focus,
+  .rich-editor.is-focused {
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15);
+  }
+
   @media (max-width: 768px) {
     .message-input {
       position: sticky;
       bottom: 0;
     }
     
-    textarea.auto-expand {
+    .rich-editor {
       font-size: 14px;
       padding: 10px 0;
       min-height: 40px;
+    }
+
+    .editor-placeholder {
+      padding: 10px 0;
+    }
+
+    .rich-editor.single-line .editor-placeholder {
+      padding: 0;
     }
 
     .emoji-preview-item {
