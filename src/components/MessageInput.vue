@@ -269,19 +269,71 @@ export default defineComponent({
       return text;
     };
 
-    // Get cursor position in rich editor
+    // Get cursor position in rich editor (improved accuracy)
     const getCursorPosition = (element: HTMLDivElement): number => {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) return 0;
       
       const range = selection.getRangeAt(0);
-      const preCaretRange = range.cloneRange();
-      preCaretRange.selectNodeContents(element);
-      preCaretRange.setEnd(range.endContainer, range.endOffset);
+      let position = 0;
       
-      return extractTextFromRichEditor({
-        childNodes: Array.from(preCaretRange.cloneContents().childNodes)
-      } as any).length;
+      // Walk through all nodes until we reach the cursor position
+      const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode: (node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+              return NodeFilter.FILTER_ACCEPT;
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as HTMLElement;
+              // Accept emoji elements and BR tags
+              if (el.classList.contains('inline-emoji') || el.tagName === 'BR') {
+                return NodeFilter.FILTER_ACCEPT;
+              }
+              return NodeFilter.FILTER_SKIP;
+            }
+            return NodeFilter.FILTER_SKIP;
+          }
+        }
+      );
+      
+      let node = walker.nextNode();
+      while (node) {
+        if (node === range.startContainer) {
+          // We've reached the container with the cursor
+          if (node.nodeType === Node.TEXT_NODE) {
+            position += range.startOffset;
+          }
+          break;
+        } else if (range.startContainer.nodeType === Node.ELEMENT_NODE && 
+                   range.startContainer.contains(node)) {
+          // Check if we've passed the cursor position in container
+          const nodesBeforeCursor = Array.from(range.startContainer.childNodes).slice(0, range.startOffset);
+          if (!nodesBeforeCursor.includes(node as ChildNode)) {
+            break;
+          }
+        }
+        
+        // Count this node
+        if (node.nodeType === Node.TEXT_NODE) {
+          position += (node.textContent || '').length;
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          if (el.classList.contains('inline-emoji')) {
+            const emojiName = el.getAttribute('data-emoji');
+            if (emojiName) {
+              position += `:${emojiName}:`.length;
+            }
+          } else if (el.tagName === 'BR') {
+            position += 1; // newline
+          }
+        }
+        
+        node = walker.nextNode();
+      }
+      
+      return position;
     };
 
     // Insert text at current cursor position
@@ -309,18 +361,12 @@ export default defineComponent({
       processEmojisInEditor();
     };
 
-    // Update rich editor content from text (Simple approach)
+    // Update rich editor content from text (improved cursor preservation)
     const updateRichEditorContent = (text: string) => {
       if (!richTextContainer.value) return;
       
-      // Store current selection
-      const selection = window.getSelection();
-      const hadSelection = selection && selection.rangeCount > 0;
-      let savedRange = null;
-      
-      if (hadSelection) {
-        savedRange = selection.getRangeAt(0).cloneRange();
-      }
+      // Store current cursor position as text offset
+      const currentCursorPos = getCursorPosition(richTextContainer.value);
       
       // Clear and rebuild content
       richTextContainer.value.innerHTML = '';
@@ -399,19 +445,16 @@ export default defineComponent({
         }
       }
       
-      // Try to restore selection if we had one
-      if (hadSelection && savedRange) {
-        try {
-          selection.removeAllRanges();
-          selection.addRange(savedRange);
-        } catch (e) {
-          // If we can't restore exact selection, place cursor at end
-          const range = document.createRange();
-          range.selectNodeContents(richTextContainer.value);
-          range.collapse(false);
-          selection.removeAllRanges();
-          selection.addRange(range);
-        }
+      // Restore cursor position if we had a valid position
+      if (currentCursorPos >= 0 && richTextContainer.value) {
+        nextTick(() => {
+          // Only restore cursor if the element is focused or about to be focused
+          if (richTextContainer.value && 
+              (document.activeElement === richTextContainer.value || 
+               richTextContainer.value.contains(document.activeElement))) {
+            setCursorPosition(richTextContainer.value, currentCursorPos);
+          }
+        });
       }
     };
 
@@ -494,95 +537,84 @@ export default defineComponent({
       }
     };
 
-    // Insert emoji at current cursor position in rich editor
+    // Insert emoji at current cursor position in rich editor (improved)
     const insertEmojiAtCursor = (emoji: any) => {
       if (!richTextContainer.value) return;
       
       const editor = richTextContainer.value;
-      const selection = window.getSelection();
       
-      if (selection && selection.rangeCount > 0) {
-        // Get current text and cursor position
-        const currentText = extractTextFromRichEditor(editor);
-        const range = selection.getRangeAt(0);
-        
-        // Get cursor position by counting characters before the selection
-        let cursorPosition = 0;
-        const walker = document.createTreeWalker(
-          editor,
-          NodeFilter.SHOW_TEXT,
-          null
-        );
-        
-        let node = walker.nextNode();
-        while (node && !range.intersectsNode(node)) {
-          cursorPosition += (node.textContent || '').length;
-          node = walker.nextNode();
-        }
-        
-        if (node && range.startContainer === node) {
-          cursorPosition += range.startOffset;
-        }
-        
-        // Check if there's an emoji trigger pattern before cursor
-        const textBeforeCursor = currentText.substring(0, cursorPosition);
-        const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]*)$/);
-        
-        let newText;
-        let newCursorPos;
-        
-        if (emojiMatch) {
-          // Remove the trigger text and insert emoji
-          const triggerLength = emojiMatch[0].length;
-          newText = currentText.substring(0, cursorPosition - triggerLength) + 
-                   `:${emoji.name}:` + 
-                   currentText.substring(cursorPosition);
-          newCursorPos = cursorPosition - triggerLength + `:${emoji.name}:`.length;
-        } else {
-          // No trigger pattern, just insert emoji at cursor
-          newText = currentText.substring(0, cursorPosition) + 
-                   `:${emoji.name}:` + 
-                   currentText.substring(cursorPosition);
-          newCursorPos = cursorPosition + `:${emoji.name}:`.length;
-        }
-        
-        // Update model and editor
-        emit('update:modelValue', newText);
-        updateRichEditorContent(newText);
-        
-        // Set cursor position after the emoji
-        nextTick(() => {
-          setCursorPosition(editor, newCursorPos);
-          editor.focus();
-        });
+      // Get current text content and cursor position
+      const currentText = extractTextFromRichEditor(editor);
+      const cursorPosition = getCursorPosition(editor);
+      
+      console.log('🔧 insertEmojiAtCursor:', {
+        emojiName: emoji.name,
+        currentText,
+        cursorPosition
+      });
+      
+      // Check if there's an emoji trigger pattern before cursor
+      const textBeforeCursor = currentText.substring(0, cursorPosition);
+      const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]*)$/);
+      
+      let newText;
+      let newCursorPos;
+      
+      if (emojiMatch) {
+        // Remove the trigger text and insert emoji
+        const triggerLength = emojiMatch[0].length;
+        newText = currentText.substring(0, cursorPosition - triggerLength) + 
+                 `:${emoji.name}:` + 
+                 currentText.substring(cursorPosition);
+        newCursorPos = cursorPosition - triggerLength + `:${emoji.name}:`.length;
+        console.log('🎯 Found emoji trigger, replacing:', emojiMatch[0], 'with:', `:${emoji.name}:`);
       } else {
-        // No selection, just append emoji
-        const currentText = extractTextFromRichEditor(editor);
-        const newText = currentText + `:${emoji.name}:`;
-        emit('update:modelValue', newText);
-        updateRichEditorContent(newText);
+        // No trigger pattern, just insert emoji at cursor
+        newText = currentText.substring(0, cursorPosition) + 
+                 `:${emoji.name}:` + 
+                 currentText.substring(cursorPosition);
+        newCursorPos = cursorPosition + `:${emoji.name}:`.length;
+        console.log('🔄 No trigger found, inserting at cursor position');
+      }
+      
+      console.log('📍 Setting cursor to position:', newCursorPos);
+      
+      // Update model
+      emit('update:modelValue', newText);
+      
+    };
+
+    const insertEmoji = (emoji: any) => {
+      console.log('📱 insertEmoji called from popup:', emoji);
+      
+      // Ensure the rich text editor is focused before insertion (for emoji popup)
+      if (richTextContainer.value) {
+        // Get the current focus state
+        const wasFocused = document.activeElement === richTextContainer.value;
         
-        // Focus and set cursor to end
+        // Focus the editor if it's not already focused
+        if (!wasFocused) {
+          richTextContainer.value.focus();
+        }
+        
+        // Small delay to ensure focus is applied, then insert emoji
         nextTick(() => {
-          editor.focus();
-          const selection = window.getSelection();
-          if (selection) {
-            const range = document.createRange();
-            range.selectNodeContents(editor);
-            range.collapse(false);
-            selection.removeAllRanges();
-            selection.addRange(range);
-          }
+          console.log('🎯 About to call insertEmojiAtCursor after focus');
+          insertEmojiAtCursor(emoji);
+          
+          // Ensure focus returns to the editor after insertion
+          nextTick(() => {
+            if (richTextContainer.value) {
+              richTextContainer.value.focus();
+              console.log('✅ Focus restored to rich text editor');
+            }
+          });
         });
       }
     };
 
-    const insertEmoji = (emoji: any) => {
-      insertEmojiAtCursor(emoji);
-    };
-
-    // Set cursor position in rich editor (simplified)
-    const setCursorPosition = (element: HTMLDivElement, position: number) => {
+    // Set cursor position in rich editor (improved accuracy)
+    const setCursorPosition = (element: HTMLDivElement, targetPosition: number) => {
       const selection = window.getSelection();
       if (!selection) return;
       
@@ -592,36 +624,90 @@ export default defineComponent({
       
       const walker = document.createTreeWalker(
         element,
-        NodeFilter.SHOW_TEXT,
-        (node) => {
-          // Skip zero-width spaces used for structure
-          if (node.textContent === '\u200B') {
+        NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode: (node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+              return NodeFilter.FILTER_ACCEPT;
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as HTMLElement;
+              // Accept emoji elements and BR tags
+              if (el.classList.contains('inline-emoji') || el.tagName === 'BR') {
+                return NodeFilter.FILTER_ACCEPT;
+              }
+              return NodeFilter.FILTER_SKIP;
+            }
             return NodeFilter.FILTER_SKIP;
           }
-          return NodeFilter.FILTER_ACCEPT;
         }
       );
       
       let node = walker.nextNode();
       while (node) {
-        const nodeLength = (node.textContent || '').length;
-        if (currentPos + nodeLength >= position) {
-          targetNode = node;
-          targetOffset = position - currentPos;
-          break;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const nodeLength = (node.textContent || '').length;
+          if (currentPos + nodeLength >= targetPosition) {
+            targetNode = node;
+            targetOffset = targetPosition - currentPos;
+            break;
+          }
+          currentPos += nodeLength;
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          if (el.classList.contains('inline-emoji')) {
+            const emojiName = el.getAttribute('data-emoji');
+            if (emojiName) {
+              const emojiLength = `:${emojiName}:`.length;
+              if (currentPos + emojiLength >= targetPosition) {
+                // Position is within this emoji, place cursor after it
+                const nextNode = walker.nextNode();
+                if (nextNode && nextNode.nodeType === Node.TEXT_NODE) {
+                  targetNode = nextNode;
+                  targetOffset = 0;
+                } else {
+                  // Place cursor after the emoji element
+                  targetNode = el.parentNode;
+                  targetOffset = Array.from(el.parentNode?.childNodes || []).indexOf(el) + 1;
+                }
+                break;
+              }
+              currentPos += emojiLength;
+            }
+          } else if (el.tagName === 'BR') {
+            if (currentPos + 1 >= targetPosition) {
+              // Position is at this line break
+              targetNode = el.parentNode;
+              targetOffset = Array.from(el.parentNode?.childNodes || []).indexOf(el) + 1;
+              break;
+            }
+            currentPos += 1;
+          }
         }
-        currentPos += nodeLength;
         node = walker.nextNode();
       }
       
       if (targetNode) {
-        const range = document.createRange();
-        range.setStart(targetNode, Math.min(targetOffset, targetNode.textContent?.length || 0));
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
+        try {
+          const range = document.createRange();
+          if (targetNode.nodeType === Node.TEXT_NODE) {
+            range.setStart(targetNode, Math.min(targetOffset, targetNode.textContent?.length || 0));
+          } else {
+            range.setStart(targetNode, Math.min(targetOffset, targetNode.childNodes.length));
+          }
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        } catch (e) {
+          console.warn('Error setting cursor position:', e);
+          // Fallback: place cursor at end
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
       } else {
-        // Position is at the end
+        // Position is beyond content, place cursor at end
         const range = document.createRange();
         range.selectNodeContents(element);
         range.collapse(false);
@@ -676,8 +762,12 @@ export default defineComponent({
           updateRichEditorContent(newValue);
         }
         
-        // Focus back to the rich text container
-        richTextContainer.value.focus();
+        // Focus back to the rich text container after insertion
+        nextTick(() => {
+          if (richTextContainer.value) {
+            richTextContainer.value.focus();
+          }
+        });
       }
     };
 
