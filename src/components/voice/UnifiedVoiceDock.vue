@@ -177,26 +177,22 @@ export default defineComponent({
     Avatar
   },
   
-  props: {
-    channelName: {
-      type: String,
-      default: 'Voice Channel'
-    }
-  },
   
-  setup(props) {
-      // Explicitly type as 'any' to avoid leaking private types
-      const voiceStore: any = useUnifiedVoiceChannelStore();
-      const authStore = useAuthStore();
-      const serverUsersStore = useServerUsersStore();
-      
-      const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
-      const showSettings = ref(false);
-      
-      // =============================================================================
-      // COMPUTED PROPERTIES
-      // =============================================================================
+  setup() {
+    // Explicitly type as 'any' to avoid leaking private types
+    const voiceStore: any = useUnifiedVoiceChannelStore();
+    const authStore = useAuthStore();
+    const serverUsersStore = useServerUsersStore();
     
+    const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
+    const showSettings = ref(false);
+    
+    // =============================================================================
+    // COMPUTED PROPERTIES
+    // =============================================================================
+    const channelName = computed(() => {
+      return voiceStore.currentChannelName || 'Voice Channel';
+    });
     const currentUserId = computed(() => authStore.session?.user?.id);
     
     const currentUserProfile = computed(() => {
@@ -301,6 +297,7 @@ export default defineComponent({
     
     return {
       voiceStore,
+      channelName,
       currentMode,
       showSettings,
       currentUserProfile,

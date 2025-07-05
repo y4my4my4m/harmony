@@ -62,14 +62,6 @@
       />
     </div>
     <UserSidebar :class="{ 'open': isProfilesVisible }"  />
-    
-    <!-- Global Unified WebRTC Component - Always present for voice functionality -->
-    <UnifiedWebRTCComponent 
-      v-if="!isDM && currentServer && voiceChannelStore.currentChannelId"
-      :channelId="voiceChannelStore.currentChannelId"
-      :serverId="currentServer.id"
-      :channel-name="getVoiceChannelName()"
-    />
   </div>
 </template>
 
@@ -83,7 +75,6 @@
   import UserProfileComponent from '@/components/UserProfileComponent.vue';
   import NoServersSplash from '@/components/NoServersSplash.vue';
   import VoiceChannelScene from '@/components/VoiceChannelScene.vue';
-  import UnifiedWebRTCComponent from '@/components/UnifiedWebRTCComponent.vue';
   import CreateChannel from '@/components/CreateChannel.vue';
   import PublicServers from '@/components/PublicServers.vue';
   import NotificationBell from '@/components/NotificationBell.vue';
@@ -110,7 +101,6 @@
       UserProfileComponent,
       NoServersSplash,
       VoiceChannelScene,
-      UnifiedWebRTCComponent,
       CreateChannel,
       PublicServers,
       NotificationBell,

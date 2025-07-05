@@ -145,6 +145,7 @@ const getTypeIcon = (type: NotificationType) => {
   position: relative;
   overflow: hidden;
   backdrop-filter: blur(8px);
+  margin-bottom: 10px;
 }
 
 .notification-toast::before {

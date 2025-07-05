@@ -25,13 +25,11 @@
           :avatars="avatarPositions" /> -->
       </div>
     </div>
-    
-    <!-- Note: UnifiedWebRTCComponent is now handled globally in ChatView for persistence across navigation -->
   </div>
 </template>
 
 <script lang="ts">
-  import { defineComponent, ref, onMounted, nextTick, computed, watch } from 'vue';
+  import { defineComponent, ref, onMounted, computed, watch } from 'vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
   import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -52,7 +50,7 @@
       },
     },
     components: {
-      SpaceTimeGrid
+      // SpaceTimeGrid
     },
     setup(props) {
       const serverUsersStore = useServerUsersStore();

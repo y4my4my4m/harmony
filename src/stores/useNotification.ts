@@ -410,7 +410,7 @@ export const useNotificationStore = defineStore('notification', {
           icon: NotificationFormatter.getAvatarUrl(notification),
           badge: '/harmony_icon1.png',
           tag: `harmony-${notification.type}-${notification.id}`,
-          requireInteraction: notification.type === 'mention' || notification.type === 'dm',
+          // requireInteraction: notification.type === 'mention' || notification.type === 'dm', // Add this if you want critical notifications to stay open
           silent: false
         })
 

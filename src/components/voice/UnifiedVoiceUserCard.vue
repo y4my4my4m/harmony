@@ -457,8 +457,7 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 160px;
-  margin-bottom: 12px;
+  margin-bottom: 40px;
 }
 
 .avatar-wrapper {
@@ -473,7 +472,6 @@ export default defineComponent({
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  padding: 3px;
   background: linear-gradient(145deg, #40444b, #2f3136);
   transition: all 0.3s ease;
 }
@@ -483,9 +481,6 @@ export default defineComponent({
   box-shadow: 0 0 20px rgba(0, 212, 170, 0.4);
 }
 
-.user-avatar {
-  border: 2px solid #36393f;
-}
 
 /* Voice Ring */
 .voice-ring {
