@@ -26,52 +26,35 @@
         </div>
       </div>
       <div class="textarea-wrapper">
-        <!-- Rich text container for rendering emojis -->
+        <!-- Main contenteditable input (Discord-like structure) -->
         <div 
           ref="richTextContainer"
-          class="rich-text-container"
+          class="slate-text-area"
           :class="{ 'is-empty': !modelValue, 'single-line': isSingleLine }"
-          @click="focusTextarea"
-        >
-          <div v-if="!modelValue" class="placeholder-text">
-            {{ attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...' }}
-          </div>
-          <div v-else class="rich-text-content">
-            <template v-for="(part, index) in parsedInputContent" :key="index">
-              <span v-if="part.type === 'text'" class="text-part">{{ part.text }}</span>
-              <img 
-                v-else-if="part.type === 'emoji' && part.emoji?.url" 
-                :src="part.emoji.url" 
-                :alt="part.emoji.name" 
-                :title="`:${part.emoji.name}:`"
-                class="input-emoji"
-                draggable="false"
-                @error="console.warn('Failed to load emoji:', part.emoji)"
-              />
-              <span v-else class="text-part">{{ part.text }}</span>
-            </template>
-          </div>
-        </div>
-        <textarea 
-          ref="textareaRef"
-          draggable="false" 
-          @dragstart.prevent 
-          class="selectableText auto-expand hidden-textarea" 
-          :value="modelValue"
-          @input="handleInput"
-          @keydown="handleKeyDown" 
+          role="textbox"
+          aria-multiline="true"
+          spellcheck="true"
+          aria-haspopup="listbox"
+          aria-invalid="false"
+          aria-autocomplete="list"
+          :aria-label="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
+          contenteditable="true"
+          @input="handleRichTextInput"
+          @keydown="handleKeyDown"
           @focus="handleFocus"
           @blur="handleBlur"
-          @scroll="syncScroll"
-          :placeholder="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
-          rows="1"
-        ></textarea>
-        <!-- Emoji popup for inline emoji display -->
-        <div v-if="showInlineEmoji" class="inline-emoji-container">
-          <div class="emoji-preview">
-            <img v-for="emoji in recentEmojis" :key="emoji.id" :src="emoji.url" :alt="emoji.name" class="emoji-preview-item" @click="insertEmoji(emoji)" />
-          </div>
+          @paste="handlePaste"
+          :data-placeholder="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
+        >
         </div>
+        <!-- Hidden textarea for AutoSuggest compatibility -->
+        <textarea 
+          ref="textareaRef"
+          class="hidden-sync-textarea"
+          :value="modelValue"
+          @input="handleTextareaInput"
+          tabindex="-1"
+        ></textarea>
       </div>
       <div class="right-icons">
         <GifIcon @click="toggleGiphy" />
@@ -158,8 +141,6 @@ export default defineComponent({
     const showUploadMenu = ref(false);
     const attachedFiles = ref<FilePreviewData[]>([]);
     const isDragging = ref(false);
-    const showInlineEmoji = ref(false);
-    const recentEmojis = ref<any[]>([]);
     const richTextContainer = ref<HTMLDivElement | null>(null);
     const isTextareaFocused = ref(false);
     
@@ -171,58 +152,6 @@ export default defineComponent({
     const isSingleLine = computed(() => {
       return !props.modelValue.includes('\n');
     });
-
-    // Parse input content to render emojis visually
-    const parsedInputContent = computed(() => {
-      if (!props.modelValue) return [];
-      const parsed = parseInputForDisplay(props.modelValue);
-      
-      // Debug: Log parsed content when it changes
-      if (parsed.some(part => part.type === 'emoji')) {
-        console.log('Parsed emojis in input:', parsed.filter(part => part.type === 'emoji'));
-      }
-      
-      return parsed;
-    });
-
-    // Parse input text to show emojis as images
-    const parseInputForDisplay = (text: string) => {
-      const parts = [];
-      const emojiRegex = /:(\w+):/g;
-      let lastIndex = 0;
-      let match;
-
-      while ((match = emojiRegex.exec(text)) !== null) {
-        // Add text before emoji
-        if (match.index > lastIndex) {
-          const textPart = text.substring(lastIndex, match.index);
-          if (textPart) {
-            parts.push({ type: 'text', text: textPart });
-          }
-        }
-
-        // Try to find emoji
-        const emojiName = match[1];
-        const emoji = findEmojiByName(emojiName);
-        if (emoji) {
-          parts.push({ type: 'emoji', emoji, text: match[0] });
-        } else {
-          parts.push({ type: 'text', text: match[0] });
-        }
-
-        lastIndex = match.index + match[0].length;
-      }
-
-      // Add remaining text
-      if (lastIndex < text.length) {
-        const remaining = text.substring(lastIndex);
-        if (remaining) {
-          parts.push({ type: 'text', text: remaining });
-        }
-      }
-
-      return parts.length > 0 ? parts : [{ type: 'text', text }];
-    };
 
     // Find emoji by name in cache
     const findEmojiByName = (name: string) => {
@@ -248,6 +177,50 @@ export default defineComponent({
       }
     };
 
+    // Parse input text to show emojis as images
+    const parseInputForDisplay = (text: string) => {
+      const parts = [];
+      const emojiRegex = /:(\w+):/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = emojiRegex.exec(text)) !== null) {
+        // Add text before emoji
+        if (match.index > lastIndex) {
+          const textPart = text.substring(lastIndex, match.index);
+          if (textPart) {
+            parts.push({ type: 'text', text: textPart });
+          }
+        }
+
+        // Try to find emoji
+        const emojiName = match[1];
+        const emoji = findEmojiByName(emojiName);
+        if (emoji) {
+          parts.push({ 
+            type: 'emoji', 
+            emoji, 
+            text: match[0],
+            originalLength: match[0].length // Store original text length for cursor calculations
+          });
+        } else {
+          parts.push({ type: 'text', text: match[0] });
+        }
+
+        lastIndex = match.index + match[0].length;
+      }
+
+      // Add remaining text
+      if (lastIndex < text.length) {
+        const remaining = text.substring(lastIndex);
+        if (remaining) {
+          parts.push({ type: 'text', text: remaining });
+        }
+      }
+
+      return parts.length > 0 ? parts : [{ type: 'text', text }];
+    };
+
     const handleInput = (event: Event) => {
       const target = event.target as HTMLTextAreaElement;
       const value = target.value;
@@ -265,6 +238,180 @@ export default defineComponent({
       checkEmojiTrigger(value, cursorPosition);
     };
 
+    // New rich text input handler
+    const handleRichTextInput = (event: Event) => {
+      const target = event.target as HTMLDivElement;
+      const textContent = extractTextFromRichEditor(target);
+      
+      emit('update:modelValue', textContent);
+      
+      // Handle auto-suggest based on cursor position
+      const cursorPosition = getCursorPosition(target);
+      autoSuggest.handleInput(textContent, cursorPosition);
+      
+      // Check for emoji triggers
+      checkEmojiTrigger(textContent, cursorPosition);
+      
+      // Auto-expand
+      autoExpandRichEditor(target);
+    };
+
+    // Handle textarea input for compatibility
+    const handleTextareaInput = (event: Event) => {
+      const target = event.target as HTMLTextAreaElement;
+      const value = target.value;
+      
+      // Update rich text editor with new content
+      if (richTextContainer.value) {
+        updateRichEditorContent(value);
+      }
+    };
+
+    // Handle paste events to process emojis
+    const handlePaste = (event: ClipboardEvent) => {
+      event.preventDefault();
+      const text = event.clipboardData?.getData('text/plain') || '';
+      insertTextAtCursor(text);
+    };
+
+    // Extract plain text from rich editor, preserving emoji codes
+    const extractTextFromRichEditor = (element: HTMLDivElement): string => {
+      let text = '';
+      
+      const processNode = (node: Node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          text += node.textContent || '';
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          if (el.classList.contains('slate-emoji')) {
+            // Extract emoji name from data attribute
+            const emojiName = el.getAttribute('data-emoji-name');
+            if (emojiName) {
+              text += `:${emojiName}:`;
+            }
+          } else if (el.tagName === 'BR') {
+            text += '\n';
+          } else {
+            // Process child nodes
+            for (const child of Array.from(node.childNodes)) {
+              processNode(child);
+            }
+          }
+        }
+      };
+      
+      for (const child of Array.from(element.childNodes)) {
+        processNode(child);
+      }
+      
+      return text;
+    };
+
+    // Get cursor position in rich editor
+    const getCursorPosition = (element: HTMLDivElement): number => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return 0;
+      
+      const range = selection.getRangeAt(0);
+      const preCaretRange = range.cloneRange();
+      preCaretRange.selectNodeContents(element);
+      preCaretRange.setEnd(range.endContainer, range.endOffset);
+      
+      return extractTextFromRichEditor({
+        childNodes: Array.from(preCaretRange.cloneContents().childNodes)
+      } as any).length;
+    };
+
+    // Insert text at current cursor position
+    const insertTextAtCursor = (text: string) => {
+      if (!richTextContainer.value) return;
+      
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        // If no selection, append to end
+        richTextContainer.value.textContent = (richTextContainer.value.textContent || '') + text;
+      } else {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(document.createTextNode(text));
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      
+      // Update model value
+      const newText = extractTextFromRichEditor(richTextContainer.value);
+      emit('update:modelValue', newText);
+      
+      // Process any new emojis
+      processEmojisInEditor();
+    };
+
+    // Update rich editor content from text
+    const updateRichEditorContent = (text: string) => {
+      if (!richTextContainer.value) return;
+      
+      // Clear current content
+      richTextContainer.value.innerHTML = '';
+      
+      // Parse and add content
+      const parts = parseInputForDisplay(text);
+      
+      for (const part of parts) {
+        if (part.type === 'text') {
+          // Handle newlines by splitting and adding br elements
+          const lines = part.text.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i]) {
+              richTextContainer.value.appendChild(document.createTextNode(lines[i]));
+            }
+            if (i < lines.length - 1) {
+              richTextContainer.value.appendChild(document.createElement('br'));
+            }
+          }
+        } else if (part.type === 'emoji' && part.emoji?.url) {
+          const emojiSpan = document.createElement('span');
+          emojiSpan.className = 'slate-emoji';
+          emojiSpan.contentEditable = 'false';
+          emojiSpan.setAttribute('data-emoji-name', part.emoji.name);
+          emojiSpan.setAttribute('data-type', 'emoji');
+          emojiSpan.title = `:${part.emoji.name}:`;
+          
+          const img = document.createElement('img');
+          img.src = part.emoji.url;
+          img.alt = `:${part.emoji.name}:`;
+          img.setAttribute('aria-label', `:${part.emoji.name}:`);
+          img.draggable = false;
+          
+          emojiSpan.appendChild(img);
+          richTextContainer.value.appendChild(emojiSpan);
+        }
+      }
+    };
+
+    // Process emojis in the editor content
+    const processEmojisInEditor = () => {
+      if (!richTextContainer.value) return;
+      
+      const text = extractTextFromRichEditor(richTextContainer.value);
+      updateRichEditorContent(text);
+    };
+
+    // Auto-expand slate text area
+    const autoExpandRichEditor = (editor: HTMLDivElement) => {
+      // Reset height to calculate natural height
+      editor.style.height = 'auto';
+      
+      const scrollHeight = editor.scrollHeight;
+      const maxHeight = 200;
+      const minHeight = 44;
+      
+      const newHeight = scrollHeight <= maxHeight ? Math.max(scrollHeight, minHeight) : maxHeight;
+      
+      editor.style.height = newHeight + 'px';
+      editor.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+    };
+
     const autoExpandTextarea = (textarea: HTMLTextAreaElement) => {
       // Reset height to auto to get the natural scrollHeight
       textarea.style.height = 'auto';
@@ -279,7 +426,7 @@ export default defineComponent({
       textarea.style.height = newHeight + 'px';
       textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
       
-      // Sync rich text container height and alignment
+      // Sync slate text area height and alignment
       if (richTextContainer.value) {
         richTextContainer.value.style.height = newHeight + 'px';
         // Force re-alignment after height change
@@ -316,39 +463,93 @@ export default defineComponent({
       const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]{2,})$/);
       
       if (emojiMatch) {
-        // Show emoji suggestions (simplified for now)
-        showInlineEmoji.value = true;
-        // In a real implementation, you'd search for emojis matching the pattern
+        // Emoji suggestions are handled by the AutoSuggest component
+        // The autoSuggest system will detect this pattern and show emoji suggestions
+      }
+    };
+
+    // Insert emoji at current cursor position in rich editor
+    const insertEmojiAtCursor = (emoji: any) => {
+      if (!richTextContainer.value) return;
+      
+      const editor = richTextContainer.value;
+      const selection = window.getSelection();
+      
+      if (selection && selection.rangeCount > 0) {
+        // Find and remove the emoji trigger pattern
+        const currentText = extractTextFromRichEditor(editor);
+        const cursorPosition = getCursorPosition(editor);
+        const textBeforeCursor = currentText.substring(0, cursorPosition);
+        const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]*)$/);
+        
+        if (emojiMatch) {
+          // Remove the trigger text and insert emoji
+          const triggerLength = emojiMatch[0].length;
+          const newText = currentText.substring(0, cursorPosition - triggerLength) + 
+                         `:${emoji.name}:` + 
+                         currentText.substring(cursorPosition);
+          
+          // Update the editor content
+          updateRichEditorContent(newText);
+          
+          // Update model value
+          emit('update:modelValue', newText);
+          
+          // Set cursor position after the emoji
+          nextTick(() => {
+            const newCursorPos = cursorPosition - triggerLength + `:${emoji.name}:`.length;
+            setCursorPosition(editor, newCursorPos);
+            editor.focus();
+          });
+        } else {
+          // No trigger pattern, just insert emoji at cursor
+          const emojiText = `:${emoji.name}:`;
+          insertTextAtCursor(emojiText);
+        }
       } else {
-        showInlineEmoji.value = false;
+        // No selection, just append emoji
+        const emojiText = `:${emoji.name}:`;
+        insertTextAtCursor(emojiText);
       }
     };
 
     const insertEmoji = (emoji: any) => {
-      if (textareaRef.value) {
-        const textarea = textareaRef.value;
-        const cursorPosition = textarea.selectionStart || 0;
-        const currentValue = textarea.value;
-        
-        // Find the emoji trigger pattern to replace
-        const textBeforeCursor = currentValue.substring(0, cursorPosition);
-        const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]*)$/);
-        
-        if (emojiMatch) {
-          const matchStart = cursorPosition - emojiMatch[0].length;
-          const newValue = currentValue.substring(0, matchStart) + `:${emoji.name}:` + currentValue.substring(cursorPosition);
-          emit('update:modelValue', newValue);
-          
-          nextTick(() => {
-            const newCursorPosition = matchStart + `:${emoji.name}:`.length;
-            textarea.setSelectionRange(newCursorPosition, newCursorPosition);
-            textarea.focus();
-            autoExpandTextarea(textarea);
-          });
+      insertEmojiAtCursor(emoji);
+    };
+
+    // Set cursor position in rich editor
+    const setCursorPosition = (element: HTMLDivElement, position: number) => {
+      const selection = window.getSelection();
+      if (!selection) return;
+      
+      let currentPos = 0;
+      const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+      
+      let node = walker.nextNode();
+      while (node) {
+        const nodeLength = node.textContent?.length || 0;
+        if (currentPos + nodeLength >= position) {
+          const range = document.createRange();
+          range.setStart(node, position - currentPos);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          return;
         }
-        
-        showInlineEmoji.value = false;
+        currentPos += nodeLength;
+        node = walker.nextNode();
       }
+      
+      // If we get here, position is at the end
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -382,15 +583,21 @@ export default defineComponent({
     };
 
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
-      if (textareaRef.value) {
-        const newValue = autoSuggest.selectSuggestion(suggestion);
-        emit('update:modelValue', newValue);
-        
-        // Also manually trigger the input event to ensure Vue reactivity
-        if (textareaRef.value) {
-          const event = new Event('input', { bubbles: true });
-          textareaRef.value.dispatchEvent(event);
+      if (richTextContainer.value && textareaRef.value) {
+        // For emoji suggestions, use rich text insertion
+        if (suggestion.type === 'emoji' || suggestion.url) {
+          insertEmojiAtCursor(suggestion);
+        } else {
+          // For other suggestions (users, etc.), use the traditional AutoSuggest handling
+          const newValue = autoSuggest.selectSuggestion(suggestion);
+          emit('update:modelValue', newValue);
+          
+          // Update the rich editor with the new content
+          updateRichEditorContent(newValue);
         }
+        
+        // Focus back to the rich text container
+        richTextContainer.value.focus();
       }
     };
 
@@ -404,15 +611,16 @@ export default defineComponent({
         emit('sendMessage', content, attachedFiles.value);
         emit('update:modelValue', '');
         
+        // Clear the slate text area
+        if (richTextContainer.value) {
+          richTextContainer.value.innerHTML = '';
+          richTextContainer.value.style.height = '44px';
+        }
+        
         // Reset textarea height after sending
         if (textareaRef.value) {
           textareaRef.value.style.height = 'auto';
           textareaRef.value.style.height = '44px'; // Reset to minimum height
-        }
-        
-        // Reset rich text container height
-        if (richTextContainer.value) {
-          richTextContainer.value.style.height = '44px';
         }
         
         // Clear files after sending (uploads should be completed by now)
@@ -596,7 +804,16 @@ export default defineComponent({
     onMounted(() => {
       document.addEventListener('external-file-drop', handleExternalFileDrop as EventListener);
       
-      // Initialize textarea auto-expand
+      // Initialize slate text area
+      if (richTextContainer.value) {
+        // Set initial content if modelValue exists
+        if (props.modelValue) {
+          updateRichEditorContent(props.modelValue);
+        }
+        autoExpandRichEditor(richTextContainer.value);
+      }
+      
+      // Initialize textarea auto-expand for compatibility
       if (textareaRef.value) {
         autoExpandTextarea(textareaRef.value);
       }
@@ -635,12 +852,26 @@ export default defineComponent({
       emit('files-attached', newFiles);
     }, { deep: true });
 
+    // Watch for external changes to modelValue and update rich editor
+    watch(() => props.modelValue, (newValue, oldValue) => {
+      if (richTextContainer.value && newValue !== oldValue) {
+        // Only update if the content is different from what's currently in the editor
+        const currentText = extractTextFromRichEditor(richTextContainer.value);
+        if (currentText !== newValue) {
+          updateRichEditorContent(newValue || '');
+        }
+      }
+    });
+
     return { 
       send, 
       toggleGiphy, 
       toggleEmojiList, 
       handleEnter,
       handleInput,
+      handleRichTextInput,
+      handleTextareaInput,
+      handlePaste,
       handleDontReply,
       showUploadMenu,
       toggleUploadMenu,
@@ -657,11 +888,9 @@ export default defineComponent({
       handleSuggestionSelect,
       textareaRef,
       autoSuggest,
-      showInlineEmoji,
-      recentEmojis,
       insertEmoji,
+      insertEmojiAtCursor,
       richTextContainer,
-      parsedInputContent,
       isSingleLine,
       isTextareaFocused,
       focusTextarea,
@@ -673,7 +902,7 @@ export default defineComponent({
 });
 </script>
 
-<style scoped>
+<style>
   .message-input {
     display: flex;
     padding: 10px 12px;
@@ -747,239 +976,19 @@ export default defineComponent({
     margin-right: 10px;
   }
 
-  .rich-text-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: 12px 0;
-    color: white;
-    font-size: 16px;
-    font-family: inherit;
-    line-height: 1.375;
-    pointer-events: none;
-    overflow: hidden;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-
-  .rich-text-container.is-empty {
-    z-index: 0;
-  }
-
-  .rich-text-container.single-line {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 0 0;
-    min-height: 44px;
-  }
-
-  .rich-text-container:not(.single-line) {
-    justify-content: flex-start;
-    align-items: stretch;
-  }
-
-  .rich-text-content {
-    display: block;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    min-height: 1.375em;
-  }
-
-  .rich-text-container.single-line .rich-text-content {
-    display: inline-block;
-    min-height: unset;
-  }
-
-  .text-part {
-    white-space: pre-wrap;
-  }
-
-  .input-emoji {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    vertical-align: middle;
-    margin: 0 1px;
-    object-fit: contain;
-    user-select: none;
-  }
-
-  .placeholder-text {
-    color: #72767d;
-    pointer-events: none;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    padding: 12px 0;
-    z-index: 0;
-  }
-
-  .rich-text-container.single-line .placeholder-text {
-    padding: 0;
-    min-height: 44px;
-    justify-content: flex-start;
-  }
-
-  .hidden-textarea {
-    position: relative;
-    z-index: 2;
-    background: transparent;
-    color: transparent;
-    caret-color: white;
-    resize: none;
-    border: none;
-    outline: none;
-  }
-
-  .hidden-textarea::selection {
-    background: rgba(114, 137, 218, 0.3);
-  }
-
-  .hidden-textarea:focus {
-    outline: none;
-  }
-
-  textarea.auto-expand {
+  .slate-text-area {
     width: 100%;
+    min-height: 44px;
+    max-height: 200px;
     padding: 12px 0;
     border: none;
     background-color: transparent;
     color: white;
     font-size: 16px;
-    resize: none;
-    outline: none;
     font-family: inherit;
     line-height: 1.375;
-    min-height: 44px;
-    max-height: 200px;
+    outline: none;
     overflow-y: hidden;
-    box-sizing: border-box;
-    transition: height 0.1s ease;
-    display: flex;
-    align-items: center;
-  }
-
-  textarea.auto-expand.hidden-textarea {
-    color: transparent;
-    caret-color: white;
-    position: relative;
-    z-index: 2;
-  }
-
-  textarea::placeholder {
-    color: #72767d;
-  }
-
-  textarea:focus,
-  textarea:active {
-    outline: none;
-  }
-
-  /* Inline emoji suggestions */
-  .inline-emoji-container {
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    right: 0;
-    background-color: var(--h-chat);
-    border: 1px solid var(--h-chat-light);
-    border-radius: 8px 8px 0 0;
-    padding: 8px;
-    z-index: 1000;
-  }
-
-  .emoji-preview {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .emoji-preview-item {
-    width: 24px;
-    height: 24px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.15s ease;
-  }
-
-  .emoji-preview-item:hover {
-    background-color: var(--h-chat-light);
-    transform: scale(1.1);
-  }
-  /* party mode RGB */
-  /* .message-container::before,
-  .message-container::after{
-    content: '';
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    bottom: -2px;
-    left: -2px;
-    z-index: -1;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    transition: .5s;
-    opacity: 0;
-  }
-
-  @keyframes rgbled {
-    0% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(0, 100%, 50%, 100%), 0 0 50px hsla(0, 100%, 50%, 5%); }
-    25% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(90, 100%, 50%, 100%), 0 0 50px hsla(90, 100%, 50%, 5%); }
-    50% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(180, 100%, 50%, 100%), 0 0 50px hsla(180, 100%, 50%, 5%); }
-    75% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(270, 100%, 50%, 100%), 0 0 50px hsla(270, 100%, 50%, 5%); }
-    100% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(360, 100%, 50%, 100%), 0 0 50px hsla(360, 100%, 50%, 5%); }
-  }
-
-  .message-container:has(textarea:focus)::before{
-    content: '';
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    bottom: -2px;
-    left: -2px;
-    z-index: 2;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    animation: rgbled 15s linear infinite;
-    border-radius: 8px;
-    opacity: 1;
-  }
-
-  .message-container:has(textarea:focus)::after {
-    top: -4px;
-    right: -4px;
-    bottom: -4px;
-    left: -4px;
-    animation-delay: 2.5s;
-  } */
-
-  .message-container:has(textarea:focus) {
-    box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
-  }
-
-  /* Rich Editor Styling */
-  .rich-editor {
-    width: 100%;
-    min-height: 44px;
-    max-height: 200px;
-    padding: 12px 0;
-    border: none;
-    background-color: transparent;
-    color: white;
-    font-size: 16px;
-    font-family: inherit;
-    line-height: 1.375;
-    outline: none;
-    overflow-y: auto;
     overflow-x: hidden;
     white-space: pre-wrap;
     word-wrap: break-word;
@@ -988,119 +997,82 @@ export default defineComponent({
     position: relative;
   }
 
-  .rich-editor.single-line {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    padding: 0 0;
-  }
-
-  .rich-editor:focus {
-    outline: none;
-  }
-
-  /* Placeholder styling */
-  .editor-placeholder {
+  .slate-text-area:empty::before {
+    content: attr(data-placeholder);
     color: #72767d;
     pointer-events: none;
     position: absolute;
-    top: 0;
+    top: 12px;
     left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    padding: 12px 0;
-    z-index: 1;
-    cursor: text;
   }
 
-  .rich-editor.single-line .editor-placeholder {
+  .slate-text-area.single-line {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
     padding: 0;
   }
 
-  /* Editor Block Styling */
-  .editor-block {
-    position: relative;
-    margin: 0;
-    min-height: 1.375em;
+  .slate-text-area.single-line:empty::before {
+    top: 0;
+    display: flex;
+    align-items: center;
+    height: 44px;
   }
 
-  .editor-block:not(:last-child) {
-    margin-bottom: 0;
+  .slate-text-area:focus {
+    outline: none;
   }
 
-  /* Node Styling */
-  .editor-text-node {
-    white-space: pre-wrap;
-    word-wrap: break-word;
-  }
-
-  .editor-emoji-node {
-    position: relative;
+  .slate-emoji {
     display: inline-block;
+    position: relative;
     vertical-align: middle;
     margin: 0 1px;
+    user-select: none;
   }
 
-  .editor-emoji-image {
+  .slate-emoji img {
     display: inline-block;
-    width: 20px;
-    height: 20px;
+    height: 24px;
+    width: 24px;
     vertical-align: middle;
     object-fit: contain;
     user-select: none;
     pointer-events: none;
   }
 
-  .editor-mention-node {
-    position: relative;
-    display: inline-block;
-    vertical-align: baseline;
+  .hidden-sync-textarea {
+    position: absolute !important;
+    left: -9999px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
   }
 
-  .editor-mention-text {
-    background-color: rgba(88, 101, 242, 0.3);
-    color: #5865f2;
-    padding: 1px 3px;
-    border-radius: 3px;
-    font-weight: 500;
-    user-select: none;
-    pointer-events: none;
+  /* Focus styling */
+  .message-container:has(.slate-text-area:focus) {
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
   }
 
-  .editor-emoji-spacer,
-  .editor-mention-spacer {
-    position: absolute;
-    height: 0px;
-    color: transparent;
-    outline: none;
-    pointer-events: none;
-    user-select: none;
-  }
-
-  /* Custom scrollbar */
-  .rich-editor::-webkit-scrollbar {
+  /* Custom scrollbar for slate text area */
+  .slate-text-area::-webkit-scrollbar {
     width: 4px;
   }
 
-  .rich-editor::-webkit-scrollbar-track {
+  .slate-text-area::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  .rich-editor::-webkit-scrollbar-thumb {
+  .slate-text-area::-webkit-scrollbar-thumb {
     background: #40444b;
     border-radius: 2px;
   }
 
-  .rich-editor::-webkit-scrollbar-thumb:hover {
+  .slate-text-area::-webkit-scrollbar-thumb:hover {
     background: #4f545c;
-  }
-
-  /* Focus styling */
-  .rich-editor:focus,
-  .rich-editor.is-focused {
-    box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15);
   }
 
   @media (max-width: 768px) {
@@ -1109,23 +1081,17 @@ export default defineComponent({
       bottom: 0;
     }
     
-    .rich-editor {
+    .slate-text-area {
       font-size: 14px;
       padding: 10px 0;
       min-height: 40px;
     }
 
-    .editor-placeholder {
-      padding: 10px 0;
-    }
-
-    .rich-editor.single-line .editor-placeholder {
-      padding: 0;
-    }
-
-    .emoji-preview-item {
-      width: 20px;
-      height: 20px;
+    .slate-text-area.single-line:empty::before {
+      top: 0;
+      display: flex;
+      align-items: center;
+      height: 40px;
     }
   }
 
