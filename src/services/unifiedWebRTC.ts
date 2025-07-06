@@ -12,6 +12,7 @@ export interface UserMediaState {
   isScreenSharing: boolean;
   isMuted: boolean;
   isDeafened: boolean;
+  isSpeaking: boolean;
   audioLevel: number;
 }
 
@@ -56,7 +57,8 @@ export class UnifiedWebRTCService {
     isScreenSharing: false,
     isMuted: false,
     isDeafened: false,
-    audioLevel: 0
+    isSpeaking: false,
+    audioLevel: 0,
   };
   
   // Remote connections and states
@@ -441,6 +443,8 @@ export class UnifiedWebRTCService {
       }
     }
     
+    this.localMediaState.isSpeaking = this.calculateSpeakingState(this.localMediaState.audioLevel, this.localMediaState.isMuted);
+    
     this.broadcastMediaState();
     this.emit('local-state-changed', this.localMediaState);
     
@@ -556,6 +560,13 @@ export class UnifiedWebRTCService {
   // PRIVATE METHODS
   // =============================================================================
 
+  /**
+   * Calculate speaking state based on audio level and mute status
+   */
+  private calculateSpeakingState(audioLevel: number, isMuted: boolean): boolean {
+    return audioLevel > 20 && !isMuted;
+  }
+
   private async initializeLocalAudio(): Promise<void> {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -613,6 +624,11 @@ export class UnifiedWebRTCService {
           this.localAudioAnalyser.getByteFrequencyData(dataArray);
           const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
           this.localMediaState.audioLevel = average;
+          
+          // Calculate speaking state
+          const wasSpeaking = this.localMediaState.isSpeaking;
+          this.localMediaState.isSpeaking = this.calculateSpeakingState(average, this.localMediaState.isMuted);
+          
           this.emit('audio-level', { userId: this.currentUserId, level: average });
           
           // Broadcast audio level to other users every 100ms if speaking
@@ -622,6 +638,13 @@ export class UnifiedWebRTCService {
             lastBroadcast = now;
           }
           
+          // Broadcast media state if speaking state changed (for other peers)
+          if (wasSpeaking !== this.localMediaState.isSpeaking) {
+            this.broadcastMediaState();
+            // Note: We don't emit 'local-state-changed' here to avoid interfering 
+            // with component reactivity. The component reacts directly to audioLevel changes.
+          }
+
           requestAnimationFrame(updateLevel);
         }
       };
@@ -755,8 +778,18 @@ export class UnifiedWebRTCService {
     // Update the user's audio level in our state
     const userState = this.allUserStates.get(userId);
     if (userState) {
+      const wasSpeaking = userState.isSpeaking;
       userState.audioLevel = audioLevel;
+      
+      // Calculate speaking state for remote user
+      userState.isSpeaking = this.calculateSpeakingState(audioLevel, userState.isMuted);
+      
       this.emit('audio-level', { userId, level: audioLevel });
+      
+      // Emit user state change if speaking state changed
+      if (wasSpeaking !== userState.isSpeaking) {
+        this.emit('user-state-changed', { userId, mediaState: userState });
+      }
     }
   }
 
@@ -823,6 +856,7 @@ export class UnifiedWebRTCService {
         isScreenSharing: false,
         isMuted: false,
         isDeafened: false,
+        isSpeaking: false,
         audioLevel: 0
       },
       remoteStream: null,
@@ -1004,7 +1038,7 @@ export class UnifiedWebRTCService {
       if (!connection.audioElement) {
         connection.audioElement = new Audio();
         connection.audioElement.autoplay = true;
-        connection.audioElement.playsInline = true;
+        // Note: playsInline is for video elements, not needed for audio
       }
       
       // Set the stream

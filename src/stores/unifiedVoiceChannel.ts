@@ -48,6 +48,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       isScreenSharing: false,
       isMuted: false,
       isDeafened: false,
+      isSpeaking: false,
       audioLevel: 0
     },
     
@@ -405,7 +406,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       unifiedWebRTC.on('user-stream-changed', (data) => {
-        console.log('📹 User stream changed:', data.userId, data.stream);
+        // console.log('📹 User stream changed:', data.userId, data.stream);
         
         if (data.stream) {
           this.remoteStreams.set(data.userId, data.stream);
@@ -416,18 +417,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
       // Local events
       unifiedWebRTC.on('local-state-changed', (state) => {
-        console.log('🎛️ Local state changed:', state);
+        // console.log('🎛️ Local state changed in store:', state);
+        // console.log('🗣️ Local speaking state in store:', state.isSpeaking, 'audioLevel:', state.audioLevel);
         this.localState = state;
       });
       
       unifiedWebRTC.on('local-stream-changed', (stream) => {
-        console.log('📹 Local stream changed:', stream);
+        // console.log('📹 Local stream changed:', stream);
         this.localStream = stream;
       });
       
       // Handle generic stream changes (for better compatibility)
       unifiedWebRTC.on('stream-changed', (data) => {
-        console.log('📡 Stream changed:', data.userId, data.type, data.stream);
+        // console.log('📡 Stream changed:', data.userId, data.type, data.stream);
         if (data.type === 'local' && data.userId === this.localState.userId) {
           this.localStream = data.stream;
         } else if (data.type === 'remote') {
@@ -453,7 +455,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
       // Connection events
       unifiedWebRTC.on('connection-state-changed', (data) => {
-        console.log('🔗 Connection state changed:', data);
+        // console.log('🔗 Connection state changed:', data);
       });
 
       // Error handling
@@ -491,6 +493,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         isScreenSharing: false,
         isMuted: false,
         isDeafened: false,
+        isSpeaking: false,
         audioLevel: 0
       };
       this.localStream = null;

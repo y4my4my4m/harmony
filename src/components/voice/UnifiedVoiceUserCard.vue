@@ -174,7 +174,13 @@ export default defineComponent({
     });
     
     const isSpeaking = computed(() => {
-      return props.userState.audioLevel > 20 && !props.userState.isMuted;
+      if (props.isSelf) {
+        // For self user, use audioLevel-based detection
+        return props.userState.audioLevel > 20 && !props.userState.isMuted;
+      } else {
+        // For peer users, use the userState.isSpeaking property
+        return props.userState.isSpeaking;
+      }
     });
     
     const voiceIntensity = computed(() => {
@@ -317,6 +323,16 @@ export default defineComponent({
   border-color: #5865f2;
   background: linear-gradient(145deg, #1e2140, #2a2d50);
 }
+
+/* Self user speaking - higher specificity */
+/* .harmony-voice-card.self.speaking {
+  border-color: #00d4aa !important;
+  background: linear-gradient(145deg, #1a2f2a, #2a4a3f) !important;
+  box-shadow: 
+    0 4px 16px rgba(0, 212, 170, 0.3),
+    0 0 32px rgba(0, 212, 170, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+} */
 
 /* Connection states */
 .harmony-voice-card.connection-poor {

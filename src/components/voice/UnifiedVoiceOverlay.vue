@@ -201,6 +201,29 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       return voiceStore.featuredSpeaker;
     });
     
+    // const displayedParticipants = computed(() => {
+    //   // Explicitly access the store properties to ensure reactivity
+    //   const localState = voiceStore.localState;
+    //   const allUsers = voiceStore.allUsers;
+      
+    //   // Rebuild participants list to ensure reactivity
+    //   const participants = [localState];
+    //   allUsers.forEach(user => {
+    //     if (user.userId !== localState.userId) {
+    //       participants.push(user);
+    //     }
+    //   });
+      
+    //   if (voiceStore.layoutMode === 'speaker' && featuredSpeaker.value) {
+    //     // In speaker mode, show everyone except the featured speaker
+    //     return participants.filter(p => p.userId !== featuredSpeaker.value!.userId);
+    //   }
+      
+    //   // In grid mode, show everyone
+    //   return participants;
+    // });
+
+
     const displayedParticipants = computed(() => {
       const allParticipants = voiceStore.allParticipants;
       
