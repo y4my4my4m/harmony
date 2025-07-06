@@ -165,6 +165,14 @@
             {{ getFileName(part.url) }}
           </a>
         </div>
+        
+        <!-- System messages (join/leave announcements) -->
+        <span 
+          v-else-if="part && typeof part === 'object' && part.type === 'system'"
+          class="system-message-text"
+        >
+          {{ formatSystemMessage(part) }}
+        </span>
       </template>
     </div>
   </div>
@@ -464,6 +472,25 @@ export default defineComponent({
       emit('cancel-edit');
     };
 
+    // Format system messages for display
+    const formatSystemMessage = (systemContent: any): string => {
+      if (!systemContent || systemContent.type !== 'system') return '';
+      
+      const displayName = systemContent.user?.display_name || systemContent.user?.username || 'Unknown User';
+      
+      if (systemContent.event_type === 'join') {
+        if (systemContent.initiated_by) {
+          const inviterName = systemContent.initiated_by.display_name || systemContent.initiated_by.username || 'Someone';
+          return `Everyone welcome ${displayName}! They were invited by ${inviterName}.`;
+        } else {
+          return `Everyone welcome ${displayName}!`;
+        }
+      } else if (systemContent.event_type === 'leave') {
+        return `${displayName} has left the server.`;
+      }
+      
+      return `${displayName} ${systemContent.event_type}`;
+    };
 
     return { 
       localEditableContent,
@@ -481,6 +508,7 @@ export default defineComponent({
       renderTextContent,
       renderTextSegments,
       getFileName,
+      formatSystemMessage,
     };
   }
 });
@@ -776,5 +804,16 @@ export default defineComponent({
   .content-video {
     max-width: 100%;
   }
+}
+
+/* System message specific styling */
+.system-message-text {
+  color: #b9bbbe;
+  font-style: italic;
+  font-size: 14px;
+}
+
+.system-message-content .system-message-text {
+  color: inherit;
 }
 </style>

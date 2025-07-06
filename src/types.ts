@@ -83,7 +83,25 @@ export interface FileContent {
   fileType: string; // e.g., 'image', 'video'
 }
 
-export type MessagePart = TextContent | UrlContent | MentionContent | EmojiContent | FileContent;
+export interface SystemContent {
+  type: 'system';
+  event_type: string; // 'join' | 'leave'
+  user: {
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url?: string;
+  };
+  initiated_by?: {
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url?: string;
+  } | null;
+  timestamp: string;
+}
+
+export type MessagePart = TextContent | UrlContent | MentionContent | EmojiContent | FileContent | SystemContent;
 
 export interface Reaction {
   id: string;
