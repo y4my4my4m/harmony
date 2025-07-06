@@ -165,38 +165,36 @@
   </Teleport>
 </template>
 
-<script lang="ts">
-import { defineComponent, computed, ref, onMounted, onUnmounted } from 'vue';
+<script setup lang="ts">
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import Icon from '@/components/common/Icon.vue';
 
-export default defineComponent({
-  name: 'UnifiedVoiceOverlay',
-  components: {
-    UnifiedVoiceUserCard,
-    Icon
-  },
-  
-  props: {
-    channelName: {
-      type: String,
-      default: 'Voice Channel'
-    }
-  },
-  
-  emits: ['close', 'minimize'],
-  
-  setup(props, { emit }) {
-    const voiceStore = useUnifiedVoiceChannelStore();
-    const isEntering = ref(false);
-    const isLeaving = ref(false);
-    
-    // =============================================================================
-    // COMPUTED PROPERTIES
-    // =============================================================================
-    
-    const connectionStats = computed(() => voiceStore.connectionStats);
+interface Props {
+  channelName?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  channelName: 'Voice Channel',
+});
+
+interface Emits {
+  (e: 'close'): void;
+  (e: 'minimize'): void;
+}
+
+const emit = defineEmits<Emits>();
+
+const voiceStore = useUnifiedVoiceChannelStore();
+const isEntering = ref(false);
+const isLeaving = ref(false);
+
+// =============================================================================
+// COMPUTED PROPERTIES
+// =============================================================================
+
+const connectionStats = computed(() => voiceStore.connectionStats);
     
     const featuredSpeaker = computed(() => {
       if (voiceStore.layoutMode !== 'speaker') return null;
@@ -299,17 +297,6 @@ export default defineComponent({
       voiceStore,
       isEntering,
       isLeaving,
-      connectionStats,
-      featuredSpeaker,
-      displayedParticipants,
-      getConnectionState,
-      handleBackdropClick,
-      minimizeOverlay,
-      closeOverlay,
-      leaveChannel
-    };
-  }
-});
 </script>
 
 <style scoped>
