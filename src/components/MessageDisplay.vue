@@ -1027,6 +1027,7 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   position: relative;
+  padding: 4px 0;
 }
 
 /* .message-group.has-header {

@@ -233,12 +233,12 @@ const markAllAsRead = async () => {
     isMarkingAllAsRead.value = true
     await notificationStore.markAllAsRead()
     
-    notificationStore.showToast(
-      'server_update',
-      'All notifications marked as read',
-      'Successfully updated all notifications',
-      2000
-    )
+    // notificationStore.showToast(
+    //   'server_update',
+    //   'All notifications marked as read',
+    //   'Successfully updated all notifications',
+    //   2000
+    // )
   } catch (error) {
     console.error('Failed to mark all notifications as read:', error)
     notificationStore.showToast(

@@ -366,7 +366,7 @@ export default defineComponent({
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  margin-bottom: 40px;
+  margin-bottom: 80px;
 }
 
 .dock-container:hover {
