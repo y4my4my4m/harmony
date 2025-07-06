@@ -407,7 +407,6 @@ export const useChatStore = defineStore('chat', {
 
     async editMessage(messageId: string, content: MessagePart[]) {
       try {
-        console.log('Editing message:', messageId, 'with content:', content);
         
         // Find the current message to get its data
         const currentMessage = this.messages.find(msg => msg.id === messageId);
@@ -422,10 +421,6 @@ export const useChatStore = defineStore('chat', {
           console.error('Authentication error:', authError);
           return;
         }
-        
-        console.log('Current user ID:', user.id);
-        console.log('Message owner ID:', currentMessage.user_id);
-        console.log('User IDs match:', user.id === currentMessage.user_id);
         
         // Try to update the message
         const { data, error } = await supabase
@@ -445,9 +440,6 @@ export const useChatStore = defineStore('chat', {
           return;
         }
         
-        console.log('Supabase update response:', data);
-        console.log('Message successfully updated in database');
-        
         // Check if we got data back
         if (data && data.length > 0) {
           console.log('Using returned data from database');
@@ -459,7 +451,6 @@ export const useChatStore = defineStore('chat', {
           
           this.updateMessageInCache(messageId, updatedMessage);
         } else {
-          console.log('No data returned, using optimistic update');
           // Optimistically update the cache with the new content
           // IMPORTANT: Preserve all existing fields including reactions
           const updatedMessage: Message = {
@@ -472,7 +463,6 @@ export const useChatStore = defineStore('chat', {
           this.updateMessageInCache(messageId, updatedMessage);
         }
         
-        console.log('Message optimistically updated in cache');
         
       } catch (e) {
         console.error('Error during message edition:', e);

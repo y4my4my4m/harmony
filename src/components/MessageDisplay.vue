@@ -1171,7 +1171,7 @@ export default defineComponent({
   align-items: center;
   gap: 4px;
   padding: 3px 6px;
-  background-color: #2f3136;
+  background-color: #2d2f35;
   border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
