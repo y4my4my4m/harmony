@@ -18,7 +18,7 @@
               <Icon name="volume" />
             </div>
             <div class="channel-details">
-              <h2 class="channel-name">{{ channelName }}</h2>
+              <h2 class="channel-name">{{ props.channelName }}</h2>
               <p class="participant-count">
                 {{ connectionStats.total }} participant{{ connectionStats.total !== 1 ? 's' : '' }}
                 <span v-if="connectionStats.speaking > 0" class="speaking-count">
@@ -44,6 +44,14 @@
               title="Speaker view"
             >
               <Icon name="user" />
+            </button>
+            <button 
+              @click="toggleSettings"
+              class="layout-btn"
+              :class="{ active: showSettings }"
+              title="Voice Settings"
+            >
+              <Icon name="settings" />
             </button>
             <button 
               @click="minimizeOverlay"
@@ -116,6 +124,18 @@
             </button>
             
             <button 
+              @click="voiceStore.toggleDeafen"
+              class="control-button"
+              :class="{ 
+                active: !voiceStore.localState.isDeafened,
+                deafened: voiceStore.localState.isDeafened 
+              }"
+              :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
+            >
+              <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
+            </button>
+            
+            <button 
               @click="voiceStore.toggleVideo"
               class="control-button"
               :class="{ 
@@ -134,18 +154,6 @@
             >
               <Icon name="screen-share" />
             </button>
-            
-            <button 
-              @click="voiceStore.toggleDeafen"
-              class="control-button"
-              :class="{ 
-                active: !voiceStore.localState.isDeafened,
-                deafened: voiceStore.localState.isDeafened 
-              }"
-              :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
-            >
-              <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
-            </button>
           </div>
 
           <!-- Action controls -->
@@ -162,6 +170,19 @@
         </div>
       </div>
     </div>
+
+    <!-- Voice Settings Panel - Teleported separately for proper z-index -->
+    <Teleport to="body">
+      <div 
+        v-if="showSettings"
+        class="settings-overlay-wrapper"
+        @click.self="showSettings = false"
+      >
+        <VoiceSettingsPanel 
+          @close="showSettings = false"
+        />
+      </div>
+    </Teleport>
   </Teleport>
 </template>
 
@@ -169,6 +190,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
+import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import Icon from '@/components/common/Icon.vue';
 
 interface Props {
@@ -189,6 +211,7 @@ const emit = defineEmits<Emits>();
 const voiceStore = useUnifiedVoiceChannelStore();
 const isEntering = ref(false);
 const isLeaving = ref(false);
+const showSettings = ref(false);
 
 // =============================================================================
 // COMPUTED PROPERTIES
@@ -274,6 +297,10 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       }
     };
     
+    const toggleSettings = () => {
+      showSettings.value = !showSettings.value;
+    };
+    
     // =============================================================================
     // LIFECYCLE
     // =============================================================================
@@ -298,13 +325,22 @@ const connectionStats = computed(() => voiceStore.connectionStats);
             voiceStore.toggleVideo();
             break;
           case 's':
+            if (event.ctrlKey || event.metaKey) return; // Don't interfere with save
             voiceStore.toggleScreenShare();
             break;
           case 'd':
             voiceStore.toggleDeafen();
             break;
+          case ',':
+            // Settings shortcut (comma key, like Discord)
+            toggleSettings();
+            break;
           case 'escape':
-            minimizeOverlay();
+            if (showSettings.value) {
+              showSettings.value = false;
+            } else {
+              minimizeOverlay();
+            }
             break;
         }
       };
@@ -690,5 +726,30 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     height: 32px;
     font-size: 14px;
   }
+}
+
+/* Settings Panel Wrapper - Ensures proper z-index layering */
+.settings-overlay-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10001; /* Higher than voice overlay (9999) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+/* Override the VoiceSettingsPanel styles when inside our wrapper */
+.settings-overlay-wrapper :deep(.settings-overlay) {
+  position: static;
+  width: auto;
+  height: auto;
+  background: transparent;
+  backdrop-filter: none;
+  z-index: auto;
 }
 </style>

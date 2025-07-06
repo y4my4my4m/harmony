@@ -248,6 +248,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted, watch } from 'vue';
+import { unifiedWebRTC } from '@/services/unifiedWebRTC';
 import Icon from '@/components/common/Icon.vue';
 
 export default defineComponent({
@@ -286,7 +287,6 @@ export default defineComponent({
     const getDevices = async () => {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
-        
         inputDevices.value = devices.filter(d => d.kind === 'audioinput');
         outputDevices.value = devices.filter(d => d.kind === 'audiooutput');
         videoDevices.value = devices.filter(d => d.kind === 'videoinput');
@@ -303,6 +303,36 @@ export default defineComponent({
         }
       } catch (error) {
         console.error('Error getting devices:', error);
+      }
+    };
+
+    // Load stored settings
+    const loadStoredSettings = () => {
+      try {
+        // Load from WebRTC service first (most up-to-date)
+        const currentConstraints = unifiedWebRTC.getAudioConstraints();
+        echoCancellation.value = currentConstraints.echoCancellation;
+        noiseSuppression.value = currentConstraints.noiseSuppression;
+        autoGainControl.value = currentConstraints.autoGainControl;
+        
+        // Then load other settings from localStorage
+        const stored = localStorage.getItem('harmony-voice-settings');
+        if (stored) {
+          const settings = JSON.parse(stored);
+          
+          // Load other settings if they exist
+          if (settings.inputVolume !== undefined) inputVolume.value = settings.inputVolume;
+          if (settings.outputVolume !== undefined) outputVolume.value = settings.outputVolume;
+          if (settings.selectedInputDevice) selectedInputDevice.value = settings.selectedInputDevice;
+          if (settings.selectedOutputDevice) selectedOutputDevice.value = settings.selectedOutputDevice;
+          if (settings.selectedVideoDevice) selectedVideoDevice.value = settings.selectedVideoDevice;
+          if (settings.videoQuality) videoQuality.value = settings.videoQuality;
+          if (settings.frameRate) frameRate.value = settings.frameRate;
+        }
+        
+        console.log('🎛️ Loaded settings - Audio constraints:', currentConstraints);
+      } catch (error) {
+        console.warn('⚠️ Failed to load stored settings:', error);
       }
     };
 
@@ -385,21 +415,47 @@ export default defineComponent({
 
     // Settings update handlers
     const updateInputVolume = () => {
+      // Save to localStorage
+      try {
+        const existing = localStorage.getItem('harmony-voice-settings');
+        const settings = existing ? JSON.parse(existing) : {};
+        settings.inputVolume = inputVolume.value;
+        localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
+      } catch (error) {
+        console.warn('Failed to save input volume:', error);
+      }
+      
       emit('update-settings', { type: 'inputVolume', value: inputVolume.value });
     };
 
     const updateOutputVolume = () => {
+      // Save to localStorage
+      try {
+        const existing = localStorage.getItem('harmony-voice-settings');
+        const settings = existing ? JSON.parse(existing) : {};
+        settings.outputVolume = outputVolume.value;
+        localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
+      } catch (error) {
+        console.warn('Failed to save output volume:', error);
+      }
+      
       emit('update-settings', { type: 'outputVolume', value: outputVolume.value });
     };
 
     const updateAudioSettings = () => {
+      const audioConstraints = {
+        echoCancellation: echoCancellation.value,
+        noiseSuppression: noiseSuppression.value,
+        autoGainControl: autoGainControl.value
+      };
+      
+      // Update WebRTC service directly
+      unifiedWebRTC.updateAudioConstraints(audioConstraints);
+      
+      // Also emit for any parent components that might be listening
       emit('update-settings', {
         type: 'audioConstraints',
-        value: {
-          echoCancellation: echoCancellation.value,
-          noiseSuppression: noiseSuppression.value,
-          autoGainControl: autoGainControl.value
-        }
+        value: audioConstraints
       });
     };
 
@@ -448,6 +504,7 @@ export default defineComponent({
     // Lifecycle
     onMounted(() => {
       getDevices();
+      loadStoredSettings();
       navigator.mediaDevices.addEventListener('devicechange', getDevices);
     });
 
@@ -619,11 +676,13 @@ export default defineComponent({
   border-radius: 3px;
   outline: none;
   -webkit-appearance: none;
+  appearance: none;
   cursor: pointer;
 }
 
 .setting-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
+  appearance: none;
   width: 18px;
   height: 18px;
   background: #5865f2;
@@ -634,7 +693,7 @@ export default defineComponent({
 
 .volume-indicator {
   position: absolute;
-  top: 0;
+  top: 10px;
   left: 0;
   height: 6px;
   background: linear-gradient(90deg, #00d4aa, #5865f2);

@@ -72,8 +72,18 @@ export class UnifiedWebRTCService {
   private audioContext: AudioContext | null = null;
   private localAudioAnalyser: AnalyserNode | null = null;
   
+  // Audio constraints settings
+  private audioConstraints = {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: true,
+    sampleRate: 48000
+  };
+  
   constructor() {
     this.setupCleanup();
+    this.loadAudioSettings();
+    this.setupSettingsListener();
   }
 
   // =============================================================================
@@ -570,12 +580,7 @@ export class UnifiedWebRTCService {
   private async initializeLocalAudio(): Promise<void> {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 48000
-        },
+        audio: this.audioConstraints,
         video: false
       });
       
@@ -585,16 +590,16 @@ export class UnifiedWebRTCService {
       const audioTrack = this.localStream.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !this.localMediaState.isMuted;
-        console.log('🎤 Audio track enabled:', audioTrack.enabled, 'muted:', this.localMediaState.isMuted);
+        // console.log('🎤 Audio track enabled:', audioTrack.enabled, 'muted:', this.localMediaState.isMuted);
       }
       
       this.setupAudioLevelMonitoring();
       
-      console.log('🎤 Local audio initialized with tracks:', {
-        audioTracks: this.localStream.getAudioTracks().length,
-        videoTracks: this.localStream.getVideoTracks().length,
-        totalTracks: this.localStream.getTracks().length
-      });
+      // console.log('🎤 Local audio initialized with tracks:', {
+      //   audioTracks: this.localStream.getAudioTracks().length,
+      //   videoTracks: this.localStream.getVideoTracks().length,
+      //   totalTracks: this.localStream.getTracks().length
+      // });
       
       // Emit initial local stream for UI
       this.emit('local-stream-changed', this.localStream);
@@ -1074,6 +1079,131 @@ export class UnifiedWebRTCService {
     window.addEventListener('beforeunload', () => {
       this.leaveChannel();
     });
+  }
+
+  // =============================================================================
+  // AUDIO SETTINGS MANAGEMENT
+  // =============================================================================
+
+  private loadAudioSettings(): void {
+    try {
+      const stored = localStorage.getItem('harmony-voice-settings');
+      if (stored) {
+        const settings = JSON.parse(stored);
+        if (settings.audioConstraints) {
+          this.audioConstraints = {
+            ...this.audioConstraints,
+            ...settings.audioConstraints
+          };
+          console.log('🎛️ Loaded audio settings:', this.audioConstraints);
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load audio settings:', error);
+    }
+  }
+
+  private saveAudioSettings(): void {
+    try {
+      const existing = localStorage.getItem('harmony-voice-settings');
+      const settings = existing ? JSON.parse(existing) : {};
+      
+      settings.audioConstraints = {
+        echoCancellation: this.audioConstraints.echoCancellation,
+        noiseSuppression: this.audioConstraints.noiseSuppression,
+        autoGainControl: this.audioConstraints.autoGainControl
+      };
+      
+      localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
+      console.log('💾 Saved audio settings:', settings.audioConstraints);
+    } catch (error) {
+      console.warn('⚠️ Failed to save audio settings:', error);
+    }
+  }
+
+  private setupSettingsListener(): void {
+    // Listen for settings updates from the settings panel
+    this.on('update-settings', (data: { type: string; value: any }) => {
+      if (data.type === 'audioConstraints') {
+        this.updateAudioConstraints(data.value);
+      }
+    });
+  }
+
+  /**
+   * Update audio constraints and restart audio stream if needed
+   */
+  async updateAudioConstraints(constraints: { echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean }): Promise<void> {
+    console.log('🎛️ Updating audio constraints:', constraints);
+    
+    // Update constraints
+    Object.assign(this.audioConstraints, constraints);
+    this.saveAudioSettings();
+    
+    // If we're currently connected, restart the audio stream with new constraints
+    if (this.localStream && this.channelId) {
+      const currentMuteState = this.localMediaState.isMuted;
+      
+      try {
+        // Stop current audio tracks
+        const audioTracks = this.localStream.getAudioTracks();
+        audioTracks.forEach(track => {
+          track.stop();
+          this.localStream!.removeTrack(track);
+        });
+        
+        // Get new audio stream with updated constraints
+        const newAudioStream = await navigator.mediaDevices.getUserMedia({
+          audio: this.audioConstraints,
+          video: false
+        });
+        
+        const newAudioTrack = newAudioStream.getAudioTracks()[0];
+        if (newAudioTrack) {
+          // Add new track to local stream
+          this.localStream.addTrack(newAudioTrack);
+          
+          // Apply current mute state
+          newAudioTrack.enabled = !currentMuteState;
+          
+          // Update all peer connections with new audio track
+          for (const [userId, conn] of this.connections) {
+            try {
+              const senders = conn.peerConnection.getSenders();
+              const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+              
+              if (audioSender) {
+                await audioSender.replaceTrack(newAudioTrack);
+                console.log('🔄 Replaced audio track for peer:', userId);
+              }
+            } catch (error) {
+              console.error('❌ Error updating audio track for peer', userId, ':', error);
+            }
+          }
+          
+          // Restart audio level monitoring
+          this.setupAudioLevelMonitoring();
+          
+          console.log('✅ Audio stream updated with new constraints');
+          this.emit('local-stream-changed', this.localStream);
+        }
+      } catch (error) {
+        console.error('❌ Failed to update audio constraints:', error);
+        // Try to restore previous state if possible
+        this.emit('error', error);
+      }
+    }
+  }
+
+  /**
+   * Get current audio constraints
+   */
+  getAudioConstraints(): { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean } {
+    return {
+      echoCancellation: this.audioConstraints.echoCancellation,
+      noiseSuppression: this.audioConstraints.noiseSuppression,
+      autoGainControl: this.audioConstraints.autoGainControl
+    };
   }
 }
 
