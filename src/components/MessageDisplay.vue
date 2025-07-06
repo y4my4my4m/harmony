@@ -3,7 +3,8 @@
     <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
-    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`message-${message.id}`" class="message-wrapper" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`message-${message.id}`" class="message-item" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+
       <!-- Gap indicator for jumped-to messages -->
       <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
         <div class="gap-line"></div>
@@ -11,60 +12,50 @@
         <div class="gap-line"></div>
       </div>
       
-      <template v-if="(index === 0 || messages[index - 1].user_id !== message.user_id) || message.reply_to">
-        <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="repliedMessage">
-          <!-- TODO: dont make "gets" for everything -->
-          <div class="replyContainer">
-            <Avatar 
-              :src="getReplyUserAvatar(message.reply_to)"
-              size="mini"
-              class="replyAvatar"
-            />
-            <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getReplyUserColor(message.reply_to) }">{{ getReplyUserDisplayName(message.reply_to) }}</div>
-            <div class="repliedTextPreview" role="button" tabindex="0">
-              <div id="message-content" class="repliedTextContent">
-                <!-- TODO: need to fetch if message is too far back -->
-                <span>
-                  <MessageContent 
-                    :content="getReplyMessageContent(message.reply_to)"
-                    :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
-                    :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-                    :image-loaded="imageLoaded"
-                    :reply="true"
-                    @image-loaded="handleImageLoaded"
-                    @open-lightbox="handleOpenLightbox"
-                    @update:message="saveEdit"
-                    @update:content="editableMessageContent = $event"
-                    @cancel-edit="cancelEdit"
-                    @show-user-profile="showUserProfile"
-                  />
-                </span>
-              </div>
-            </div>
+      <!-- Reply reference -->
+      <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="reply-reference">
+        <div class="reply-spine"></div>
+        <div class="reply-content">
+          <Avatar 
+            :src="getReplyUserAvatar(message.reply_to)"
+            size="mini"
+            class="reply-avatar"
+          />
+          <div class="reply-username" :style="{ color: getReplyUserColor(message.reply_to) }">
+            {{ getReplyUserDisplayName(message.reply_to) }}
+          </div>
+          <div class="reply-preview">
+            {{ getReplyMessagePreview(message.reply_to) }}
           </div>
         </div>
-        <div class="message-header">
-          <Avatar 
-            :src="getUserAvatar(message.user_id)"
-            size="sm" 
-            :interactive="true"
-            @click="showUserProfile(message.user_id, $event)"
-          />
-          <div>
-            <span>
-              <strong class="user-display-name" :style="{color: getUserColor(message.user_id)}" @click="showUserProfile(message.user_id, $event)">
-              {{ getUserDisplayName(message.user_id) }}
-              </strong>
+      </div>
+      
+      <!-- Message content with proper alignment -->
+      <div class="message-group" :class="{ 'has-header': shouldShowHeader(message, index), 'compact': !shouldShowHeader(message, index) }">
+        <!-- Message header (avatar + username + timestamp) -->
+        <div v-if="shouldShowHeader(message, index)" class="message-header">
+          <div class="message-avatar">
+            <Avatar 
+              :src="getUserAvatar(message.user_id)"
+              size="sm" 
+              :interactive="true"
+              @click="showUserProfile(message.user_id, $event)"
+            />
+          </div>
+          <div class="message-main">
+            <div class="message-meta">
+              <span class="username" :style="{color: getUserColor(message.user_id)}" @click="showUserProfile(message.user_id, $event)">
+                {{ getUserDisplayName(message.user_id) }}
+              </span>
               <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
-            </span>
-            <MessageContent 
+            </div>
+            <UnifiedMessageContent 
               :content="message.content"
               :message-id="message.id"
-              :editableMessageId="editableMessageId"
-              :editableMessageContent="editableMessageContent"
-              :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+              :editable-message-id="editableMessageId"
+              :editable-content="editableMessageContent"
               :image-loaded="imageLoaded"
-              :reply="false"
+              :is-single-emoji="checkSingleEmoji(message.content)"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -74,47 +65,61 @@
             />
           </div>
         </div>
-      </template>
-      <MessageContent 
-        v-else
-        :content="message.content"
-        :message-id="message.id"
-        :editableMessageId="editableMessageId"
-        :editableMessageContent="editableMessageContent"
-        :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-        :image-loaded="imageLoaded"
-        :reply="false"
-        @image-loaded="handleImageLoaded"
-        @open-lightbox="handleOpenLightbox"
-        @update:message="saveEdit"
-        @update:content="editableMessageContent = $event"
-        @cancel-edit="cancelEdit"
-        @show-user-profile="showUserProfile"
-      />
-      <div class="message-actions" v-if="hoveredMessageId === message.id">
-        <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
-        <div class="btn" @click="replyTo(message)"><ReplyIcon/></div>
-        <div class="btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
-        <div class="btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
-        <div class="btn"><MoreIcon/></div>
-      </div>
-      <div class="reactions" v-if="message.reactions" >
-        <!-- Display existing reactions -->
-        <div
-          v-for="reaction in message.reactions"
-          :key="reaction.id"
-          class="reaction"
-          @click="toggleReaction(message.id, reaction.emoji)"
-          @mouseenter="showTooltip($event, reaction)"
-          @mouseleave="hideTooltip"
-          :class="{'reacted': reaction.reactions.some(r => r.user_id === currentUserId)}"
-          >
-          <img 
-            :src="reaction.emoji.url" 
-            :alt="reaction.emoji.name"      />
-          <span>{{ reaction.count }}</span>
+        
+        <!-- Compact message (no header, just content aligned with previous messages) -->
+        <div v-else class="message-content-only">
+          <div class="message-gutter"></div>
+          <div class="message-main">
+            <UnifiedMessageContent 
+              :content="message.content"
+              :message-id="message.id"
+              :editable-message-id="editableMessageId"
+              :editable-content="editableMessageContent"
+              :image-loaded="imageLoaded"
+              :is-single-emoji="checkSingleEmoji(message.content)"
+              @image-loaded="handleImageLoaded"
+              @open-lightbox="handleOpenLightbox"
+              @update:message="saveEdit"
+              @update:content="editableMessageContent = $event"
+              @cancel-edit="cancelEdit"
+              @show-user-profile="showUserProfile"
+            />
+          </div>
         </div>
-        <!-- Additional UI for adding new reactions -->
+        
+        <!-- Message actions -->
+        <div class="message-actions" v-if="hoveredMessageId === message.id">
+          <div class="action-btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
+          <div class="action-btn" @click="replyTo(message)"><ReplyIcon/></div>
+          <div class="action-btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
+          <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
+          <div class="action-btn"><MoreIcon/></div>
+        </div>
+        
+        <!-- Reactions -->
+        <div class="reactions" v-if="getValidReactions(message).length > 0">
+          <div class="reactions-gutter"></div>
+          <div class="reactions-container">
+            <div
+              v-for="reaction in getValidReactions(message)"
+              :key="reaction.id || `${reaction.emoji.id}-${reaction.count}`"
+              class="reaction"
+              @click="toggleReaction(message.id, reaction.emoji)"
+              @mouseenter="showTooltip($event, reaction)"
+              @mouseleave="hideTooltip"
+              :class="{'reacted': reaction.reactions && reaction.reactions.some(r => r.user_id === currentUserId)}"
+            >
+              <img 
+                v-if="reaction.emoji?.url"
+                :src="reaction.emoji.url" 
+                :alt="reaction.emoji.name || 'emoji'"
+                @error="console.error('Failed to load emoji:', reaction.emoji)"
+              />
+              <span v-else class="missing-emoji">?</span>
+              <span class="reaction-count">{{ reaction.count }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -137,8 +142,8 @@
   <!-- Invite Modal -->
   <InviteModal 
     :show="showInviteModal" 
-    :server-id="serverChannelStore.currentServerId"
-    :server-data="currentServerData"
+    :server-id="serverChannelStore.currentServerId || undefined"
+    :server-data="currentServerData || undefined"
     @close="closeInviteModal"
   />
 
@@ -148,7 +153,7 @@
     class="tooltip"
     :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
   >
-    <div v-for="user in tooltip.content" :key="user.id">
+    <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
       <Avatar 
         :src="user.avatarUrl"
         size="xs"
@@ -172,13 +177,14 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { format } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
-import MessageContent from '@/components/MessageContent.vue';
+import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
 import ReplyIcon from '@/components/icons/Reply.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
 
 export default defineComponent({
   props: {
@@ -205,7 +211,7 @@ export default defineComponent({
     ReactionIcon,
     DeleteIcon,
     MoreIcon,
-    MessageContent,
+    UnifiedMessageContent,
     Avatar
   },
   setup(props, { emit }) {
@@ -256,8 +262,10 @@ export default defineComponent({
     };
 
     const hideTooltip = () => {
+      console.log('hideTooltip called, clearing timer and hiding tooltip');
       if (tooltipTimer.value) {
         clearTimeout(tooltipTimer.value);
+        tooltipTimer.value = null;
       }
       tooltip.value.visible = false;
     };
@@ -330,6 +338,46 @@ export default defineComponent({
       }
     }, { immediate: true, deep: true });
 
+    // Watch for reaction changes to hide tooltip when reactions become empty
+    watch(() => props.messages, (newMessages, oldMessages) => {
+      if (!newMessages || !oldMessages) return;
+      
+      console.log('Messages watcher triggered for reaction changes');
+      
+      // Check if any message had its reactions removed completely
+      newMessages.forEach((newMessage) => {
+        const oldMessage = oldMessages.find(old => old.id === newMessage.id);
+        if (oldMessage && oldMessage.reactions && oldMessage.reactions.length > 0) {
+          const newReactions = getValidReactions(newMessage);
+          console.log(`Message ${newMessage.id} reactions changed from ${oldMessage.reactions.length} to ${newReactions.length}`);
+          
+          if (newReactions.length === 0) {
+            // All reactions were removed, hide tooltip if it was showing
+            console.log('All reactions removed for message, hiding tooltip');
+            hideTooltip();
+          }
+        }
+      });
+    }, { deep: true });
+
+    // Additional watch specifically for reactions to ensure tooltip is hidden
+    watch(() => props.messages.map(msg => msg.reactions), (newReactions, oldReactions) => {
+      if (!newReactions || !oldReactions) return;
+      
+      // Check if any reactions array became empty
+      for (let i = 0; i < newReactions.length; i++) {
+        const newMsgReactions = newReactions[i];
+        const oldMsgReactions = oldReactions[i];
+        
+        if (oldMsgReactions && oldMsgReactions.length > 0 && 
+            (!newMsgReactions || newMsgReactions.length === 0)) {
+          console.log('Reactions array became empty, hiding tooltip');
+          hideTooltip();
+          break;
+        }
+      }
+    }, { deep: true });
+
     const isSingleEmojiMessage = computed(() => {
       if (!props.messages || !Array.isArray(props.messages)) {
         return [];
@@ -351,12 +399,39 @@ export default defineComponent({
     const editableMessageContent = ref('');
     const hoveredMessageId = ref<string | null>(null);
     
+    const shouldShowHeader = (message: Message, index: number): boolean => {
+      // Always show header for first message
+      if (index === 0) return true;
+      
+      // Show header if previous message is from different user
+      const prevMessage = props.messages[index - 1];
+      if (!prevMessage || prevMessage.user_id !== message.user_id) return true;
+      
+      // Show header if message has a reply
+      if (message.reply_to) return true;
+      
+      // Show header if there's a significant time gap (e.g., 5+ minutes)
+      const timeDiff = new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime();
+      const fiveMinutes = 5 * 60 * 1000;
+      if (timeDiff > fiveMinutes) return true;
+      
+      return false;
+    };
+
     const openEmojiReactor = (message: Message) => {
       // set true if not an emoji for the input but a reaction
       emit('toggleEmojiList', true, message);
     }
 
     const toggleReaction = (messageId: string, emoji: Emoji) => {
+      console.log('toggleReaction called for messageId:', messageId, 'emoji:', emoji.id);
+      
+      // Always hide tooltip when any reaction is toggled to prevent stale tooltips
+      if (tooltip.value.visible) {
+        console.log('Hiding tooltip due to reaction toggle');
+        hideTooltip();
+      }
+      
       emit('sendReaction', messageId, emoji);
     }
 
@@ -391,6 +466,8 @@ export default defineComponent({
 
     // Parse edited text back to structured content (reuse existing parsing logic)
     const parseEditedText = (text: string): MessagePart[] => {
+      console.log('parseEditedText called with text:', text);
+      
       const emojiRegex = /:([\w\d_+-]+):/g;
       const urlRegex = /(\bhttps?:\/\/\S+)/gi;
       const mentionRegex = /(@\w+@\w+\S+)/g;
@@ -451,6 +528,7 @@ export default defineComponent({
         }
       }
 
+      console.log('parseEditedText result:', result);
       return result;
     };
 
@@ -459,7 +537,7 @@ export default defineComponent({
       const resolvedEmojiList = serverChannelStore.resolvedEmojiList;
       for (const serverId in resolvedEmojiList) {
         const server = resolvedEmojiList[serverId];
-        const emoji = server.emojis.find(e => e.name === name);
+        const emoji = server.emojis.find((e: any) => e.name === name);
         if (emoji) {
           return emoji;
         }
@@ -494,26 +572,36 @@ export default defineComponent({
 
     // Enhanced saveEdit function
     const saveEdit = async (messageId: string, newContent?: string) => {
-      if (!editableMessageId.value) return;
+      console.log('saveEdit called with messageId:', messageId, 'newContent:', newContent, 'editableMessageId:', editableMessageId.value);
+      
+      if (!editableMessageId.value) {
+        console.log('No editable message ID, returning');
+        return;
+      }
 
       try {
         const textContent = newContent ?? editableMessageContent.value;
+        console.log('Using textContent:', textContent);
         
         // Don't save if content is empty
         if (!textContent.trim()) {
+          console.log('Content is empty, canceling edit');
           cancelEdit();
           return;
         }
 
         // Parse the edited text back to structured content
         const parsedContent = parseEditedText(textContent);
+        console.log('Parsed content:', parsedContent);
         
         // Update the message with structured content
+        console.log('Calling useChat.editMessage with messageId:', messageId, 'parsedContent:', parsedContent);
         await useChat.editMessage(messageId, parsedContent);
         
         // Reset edit state
         editableMessageId.value = null;
         editableMessageContent.value = '';
+        console.log('Edit state reset');
       } catch (error) {
         console.error('Error saving message edit:', error);
         // TODO: Show error message to user
@@ -568,7 +656,7 @@ export default defineComponent({
       return {
         id: serverId,
         name: currentServer?.name || 'Unknown Server',
-        icon_url: currentServer?.icon_url,
+        icon_url: currentServer?.icon || '',
         member_count: Object.keys(serverUsersStore.userProfiles).length
       };
     });
@@ -766,6 +854,33 @@ export default defineComponent({
       }
     };
 
+    // Get reply message preview as plain text
+    const getReplyMessagePreview = (replyMessageId: string) => {
+      // First check if message is in current messages
+      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
+      if (currentMessage) {
+        return messagePartsToPlainText(currentMessage.content);
+      }
+
+      // Check if message is in reply cache
+      const cachedMessage = replyMessages.value[replyMessageId];
+      if (cachedMessage) {
+        return messagePartsToPlainText(cachedMessage.content);
+      }
+
+      // Fetch the message if not found
+      fetchReplyMessageIfNeeded(replyMessageId);
+      
+      // Return loading text while fetching
+      return 'Loading...';
+    };
+
+    // Computed property to filter reactions with valid emoji data
+    const getValidReactions = (message: Message) => {
+      if (!message.reactions) return [];
+      return message.reactions.filter(reaction => reaction.emoji && reaction.emoji.id);
+    };
+
     return { 
       getUserDisplayName, 
       getUserColor, 
@@ -805,11 +920,14 @@ export default defineComponent({
       tooltip,
       showTooltip,
       hideTooltip,
+      shouldShowHeader,
       // Add missing functions to return
       getReplyMessageContent,
+      getReplyMessagePreview,
       handleReplyClick,
       canEditMessage,
       canDeleteMessage,
+      getValidReactions,
       getReplyUserDisplayName,
       getReplyUserColor,
       getReplyUserAvatar,
@@ -817,448 +935,409 @@ export default defineComponent({
       parseEditedText,
       findEmojiByName,
       chatStore: useChat, // Expose chat store for template
+      // Add utility functions
+      messagePartsToMarkdown,
+      messagePartsToPlainText,
+      checkSingleEmoji,
     };
   }
 });
 </script>
 <style scoped>
+/* Modern message display styles */
 .message-display {
   flex-grow: 1;
   overflow-y: auto;
-  /* scroll-behavior: smooth; */
-  margin-right:4px;
+  margin-right: 4px;
+  padding: 0;
 }
 
-.message-wrapper {
-  display: flex;
-  align-items: flex-start;
-  padding: 0px 12px;
-  position:relative;
-  flex-direction: column;
+/* Individual message item */
+.message-item {
+  position: relative;
+  margin-bottom: 1px;
+  padding: 0 16px;
+  transition: background-color 0.1s ease-out;
 }
 
-.message-wrapper:hover {
-  background: rgba(0,0,0,0.1)
+.message-item:hover {
+  background-color: rgba(4, 4, 5, 0.07);
 }
 
-.message-wrapper .repliedMessage {
+/* Reply reference styling */
+.reply-reference {
+  margin-left: 48px;
+  cursor: pointer;
+  position: relative;
+}
+
+.reply-spine {
+  position: absolute;
+  left: -32px;
+  bottom: -1px;
+  width: 2px;
+  height: 12px;
+  background-color: #4f545c;
+  border-radius: 1px;
+}
+
+.reply-spine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30px;
+  height: 2px;
+  background-color: #4f545c;
+  border-radius: 1px;
+}
+
+.reply-content {
   display: flex;
   align-items: center;
-  font-size: .875rem;
-  position: relative;
-  white-space: pre;
-  user-select: none;
   gap: 4px;
+  opacity: 0.64;
+  transition: opacity 0.2s ease;
 }
-.message-wrapper .repliedMessage:before {
-    content: "";
-    display: block;
-    position: absolute;
-    box-sizing: border-box;
-    top: 16px;
-    bottom: -4px;
-    width: 26px;
-    left: 16px;
-    margin-right: var(--reply-spacing);
-    /* margin-top: -1px; */
-    margin-top: calc(-.5*var(--spine-width));
-    /* margin-left: -1px; */
-    margin-left: calc(-.5*var(--spine-width));
-    margin-bottom: calc(-4px + var(0.125rem));
-    border-color: var(--interactive-muted);
-    /* border-width: 2px 0 0 2px; */
-    border-width: var(--spine-width)0 0 var(--spine-width);
-    border-style: solid;
-    border-top-left-radius: 6px;
-}
-.message-wrapper .repliedMessage .replyContainer {
-    display: flex;
-    font-size: .875rem;
-    position: relative;
-    white-space: pre;
-    user-select: none;
-    gap: 4px;
-    margin-left:46px;
-    margin-bottom:10px; 
-}
-.message-wrapper .repliedMessage .replyAvatar {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    user-select: none;
-    margin-right: var(0.25rem);
-    position: relative;
-    top:8.5px;
-    cursor:pointer;
-}
-.message-wrapper .repliedMessage .replyUsername {
-    font-weight: 500;
-    color: var(--interactive-normal);
-    position: relative;
-    top:6px;
-    opacity:.65;
-    display: inline-block;
-    cursor:pointer;
-}
-.message-wrapper .repliedMessage .repliedTextPreview {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    position: relative;
-    top: 6px;
-    opacity:.65;
-    cursor:pointer;
-}
-.message-wrapper .repliedMessage .replyUsername:hover {
-  opacity: 1;
-  text-decoration: underline;
-}
-.message-wrapper .repliedMessage .repliedTextPreview:hover {
+
+.reply-content:hover {
   opacity: 1;
 }
-.message-wrapper .repliedMessage .message-content {
-  padding-left:0;
+
+.reply-avatar {
+  flex-shrink: 0;
 }
-.repliedMessage .file-container {
-  max-height:48px;
+
+.reply-username {
+  font-weight: 500;
+  font-size: 0.875rem;
 }
-.no-messages {
-  text-align: center;
-  color: #626262;
-  margin:auto;
+
+.reply-preview {
+  color: #dcddde;
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+/* Message group - contains header and/or content */
+.message-group {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  height: 100%;
-
-}
-.message-header .avatar-container {
-  margin-right: 10px;
   position: relative;
-  top: 4.5px;
+  padding: 4px 0;
 }
-.user-display-name {
-  cursor: pointer;
+
+/* .message-group.has-header {
+  margin-top: 16px;
+} */
+
+.message-group.compact {
+  margin-top: 0.125rem;
 }
-.user-display-name:hover {
-  text-decoration: solid underline;
-}
+
+/* Message header with avatar + username + timestamp */
 .message-header {
   display: flex;
   align-items: flex-start;
+  gap: 16px;
+  padding: 2px 0;
 }
 
-.message-wrapper:has(> .message-header) {
-  margin-top: 12px;
-  flex-direction: column;
-}
-.message-content {
-  padding-left: 46px; /* Same as avatar width + margin-right */
-  /* line-height:24px; */
+.message-avatar {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
-.message-header .message-content {
-  padding-left: 0;
+.message-main {
+  flex: 1;
+  min-width: 0;
 }
+
+.message-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.username {
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: text-decoration 0.1s ease;
+}
+
+.username:hover {
+  text-decoration: underline;
+}
+
 .timestamp {
-  color: #626262;
-  margin-left: 10px;
-  font-size: 0.8em;
+  font-size: 0.75rem;
+  color: #a3a6aa;
+  font-weight: 400;
+  margin-left: 8px;
 }
 
-.lightbox {
-  z-index: 1000;
+/* Compact message (no header) */
+.message-content-only {
+  display: flex;
+  align-items: flex-start;
+  padding: 0.125rem 0;
+  min-height: 1.375rem;
 }
 
-@keyframes shimmer {
-  0% {
-    background-position: 0 150%;
-  }
-  100% {
-    background-position: 0 -150%;
-  }
+.message-gutter {
+  width: 48px;
+  margin-left: 4px;
+  flex-shrink: 0;
+  position: relative;
 }
 
-.image-skeleton {
-  width: 100px;
-  height: 100px;
-  border-radius: 6px;
-  background: linear-gradient(
-    to top,
-    #888 0%, 
-    #999 25%, 
-    #888 50%
-  );
-  background-size: 100% 200%;
-  animation: shimmer 1.5s infinite alternate;
+/* Show timestamp on hover for compact messages */
+.message-content-only:hover .message-gutter::before {
+  content: attr(data-timestamp);
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6875rem;
+  color: #a3a6aa;
+  background-color: var(--background-primary);
+  padding: 0 4px;
+  border-radius: 3px;
+  white-space: nowrap;
 }
+
+/* Message actions */
 .message-actions {
-  display:flex;
-  justify-content: flex-end;
-  flex-grow:1;
-  position:absolute;
-  right:4px;
-  top:-16px;
-  padding: 0 14px 0 32px;
-  background:var(--h-chat);
-  box-shadow: 0 0 5px rgba(0,0,0,0.3);
-  border-radius: 5px;
-  padding:0px;
-  display: grid;
-  grid-auto-flow: column;
-  box-sizing: border-box;
-  height: 32px;
-  border-radius: 4px;
-  align-items: center;
-  justify-content: flex-start;
-  transition: box-shadow.1s ease-out;
+  position: absolute;
+  top: -16px;
+  right: 16px;
+  display: flex;
+  background-color: #36393f;
+  border: 1px solid #40444b;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  z-index: 1;
 }
-.message-actions .btn {
 
+.action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 24px;
-  padding: 4px;
-  min-width: 24px;
-  flex: 0 0 auto;
-  color: var(--interactive-normal);
+  width: 32px;
+  height: 32px;
   cursor: pointer;
-  position: relative;
-  /* background:transparent; */
-  transition: 0.2s ease-in-out;
-  font-size: 12px;
-}
-.message-actions .btn:hover {
-  background: rgba(255,255,255,0.35);
-  filter: saturate(1);
-}
-.scroll-bottom {
-  scroll-behavior: smooth;
-}
-.edit-input {
-  display: flex;
-  align-items: flex-start;
-  width: calc(64vw);
-  padding: 2px 6px;
+  color: #b9bbbe;
+  transition: all 0.15s ease-out;
   border-radius: 4px;
-  background: rgb(0 0 0 / 9%);
-  font-family: inherit;
-  font-size: inherit;
-  color: inherit;
-  line-height: inherit;
-  outline: none;
-  resize: none;
-  border-style: solid;
-  border-width: 1px;
-  border-color: rgba(0,0,0,0.15);
+  margin: 2px;
 }
-.message-header .edit-input {
-  margin-left:42px;
-  width: calc(64vw - 42px);
+
+.action-btn:hover {
+  background-color: #40444b;
+  color: #dcddde;
 }
-.message-content .emoji-icon  {
-  width: auto;
-  max-width : 120px;
-  height: 24px; 
-  /* height: 48px; */
-  /* margin: 0 2px; */
-  vertical-align: middle;
+
+.action-btn:active {
+  background-color: #2f3136;
+  transform: scale(0.95);
 }
+
+/* Reactions */
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0;
+}
+
+.reactions-gutter {
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.reactions-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.reaction {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  background-color: #2d2f35;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.15s ease-out;
+  user-select: none;
+}
+
+.reaction:hover {
+  background-color: #40444b;
+  border-color: #4f545c;
+}
+
+.reaction.reacted {
+  background-color: hsl(235, 85.6%, 64.7%, 0.15);
+  border-color: hsl(235, 85.6%, 64.7%);
+}
+
+.reaction img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.reaction-count {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #72767d;
+  min-width: 9px;
+  text-align: center;
+}
+
+.reaction.reacted .reaction-count {
+  color: hsl(235, 85.6%, 64.7%);
+}
+
+/* Missing emoji placeholder */
+.missing-emoji {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #40444b;
+  border-radius: 2px;
+  font-size: 12px;
+  color: #72767d;
+}
+
+/* Gap indicator */
+.message-gap {
+  display: flex;
+  align-items: center;
+  margin: 24px 16px;
+  color: #72767d;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.gap-line {
+  flex: 1;
+  height: 1px;
+  background-color: #40444b;
+}
+
+.gap-text {
+  padding: 0 16px;
+  background-color: #36393f;
+  position: relative;
+}
+
+/* Highlighted message */
 .highlighted {
-  background:#59554766;
-  border-left:2px solid #d79315;
+  background-color: hsla(34, 100%, 50%, 0.1) !important;
+  border-left: 4px solid hsl(34, 100%, 50%);
   animation: highlight-fade 3s ease-out;
 }
 
 @keyframes highlight-fade {
   0% {
-    background: #d7931566;
-    border-left-color: #d79315;
+    background-color: hsl(34, 100%, 50%, 0.3) !important;
   }
   100% {
-    background: #59554766;
-    border-left-color: #d79315;
+    background-color: hsl(34, 100%, 50%, 0.1) !important;
   }
 }
 
-.emoji-icon.single {
-  height: 64px;
-}
-.reactions {
-  display: flex;
-  flex-wrap: wrap;
-  padding-left: 46px;
-  padding-bottom: 12px;
-  gap: 4px;
-  justify-content: space-between;
-}
-.reactions .reaction {
-  display: flex;
-  align-items: center;
-  border: 0.0625rem solid transparent;
-  border-radius: 0.5rem;
-  background: hsl( 220 calc( 1 * 6.5%) 18% / 1);
-  cursor: pointer;
-  transition: 0.2s ease-in-out;
-  justify-content: center;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  gap: .25rem;
-  padding: 0.125rem 0.375rem;
-}
-.reactions .reaction img {
-  /* height: 24px; */
-  /* width: 1rem; */
-  height: 1rem;
-  margin: 0.125rem 0;
-  min-width: auto;
-  min-height: auto;
-  max-width: 120px;
-}
-.reactions .reaction:hover {
-  background: rgb(0 0 0 / 25%);
-  border:1px solid rgba(255,255,255,0.25);
-}
-.reactions .reaction .reaction-count {
-  margin-left: 4px;
-  margin-top: 5px;
-  font-size: 0.8em;
-  color: #848484;
-}
-.reactions .reaction.reacted {
-  background: hsl( 235 calc( 1 * 85.6%) 64.7% / 0.15);
-  border:1px solid hsl( 235 calc( 1 * 85.6%) 64.7% / 1);
-}
-/* FIXME: this should all be inside the userProfileComponent */
-/* Removed old profile card styles - now using modal */
-
-.tooltip {
-  position: fixed;
-  padding: 8px;
-  background-color: rgba(05,05,05,0.95);
-  color: white;
-  border-radius: 4px;
-  z-index: 15; /* Ensure it's above other elements */
-  pointer-events: none; /* Ignore pointer events */
-  transform: translate(-50%, -100%); /* Adjust based on actual tooltip size */
-  white-space: nowrap;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
-  transition: all 0.3s cubic-bezier(.25,.8,.25,1);
-}
-.tooltip .tooltip-emoji {
-  display:flex;
-  align-items:center;
-  margin-bottom:10px;
-}
-.tooltip .tooltip-emoji img {
-  width: 48px;
-  height: 48px;
-  margin-right: 4px;
-  border-radius: 4px
-}
-.tooltip .tooltip-avatar {
-  margin-right: 4px;
-  position: relative;
-  top: 4px;
-}
-
-@media (max-width: 768px) {
-  .message-wrapper {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-  .message-header {
-    width: 100%;
-  }
-  .message-content {
-    width: 100%;
-  }
-  .message-content {
-    max-width: 100%; 
-    white-space: normal;
-    word-wrap:break-word;
-    overflow-wrap:break-word;
-  }
-
-}
-
-/* Loading skeleton styles */
-.loading-skeleton {
+/* No messages state */
+.no-messages {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 12px;
-  opacity: 0.6;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #72767d;
+  font-size: 1rem;
+}
+
+/* Tooltip */
+.tooltip {
+  position: fixed;
+  background-color: #18191c;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  z-index: 1000;
+  pointer-events: none;
+  max-width: 300px;
+  transform: translateX(-50%);
+}
+
+.tooltip-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.tooltip-user {
+  display: flex;
+  align-items: center;
+}
+
+/* Loading skeletons */
+.loading-skeleton {
+  padding: 16px;
 }
 
 .skeleton-message {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 2px 0;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .skeleton-avatar {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: linear-gradient(90deg, #2f3136 25%, #303135 50%, #2f3136 75%);
+  background: linear-gradient(90deg, #40444b 0%, #484c52 50%, #40444b 100%);
   background-size: 200% 100%;
-  animation: shimmer 2.5s infinite;
+  animation: skeleton-shimmer 1.5s infinite;
 }
 
 .skeleton-content {
-  flex-grow: 1;
-  padding-top: 2px;
+  flex: 1;
 }
 
 .skeleton-header {
   display: flex;
-  align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .skeleton-username {
-  height: 16px;
   width: 80px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
-  background-size: 200% 100%;
-  animation: shimmer 2.5s infinite;
-}
-
-.skeleton-timestamp {
-  height: 12px;
-  width: 40px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
-  background-size: 200% 100%;
-  animation: shimmer 2.5s infinite;
-}
-
-.skeleton-text {
   height: 16px;
-  margin-bottom: 4px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #2f3136 25%, #36393f 50%, #2f3136 75%);
+  background: linear-gradient(90deg, #40444b 0%, #484c52 50%, #40444b 100%);
   background-size: 200% 100%;
-  animation: shimmer 2.5s infinite;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
 }
 
-.skeleton-text:first-of-type {
-  width: 85%;
-}
-
-.skeleton-text.short {
-  width: 45%;
-}
-
-@keyframes shimmer {
+@keyframes skeleton-shimmer {
   0% {
     background-position: -200% 0;
   }
@@ -1267,26 +1346,33 @@ export default defineComponent({
   }
 }
 
-/* Gap indicator for jumped-to messages */
-.message-gap {
-  display: flex;
-  align-items: center;
-  margin: 16px 12px;
-  color: #72767d;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
+/* Responsive design */
+@media (max-width: 768px) {
+  .message-item {
+    padding: 0 12px;
+  }
+  
+  .reply-reference {
+    margin-left: 44px;
+  }
+  
+  .message-header {
+    gap: 12px;
+  }
+  
+  .message-gutter {
+    width: 44px;
+  }
+  
+  .reactions-gutter {
+    width: 44px;
+  }
 }
 
-.gap-line {
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #72767d 50%, transparent);
-}
-
-.gap-text {
-  padding: 0 12px;
-  background: var(--h-chat);
-  white-space: nowrap;
+/* Dark theme adjustments */
+@media (prefers-color-scheme: dark) {
+  .message-item:hover {
+    background-color: rgba(79, 84, 92, 0.16);
+  }
 }
 </style>

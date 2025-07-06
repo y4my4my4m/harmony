@@ -26,23 +26,17 @@
         </div>
       </div>
       <div class="textarea-wrapper">
-        <textarea 
-          ref="textareaRef"
-          draggable="false" 
-          @dragstart.prevent 
-          class="selectableText auto-expand" 
-          :value="modelValue"
-          @input="handleInput"
-          @keydown="handleKeyDown" 
+        <RichTextEditor
+          ref="richEditorRef"
+          :model-value="modelValue"
           :placeholder="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
-          rows="1"
-        ></textarea>
-        <!-- Emoji popup for inline emoji display -->
-        <div v-if="showInlineEmoji" class="inline-emoji-container">
-          <div class="emoji-preview">
-            <img v-for="emoji in recentEmojis" :key="emoji.id" :src="emoji.url" :alt="emoji.name" class="emoji-preview-item" @click="insertEmoji(emoji)" />
-          </div>
-        </div>
+          @update:model-value="(value: string) => $emit('update:modelValue', value)"
+          @input="handleEditorInput"
+          @keydown="handleKeyDown"
+          @focus="handleFocus"
+          @blur="handleBlur"
+          @cursor-position-changed="handleCursorPositionChanged"
+        />
       </div>
       <div class="right-icons">
         <GifIcon @click="toggleGiphy" />
@@ -60,7 +54,6 @@
       @select="handleSuggestionSelect"
     >
       <template #default="{ suggestion }">
-        <!-- Custom rendering for different suggestion types -->
         <div class="suggest-item-content">
           <img 
             v-if="suggestion.url || suggestion.avatar" 
@@ -81,6 +74,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
 import EmojiUI from '@/components/EmojiUI.vue'
@@ -88,11 +82,11 @@ import MessageReply from '@/components/MessageReply.vue';
 import FilePreview from '@/components/FilePreview.vue';
 import FileUploadMenu from '@/components/FileUploadMenu.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { backgroundUploadManager } from '@/services/fileService';
 import { useAuthStore } from '@/stores/auth';
-import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { v4 as uuidv4 } from 'uuid';
 
 export default defineComponent({
@@ -104,6 +98,7 @@ export default defineComponent({
     FilePreview,
     FileUploadMenu,
     AutoSuggest,
+    RichTextEditor,
   },
   props: {
     giphyOpen: Boolean,
@@ -127,106 +122,39 @@ export default defineComponent({
     const showUploadMenu = ref(false);
     const attachedFiles = ref<FilePreviewData[]>([]);
     const isDragging = ref(false);
-    const showInlineEmoji = ref(false);
-    const recentEmojis = ref<any[]>([]);
+    const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
+    const isEditorFocused = ref(false);
     
     // Auto-suggest setup
-    const textareaRef = ref<HTMLTextAreaElement | null>(null);
-    const autoSuggest = useAutoSuggest(textareaRef);
+    const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
+    const updateText = (newText: string) => emit('update:modelValue', newText);
+    const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
-    const handleInput = (event: Event) => {
-      const target = event.target as HTMLTextAreaElement;
-      const value = target.value;
-      const cursorPosition = target.selectionStart || 0;
-      
-      emit('update:modelValue', value);
-      
-      // Auto-expand textarea
-      autoExpandTextarea(target);
-      
-      // Handle auto-suggest
-      autoSuggest.handleInput(value, cursorPosition);
-      
-      // Check for emoji triggers (: followed by characters)
-      checkEmojiTrigger(value, cursorPosition);
+    const handleEditorInput = () => {
+      // The model value is handled by the update:model-value event
     };
 
-    const autoExpandTextarea = (textarea: HTMLTextAreaElement) => {
-      // Reset height to auto to get the natural scrollHeight
-      textarea.style.height = 'auto';
-      
-      // Calculate the new height based on content
-      const scrollHeight = textarea.scrollHeight;
-      const maxHeight = 200; // Maximum height in pixels (about 8-10 lines)
-      const minHeight = 44; // Minimum height for single line
-      
-      if (scrollHeight <= maxHeight) {
-        textarea.style.height = Math.max(scrollHeight, minHeight) + 'px';
-        textarea.style.overflowY = 'hidden';
-      } else {
-        textarea.style.height = maxHeight + 'px';
-        textarea.style.overflowY = 'auto';
-      }
-    };
-
-    const checkEmojiTrigger = (value: string, cursorPosition: number) => {
-      // Simple emoji trigger detection - look for : followed by 2+ characters
-      const textBeforeCursor = value.substring(0, cursorPosition);
-      const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]{2,})$/);
-      
-      if (emojiMatch) {
-        // Show emoji suggestions (simplified for now)
-        showInlineEmoji.value = true;
-        // In a real implementation, you'd search for emojis matching the pattern
-      } else {
-        showInlineEmoji.value = false;
-      }
-    };
-
-    const insertEmoji = (emoji: any) => {
-      if (textareaRef.value) {
-        const textarea = textareaRef.value;
-        const cursorPosition = textarea.selectionStart || 0;
-        const currentValue = textarea.value;
-        
-        // Find the emoji trigger pattern to replace
-        const textBeforeCursor = currentValue.substring(0, cursorPosition);
-        const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]*)$/);
-        
-        if (emojiMatch) {
-          const matchStart = cursorPosition - emojiMatch[0].length;
-          const newValue = currentValue.substring(0, matchStart) + `:${emoji.name}:` + currentValue.substring(cursorPosition);
-          emit('update:modelValue', newValue);
-          
-          nextTick(() => {
-            const newCursorPosition = matchStart + `:${emoji.name}:`.length;
-            textarea.setSelectionRange(newCursorPosition, newCursorPosition);
-            textarea.focus();
-            autoExpandTextarea(textarea);
-          });
-        }
-        
-        showInlineEmoji.value = false;
+    const handleCursorPositionChanged = (position: number) => {
+      // Handle auto-suggest based on cursor position and current text
+      if (richEditorRef.value) {
+        autoSuggest.handleInput(props.modelValue, position);
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // console.log('💬 MessageInput handleKeyDown called:', event.key, 'autoSuggest active:', autoSuggest.state.value.isActive);
-      
       // Special handling for Enter key when autosuggestion is active
       if (event.key === 'Enter' && autoSuggest.state.value.isActive && autoSuggest.suggestions.value.length > 0) {
         event.preventDefault();
-        // console.log('🎯 Enter pressed with active autosuggestion, selecting suggestion');
         const selectedSuggestion = autoSuggest.suggestions.value[autoSuggest.state.value.selectedIndex];
         if (selectedSuggestion) {
           handleSuggestionSelect(selectedSuggestion);
+          autoSuggest.closeSuggestions();
         }
         return;
       }
       
       // Let auto-suggest handle navigation keys (arrows, escape)
       const autoSuggestHandled = autoSuggest.handleKeyDown(event);
-      // console.log('🤖 AutoSuggest handled:', autoSuggestHandled);
       
       if (autoSuggestHandled) {
         return; // Auto-suggest handled the event
@@ -234,22 +162,85 @@ export default defineComponent({
       
       // Handle Enter key for sending messages (only if auto-suggest is not active)
       if (event.key === 'Enter' && !event.shiftKey) {
-        // console.log('📤 Sending message via Enter key');
         event.preventDefault();
         send();
       }
     };
 
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
-      if (textareaRef.value) {
-        const newValue = autoSuggest.selectSuggestion(suggestion);
-        emit('update:modelValue', newValue);
-        
-        // Also manually trigger the input event to ensure Vue reactivity
-        if (textareaRef.value) {
-          const event = new Event('input', { bubbles: true });
-          textareaRef.value.dispatchEvent(event);
+      if (!richEditorRef.value) return;
+      
+      // Handle different suggestion types
+      if (suggestion.type === 'emoji' || suggestion.url) {
+        // For emoji, insert it directly
+        insertEmojiAtCursor(suggestion);
+      } else {
+        // For other suggestions (users, etc.)
+        const insertText = autoSuggest.selectSuggestion(suggestion);
+        if (insertText && suggestion.type !== 'emoji') {
+          // Handle mention insertion
+          handleMentionInsertion(suggestion);
         }
+      }
+      
+      // Focus back to the editor after insertion
+      nextTick(() => {
+        if (richEditorRef.value?.focus) {
+          richEditorRef.value.focus();
+        }
+      });
+    };
+
+    // Handle emoji insertion
+    const insertEmojiAtCursor = (emoji: any) => {
+      if (!richEditorRef.value?.insertTextAtCursor) return;
+      
+      // Get current text and cursor position
+      const currentText = props.modelValue;
+      const cursorPosition = richEditorRef.value.getCursorPosition?.() || 0;
+      
+      // Check if there's an emoji trigger pattern before cursor
+      const textBeforeCursor = currentText.substring(0, cursorPosition);
+      const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]*)$/);
+      
+      let newText;
+      
+      if (emojiMatch) {
+        // Remove the trigger text and insert emoji
+        const triggerLength = emojiMatch[0].length;
+        newText = currentText.substring(0, cursorPosition - triggerLength) + 
+                 `:${emoji.name}:` + 
+                 currentText.substring(cursorPosition);
+      } else {
+        // No trigger pattern, just insert emoji at cursor
+        newText = currentText.substring(0, cursorPosition) + 
+                 `:${emoji.name}:` + 
+                 currentText.substring(cursorPosition);
+      }
+      
+      // Update model
+      emit('update:modelValue', newText);
+    };
+
+    // Handle mention insertion
+    const handleMentionInsertion = (mention: SuggestionItem) => {
+      if (!richEditorRef.value) return;
+      
+      const currentText = props.modelValue;
+      const cursorPosition = richEditorRef.value.getCursorPosition?.() || 0;
+      
+      // Find the @ trigger
+      const textBeforeCursor = currentText.substring(0, cursorPosition);
+      const mentionMatch = textBeforeCursor.match(/@([a-zA-Z0-9_]*)$/);
+      
+      if (mentionMatch) {
+        const triggerLength = mentionMatch[0].length;
+        const username = mention.username || mention.display_name;
+        const newText = currentText.substring(0, cursorPosition - triggerLength) + 
+                       `@${username}` + 
+                       currentText.substring(cursorPosition);
+        
+        emit('update:modelValue', newText);
       }
     };
 
@@ -258,17 +249,16 @@ export default defineComponent({
       autoSuggest.closeSuggestions();
       
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
-        const content = props.modelValue?.trim() || '';
+        const content = props.modelValue || '';
         emit('sendMessage', content, attachedFiles.value);
         emit('update:modelValue', '');
         
-        // Reset textarea height after sending
-        if (textareaRef.value) {
-          textareaRef.value.style.height = 'auto';
-          textareaRef.value.style.height = '44px'; // Reset to minimum height
+        // Clear the rich text editor
+        if (richEditorRef.value?.clear) {
+          richEditorRef.value.clear();
         }
         
-        // Clear files after sending (uploads should be completed by now)
+        // Clear files after sending
         attachedFiles.value.forEach(file => {
           if (file.preview) {
             URL.revokeObjectURL(file.preview);
@@ -279,13 +269,12 @@ export default defineComponent({
       }
     };
 
-    const handleEnter = (event: KeyboardEvent) => {
-      if (event.shiftKey) {
-        return;
-      } else {
-        event.preventDefault();
-        send();
-      }
+    const handleFocus = () => {
+      isEditorFocused.value = true;
+    };
+
+    const handleBlur = () => {
+      isEditorFocused.value = false;
     };
 
     const toggleGiphy = () => {
@@ -304,9 +293,7 @@ export default defineComponent({
       if (event) {
         event.stopPropagation();
       }
-      console.log('Toggle upload menu clicked, current state:', showUploadMenu.value);
       showUploadMenu.value = !showUploadMenu.value;
-      console.log('New state:', showUploadMenu.value);
     };
 
     const closeUploadMenu = () => {
@@ -345,7 +332,6 @@ export default defineComponent({
           fileData.file,
           (progress) => {
             fileData.uploadProgress = progress;
-            // Force reactivity update
             attachedFiles.value = [...attachedFiles.value];
             emit('upload-status-changed', hasActiveUploads());
           }
@@ -364,7 +350,6 @@ export default defineComponent({
         fileData.uploadProgress = 0;
       }
 
-      // Force reactivity update
       attachedFiles.value = [...attachedFiles.value];
       emit('upload-status-changed', hasActiveUploads());
     };
@@ -374,17 +359,11 @@ export default defineComponent({
     };
 
     const handleFilesSelected = async (files: File[]) => {
-      console.log('handleFilesSelected called with:', files.length, 'files');
-      console.log('Current attachedFiles count before:', attachedFiles.value.length);
-      
       const newFiles = await Promise.all(files.map(createFilePreview));
       
-      // Add files to the preview
       attachedFiles.value.push(...newFiles);
-      console.log('Current attachedFiles count after:', attachedFiles.value.length);
       emit('files-attached', attachedFiles.value);
       
-      // Start background uploads immediately
       newFiles.forEach((fileData) => {
         startBackgroundUpload(fileData);
       });
@@ -395,7 +374,6 @@ export default defineComponent({
     const removeFile = (index: number) => {
       const removedFile = attachedFiles.value[index];
       
-      // Revoke object URL to prevent memory leaks
       if (removedFile.preview) {
         URL.revokeObjectURL(removedFile.preview);
       }
@@ -417,7 +395,6 @@ export default defineComponent({
 
     const handleDragLeave = (event: DragEvent) => {
       event.preventDefault();
-      // Only set isDragging to false if we're leaving the message container
       const currentTarget = event.currentTarget as HTMLElement;
       const relatedTarget = event.relatedTarget as Node | null;
       if (!currentTarget?.contains(relatedTarget)) {
@@ -427,7 +404,7 @@ export default defineComponent({
 
     const handleDrop = async (event: DragEvent) => {
       event.preventDefault();
-      event.stopPropagation(); // Prevent bubbling to parent
+      event.stopPropagation();
       isDragging.value = false;
 
       const files = event.dataTransfer?.files;
@@ -439,20 +416,33 @@ export default defineComponent({
 
     // Handle external file drop events from ChatComponent
     const handleExternalFileDrop = (event: CustomEvent) => {
-      console.log('handleExternalFileDrop called with:', event.detail.files?.length, 'files');
       const { files } = event.detail;
       if (files && files.length > 0) {
         handleFilesSelected(files);
       }
     };
 
+    // Handle emoji insertion from popup
+    const insertEmoji = (emoji: any) => {
+      if (richEditorRef.value) {
+        if (!isEditorFocused.value && richEditorRef.value.focus) {
+          richEditorRef.value.focus();
+        }
+        
+        nextTick(() => {
+          insertEmojiAtCursor(emoji);
+          
+          nextTick(() => {
+            if (richEditorRef.value?.focus) {
+              richEditorRef.value.focus();
+            }
+          });
+        });
+      }
+    };
+
     onMounted(() => {
       document.addEventListener('external-file-drop', handleExternalFileDrop as EventListener);
-      
-      // Initialize textarea auto-expand
-      if (textareaRef.value) {
-        autoExpandTextarea(textareaRef.value);
-      }
     });
 
     onUnmounted(() => {
@@ -475,8 +465,8 @@ export default defineComponent({
       send, 
       toggleGiphy, 
       toggleEmojiList, 
-      handleEnter,
-      handleInput,
+      handleEditorInput,
+      handleCursorPositionChanged,
       handleDontReply,
       showUploadMenu,
       toggleUploadMenu,
@@ -491,11 +481,13 @@ export default defineComponent({
       isDragging,
       handleKeyDown,
       handleSuggestionSelect,
-      textareaRef,
       autoSuggest,
-      showInlineEmoji,
-      recentEmojis,
       insertEmoji,
+      insertEmojiAtCursor,
+      richEditorRef,
+      isEditorFocused,
+      handleFocus,
+      handleBlur,
     };
   }
 });
@@ -575,132 +567,12 @@ export default defineComponent({
     margin-right: 10px;
   }
 
-  textarea.auto-expand {
-    width: 100%;
-    padding: 12px 0;
-    border: none;
-    background-color: transparent;
-    color: white;
-    font-size: 16px;
-    resize: none;
-    outline: none;
-    font-family: inherit;
-    line-height: 1.375;
-    min-height: 44px;
-    max-height: 200px;
-    overflow-y: hidden;
-    box-sizing: border-box;
-    transition: height 0.1s ease;
-  }
-
-  textarea::placeholder {
-    color: #72767d;
-  }
-
-  textarea:focus,
-  textarea:active {
-    outline: none;
-  }
-
-  /* Inline emoji suggestions */
-  .inline-emoji-container {
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    right: 0;
-    background-color: var(--h-chat);
-    border: 1px solid var(--h-chat-light);
-    border-radius: 8px 8px 0 0;
-    padding: 8px;
-    z-index: 1000;
-  }
-
-  .emoji-preview {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .emoji-preview-item {
-    width: 24px;
-    height: 24px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.15s ease;
-  }
-
-  .emoji-preview-item:hover {
-    background-color: var(--h-chat-light);
-    transform: scale(1.1);
-  }
-  /* party mode RGB */
-  /* .message-container::before,
-  .message-container::after{
-    content: '';
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    bottom: -2px;
-    left: -2px;
-    z-index: -1;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    transition: .5s;
-    opacity: 0;
-  }
-
-  @keyframes rgbled {
-    0% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(0, 100%, 50%, 100%), 0 0 50px hsla(0, 100%, 50%, 5%); }
-    25% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(90, 100%, 50%, 100%), 0 0 50px hsla(90, 100%, 50%, 5%); }
-    50% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(180, 100%, 50%, 100%), 0 0 50px hsla(180, 100%, 50%, 5%); }
-    75% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(270, 100%, 50%, 100%), 0 0 50px hsla(270, 100%, 50%, 5%); }
-    100% { box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 1px hsla(360, 100%, 50%, 100%), 0 0 50px hsla(360, 100%, 50%, 5%); }
-  }
-
-  .message-container:has(textarea:focus)::before{
-    content: '';
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    bottom: -2px;
-    left: -2px;
-    z-index: 2;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    animation: rgbled 15s linear infinite;
-    border-radius: 8px;
-    opacity: 1;
-  }
-
-  .message-container:has(textarea:focus)::after {
-    top: -4px;
-    right: -4px;
-    bottom: -4px;
-    left: -4px;
-    animation-delay: 2.5s;
-  } */
-
-  .message-container:has(textarea:focus) {
+  /* Focus styling */
+  .message-container:has(.rich-text-editor.is-focused) {
     box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
   }
 
-  @media (max-width: 768px) {
-    .message-input {
-      position: sticky;
-      bottom: 0;
-    }
-    
-    textarea.auto-expand {
-      font-size: 14px;
-      padding: 10px 0;
-      min-height: 40px;
-    }
-
-    .emoji-preview-item {
-      width: 20px;
-      height: 20px;
-    }
-  }
-
-  /* Auto-suggest custom styling */
+  /* Auto-suggest item styling */
   .suggest-item-content {
     display: flex;
     align-items: center;
@@ -744,5 +616,12 @@ export default defineComponent({
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  @media (max-width: 768px) {
+    .message-input {
+      position: sticky;
+      bottom: 0;
+    }
   }
 </style>

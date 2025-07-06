@@ -1,4 +1,6 @@
 <template>
+
+
   <div class="user-profile" ref="targetRef">
     <Avatar 
       :src="profile?.avatar_url"
@@ -41,6 +43,7 @@
         <HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" />
       </div>
       <div class="icon-button settings" @click="goToSettings" title="Settings"><SettingsIcon/></div>
+      <NotificationBell />
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">
@@ -74,6 +77,7 @@
   import HeadphonesIcon from '@/components/icons/Headphones.vue';
   import SettingsIcon from '@/components/icons/Settings.vue';
   import Avatar from '@/components/common/Avatar.vue';
+  import NotificationBell from '@/components/NotificationBell.vue';
   
   export default defineComponent({
     name: 'UserProfileComponent',
@@ -82,6 +86,7 @@
       MicMutedIcon,
       HeadphonesIcon,
       SettingsIcon,
+      NotificationBell,
       Avatar
     },
     setup() {
@@ -310,14 +315,18 @@
 
 .user-info {
   flex-grow: 1;
-  margin-left: 10px;
+  margin-left: 20px;
 }
 
 .user-name {
   font-weight: bold;
   color: white;
-  margin: 0 0 4px 0;
+  margin: 0 0 0 6px;
   font-size: 0.9em;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-status-container {

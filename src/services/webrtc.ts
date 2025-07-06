@@ -884,19 +884,6 @@ export class WebRTCService {
     this.emit('connectionQualityChanged', this.state.connectionQuality);
   }
 
-  // Getters for external access
-  getUserStream(userId: string): MediaStream | undefined {
-    return this.state.users.get(userId)?.stream;
-  }
-
-  getLocalStream(): MediaStream | null {
-    return this.state.localStream;
-  }
-
-  getConnectedUsers(): string[] {
-    return Array.from(this.state.users.keys());
-  }
-
   getUserAudioLevel(userId: string): number {
     return this.state.users.get(userId)?.audioLevel || 0;
   }
@@ -922,30 +909,6 @@ export class WebRTCService {
   setOutputVolume(volume: number): void {
     console.log('Setting output volume:', volume);
     // Implementation would involve audio processing
-  }
-
-  // Legacy compatibility methods (will be removed)
-  async toggleVideo(): Promise<boolean> {
-    console.log('Video not supported in voice-only implementation');
-    return false;
-  }
-
-  async toggleScreenShare(): Promise<boolean> {
-    console.log('Screen sharing not supported in voice-only implementation');
-    return false;
-  }
-
-  // Legacy mute/deafen setters (for compatibility)
-  setMuted(muted: boolean): void {
-    if (muted !== this.state.isMuted) {
-      this.toggleMute();
-    }
-  }
-
-  setDeafened(deafened: boolean): void {
-    if (deafened !== this.state.isDeafened) {
-      this.toggleDeafen();
-    }
   }
 
   // Cleanup

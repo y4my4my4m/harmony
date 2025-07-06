@@ -177,26 +177,22 @@ export default defineComponent({
     Avatar
   },
   
-  props: {
-    channelName: {
-      type: String,
-      default: 'Voice Channel'
-    }
-  },
   
-  setup(props) {
-      // Explicitly type as 'any' to avoid leaking private types
-      const voiceStore: any = useUnifiedVoiceChannelStore();
-      const authStore = useAuthStore();
-      const serverUsersStore = useServerUsersStore();
-      
-      const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
-      const showSettings = ref(false);
-      
-      // =============================================================================
-      // COMPUTED PROPERTIES
-      // =============================================================================
+  setup() {
+    // Explicitly type as 'any' to avoid leaking private types
+    const voiceStore: any = useUnifiedVoiceChannelStore();
+    const authStore = useAuthStore();
+    const serverUsersStore = useServerUsersStore();
     
+    const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
+    const showSettings = ref(false);
+    
+    // =============================================================================
+    // COMPUTED PROPERTIES
+    // =============================================================================
+    const channelName = computed(() => {
+      return voiceStore.currentChannelName || 'Voice Channel';
+    });
     const currentUserId = computed(() => authStore.session?.user?.id);
     
     const currentUserProfile = computed(() => {
@@ -301,6 +297,7 @@ export default defineComponent({
     
     return {
       voiceStore,
+      channelName,
       currentMode,
       showSettings,
       currentUserProfile,
@@ -369,7 +366,7 @@ export default defineComponent({
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  margin-bottom: 40px;
+  margin-bottom: 80px;
 }
 
 .dock-container:hover {

@@ -543,7 +543,7 @@ const handleClickOutside = () => {
   align-items: center;
   gap: 8px;
   line-height: 1.2;
-  text-shadow: -1px -1px rgba(0, 0, 0, 0.5), 1px 1px rgba(0, 0, 0, 0.5);
+  /* text-shadow: -1px -1px rgba(0, 0, 0, 0.5), 1px 1px rgba(0, 0, 0, 0.5); */
   position: relative;
   z-index: 10;
 }

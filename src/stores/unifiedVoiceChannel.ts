@@ -3,6 +3,7 @@ import { nextTick } from 'vue';
 import { unifiedWebRTC, type UserMediaState } from '@/services/unifiedWebRTC';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
+import { useServerChannelStore } from './useServerChannel';
 
 // =============================================================================
 // TYPES
@@ -12,6 +13,7 @@ interface VoiceChannelState {
   // Connection info
   currentChannelId: string | null;
   currentServerId: string | null;
+  currentChannelName: string | null;
   isConnected: boolean;
   
   // Users and their states
@@ -36,6 +38,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     currentChannelId: null,
     currentServerId: null,
     isConnected: false,
+    currentChannelName: null,
     
     allUsers: [],
     localState: {
@@ -131,6 +134,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       try {
         const authStore = useAuthStore();
         const serverUsersStore = useServerUsersStore();
+        const serverChannelStore = useServerChannelStore();
         
         if (!authStore.session?.user) {
           throw new Error('User not authenticated');
@@ -160,6 +164,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Update store state
         this.currentChannelId = channelId;
         this.currentServerId = serverId;
+        // FIXME: highly inefficient way to get channel name
+        // This should be optimized to avoid fetching all channels every time
+        const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
+        this.currentChannelName = channel ? channel.name : 'Voice Channel';
         this.isConnected = true;
         
         // Get fresh state from WebRTC service

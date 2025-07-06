@@ -20,7 +20,20 @@ export interface AutoSuggestState {
   position: SuggestionPosition;
 }
 
-export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInputElement | null>) {
+interface RichTextEditorRef {
+  getCursorPosition?: () => number;
+  focus?: () => void;
+  insertTextAtCursor?: (text: string) => void;
+  $el?: HTMLElement;
+}
+
+type InputElementType = HTMLTextAreaElement | HTMLInputElement | RichTextEditorRef | any;
+
+export function useAutoSuggest(
+  inputElement: Ref<InputElementType | null>,
+  getCurrentText?: () => string,
+  updateText?: (newText: string) => void
+) {
   const serverChannelStore = useServerChannelStore();
   const serverUsersStore = useServerUsersStore();
 
@@ -176,7 +189,16 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
     }
 
     const input = inputElement.value;
-    const inputRect = input.getBoundingClientRect();
+    let inputRect: DOMRect;
+    
+    // Handle different input types
+    if ('getBoundingClientRect' in input) {
+      inputRect = input.getBoundingClientRect();
+    } else if (input.$el) {
+      inputRect = input.$el.getBoundingClientRect();
+    } else {
+      return { x: 0, y: 0 };
+    }
     
     // Calculate dynamic height based on number of suggestions
     const suggestionCount = suggestions.value.length;
@@ -193,7 +215,6 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
     
     // Make sure the popup doesn't go off-screen
     const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
     
     // Adjust x position if it would go off the right edge
     const adjustedX = Math.min(x, viewportWidth - 320); // 320px = max popup width + margin
@@ -268,8 +289,13 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
 
       case 'Enter':
       case 'Tab':
-        // Don't handle Enter/Tab here - let MessageInput handle it
-        return false; // Let MessageInput handle the Enter key
+        event.preventDefault();
+        if (suggestions.value.length > 0 && state.value.selectedIndex >= 0) {
+          const selectedSuggestion = suggestions.value[state.value.selectedIndex];
+          selectSuggestion(selectedSuggestion);
+          return true;
+        }
+        return false;
 
       case 'Escape':
         event.preventDefault();
@@ -288,43 +314,71 @@ export function useAutoSuggest(inputElement: Ref<HTMLTextAreaElement | HTMLInput
     }
 
     const input = inputElement.value;
-    const currentValue = input.value;
-    const cursorPosition = input.selectionStart || 0;
-
-    // Find the trigger character position
-    const triggerStart = state.value.triggerPosition;
     
-    // Calculate replacement text
-    let insertText = '';
-
-    if (state.value.triggerType === 'emoji') {
-      // For emojis, replace with :emoji_name: format
-      insertText = `:${suggestion.name}:`;
-    } else if (state.value.triggerType === 'mention') {
-      // For mentions, replace the entire @query with @username
-      const username = suggestion.username || suggestion.display_name;
-      insertText = `${username}`;
+    // Handle RichTextEditor
+    if ('insertTextAtCursor' in input && input.insertTextAtCursor) {
+      let insertText = '';
+      
+      if (state.value.triggerType === 'emoji') {
+        insertText = `:${suggestion.name}:`;
+      } else if (state.value.triggerType === 'mention') {
+        const username = suggestion.username || suggestion.display_name;
+        insertText = `${username}`;
+      }
+      
+      // For RichTextEditor, we need to handle replacement differently
+      // We'll emit a special event that the parent can handle
+      closeSuggestions();
+      return insertText;
     }
-
-    // Replace the entire trigger + query with the selected suggestion
-    // triggerStart is the position of @ or :, cursorPosition is after the query
-    const newValue = 
-      currentValue.substring(0, triggerStart) + 
-      insertText + 
-      currentValue.substring(cursorPosition);
-
-    // Update input value
-    input.value = newValue;
     
-    // Position cursor after the inserted text
-    const newCursorPosition = triggerStart + insertText.length;
-    nextTick(() => {
-      input.setSelectionRange(newCursorPosition, newCursorPosition);
-      input.focus();
-    });
+    // Handle traditional textarea/input
+    if ('value' in input && 'selectionStart' in input) {
+      const currentValue = input.value;
+      const cursorPosition = input.selectionStart || 0;
 
+      // Find the trigger character position
+      const triggerStart = state.value.triggerPosition;
+      
+      // Calculate replacement text
+      let insertText = '';
+
+      if (state.value.triggerType === 'emoji') {
+        // For emojis, replace with :emoji_name: format
+        insertText = `:${suggestion.name}:`;
+      } else if (state.value.triggerType === 'mention') {
+        // For mentions, replace the entire @query with @username
+        const username = suggestion.username || suggestion.display_name;
+        insertText = `${username}`;
+      }
+
+      // Replace the entire trigger + query with the selected suggestion
+      // triggerStart is the position of @ or :, cursorPosition is after the query
+      const newValue = 
+        currentValue.substring(0, triggerStart) + 
+        insertText + 
+        currentValue.substring(cursorPosition);
+
+      // Update input value
+      input.value = newValue;
+      
+      // Position cursor after the inserted text
+      const newCursorPosition = triggerStart + insertText.length;
+      nextTick(() => {
+        if ('setSelectionRange' in input) {
+          input.setSelectionRange(newCursorPosition, newCursorPosition);
+        }
+        if ('focus' in input && input.focus) {
+          input.focus();
+        }
+      });
+
+      closeSuggestions();
+      return newValue;
+    }
+    
     closeSuggestions();
-    return newValue;
+    return '';
   };
 
   // Close suggestions

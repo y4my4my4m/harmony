@@ -220,8 +220,8 @@ export interface Notification {
   data: NotificationData;
   is_read: boolean;
   is_clicked: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
   expires_at: string;
 }
 

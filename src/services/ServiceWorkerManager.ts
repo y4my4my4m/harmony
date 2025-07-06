@@ -138,8 +138,7 @@ export class ServiceWorkerManager {
         .upsert({
           user_id: userId,
           subscription: subscription.toJSON(),
-          endpoint: subscription.endpoint,
-          created_at: new Date().toISOString()
+          endpoint: subscription.endpoint
         }, {
           onConflict: 'user_id'
         })
