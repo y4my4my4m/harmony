@@ -44,7 +44,7 @@
           </div>
         </div>
 
-        <div class="server-card__owner">
+        <div class="server-card__owner" @click="handleOwnerClick" title="View owner profile">
           <Avatar 
             :src="ownerAvatar" 
             :name="ownerName"
@@ -101,6 +101,7 @@ interface Props {
 interface Emits {
   (e: 'join', serverId: string): void
   (e: 'leave', serverId: string): void
+  (e: 'viewOwnerProfile', userId: string): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -133,6 +134,11 @@ const handleJoin = () => {
 
 const handleLeave = () => {
   emit('leave', props.server.id)
+}
+
+const handleOwnerClick = (event: Event) => {
+  event.stopPropagation()
+  emit('viewOwnerProfile', props.server.owner)
 }
 </script>
 
@@ -294,12 +300,27 @@ const handleLeave = () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 4px 6px;
+  border-radius: 6px;
+  margin: -4px -6px;
+}
+
+.server-card__owner:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(2px);
 }
 
 .owner-name {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.8);
   font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.server-card__owner:hover .owner-name {
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .server-card__actions {

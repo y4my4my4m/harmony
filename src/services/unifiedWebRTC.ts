@@ -74,7 +74,7 @@ export class UnifiedWebRTCService {
   
   // Audio constraints settings
   private audioConstraints = {
-    echoCancellation: false,
+    echoCancellation: true,
     noiseSuppression: false,
     autoGainControl: true,
     sampleRate: 48000

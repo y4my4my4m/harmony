@@ -641,6 +641,26 @@
         }
       });
 
+      // Watch for server list changes to automatically hide splash and navigate to new server
+      watch(() => servers.value.length, (newLength, oldLength) => {
+        // If servers were added (user joined a new server)
+        if (newLength > (oldLength || 0) && showNoServersSplash.value) {
+          showNoServersSplash.value = false;
+          showPublicServers.value = false; // Also close the public servers modal
+          
+          // Navigate to the newly joined server (last server in the list)
+          const newServer = servers.value[servers.value.length - 1];
+          if (newServer && !props.isDM) {
+            router.push({ name: 'Chat', params: { serverId: newServer.id } });
+          }
+        }
+        
+        // If all servers were removed, show splash again (unless in DM mode)
+        if (newLength === 0 && !props.isDM) {
+          showNoServersSplash.value = true;
+        }
+      });
+
       // Voice channel helper function
       const getVoiceChannelName = () => {
         if (voiceChannelStore.currentChannelId) {

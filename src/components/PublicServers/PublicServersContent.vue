@@ -86,6 +86,7 @@
           :is-loading="loadingServerIds.has(server.id)"
           @join="$emit('joinServer', $event)"
           @leave="$emit('leaveServer', $event)"
+          @view-owner-profile="$emit('viewOwnerProfile', $event)"
           class="featured-card"
         />
       </div>
@@ -107,6 +108,7 @@
           :is-loading="loadingServerIds.has(server.id)"
           @join="$emit('joinServer', $event)"
           @leave="$emit('leaveServer', $event)"
+          @view-owner-profile="$emit('viewOwnerProfile', $event)"
         />
       </div>
       
@@ -141,6 +143,7 @@ interface Props {
 interface Emits {
   (e: 'joinServer', serverId: string): void
   (e: 'leaveServer', serverId: string): void
+  (e: 'viewOwnerProfile', userId: string): void
   (e: 'refresh'): void
 }
 

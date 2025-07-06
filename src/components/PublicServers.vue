@@ -27,6 +27,7 @@
         :error="publicServersStore.error"
         @join-server="handleJoinServer"
         @leave-server="handleLeaveServer"
+        @view-owner-profile="handleViewOwnerProfile"
         @refresh="handleRefresh"
       />
 
@@ -40,6 +41,14 @@
       @close="showCreateServerForm = false" 
       @created="handleServerCreated"
     />
+
+    <!-- User Profile Modal -->
+    <UserProfileModal
+      v-if="showUserProfile && selectedUser"
+      :show="showUserProfile"
+      :user="selectedUser"
+      @close="closeUserProfile"
+    />
   </div>
 </template>
 
@@ -51,15 +60,17 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useServerStore } from '@/stores/server'
 import { useAuthStore } from '@/stores/auth'
 import { usePublicServersStore } from '@/stores/usePublicServers'
+import { useServerUsersStore } from '@/stores/useServerUsers'
 import { useDebouncedSearch } from '@/composables/useDebounce'
 import { useKeyboardEvents } from '@/composables/useCommonUI'
 
 // Components
-import PublicServersHeader from './PublicServers/PublicServersHeader.vue'
-import PublicServersSearch from './PublicServers/PublicServersSearch.vue'
-import PublicServersContent from './PublicServers/PublicServersContent.vue'
-import PublicServersFooter from './PublicServers/PublicServersFooter.vue'
-import CreateServerForm from './CreateServer.vue'
+import PublicServersHeader from '@/components/PublicServers/PublicServersHeader.vue'
+import PublicServersSearch from '@/components/PublicServers/PublicServersSearch.vue'
+import PublicServersContent from '@/components/PublicServers/PublicServersContent.vue'
+import PublicServersFooter from '@/components/PublicServers/PublicServersFooter.vue'
+import CreateServerForm from '@/components/CreateServer.vue'
+import UserProfileModal from '@/components/UserProfileModal.vue'
 
 interface Emits {
   (e: 'close'): void
@@ -91,6 +102,8 @@ const searchQuery = ref('')
 const selectedCategory = ref<string | null>(null)
 const showCreateServerForm = ref(false)
 const loadingServerIds = ref<Set<string>>(new Set())
+const showUserProfile = ref(false)
+const selectedUser = ref<any>(null)
 
 // Computed
 const joinedServerIds = computed(() => {
@@ -137,8 +150,7 @@ const handleJoinServer = async (serverId: string) => {
       await serverChannelStore.fetchServersForUser(userId)
       toast.success('Successfully joined the server!')
       
-      // Navigate to the newly joined server
-      router.push({ name: 'Chat', params: { serverId } })
+      // Close the modal and let the ChatView watcher handle navigation
       closeModal()
     } else {
       toast.error('Failed to join the server')
@@ -184,6 +196,29 @@ const handleServerCreated = (server: any) => {
   toast.success('Server created successfully!')
   router.push({ name: 'Chat', params: { serverId: server.id } })
   closeModal()
+}
+
+const handleViewOwnerProfile = async (userId: string) => {
+  try {
+    // Fetch the user profile if not already cached
+    const serverUsersStore = useServerUsersStore()
+    await serverUsersStore.fetchUserProfiles([userId])
+    
+    selectedUser.value = serverUsersStore.userProfiles[userId]
+    if (selectedUser.value) {
+      showUserProfile.value = true
+    } else {
+      toast.error('Could not load user profile')
+    }
+  } catch (error) {
+    console.error('Error loading user profile:', error)
+    toast.error('Failed to load user profile')
+  }
+}
+
+const closeUserProfile = () => {
+  showUserProfile.value = false
+  selectedUser.value = null
 }
 
 // Setup escape key handler
