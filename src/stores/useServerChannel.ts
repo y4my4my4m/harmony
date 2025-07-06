@@ -2,9 +2,6 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Server, Category, Channel, ResolvedEmoji } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
-import { 
-  subscribeToServerNotifications
-} from '@/services/notificationService';
 
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
@@ -47,8 +44,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
         const serverIds = this.servers.map(server => server.id);
         await emojiCache.initialize(serverIds);
         
-        // Set up server notifications
-        await this.subscribeAndListentoServerNotifications(userId);
+        // // Set up server notifications
+        // await this.subscribeAndListentoServerNotifications(userId);
         
         console.log('✅ User environment initialized successfully');
       } catch (error) {
@@ -57,12 +54,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
     },
 
-    async subscribeAndListentoServerNotifications(userId: string) {
-      this.servers.forEach(server => {
-        subscribeToServerNotifications(userId, server.id);
-        console.log('Subscribed to server notifications for server:', server.id);
-      });
-    },
+    // async subscribeAndListentoServerNotifications(userId: string) {
+    //   this.servers.forEach(server => {
+    //     subscribeToServerNotifications(userId, server.id);
+    //     console.log('Subscribed to server notifications for server:', server.id);
+    //   });
+    // },
 
     async fetchServersForUser(userId: string) {
       const { data, error } = await supabase

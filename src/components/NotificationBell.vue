@@ -265,7 +265,7 @@ const dismissNotification = async (notificationId: string) => {
 }
 
 const handleNotificationClick = (notification: Notification) => {
-  markAsRead(notification.id)
+  // markAsRead(notification.id)
   notificationStore.handleNotificationClick(notification)
   closePanel()
 }

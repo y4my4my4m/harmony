@@ -614,6 +614,7 @@ export const useNotificationStore = defineStore('notification', {
           this.updateUnreadCount()
         }
 
+        console.log(notificationId);
         const { error } = await supabase
           .from('notifications')
           .update({ is_read: true })
