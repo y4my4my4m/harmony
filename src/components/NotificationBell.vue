@@ -337,11 +337,11 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   background: transparent;
   border: none;
-  border-radius: 12px;
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   color: #b9bbbe;
@@ -409,17 +409,17 @@ onUnmounted(() => {
 /* Modern notification badge */
 .notification-badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 20px;
-  height: 20px;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
   background: linear-gradient(135deg, #ff4757, #ff3742);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 
-    0 0 0 3px var(--h-chat-dark),
+    0 0 0 2px rgba(0,0,0,0.3),
     0 4px 12px rgba(255, 71, 87, 0.4);
   overflow: hidden;
   backdrop-filter: blur(8px);
