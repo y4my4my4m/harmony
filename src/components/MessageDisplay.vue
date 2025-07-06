@@ -342,18 +342,14 @@ export default defineComponent({
     watch(() => props.messages, (newMessages, oldMessages) => {
       if (!newMessages || !oldMessages) return;
       
-      console.log('Messages watcher triggered for reaction changes');
-      
       // Check if any message had its reactions removed completely
       newMessages.forEach((newMessage) => {
         const oldMessage = oldMessages.find(old => old.id === newMessage.id);
         if (oldMessage && oldMessage.reactions && oldMessage.reactions.length > 0) {
           const newReactions = getValidReactions(newMessage);
-          console.log(`Message ${newMessage.id} reactions changed from ${oldMessage.reactions.length} to ${newReactions.length}`);
           
           if (newReactions.length === 0) {
             // All reactions were removed, hide tooltip if it was showing
-            console.log('All reactions removed for message, hiding tooltip');
             hideTooltip();
           }
         }
@@ -371,7 +367,6 @@ export default defineComponent({
         
         if (oldMsgReactions && oldMsgReactions.length > 0 && 
             (!newMsgReactions || newMsgReactions.length === 0)) {
-          console.log('Reactions array became empty, hiding tooltip');
           hideTooltip();
           break;
         }
