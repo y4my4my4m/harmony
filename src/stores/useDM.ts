@@ -526,7 +526,8 @@ export const useDMStore = defineStore('dm', () => {
         channel_id: '', // Empty string for DMs
         conversation_id: conversationId,
         reply_to: msg.reply_to,
-        reactions: msg.reactions || []
+        reactions: msg.reactions || [],
+        is_system: msg.is_system
       }))
 
       if (beforeMessageId === undefined) {
@@ -811,7 +812,8 @@ export const useDMStore = defineStore('dm', () => {
           channel_id: '', // Empty string for DMs
           conversation_id: message.conversation_id,
           reply_to: message.reply_to,
-          reactions: message.reactions || []
+          reactions: message.reactions || [],
+          is_system: message.is_system
         }
         
         console.log('📨 Adding DM message to cache:', formattedMessage)
@@ -849,7 +851,8 @@ export const useDMStore = defineStore('dm', () => {
           channel_id: '', // Empty string for DMs
           conversation_id: message.conversation_id,
           reply_to: message.reply_to,
-          reactions: formattedReactions
+          reactions: formattedReactions,
+          is_system: message.is_system
         }
         
         updateMessageInCache(message.id, updatedMessage)

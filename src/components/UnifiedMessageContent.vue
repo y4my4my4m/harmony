@@ -47,7 +47,7 @@
     </div>
     
     <!-- Display mode -->
-    <div v-else class="content-display">
+    <div v-else class="content-display" :class="{ 'system-message-content': isSystem }">
       <template v-for="(part, partIndex) in content" :key="partIndex">
         <!-- Text content with markdown-style formatting and code blocks -->
         <template 
@@ -209,6 +209,10 @@ export default defineComponent({
     editableContent: {
       type: String,
       default: ''
+    },
+    isSystem: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile'],

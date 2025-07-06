@@ -104,6 +104,7 @@ export interface Message {
   content: MessagePart[];
   reply_to?: string;
   reactions?: Reaction[]; // doesn't exist in the database, we're transforming it
+  is_system?: boolean; // for system messages like join/leave announcements
 }
 
 // should probably start to put these in their own files

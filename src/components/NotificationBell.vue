@@ -96,6 +96,24 @@
         
         <!-- Panel Content -->
         <div class="panel-content">
+          
+          <!-- Notifications List -->
+          <div class="notifications-list">
+            <!-- Quick Filter Tabs -->
+            <div class="notification-filters">
+              <button 
+                v-for="filter in notificationFilters"
+                :key="filter.key"
+                @click="activeFilter = filter.key"
+                class="filter-tab"
+                :class="{ active: activeFilter === filter.key }"
+              >
+                <span class="filter-icon">{{ filter.icon }}</span>
+                <span class="filter-label">{{ filter.label }}</span>
+                <span v-if="filter.count > 0" class="filter-count">{{ filter.count }}</span>
+              </button>
+            </div>
+            
           <!-- Loading State -->
           <div v-if="isLoading" class="notification-state loading-state">
             <div class="state-animation">
@@ -126,24 +144,6 @@
             <h4 class="state-title">All caught up!</h4>
             <p class="state-description">No new notifications. When you get mentions, messages, or other updates, they'll show up here.</p>
           </div>
-          
-          <!-- Notifications List -->
-          <div v-else class="notifications-list">
-            <!-- Quick Filter Tabs -->
-            <div class="notification-filters">
-              <button 
-                v-for="filter in notificationFilters"
-                :key="filter.key"
-                @click="activeFilter = filter.key"
-                class="filter-tab"
-                :class="{ active: activeFilter === filter.key }"
-              >
-                <span class="filter-icon">{{ filter.icon }}</span>
-                <span class="filter-label">{{ filter.label }}</span>
-                <span v-if="filter.count > 0" class="filter-count">{{ filter.count }}</span>
-              </button>
-            </div>
-            
             <!-- Notification Items -->
             <TransitionGroup name="notification-list" tag="div" class="notifications-container">
               <NotificationItem
@@ -704,8 +704,8 @@ onUnmounted(() => {
 /* Notification filters */
 .notification-filters {
   display: flex;
-  gap: 8px;
-  padding: 16px 20px 8px;
+  gap: 6px;
+  padding: 8px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   overflow-x: auto;
 }

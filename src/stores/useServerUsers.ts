@@ -6,6 +6,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 
 import { getProfilesWithAvatarUrls } from '@/services/usersService';
 import { updateUserStatus } from '@/services/profileService';
+import { getMembershipService } from '@/services/membershipService';
 
 const convertToStatusEnum = (numericStatus: number): UserStatus => {
     return numericStatus as UserStatus;
@@ -18,6 +19,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
     presenceChannel: null as RealtimeChannel | null,
     onlineUsers: new Set<string>(),
     offlineBroadcastChannel: null as RealtimeChannel | null,
+    currentServerId: null as string | null, // Track current server for membership events
+    membershipSubscriptionActive: false,
   }),
   getters: {
     usernameToUserIdMap: (state) => {
@@ -95,7 +98,9 @@ export const useServerUsersStore = defineStore('serverUsers', {
         .channel(`server:${serverId}:presence`)
         .on('presence', { event: 'sync' }, () => {
           const presenceState = this.presenceChannel?.presenceState();
-          this.updateOnlineUsers(presenceState);
+          if (presenceState) {
+            this.updateOnlineUsers(presenceState);
+          }
         })
         .on('presence', { event: 'join' }, ({ key, newPresences }) => {
           console.log('User joined:', key, newPresences);
@@ -138,7 +143,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     async updatePresence(status: 'online' | 'offline') {
       if (this.presenceChannel) {
         const presenceData = {
-          user_id: this.presenceChannel.config.presence.key,
+          user_id: 'current_user', // We'll track by channel topic instead
           online_at: new Date().toISOString(),
         };
         
@@ -231,15 +236,60 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
     },
 
+    /**
+     * Initialize membership tracking for a server
+     */
+    async initializeMembershipTracking(serverId: string) {
+      try {
+        // Only set up if we're switching to a different server
+        if (this.currentServerId !== serverId) {
+          console.log(`🔄 Initializing membership tracking for server: ${serverId}`)
+          
+          // Clean up previous server's membership subscription
+          this.cleanupMembershipTracking()
+          
+          // Subscribe to membership events for the new server
+          await getMembershipService().subscribeToServer(serverId)
+          
+          this.currentServerId = serverId
+          this.membershipSubscriptionActive = true
+          
+          console.log(`✅ Membership tracking initialized for server: ${serverId}`)
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize membership tracking:', error)
+      }
+    },
+
+    /**
+     * Clean up membership tracking
+     */
+    cleanupMembershipTracking() {
+      if (this.currentServerId && this.membershipSubscriptionActive) {
+        console.log(`🧹 Cleaning up membership tracking for server: ${this.currentServerId}`)
+        getMembershipService().unsubscribeFromServer(this.currentServerId)
+        this.membershipSubscriptionActive = false
+      }
+    },
+
+    /**
+     * Enhanced cleanup that includes membership tracking
+     */
     cleanup() {
+      // Clean up membership tracking
+      this.cleanupMembershipTracking()
+      
+      // Clean up presence channels
       if (this.presenceChannel) {
-        supabase.removeChannel(this.presenceChannel)
+        this.presenceChannel.unsubscribe()
         this.presenceChannel = null
       }
       if (this.offlineBroadcastChannel) {
-        supabase.removeChannel(this.offlineBroadcastChannel)
+        this.offlineBroadcastChannel.unsubscribe()
         this.offlineBroadcastChannel = null
       }
+      
+      this.currentServerId = null
     },
 
     broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string) {

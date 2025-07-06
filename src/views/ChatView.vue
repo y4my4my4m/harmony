@@ -191,6 +191,9 @@
           serverUsersStore.subscribeToUserStatuses();
           chatStore.clearMessages();
           
+          // Initialize membership tracking for real-time user list updates
+          await serverUsersStore.initializeMembershipTracking(serverId);
+          
           // Fetch data with cancellation support
           await serverChannelStore.fetchCategoriesAndChannels(serverId, signal);
           

@@ -655,6 +655,7 @@ export const useChatStore = defineStore('chat', {
               content: payload.new.content,
               reactions: payload.new.reactions,
               reply_to: payload.new.reply_to,
+              is_system: payload.new.is_system,
             };
 
             this.addMessageToCache(newMessage);

@@ -29,26 +29,44 @@
           <div class="gap-text">Jump in conversation</div>
           <div class="gap-line"></div>
         </div>
-      
-      <!-- Reply reference -->
-      <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="reply-reference">
-        <div class="reply-spine"></div>
-        <div class="reply-content">
-          <Avatar 
-            :src="getReplyUserAvatar(message.reply_to)"
-            size="mini"
-            class="reply-avatar"
-          />
-          <div class="reply-username" :style="{ color: getReplyUserColor(message.reply_to) }">
-            {{ getReplyUserDisplayName(message.reply_to) }}
-          </div>
-          <div class="reply-preview">
-            {{ getReplyMessagePreview(message.reply_to) }}
+
+        <!-- System Message (join/leave announcements) -->
+        <div v-if="message.is_system" class="system-message">
+          <div class="system-content">
+            <div class="system-icon">👋</div>
+            <div class="system-text">
+              <UnifiedMessageContent 
+                :content="message.content"
+                :message-id="message.id"
+                :is-system="true"
+                @show-user-profile="showUserProfile"
+              />
+            </div>
+            <div class="system-timestamp">{{ formatTimestamp(message.created_at) }}</div>
           </div>
         </div>
-      </div>
-      
-      <!-- Message content with proper alignment -->
+
+        <!-- Regular Message Content -->
+        <template v-else>
+          <!-- Reply reference -->
+          <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="reply-reference">
+            <div class="reply-spine"></div>
+            <div class="reply-content">
+              <Avatar 
+                :src="getReplyUserAvatar(message.reply_to)"
+                size="mini"
+                class="reply-avatar"
+              />
+              <div class="reply-username" :style="{ color: getReplyUserColor(message.reply_to) }">
+                {{ getReplyUserDisplayName(message.reply_to) }}
+              </div>
+              <div class="reply-preview">
+                {{ getReplyMessagePreview(message.reply_to) }}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Message content with proper alignment -->
       <div class="message-group" :class="{ 'has-header': shouldShowHeader(message, index), 'compact': !shouldShowHeader(message, index) }">
         <!-- Message header (avatar + username + timestamp) -->
         <div v-if="shouldShowHeader(message, index)" class="message-header">
@@ -138,7 +156,8 @@
             </div>
           </div>
         </div>
-      </div>
+          </div>
+        </template>
       </div>
     </template>
   </div>
@@ -1615,6 +1634,58 @@ export default defineComponent({
 @media (prefers-color-scheme: dark) {
   .message-item:hover {
     background-color: rgba(79, 84, 92, 0.16);
+  }
+}
+
+/* System Messages (Join/Leave Announcements) */
+.system-message {
+  margin: 8px 0;
+  padding: 0 16px;
+}
+
+.system-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: rgba(88, 101, 242, 0.1);
+  border-left: 4px solid #5865f2;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.875rem;
+  color: #b9bbbe;
+}
+
+.system-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.system-text {
+  flex: 1;
+  color: #dcddde;
+}
+
+.system-text :deep(.system-message-content) {
+  color: inherit !important;
+}
+
+.system-timestamp {
+  font-size: 0.75rem;
+  color: #72767d;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* System message responsiveness */
+@media (max-width: 768px) {
+  .system-content {
+    padding: 6px 12px;
+    gap: 6px;
+    font-size: 0.8125rem;
+  }
+  
+  .system-timestamp {
+    font-size: 0.6875rem;
   }
 }
 </style>
