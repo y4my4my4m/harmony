@@ -185,165 +185,145 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 
-export default {
-  emits: ['close'],
-  setup(props, { emit }) {
-    const serverName = ref('');
-    const description = ref('');
-    const isPublic = ref(false);
-    const iconFile = ref<File | null>(null);
-    const iconPreview = ref<string | null>(null);
-    const serverNameError = ref('');
-    const errorMessage = ref('');
-    const isCreating = ref(false);
+const emit = defineEmits<{
+  close: []
+}>();
+
+const serverName = ref('');
+const description = ref('');
+const isPublic = ref(false);
+const iconFile = ref<File | null>(null);
+const iconPreview = ref<string | null>(null);
+const serverNameError = ref('');
+const errorMessage = ref('');
+const isCreating = ref(false);
+
+const serverChannelStore = useServerChannelStore();
+const authStore = useAuthStore();
+const router = useRouter();
+const toast = useToast();
+
+const iconInput = ref<HTMLInputElement>();
+
+const canCreate = computed(() => {
+  return serverName.value.trim().length > 0 && !serverNameError.value;
+});
+
+const validateServerName = () => {
+  if (serverName.value.trim().length === 0) {
+    serverNameError.value = 'Server name is required';
+  } else if (serverName.value.trim().length < 2) {
+    serverNameError.value = 'Server name must be at least 2 characters';
+  } else if (serverName.value.trim().length > 50) {
+    serverNameError.value = 'Server name is too long';
+  } else {
+    serverNameError.value = '';
+  }
+};
+
+const triggerIconUpload = () => {
+  iconInput.value?.click();
+};
+
+const handleIconUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  
+  if (file) {
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error('Icon file size must be less than 5MB');
+      return;
+    }
     
-    const serverChannelStore = useServerChannelStore();
-    const authStore = useAuthStore();
-    const router = useRouter();
-    const toast = useToast();
+    iconFile.value = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      iconPreview.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+};
 
-    const iconInput = ref<HTMLInputElement>();
+const removeIcon = () => {
+  iconFile.value = null;
+  iconPreview.value = null;
+  if (iconInput.value) {
+    iconInput.value.value = '';
+  }
+};
 
-    const canCreate = computed(() => {
-      return serverName.value.trim().length > 0 && !serverNameError.value;
-    });
+const closeModal = () => {
+  emit('close');
+};
 
-    const validateServerName = () => {
-      if (serverName.value.trim().length === 0) {
-        serverNameError.value = 'Server name is required';
-      } else if (serverName.value.trim().length < 2) {
-        serverNameError.value = 'Server name must be at least 2 characters';
-      } else if (serverName.value.trim().length > 50) {
-        serverNameError.value = 'Server name is too long';
-      } else {
-        serverNameError.value = '';
-      }
+const createServer = async () => {
+  if (!canCreate.value) return;
+
+  validateServerName();
+  if (serverNameError.value) return;
+
+  const userId = authStore.session?.user?.id;
+  if (!userId) {
+    errorMessage.value = "Authentication required";
+    return;
+  }
+
+  isCreating.value = true;
+  errorMessage.value = '';
+
+  try {
+    const serverData = {
+      name: serverName.value.trim(),
+      description: description.value.trim() || undefined,
+      public: isPublic.value,
+      owner: userId
     };
 
-    const triggerIconUpload = () => {
-      iconInput.value?.click();
-    };
-
-    const handleIconUpload = (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      const file = target.files?.[0];
-      
-      if (file) {
-        if (file.size > 5 * 1024 * 1024) { // 5MB limit
-          toast.error('Icon file size must be less than 5MB');
-          return;
-        }
-        
-        iconFile.value = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          iconPreview.value = e.target?.result as string;
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-
-    const removeIcon = () => {
-      iconFile.value = null;
-      iconPreview.value = null;
-      if (iconInput.value) {
-        iconInput.value.value = '';
-      }
-    };
-
-    const closeModal = () => {
-      emit('close');
-    };
-
-    const createServer = async () => {
-      if (!canCreate.value) return;
-
-      validateServerName();
-      if (serverNameError.value) return;
-
-      const userId = authStore.session?.user?.id;
-      if (!userId) {
-        errorMessage.value = "Authentication required";
-        return;
-      }
-
-      isCreating.value = true;
-      errorMessage.value = '';
-
+    console.log('Creating server with data:', serverData);
+    const result = await serverChannelStore.createServer(serverData);
+    console.log('Server creation result:', result);
+    
+    // Handle icon upload if file exists
+    if (iconFile.value && result) {
+      console.log('Uploading server icon...');
       try {
-        const serverData = {
-          name: serverName.value.trim(),
-          description: description.value.trim() || undefined,
-          public: isPublic.value,
-          owner: userId
-        };
-
-        console.log('Creating server with data:', serverData);
-        const result = await serverChannelStore.createServer(serverData);
-        console.log('Server creation result:', result);
+        const { uploadServerIcon } = await import('@/utils/fileUpload');
+        const uploadResult = await uploadServerIcon(iconFile.value, result.id);
         
-        // Handle icon upload if file exists
-        if (iconFile.value && result) {
-          console.log('Uploading server icon...');
-          try {
-            const { uploadServerIcon } = await import('@/utils/fileUpload');
-            const uploadResult = await uploadServerIcon(iconFile.value, result.id);
-            
-            if (uploadResult.success && uploadResult.url) {
-              // Update server with icon URL
-              await serverChannelStore.updateServer({
-                id: result.id,
-                icon: uploadResult.url
-              });
-              console.log('Server icon uploaded successfully:', uploadResult.url);
-            } else {
-              console.error('Server icon upload failed:', uploadResult.error);
-              toast.warning('Server created but icon upload failed. You can update it later in server settings.');
-            }
-          } catch (uploadError) {
-            console.error('Server icon upload error:', uploadError);
-            toast.warning('Server created but icon upload failed. You can update it later in server settings.');
-          }
+        if (uploadResult.success && uploadResult.url) {
+          // Update server with icon URL
+          await serverChannelStore.updateServer({
+            id: result.id,
+            icon: uploadResult.url
+          });
+          console.log('Server icon uploaded successfully:', uploadResult.url);
+        } else {
+          console.error('Server icon upload failed:', uploadResult.error);
+          toast.warning('Server created but icon upload failed. You can update it later in server settings.');
         }
-
-        toast.success('Server created successfully!');
-        closeModal();
-        // Refresh the page to show the new server
-        router.go(0);
-      } catch (error: any) {
-        console.error('Server creation error:', error);
-        errorMessage.value = error.message || "An unexpected error occurred";
-      } finally {
-        isCreating.value = false;
+      } catch (uploadError) {
+        console.error('Server icon upload error:', uploadError);
+        toast.warning('Server created but icon upload failed. You can update it later in server settings.');
       }
-    };
+    }
 
-    return { 
-      serverName, 
-      description,
-      isPublic,
-      iconFile,
-      iconPreview,
-      serverNameError,
-      errorMessage,
-      isCreating,
-      iconInput,
-      canCreate,
-      validateServerName,
-      triggerIconUpload,
-      handleIconUpload,
-      removeIcon,
-      createServer, 
-      closeModal 
-    };
-  },
+    toast.success('Server created successfully!');
+    closeModal();
+    // Refresh the page to show the new server
+    router.go(0);
+  } catch (error: any) {
+    console.error('Server creation error:', error);
+    errorMessage.value = error.message || "An unexpected error occurred";
+  } finally {
+    isCreating.value = false;
+  }
 };
 </script>
 

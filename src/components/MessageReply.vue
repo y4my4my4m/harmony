@@ -16,34 +16,25 @@
     </div>
 </template>
 
-<script lang="ts">
-  import { defineComponent } from 'vue';
-  import CloseIcon from '@/components/icons/Close.vue';
-  
-  export default defineComponent({
-    components: {
-      CloseIcon
-    },
-    props: {
-      replyMessageId: {
-        type: String,
-        required: true
-      },
-      replyUserDisplayName: {
-        type: String,
-        default: 'Deleted User'
-      },
-    },
-    setup(props, { emit }) {
-        const dontReply = () => {
-            emit('update:replyMessageId');
-        };
-    
-        return {
-            dontReply
-        };
-    }
-});
+<script setup lang="ts">
+import CloseIcon from '@/components/icons/Close.vue';
+
+interface Props {
+  replyMessageId: string
+  replyUserDisplayName?: string
+}
+
+withDefaults(defineProps<Props>(), {
+  replyUserDisplayName: 'Deleted User'
+})
+
+const emit = defineEmits<{
+  'update:replyMessageId': []
+}>()
+
+const dontReply = () => {
+  emit('update:replyMessageId')
+}
 </script>
 
 <style scoped>

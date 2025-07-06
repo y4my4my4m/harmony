@@ -28,183 +28,80 @@
   </div>
 </template>
 
-<script lang="ts">
-  import { defineComponent, ref, onMounted, computed, watch } from 'vue';
-  import { useServerUsersStore } from '@/stores/useServerUsers';
-  import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
-  import { useServerChannelStore } from '@/stores/useServerChannel';
-  import type { Point } from '@/types';
+<script setup lang="ts">
+import { ref, onMounted, computed, watch } from 'vue'
+import { useServerUsersStore } from '@/stores/useServerUsers'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { useServerChannelStore } from '@/stores/useServerChannel'
+import type { Channel } from '@/types'
 
-  import SpaceTimeGrid from '@/components/SpaceTimeGrid.vue'
+interface Props {
+  currentChannelId: string
+  serverId: string
+}
 
-  export default defineComponent({
-    name: 'VoiceChannelGrid',
-    props: {
-      currentChannelId: {
-        type: String,
-        required: true
-      },
-      serverId: {
-        type: String,
-        required: true
-      },
-    },
-    components: {
-      // SpaceTimeGrid
-    },
-    setup(props) {
-      const serverUsersStore = useServerUsersStore();
-      const voiceChannelStore = useUnifiedVoiceChannelStore();
-      const serverChannelStore = useServerChannelStore();
-      const isVoiceChannelPopupVisible = ref(false);
-      const gridContainer = ref<HTMLElement | null>(null);
-      const containerWidth = ref(0);
-      const containerHeight = ref(0);
-      const avatarPositions = ref<Point[]>([]);
-      const usersInCurrentChannel = computed(() => {
-        return serverUsersStore.usersInVoiceChannels[props.currentChannelId] || [];
-      });
+const props = defineProps<Props>()
 
-      // Check if this is a voice channel by looking up the channel data
-      const isVoiceChannel = computed(() => {
-        const currentChannel = serverChannelStore.channels.find(
-          channel => channel.id === props.currentChannelId
-        );
-        return currentChannel?.type === 1; // 1 = voice channel
-      });
+const serverUsersStore = useServerUsersStore()
+const voiceChannelStore = useUnifiedVoiceChannelStore()
+const isVoiceChannelPopupVisible = ref(false)
+const gridContainer = ref<HTMLElement | null>(null)
+const containerWidth = ref(0)
+const containerHeight = ref(0)
 
-      // Note: Spatial positioning is disabled for now since it's part of the 3D audio feature
-      // that's not currently implemented in the Discord-style WebRTC system
-      // watch(() => voiceChannelStore.positions, (newPositions) => {
-      //   avatarPositions.value = usersInCurrentChannel.value.map(userId => {
-      //     return {x: newPositions[userId].x, y: newPositions[userId].y, color: getUserColorInRGB(userId)};
-      //   });
-      // }, { deep: true });
+const usersInCurrentChannel = computed(() => {
+  return serverUsersStore.usersInVoiceChannels[props.currentChannelId] || []
+})
 
+// Show voice channel popup based on connection status and participants
+watch(() => [usersInCurrentChannel.value, voiceChannelStore.isConnected], () => {
+  // Show popup if we're connected to this channel or if there are users in it
+  const isCurrentChannelActive = voiceChannelStore.currentChannelId === props.currentChannelId
+  
+  // Show if: connected to this channel or has users
+  isVoiceChannelPopupVisible.value = isCurrentChannelActive || usersInCurrentChannel.value.length > 0
+}, { immediate: true })
 
-      // Show voice channel popup based on connection status and participants
-      watch(() => [usersInCurrentChannel.value, voiceChannelStore.isConnected], () => {
-        // Show popup if we're connected to this channel or if there are users in it
-        const isCurrentChannelActive = voiceChannelStore.currentChannelId === props.currentChannelId;
-        
-        // Show if: connected to this channel or has users
-        isVoiceChannelPopupVisible.value = isCurrentChannelActive || usersInCurrentChannel.value.length > 0;
-      }, { immediate: true });
+const getUserAvatar = (userId: string): string => {
+  return serverUsersStore.userProfiles[userId]?.avatar_url || ''
+}
 
-      const getUserAvatar = (userId: string): string => {
-        return serverUsersStore.userProfiles[userId]?.avatar_url || '';
-      };
+const getProfileStyle = (userId: string) => {
+  // For now, use a simple grid layout since 3D spatial positioning is disabled
+  // TODO: Re-implement when 3D spatial audio feature is added back
+  const index = usersInCurrentChannel.value.indexOf(userId)
+  const position = { 
+    x: (index % 3) * 100 + 50, 
+    y: Math.floor(index / 3) * 100 + 50 
+  }
+  return {
+    top: `${position.y}px`,
+    left: `${position.x}px`
+  }
+}
 
-      const getUserColorInRGB = (userId:string) => {
-        return hexToRgb(`${serverUsersStore.userProfiles[userId]?.color || '#dddddd'}`);
-      };
+const startDrag = () => {
+  // Dragging is disabled for now since 3D spatial audio positioning is not implemented
+  // in the Discord-style WebRTC system
+  console.log('Dragging disabled - 3D spatial audio not implemented')
+}
 
-      const getProfileStyle = (userId: string) => {
-        // For now, use a simple grid layout since 3D spatial positioning is disabled
-        // TODO: Re-implement when 3D spatial audio feature is added back
-        const index = usersInCurrentChannel.value.indexOf(userId);
-        const position = { 
-          x: (index % 3) * 100 + 50, 
-          y: Math.floor(index / 3) * 100 + 50 
-        };
-        return {
-          top: `${position.y}px`,
-          left: `${position.x}px`
-        };
-      };
+const closePopup = () => {
+  isVoiceChannelPopupVisible.value = false
+}
 
-      const hexToRgb = (hex: string): string | null => {
-        if (hex.charAt(0) === '#') {
-            hex = hex.substr(1);
-        }
+const updateDimensions = () => {
+  if (gridContainer.value) {
+    containerWidth.value = gridContainer.value.clientWidth
+    containerHeight.value = gridContainer.value.clientHeight
+  }
+}
 
-        if (hex.length !== 3 && hex.length !== 6) {
-            return null;
-        }
+onMounted(() => {
+  updateDimensions()
+})
 
-        let r: number = 0
-        let g: number = 0
-        let b: number = 0;
-
-        if (hex.length === 3) {
-            r = parseInt(hex.charAt(0) + hex.charAt(0), 16);
-            g = parseInt(hex.charAt(1) + hex.charAt(1), 16);
-            b = parseInt(hex.charAt(2) + hex.charAt(2), 16);
-        } 
-        else {
-            r = parseInt(hex.substr(0, 2), 16);
-            g = parseInt(hex.substr(2, 2), 16);
-            b = parseInt(hex.substr(4, 2), 16);
-        }
-
-        return `rgb(${r}, ${g}, ${b})`;
-      };
-
-
-      let selectedUserId = ref<string | null>(null);
-      let originalPosition = ref({ x: 0, y: 0 });
-
-      const startDrag = (userId: string, event: MouseEvent) => {
-        // Dragging is disabled for now since 3D spatial audio positioning is not implemented
-        // in the Discord-style WebRTC system
-        console.log('Dragging disabled - 3D spatial audio not implemented');
-        return;
-      };
-
-      const onDrag = (event: MouseEvent) => {
-        // Dragging is disabled for now
-        return;
-      };
-
-
-      const endDrag = () => {
-        window.removeEventListener('mousemove', onDrag);
-        window.removeEventListener('mouseup', endDrag);
-        selectedUserId.value = null;
-
-      };
-
-      const closePopup = () => {
-        isVoiceChannelPopupVisible.value = false;
-      };
-
-
-      const updateDimensions = () => {
-        if (gridContainer.value) {
-          containerWidth.value = gridContainer.value.clientWidth;
-          containerHeight.value = gridContainer.value.clientHeight;
-        }
-      };
-
-      onMounted(() => {
-        updateDimensions();
-      });
-
-      watch(() => window.innerWidth, updateDimensions);
-
-      const getChannelName = () => {
-        const currentChannel = serverChannelStore.channels.find(
-          channel => channel.id === props.currentChannelId
-        );
-        return currentChannel?.name || 'Voice Channel';
-      };
-
-      return { 
-        isVoiceChannelPopupVisible, 
-        isVoiceChannel,
-        usersInCurrentChannel, 
-        getUserAvatar, 
-        startDrag, 
-        closePopup,
-        getProfileStyle,
-        gridContainer,
-        containerWidth,
-        containerHeight,
-        avatarPositions,
-        getChannelName,
-      };
-    }
-  });
+watch(() => window.innerWidth, updateDimensions)
 </script>
 
   
