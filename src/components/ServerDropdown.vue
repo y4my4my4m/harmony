@@ -11,68 +11,58 @@
   </div>
 </template>
   
-<script lang="ts">
-  import { defineComponent, computed } from 'vue';
-  import { useAuthStore } from '@/stores/auth';
-  import { useToast } from "vue-toastification";
-  import { useRouter } from 'vue-router';
-  import { useServerPermissions } from '@/composables/useServerPermissions';
-  
-  export default defineComponent({
-    props: {
-      serverId: String,
-      isVisible: Boolean,
-    },
-    emits: ['toggle', 'showCategoryCreator', 'createChannel', 'openInviteModal'],
-    setup(props, { emit }) {
-      const auth = useAuthStore();
-      const router = useRouter();
-      const toast = useToast();
-      const { serverSettingsPermissions, channelPermissions } = useServerPermissions();
+<script setup lang="ts">
+import { computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useServerPermissions } from '@/composables/useServerPermissions';
 
-      // Computed permissions
-      const canViewServerSettings = computed(() => serverSettingsPermissions.value.canViewSettings);
-      const canManageServer = computed(() => serverSettingsPermissions.value.canEditBasicInfo);
-      const canCreateCategories = computed(() => channelPermissions.value.canCreateCategories);
-      const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels);
+interface Props {
+  serverId?: string
+  isVisible?: boolean
+}
 
-      const createChannel = () => {
-        emit('createChannel', null);
-        closeDropdown();
-      };
+const props = defineProps<Props>();
 
-      const closeDropdown = () => {
-        emit('toggle');
-      };
+const emit = defineEmits<{
+  toggle: []
+  showCategoryCreator: [value: boolean]
+  createChannel: [value: null]
+  openInviteModal: []
+}>();
 
-      const createCategory = () => {
-        emit('showCategoryCreator', true);
-        closeDropdown();
-      };
+const router = useRouter();
+const { serverSettingsPermissions, channelPermissions } = useServerPermissions();
 
-      const goToServerSettings = () => {
-        // Navigate to server settings page
-        router.push(`/server/${props.serverId}`);
-        closeDropdown();
-      };
-      const generateInviteLink = () => {
-        emit('openInviteModal');
-        closeDropdown();
-      };
-  
-      return { 
-        goToServerSettings, 
-        createCategory,
-        generateInviteLink,
-        closeDropdown,
-        createChannel,
-        canViewServerSettings,
-        canManageServer,
-        canCreateCategories,
-        canCreateChannels
-      };
-    }
-  });
+// Computed permissions
+const canViewServerSettings = computed(() => serverSettingsPermissions.value.canViewSettings);
+const canManageServer = computed(() => serverSettingsPermissions.value.canEditBasicInfo);
+const canCreateCategories = computed(() => channelPermissions.value.canCreateCategories);
+const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels);
+
+const createChannel = () => {
+  emit('createChannel', null);
+  closeDropdown();
+};
+
+const closeDropdown = () => {
+  emit('toggle');
+};
+
+const createCategory = () => {
+  emit('showCategoryCreator', true);
+  closeDropdown();
+};
+
+const goToServerSettings = () => {
+  // Navigate to server settings page
+  router.push(`/server/${props.serverId}`);
+  closeDropdown();
+};
+
+const generateInviteLink = () => {
+  emit('openInviteModal');
+  closeDropdown();
+};
 </script>
   
 <style scoped>

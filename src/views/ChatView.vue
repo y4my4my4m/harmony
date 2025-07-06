@@ -60,8 +60,8 @@
   </div>
 </template>
 
-<script lang="ts">
-  import { defineComponent, computed, onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue';
+<script setup lang="ts">
+  import { computed, onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue';
   import ServerSidebar from '@/components/ServerSidebar.vue';
   import ChannelSidebar from '@/components/ChannelSidebar.vue';
   import DMSidebar from '@/components/DMSidebar.vue';
@@ -85,39 +85,27 @@
   import { useChannelSelection } from '@/composables/useUserProfile'
   import { viewContextTracker } from '@/services/ViewContextTracker'
 
-  export default defineComponent({
-    components: {
-      ServerSidebar,
-      ChannelSidebar,
-      DMSidebar,
-      ChatComponent,
-      UserSidebar,
-      UserProfileComponent,
-      NoServersSplash,
-      VoiceChannelScene,
-      CreateChannel,
-      PublicServers,
-    },
-    props: {
-      serverId: String,
-      channelId: String,
-      isDM: {
-        type: Boolean,
-        default: false
-      },
-      conversationId: String,
-    },
-    setup(props) {
-      const serverUsersStore = useServerUsersStore();
-      const serverChannelStore = useServerChannelStore();
-      const voiceChannelStore = useUnifiedVoiceChannelStore();
-      const chatStore = useChatStore();
-      const dmStore = useDMStore();
-      const authStore = useAuthStore();
-      const profileStore = useProfileStore();
-      const toast = useToast();
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const notificationSound = ref(new Audio('/assets/sounds/poi1.mp3'));
+  interface Props {
+    serverId?: string;
+    channelId?: string;
+    isDM?: boolean;
+    conversationId?: string;
+  }
+
+  const props = withDefaults(defineProps<Props>(), {
+    isDM: false,
+  });
+
+  const serverUsersStore = useServerUsersStore();
+  const serverChannelStore = useServerChannelStore();
+  const voiceChannelStore = useUnifiedVoiceChannelStore();
+  const chatStore = useChatStore();
+  const dmStore = useDMStore();
+  const authStore = useAuthStore();
+  const profileStore = useProfileStore();
+  const toast = useToast();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const notificationSound = ref(new Audio('/assets/sounds/poi1.mp3'));
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const notificationSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
 
@@ -645,46 +633,14 @@
       const getVoiceChannelName = () => {
         if (voiceChannelStore.currentChannelId) {
           const voiceChannel = serverChannelStore.channels.find(
-            channel => channel.id === voiceChannelStore.currentChannelId
+            (channel: Channel) => channel.id === voiceChannelStore.currentChannelId
           );
           return voiceChannel?.name || 'Voice Channel';
         }
         return 'Voice Channel';
       };
 
-      return { 
-        servers, 
-        channels, 
-        categories,
-        categoryChannels,
-        chatMessages, 
-        currentServerName, 
-        currentServer, 
-        currentChannelId,
-        showNoServersSplash, 
-        handleServerSelected,
-        handleDMConversationSelected,
-        handleSendMessage,
-        showCreateChannelForm, 
-        handleChannelSelected,
-        fetchMoreMessages,
-        isAtBottom,
-        scrollToBottom,
-        requestNotificationPermission,
-        showNotification,
-        isSidebarsVisible,
-        isProfilesVisible,
-        handleCreateChannel,
-        currentCategoryId,
-        handleChannelCreated,
-        showPublicServers,
-        handleShowPublicServers,
-        isLoading,
-        voiceChannelStore,
-        getVoiceChannelName,
-      };
-    }
-  });
+
 </script>
 
 <style scoped>

@@ -18,51 +18,45 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 
-export default {
-    setup() {
-        const email = ref('');
-        const password = ref('');
-        const authStore = useAuthStore();
-        const toast = useToast();
-        const router = useRouter();
-        const randomBg = ref('');
-        const bgRotation = ref(0);
-        const audio = ref(new Audio('/assets/sounds/pirori-wet.mp3'));
+const email = ref('');
+const password = ref('');
+const authStore = useAuthStore();
+const toast = useToast();
+const router = useRouter();
+const randomBg = ref('');
+const bgRotation = ref(0);
+const audio = ref(new Audio('/assets/sounds/pirori-wet.mp3'));
 
-        const playSound = () => {
-          audio.value.play();
-        };
-
-        const register = async () => {
-          try {
-            await authStore.register(email.value, password.value);
-            router.push('/new-profile');
-          } catch (error: any) {
-            console.log(error);
-            toast.error(error.message);
-          }
-        };
-
-        const updateBackgroundRotation = (event: any) => {
-          const x = event.clientX - (window.innerWidth / 2);
-          const y = event.clientY - (window.innerHeight / 2);
-          const angle = Math.atan2(y, x) * (180 / Math.PI);
-          bgRotation.value = angle;
-        };
-
-        onMounted(() => {
-          randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 64) + 1}.png')`;
-        });
-
-        return { email, password, register, randomBg, updateBackgroundRotation, bgRotation, playSound };
-    },
+const playSound = () => {
+  audio.value.play();
 };
+
+const register = async () => {
+  try {
+    await authStore.register(email.value, password.value);
+    router.push('/new-profile');
+  } catch (error: any) {
+    console.log(error);
+    toast.error(error.message);
+  }
+};
+
+const updateBackgroundRotation = (event: any) => {
+  const x = event.clientX - (window.innerWidth / 2);
+  const y = event.clientY - (window.innerHeight / 2);
+  const angle = Math.atan2(y, x) * (180 / Math.PI);
+  bgRotation.value = angle;
+};
+
+onMounted(() => {
+  randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 64) + 1}.png')`;
+});
 </script>
 
 <style scoped>

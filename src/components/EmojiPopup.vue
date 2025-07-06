@@ -44,31 +44,39 @@
   </div>
 </template>
 
-<script lang="ts">
-  import { defineComponent, ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
+<script setup lang="ts">
+  import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
   import { useServerChannelStore } from '@/stores/useServerChannel';
-  import type { PropType } from 'vue';
   import type { Emoji, ResolvedEmoji } from '@/types';
   
-  export default defineComponent({
-    name: 'EmojiPopup',
-    props: {
-        closeEmojiList: Function as PropType<() => void>,
-        emojiIconClicked: Boolean,
-        isReaction: Boolean,
-    },
-    emits: ['sendEmoji', 'resetEmojiIconClicked'],
-    setup(props, { emit }) {
-        const serverChannelStore = useServerChannelStore();
-        const hoveredEmoji = ref<string | null>(null);
-        const emojiPopup = ref<HTMLElement | null>(null);
-        const searchInput = ref<HTMLInputElement | null>(null);
-        const searchQuery = ref('');
-        const resolvedEmojiList = ref<Record<string, { 
-          server_name: string; 
-          server_icon?: string; 
-          emojis: ResolvedEmoji[]; 
-        }>>({});
+  interface Props {
+    closeEmojiList?: () => void;
+    emojiIconClicked?: boolean;
+    isReaction?: boolean;
+  }
+
+  const props = withDefaults(defineProps<Props>(), {
+    emojiIconClicked: false,
+    isReaction: false,
+  });
+
+  interface Emits {
+    (e: 'sendEmoji', emoji: Emoji): void;
+    (e: 'resetEmojiIconClicked'): void;
+  }
+
+  const emit = defineEmits<Emits>();
+
+  const serverChannelStore = useServerChannelStore();
+  const hoveredEmoji = ref<string | null>(null);
+  const emojiPopup = ref<HTMLElement | null>(null);
+  const searchInput = ref<HTMLInputElement | null>(null);
+  const searchQuery = ref('');
+  const resolvedEmojiList = ref<Record<string, { 
+    server_name: string; 
+    server_icon?: string; 
+    emojis: ResolvedEmoji[]; 
+  }>>({});
 
         // Computed property to filter emojis based on search query
         const filteredEmojiList = computed(() => {
@@ -164,18 +172,6 @@
             searchQuery.value = '';
           }
         });
-  
-        return {
-            resolvedEmojiList, 
-            filteredEmojiList,
-            selectEmoji, 
-            hoveredEmoji,
-            emojiPopup,
-            searchInput,
-            searchQuery
-        };
-    }
-  });
 </script>
   
 <style scoped>

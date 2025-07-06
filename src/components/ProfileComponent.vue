@@ -37,8 +37,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, ref, onMounted, onBeforeUnmount, watch } from 'vue';
+<script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar } from '@/services/profileService';
 import type { User } from '@/types';
@@ -47,157 +47,130 @@ import { useRouter } from 'vue-router';
 import { ColorPicker } from 'vue-color-kit';
 import 'vue-color-kit/dist/vue-color-kit.css';
 
-export default defineComponent({
-  components: {
-    ColorPicker,
-  },
-  setup() {
-    const router = useRouter();
-    const authStore = useAuthStore();
-    const profile = ref<User | null>(null);
-    const color = ref('#cc33ff');
-    const suckerCanvas = ref(null);
-    const suckerArea = ref(null);
-    const showColorPicker = ref(false);
-    const colorPickerRef = ref<InstanceType<typeof ColorPicker>>();
-    const colorPreviewRef = ref<HTMLElement | null>(null);
-    const isLoadingProfile = ref(true); // Flag to indicate if the profile is loading
+const router = useRouter();
+const authStore = useAuthStore();
+const profile = ref<User | null>(null);
+const color = ref('#cc33ff');
+const suckerCanvas = ref(null);
+const suckerArea = ref(null);
+const showColorPicker = ref(false);
+const colorPickerRef = ref<InstanceType<typeof ColorPicker>>();
+const colorPreviewRef = ref<HTMLElement | null>(null);
+const isLoadingProfile = ref(true); // Flag to indicate if the profile is loading
 
-    // FIXME: color picker doesn't register zeros when typed...
-    const openColorPicker = (event: MouseEvent) => {
-      event.stopPropagation();
-      showColorPicker.value = true;
-    };
+// FIXME: color picker doesn't register zeros when typed...
+const openColorPicker = (event: MouseEvent) => {
+  event.stopPropagation();
+  showColorPicker.value = true;
+};
 
-    const closeColorPicker = async () => {
-      showColorPicker.value = false;
-      // Update the profile with the selected color
-      if (profile.value && authStore.session?.user) {
-        await updateProfile(authStore.session.user.id, { color: color.value });
-      }
+const closeColorPicker = async () => {
+  showColorPicker.value = false;
+  // Update the profile with the selected color
+  if (profile.value && authStore.session?.user) {
+    await updateProfile(authStore.session.user.id, { color: color.value });
+  }
 
-    };
-    
-    onMounted(async () => {
-      if (authStore.session?.user) {
-        profile.value = await getProfileWithAvatarUrl(authStore.session.user.id);
-        if (profile.value && profile.value.color) {
-          color.value = profile.value.color;
-        }
-        isLoadingProfile.value = false; // Set loading flag to false after fetching
-      }
-    });
+};
 
-    // Watch for profile changes and update the color
-    watch(() => profile.value, (newProfile) => {
-      if (newProfile && newProfile.color) {
-        color.value = newProfile.color;
-      } else {
-        color.value = '#ffffff'; // Default color if no profile color is set
-      }
-    }, { immediate: true });
-
-    // Watch for authentication state changes and navigate to login if logged out
-    watch(() => authStore.isLoggedIn, (isLoggedIn) => {
-      if (!isLoggedIn) {
-        router.push('/login');
-      }
-    });
-
-    const signOut = async () => {
-      await authStore.logout();
-      // Remove router.go(0) - let the logout function handle navigation
-    };
-
-    const back = async () => {
-      router.push({ name: 'Chat' });
-    };
-
-    const handleAvatarUpload = async (file: File) => {
-      if (authStore.session?.user) {
-        const filePath = await uploadAvatar(authStore.session.user.id, file);
-        await updateProfile(authStore.session.user.id, { avatar_url: filePath });
-        profile.value = { ...profile.value, avatar_url: filePath };
-      }
-    };
-
-    const openSucker = () => {
-      console.log('Color picker activated');
-      // Add your logic for when the color picker is activated
-    };
-
-    const inputFocus = () => {
-      console.log('Color input focused');
-      // Add logic for when the color input receives focus
-    };
-
-    const inputBlur = () => {
-      console.log('Color input lost focus');
-      // Add logic for when the color input loses focus
-    };
-
-
-    const clickOutside = {
-      beforeMount(el: HTMLElement, binding: any) {
-        const onClick = (event: MouseEvent) => {
-          // Check if the click is outside the color picker and not on the color preview
-          if (el && !el.contains(event.target as Node) &&
-              (!colorPreviewRef.value || !colorPreviewRef.value.contains(event.target as Node))) {
-            binding.value();
-          }
-        };
-        el.__vueClickOutside__ = onClick;
-        document.addEventListener('click', onClick);
-      },
-      unmounted(el: HTMLElement) {
-        document.removeEventListener('click', el.__vueClickOutside__);
-        el.__vueClickOutside__ = null;
-      },
-    };
-
-    onBeforeUnmount(() => {
-      // Clean up
-      if (showColorPicker.value && colorPickerRef.value) {
-        document.removeEventListener('click', colorPickerRef.value.__vueClickOutside__);
-      }
-    });
-
-    const changeColor = (newColor: { hex: string }) => {
-      console.log(newColor);
-      color.value = newColor.hex;
-      if (profile.value) {
-        profile.value = { ...profile.value, color: color.value };
-      }
-    };
-
-    const onFileChange = async (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      if (target.files?.[0]) {
-        await handleAvatarUpload(target.files[0]);
-      }
-    };
-
-    return { 
-      profile,
-      onFileChange,
-      back,
-      signOut,
-      changeColor,
-      color,
-      suckerCanvas,
-      suckerArea,
-      openSucker,
-      inputFocus,
-      inputBlur,
-      showColorPicker,
-      openColorPicker,
-      closeColorPicker,
-      clickOutside,
-      colorPreviewRef,
-      isLoadingProfile
-    };
-  },
+onMounted(async () => {
+  if (authStore.session?.user) {
+    profile.value = await getProfileWithAvatarUrl(authStore.session.user.id);
+    if (profile.value && profile.value.color) {
+      color.value = profile.value.color;
+    }
+    isLoadingProfile.value = false; // Set loading flag to false after fetching
+  }
 });
+
+// Watch for profile changes and update the color
+watch(() => profile.value, (newProfile) => {
+  if (newProfile && newProfile.color) {
+    color.value = newProfile.color;
+  } else {
+    color.value = '#ffffff'; // Default color if no profile color is set
+  }
+}, { immediate: true });
+
+// Watch for authentication state changes and navigate to login if logged out
+watch(() => authStore.isLoggedIn, (isLoggedIn) => {
+  if (!isLoggedIn) {
+    router.push('/login');
+  }
+});
+
+const signOut = async () => {
+  await authStore.logout();
+  // Remove router.go(0) - let the logout function handle navigation
+};
+
+const back = async () => {
+  router.push({ name: 'Chat' });
+};
+
+const handleAvatarUpload = async (file: File) => {
+  if (authStore.session?.user) {
+    const filePath = await uploadAvatar(authStore.session.user.id, file);
+    await updateProfile(authStore.session.user.id, { avatar_url: filePath });
+    profile.value = { ...profile.value, avatar_url: filePath };
+  }
+};
+
+const openSucker = () => {
+  console.log('Color picker activated');
+  // Add your logic for when the color picker is activated
+};
+
+const inputFocus = () => {
+  console.log('Color input focused');
+  // Add logic for when the color input receives focus
+};
+
+const inputBlur = () => {
+  console.log('Color input lost focus');
+  // Add logic for when the color input loses focus
+};
+
+
+const clickOutside = {
+  beforeMount(el: HTMLElement, binding: any) {
+    const onClick = (event: MouseEvent) => {
+      // Check if the click is outside the color picker and not on the color preview
+      if (el && !el.contains(event.target as Node) &&
+          (!colorPreviewRef.value || !colorPreviewRef.value.contains(event.target as Node))) {
+        binding.value();
+      }
+    };
+    el.__vueClickOutside__ = onClick;
+    document.addEventListener('click', onClick);
+  },
+  unmounted(el: HTMLElement) {
+    document.removeEventListener('click', el.__vueClickOutside__);
+    el.__vueClickOutside__ = null;
+  },
+};
+
+onBeforeUnmount(() => {
+  // Clean up
+  if (showColorPicker.value && colorPickerRef.value) {
+    document.removeEventListener('click', colorPickerRef.value.__vueClickOutside__);
+  }
+});
+
+const changeColor = (newColor: { hex: string }) => {
+  console.log(newColor);
+  color.value = newColor.hex;
+  if (profile.value) {
+    profile.value = { ...profile.value, color: color.value };
+  }
+};
+
+const onFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  if (target.files?.[0]) {
+    await handleAvatarUpload(target.files[0]);
+  }
+};
 </script>
 
 

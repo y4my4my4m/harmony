@@ -101,46 +101,37 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 import CreateServerForm from './CreateServer.vue';
 import { ref, watch } from 'vue';
 
-export default {
-  components: {
-    CreateServerForm,
-  },
-  setup(props, { emit }) {
-    const showPublicServers = ref(false);
-    const showCreateServerForm = ref(false);
+const emit = defineEmits<{
+  showPublicServers: [value: boolean]
+}>();
 
-    const togglePublicServers = () => {
-      showPublicServers.value = !showPublicServers.value;
-    };
+const showPublicServers = ref(false);
+const showCreateServerForm = ref(false);
 
-    const getParticleStyle = (index: number) => {
-      const delay = index * 0.8;
-      const duration = 4 + (index % 2);
-      return {
-        animationDelay: `${delay}s`,
-        animationDuration: `${duration}s`,
-        left: `${(index * 12.5) % 100}%`,
-        top: `${(index * 15) % 100}%`
-      };
-    };
-
-    watch(showPublicServers, (value) => {
-      if (value) {
-        emit('show-public-servers', value); 
-      }
-    });
-
-    return { 
-      showCreateServerForm,
-      togglePublicServers,
-      getParticleStyle
-    };
-  },
+const togglePublicServers = () => {
+  showPublicServers.value = !showPublicServers.value;
 };
+
+const getParticleStyle = (index: number) => {
+  const delay = index * 0.8;
+  const duration = 4 + (index % 2);
+  return {
+    animationDelay: `${delay}s`,
+    animationDuration: `${duration}s`,
+    left: `${(index * 12.5) % 100}%`,
+    top: `${(index * 15) % 100}%`
+  };
+};
+
+watch(showPublicServers, (value) => {
+  if (value) {
+    emit('showPublicServers', value); 
+  }
+});
 </script>
 
 <style scoped>

@@ -62,208 +62,175 @@
   </div>
 </template>
 
-<script lang="ts">
-  import { defineComponent, ref, onMounted, onBeforeUnmount, computed } from 'vue';
-  import { useAuthStore } from '@/stores/auth';
-  import { useServerUsersStore } from '@/stores/useServerUsers';
-  import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
-  import { getProfileWithAvatarUrl } from '@/services/profileService';
-  import { useRouter } from 'vue-router';
-  import type { User } from '@/types';
-  import { updateUserStatus } from '@/services/profileService';
-  import { UserStatus } from '@/types';
-  import MicIcon from '@/components/icons/Mic.vue';
-  import MicMutedIcon from '@/components/icons/MicMuted.vue';
-  import HeadphonesIcon from '@/components/icons/Headphones.vue';
-  import SettingsIcon from '@/components/icons/Settings.vue';
-  import Avatar from '@/components/common/Avatar.vue';
-  import NotificationBell from '@/components/NotificationBell.vue';
-  
-  export default defineComponent({
-    name: 'UserProfileComponent',
-    components: {
-      MicIcon,
-      MicMutedIcon,
-      HeadphonesIcon,
-      SettingsIcon,
-      NotificationBell,
-      Avatar
-    },
-    setup() {
-      const authStore = useAuthStore();
-      const serverUsersStore = useServerUsersStore();
-      const voiceChannelStore = useUnifiedVoiceChannelStore();
-      const router = useRouter();
-      const profile = ref<User | null>(null);
-      const showStatusDropdown = ref(false);
-      const selectedStatus = ref(UserStatus.Offline);
-      const targetRef = ref<HTMLElement | null>(null);
+<script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { useServerUsersStore } from '@/stores/useServerUsers'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { getProfileWithAvatarUrl } from '@/services/profileService'
+import { useRouter } from 'vue-router'
+import type { User } from '@/types'
+import { updateUserStatus } from '@/services/profileService'
+import { UserStatus } from '@/types'
+import MicIcon from '@/components/icons/Mic.vue'
+import MicMutedIcon from '@/components/icons/MicMuted.vue'
+import HeadphonesIcon from '@/components/icons/Headphones.vue'
+import SettingsIcon from '@/components/icons/Settings.vue'
+import Avatar from '@/components/common/Avatar.vue'
+import NotificationBell from '@/components/NotificationBell.vue'
 
-      // Make status reactive to store changes
-      const currentStatus = computed(() => {
-        if (!authStore.session?.user?.id) return UserStatus.Offline;
-        return serverUsersStore.userProfiles[authStore.session.user.id]?.status ?? UserStatus.Offline;
-      });
+const authStore = useAuthStore()
+const serverUsersStore = useServerUsersStore()
+const voiceChannelStore = useUnifiedVoiceChannelStore()
+const router = useRouter()
+const profile = ref<User | null>(null)
+const showStatusDropdown = ref(false)
+const selectedStatus = ref(UserStatus.Offline)
+const targetRef = ref<HTMLElement | null>(null)
 
-      const statusOptions = [
-        { value: UserStatus.Online, label: 'Online', class: 'status-online' },
-        { value: UserStatus.Away, label: 'Away', class: 'status-away' },
-        { value: UserStatus.Busy, label: 'Do Not Disturb', class: 'status-busy' },
-        { value: UserStatus.Offline, label: 'Invisible', class: 'status-offline' }
-      ];
+// Make status reactive to store changes
+const currentStatus = computed(() => {
+  if (!authStore.session?.user?.id) return UserStatus.Offline
+  return serverUsersStore.userProfiles[authStore.session.user.id]?.status ?? UserStatus.Offline
+})
 
-      // Use unified voice system only
-      const isMicActive = computed(() => {
-        return !voiceChannelStore.localState.isMuted;
-      });
-      
-      const isHeadphonesActive = computed(() => {
-        return !voiceChannelStore.localState.isDeafened;
-      });
-      
-      const isInVoiceChannel = computed(() => {
-        return voiceChannelStore.isConnected;
-      });
-      
-      // Voice sound effects (proper ones for voice, not camera)
-      const micOnSound = ref(new Audio('/assets/sounds/mic_on.mp3'));
-      const micOffSound = ref(new Audio('/assets/sounds/mic_off.mp3'));
+const statusOptions = [
+  { value: UserStatus.Online, label: 'Online', class: 'status-online' },
+  { value: UserStatus.Away, label: 'Away', class: 'status-away' },
+  { value: UserStatus.Busy, label: 'Do Not Disturb', class: 'status-busy' },
+  { value: UserStatus.Offline, label: 'Invisible', class: 'status-offline' }
+]
 
-      const toggleMic = async () => {
-        try {
-          const wasMuted = voiceChannelStore.localState.isMuted;
-          await voiceChannelStore.toggleMute();
-          
-          // Play appropriate sound effect
-          const sound = wasMuted ? micOnSound.value : micOffSound.value;
-          sound.volume = 0.35;
-          sound.play().catch(e => console.log('Could not play sound:', e));
-        } catch (error) {
-          console.error('Failed to toggle mute:', error);
-        }
-      };
+// Use unified voice system only
+const isMicActive = computed(() => {
+  return !voiceChannelStore.localState.isMuted
+})
 
-      const toggleHeadphones = async () => {
-        try {
-          const wasDeafened = voiceChannelStore.localState.isDeafened;
-          await voiceChannelStore.toggleDeafen();
-          
-          // Play appropriate sound effect
-          // Deafening always results in muting, so play mute sound
-          const sound = wasDeafened ? micOnSound.value : micOffSound.value;
-          sound.volume = 0.35;
-          sound.play().catch(e => console.log('Could not play sound:', e));
-        } catch (error) {
-          console.error('Failed to toggle deafen:', error);
-        }
-      };
+const isHeadphonesActive = computed(() => {
+  return !voiceChannelStore.localState.isDeafened
+})
 
-      const toggleStatusDropdown = () => {
-        showStatusDropdown.value = !showStatusDropdown.value;
-      };
+const isInVoiceChannel = computed(() => {
+  return voiceChannelStore.isConnected
+})
 
-      const selectStatus = async (status: UserStatus) => {
-        selectedStatus.value = status;
-        await updateStatus();
-        showStatusDropdown.value = false;
-      };
+// Voice sound effects (proper ones for voice, not camera)
+const micOnSound = ref(new Audio('/assets/sounds/mic_on.mp3'))
+const micOffSound = ref(new Audio('/assets/sounds/mic_off.mp3'))
 
-      const onClickOutside = (event: any) => {
-        if (targetRef.value && !targetRef.value.contains(event.target)) {
-          showStatusDropdown.value = false;
-        }
-      };
+const toggleMic = async () => {
+  try {
+    const wasMuted = voiceChannelStore.localState.isMuted
+    await voiceChannelStore.toggleMute()
+    
+    // Play appropriate sound effect
+    const sound = wasMuted ? micOnSound.value : micOffSound.value
+    sound.volume = 0.35
+    sound.play().catch(e => console.log('Could not play sound:', e))
+  } catch (error) {
+    console.error('Failed to toggle mute:', error)
+  }
+}
 
-      const updateStatus = async () => {
-        if (authStore.session?.user) {
-          await updateUserStatus(authStore.session.user.id, selectedStatus.value);
-          // Update the profile status locally
-          if (profile.value)
-            profile.value.status = selectedStatus.value;
-        }
-      };
+const toggleHeadphones = async () => {
+  try {
+    const wasDeafened = voiceChannelStore.localState.isDeafened
+    await voiceChannelStore.toggleDeafen()
+    
+    // Play appropriate sound effect
+    // Deafening always results in muting, so play mute sound
+    const sound = wasDeafened ? micOnSound.value : micOffSound.value
+    sound.volume = 0.35
+    sound.play().catch(e => console.log('Could not play sound:', e))
+  } catch (error) {
+    console.error('Failed to toggle deafen:', error)
+  }
+}
 
-      // refactor those into helper functions that can be used globally or something
-      const getUserStatusClass = (status: UserStatus) => {
-        switch (status) {
-          case UserStatus.Online:
-            return 'status-online';
-          case UserStatus.Away:
-            return 'status-away';
-          case UserStatus.Busy:
-            return 'status-busy';
-          case UserStatus.Offline:
-          default:
-            return 'status-offline';
-        }
-      };
+const toggleStatusDropdown = () => {
+  showStatusDropdown.value = !showStatusDropdown.value
+}
 
-      const getUserStatusText = (status: UserStatus) => {
-        switch (status) {
-          case UserStatus.Online:
-            return 'Online';
-          case UserStatus.Away:
-            return 'Away';
-          case UserStatus.Busy:
-            return 'Do Not Disturb';
-          case UserStatus.Offline:
-          default:
-            return 'Invisible';
-        }
-      };
+const selectStatus = async (status: UserStatus) => {
+  selectedStatus.value = status
+  await updateStatus()
+  showStatusDropdown.value = false
+}
 
-      const goToSettings = () => {
-        router.push({ name: 'UserSettings' });
-      };
+const onClickOutside = (event: any) => {
+  if (targetRef.value && !targetRef.value.contains(event.target)) {
+    showStatusDropdown.value = false
+  }
+}
 
-      onMounted(async () => {
-        if (authStore.session?.user) {
-          profile.value = await getProfileWithAvatarUrl(authStore.session.user.id);
-          selectedStatus.value = profile.value?.status || UserStatus.Offline;
-        }
-        document.addEventListener('click', onClickOutside);
-      });
-      onBeforeUnmount(() => {
-        document.removeEventListener('click', onClickOutside);
-      });
+const updateStatus = async () => {
+  if (authStore.session?.user) {
+    await updateUserStatus(authStore.session.user.id, selectedStatus.value)
+    // Update the profile status locally
+    if (profile.value)
+      profile.value.status = selectedStatus.value
+  }
+}
 
-      const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'offline' => {
-        switch (status) {
-          case UserStatus.Online:
-            return 'online';
-          case UserStatus.Away:
-            return 'away';
-          case UserStatus.Busy:
-            return 'busy';
-          case UserStatus.Offline:
-          default:
-            return 'offline';
-        }
-      };
+// refactor those into helper functions that can be used globally or something
+const getUserStatusClass = (status: UserStatus) => {
+  switch (status) {
+    case UserStatus.Online:
+      return 'status-online'
+    case UserStatus.Away:
+      return 'status-away'
+    case UserStatus.Busy:
+      return 'status-busy'
+    case UserStatus.Offline:
+    default:
+      return 'status-offline'
+  }
+}
 
-      return { 
-        profile, 
-        goToSettings, 
-        selectedStatus, 
-        updateStatus, 
-        showStatusDropdown, 
-        toggleStatusDropdown, 
-        getUserStatusClass, 
-        getUserStatusText,
-        toggleMic,
-        toggleHeadphones,
-        isMicActive,
-        isHeadphonesActive,
-        isInVoiceChannel,
-        selectStatus,
-        targetRef,
-        currentStatus,
-        statusOptions,
-        getStatusForAvatar
-      };
-    },
-  });
-  </script>
+const getUserStatusText = (status: UserStatus) => {
+  switch (status) {
+    case UserStatus.Online:
+      return 'Online'
+    case UserStatus.Away:
+      return 'Away'
+    case UserStatus.Busy:
+      return 'Do Not Disturb'
+    case UserStatus.Offline:
+    default:
+      return 'Invisible'
+  }
+}
+
+const goToSettings = () => {
+  router.push({ name: 'UserSettings' })
+}
+
+onMounted(async () => {
+  if (authStore.session?.user) {
+    profile.value = await getProfileWithAvatarUrl(authStore.session.user.id)
+    selectedStatus.value = profile.value?.status || UserStatus.Offline
+  }
+  document.addEventListener('click', onClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onClickOutside)
+})
+
+const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'offline' => {
+  switch (status) {
+    case UserStatus.Online:
+      return 'online'
+    case UserStatus.Away:
+      return 'away'
+    case UserStatus.Busy:
+      return 'busy'
+    case UserStatus.Offline:
+    default:
+      return 'offline'
+  }
+}
+</script>
 
 <style scoped>
 .user-profile {

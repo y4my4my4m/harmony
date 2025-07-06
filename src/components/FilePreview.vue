@@ -68,9 +68,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, computed } from 'vue';
-import type { PropType } from 'vue';
+<script setup lang="ts">
+import { computed } from 'vue';
 
 export interface FilePreviewData {
   file: File;
@@ -84,19 +83,21 @@ export interface FilePreviewData {
   uploadError?: string;
 }
 
-export default defineComponent({
-  name: 'FilePreview',
-  props: {
-    files: {
-      type: Array as PropType<FilePreviewData[]>,
-      required: true
-    }
-  },
-  emits: ['remove-file'],
-  setup(props, { emit }) {
-    const hasUploading = computed(() => {
-      return props.files.some(file => file.uploadStatus === 'uploading');
-    });
+interface Props {
+  files: FilePreviewData[];
+}
+
+const props = defineProps<Props>();
+
+interface Emits {
+  (e: 'remove-file', index: number): void;
+}
+
+const emit = defineEmits<Emits>();
+
+const hasUploading = computed(() => {
+  return props.files.some(file => file.uploadStatus === 'uploading');
+});
 
     const isImage = (file: FilePreviewData) => {
       return file.type.startsWith('image/');
@@ -123,16 +124,7 @@ export default defineComponent({
       emit('remove-file', index);
     };
 
-    return {
-      isImage,
-      isVideo,
-      getFileExtension,
-      formatFileSize,
-      removeFile,
-      hasUploading
-    };
-  }
-});
+
 </script>
 
 <style scoped>

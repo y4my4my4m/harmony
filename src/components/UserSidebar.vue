@@ -29,8 +29,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, ref, watch, computed, onMounted } from 'vue';
+<script setup lang="ts">
+import { ref, watch, computed, onMounted } from 'vue';
 import type { User } from '@/types';
 import UserProfileModal from './UserProfileModal.vue';
 import InviteModal from './InviteModal.vue';
@@ -40,124 +40,99 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
 
-export default defineComponent({
-  name: 'UserSidebar',
-  components: { 
-    UserProfileModal,
-    InviteModal,
-    Avatar
-  },
-  setup() {
-    const serverChannelStore = useServerChannelStore();
-    const serverUsersStore = useServerUsersStore();
-    const selectedUser = ref<User | null>(null);
-    const showProfileModal = ref(false);
-    const showInviteModal = ref(false);
+const serverChannelStore = useServerChannelStore();
+const serverUsersStore = useServerUsersStore();
+const selectedUser = ref<User | null>(null);
+const showProfileModal = ref(false);
+const showInviteModal = ref(false);
 
-    // Make users reactive to store changes
-    const users = computed(() => {
-      const serverId = serverChannelStore.currentServerId;
-      if (!serverId) return [];
-      
-      return Object.values(serverUsersStore.userProfiles).filter(user => user && user.id);
-    });
-
-    // Current server data for invite modal
-    const currentServerData = computed(() => {
-      const serverId = serverChannelStore.currentServerId;
-      if (!serverId) return null;
-      
-      // Get server data from the server store
-      const currentServer = serverChannelStore.currentServer;
-      return {
-        id: serverId,
-        name: currentServer?.name || 'Unknown Server',
-        icon_url: currentServer?.icon_url,
-        member_count: users.value.length
-      };
-    });
-
-    const fetchAndSetUsers = async (serverId: string | null) => {
-      if (serverId) {
-        const userIds = await getUserIdsForServer(serverId);
-        await serverUsersStore.fetchUserProfiles(userIds);
-      }
-    };
-
-    watch(() => serverChannelStore.currentServerId, (newServerId) => {
-      fetchAndSetUsers(newServerId);
-      selectedUser.value = null; // Close profile when switching servers
-    });
-
-    const showUserProfile = (user: User) => {
-      selectedUser.value = user;
-      showProfileModal.value = true;
-    };
-
-    const getUserStatusClass = (status: UserStatus) => {
-      switch (status) {
-        case UserStatus.Online:
-          return 'status-online';
-        case UserStatus.Away:
-          return 'status-away';
-        case UserStatus.Busy:
-          return 'status-busy';
-        case UserStatus.Offline:
-        default:
-          return 'status-offline';
-      }
-    };
-
-    const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'offline' => {
-      switch (status) {
-        case UserStatus.Online:
-          return 'online';
-        case UserStatus.Away:
-          return 'away';
-        case UserStatus.Busy:
-          return 'busy';
-        case UserStatus.Offline:
-        default:
-          return 'offline';
-      }
-    };
+// Make users reactive to store changes
+const users = computed(() => {
+  const serverId = serverChannelStore.currentServerId;
+  if (!serverId) return [];
   
-    const closeProfile = () => {
-      showProfileModal.value = false;
-      selectedUser.value = null;
-    };
+  return Object.values(serverUsersStore.userProfiles).filter(user => user && user.id);
+});
 
-    const openInviteModal = () => {
-      showProfileModal.value = false;
-      showInviteModal.value = true;
-    };
+// Current server data for invite modal
+const currentServerData = computed(() => {
+  const serverId = serverChannelStore.currentServerId;
+  if (!serverId) return null;
+  
+  // Get server data from the server store
+  const currentServer = serverChannelStore.currentServer;
+  return {
+    id: serverId,
+    name: currentServer?.name || 'Unknown Server',
+    icon_url: currentServer?.icon_url,
+    member_count: users.value.length
+  };
+});
 
-    const closeInviteModal = () => {
-      showInviteModal.value = false;
-    };
-
-    // Initialize on mount and ensure status subscription is active
-    onMounted(() => {
-      fetchAndSetUsers(serverChannelStore.currentServerId);
-      // Make sure status subscription is active
-      serverUsersStore.subscribeToUserStatuses();
-    });
-
-    return { 
-      users, 
-      showUserProfile, 
-      selectedUser, 
-      showProfileModal,
-      showInviteModal,
-      currentServerData,
-      serverChannelStore,
-      closeProfile, 
-      openInviteModal,
-      closeInviteModal,
-      getUserStatusClass,
-      getStatusForAvatar
-    };
+const fetchAndSetUsers = async (serverId: string | null) => {
+  if (serverId) {
+    const userIds = await getUserIdsForServer(serverId);
+    await serverUsersStore.fetchUserProfiles(userIds);
   }
+};
+
+watch(() => serverChannelStore.currentServerId, (newServerId) => {
+  fetchAndSetUsers(newServerId);
+  selectedUser.value = null; // Close profile when switching servers
+});
+
+const showUserProfile = (user: User) => {
+  selectedUser.value = user;
+  showProfileModal.value = true;
+};
+
+const getUserStatusClass = (status: UserStatus) => {
+  switch (status) {
+    case UserStatus.Online:
+      return 'status-online';
+    case UserStatus.Away:
+      return 'status-away';
+    case UserStatus.Busy:
+      return 'status-busy';
+    case UserStatus.Offline:
+    default:
+      return 'status-offline';
+  }
+};
+
+const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'offline' => {
+  switch (status) {
+    case UserStatus.Online:
+      return 'online';
+    case UserStatus.Away:
+      return 'away';
+    case UserStatus.Busy:
+      return 'busy';
+    case UserStatus.Offline:
+    default:
+      return 'offline';
+  }
+};
+
+const closeProfile = () => {
+  showProfileModal.value = false;
+  selectedUser.value = null;
+};
+
+const openInviteModal = () => {
+  showProfileModal.value = false;
+  showInviteModal.value = true;
+};
+
+const closeInviteModal = () => {
+  showInviteModal.value = false;
+};
+
+// Initialize on mount and ensure status subscription is active
+onMounted(() => {
+  fetchAndSetUsers(serverChannelStore.currentServerId);
+  // Make sure status subscription is active
+  serverUsersStore.subscribeToUserStatuses();
 });
 </script>
 

@@ -72,8 +72,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+<script setup lang="ts">
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
@@ -89,46 +89,45 @@ import { backgroundUploadManager } from '@/services/fileService';
 import { useAuthStore } from '@/stores/auth';
 import { v4 as uuidv4 } from 'uuid';
 
-export default defineComponent({
-  components: {
-    PlusIcon,
-    GifIcon,
-    EmojiUI,
-    MessageReply,
-    FilePreview,
-    FileUploadMenu,
-    AutoSuggest,
-    RichTextEditor,
-  },
-  props: {
-    giphyOpen: Boolean,
-    emojiListOpen: Boolean,
-    modelValue: {
-      type: String,
-      default: ''
-    },
-    replyMessageId: {
-      type: String,
-      default: ''
-    },
-    replyUserDisplayName: {
-      type: String,
-      default: ''
-    },
-  },
-  emits: ['update:modelValue', 'sendMessage', 'toggleGiphy', 'toggleEmojiList', 'update:replyMessageId', 'files-attached', 'upload-status-changed'],
-  setup(props, { emit }) {
-    const authStore = useAuthStore();
-    const showUploadMenu = ref(false);
-    const attachedFiles = ref<FilePreviewData[]>([]);
-    const isDragging = ref(false);
-    const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
-    const isEditorFocused = ref(false);
-    
-    // Auto-suggest setup
-    const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
-    const updateText = (newText: string) => emit('update:modelValue', newText);
-    const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
+interface Props {
+  giphyOpen?: boolean;
+  emojiListOpen?: boolean;
+  modelValue?: string;
+  replyMessageId?: string;
+  replyUserDisplayName?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  giphyOpen: false,
+  emojiListOpen: false,
+  modelValue: '',
+  replyMessageId: '',
+  replyUserDisplayName: '',
+});
+
+interface Emits {
+  (e: 'update:modelValue', value: string): void;
+  (e: 'sendMessage', content: string, files: FilePreviewData[]): void;
+  (e: 'toggleGiphy'): void;
+  (e: 'toggleEmojiList', value?: boolean): void;
+  (e: 'update:replyMessageId', value: string): void;
+  (e: 'files-attached', files: FilePreviewData[]): void;
+  (e: 'upload-status-changed', uploading: boolean): void;
+}
+
+const emit = defineEmits<Emits>();
+
+const authStore = useAuthStore();
+const showUploadMenu = ref(false);
+const attachedFiles = ref<FilePreviewData[]>([]);
+const isDragging = ref(false);
+const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
+const isEditorFocused = ref(false);
+
+// Auto-suggest setup
+const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
+const updateText = (newText: string) => emit('update:modelValue', newText);
+const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
     const handleEditorInput = () => {
       // The model value is handled by the update:model-value event
@@ -461,36 +460,7 @@ export default defineComponent({
       emit('files-attached', newFiles);
     }, { deep: true });
 
-    return { 
-      send, 
-      toggleGiphy, 
-      toggleEmojiList, 
-      handleEditorInput,
-      handleCursorPositionChanged,
-      handleDontReply,
-      showUploadMenu,
-      toggleUploadMenu,
-      closeUploadMenu,
-      attachedFiles,
-      handleFilesSelected,
-      removeFile,
-      handleDragEnter,
-      handleDragOver,
-      handleDragLeave,
-      handleDrop,
-      isDragging,
-      handleKeyDown,
-      handleSuggestionSelect,
-      autoSuggest,
-      insertEmoji,
-      insertEmojiAtCursor,
-      richEditorRef,
-      isEditorFocused,
-      handleFocus,
-      handleBlur,
-    };
-  }
-});
+
 </script>
 
 <style scoped>

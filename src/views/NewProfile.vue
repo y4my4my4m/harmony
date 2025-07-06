@@ -232,258 +232,219 @@
   </div>
 </template>
 
-<script lang="ts">
-import { ref, computed, nextTick } from 'vue';
+<script setup lang="ts">
+import { ref, computed } from 'vue';
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 
-export default {
-  setup() {
-    const username = ref('');
-    const displayName = ref('');
-    const about = ref('');
-    const currentStep = ref(1);
-    const avatarFile = ref<File | null>(null);
-    const avatarPreview = ref<string | null>(null);
-    const selectedColor = ref('#5865f2');
-    const usernameError = ref('');
-    const displayNameError = ref('');
+const username = ref('');
+const displayName = ref('');
+const about = ref('');
+const currentStep = ref(1);
+const avatarFile = ref<File | null>(null);
+const avatarPreview = ref<string | null>(null);
+const selectedColor = ref('#5865f2');
+const usernameError = ref('');
+const displayNameError = ref('');
+
+const domain = import.meta.env.VITE_DOMAIN;
+const profileStore = useProfileStore();
+const authStore = useAuthStore();
+const router = useRouter();
+const toast = useToast();
+
+const avatarInput = ref<HTMLInputElement>();
+const colorInput = ref<HTMLInputElement>();
+
+const colorPresets = [
+  '#5865f2', '#57f287', '#fee75c', '#eb459e', '#ed4245',
+  '#f23f42', '#ff6b35', '#4f46e5', '#06b6d4', '#10b981',
+  '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'
+];
+
+// Computed properties
+const progressWidth = computed(() => `${(currentStep.value / 3) * 100}%`);
+
+const formattedUsername = computed(() => {
+  return username.value ? `@${username.value}@${domain}` : '';
+});
+
+const canProceed = computed(() => {
+  switch (currentStep.value) {
+    case 1: return true; // Avatar is optional
+    case 2: return displayName.value.trim() && username.value.trim() && !usernameError.value && !displayNameError.value;
+    case 3: return true;
+    default: return false;
+  }
+});
+
+// Methods
+const getParticleStyle = (index: number) => {
+  const delay = index * 0.5;
+  const duration = 3 + (index % 3);
+  return {
+    animationDelay: `${delay}s`,
+    animationDuration: `${duration}s`,
+    left: `${(index * 8.33) % 100}%`,
+    top: `${(index * 13) % 100}%`
+  };
+};
+
+const triggerAvatarUpload = () => {
+  avatarInput.value?.click();
+};
+
+const handleAvatarUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  
+  if (file) {
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error('File size must be less than 5MB');
+      return;
+    }
     
-    const domain = import.meta.env.VITE_DOMAIN;
-    const profileStore = useProfileStore();
-    const authStore = useAuthStore();
-    const router = useRouter();
-    const toast = useToast();
+    avatarFile.value = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      avatarPreview.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+};
 
-    const avatarInput = ref<HTMLInputElement>();
-    const colorInput = ref<HTMLInputElement>();
+const useDefaultAvatar = () => {
+  avatarFile.value = null;
+  avatarPreview.value = null;
+};
 
-    const colorPresets = [
-      '#5865f2', '#57f287', '#fee75c', '#eb459e', '#ed4245',
-      '#f23f42', '#ff6b35', '#4f46e5', '#06b6d4', '#10b981',
-      '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'
-    ];
+const formatUsername = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  let value = target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  
+  // Validate username
+  if (value.length < 3 && value.length > 0) {
+    usernameError.value = 'Username must be at least 3 characters';
+  } else if (value.length === 0) {
+    usernameError.value = 'Username is required';
+  } else {
+    usernameError.value = '';
+  }
+  
+  username.value = value;
+};
 
-    // Computed properties
-    const progressWidth = computed(() => `${(currentStep.value / 3) * 100}%`);
-    
-    const formattedUsername = computed(() => {
-      return username.value ? `@${username.value}@${domain}` : '';
+const validateDisplayName = () => {
+  if (displayName.value.trim().length < 1) {
+    displayNameError.value = 'Display name is required';
+  } else if (displayName.value.trim().length > 32) {
+    displayNameError.value = 'Display name is too long';
+  } else {
+    displayNameError.value = '';
+  }
+};
+
+const openCustomColorPicker = () => {
+  colorInput.value?.click();
+};
+
+const onColorChange = () => {
+  // Color is automatically updated via v-model
+};
+
+const nextStep = async () => {
+  if (currentStep.value < 3) {
+    currentStep.value++;
+  } else {
+    await createProfile();
+  }
+};
+
+const previousStep = () => {
+  if (currentStep.value > 1) {
+    currentStep.value--;
+  }
+};
+
+const createProfile = async () => {
+  if (!authStore.session?.user) {
+    toast.error('Authentication required');
+    return;
+  }
+
+  // Add loading state and better error handling
+  try {
+    console.log('Creating profile with data:', {
+      id: authStore.session.user.id,
+      username: formattedUsername.value,
+      display_name: displayName.value.trim(),
+      about: about.value.trim() || null,
+      color: selectedColor.value,
     });
 
-    const canProceed = computed(() => {
-      switch (currentStep.value) {
-        case 1: return true; // Avatar is optional
-        case 2: return displayName.value.trim() && username.value.trim() && !usernameError.value && !displayNameError.value;
-        case 3: return true;
-        default: return false;
-      }
-    });
-
-    // Methods
-    const getParticleStyle = (index: number) => {
-      const delay = index * 0.5;
-      const duration = 3 + (index % 3);
-      return {
-        animationDelay: `${delay}s`,
-        animationDuration: `${duration}s`,
-        left: `${(index * 8.33) % 100}%`,
-        top: `${(index * 13) % 100}%`
-      };
+    const profileData = {
+      id: authStore.session.user.id,
+      username: formattedUsername.value,
+      display_name: displayName.value.trim(),
+      about: about.value.trim() || undefined,
+      color: selectedColor.value,
     };
 
-    const triggerAvatarUpload = () => {
-      avatarInput.value?.click();
-    };
-
-    const handleAvatarUpload = (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      const file = target.files?.[0];
-      
-      if (file) {
-        if (file.size > 5 * 1024 * 1024) { // 5MB limit
-          toast.error('File size must be less than 5MB');
-          return;
-        }
-        
-        avatarFile.value = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          avatarPreview.value = e.target?.result as string;
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-
-    const useDefaultAvatar = () => {
-      avatarFile.value = null;
-      avatarPreview.value = null;
-    };
-
-    const formatUsername = (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      let value = target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
-      
-      // Validate username
-      if (value.length < 3 && value.length > 0) {
-        usernameError.value = 'Username must be at least 3 characters';
-      } else if (value.length === 0) {
-        usernameError.value = 'Username is required';
-      } else {
-        usernameError.value = '';
-      }
-      
-      username.value = value;
-    };
-
-    const validateDisplayName = () => {
-      if (displayName.value.trim().length < 1) {
-        displayNameError.value = 'Display name is required';
-      } else if (displayName.value.trim().length > 32) {
-        displayNameError.value = 'Display name is too long';
-      } else {
-        displayNameError.value = '';
-      }
-    };
-
-    const openCustomColorPicker = () => {
-      colorInput.value?.click();
-    };
-
-    const onColorChange = () => {
-      // Color is automatically updated via v-model
-    };
-
-    const nextStep = async () => {
-      if (currentStep.value < 3) {
-        currentStep.value++;
-      } else {
-        await createProfile();
-      }
-    };
-
-    const previousStep = () => {
-      if (currentStep.value > 1) {
-        currentStep.value--;
-      }
-    };
-
-    const createProfile = async () => {
-      if (!authStore.session?.user) {
-        toast.error('Authentication required');
-        return;
-      }
-
-      // Add loading state and better error handling
+    console.log('Calling profileStore.createProfile...');
+    const result = await profileStore.createProfile(profileData);
+    console.log('Profile creation result:', result);
+    
+    // Handle avatar upload if file exists
+    if (avatarFile.value && result) {
+      console.log('Uploading avatar...');
       try {
-        console.log('Creating profile with data:', {
-          id: authStore.session.user.id,
-          username: formattedUsername.value,
-          display_name: displayName.value.trim(),
-          about: about.value.trim() || null,
-          color: selectedColor.value,
-        });
-
-        const profileData = {
-          id: authStore.session.user.id,
-          username: formattedUsername.value,
-          display_name: displayName.value.trim(),
-          about: about.value.trim() || undefined,
-          color: selectedColor.value,
-        };
-
-        console.log('Calling profileStore.createProfile...');
-        const result = await profileStore.createProfile(profileData);
-        console.log('Profile creation result:', result);
+        const { uploadAvatar } = await import('@/utils/fileUpload');
+        const uploadResult = await uploadAvatar(avatarFile.value, authStore.session.user.id);
         
-        // Handle avatar upload if file exists
-        if (avatarFile.value && result) {
-          console.log('Uploading avatar...');
-          try {
-            const { uploadAvatar } = await import('@/utils/fileUpload');
-            const uploadResult = await uploadAvatar(avatarFile.value, authStore.session.user.id);
-            
-            if (uploadResult.success && uploadResult.url) {
-              // Update profile with avatar URL
-              await profileStore.updateProfile({
-                id: authStore.session.user.id,
-                avatar_url: uploadResult.url
-              });
-              console.log('Avatar uploaded successfully:', uploadResult.url);
-            } else {
-              console.error('Avatar upload failed:', uploadResult.error);
-              toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
-            }
-          } catch (uploadError) {
-            console.error('Avatar upload error:', uploadError);
-            toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
-          }
+        if (uploadResult.success && uploadResult.url) {
+          // Update profile with avatar URL
+          await profileStore.updateProfile({
+            id: authStore.session.user.id,
+            avatar_url: uploadResult.url
+          });
+          console.log('Avatar uploaded successfully:', uploadResult.url);
+        } else {
+          console.error('Avatar upload failed:', uploadResult.error);
+          toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
         }
-
-        toast.success('Welcome to Harmony! Your profile has been created.');
-        console.log('Navigating to /chat...');
-        await router.push('/chat');
-      } catch (error: any) {
-        console.error('Profile creation error:', error);
-        
-        // More detailed error messaging
-        let errorMessage = 'Failed to create profile';
-        
-        if (error.message) {
-          errorMessage = error.message;
-        } else if (error.code) {
-          switch (error.code) {
-            case '23505':
-              errorMessage = 'Username already exists. Please choose a different username.';
-              break;
-            case '23502':
-              errorMessage = 'Missing required information. Please fill in all required fields.';
-              break;
-            default:
-              errorMessage = `Database error: ${error.code}`;
-          }
-        }
-        
-        toast.error(errorMessage);
+      } catch (uploadError) {
+        console.error('Avatar upload error:', uploadError);
+        toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
       }
-    };
+    }
 
-    return {
-      // Data
-      username,
-      displayName,
-      about,
-      currentStep,
-      avatarFile,
-      avatarPreview,
-      selectedColor,
-      usernameError,
-      displayNameError,
-      domain,
-      avatarInput,
-      colorInput,
-      colorPresets,
-      
-      // Computed
-      progressWidth,
-      formattedUsername,
-      canProceed,
-      
-      // Methods
-      getParticleStyle,
-      triggerAvatarUpload,
-      handleAvatarUpload,
-      useDefaultAvatar,
-      formatUsername,
-      validateDisplayName,
-      openCustomColorPicker,
-      onColorChange,
-      nextStep,
-      previousStep,
-      createProfile
-    };
+    toast.success('Welcome to Harmony! Your profile has been created.');
+    console.log('Navigating to /chat...');
+    await router.push('/chat');
+  } catch (error: any) {
+    console.error('Profile creation error:', error);
+    
+    // More detailed error messaging
+    let errorMessage = 'Failed to create profile';
+    
+    if (error.message) {
+      errorMessage = error.message;
+    } else if (error.code) {
+      switch (error.code) {
+        case '23505':
+          errorMessage = 'Username already exists. Please choose a different username.';
+          break;
+        case '23502':
+          errorMessage = 'Missing required information. Please fill in all required fields.';
+          break;
+        default:
+          errorMessage = `Database error: ${error.code}`;
+      }
+    }
+    
+    toast.error(errorMessage);
   }
 };
 </script>

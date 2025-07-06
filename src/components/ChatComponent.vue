@@ -53,9 +53,8 @@
   </div>
 </template>
 
-<script lang="ts">
-  import { defineComponent, ref, onMounted, computed, watch, onUnmounted } from 'vue';
-  import type { PropType } from 'vue';
+<script setup lang="ts">
+  import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
   import { useAuthStore } from '@/stores/auth'; 
@@ -64,7 +63,6 @@
   import { useServerUsersStore } from '@/stores/useServerUsers'; 
   import { useDMStore } from '@/stores/useDM';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
-  import { handleFileDrop } from '@/services/fileService';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { listen } from '@tauri-apps/api/event';
   import { readBinaryFile } from '@tauri-apps/api/fs';
@@ -75,35 +73,30 @@
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
 
-  export default defineComponent({
-    components: {
-      MessageDisplay,
-      MessageInput,
-      GifComponent,
-      EmojiPopup,
-    },
-    props:{
-      messages: {
-        type: Array as () => Message[],
-        required: true
-      },
-      isLoading: {
-        type: Boolean,
-        default: false
-      },
-      loadMoreMessages: Function as PropType<() => void>,
-      isDM: {
-        type: Boolean,
-        default: false
-      }
-    },
-    emits: ['sendMessage', 'loadMoreMessages'],
-    setup(props, { emit }) {
-      const chatStore = useChatStore();
-      const authStore = useAuthStore();
-      const serverChannelStore = useServerChannelStore();
-      const serverUsersStore = useServerUsersStore();
-      const dmStore = useDMStore();
+  interface Props {
+    messages: Message[];
+    isLoading?: boolean;
+    loadMoreMessages?: () => void;
+    isDM?: boolean;
+  }
+
+  const props = withDefaults(defineProps<Props>(), {
+    isLoading: false,
+    isDM: false,
+  });
+
+  interface Emits {
+    (e: 'sendMessage', content: MessagePart[], replyTo?: string): void;
+    (e: 'loadMoreMessages'): void;
+  }
+
+  const emit = defineEmits<Emits>();
+
+  const chatStore = useChatStore();
+  const authStore = useAuthStore();
+  const serverChannelStore = useServerChannelStore();
+  const serverUsersStore = useServerUsersStore();
+  const dmStore = useDMStore();
       const showDragDropArea = ref(false);
       const uploading = ref(false);
       const emojiListOpen = ref(false);
@@ -377,9 +370,7 @@
               messageParts.push({
                 type: "file",
                 url: fileData.uploadedUrl,
-                fileType,
-                fileName: fileData.name,
-                fileSize: fileData.size
+                fileType
               });
             }
           }
@@ -391,13 +382,15 @@
               emit('sendMessage', messageParts, replyToMessageId.value || undefined);
             } else {
               // Handle server channel messages directly
-              await chatStore.sendMessage(
-                serverChannelStore.currentServerId,
-                serverChannelStore.currentChannelId,
-                authStore.session.user.id,
-                messageParts,
-                replyToMessageId.value || ''
-              );
+              if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId) {
+                await chatStore.sendMessage(
+                  serverChannelStore.currentServerId,
+                  serverChannelStore.currentChannelId,
+                  authStore.session.user.id,
+                  messageParts,
+                  replyToMessageId.value || ''
+                );
+              }
             }
             
             messageContent.value = '';
@@ -416,7 +409,7 @@
           // Emit for DM
           emit('sendMessage', [{type: "file", url: gifUrl, fileType: "image"}], replyToMessageId.value);
           handleDontReply();
-        } else if (!props.isDM && serverChannelStore.currentChannelId && authStore.session?.user) {
+        } else if (!props.isDM && serverChannelStore.currentChannelId && serverChannelStore.currentServerId && authStore.session?.user) {
           // Handle server channel directly
           chatStore.sendMessage(
             serverChannelStore.currentServerId, 
@@ -492,39 +485,6 @@
         }
       };
 
-      return { 
-        handleSendMessage,
-        triggerFileDrop,
-        handleDragEnter,
-        handleDragOver, 
-        handleDragLeave,
-        showDragDropArea,
-        isTauri,
-        uploading,
-        handleSendGif,
-        giphyOpen,
-        toggleGiphy,
-        closeGiphy,
-        gifIconClicked,
-        toggleEmojiList,
-        closeEmojiList,
-        emojiListOpen,
-        emojiIconClicked,
-        handleSendEmoji,
-        messageContent,
-        resolvedEmojiList,
-        isPopupForReaction,
-        selectedMessageId,
-        replyingTo,
-        replyToMessageId,
-        replyToUserDisplayName,
-        toggleReaction,
-        currentUserId,
-        handleDontReply,
-        handleUploadStatusChanged
-      };
-    }
-  });
 </script>
 
 <style scoped>
