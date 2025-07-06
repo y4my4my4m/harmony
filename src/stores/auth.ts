@@ -137,14 +137,13 @@ export const useAuthStore = defineStore('auth', {
       if (this.session?.user?.id) {
         await this.setUserOffline(this.session.user.id);
       }
-      
       this.cleanupOfflineHandlers();
-      await supabase.auth.signOut();
+      // should make it async but for some reason it's bugging...
+      supabase.auth.signOut();
       this.session = null;
-      
+
       // Redirect to login page
       router.push('/login');
-      router.go(0); // Force reload to reset state
     },
 
     /**

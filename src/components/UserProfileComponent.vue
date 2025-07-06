@@ -19,6 +19,7 @@
     </div>
 
     <div class="buttons">
+      <NotificationBell />
       <div 
         class="icon-button" 
         @click="toggleMic" 
@@ -43,7 +44,6 @@
         <HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" />
       </div>
       <div class="icon-button settings" @click="goToSettings" title="Settings"><SettingsIcon/></div>
-      <NotificationBell />
     </div>
 
     <div class="status-dropdown" v-if="showStatusDropdown">

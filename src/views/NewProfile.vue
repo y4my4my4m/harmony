@@ -400,8 +400,8 @@ const createProfile = async () => {
     if (avatarFile.value && result) {
       console.log('Uploading avatar...');
       try {
-        const { uploadAvatar } = await import('@/services/profileService');
-        const uploadResult = await uploadAvatar(authStore.session.user.id, avatarFile.value);
+        const { uploadAvatar } = await import('@/utils/fileUpload');
+        const uploadResult = await uploadAvatar(avatarFile.value, authStore.session.user.id);
         
         if (uploadResult.success && uploadResult.url) {
           // Update profile with avatar URL

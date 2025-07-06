@@ -1,7 +1,8 @@
 <template>
   <PublicServers 
     v-if="showPublicServers"
-    @showPublicServers="handleShowPublicServers"
+    :force-refresh="shouldForceRefreshPublicServers"
+    @close="handleClosePublicServers"
   />
   <NoServersSplash 
     v-if="showNoServersSplash"
@@ -120,6 +121,7 @@
 
       const showNoServersSplash = ref(false);
       const showPublicServers = ref(false);
+      const shouldForceRefreshPublicServers = ref(false);
       const isAtBottom = ref(true); // Default to true for initial load
 
       const servers = computed(() => serverChannelStore.servers);
@@ -456,6 +458,16 @@
 
       const handleShowPublicServers = (toggleState: boolean) => {
         showPublicServers.value = toggleState;
+        
+        // Force refresh if this is the first time opening or if no servers are loaded
+        if (toggleState) {
+          shouldForceRefreshPublicServers.value = servers.value.length === 0;
+        }
+      };
+
+      const handleClosePublicServers = () => {
+        showPublicServers.value = false;
+        shouldForceRefreshPublicServers.value = false;
       };
 
       const startX = ref(0);

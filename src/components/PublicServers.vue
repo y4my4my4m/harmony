@@ -1,252 +1,298 @@
 <template>
-  <div class="public-servers-overlay" @click.self="closePublicServers">
+  <div class="public-servers-overlay" @click.self="closeModal">
     <div class="public-servers-modal">
       <!-- Header -->
-      <div class="modal-header">
-        <div class="header-content">
-          <div class="icon-container">
-            <svg viewBox="0 0 24 24" class="discover-icon">
-              <path d="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z" fill="currentColor"/>
-            </svg>
-          </div>
-          <div class="header-text">
-            <h2 class="modal-title">Discover Communities</h2>
-            <p class="modal-subtitle">Find your next favorite server</p>
-          </div>
-        </div>
-        <button @click="closePublicServers" class="close-button">
-          <svg viewBox="0 0 24 24" class="close-icon">
-            <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" fill="currentColor"/>
-          </svg>
-        </button>
-      </div>
+      <PublicServersHeader @close="closeModal" />
 
       <!-- Search Section -->
-      <div class="search-section">
-        <div class="search-container">
-          <svg viewBox="0 0 24 24" class="search-icon">
-            <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" fill="currentColor"/>
-          </svg>
-          <input 
-            type="text" 
-            v-model="searchQuery" 
-            placeholder="Search communities..." 
-            class="search-input"
-          />
-          <div class="search-accent"></div>
-        </div>
-        <div class="search-stats">
-          <span class="stats-text">{{ publicServers.length }} communities found</span>
-        </div>
-      </div>
+      <PublicServersSearch 
+        v-model:search-query="searchQuery"
+        v-model:selected-category="selectedCategory"
+        :is-searching="publicServersStore.isSearching"
+        :categories="publicServersStore.categories"
+        :total-servers="publicServersStore.totalServers"
+        :filtered-count="publicServersStore.filteredServers.length"
+      />
 
-      <!-- Server List -->
-      <div class="servers-content">
-        <div v-if="publicServers.length === 0" class="empty-state">
-          <div class="empty-icon">
-            <svg viewBox="0 0 24 24" class="empty-svg">
-              <path d="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z" fill="currentColor"/>
-            </svg>
-          </div>
-          <h3 class="empty-title">No servers found</h3>
-          <p class="empty-description">Try adjusting your search or create your own community</p>
-        </div>
+      <!-- Content -->
+      <PublicServersContent 
+        :servers="publicServersStore.filteredServers"
+        :featured-servers="publicServersStore.featuredServers"
+        :is-loading="publicServersStore.isLoading"
+        :is-empty="publicServersStore.isEmpty"
+        :is-empty-search="publicServersStore.isEmptySearch"
+        :search-query="searchQuery"
+        :joined-server-ids="joinedServerIds"
+        :loading-server-ids="loadingServerIds"
+        :error="publicServersStore.error"
+        @join-server="handleJoinServer"
+        @leave-server="handleLeaveServer"
+        @refresh="handleRefresh"
+      />
 
-        <div v-else class="server-grid">
-          <div v-for="server in publicServers" :key="server.id" class="server-card">
-            <div class="card-header">
-              <div class="server-icon">
-                <img :src="server.icon" alt="Server icon" />
-              </div>
-              <div class="server-status">
-                <div class="status-dot online"></div>
-                <span class="status-text">Active</span>
-              </div>
-            </div>
-            
-            <div class="card-content">
-              <h3 class="server-name">{{ server.name }}</h3>
-              <p class="server-description">{{ server.description || 'No description available' }}</p>
-              
-              <div class="server-info">
-                <div class="owner-info">
-                  <img :src="getUserAvatar(server.owner)" alt="Owner avatar" class="owner-avatar" />
-                  <span class="owner-name">{{ getUserDisplayName(server.owner) }}</span>
-                </div>
-                <div class="server-tags">
-                  <span class="tag">Public</span>
-                  <span class="tag">Active</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="card-actions">
-              <button 
-                v-if="alreadyJoined(server.id)" 
-                @click="leaveServer(server.id)" 
-                class="action-btn danger"
-              >
-                <svg viewBox="0 0 24 24" class="btn-icon">
-                  <path d="M19,3H16.3H7.7H5A2,2 0 0,0 3,5V7.7V16.3V19A2,2 0 0,0 5,21H7.7H16.3H19A2,2 0 0,0 21,19V16.3V7.7V5A2,2 0 0,0 19,3M15.6,17L12,13.4L8.4,17L7,15.6L10.6,12L7,8.4L8.4,7L12,10.6L15.6,7L17,8.4L13.4,12L17,15.6L15.6,17Z" fill="currentColor"/>
-                </svg>
-                Leave
-              </button>
-              <button 
-                v-else 
-                @click="joinServer(server.id)" 
-                class="action-btn primary"
-              >
-                <svg viewBox="0 0 24 24" class="btn-icon">
-                  <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
-                </svg>
-                Join
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Footer Actions -->
-      <div class="modal-footer">
-        <div class="footer-info">
-          <svg viewBox="0 0 24 24" class="info-icon">
-            <path d="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z" fill="currentColor"/>
-          </svg>
-          <span>Can't find what you're looking for?</span>
-        </div>
-        <button @click="showCreateServerForm = true" class="create-server-btn">
-          <svg viewBox="0 0 24 24" class="btn-icon">
-            <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V19A2 2 0 0 0 5 21H11V19H5V3H13V9H21ZM17 13V11H15V13H13V15H15V17H17V15H19V13H17Z" fill="currentColor"/>
-          </svg>
-          Create Your Own Server
-        </button>
-      </div>
+      <!-- Footer -->
+      <PublicServersFooter @create-server="showCreateServerForm = true" />
     </div>
 
     <!-- Create Server Modal -->
-    <CreateServerForm v-if="showCreateServerForm" @close="showCreateServerForm = false" />
+    <CreateServerForm 
+      v-if="showCreateServerForm" 
+      @close="showCreateServerForm = false" 
+      @created="handleServerCreated"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import { useServerChannelStore } from '@/stores/useServerChannel'
-import { useServerUsersStore } from '@/stores/useServerUsers'
 import { useServerStore } from '@/stores/server'
 import { useAuthStore } from '@/stores/auth'
-import { useUserProfile } from '@/composables/useUserProfile'
+import { usePublicServersStore } from '@/stores/usePublicServers'
+import { useDebouncedSearch } from '@/composables/useDebounce'
 import { useKeyboardEvents } from '@/composables/useCommonUI'
-import { useRouter } from 'vue-router'
+
+// Components
+import PublicServersHeader from './PublicServers/PublicServersHeader.vue'
+import PublicServersSearch from './PublicServers/PublicServersSearch.vue'
+import PublicServersContent from './PublicServers/PublicServersContent.vue'
+import PublicServersFooter from './PublicServers/PublicServersFooter.vue'
 import CreateServerForm from './CreateServer.vue'
-import type { Server } from '@/types'
-import { useToast } from 'vue-toastification'
 
 interface Emits {
-  (e: 'show-public-servers', show: boolean): void;
+  (e: 'close'): void
 }
 
-const emit = defineEmits<Emits>();
+interface Props {
+  /** Force refresh data when modal opens */
+  forceRefresh?: boolean
+}
 
+const props = withDefaults(defineProps<Props>(), {
+  forceRefresh: false
+})
+const emit = defineEmits<Emits>()
+
+// Stores
+const publicServersStore = usePublicServersStore()
 const serverChannelStore = useServerChannelStore()
-    const serverUsersStore = useServerUsersStore()
-    const serverStore = useServerStore()
-    const authStore = useAuthStore()
-    const { getUserAvatar, getUserDisplayName } = useUserProfile()
-    const { handleEscapeKey } = useKeyboardEvents()
-    const toast = useToast()
-    const router = useRouter()
+const serverStore = useServerStore()
+const authStore = useAuthStore()
 
-    const searchQuery = ref('')
-    const publicServers = ref<Server[]>([])
-    const currentUserId = ref<string | undefined>()
-    const showCreateServerForm = ref(false)
-    const isLoading = ref(false)
+// Composables
+const router = useRouter()
+const toast = useToast()
+const { handleEscapeKey } = useKeyboardEvents()
 
-    const alreadyJoined = (serverId: string) => {
-      return serverChannelStore.servers.some((server) => server.id === serverId)
-    }
+// State
+const searchQuery = ref('')
+const selectedCategory = ref<string | null>(null)
+const showCreateServerForm = ref(false)
+const loadingServerIds = ref<Set<string>>(new Set())
 
-    const joinServer = async (serverId: string) => {
-      const userId = authStore.session?.user?.id
-      if (!userId) return
+// Computed
+const joinedServerIds = computed(() => {
+  return new Set(serverChannelStore.servers.map((server: any) => server.id))
+})
+
+// Setup debounced search
+useDebouncedSearch(searchQuery, async (query) => {
+  if (query.trim()) {
+    await publicServersStore.searchServers(query)
+  } else {
+    publicServersStore.clearSearch()
+  }
+}, 300)
+
+// Watch category selection
+watch(selectedCategory, (newCategory) => {
+  publicServersStore.setSelectedCategory(newCategory)
+})
+
+// Methods
+const closeModal = () => {
+  emit('close')
+}
+
+const handleRefresh = async () => {
+  await publicServersStore.forceRefresh()
+  toast.success('Communities refreshed!')
+}
+
+const handleJoinServer = async (serverId: string) => {
+  const userId = authStore.session?.user?.id
+  if (!userId) {
+    toast.error('You must be logged in to join servers')
+    return
+  }
+
+  loadingServerIds.value.add(serverId)
+
+  try {
+    const success = await serverStore.joinServer(serverId, userId)
+    if (success) {
+      // Refresh the user's server list
+      await serverChannelStore.fetchServersForUser(userId)
+      toast.success('Successfully joined the server!')
       
-      try {
-        const success = await serverStore.joinServer(serverId, userId)
-        if (success) {
-          // Refresh the user's server list to update the UI
-          await serverChannelStore.fetchServersForUser(userId)
-          toast.success('Successfully joined the server!')
-          emit('show-public-servers', false)
-          // Navigate to the newly joined server
-          // router.push({ name: 'Chat', params: { serverId: serverId } })
-          // Actually, simply reload
-          router.go(0);
-        } else {
-          toast.error('Failed to join the server')
-        }
-      } catch (error) {
-        console.error('Error joining server:', error)
-        toast.error('An error occurred while joining the server')
-      }
+      // Navigate to the newly joined server
+      router.push({ name: 'Chat', params: { serverId } })
+      closeModal()
+    } else {
+      toast.error('Failed to join the server')
     }
-    
-    const leaveServer = async (serverId: string) => {
-      const userId = authStore.session?.user?.id
-      if (!userId) return
+  } catch (error) {
+    console.error('Error joining server:', error)
+    toast.error('An error occurred while joining the server')
+  } finally {
+    loadingServerIds.value.delete(serverId)
+  }
+}
+
+const handleLeaveServer = async (serverId: string) => {
+  const userId = authStore.session?.user?.id
+  if (!userId) return
+
+  loadingServerIds.value.add(serverId)
+
+  try {
+    const success = await serverStore.leaveServer(serverId, userId)
+    if (success) {
+      // Refresh the user's server list
+      await serverChannelStore.fetchServersForUser(userId)
+      toast.success('Successfully left the server')
       
-      try {
-        const success = await serverStore.leaveServer(serverId, userId)
-        if (success) {
-          // Refresh the user's server list to update the UI
-          await serverChannelStore.fetchServersForUser(userId)
-          toast.success('Successfully left the server')
-          emit('show-public-servers', false)
-          // if the user isn't in any servers, reload the page
-          // Also if he's currently viewing the server, reload the page
-          if (serverChannelStore.servers.length === 0 || serverChannelStore.currentServer?.id === serverId) {
-            router.go(0);
-          }
-        } else {
-          toast.error('Failed to leave the server')
-        }
-      } catch (error) {
-        console.error('Error leaving server:', error)
-        toast.error('An error occurred while leaving the server')
+      // If user is currently viewing this server or has no servers left, navigate appropriately
+      if (serverChannelStore.currentServer?.id === serverId || serverChannelStore.servers.length === 0) {
+        router.push('/chat')
       }
+    } else {
+      toast.error('Failed to leave the server')
     }
+  } catch (error) {
+    console.error('Error leaving server:', error)
+    toast.error('An error occurred while leaving the server')
+  } finally {
+    loadingServerIds.value.delete(serverId)
+  }
+}
 
-    const closePublicServers = () => {
-      emit('show-public-servers', false)
-    }
+const handleServerCreated = (server: any) => {
+  showCreateServerForm.value = false
+  toast.success('Server created successfully!')
+  router.push({ name: 'Chat', params: { serverId: server.id } })
+  closeModal()
+}
 
-    const fetchPublicServers = async () => {
-      isLoading.value = true
-      try {
-        await serverChannelStore.fetchPublicServers(searchQuery.value)
-        publicServers.value = serverChannelStore.publicServers
-      } catch (error) {
-        console.error('Error fetching public servers:', error)
-        toast.error('Failed to load servers')
-      } finally {
-        isLoading.value = false
-      }
-    }
+// Setup escape key handler
+handleEscapeKey(closeModal)
 
-    // Handle escape key to close
-    handleEscapeKey(closePublicServers)
+// Lifecycle
+onMounted(async () => {
+  // Ensure fresh data when modal opens, especially for new users
+  if (publicServersStore.needsFreshData() || props.forceRefresh) {
+    await publicServersStore.forceRefresh()
+  } else {
+    // Always try to fetch if we don't have data yet
+    await publicServersStore.fetchPublicServers()
+  }
+})
 
-    watch(searchQuery, fetchPublicServers, { immediate: true })
-
-    onMounted(async () => {
-      currentUserId.value = authStore.session?.user?.id
-      await fetchPublicServers()
-      if (serverChannelStore.publicServers.length > 0) {
-        serverUsersStore.fetchUserProfiles(
-          serverChannelStore.publicServers.map((server) => server.owner)
-        )
-      }
-    })
+// Watch for force refresh prop changes
+watch(() => props.forceRefresh, async (shouldForce) => {
+  if (shouldForce) {
+    await publicServersStore.forceRefresh()
+  }
+})
 </script>
+
+<style scoped>
+.public-servers-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+  animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0;
+  }
+  to { 
+    opacity: 1;
+  }
+}
+
+.public-servers-modal {
+  background: rgba(47, 49, 54, 0.98);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 32px 64px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  width: 100%;
+  max-width: 1000px;
+  max-height: 90vh;
+  overflow: hidden;
+  animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(32px) scale(0.95);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1);
+  }
+}
+
+.public-servers-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(88, 101, 242, 0.5), transparent);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .public-servers-overlay {
+    padding: 10px;
+  }
+  
+  .public-servers-modal {
+    border-radius: 16px;
+    max-height: 95vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .public-servers-overlay {
+    padding: 8px;
+  }
+  
+  .public-servers-modal {
+    border-radius: 12px;
+  }
+}
+</style>
 
 <style scoped>
 .public-servers-overlay {
@@ -589,6 +635,7 @@ const serverChannelStore = useServerChannelStore()
   margin: 0 0 16px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
