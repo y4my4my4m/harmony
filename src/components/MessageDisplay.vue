@@ -966,19 +966,17 @@ export default defineComponent({
 
 /* Reply reference styling */
 .reply-reference {
-  margin: 4px 0 4px 62px;
-  padding: 2px 0;
-  font-size: 0.875rem;
+  margin-left: 48px;
   cursor: pointer;
   position: relative;
 }
 
 .reply-spine {
   position: absolute;
-  left: -46px;
-  top: -8px;
+  left: -32px;
+  bottom: -1px;
   width: 2px;
-  height: 20px;
+  height: 12px;
   background-color: #4f545c;
   border-radius: 1px;
 }
@@ -988,7 +986,7 @@ export default defineComponent({
   position: absolute;
   top: 0;
   left: 0;
-  width: 36px;
+  width: 30px;
   height: 2px;
   background-color: #4f545c;
   border-radius: 1px;
@@ -1031,9 +1029,9 @@ export default defineComponent({
   position: relative;
 }
 
-.message-group.has-header {
+/* .message-group.has-header {
   margin-top: 16px;
-}
+} */
 
 .message-group.compact {
   margin-top: 0.125rem;
@@ -1354,7 +1352,7 @@ export default defineComponent({
   }
   
   .reply-reference {
-    margin-left: 58px;
+    margin-left: 44px;
   }
   
   .message-header {
@@ -1362,11 +1360,11 @@ export default defineComponent({
   }
   
   .message-gutter {
-    width: 58px;
+    width: 44px;
   }
   
   .reactions-gutter {
-    width: 58px;
+    width: 44px;
   }
 }
 
