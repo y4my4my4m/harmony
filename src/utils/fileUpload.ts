@@ -81,12 +81,17 @@ export async function uploadFile(
  * @param userId The user ID
  * @returns Promise<UploadResult>
  */
+// TODO: profileService.ts should handle avatar uploads, not this file
 export async function uploadAvatar(file: File, userId: string): Promise<UploadResult> {
-  const fileExt = file.name.split('.').pop() || 'jpg';
+  // const fileExt = file.name.split('.').pop() || 'jpg';
   // Let Supabase auto-generate the UUID, just provide the folder structure
-  const filePath = `${userId}/avatar.${fileExt}`;
-  
-  return uploadFile(file, 'avatars', filePath);
+  const filePath = `${userId}/${file.name}`;
+
+  const processedFile: UploadResult = await uploadFile(file, 'avatars', filePath);
+  if (!processedFile.success) {
+    processedFile.path = filePath; // Include path even if upload failed
+  }
+  return processedFile;
 }
 
 /**

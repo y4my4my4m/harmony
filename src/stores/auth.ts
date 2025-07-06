@@ -144,6 +144,7 @@ export const useAuthStore = defineStore('auth', {
       
       // Redirect to login page
       router.push('/login');
+      router.go(0); // Force reload to reset state
     },
 
     /**
