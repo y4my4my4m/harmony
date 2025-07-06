@@ -646,8 +646,8 @@ onMounted(() => {
 .user-item {
   display: flex;
   align-items: center;
-  padding: 2px 8px;
-  margin: 1px 0;
+  padding: 4px 8px;
+  margin: 4px 0;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.15s ease;
