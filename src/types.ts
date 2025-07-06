@@ -267,6 +267,7 @@ export interface NotificationData {
   server_name?: string;
   channel_name?: string;
   username?: string;
+  display_name?: string;
   [key: string]: any;
 }
 

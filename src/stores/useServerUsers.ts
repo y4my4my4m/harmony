@@ -11,6 +11,13 @@ import { getMembershipService } from '@/services/membershipService';
 const convertToStatusEnum = (numericStatus: number): UserStatus => {
     return numericStatus as UserStatus;
 };
+
+// Cache configuration
+interface UserProfileCache {
+  profile: User;
+  lastFetched: Date;
+  hits: number;
+}
   
 export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
@@ -21,6 +28,12 @@ export const useServerUsersStore = defineStore('serverUsers', {
     offlineBroadcastChannel: null as RealtimeChannel | null,
     currentServerId: null as string | null, // Track current server for membership events
     membershipSubscriptionActive: false,
+    
+    // Enhanced caching system
+    profileCache: new Map<string, UserProfileCache>(),
+    cacheValidityDuration: 10 * 60 * 1000, // 10 minutes for user profiles
+    maxCacheSize: 1000, // Maximum number of profiles to cache
+    pendingFetches: new Set<string>(), // Track in-progress fetches to avoid duplicates
   }),
   getters: {
     usernameToUserIdMap: (state) => {
@@ -33,8 +46,199 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
       return map;
     },
+    
+    // Get user profile with cache fallback
+    getUserProfile: (state) => (userId: string): User | null => {
+      // First check the main userProfiles (current server users)
+      if (state.userProfiles[userId]) {
+        return state.userProfiles[userId];
+      }
+      
+      // Check cache for any previously fetched profiles
+      const cached = state.profileCache.get(userId);
+      if (cached) {
+        const now = new Date();
+        const cacheAge = now.getTime() - cached.lastFetched.getTime();
+        if (cacheAge < state.cacheValidityDuration) {
+          cached.hits++;
+          return cached.profile;
+        }
+      }
+      
+      return null;
+    },
+    
+    // Get cache statistics
+    getCacheStats: (state) => ({
+      totalCached: state.profileCache.size,
+      mainProfiles: Object.keys(state.userProfiles).length,
+      pendingFetches: state.pendingFetches.size,
+      hitRate: state.profileCache.size > 0 ? 
+        Array.from(state.profileCache.values()).reduce((sum, cache) => sum + cache.hits, 0) / state.profileCache.size : 0,
+    }),
   },
   actions: {
+    // Cache management methods
+    evictOldestCacheEntries() {
+      if (this.profileCache.size <= this.maxCacheSize) return;
+
+      // Sort by last accessed time and remove oldest entries
+      const entries = Array.from(this.profileCache.entries())
+        .sort((a, b) => a[1].lastFetched.getTime() - b[1].lastFetched.getTime());
+
+      const toRemove = entries.slice(0, entries.length - this.maxCacheSize);
+      toRemove.forEach(([userId]) => {
+        this.profileCache.delete(userId);
+      });
+
+      console.log(`Evicted ${toRemove.length} old profile cache entries`);
+    },
+
+    addToProfileCache(user: User) {
+      this.evictOldestCacheEntries();
+      
+      this.profileCache.set(user.id, {
+        profile: user,
+        lastFetched: new Date(),
+        hits: 0,
+      });
+    },
+
+    // Fetch individual user profile with caching
+    async fetchUserProfile(userId: string, forceRefresh = false): Promise<User | null> {
+      // Check if already fetching to avoid duplicate requests
+      if (this.pendingFetches.has(userId)) {
+        // Wait for existing fetch to complete
+        return new Promise((resolve) => {
+          const checkComplete = () => {
+            if (!this.pendingFetches.has(userId)) {
+              resolve(this.getUserProfile(userId));
+            } else {
+              setTimeout(checkComplete, 50);
+            }
+          };
+          checkComplete();
+        });
+      }
+
+      // Check cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cachedProfile = this.getUserProfile(userId);
+        if (cachedProfile) {
+          console.log(`Profile cache hit for user: ${userId}`);
+          return cachedProfile;
+        }
+      }
+
+      this.pendingFetches.add(userId);
+
+      try {
+        console.log(`Fetching profile for user: ${userId}`);
+        
+        const profiles = await getProfilesWithAvatarUrls([userId]);
+        
+        if (profiles.length === 0) {
+          console.warn(`No profile found for user: ${userId}`);
+          return null;
+        }
+
+        const profile = {
+          ...profiles[0],
+          status: convertToStatusEnum(profiles[0].status as number)
+        };
+
+        // Add to cache
+        this.addToProfileCache(profile);
+
+        // Also add to main userProfiles if not already there
+        if (!this.userProfiles[userId]) {
+          this.userProfiles[userId] = profile;
+        }
+
+        console.log(`Successfully fetched and cached profile for user: ${userId}`);
+        return profile;
+
+      } catch (error) {
+        console.error(`Error fetching profile for user ${userId}:`, error);
+        return null;
+      } finally {
+        this.pendingFetches.delete(userId);
+      }
+    },
+
+    // Batch fetch multiple profiles efficiently
+    async fetchMultipleUserProfiles(userIds: string[], forceRefresh = false): Promise<Record<string, User>> {
+      const results: Record<string, User> = {};
+
+      // Filter out users that are already cached (unless force refresh)
+      const uncachedUserIds = forceRefresh ? userIds : userIds.filter(id => !this.getUserProfile(id));
+
+      if (uncachedUserIds.length === 0) {
+        // All profiles are cached, return them
+        userIds.forEach(id => {
+          const profile = this.getUserProfile(id);
+          if (profile) {
+            results[id] = profile;
+          }
+        });
+        return results;
+      }
+
+      try {
+        console.log(`Batch fetching ${uncachedUserIds.length} profiles`);
+        
+        const profiles = await getProfilesWithAvatarUrls(uncachedUserIds);
+
+        profiles.forEach(profile => {
+          if (profile) {
+            const processedProfile = {
+              ...profile,
+              status: convertToStatusEnum(profile.status as number)
+            };
+
+            // Add to cache
+            this.addToProfileCache(processedProfile);
+
+            // Add to main userProfiles if not already there
+            if (!this.userProfiles[profile.id]) {
+              this.userProfiles[profile.id] = processedProfile;
+            }
+
+            results[profile.id] = processedProfile;
+          }
+        });
+
+        // Also include any cached profiles that were requested
+        userIds.forEach(id => {
+          if (!results[id]) {
+            const cachedProfile = this.getUserProfile(id);
+            if (cachedProfile) {
+              results[id] = cachedProfile;
+            }
+          }
+        });
+
+        console.log(`Successfully batch fetched ${profiles.length} profiles`);
+        return results;
+
+      } catch (error) {
+        console.error('Error batch fetching profiles:', error);
+        return results;
+      }
+    },
+
+    // Clear cache for specific user (useful when profile is updated)
+    invalidateUserProfileCache(userId: string) {
+      this.profileCache.delete(userId);
+      console.log(`Invalidated profile cache for user: ${userId}`);
+    },
+
+    // Clear all profile caches
+    clearProfileCache() {
+      this.profileCache.clear();
+      console.log('Cleared all profile caches');
+    },
+
     async fetchUserProfiles(userIds: string[]) {
       const profiles = await getProfilesWithAvatarUrls(userIds);
 
@@ -44,6 +248,9 @@ export const useServerUsersStore = defineStore('serverUsers', {
             ...profile,
             status: convertToStatusEnum(profile.status as number)
           };
+          
+          // Also add to cache
+          this.addToProfileCache(acc[profile.id]);
         }
         return acc;
       }, {} as Record<string, User>);

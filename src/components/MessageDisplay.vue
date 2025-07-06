@@ -291,11 +291,29 @@ export default defineComponent({
       }
     });
 
-    const showTooltip = (event: MouseEvent, reaction: Reaction) => {
+    const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
       // Cancel any existing timer to prevent unwanted tooltip behavior
       if (tooltipTimer.value) {
         clearTimeout(tooltipTimer.value);
       }
+      
+      // Pre-fetch any missing user profiles
+      const missingUserIds = reaction.reactions
+        .filter(r => !serverUsersStore.userProfiles[r.user_id])
+        .map(r => r.user_id);
+      
+      if (missingUserIds.length > 0) {
+        try {
+          await Promise.all(missingUserIds.map(id => 
+            serverUsersStore.fetchUserProfile(id).catch(error => {
+              console.error("Error fetching user profile for tooltip:", error);
+            })
+          ));
+        } catch (error) {
+          console.error("Error fetching user profiles for tooltip:", error);
+        }
+      }
+      
       const usersDetails = reaction.reactions.map(r => ({
         id: r.user_id,
         displayName: getUserDisplayName(r.user_id),
@@ -312,7 +330,7 @@ export default defineComponent({
           y: event.clientY,
           emoji: reaction.emoji
         };
-      }, 500); // 2000 milliseconds delay
+      }, 500); // 500 milliseconds delay
     };
 
     const hideTooltip = () => {
@@ -359,7 +377,35 @@ export default defineComponent({
 
       const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
 
+      // Extract all user IDs from messages and ensure their profiles are available
+      const userIds = new Set<string>();
       newMessages.forEach(message => {
+        if (message?.user_id) {
+          userIds.add(message.user_id);
+        }
+        
+        // Also collect user IDs from reply messages
+        if (message?.reply_to) {
+          const replyUserId = getReplyUserId(message.reply_to);
+          if (replyUserId && replyUserId !== 'unknown') {
+            userIds.add(replyUserId);
+          }
+        }
+        
+        // Collect user IDs from reactions
+        if (message?.reactions) {
+          message.reactions.forEach(reaction => {
+            if (reaction?.reactions) {
+              reaction.reactions.forEach(r => {
+                if (r?.user_id) {
+                  userIds.add(r.user_id);
+                }
+              });
+            }
+          });
+        }
+
+        // ...existing message content processing...
         if (!message?.content || !Array.isArray(message.content)) {
           return;
         }
@@ -377,6 +423,13 @@ export default defineComponent({
           }
         });
       });
+
+      // Ensure all user profiles are available
+      if (userIds.size > 0) {
+        serverUsersStore.ensureProfilesAvailable(Array.from(userIds)).catch(error => {
+          console.error('Error ensuring user profiles are available:', error);
+        });
+      }
 
       if (newMessages && newMessages.length > 0) {
         // Recalculate scroll height
@@ -669,7 +722,8 @@ export default defineComponent({
         console.log('Edit state reset');
       } catch (error) {
         console.error('Error saving message edit:', error);
-        // TODO: Show error message to user
+        // Show user-friendly error message
+        // TODO: Implement proper error notification system
       }
     };
 
@@ -685,11 +739,22 @@ export default defineComponent({
     const selectedUser = ref<User | null>(null);
     const showProfileModal = ref(false);
     const showInviteModal = ref(false);
-    const showUserProfile = (userId: string, event?: MouseEvent) => {
-      const user = serverUsersStore.userProfiles[userId];
+    const showUserProfile = async (userId: string, event?: MouseEvent) => {
+      let user = serverUsersStore.getUserProfile(userId);
+      
       if (!user) {
-        console.error("User not found for ID:", userId);
-        return;
+        console.log("User not found in cache, fetching profile for ID:", userId);
+        try {
+          const fetchedUser = await serverUsersStore.fetchUserProfile(userId);
+          if (!fetchedUser) {
+            console.error("Failed to fetch user profile for ID:", userId);
+            return;
+          }
+          user = fetchedUser;
+        } catch (error) {
+          console.error("Error fetching user profile:", error);
+          return;
+        }
       }
 
       selectedUser.value = user;
@@ -729,15 +794,47 @@ export default defineComponent({
     const getUserIdFromMessage = (messageId:string) => {
       return useChat.messages.find(message => message.id === messageId)?.user_id || 'Unknown Message Id';
     };
-    const getUserDisplayName = (userId:string) => {
-      return serverUsersStore.userProfiles[userId]?.display_name || 'Unknown User';
+    const getUserDisplayName = (userId: string) => {
+      const user = serverUsersStore.getUserProfile(userId);
+      
+      if (!user) {
+        // Trigger async fetch in background without blocking
+        serverUsersStore.fetchUserProfile(userId).catch(error => {
+          console.error("Error fetching user profile for display name:", error);
+        });
+        return 'Loading...';
+      }
+      
+      return user.display_name || 'Unknown User';
     };
-    const getUserColor = (userId:string) => {
-      const profile = serverUsersStore.userProfiles[userId] as Profile;
+    
+    const getUserColor = (userId: string) => {
+      const user = serverUsersStore.getUserProfile(userId);
+      
+      if (!user) {
+        // Trigger async fetch in background without blocking
+        serverUsersStore.fetchUserProfile(userId).catch(error => {
+          console.error("Error fetching user profile for color:", error);
+        });
+        return '#dddddd';
+      }
+      
+      const profile = user as Profile;
       return `${profile?.color || '#dddddd'}`;
     };
-    const getUserAvatar = (userId:string) => {
-      return serverUsersStore.userProfiles[userId]?.avatar_url || '/default_avatar.png';
+    
+    const getUserAvatar = (userId: string) => {
+      const user = serverUsersStore.getUserProfile(userId);
+      
+      if (!user) {
+        // Trigger async fetch in background without blocking
+        serverUsersStore.fetchUserProfile(userId).catch(error => {
+          console.error("Error fetching user profile for avatar:", error);
+        });
+        return '/default_avatar.png';
+      }
+      
+      return user.avatar_url || '/default_avatar.png';
     };
     const formatTimestamp = (timestamp: Date) => {
       const date = new Date(timestamp);
@@ -961,18 +1058,48 @@ export default defineComponent({
 
     const getReplyUserDisplayName = (replyMessageId: string) => {
       const userId = getReplyUserId(replyMessageId);
-      return serverUsersStore.userProfiles[userId]?.display_name || 'Loading...';
+      const user = serverUsersStore.getUserProfile(userId);
+      
+      if (!user && userId !== 'unknown') {
+        // Trigger async fetch in background without blocking
+        serverUsersStore.fetchUserProfile(userId).catch(error => {
+          console.error("Error fetching reply user profile for display name:", error);
+        });
+        return 'Loading...';
+      }
+      
+      return user?.display_name || 'Loading...';
     };
 
     const getReplyUserColor = (replyMessageId: string) => {
       const userId = getReplyUserId(replyMessageId);
-      const profile = serverUsersStore.userProfiles[userId] as Profile;
+      const user = serverUsersStore.getUserProfile(userId);
+      
+      if (!user && userId !== 'unknown') {
+        // Trigger async fetch in background without blocking
+        serverUsersStore.fetchUserProfile(userId).catch(error => {
+          console.error("Error fetching reply user profile for color:", error);
+        });
+        return '#dddddd';
+      }
+      
+      const profile = user as Profile;
       return `${profile?.color || '#dddddd'}`;
     };
 
     const getReplyUserAvatar = (replyMessageId: string) => {
       const userId = getReplyUserId(replyMessageId);
-      return serverUsersStore.userProfiles[userId]?.avatar_url || '/default_avatar.png';
+      const user = serverUsersStore.getUserProfile(userId);
+      
+      if (!user && userId !== 'unknown') {
+        // Trigger async fetch in background without blocking
+        serverUsersStore.fetchUserProfile(userId).catch(error => {
+          console.error("Error fetching reply user profile for avatar:", error);
+        });
+        return '/default_avatar.png';
+      }
+      
+      return user?.avatar_url || '/default_avatar.png';
     };
 
     const getReplyUserId = (replyMessageId: string) => {

@@ -6,8 +6,7 @@ import { viewContextTracker } from '@/services/ViewContextTracker'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
 import type { 
   Notification, 
-  NotificationType, 
-  NotificationData, 
+  NotificationType,
   NotificationPreferences,
   NotificationToast
 } from '@/types'

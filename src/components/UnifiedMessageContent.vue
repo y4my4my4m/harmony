@@ -171,7 +171,32 @@
           v-else-if="part && typeof part === 'object' && part.type === 'system'"
           class="system-message-text"
         >
-          {{ formatSystemMessage(part) }}
+          <template v-if="part.event_type === 'join'">
+            Everyone welcome 
+            <span 
+              class="system-username" 
+              @click="$emit('show-user-profile', part.user.id, $event)"
+            >{{ part.user.display_name || part.user.username }}</span>!
+            <template v-if="part.initiated_by">
+              They were invited by 
+              <span 
+                class="system-username" 
+                @click="$emit('show-user-profile', part.initiated_by.id, $event)"
+              >{{ part.initiated_by.display_name || part.initiated_by.username }}</span>.
+            </template>
+          </template>
+          <template v-else-if="part.event_type === 'leave'">
+            <span 
+              class="system-username" 
+              @click="$emit('show-user-profile', part.user.id, $event)"
+            >{{ part.user.display_name || part.user.username }}</span> has left the server.
+          </template>
+          <template v-else>
+            <span 
+              class="system-username" 
+              @click="$emit('show-user-profile', part.user.id, $event)"
+            >{{ part.user.display_name || part.user.username }}</span> {{ part.event_type }}
+          </template>
         </span>
       </template>
     </div>
@@ -472,26 +497,6 @@ export default defineComponent({
       emit('cancel-edit');
     };
 
-    // Format system messages for display
-    const formatSystemMessage = (systemContent: any): string => {
-      if (!systemContent || systemContent.type !== 'system') return '';
-      
-      const displayName = systemContent.user?.display_name || systemContent.user?.username || 'Unknown User';
-      
-      if (systemContent.event_type === 'join') {
-        if (systemContent.initiated_by) {
-          const inviterName = systemContent.initiated_by.display_name || systemContent.initiated_by.username || 'Someone';
-          return `Everyone welcome ${displayName}! They were invited by ${inviterName}.`;
-        } else {
-          return `Everyone welcome ${displayName}!`;
-        }
-      } else if (systemContent.event_type === 'leave') {
-        return `${displayName} has left the server.`;
-      }
-      
-      return `${displayName} ${systemContent.event_type}`;
-    };
-
     return { 
       localEditableContent,
       editTextarea,
@@ -508,7 +513,6 @@ export default defineComponent({
       renderTextContent,
       renderTextSegments,
       getFileName,
-      formatSystemMessage,
     };
   }
 });
@@ -815,5 +819,17 @@ export default defineComponent({
 
 .system-message-content .system-message-text {
   color: inherit;
+}
+
+.system-username {
+  font-weight: bold;
+  color: #ffffff;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.system-username:hover {
+  color: #5865f2;
+  text-decoration: underline;
 }
 </style>
