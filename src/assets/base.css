@@ -123,7 +123,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-::-webkit-scrollbar {
+/* ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
   background-color: var(--h-black);
@@ -142,4 +142,24 @@ body {
 ::-webkit-scrollbar-track {
   background-color: #202225;
   border-radius: 12px;
+} */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  border-radius: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: rgba(32, 34, 37, 0.363);
+  border-radius: 12px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #40444b;
+  border-radius: 12px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4f545c;
 }

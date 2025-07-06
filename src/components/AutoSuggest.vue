@@ -122,7 +122,7 @@ export default defineComponent({
 });
 </script>
 
-<style scoped>
+<style>
 .auto-suggest {
   background: #2f3136;
   border-radius: 8px;
@@ -184,11 +184,39 @@ export default defineComponent({
   font-weight: 500;
   color: #ffffff;
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .suggest-username {
   font-size: 12px;
   color: #b9bbbe;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggest-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.suggest-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.suggest-server {
+  font-size: 11px;
+  color: #72767d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Scrollbar styling */

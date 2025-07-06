@@ -4,6 +4,7 @@ import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import NewProfile from '@/views/NewProfile.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
+import RichTextDemo from '@/components/RichTextDemo.vue';
 import { useAuthStore } from '@/stores/auth';
 
 const router = createRouter({
@@ -74,6 +75,12 @@ const router = createRouter({
       component: () => import('@/views/UserSettings.vue'),
       meta: { requiresAuth: true },
       props: true
+    },
+    {
+      path: '/demo',
+      name: 'RichTextDemo',
+      component: RichTextDemo,
+      meta: { requiresAuth: false }
     },
   ],
 });
