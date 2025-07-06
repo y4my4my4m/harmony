@@ -297,9 +297,9 @@ export default defineComponent({
         clearTimeout(tooltipTimer.value);
       }
       
-      // Pre-fetch any missing user profiles
+      // Pre-fetch any missing user profiles using the getter
       const missingUserIds = reaction.reactions
-        .filter(r => !serverUsersStore.userProfiles[r.user_id])
+        .filter(r => !serverUsersStore.getUserProfile(r.user_id))
         .map(r => r.user_id);
       
       if (missingUserIds.length > 0) {
@@ -377,7 +377,27 @@ export default defineComponent({
 
       const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
 
-      // Extract all user IDs from messages and ensure their profiles are available
+      // Process message content and initialize image loading states
+      newMessages.forEach(message => {
+        if (!message?.content || !Array.isArray(message.content)) {
+          return;
+        }
+        
+        message.content.forEach(part => {
+          if (!part || typeof part !== 'object') {
+            return;
+          }
+          // initialize image "loading" state
+          if (part.type === 'file' && part.fileType === 'image' && part.url && !(part.url in imageLoaded.value)) {
+            imageLoaded.value[part.url] = false;
+          }
+          else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')) && !(part.url in imageLoaded.value)) {
+            imageLoaded.value[part.url] = false;
+          }
+        });
+      });
+
+      // Extract user IDs and ensure profiles are available (debounced)
       const userIds = new Set<string>();
       newMessages.forEach(message => {
         if (message?.user_id) {
@@ -426,25 +446,36 @@ export default defineComponent({
 
       // Ensure all user profiles are available
       if (userIds.size > 0) {
-        serverUsersStore.ensureProfilesAvailable(Array.from(userIds)).catch(error => {
-          console.error('Error ensuring user profiles are available:', error);
-        });
+        // Use setTimeout to prevent blocking the main thread and avoid recursion
+        setTimeout(() => {
+          serverUsersStore.ensureProfilesAvailable(Array.from(userIds)).catch(error => {
+            console.error('Error ensuring user profiles are available:', error);
+          });
+        }, 0);
       }
 
       if (newMessages && newMessages.length > 0) {
-        // Recalculate scroll height
+        // Recalculate scroll height and maintain scroll position
         nextTick(() => {
           if (messageDisplayContainer.value) {
             const newScrollHeight = messageDisplayContainer.value.scrollHeight;
             const scrollOffset = newScrollHeight - oldScrollHeight;
-            messageDisplayContainer.value.scrollTop += scrollOffset;
             
-            // Update isAtTop and check scrollability after scroll position changes
-            isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
+            // Only adjust scroll position if we have new content
+            if (scrollOffset > 0) {
+              messageDisplayContainer.value.scrollTop += scrollOffset;
+            }
+            
+            // Update scroll state without triggering handleScroll recursion
+            const currentScrollTop = messageDisplayContainer.value.scrollTop;
+            isAtTop.value = currentScrollTop === 0;
             checkScrollable();
+            
+            // Update isAtBottom prop based on current scroll position
+            const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+            const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5; // 5px tolerance
+            emit('update:isAtBottom', isAtBottom);
           }
-          // FIXME: manually call to scroll down to bottom, although we probably dont want if we've scrolled up
-          handleScroll();
         });
       }
     }, { immediate: true, deep: true });
@@ -917,29 +948,30 @@ export default defineComponent({
     };
 
     const handleScroll = () => {
-      if (messageDisplayContainer.value) {
-        const { scrollTop } = messageDisplayContainer.value;
-        
-        // Check if content is scrollable
-        checkScrollable();
-        
-        // Update isAtTop reactive property
-        const isCurrentlyAtTop = scrollTop === 0;
-        isAtTop.value = isCurrentlyAtTop;
-        
-        // Reset buffer when not at top or no scrollbar
-        if (!isCurrentlyAtTop || !hasScrollbar.value) {
-          bufferDistance.value = 0;
-        }
-        
-        if (scrollTop === 0) {
-          // console.log('fetchMore!');
-          emit('loadMoreMessages');
-        }
-
-        // Emit event instead of mutating the prop
-        emit('update:isAtBottom', false);
+      if (!messageDisplayContainer.value) return;
+      
+      const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+      
+      // Check if content is scrollable
+      checkScrollable();
+      
+      // Update isAtTop reactive property
+      const isCurrentlyAtTop = scrollTop === 0;
+      isAtTop.value = isCurrentlyAtTop;
+      
+      // Reset buffer when not at top or no scrollbar
+      if (!isCurrentlyAtTop || !hasScrollbar.value) {
+        bufferDistance.value = 0;
       }
+      
+      // Load more messages when at top
+      if (isCurrentlyAtTop && props.loadMoreMessages) {
+        props.loadMoreMessages();
+      }
+
+      // Calculate if we're at bottom with small tolerance
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
+      emit('update:isAtBottom', isAtBottom);
     };
 
     // Handle wheel events to detect scroll attempts beyond top
@@ -1026,7 +1058,10 @@ export default defineComponent({
     }
 
     const replyTo = (message: Message) => {
-      emit('replyingTo', message.id, getUserDisplayName(message.user_id));
+      // Get display name synchronously without triggering async operations
+      const user = serverUsersStore.getUserProfile(message.user_id);
+      const displayName = user?.display_name || 'Unknown User';
+      emit('replyingTo', message.id, displayName);
     }
 
     // Permission checks for message editing/deletion

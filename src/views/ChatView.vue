@@ -75,7 +75,6 @@
   import PublicServers from '@/components/PublicServers.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';
   import { useServerChannelStore } from '@/stores/useServerChannel';
-  import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
   import { useChatStore } from '@/stores/useChat';
   import { useDMStore } from '@/stores/useDM';
   import { useAuthStore } from '@/stores/auth';
@@ -99,7 +98,6 @@
 
   const serverUsersStore = useServerUsersStore();
   const serverChannelStore = useServerChannelStore();
-  const voiceChannelStore = useUnifiedVoiceChannelStore();
   const chatStore = useChatStore();
   const dmStore = useDMStore();
   const authStore = useAuthStore();
@@ -134,7 +132,6 @@
         return props.isDM ? dmStore.currentDMMessages : chatStore.messages;
       });
 
-      const currentServerName = computed(() => serverChannelStore.currentServer.name || '');
       const currentChannelId = computed(() => serverChannelStore.currentChannelId || '');
       const currentServer = computed(() => serverChannelStore.currentServer);
       const showCreateChannelForm = ref(false);
@@ -180,45 +177,62 @@
         return requestId !== currentRequestId.value;
       };
 
+      // Add loading state tracking to prevent concurrent server selections
+      const isSelectingServer = ref(false);
+
       const handleServerSelected = async (serverId: string) => {
-        // Immediate UI update for responsiveness
-        serverChannelStore.setCurrentServer(serverId);
-        isLoading.value = true;
+        console.log(`handleServerSelected called with serverId: ${serverId}`);
         
-        const { signal, requestId } = createRequestContext();
+        // Prevent concurrent server selections
+        if (isSelectingServer.value) {
+          console.log('Server selection already in progress, skipping to prevent conflicts');
+          return;
+        }
+        
+        isSelectingServer.value = true;
         
         try {
-          serverUsersStore.subscribeToUserStatuses();
-          chatStore.clearMessages();
+          // Immediate UI update for responsiveness
+          serverChannelStore.setCurrentServer(serverId);
+          isLoading.value = true;
           
-          // Initialize membership tracking for real-time user list updates
-          await serverUsersStore.initializeMembershipTracking(serverId);
+          const { signal, requestId } = createRequestContext();
           
-          // Fetch data with cancellation support
-          await serverChannelStore.fetchCategoriesAndChannels(serverId, signal);
-          
-          // Check if request is still current
-          if (isRequestStale(requestId)) return;
-          
-          // Only select default channel if no specific channel is in the route
-          if (!route.params.channelId && serverChannelStore.channels.length > 0) {
-            const defaultChannelId = getDefaultChannel(
-              serverChannelStore.channels, 
-              serverChannelStore.categories, 
-              serverChannelStore.categoryChannels
-            )
-            if (defaultChannelId && !isRequestStale(requestId)) {
-              await handleChannelSelected(defaultChannelId);
+          try {
+            serverUsersStore.subscribeToUserStatuses();
+            chatStore.clearMessages();
+            
+            // Initialize membership tracking for real-time user list updates
+            await serverUsersStore.initializeMembershipTracking(serverId);
+            
+            // Fetch data with cancellation support
+            await serverChannelStore.fetchCategoriesAndChannels(serverId, signal);
+            
+            // Check if request is still current
+            if (isRequestStale(requestId)) return;
+            
+            // Only select default channel if no specific channel is in the route
+            if (!route.params.channelId && serverChannelStore.channels.length > 0) {
+              const defaultChannelId = getDefaultChannel(
+                serverChannelStore.channels, 
+                serverChannelStore.categories, 
+                serverChannelStore.categoryChannels
+              )
+              if (defaultChannelId && !isRequestStale(requestId)) {
+                await handleChannelSelected(defaultChannelId);
+              }
+            }
+          } catch (error: any) {
+            if (error.name === 'AbortError') return; // Request was cancelled
+            console.error('Error loading server:', error);
+            toast.error('Failed to load server');
+          } finally {
+            if (!isRequestStale(requestId)) {
+              isLoading.value = false;
             }
           }
-        } catch (error: any) {
-          if (error.name === 'AbortError') return; // Request was cancelled
-          console.error('Error loading server:', error);
-          toast.error('Failed to load server');
         } finally {
-          if (!isRequestStale(requestId)) {
-            isLoading.value = false;
-          }
+          isSelectingServer.value = false;
         }
       };
 
@@ -301,7 +315,12 @@
             }
           }
           
-          router.push({ name: 'DM', params: { conversationId } });
+          if (!isNavigatingRoute.value) {
+            isNavigatingRoute.value = true;
+            router.push({ name: 'DM', params: { conversationId } }).finally(() => {
+              isNavigatingRoute.value = false;
+            });
+          }
         }
       };
 
@@ -359,8 +378,22 @@
         }
       };
 
+      // Add loading state tracking to prevent recursive calls
+      const isLoadingServerAndChannel = ref(false);
+
       const loadServerAndChannel = async () => {
-        if (props.isDM) {
+        console.log(`loadServerAndChannel called - isDM: ${props.isDM}, route params:`, route.params);
+        
+        // Prevent recursive calls
+        if (isLoadingServerAndChannel.value) {
+          console.log('loadServerAndChannel already in progress, skipping to prevent recursion');
+          return;
+        }
+        
+        isLoadingServerAndChannel.value = true;
+        
+        try {
+          if (props.isDM) {
           // For DM mode, use enhanced initialization that handles direct access
           const userId = authStore.session?.user?.id;
           if (userId) {
@@ -383,12 +416,22 @@
                       await loadDMConversation();
                     } else {
                       toast.error('Failed to create conversation');
-                      router.push({ name: 'DMHome' });
+                      if (!isNavigatingRoute.value) {
+                        isNavigatingRoute.value = true;
+                        router.push({ name: 'DMHome' }).finally(() => {
+                          isNavigatingRoute.value = false;
+                        });
+                      }
                     }
                   } catch (err) {
                     console.error('Error creating conversation:', err);
                     toast.error('Failed to create conversation');
-                    router.push({ name: 'DMHome' });
+                    if (!isNavigatingRoute.value) {
+                      isNavigatingRoute.value = true;
+                      router.push({ name: 'DMHome' }).finally(() => {
+                        isNavigatingRoute.value = false;
+                      });
+                    }
                   }
                 }
               }
@@ -408,10 +451,16 @@
             if (channelId) {
               await handleChannelSelected(channelId.toString());
             }
-          } else if (serverChannelStore.servers.length > 0) {
+          } else if (serverChannelStore.servers.length > 0 && !isNavigatingRoute.value) {
             const firstServerId = serverChannelStore.servers[0].id;
-            router.replace({ name: 'Chat', params: { serverId: firstServerId } });
+            isNavigatingRoute.value = true;
+            router.replace({ name: 'Chat', params: { serverId: firstServerId } }).finally(() => {
+              isNavigatingRoute.value = false;
+            });
           }
+        }
+        } finally {
+          isLoadingServerAndChannel.value = false;
         }
       };
 
@@ -607,6 +656,21 @@
           await loadServerAndChannel();
           requestNotificationPermission();
 
+          // After initialization, if there was a route that wasn't processed, trigger it
+          if (route.params.serverId && route.params.serverId !== serverChannelStore.currentServerId) {
+            console.log('Processing initial route after initialization');
+            isInitialRouteLoad.value = false; // Allow route processing
+            // Trigger route watcher manually for the current route
+            if (!isNavigatingRoute.value) {
+              isNavigatingRoute.value = true;
+              try {
+                await loadServerAndChannel();
+              } finally {
+                isNavigatingRoute.value = false;
+              }
+            }
+          }
+
           const chatLayout = document.querySelector('#app');
           // Event listeners
           if (chatLayout) {
@@ -626,19 +690,79 @@
         }
       });
 
-      watch(route, async () => {
-        // Always try to load server and channel when route changes
-        // regardless of initialization state, but with proper checks
-        if (initialized) {
-          await loadServerAndChannel();
-        } else {
-          // If not initialized yet, but we have a valid route with serverId,
-          // ensure we don't show the splash screen
-          if (route.params.serverId && servers.value.length > 0) {
-            showNoServersSplash.value = false;
+      // Track route navigation to prevent recursive updates
+      const isNavigatingRoute = ref(false);
+      const isInitialRouteLoad = ref(true);
+
+      watch(route, async (newRoute, oldRoute) => {
+        console.log('Route watcher triggered:', { 
+          newRoute: newRoute.params, 
+          oldRoute: oldRoute?.params, 
+          isNavigating: isNavigatingRoute.value,
+          isInitial: isInitialRouteLoad.value,
+          initialized 
+        });
+        
+        // Log the exact route param values for debugging
+        console.log('Detailed route comparison:', {
+          newServerId: newRoute.params.serverId,
+          oldServerId: oldRoute?.params.serverId,
+          newChannelId: newRoute.params.channelId,
+          oldChannelId: oldRoute?.params.channelId,
+          serverIdType: typeof newRoute.params.serverId,
+          oldServerIdType: typeof oldRoute?.params.serverId
+        });
+        
+        // Prevent recursive route updates
+        if (isNavigatingRoute.value) {
+          console.log('Route navigation already in progress, skipping to prevent recursion');
+          return;
+        }
+        
+        // For initial route load, only proceed if we're initialized
+        if (isInitialRouteLoad.value) {
+          isInitialRouteLoad.value = false;
+          if (!initialized) {
+            console.log('Initial route load but not initialized yet, skipping');
+            return;
           }
         }
-      }, { immediate: true });
+        
+        // Prevent unnecessary reloads if route params haven't actually changed
+        // Temporarily disabled to debug server switching issue
+        // if (oldRoute && 
+        //     newRoute.params.serverId === oldRoute.params.serverId && 
+        //     newRoute.params.channelId === oldRoute.params.channelId &&
+        //     newRoute.params.conversationId === oldRoute.params.conversationId) {
+        //   console.log('Route params unchanged, skipping reload', {
+        //     serverIdSame: newRoute.params.serverId === oldRoute.params.serverId,
+        //     channelIdSame: newRoute.params.channelId === oldRoute.params.channelId,
+        //     conversationIdSame: newRoute.params.conversationId === oldRoute.params.conversationId,
+        //     newServerId: newRoute.params.serverId,
+        //     oldServerId: oldRoute.params.serverId
+        //   });
+        //   return;
+        // }
+        
+        isNavigatingRoute.value = true;
+        
+        try {
+          // Always try to load server and channel when route changes
+          // regardless of initialization state, but with proper checks
+          if (initialized) {
+            console.log('Loading server and channel for route change');
+            await loadServerAndChannel();
+          } else {
+            // If not initialized yet, but we have a valid route with serverId,
+            // ensure we don't show the splash screen
+            if (route.params.serverId && servers.value.length > 0) {
+              showNoServersSplash.value = false;
+            }
+          }
+        } finally {
+          isNavigatingRoute.value = false;
+        }
+      }, { immediate: true }); // Re-enable immediate but with smarter logic
 
       // Watch for conversation changes in DM mode
       watch(() => props.conversationId, async (newConversationId) => {
@@ -659,9 +783,12 @@
           
           // Navigate to the newly joined server (last server in the list)
           const newServer = servers.value[servers.value.length - 1];
-          if (newServer && !props.isDM) {
+          if (newServer && !props.isDM && !isNavigatingRoute.value) {
             console.log(`🚀 Navigating to new server: ${newServer.name} (${newServer.id})`)
-            router.push({ name: 'Chat', params: { serverId: newServer.id } });
+            isNavigatingRoute.value = true;
+            router.push({ name: 'Chat', params: { serverId: newServer.id } }).finally(() => {
+              isNavigatingRoute.value = false;
+            });
           }
         }
         
@@ -671,17 +798,6 @@
           showNoServersSplash.value = true;
         }
       }, { immediate: true });
-
-      // Voice channel helper function
-      const getVoiceChannelName = () => {
-        if (voiceChannelStore.currentChannelId) {
-          const voiceChannel = serverChannelStore.channels.find(
-            (channel: Channel) => channel.id === voiceChannelStore.currentChannelId
-          );
-          return voiceChannel?.name || 'Voice Channel';
-        }
-        return 'Voice Channel';
-      };
 
 
 </script>

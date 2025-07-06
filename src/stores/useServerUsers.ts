@@ -47,14 +47,20 @@ export const useServerUsersStore = defineStore('serverUsers', {
       return map;
     },
     
-    // Get user profile with cache fallback
+    // Check if a user is a member of the current server
+    isServerMember: (state) => (userId: string): boolean => {
+      return userId in state.userProfiles;
+    },
+    
+    // Get user profile with intelligent fallback strategy
+    // First checks server members, then falls back to cache for non-members
     getUserProfile: (state) => (userId: string): User | null => {
       // First check the main userProfiles (current server users)
       if (state.userProfiles[userId]) {
         return state.userProfiles[userId];
       }
       
-      // Check cache for any previously fetched profiles
+      // Check cache for any previously fetched profiles (including non-server members)
       const cached = state.profileCache.get(userId);
       if (cached) {
         const now = new Date();
@@ -147,11 +153,12 @@ export const useServerUsersStore = defineStore('serverUsers', {
           status: convertToStatusEnum(profiles[0].status as number)
         };
 
-        // Add to cache
+        // Always add to cache for future lookups
         this.addToProfileCache(profile);
 
-        // Also add to main userProfiles if not already there
-        if (!this.userProfiles[userId]) {
+        // Only add to main userProfiles if they're already there (i.e., they're a server member)
+        // This keeps userProfiles clean and only for current server members
+        if (this.userProfiles[userId]) {
           this.userProfiles[userId] = profile;
         }
 
@@ -224,6 +231,23 @@ export const useServerUsersStore = defineStore('serverUsers', {
       } catch (error) {
         console.error('Error batch fetching profiles:', error);
         return results;
+      }
+    },
+
+    // Optimized profile fetching for message displays
+    // Efficiently handles bulk fetching of profiles that might not be server members
+    async ensureProfilesAvailable(userIds: string[]): Promise<void> {
+      const missingUserIds = userIds.filter(id => !this.getUserProfile(id));
+      
+      if (missingUserIds.length === 0) {
+        return; // All profiles already available
+      }
+
+      try {
+        console.log(`Ensuring ${missingUserIds.length} profiles are available`);
+        await this.fetchMultipleUserProfiles(missingUserIds);
+      } catch (error) {
+        console.error('Error ensuring profiles are available:', error);
       }
     },
 
