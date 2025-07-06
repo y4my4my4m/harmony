@@ -899,7 +899,6 @@ export default defineComponent({
 }
 
 .channel-list {
-  padding-left: 10px;
   transition: all 0.2s ease;
 }
 
@@ -1011,10 +1010,6 @@ export default defineComponent({
 
 .categories-container {
   flex: 1;
-}
-
-.category-channels {
-  padding-left: 8px;
 }
 
 /* Global drag feedback */

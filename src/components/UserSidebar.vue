@@ -26,7 +26,7 @@
       </div>
 
       <!-- Control Buttons -->
-      <div class="control-buttons">
+      <!-- <div class="control-buttons">
         <button 
           @click="toggleSidebar"
           class="control-btn"
@@ -54,7 +54,7 @@
             <path d="M12,2A3,3 0 0,1 15,5V7A3,3 0 0,1 12,10A3,3 0 0,1 9,7V5A3,3 0 0,1 12,2M12,4A1,1 0 0,0 11,5V7A1,1 0 0,0 12,8A1,1 0 0,0 13,7V5A1,1 0 0,0 12,4M21,14V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V14A2,2 0 0,1 5,12H19A2,2 0 0,1 21,14M19,16H5V20H19V16Z"/>
           </svg>
         </button>
-      </div>
+      </div> -->
 
       <!-- Member Count -->
       <div class="member-count">
