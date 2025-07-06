@@ -219,6 +219,12 @@
                 <kbd>Ctrl</kbd> + <kbd>V</kbd>
               </div>
             </div>
+            <div class="keybind-item">
+              <span>Toggle Screensharing</span>
+              <div class="keybind-combo">
+                <kbd>Meta</kbd> + <kbd>S</kbd>
+              </div>
+            </div>
           </div>
         </div>
       </div>

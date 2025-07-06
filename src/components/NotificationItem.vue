@@ -270,9 +270,6 @@ const toggleRead = () => {
 const handleDismiss = () => {
   emit('dismiss', props.notification.id)
 }
-
-// Avatar error handling is now handled by the Avatar component
-
 // Quick action handlers using NotificationFormatter navigation data
 const acceptInvite = () => {
   console.log('Accepting server invite:', props.notification.data?.invite_id)
