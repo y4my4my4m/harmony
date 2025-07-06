@@ -416,7 +416,10 @@ export default defineComponent({
 
     // Watch for changes to the prop and update the local copy accordingly
     watch(() => props.editableContent, (newVal) => {
-      localEditableContent.value = newVal;
+      // Only update if the value is different to avoid infinite loops
+      if (newVal !== localEditableContent.value) {
+        localEditableContent.value = newVal;
+      }
       nextTick(() => {
         if (editTextarea.value && props.editableMessageId === props.messageId) {
           autoResizeTextarea();
@@ -449,25 +452,35 @@ export default defineComponent({
       }
     };
 
-    const handleInput = () => {
-      if (editTextarea.value) {
-        const value = editTextarea.value.value;
-        const cursorPosition = editTextarea.value.selectionStart || 0;
-        autoSuggest.handleInput(value, cursorPosition);
-      }
+    const handleInput = (event: Event) => {
+      const target = event.target as HTMLTextAreaElement;
+      const value = target.value;
+      const cursorPosition = target.selectionStart || 0;
       
-      emit('update:content', localEditableContent.value);
+      // Update local content
+      localEditableContent.value = value;
+      
+      // Emit the content update
+      emit('update:content', value);
+      
+      // Handle auto-suggest
+      autoSuggest.handleInput(value, cursorPosition);
+      
       autoResizeTextarea();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Check if auto-suggest handled the key event first
       if (autoSuggest.handleKeyDown(event)) {
         return;
       }
       
       if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        handleSaveEdit();
+        // Only save if auto-suggest is not active
+        if (!autoSuggest.state.value.isActive) {
+          event.preventDefault();
+          handleSaveEdit();
+        }
         return;
       }
       
@@ -479,23 +492,42 @@ export default defineComponent({
     };
 
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
-      if (editTextarea.value) {
-        const newValue = autoSuggest.selectSuggestion(suggestion);
+      if (!editTextarea.value) return;
+      
+      const newValue = autoSuggest.selectSuggestion(suggestion);
+      if (newValue !== localEditableContent.value) {
         localEditableContent.value = newValue;
         emit('update:content', newValue);
+        
+        nextTick(() => {
+          autoResizeTextarea();
+          // Keep focus on the textarea after suggestion selection
+          if (editTextarea.value) {
+            editTextarea.value.focus();
+          }
+        });
       }
     };
 
     const handleSaveEdit = () => {
+      console.log('handleSaveEdit called');
       autoSuggest.closeSuggestions();
       
-      if (!localEditableContent.value.trim()) {
+      const content = localEditableContent.value.trim();
+      console.log('handleSaveEdit called with content:', content);
+      console.log('messageId:', props.messageId);
+      console.log('editableMessageId:', props.editableMessageId);
+      
+      if (!content) {
+        console.log('Content is empty, canceling edit');
         handleCancelEdit();
         return;
       }
       
       try {
-        emit('update:message', props.messageId, localEditableContent.value);
+        console.log('Emitting update:message with messageId:', props.messageId, 'content:', content);
+        emit('update:message', props.messageId, content);
+        console.log('update:message emitted successfully');
       } catch (e) {
         console.error('Error in handleSaveEdit:', e);
       }

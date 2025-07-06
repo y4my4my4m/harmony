@@ -407,20 +407,73 @@ export const useChatStore = defineStore('chat', {
 
     async editMessage(messageId: string, content: MessagePart[]) {
       try {
+        console.log('Editing message:', messageId, 'with content:', content);
+        
+        // Find the current message to get its data
+        const currentMessage = this.messages.find(msg => msg.id === messageId);
+        if (!currentMessage) {
+          console.error('Message not found in current messages:', messageId);
+          return;
+        }
+        
+        // Check current user authentication
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+          console.error('Authentication error:', authError);
+          return;
+        }
+        
+        console.log('Current user ID:', user.id);
+        console.log('Message owner ID:', currentMessage.user_id);
+        console.log('User IDs match:', user.id === currentMessage.user_id);
+        
+        // Try to update the message
         const { data, error } = await supabase
           .from('messages')
-          .update({ content: content })
-          .match({ id: messageId })
+          .update({ 
+            content: content,
+          })
+          .eq('id', messageId)
           .select('*');
     
         if (error) {
           console.error('Error editing message:', error);
+          console.error('Error code:', error.code);
+          console.error('Error details:', error.details);
+          console.error('Error hint:', error.hint);
+          console.error('Error message:', error.message);
           return;
         }
+        
+        console.log('Supabase update response:', data);
+        console.log('Message successfully updated in database');
+        
+        // Check if we got data back
         if (data && data.length > 0) {
-          this.updateMessageInCache(messageId, data[0]);
+          console.log('Using returned data from database');
+          const updatedMessage = data[0];
+          
+          // IMPORTANT: Database doesn't return computed reactions field
+          // We need to preserve the existing reactions from the current message
+          updatedMessage.reactions = currentMessage.reactions || [];
+          
+          this.updateMessageInCache(messageId, updatedMessage);
+        } else {
+          console.log('No data returned, using optimistic update');
+          // Optimistically update the cache with the new content
+          // IMPORTANT: Preserve all existing fields including reactions
+          const updatedMessage: Message = {
+            ...currentMessage,
+            content: content,
+            // Explicitly preserve reactions and other computed fields
+            reactions: currentMessage.reactions || [],
+          };
+          
+          this.updateMessageInCache(messageId, updatedMessage);
         }
-        console.log('Message edited:', data);
+        
+        console.log('Message optimistically updated in cache');
+        
       } catch (e) {
         console.error('Error during message edition:', e);
       }
@@ -570,6 +623,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     async fetchAndPopulateReactions(messageId:string) {
+      console.log('Fetching reactions for message:', messageId);
       const { data: reactions, error } = await supabase
         .rpc('get_message_reactions', { message_id: messageId });
 
@@ -578,6 +632,7 @@ export const useChatStore = defineStore('chat', {
         return [];
       }
     
+      console.log('Fetched reactions data:', reactions);
       return reactions;
     },
 

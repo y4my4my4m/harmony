@@ -4,6 +4,7 @@
       There are no messages here, type something!
     </div>
     <div v-else v-for="(message, index) in messages" :key="message.id" :id="`message-${message.id}`" class="message-item" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+
       <!-- Gap indicator for jumped-to messages -->
       <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
         <div class="gap-line"></div>
@@ -96,22 +97,25 @@
         </div>
         
         <!-- Reactions -->
-        <div class="reactions" v-if="message.reactions && message.reactions.length > 0">
+        <div class="reactions" v-if="getValidReactions(message).length > 0">
           <div class="reactions-gutter"></div>
           <div class="reactions-container">
             <div
-              v-for="reaction in message.reactions"
-              :key="reaction.id"
+              v-for="reaction in getValidReactions(message)"
+              :key="reaction.id || `${reaction.emoji.id}-${reaction.count}`"
               class="reaction"
               @click="toggleReaction(message.id, reaction.emoji)"
               @mouseenter="showTooltip($event, reaction)"
               @mouseleave="hideTooltip"
-              :class="{'reacted': reaction.reactions.some(r => r.user_id === currentUserId)}"
+              :class="{'reacted': reaction.reactions && reaction.reactions.some(r => r.user_id === currentUserId)}"
             >
               <img 
+                v-if="reaction.emoji?.url"
                 :src="reaction.emoji.url" 
-                :alt="reaction.emoji.name"
+                :alt="reaction.emoji.name || 'emoji'"
+                @error="console.error('Failed to load emoji:', reaction.emoji)"
               />
+              <span v-else class="missing-emoji">?</span>
               <span class="reaction-count">{{ reaction.count }}</span>
             </div>
           </div>
@@ -258,8 +262,10 @@ export default defineComponent({
     };
 
     const hideTooltip = () => {
+      console.log('hideTooltip called, clearing timer and hiding tooltip');
       if (tooltipTimer.value) {
         clearTimeout(tooltipTimer.value);
+        tooltipTimer.value = null;
       }
       tooltip.value.visible = false;
     };
@@ -332,6 +338,46 @@ export default defineComponent({
       }
     }, { immediate: true, deep: true });
 
+    // Watch for reaction changes to hide tooltip when reactions become empty
+    watch(() => props.messages, (newMessages, oldMessages) => {
+      if (!newMessages || !oldMessages) return;
+      
+      console.log('Messages watcher triggered for reaction changes');
+      
+      // Check if any message had its reactions removed completely
+      newMessages.forEach((newMessage) => {
+        const oldMessage = oldMessages.find(old => old.id === newMessage.id);
+        if (oldMessage && oldMessage.reactions && oldMessage.reactions.length > 0) {
+          const newReactions = getValidReactions(newMessage);
+          console.log(`Message ${newMessage.id} reactions changed from ${oldMessage.reactions.length} to ${newReactions.length}`);
+          
+          if (newReactions.length === 0) {
+            // All reactions were removed, hide tooltip if it was showing
+            console.log('All reactions removed for message, hiding tooltip');
+            hideTooltip();
+          }
+        }
+      });
+    }, { deep: true });
+
+    // Additional watch specifically for reactions to ensure tooltip is hidden
+    watch(() => props.messages.map(msg => msg.reactions), (newReactions, oldReactions) => {
+      if (!newReactions || !oldReactions) return;
+      
+      // Check if any reactions array became empty
+      for (let i = 0; i < newReactions.length; i++) {
+        const newMsgReactions = newReactions[i];
+        const oldMsgReactions = oldReactions[i];
+        
+        if (oldMsgReactions && oldMsgReactions.length > 0 && 
+            (!newMsgReactions || newMsgReactions.length === 0)) {
+          console.log('Reactions array became empty, hiding tooltip');
+          hideTooltip();
+          break;
+        }
+      }
+    }, { deep: true });
+
     const isSingleEmojiMessage = computed(() => {
       if (!props.messages || !Array.isArray(props.messages)) {
         return [];
@@ -378,6 +424,14 @@ export default defineComponent({
     }
 
     const toggleReaction = (messageId: string, emoji: Emoji) => {
+      console.log('toggleReaction called for messageId:', messageId, 'emoji:', emoji.id);
+      
+      // Always hide tooltip when any reaction is toggled to prevent stale tooltips
+      if (tooltip.value.visible) {
+        console.log('Hiding tooltip due to reaction toggle');
+        hideTooltip();
+      }
+      
       emit('sendReaction', messageId, emoji);
     }
 
@@ -412,6 +466,8 @@ export default defineComponent({
 
     // Parse edited text back to structured content (reuse existing parsing logic)
     const parseEditedText = (text: string): MessagePart[] => {
+      console.log('parseEditedText called with text:', text);
+      
       const emojiRegex = /:([\w\d_+-]+):/g;
       const urlRegex = /(\bhttps?:\/\/\S+)/gi;
       const mentionRegex = /(@\w+@\w+\S+)/g;
@@ -472,6 +528,7 @@ export default defineComponent({
         }
       }
 
+      console.log('parseEditedText result:', result);
       return result;
     };
 
@@ -480,7 +537,7 @@ export default defineComponent({
       const resolvedEmojiList = serverChannelStore.resolvedEmojiList;
       for (const serverId in resolvedEmojiList) {
         const server = resolvedEmojiList[serverId];
-        const emoji = server.emojis.find(e => e.name === name);
+        const emoji = server.emojis.find((e: any) => e.name === name);
         if (emoji) {
           return emoji;
         }
@@ -515,26 +572,36 @@ export default defineComponent({
 
     // Enhanced saveEdit function
     const saveEdit = async (messageId: string, newContent?: string) => {
-      if (!editableMessageId.value) return;
+      console.log('saveEdit called with messageId:', messageId, 'newContent:', newContent, 'editableMessageId:', editableMessageId.value);
+      
+      if (!editableMessageId.value) {
+        console.log('No editable message ID, returning');
+        return;
+      }
 
       try {
         const textContent = newContent ?? editableMessageContent.value;
+        console.log('Using textContent:', textContent);
         
         // Don't save if content is empty
         if (!textContent.trim()) {
+          console.log('Content is empty, canceling edit');
           cancelEdit();
           return;
         }
 
         // Parse the edited text back to structured content
         const parsedContent = parseEditedText(textContent);
+        console.log('Parsed content:', parsedContent);
         
         // Update the message with structured content
+        console.log('Calling useChat.editMessage with messageId:', messageId, 'parsedContent:', parsedContent);
         await useChat.editMessage(messageId, parsedContent);
         
         // Reset edit state
         editableMessageId.value = null;
         editableMessageContent.value = '';
+        console.log('Edit state reset');
       } catch (error) {
         console.error('Error saving message edit:', error);
         // TODO: Show error message to user
@@ -808,6 +875,12 @@ export default defineComponent({
       return 'Loading...';
     };
 
+    // Computed property to filter reactions with valid emoji data
+    const getValidReactions = (message: Message) => {
+      if (!message.reactions) return [];
+      return message.reactions.filter(reaction => reaction.emoji && reaction.emoji.id);
+    };
+
     return { 
       getUserDisplayName, 
       getUserColor, 
@@ -854,6 +927,7 @@ export default defineComponent({
       handleReplyClick,
       canEditMessage,
       canDeleteMessage,
+      getValidReactions,
       getReplyUserDisplayName,
       getReplyUserColor,
       getReplyUserAvatar,
@@ -1133,6 +1207,19 @@ export default defineComponent({
 
 .reaction.reacted .reaction-count {
   color: hsl(235, 85.6%, 64.7%);
+}
+
+/* Missing emoji placeholder */
+.missing-emoji {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #40444b;
+  border-radius: 2px;
+  font-size: 12px;
+  color: #72767d;
 }
 
 /* Gap indicator */

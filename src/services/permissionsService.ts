@@ -27,8 +27,8 @@ export interface ServerSettings {
     allow_temporary: boolean
     max_uses_limit: number // 0 = no limit
   }
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface UserPermissions {
@@ -136,7 +136,6 @@ async function updateServerSettings(serverId: string, settings: Partial<ServerSe
       .upsert({
         server_id: serverId,
         ...settings,
-        updated_at: new Date().toISOString()
       })
 
     if (error) throw error
@@ -159,8 +158,6 @@ function getDefaultServerSettings(serverId: string): ServerSettings {
       allow_temporary: true,
       max_uses_limit: 0 // no limit
     },
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
   }
 }
 

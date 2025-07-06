@@ -289,8 +289,13 @@ export function useAutoSuggest(
 
       case 'Enter':
       case 'Tab':
-        // Don't handle Enter/Tab here - let MessageInput handle it
-        return false; // Let MessageInput handle the Enter key
+        event.preventDefault();
+        if (suggestions.value.length > 0 && state.value.selectedIndex >= 0) {
+          const selectedSuggestion = suggestions.value[state.value.selectedIndex];
+          selectSuggestion(selectedSuggestion);
+          return true;
+        }
+        return false;
 
       case 'Escape':
         event.preventDefault();

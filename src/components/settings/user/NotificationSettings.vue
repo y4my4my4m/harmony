@@ -678,8 +678,6 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 .permission-check {
   margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--h-chat-light);
 }
 
 .permission-btn {

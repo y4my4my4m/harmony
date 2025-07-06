@@ -529,8 +529,6 @@ export const useNotificationStore = defineStore('notification', {
             ...DEFAULT_PREFERENCES,
             id: crypto.randomUUID(),
             user_id: userId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
           }
           return
         }
@@ -539,8 +537,6 @@ export const useNotificationStore = defineStore('notification', {
           ...DEFAULT_PREFERENCES,
           id: crypto.randomUUID(),
           user_id: userId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
         }
 
         console.log('✅ Loaded notification preferences')
@@ -550,8 +546,6 @@ export const useNotificationStore = defineStore('notification', {
           ...DEFAULT_PREFERENCES,
           id: crypto.randomUUID(),
           user_id: userId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
         }
       }
     },
@@ -568,7 +562,6 @@ export const useNotificationStore = defineStore('notification', {
           .from('notification_preferences')
           .upsert({
             ...this.preferences,
-            updated_at: new Date().toISOString()
           })
 
         if (error) {
@@ -623,7 +616,7 @@ export const useNotificationStore = defineStore('notification', {
 
         const { error } = await supabase
           .from('notifications')
-          .update({ is_read: true, updated_at: new Date().toISOString() })
+          .update({ is_read: true })
           .eq('id', notificationId)
 
         if (error) {
@@ -764,13 +757,10 @@ export const useNotificationStore = defineStore('notification', {
             message: {
               id: 'test-message-1',
               content_preview: 'Check out this cool feature!',
-              created_at: new Date().toISOString()
             }
           },
           is_read: false,
           is_clicked: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           title: ''
         },
@@ -790,13 +780,10 @@ export const useNotificationStore = defineStore('notification', {
             message: {
               id: 'test-message-2',
               content_preview: 'Hey! How are you doing?',
-              created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString()
             }
           },
           is_read: false,
           is_clicked: false,
-          created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-          updated_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
           expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           title: ''
         }
