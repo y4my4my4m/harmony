@@ -3,14 +3,32 @@
     <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
-    <div v-else v-for="(message, index) in messages" :key="message.id" :id="`message-${message.id}`" class="message-item" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
-
-      <!-- Gap indicator for jumped-to messages -->
-      <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
-        <div class="gap-line"></div>
-        <div class="gap-text">Jump in conversation</div>
-        <div class="gap-line"></div>
+    <template v-else v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
+      <!-- Beginning of conversation indicator -->
+      <div v-if="shouldShowBeginningIndicator(message, index)" class="beginning-indicator">
+        <div class="beginning-content">
+          <div class="beginning-icon">🌟</div>
+          <div class="beginning-text">
+            <div class="beginning-title">This is the beginning of your conversation</div>
+            <div class="beginning-subtitle">Start chatting and make it memorable!</div>
+          </div>
+        </div>
       </div>
+
+      <!-- Date separator -->
+      <div v-if="shouldShowDateSeparator(message, index)" class="date-separator">
+        <div class="date-separator-line"></div>
+        <span class="date-separator-text">{{ formatDateSeparator(message.created_at) }}</span>
+        <div class="date-separator-line"></div>
+      </div>
+
+      <div :id="`message-${message.id}`" class="message-item" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+        <!-- Gap indicator for jumped-to messages -->
+        <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
+          <div class="gap-line"></div>
+          <div class="gap-text">Jump in conversation</div>
+          <div class="gap-line"></div>
+        </div>
       
       <!-- Reply reference -->
       <div v-if="message.reply_to" @click="handleReplyClick(message.reply_to)" class="reply-reference">
@@ -121,8 +139,10 @@
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </template>
   </div>
+  
   <vue-easy-lightbox
     class="lightbox"
     :visible="isLightboxOpen"
@@ -162,8 +182,6 @@
       <span>{{ user.displayName }}</span>
     </div>
   </div>
-
-
 </template>
 
 <script lang="ts">
@@ -174,7 +192,7 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel'; 
-import { format } from 'date-fns';
+import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue';
@@ -669,8 +687,47 @@ export default defineComponent({
     const getUserAvatar = (userId:string) => {
       return serverUsersStore.userProfiles[userId]?.avatar_url || '/default_avatar.png';
     };
-    const formatTimestamp = (timestamp:Date) => {
-      return format(new Date(timestamp), 'p'); // Formats to the user's locale time
+    const formatTimestamp = (timestamp: Date) => {
+      const date = new Date(timestamp);
+      if (!isValid(date)) return '';
+      
+      if (isToday(date)) {
+        return format(date, 'p'); // Time only for today
+      } else if (isYesterday(date)) {
+        return `Yesterday at ${format(date, 'p')}`;
+      } else {
+        return format(date, 'MMM d, yyyy \'at\' p'); // Full date and time for older messages
+      }
+    };
+
+    // Check if a date separator should be shown before this message
+    const shouldShowDateSeparator = (message: Message, index: number): boolean => {
+      if (index === 0) return false; // Don't show date separator for first message
+      
+      const currentDate = new Date(message.created_at);
+      const prevMessage = props.messages[index - 1];
+      const prevDate = new Date(prevMessage.created_at);
+      
+      return !isSameDay(currentDate, prevDate);
+    };
+
+    // Check if we should show the beginning of conversation indicator
+    const shouldShowBeginningIndicator = (message: Message, index: number): boolean => {
+      return index === 0; // Show only for the first message
+    };
+
+    // Format date for the separator display
+    const formatDateSeparator = (timestamp: Date): string => {
+      const date = new Date(timestamp);
+      if (!isValid(date)) return '';
+      
+      if (isToday(date)) {
+        return 'Today';
+      } else if (isYesterday(date)) {
+        return 'Yesterday';
+      } else {
+        return format(date, 'MMMM d, yyyy');
+      }
     };
 
     const isLightboxOpen = ref(false);
@@ -882,6 +939,9 @@ export default defineComponent({
       getUserAvatar,
       getUserIdFromMessage,
       formatTimestamp,
+      shouldShowDateSeparator,
+      shouldShowBeginningIndicator,
+      formatDateSeparator,
       closeLightbox,
       lightboxImages, 
       isLightboxOpen,
@@ -1073,7 +1133,6 @@ export default defineComponent({
   font-size: 0.75rem;
   color: #a3a6aa;
   font-weight: 400;
-  margin-left: 8px;
 }
 
 /* Compact message (no header) */
@@ -1238,6 +1297,74 @@ export default defineComponent({
   position: relative;
 }
 
+/* Date separator */
+.date-separator {
+  display: flex;
+  align-items: center;
+  margin: 24px 16px 16px 16px;
+  color: #72767d;
+  font-size: 0.875rem;
+  font-weight: 600;
+  /* text-transform: uppercase; */
+  letter-spacing: 0.02em;
+}
+
+.date-separator-line {
+  flex: 1;
+  height: 1px;
+  background-color: #40444b;
+}
+
+.date-separator-text {
+  padding: 0 16px;
+  /* background-color: #36393f; */
+  color: #b9bbbe;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Beginning of conversation indicator */
+.beginning-indicator {
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px 24px;
+  margin-bottom: 8px;
+}
+
+.beginning-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 480px;
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(114, 137, 218, 0.1) 0%, rgba(114, 137, 218, 0.05) 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(114, 137, 218, 0.2);
+}
+
+.beginning-icon {
+  font-size: 2rem;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.beginning-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.beginning-subtitle {
+  font-size: 0.875rem;
+  color: #b9bbbe;
+  line-height: 1.4;
+  opacity: 0.8;
+}
+
 /* Highlighted message */
 .highlighted {
   background-color: hsla(34, 100%, 50%, 0.1) !important;
@@ -1361,6 +1488,31 @@ export default defineComponent({
   
   .reactions-gutter {
     width: 44px;
+  }
+  
+  .date-separator {
+    margin: 20px 12px 12px 12px;
+  }
+  
+  .date-separator-text {
+    padding: 0 12px;
+  }
+  
+  .beginning-indicator {
+    padding: 24px 12px 16px;
+  }
+  
+  .beginning-content {
+    padding: 20px 16px;
+    max-width: 100%;
+  }
+  
+  .beginning-title {
+    font-size: 1rem;
+  }
+  
+  .beginning-subtitle {
+    font-size: 0.8125rem;
   }
 }
 
