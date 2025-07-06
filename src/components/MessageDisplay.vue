@@ -5,7 +5,7 @@
     </div>
     <template v-else v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
       <!-- Beginning of conversation indicator -->
-      <div v-if="shouldShowBeginningIndicator(message, index)" class="beginning-indicator">
+      <div v-if="index === 0 && hasScrollbar" class="beginning-indicator" :style="getIndicatorStyle()">
         <div class="beginning-content">
           <div class="beginning-icon">🌟</div>
           <div class="beginning-text">
@@ -435,7 +435,6 @@ export default defineComponent({
     const isAtTop = ref(false);
     const hasScrollbar = ref(false);
     const bufferDistance = ref(0);
-    const isShowingBuffer = ref(false);
 
     const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 
@@ -745,10 +744,27 @@ export default defineComponent({
       return !isSameDay(currentDate, prevDate);
     };
 
-    // Check if we should show the beginning of conversation indicator
-    const shouldShowBeginningIndicator = (message: Message, index: number): boolean => {
-      // Only show for the first message AND when buffer effect is triggered
-      return index === 0 && isShowingBuffer.value && hasScrollbar.value;
+    // Calculate the indicator's opacity and transform based on buffer distance
+    const getIndicatorStyle = () => {
+      if (!hasScrollbar.value || bufferDistance.value <= 0) {
+        return { 
+          opacity: 0, 
+          transform: 'translateY(-20px)',
+          pointerEvents: 'none' as 'none'
+        };
+      }
+      
+      // Calculate progress from 0 to 1 based on buffer distance
+      const progress = Math.min(bufferDistance.value / BUFFER_THRESHOLD, 1);
+      const opacity = progress;
+      const translateY = -20 + (progress * 20); // Start at -20px, end at 0px
+      
+      return {
+        opacity: opacity,
+        transform: `translateY(${translateY}px)`,
+        pointerEvents: progress > 0.5 ? ('auto' as 'auto') : ('none' as 'none'), // Enable interactions when mostly visible
+        transition: 'opacity 0.2s ease-out, transform 0.2s ease-out' // Add smooth CSS transition
+      };
     };
 
     // Format date for the separator display
@@ -798,7 +814,6 @@ export default defineComponent({
         // Reset buffer when not at top or no scrollbar
         if (!isCurrentlyAtTop || !hasScrollbar.value) {
           bufferDistance.value = 0;
-          isShowingBuffer.value = false;
         }
         
         if (scrollTop === 0) {
@@ -822,14 +837,11 @@ export default defineComponent({
         // Accumulate buffer distance
         bufferDistance.value += Math.abs(event.deltaY) * 0.5; // Dampen the effect
         
-        // Show indicator when buffer exceeds threshold
-        if (bufferDistance.value >= BUFFER_THRESHOLD) {
-          isShowingBuffer.value = true;
-        }
+        // Cap the buffer distance to prevent excessive accumulation
+        bufferDistance.value = Math.min(bufferDistance.value, BUFFER_THRESHOLD * 2);
       } else if (event.deltaY > 0) {
         // Reset when scrolling down
         bufferDistance.value = 0;
-        isShowingBuffer.value = false;
       }
     };
 
@@ -1011,7 +1023,7 @@ export default defineComponent({
       getUserIdFromMessage,
       formatTimestamp,
       shouldShowDateSeparator,
-      shouldShowBeginningIndicator,
+      getIndicatorStyle,
       formatDateSeparator,
       closeLightbox,
       lightboxImages, 
@@ -1025,7 +1037,6 @@ export default defineComponent({
       hoveredMessageId,
       isAtTop,
       hasScrollbar,
-      isShowingBuffer,
       checkScrollable,
       handleWheel,
       deleteMessage,
@@ -1406,9 +1417,8 @@ export default defineComponent({
   justify-content: center;
   padding: 32px 16px 24px;
   margin-bottom: 8px;
-  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
-  opacity: 1;
-  transform: translateY(0);
+  /* Remove default transitions since we handle them programmatically */
+  transition: none;
 }
 
 .beginning-content {
@@ -1427,7 +1437,6 @@ export default defineComponent({
 .beginning-content:hover {
   background: linear-gradient(135deg, rgba(114, 137, 218, 0.15) 0%, rgba(114, 137, 218, 0.08) 100%);
   border-color: rgba(114, 137, 218, 0.3);
-  transform: translateY(-2px);
 }
 
 .beginning-icon {
