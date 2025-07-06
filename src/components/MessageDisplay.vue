@@ -185,7 +185,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, computed, ref, watch, nextTick } from 'vue';
+import { defineComponent, computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { PropType, Ref } from 'vue';
 import type { Message, User, Emoji, Reaction, MessagePart, Profile } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -254,6 +254,23 @@ export default defineComponent({
     });
     const tooltipTimer: Ref<NodeJS.Timeout | null> = ref(null);
 
+    // Initialize scroll position tracking and event listeners
+    onMounted(() => {
+      if (messageDisplayContainer.value) {
+        isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
+        checkScrollable();
+        
+        // Add wheel event listener for buffer effect
+        messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
+      }
+    });
+
+    // Clean up event listeners
+    onUnmounted(() => {
+      if (messageDisplayContainer.value) {
+        messageDisplayContainer.value.removeEventListener('wheel', handleWheel);
+      }
+    });
 
     const showTooltip = (event: MouseEvent, reaction: Reaction) => {
       // Cancel any existing timer to prevent unwanted tooltip behavior
@@ -349,6 +366,10 @@ export default defineComponent({
             const newScrollHeight = messageDisplayContainer.value.scrollHeight;
             const scrollOffset = newScrollHeight - oldScrollHeight;
             messageDisplayContainer.value.scrollTop += scrollOffset;
+            
+            // Update isAtTop and check scrollability after scroll position changes
+            isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
+            checkScrollable();
           }
           // FIXME: manually call to scroll down to bottom, although we probably dont want if we've scrolled up
           handleScroll();
@@ -411,6 +432,19 @@ export default defineComponent({
     const editableMessageId = ref<string | null>(null);
     const editableMessageContent = ref('');
     const hoveredMessageId = ref<string | null>(null);
+    const isAtTop = ref(false);
+    const hasScrollbar = ref(false);
+    const bufferDistance = ref(0);
+    const isShowingBuffer = ref(false);
+
+    const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
+
+    // Check if content is scrollable and update scroll state
+    const checkScrollable = () => {
+      if (messageDisplayContainer.value) {
+        hasScrollbar.value = messageDisplayContainer.value.scrollHeight > messageDisplayContainer.value.clientHeight;
+      }
+    };
     
     const shouldShowHeader = (message: Message, index: number): boolean => {
       // Always show header for first message
@@ -713,7 +747,8 @@ export default defineComponent({
 
     // Check if we should show the beginning of conversation indicator
     const shouldShowBeginningIndicator = (message: Message, index: number): boolean => {
-      return index === 0; // Show only for the first message
+      // Only show for the first message AND when buffer effect is triggered
+      return index === 0 && isShowingBuffer.value && hasScrollbar.value;
     };
 
     // Format date for the separator display
@@ -752,6 +787,20 @@ export default defineComponent({
     const handleScroll = () => {
       if (messageDisplayContainer.value) {
         const { scrollTop } = messageDisplayContainer.value;
+        
+        // Check if content is scrollable
+        checkScrollable();
+        
+        // Update isAtTop reactive property
+        const isCurrentlyAtTop = scrollTop === 0;
+        isAtTop.value = isCurrentlyAtTop;
+        
+        // Reset buffer when not at top or no scrollbar
+        if (!isCurrentlyAtTop || !hasScrollbar.value) {
+          bufferDistance.value = 0;
+          isShowingBuffer.value = false;
+        }
+        
         if (scrollTop === 0) {
           // console.log('fetchMore!');
           emit('loadMoreMessages');
@@ -759,6 +808,28 @@ export default defineComponent({
 
         // Emit event instead of mutating the prop
         emit('update:isAtBottom', false);
+      }
+    };
+
+    // Handle wheel events to detect scroll attempts beyond top
+    const handleWheel = (event: WheelEvent) => {
+      if (!messageDisplayContainer.value || !hasScrollbar.value) return;
+      
+      // Only handle when at top and scrolling up
+      if (isAtTop.value && event.deltaY < 0) {
+        event.preventDefault();
+        
+        // Accumulate buffer distance
+        bufferDistance.value += Math.abs(event.deltaY) * 0.5; // Dampen the effect
+        
+        // Show indicator when buffer exceeds threshold
+        if (bufferDistance.value >= BUFFER_THRESHOLD) {
+          isShowingBuffer.value = true;
+        }
+      } else if (event.deltaY > 0) {
+        // Reset when scrolling down
+        bufferDistance.value = 0;
+        isShowingBuffer.value = false;
       }
     };
 
@@ -952,6 +1023,11 @@ export default defineComponent({
       messageDisplayContainer,
       handleScroll,
       hoveredMessageId,
+      isAtTop,
+      hasScrollbar,
+      isShowingBuffer,
+      checkScrollable,
+      handleWheel,
       deleteMessage,
       toggleReaction,
       startEdit,
@@ -1330,6 +1406,9 @@ export default defineComponent({
   justify-content: center;
   padding: 32px 16px 24px;
   margin-bottom: 8px;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .beginning-content {
@@ -1342,6 +1421,13 @@ export default defineComponent({
   background: linear-gradient(135deg, rgba(114, 137, 218, 0.1) 0%, rgba(114, 137, 218, 0.05) 100%);
   border-radius: 16px;
   border: 1px solid rgba(114, 137, 218, 0.2);
+  transition: all 0.3s ease-in-out;
+}
+
+.beginning-content:hover {
+  background: linear-gradient(135deg, rgba(114, 137, 218, 0.15) 0%, rgba(114, 137, 218, 0.08) 100%);
+  border-color: rgba(114, 137, 218, 0.3);
+  transform: translateY(-2px);
 }
 
 .beginning-icon {

@@ -74,7 +74,6 @@
           <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
           </svg>
-          <span class="status-indicator online"></span>
           <span class="group-title">Online — {{ groupedUsers.online.length }}</span>
         </button>
         <div v-if="!collapsedGroups.online" class="user-list">
@@ -108,7 +107,6 @@
           <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
           </svg>
-          <span class="status-indicator away"></span>
           <span class="group-title">Away — {{ groupedUsers.away.length }}</span>
         </button>
         <div v-if="!collapsedGroups.away" class="user-list">
@@ -142,7 +140,6 @@
           <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
           </svg>
-          <span class="status-indicator busy"></span>
           <span class="group-title">Busy — {{ groupedUsers.busy.length }}</span>
         </button>
         <div v-if="!collapsedGroups.busy" class="user-list">
@@ -176,7 +173,6 @@
           <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
           </svg>
-          <span class="status-indicator offline"></span>
           <span class="group-title">Offline — {{ groupedUsers.offline.length }}</span>
         </button>
         <div v-if="!collapsedGroups.offline" class="user-list">
