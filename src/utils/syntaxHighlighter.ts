@@ -54,7 +54,7 @@ const LANGUAGES: Record<string, {
 
 export function highlightSyntax(code: string, language: string = 'text'): SyntaxToken[] {
   if (!LANGUAGES[language]) {
-    return [{ type: 'text', content: code, className: 'syntax-text' }];
+    return [{ type: 'text', content: code, className: '' }];
   }
 
   const tokens: SyntaxToken[] = [];
@@ -71,7 +71,7 @@ export function highlightSyntax(code: string, language: string = 'text'): Syntax
         const commentEnd = remaining.indexOf(lang.multiLineComment.end, lang.multiLineComment.start.length);
         if (commentEnd !== -1) {
           const comment = remaining.substring(0, commentEnd + lang.multiLineComment.end.length);
-          tokens.push({ type: 'comment', content: comment, className: 'syntax-comment' });
+          tokens.push({ type: 'comment', content: comment, className: 'token comment' });
           remaining = remaining.substring(comment.length);
           matched = true;
           continue;
@@ -83,7 +83,7 @@ export function highlightSyntax(code: string, language: string = 'text'): Syntax
     if (lang.singleLineComment && remaining.startsWith(lang.singleLineComment)) {
       const lineEnd = remaining.indexOf('\n');
       const comment = lineEnd === -1 ? remaining : remaining.substring(0, lineEnd);
-      tokens.push({ type: 'comment', content: comment, className: 'syntax-comment' });
+      tokens.push({ type: 'comment', content: comment, className: 'token comment' });
       remaining = remaining.substring(comment.length);
       matched = true;
       continue;
@@ -109,7 +109,7 @@ export function highlightSyntax(code: string, language: string = 'text'): Syntax
         }
         
         const string = remaining.substring(0, stringEnd);
-        tokens.push({ type: 'string', content: string, className: 'syntax-string' });
+        tokens.push({ type: 'string', content: string, className: 'token string' });
         remaining = remaining.substring(stringEnd);
         matched = true;
         break;
@@ -121,7 +121,7 @@ export function highlightSyntax(code: string, language: string = 'text'): Syntax
     // Check for numbers
     const numberMatch = remaining.match(/^(\d+\.?\d*|\.\d+)/);
     if (numberMatch) {
-      tokens.push({ type: 'number', content: numberMatch[0], className: 'syntax-number' });
+      tokens.push({ type: 'number', content: numberMatch[0], className: 'token number' });
       remaining = remaining.substring(numberMatch[0].length);
       matched = true;
       continue;
@@ -132,14 +132,14 @@ export function highlightSyntax(code: string, language: string = 'text'): Syntax
     if (wordMatch) {
       const word = wordMatch[0];
       if (lang.keywords.includes(word)) {
-        tokens.push({ type: 'keyword', content: word, className: 'syntax-keyword' });
+        tokens.push({ type: 'keyword', content: word, className: 'token keyword' });
       } else {
         // Check if it looks like a function call
         const nextChar = remaining[word.length];
         if (nextChar === '(') {
-          tokens.push({ type: 'function', content: word, className: 'syntax-function' });
+          tokens.push({ type: 'function', content: word, className: 'token function' });
         } else {
-          tokens.push({ type: 'variable', content: word, className: 'syntax-variable' });
+          tokens.push({ type: 'variable', content: word, className: 'token variable' });
         }
       }
       remaining = remaining.substring(word.length);
@@ -150,7 +150,7 @@ export function highlightSyntax(code: string, language: string = 'text'): Syntax
     // Check for operators
     for (const op of lang.operators.sort((a, b) => b.length - a.length)) {
       if (remaining.startsWith(op)) {
-        tokens.push({ type: 'operator', content: op, className: 'syntax-operator' });
+        tokens.push({ type: 'operator', content: op, className: 'token operator' });
         remaining = remaining.substring(op.length);
         matched = true;
         break;
@@ -162,7 +162,7 @@ export function highlightSyntax(code: string, language: string = 'text'): Syntax
     // Check for punctuation
     const punctuationMatch = remaining.match(/^[{}[\]();,.:]/);
     if (punctuationMatch) {
-      tokens.push({ type: 'punctuation', content: punctuationMatch[0], className: 'syntax-punctuation' });
+      tokens.push({ type: 'punctuation', content: punctuationMatch[0], className: 'token punctuation' });
       remaining = remaining.substring(1);
       matched = true;
       continue;
@@ -170,7 +170,7 @@ export function highlightSyntax(code: string, language: string = 'text'): Syntax
 
     // Default: add single character as text
     const char = remaining[0];
-    tokens.push({ type: 'text', content: char, className: 'syntax-text' });
+    tokens.push({ type: 'text', content: char, className: '' });
     remaining = remaining.substring(1);
   }
 

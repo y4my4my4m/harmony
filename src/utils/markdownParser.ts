@@ -225,43 +225,67 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
   
   // Store all matches with their positions
   interface Match {
-    type: keyof typeof PATTERNS;
+    type: keyof typeof PATTERNS | 'incomplete_codeblock';
     match: RegExpMatchArray;
     start: number;
     end: number;
     content: string;
     language?: string;
     raw: string;
+    isIncomplete?: boolean;
   }
 
   const findAllMatches = (text: string): Match[] => {
     const matches: Match[] = [];
 
-    // Code blocks first (they take precedence)
-    const codeblockPattern = /```(\w+)?\n?([\s\S]*?)```/g;
-    let match;
-    while ((match = codeblockPattern.exec(text)) !== null) {
+    // Handle code blocks first (they take precedence)
+    // Complete code blocks
+    const completeCodeblockPattern = /```(\w+)?\n?([\s\S]*?)```/g;
+    let match: RegExpMatchArray | null;
+    while ((match = completeCodeblockPattern.exec(text)) !== null) {
       matches.push({
         type: 'codeblock',
         match,
-        start: match.index,
-        end: match.index + match[0].length,
+        start: match.index!,
+        end: match.index! + match[0].length,
         content: match[2] || '',
         language: match[1] || '',
-        raw: match[0]
+        raw: match[0],
+        isIncomplete: false
       });
     }
+    completeCodeblockPattern.lastIndex = 0;
 
-    // Reset regex
-    codeblockPattern.lastIndex = 0;
+    // Incomplete code blocks (starting with ``` but not closed)
+    const incompleteCodeblockPattern = /```(\w+)?(?:\n([\s\S]*))?$/g;
+    while ((match = incompleteCodeblockPattern.exec(text)) !== null) {
+      // Check if this position is already covered by a complete code block
+      const isAlreadyCovered = matches.some(existingMatch => 
+        match!.index! >= existingMatch.start && match!.index! < existingMatch.end
+      );
+      
+      if (!isAlreadyCovered) {
+        matches.push({
+          type: 'incomplete_codeblock',
+          match,
+          start: match.index!,
+          end: match.index! + match[0].length,
+          content: match[2] || '',
+          language: match[1] || '',
+          raw: match[0],
+          isIncomplete: true
+        });
+      }
+    }
+    incompleteCodeblockPattern.lastIndex = 0;
 
     // Other patterns (skip areas inside code blocks)
     const otherPatterns = {
-      code: /`([^`]+)`/g,
-      bold: /\*\*([^*]+)\*\*/g,
-      italic: /(?<!\*)\*([^*]+)\*(?!\*)/g, // Avoid conflicts with bold
-      underline: /__([^_]+)__/g,
-      strikethrough: /~~([^~]+)~~/g,
+      code: /`([^`\n]+)`/g, // Don't allow newlines in inline code
+      bold: /\*\*([^*\n]+)\*\*/g, // Don't allow newlines in formatting
+      italic: /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
+      underline: /__([^_\n]+)__/g,
+      strikethrough: /~~([^~\n]+)~~/g,
       emoji: /:([a-zA-Z0-9_+-]+):/g
     };
 
@@ -271,9 +295,10 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
         const start = match.index;
         const end = match.index + match[0].length;
         
-        // Check if this match is inside a code block
+        // Check if this match is inside any code block
         const insideCodeBlock = matches.some(codeMatch => 
-          codeMatch.type === 'codeblock' && start >= codeMatch.start && end <= codeMatch.end
+          (codeMatch.type === 'codeblock' || codeMatch.type === 'incomplete_codeblock') && 
+          start >= codeMatch.start && end <= codeMatch.end
         );
         
         if (!insideCodeBlock) {
@@ -290,14 +315,29 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
       pattern.lastIndex = 0;
     });
 
-    // Sort by start position
-    return matches.sort((a, b) => a.start - b.start);
+    // Sort by start position, longer matches first for overlaps
+    return matches.sort((a, b) => {
+      if (a.start !== b.start) return a.start - b.start;
+      return (b.end - b.start) - (a.end - a.start);
+    });
   };
 
   const matches = findAllMatches(text);
   let lastIndex = 0;
 
-  matches.forEach(match => {
+  // Remove overlapping matches (keep the first/longest at each position)
+  const filteredMatches: Match[] = [];
+  for (const match of matches) {
+    if (match.start >= lastIndex) {
+      filteredMatches.push(match);
+      lastIndex = match.end;
+    }
+  }
+
+  // Reset lastIndex for token creation
+  lastIndex = 0;
+
+  filteredMatches.forEach(match => {
     // Add text before this match
     if (match.start > lastIndex) {
       const textContent = text.slice(lastIndex, match.start);
@@ -310,12 +350,20 @@ export function parseMarkdownWithMarkers(text: string): MarkdownToken[] {
     }
 
     // Add the matched token
-    tokens.push({
-      type: match.type as MarkdownToken['type'],
-      content: match.content,
-      language: match.language,
-      raw: match.raw
-    });
+    if (match.type === 'incomplete_codeblock') {
+      // Render incomplete code blocks as text with visible markers
+      tokens.push({
+        type: 'text',
+        content: match.raw
+      });
+    } else {
+      tokens.push({
+        type: match.type as MarkdownToken['type'],
+        content: match.content,
+        language: match.language,
+        raw: match.raw
+      });
+    }
 
     lastIndex = match.end;
   });

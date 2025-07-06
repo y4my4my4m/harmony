@@ -23,22 +23,8 @@
             <div class="replyUsername" aria-expanded="false" role="button" tabindex="0" :style="{ color: getReplyUserColor(message.reply_to) }">{{ getReplyUserDisplayName(message.reply_to) }}</div>
             <div class="repliedTextPreview" role="button" tabindex="0">
               <div id="message-content" class="repliedTextContent">
-                <!-- TODO: need to fetch if message is too far back -->
-                <span>
-                  <MessageContent 
-                    :content="getReplyMessageContent(message.reply_to)"
-                    :message-id="message.reply_to || 'TODO: FETCH IF NOT FOUND'"
-                    :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-                    :image-loaded="imageLoaded"
-                    :reply="true"
-                    @image-loaded="handleImageLoaded"
-                    @open-lightbox="handleOpenLightbox"
-                    @update:message="saveEdit"
-                    @update:content="editableMessageContent = $event"
-                    @cancel-edit="cancelEdit"
-                    @show-user-profile="showUserProfile"
-                  />
-                </span>
+                <!-- Show plain text preview for replies -->
+                <span>{{ getReplyMessagePreview(message.reply_to) }}</span>
               </div>
             </div>
           </div>
@@ -57,12 +43,20 @@
               </strong>
               <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
             </span>
+            <MarkdownContent 
+              :content="messagePartsToMarkdown(message.content)"
+              :single-line="false"
+              :is-reply-preview="false"
+              v-if="editableMessageId !== message.id"
+            />
+            <!-- Keep MessageContent only for editing mode -->
             <MessageContent 
+              v-else
               :content="message.content"
               :message-id="message.id"
               :editableMessageId="editableMessageId"
               :editableMessageContent="editableMessageContent"
-              :isSingleEmojiMessage="isSingleEmojiMessage[index]"
+              :isSingleEmojiMessage="checkSingleEmoji(message.content)"
               :image-loaded="imageLoaded"
               :reply="false"
               @image-loaded="handleImageLoaded"
@@ -75,22 +69,31 @@
           </div>
         </div>
       </template>
-      <MessageContent 
-        v-else
-        :content="message.content"
-        :message-id="message.id"
-        :editableMessageId="editableMessageId"
-        :editableMessageContent="editableMessageContent"
-        :isSingleEmojiMessage="isSingleEmojiMessage[index]"
-        :image-loaded="imageLoaded"
-        :reply="false"
-        @image-loaded="handleImageLoaded"
-        @open-lightbox="handleOpenLightbox"
-        @update:message="saveEdit"
-        @update:content="editableMessageContent = $event"
-        @cancel-edit="cancelEdit"
-        @show-user-profile="showUserProfile"
-      />
+      <template v-if="editableMessageId !== message.id">
+        <MarkdownContent 
+          :content="messagePartsToMarkdown(message.content)"
+          :single-line="false"
+          :is-reply-preview="false"
+        />
+      </template>
+      <template v-else>
+        <!-- Keep MessageContent only for editing mode -->
+        <MessageContent 
+          :content="message.content"
+          :message-id="message.id"
+          :editableMessageId="editableMessageId"
+          :editableMessageContent="editableMessageContent"
+          :isSingleEmojiMessage="checkSingleEmoji(message.content)"
+          :image-loaded="imageLoaded"
+          :reply="false"
+          @image-loaded="handleImageLoaded"
+          @open-lightbox="handleOpenLightbox"
+          @update:message="saveEdit"
+          @update:content="editableMessageContent = $event"
+          @cancel-edit="cancelEdit"
+          @show-user-profile="showUserProfile"
+        />
+      </template>
       <div class="message-actions" v-if="hoveredMessageId === message.id">
         <div class="btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
         <div class="btn" @click="replyTo(message)"><ReplyIcon/></div>
@@ -137,8 +140,8 @@
   <!-- Invite Modal -->
   <InviteModal 
     :show="showInviteModal" 
-    :server-id="serverChannelStore.currentServerId"
-    :server-data="currentServerData"
+    :server-id="serverChannelStore.currentServerId || undefined"
+    :server-data="currentServerData || undefined"
     @close="closeInviteModal"
   />
 
@@ -173,12 +176,14 @@ import { format } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
 import MessageContent from '@/components/MessageContent.vue';
+import MarkdownContent from '@/components/MarkdownContent.vue';
 import ReactionIcon from '@/components/icons/Reaction.vue';
 import ReplyIcon from '@/components/icons/Reply.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
 
 export default defineComponent({
   props: {
@@ -206,6 +211,7 @@ export default defineComponent({
     DeleteIcon,
     MoreIcon,
     MessageContent,
+    MarkdownContent,
     Avatar
   },
   setup(props, { emit }) {
@@ -568,7 +574,7 @@ export default defineComponent({
       return {
         id: serverId,
         name: currentServer?.name || 'Unknown Server',
-        icon_url: currentServer?.icon_url,
+        icon_url: currentServer?.icon || '',
         member_count: Object.keys(serverUsersStore.userProfiles).length
       };
     });
@@ -766,6 +772,27 @@ export default defineComponent({
       }
     };
 
+    // Get reply message preview as plain text
+    const getReplyMessagePreview = (replyMessageId: string) => {
+      // First check if message is in current messages
+      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
+      if (currentMessage) {
+        return messagePartsToPlainText(currentMessage.content);
+      }
+
+      // Check if message is in reply cache
+      const cachedMessage = replyMessages.value[replyMessageId];
+      if (cachedMessage) {
+        return messagePartsToPlainText(cachedMessage.content);
+      }
+
+      // Fetch the message if not found
+      fetchReplyMessageIfNeeded(replyMessageId);
+      
+      // Return loading text while fetching
+      return 'Loading...';
+    };
+
     return { 
       getUserDisplayName, 
       getUserColor, 
@@ -807,6 +834,7 @@ export default defineComponent({
       hideTooltip,
       // Add missing functions to return
       getReplyMessageContent,
+      getReplyMessagePreview,
       handleReplyClick,
       canEditMessage,
       canDeleteMessage,
@@ -817,6 +845,10 @@ export default defineComponent({
       parseEditedText,
       findEmojiByName,
       chatStore: useChat, // Expose chat store for template
+      // Add utility functions
+      messagePartsToMarkdown,
+      messagePartsToPlainText,
+      checkSingleEmoji,
     };
   }
 });

@@ -131,18 +131,8 @@ const getPlainText = (): string => {
         }
       } else if (el.tagName === 'BR') {
         text += '\n';
-      } else if (el.tagName === 'DIV' && el.classList.contains('editor-line')) {
-        // Add newline if not the first line
-        if (text && !text.endsWith('\n')) {
-          text += '\n';
-        }
-        // Process children
-        for (const child of Array.from(node.childNodes)) {
-          processNode(child);
-        }
-        return; // Don't process children again
       } else {
-        // For styled spans, just get their text content (includes markers)
+        // For other elements, process their children
         for (const child of Array.from(node.childNodes)) {
           processNode(child);
         }
@@ -316,29 +306,35 @@ const renderContent = (text: string) => {
     return;
   }
   
-  // Split into lines to handle properly
-  const lines = text.split('\n');
+  // Parse the entire text (not line-by-line to handle multiline tokens like code blocks)
+  const tokens = parseMarkdownWithMarkers(text);
   const fragment = document.createDocumentFragment();
   
-  lines.forEach((line) => {
-    const lineDiv = document.createElement('div');
-    lineDiv.className = 'editor-line';
-    
-    if (line.trim() === '') {
-      // Empty line - add a BR to maintain height
-      lineDiv.appendChild(document.createElement('br'));
-    } else {
-      // Parse markdown tokens for this line
-      const tokens = parseMarkdownWithMarkers(line);
-      
-      tokens.forEach(token => {
-        const element = createElementFromToken(token);
-        lineDiv.appendChild(element);
+  // Process tokens and handle newlines properly
+  tokens.forEach(token => {
+    if (token.type === 'text') {
+      // Handle text with potential newlines
+      const lines = token.content.split('\n');
+      lines.forEach((line, index) => {
+        if (line) {
+          fragment.appendChild(document.createTextNode(line));
+        }
+        // Add line break for all newlines except the last one if it's empty
+        if (index < lines.length - 1) {
+          fragment.appendChild(document.createElement('br'));
+        }
       });
+    } else {
+      // For formatted tokens, handle newlines within them too
+      const element = createElementFromToken(token);
+      fragment.appendChild(element);
     }
-    
-    fragment.appendChild(lineDiv);
   });
+  
+  // If the fragment is empty, add a single BR to maintain the editor height
+  if (!fragment.hasChildNodes()) {
+    fragment.appendChild(document.createElement('br'));
+  }
   
   editorRef.value.appendChild(fragment);
   
@@ -361,35 +357,110 @@ const createElementFromToken = (token: MarkdownToken): Node => {
     case 'bold': {
       const span = document.createElement('span');
       span.className = 'editor-bold-wrapper';
-      span.innerHTML = `<span class="editor-marker">**</span><span class="editor-bold-content">${escapeHtml(token.content)}</span><span class="editor-marker">**</span>`;
+      
+      const startMarker = document.createElement('span');
+      startMarker.className = 'editor-marker';
+      startMarker.textContent = '**';
+      
+      const content = document.createElement('span');
+      content.className = 'editor-bold-content';
+      content.textContent = token.content;
+      
+      const endMarker = document.createElement('span');
+      endMarker.className = 'editor-marker';
+      endMarker.textContent = '**';
+      
+      span.appendChild(startMarker);
+      span.appendChild(content);
+      span.appendChild(endMarker);
       return span;
     }
     
     case 'italic': {
       const span = document.createElement('span');
       span.className = 'editor-italic-wrapper';
-      span.innerHTML = `<span class="editor-marker">*</span><span class="editor-italic-content">${escapeHtml(token.content)}</span><span class="editor-marker">*</span>`;
+      
+      const startMarker = document.createElement('span');
+      startMarker.className = 'editor-marker';
+      startMarker.textContent = '*';
+      
+      const content = document.createElement('span');
+      content.className = 'editor-italic-content';
+      content.textContent = token.content;
+      
+      const endMarker = document.createElement('span');
+      endMarker.className = 'editor-marker';
+      endMarker.textContent = '*';
+      
+      span.appendChild(startMarker);
+      span.appendChild(content);
+      span.appendChild(endMarker);
       return span;
     }
     
     case 'underline': {
       const span = document.createElement('span');
       span.className = 'editor-underline-wrapper';
-      span.innerHTML = `<span class="editor-marker">__</span><span class="editor-underline-content">${escapeHtml(token.content)}</span><span class="editor-marker">__</span>`;
+      
+      const startMarker = document.createElement('span');
+      startMarker.className = 'editor-marker';
+      startMarker.textContent = '__';
+      
+      const content = document.createElement('span');
+      content.className = 'editor-underline-content';
+      content.textContent = token.content;
+      
+      const endMarker = document.createElement('span');
+      endMarker.className = 'editor-marker';
+      endMarker.textContent = '__';
+      
+      span.appendChild(startMarker);
+      span.appendChild(content);
+      span.appendChild(endMarker);
       return span;
     }
     
     case 'strikethrough': {
       const span = document.createElement('span');
       span.className = 'editor-strikethrough-wrapper';
-      span.innerHTML = `<span class="editor-marker">~~</span><span class="editor-strikethrough-content">${escapeHtml(token.content)}</span><span class="editor-marker">~~</span>`;
+      
+      const startMarker = document.createElement('span');
+      startMarker.className = 'editor-marker';
+      startMarker.textContent = '~~';
+      
+      const content = document.createElement('span');
+      content.className = 'editor-strikethrough-content';
+      content.textContent = token.content;
+      
+      const endMarker = document.createElement('span');
+      endMarker.className = 'editor-marker';
+      endMarker.textContent = '~~';
+      
+      span.appendChild(startMarker);
+      span.appendChild(content);
+      span.appendChild(endMarker);
       return span;
     }
     
     case 'code': {
       const span = document.createElement('span');
       span.className = 'editor-code-wrapper';
-      span.innerHTML = `<span class="editor-marker">\`</span><span class="editor-code-content">${escapeHtml(token.content)}</span><span class="editor-marker">\`</span>`;
+      
+      const startMarker = document.createElement('span');
+      startMarker.className = 'editor-marker';
+      startMarker.textContent = '`';
+      
+      const content = document.createElement('span');
+      content.className = 'editor-code-content';
+      content.textContent = token.content;
+      
+      const endMarker = document.createElement('span');
+      endMarker.className = 'editor-marker';
+      endMarker.textContent = '`';
+      
+      span.appendChild(startMarker);
+      span.appendChild(content);
+      span.appendChild(endMarker);
       return span;
     }
     
@@ -397,25 +468,52 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       const div = document.createElement('div');
       div.className = 'editor-codeblock-wrapper';
       
+      // Start marker (```language)
       const startMarker = document.createElement('div');
       startMarker.className = 'editor-codeblock-start';
-      startMarker.innerHTML = `<span class="editor-marker">\`\`\`${token.language || ''}</span>`;
       
+      const startMarkerContent = document.createElement('span');
+      startMarkerContent.className = 'editor-marker';
+      startMarkerContent.textContent = '```' + (token.language || '');
+      startMarker.appendChild(startMarkerContent);
+      
+      // Content with syntax highlighting
       const content = document.createElement('div');
       content.className = 'editor-codeblock-content';
       
-      // Apply syntax highlighting
+      // Apply syntax highlighting and preserve newlines
       const tokens = highlightSyntax(token.content, token.language);
       tokens.forEach(syntaxToken => {
-        const span = document.createElement('span');
-        span.className = syntaxToken.className;
-        span.textContent = syntaxToken.content;
-        content.appendChild(span);
+        if (syntaxToken.content.includes('\n')) {
+          // Handle newlines in syntax tokens
+          const lines = syntaxToken.content.split('\n');
+          lines.forEach((line, index) => {
+            if (line) {
+              const span = document.createElement('span');
+              span.className = syntaxToken.className;
+              span.textContent = line;
+              content.appendChild(span);
+            }
+            if (index < lines.length - 1) {
+              content.appendChild(document.createElement('br'));
+            }
+          });
+        } else {
+          const span = document.createElement('span');
+          span.className = syntaxToken.className;
+          span.textContent = syntaxToken.content;
+          content.appendChild(span);
+        }
       });
       
+      // End marker
       const endMarker = document.createElement('div');
       endMarker.className = 'editor-codeblock-end';
-      endMarker.innerHTML = '<span class="editor-marker">```</span>';
+      
+      const endMarkerContent = document.createElement('span');
+      endMarkerContent.className = 'editor-marker';
+      endMarkerContent.textContent = '```';
+      endMarker.appendChild(endMarkerContent);
       
       div.appendChild(startMarker);
       div.appendChild(content);
@@ -447,13 +545,6 @@ const createElementFromToken = (token: MarkdownToken): Node => {
     default:
       return document.createTextNode(token.content);
   }
-};
-
-// Escape HTML to prevent XSS
-const escapeHtml = (text: string): string => {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 };
 
 // Handle input events
@@ -617,15 +708,6 @@ onMounted(() => {
   color: #72767d;
   pointer-events: none;
   position: absolute;
-}
-
-.editor-line {
-  margin: 0;
-  min-height: 1.375em;
-}
-
-.editor-line:empty {
-  min-height: 1.375em;
 }
 
 /* Markdown markers styling */
