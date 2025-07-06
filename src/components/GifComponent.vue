@@ -16,27 +16,34 @@
     </div>
 </template>
 
-<script lang="ts">
-  import { defineComponent, ref, watch, onMounted, onUnmounted } from 'vue';
-  import type { PropType } from 'vue';
+<script setup lang="ts">
+  import { ref, watch, onMounted, onUnmounted } from 'vue';
   import type { Gif } from '@/types'
 
-  export default defineComponent({
-    name: 'GifComponent',
-    props: {
-        closeGiphy: Function as PropType<() => void>,
-        gifIconClicked: Boolean
-    },
-    emits: ['sendGif', 'resetGifIconClicked'],
-    setup(props, { emit }) {
-        const searchQuery = ref('');
-        const gifs = ref<Gif[]>([]);
-        const hoveredGif = ref<string | null>(null);
-        const giphy = ref<HTMLElement | null>(null);
+  interface Props {
+    closeGiphy?: () => void;
+    gifIconClicked?: boolean;
+  }
 
-        const getImageSource = (gif: Gif) => {
-            return hoveredGif.value === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url;
-        };
+  const props = withDefaults(defineProps<Props>(), {
+    gifIconClicked: false,
+  });
+
+  interface Emits {
+    (e: 'sendGif', gif: Gif): void;
+    (e: 'resetGifIconClicked'): void;
+  }
+
+  const emit = defineEmits<Emits>();
+
+  const searchQuery = ref('');
+  const gifs = ref<Gif[]>([]);
+  const hoveredGif = ref<string | null>(null);
+  const giphy = ref<HTMLElement | null>(null);
+
+  const getImageSource = (gif: Gif) => {
+      return hoveredGif.value === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url;
+  };
 
         const fetchTrendingGifs = async () => {
             try {
@@ -106,19 +113,6 @@
         const selectGif = (gif: Gif) => {
             emit('sendGif', gif);
         };
-
-        return { 
-            searchQuery, 
-            gifs, 
-            hoveredGif,
-            getImageSource,
-            searchGifs, 
-            selectGif,
-            giphy,
-        };
-    }
-    });
-
 </script>
 <style scoped>
     .giphy-search {

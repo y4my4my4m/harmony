@@ -67,7 +67,7 @@
           <UnifiedVoiceUserCard
             :user-state="featuredSpeaker"
             :user-profile="voiceStore.getUserProfile(featuredSpeaker.userId)"
-            :user-stream="voiceStore.getUserStream(featuredSpeaker.userId)"
+            :user-stream="voiceStore.getUserStream(featuredSpeaker.userId) || undefined"
             :is-self="featuredSpeaker.userId === voiceStore.localState.userId"
             :connection-state="getConnectionState(featuredSpeaker.userId)"
             @toggle-video="voiceStore.toggleVideo"
@@ -89,7 +89,7 @@
               :key="participant.userId"
               :user-state="participant"
               :user-profile="voiceStore.getUserProfile(participant.userId)"
-              :user-stream="voiceStore.getUserStream(participant.userId)"
+              :user-stream="voiceStore.getUserStream(participant.userId) || undefined"
               :is-self="participant.userId === voiceStore.localState.userId"
               :connection-state="getConnectionState(participant.userId)"
               @toggle-video="voiceStore.toggleVideo"
@@ -292,11 +292,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
         document.removeEventListener('keydown', handleKeyPress);
       });
     });
-    
-    return {
-      voiceStore,
-      isEntering,
-      isLeaving,
 </script>
 
 <style scoped>

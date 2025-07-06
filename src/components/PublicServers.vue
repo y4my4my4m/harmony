@@ -128,8 +128,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, ref, onMounted, watch } from 'vue'
+<script setup lang="ts">
+import { ref, onMounted, watch } from 'vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useServerUsersStore } from '@/stores/useServerUsers'
 import { useServerStore } from '@/stores/server'
@@ -141,13 +141,13 @@ import CreateServerForm from './CreateServer.vue'
 import type { Server } from '@/types'
 import { useToast } from 'vue-toastification'
 
-export default defineComponent({
-  name: 'PublicServers',
-  components: {
-    CreateServerForm,
-  },
-  setup(_, { emit }) {
-    const serverChannelStore = useServerChannelStore()
+interface Emits {
+  (e: 'show-public-servers', show: boolean): void;
+}
+
+const emit = defineEmits<Emits>();
+
+const serverChannelStore = useServerChannelStore()
     const serverUsersStore = useServerUsersStore()
     const serverStore = useServerStore()
     const authStore = useAuthStore()
@@ -246,21 +246,6 @@ export default defineComponent({
         )
       }
     })
-
-    return { 
-      showCreateServerForm,
-      searchQuery,
-      publicServers,
-      isLoading,
-      closePublicServers,
-      getUserDisplayName,
-      getUserAvatar,
-      alreadyJoined,
-      joinServer,
-      leaveServer,
-    }
-  },
-})
 </script>
 
 <style scoped>
