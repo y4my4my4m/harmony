@@ -175,7 +175,7 @@ import { defineComponent, watch, ref, nextTick } from 'vue';
 import type { PropType } from 'vue';
 import type { MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
-import CodeBlock from '@/components/CodeBlock.vue';
+import CodeBlock from '@/components/common/CodeBlock.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 
@@ -253,12 +253,15 @@ export default defineComponent({
       const codeBlocks: Array<{id: string; code: string; language: string}> = [];
       
       // Extract code blocks first and replace with placeholders
-      rendered = rendered.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, language, code) => {
+      // Updated regex to handle code blocks with or without newlines and with optional language
+      rendered = rendered.replace(/```(\w+)?(?:\n)?([\s\S]*?)```/g, (match, language, code) => {
         const lang = language || 'text';
-        const blockId = `__CODEBLOCK_${codeBlocks.length}__`;
+        const blockId = `\uE000CODEBLOCK_${codeBlocks.length}\uE001`;
+        // Clean up the code content more thoroughly
+        const cleanCode = code.replace(/^\n+/, '').replace(/\n+$/, '');
         codeBlocks.push({
           id: blockId,
-          code: code.trim(),
+          code: cleanCode,
           language: lang
         });
         return blockId;
@@ -301,21 +304,28 @@ export default defineComponent({
       
       // Split the rendered text by code block placeholders and interleave with code blocks
       let remainingText = renderedText;
+      
       codeBlocks.forEach((codeBlock) => {
         const placeholder = codeBlock.id;
-        const parts = remainingText.split(placeholder, 2);
+        const placeholderIndex = remainingText.indexOf(placeholder);
         
-        if (parts[0]) {
-          segments.push({ type: 'text', content: parts[0] });
+        if (placeholderIndex !== -1) {
+          // Add text before the placeholder
+          const beforeText = remainingText.substring(0, placeholderIndex);
+          if (beforeText) {
+            segments.push({ type: 'text', content: beforeText });
+          }
+          
+          // Add the code block
+          segments.push({ 
+            type: 'codeblock', 
+            code: codeBlock.code, 
+            language: codeBlock.language 
+          });
+          
+          // Update remaining text to everything after the placeholder
+          remainingText = remainingText.substring(placeholderIndex + placeholder.length);
         }
-        
-        segments.push({ 
-          type: 'codeblock', 
-          code: codeBlock.code, 
-          language: codeBlock.language 
-        });
-        
-        remainingText = parts[1] || '';
       });
       
       // Add any remaining text after the last code block

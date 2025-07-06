@@ -347,7 +347,7 @@ export default defineComponent({
 <style scoped>
 .code-block-wrapper {
   position: relative;
-  margin: 8px 0;
+  margin: 4px 0;
   background-color: #2f3136;
   border-radius: 8px;
   border: 1px solid #40444b;
@@ -359,10 +359,10 @@ export default defineComponent({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 0 12px;
   background-color: #36393f;
   border-bottom: 1px solid #40444b;
-  min-height: 20px;
+  min-height: 28px;
 }
 
 .language-label {
@@ -376,7 +376,7 @@ export default defineComponent({
 .copy-button {
   display: flex;
   align-items: center;
-  gap: 4px;
+  /* gap: 4px; */
   padding: 4px 8px;
   background-color: #40444b;
   border: 1px solid #5865f2;
