@@ -311,7 +311,7 @@
       const findEmojiByName = (name: string): Emoji | undefined => {
         for (const serverId in resolvedEmojiList.value) {
           const server = resolvedEmojiList.value[serverId];
-          const emoji = server.emojis.find(e => e.name === name);
+          const emoji = server.emojis.find((e: any) => e.name === name);
           if (emoji) {
             return emoji;
           }

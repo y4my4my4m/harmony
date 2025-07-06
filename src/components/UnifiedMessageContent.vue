@@ -49,12 +49,23 @@
     <!-- Display mode -->
     <div v-else class="content-display">
       <template v-for="(part, partIndex) in content" :key="partIndex">
-        <!-- Text content with markdown-style formatting -->
-        <span 
-          v-if="part && typeof part === 'object' && part.type === 'text'" 
-          class="text-content"
-          v-html="renderTextContent(part.text)"
-        ></span>
+        <!-- Text content with markdown-style formatting and code blocks -->
+        <template 
+          v-if="part && typeof part === 'object' && part.type === 'text'"
+        >
+          <template v-for="(segment, segmentIndex) in renderTextSegments(part.text)" :key="`${partIndex}-${segmentIndex}`">
+            <span 
+              v-if="segment.type === 'text'" 
+              class="text-content"
+              v-html="segment.content"
+            ></span>
+            <CodeBlock 
+              v-else-if="segment.type === 'codeblock'"
+              :code="segment.code!"
+              :language="segment.language!"
+            />
+          </template>
+        </template>
         
         <!-- User mentions -->
         <span 
@@ -164,6 +175,7 @@ import { defineComponent, watch, ref, nextTick } from 'vue';
 import type { PropType } from 'vue';
 import type { MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
+import CodeBlock from '@/components/CodeBlock.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 
@@ -171,6 +183,7 @@ export default defineComponent({
   name: 'UnifiedMessageContent',
   components: {
     AutoSuggest,
+    CodeBlock,
   },
   props: {
     content: {
@@ -232,19 +245,26 @@ export default defineComponent({
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    // Simple markdown-style text rendering with improved code blocks
-    const renderTextContent = (text: string): string => {
-      if (!text) return '';
+    // Simple markdown-style text rendering with extracted code blocks
+    const renderTextContent = (text: string): { renderedText: string; codeBlocks: Array<{id: string; code: string; language: string}> } => {
+      if (!text) return { renderedText: '', codeBlocks: [] };
       
       let rendered = text;
+      const codeBlocks: Array<{id: string; code: string; language: string}> = [];
       
-      // Code blocks: ```language\ncode``` or ```\ncode```
+      // Extract code blocks first and replace with placeholders
       rendered = rendered.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, language, code) => {
         const lang = language || 'text';
-        const highlightedCode = highlightCode(code.trim(), lang);
-        return `<pre class="md-codeblock" data-language="${lang}"><code class="language-${lang}">${highlightedCode}</code></pre>`;
+        const blockId = `__CODEBLOCK_${codeBlocks.length}__`;
+        codeBlocks.push({
+          id: blockId,
+          code: code.trim(),
+          language: lang
+        });
+        return blockId;
       });
       
+      // Process other markdown after extracting code blocks
       // Inline code: `text`
       rendered = rendered.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');
       
@@ -253,8 +273,8 @@ export default defineComponent({
       rendered = rendered.replace(/__(.*?)__/g, '<strong class="md-bold">$1</strong>');
       
       // Italic: *text* or _text_ (but not in URLs or other contexts)
-      rendered = rendered.replace(/(?<![\w\/:])_([^_]+)_(?![\w])/g, '<em class="md-italic">$1</em>');
-      rendered = rendered.replace(/(?<![\w\*])\*([^*]+)\*(?![\w\*])/g, '<em class="md-italic">$1</em>');
+      rendered = rendered.replace(/(?<![\w/:])_([^_]+)_(?![\w])/g, '<em class="md-italic">$1</em>');
+      rendered = rendered.replace(/(?<![\w*])\*([^*]+)\*(?![\w*])/g, '<em class="md-italic">$1</em>');
       
       // Strikethrough: ~~text~~
       rendered = rendered.replace(/~~(.*?)~~/g, '<del class="md-strikethrough">$1</del>');
@@ -262,156 +282,48 @@ export default defineComponent({
       // Underline: __text__ (alternative, not conflicting with bold)
       rendered = rendered.replace(/\+\+(.*?)\+\+/g, '<u class="md-underline">$1</u>');
       
-      // Line breaks
+      // Line breaks (this won't affect code blocks since they're already extracted)
       rendered = rendered.replace(/\n/g, '<br>');
       
-      return rendered;
+      return { renderedText: rendered, codeBlocks };
     };
 
-    // Basic syntax highlighting function
-    const highlightCode = (code: string, language: string): string => {
-      // Don't escape HTML here - we'll do it at the end after highlighting
+    // Function to render text content with code blocks as components
+    const renderTextSegments = (text: string) => {
+      const { renderedText, codeBlocks } = renderTextContent(text);
+      const segments: Array<{type: 'text' | 'codeblock'; content?: string; code?: string; language?: string}> = [];
       
-      switch (language.toLowerCase()) {
-        case 'javascript':
-        case 'js':
-          return highlightJavaScript(code);
-        case 'typescript':
-        case 'ts':
-          return highlightTypeScript(code);
-        case 'html':
-          return highlightHTML(code);
-        case 'css':
-          return highlightCSS(code);
-        case 'json':
-          return highlightJSON(code);
-        case 'python':
-        case 'py':
-          return highlightPython(code);
-        default:
-          return escapeHtml(code);
+      if (codeBlocks.length === 0) {
+        // No code blocks, just return the rendered text
+        segments.push({ type: 'text', content: renderedText });
+        return segments;
       }
-    };
-
-    // Helper function to escape HTML
-    const escapeHtml = (text: string): string => {
-      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    };
-
-    const highlightJavaScript = (code: string): string => {
-      // Keywords
-      code = code.replace(/\b(const|let|var|function|return|if|else|for|while|class|export|import|from|async|await|try|catch|finally|throw|new|this|typeof|instanceof)\b/g, '___KEYWORD_START___$1___KEYWORD_END___');
       
-      // Strings (handle template literals, single and double quotes)
-      code = code.replace(/(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g, '___STRING_START___$1$2$1___STRING_END___');
+      // Split the rendered text by code block placeholders and interleave with code blocks
+      let remainingText = renderedText;
+      codeBlocks.forEach((codeBlock) => {
+        const placeholder = codeBlock.id;
+        const parts = remainingText.split(placeholder, 2);
+        
+        if (parts[0]) {
+          segments.push({ type: 'text', content: parts[0] });
+        }
+        
+        segments.push({ 
+          type: 'codeblock', 
+          code: codeBlock.code, 
+          language: codeBlock.language 
+        });
+        
+        remainingText = parts[1] || '';
+      });
       
-      // Numbers
-      code = code.replace(/\b(\d+(?:\.\d+)?)\b/g, '___NUMBER_START___$1___NUMBER_END___');
+      // Add any remaining text after the last code block
+      if (remainingText) {
+        segments.push({ type: 'text', content: remainingText });
+      }
       
-      // Comments
-      code = code.replace(/(\/\/.*$)/gm, '___COMMENT_START___$1___COMMENT_END___');
-      code = code.replace(/(\/\*[\s\S]*?\*\/)/g, '___COMMENT_START___$1___COMMENT_END___');
-      
-      // Now escape HTML
-      code = escapeHtml(code);
-      
-      // Replace placeholders with HTML tags
-      code = code.replace(/___KEYWORD_START___(.*?)___KEYWORD_END___/g, '<span class="hl-keyword">$1</span>');
-      code = code.replace(/___STRING_START___(.*?)___STRING_END___/g, '<span class="hl-string">$1</span>');
-      code = code.replace(/___NUMBER_START___(.*?)___NUMBER_END___/g, '<span class="hl-number">$1</span>');
-      code = code.replace(/___COMMENT_START___(.*?)___COMMENT_END___/g, '<span class="hl-comment">$1</span>');
-      
-      return code;
-    };
-
-    const highlightTypeScript = (code: string): string => {
-      // Use JavaScript highlighting as base
-      code = highlightJavaScript(code);
-      
-      // TypeScript specific keywords (after HTML escaping)
-      code = code.replace(/\b(interface|type|enum|namespace|declare|abstract|implements|extends|public|private|protected|readonly|static)\b/g, '<span class="hl-keyword">$1</span>');
-      
-      return code;
-    };
-
-    const highlightHTML = (code: string): string => {
-      // Escape HTML first
-      code = escapeHtml(code);
-      
-      // Tags
-      code = code.replace(/(&lt;\/?)([\w-]+)([^&gt;]*?)(&gt;)/g, '<span class="hl-tag">$1</span><span class="hl-tag-name">$2</span><span class="hl-attr">$3</span><span class="hl-tag">$4</span>');
-      
-      // Attributes
-      code = code.replace(/(\w+)=(["'])([^"']*?)\2/g, '<span class="hl-attr-name">$1</span>=<span class="hl-string">$2$3$2</span>');
-      
-      return code;
-    };
-
-    const highlightCSS = (code: string): string => {
-      // Selectors
-      code = code.replace(/^([.#]?[\w-]+)(\s*{)/gm, '___SELECTOR_START___$1___SELECTOR_END___$2');
-      
-      // Properties
-      code = code.replace(/(\w+[-]?\w*)(\s*:)/g, '___PROPERTY_START___$1___PROPERTY_END___$2');
-      
-      // Values
-      code = code.replace(/:(\s*)([^;]+)(;)/g, ':$1___VALUE_START___$2___VALUE_END___$3');
-      
-      // Escape HTML
-      code = escapeHtml(code);
-      
-      // Replace placeholders
-      code = code.replace(/___SELECTOR_START___(.*?)___SELECTOR_END___/g, '<span class="hl-selector">$1</span>');
-      code = code.replace(/___PROPERTY_START___(.*?)___PROPERTY_END___/g, '<span class="hl-property">$1</span>');
-      code = code.replace(/___VALUE_START___(.*?)___VALUE_END___/g, '<span class="hl-value">$1</span>');
-      
-      return code;
-    };
-
-    const highlightJSON = (code: string): string => {
-      // Strings (keys and values)
-      code = code.replace(/(")([^"]*?)(")/g, '___STRING_START___$1$2$3___STRING_END___');
-      
-      // Numbers
-      code = code.replace(/:\s*(-?\d+(?:\.\d+)?)/g, ': ___NUMBER_START___$1___NUMBER_END___');
-      
-      // Booleans and null
-      code = code.replace(/\b(true|false|null)\b/g, '___KEYWORD_START___$1___KEYWORD_END___');
-      
-      // Escape HTML
-      code = escapeHtml(code);
-      
-      // Replace placeholders
-      code = code.replace(/___STRING_START___(.*?)___STRING_END___/g, '<span class="hl-string">$1</span>');
-      code = code.replace(/___NUMBER_START___(.*?)___NUMBER_END___/g, '<span class="hl-number">$1</span>');
-      code = code.replace(/___KEYWORD_START___(.*?)___KEYWORD_END___/g, '<span class="hl-keyword">$1</span>');
-      
-      return code;
-    };
-
-    const highlightPython = (code: string): string => {
-      // Keywords
-      code = code.replace(/\b(def|class|if|elif|else|for|while|try|except|finally|import|from|as|return|yield|lambda|with|assert|break|continue|pass|global|nonlocal|and|or|not|in|is)\b/g, '___KEYWORD_START___$1___KEYWORD_END___');
-      
-      // Strings
-      code = code.replace(/(["']{1,3})((?:\\.|(?!\1)[^\\])*?)\1/g, '___STRING_START___$1$2$1___STRING_END___');
-      
-      // Numbers
-      code = code.replace(/\b(\d+(?:\.\d+)?)\b/g, '___NUMBER_START___$1___NUMBER_END___');
-      
-      // Comments
-      code = code.replace(/(#.*$)/gm, '___COMMENT_START___$1___COMMENT_END___');
-      
-      // Escape HTML
-      code = escapeHtml(code);
-      
-      // Replace placeholders
-      code = code.replace(/___KEYWORD_START___(.*?)___KEYWORD_END___/g, '<span class="hl-keyword">$1</span>');
-      code = code.replace(/___STRING_START___(.*?)___STRING_END___/g, '<span class="hl-string">$1</span>');
-      code = code.replace(/___NUMBER_START___(.*?)___NUMBER_END___/g, '<span class="hl-number">$1</span>');
-      code = code.replace(/___COMMENT_START___(.*?)___COMMENT_END___/g, '<span class="hl-comment">$1</span>');
-      
-      return code;
+      return segments;
     };
 
     // Watch for changes to the prop and update the local copy accordingly
@@ -538,6 +450,7 @@ export default defineComponent({
       emit('cancel-edit');
     };
 
+
     return { 
       localEditableContent,
       editTextarea,
@@ -552,6 +465,7 @@ export default defineComponent({
       isVideoUrl,
       formatFileSize,
       renderTextContent,
+      renderTextSegments,
       getFileName,
     };
   }
@@ -597,78 +511,7 @@ export default defineComponent({
   font-size: 0.85em;
 }
 
-.text-content :deep(.md-codeblock) {
-  background-color: #2f3136;
-  border-radius: 4px;
-  padding: 8px;
-  margin: 4px 0;
-  font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
-  font-size: 0.875em;
-  overflow-x: auto;
-}
-
-/* Syntax highlighting styles */
-.text-content :deep(.hl-keyword) {
-  color: #c586c0;
-  font-weight: bold;
-}
-
-.text-content :deep(.hl-string) {
-  color: #ce9178;
-}
-
-.text-content :deep(.hl-number) {
-  color: #b5cea8;
-}
-
-.text-content :deep(.hl-comment) {
-  color: #6a9955;
-  font-style: italic;
-}
-
-.text-content :deep(.hl-function) {
-  color: #dcdcaa;
-}
-
-.text-content :deep(.hl-variable) {
-  color: #9cdcfe;
-}
-
-.text-content :deep(.hl-tag) {
-  color: #569cd6;
-}
-
-.text-content :deep(.hl-attribute) {
-  color: #92c5f5;
-}
-
-.text-content :deep(.hl-value) {
-  color: #ce9178;
-}
-
-.text-content :deep(.hl-property) {
-  color: #d4d4d4;
-}
-
-.text-content :deep(.hl-operator) {
-  color: #d4d4d4;
-}
-
-.text-content :deep(.hl-selector) {
-  color: #d7ba7d;
-}
-
-.text-content :deep(.hl-tag-name) {
-  color: #569cd6;
-}
-
-.text-content :deep(.hl-attr) {
-  color: #92c5f5;
-}
-
-.text-content :deep(.hl-attr-name) {
-  color: #92c5f5;
-}
+/* Code blocks are now handled by the CodeBlock component */
 
 /* URL links */
 .url-link {

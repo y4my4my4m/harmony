@@ -581,7 +581,7 @@ onMounted(() => {
   cursor: pointer;
   padding: 6px 8px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: bold;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   width: 100%;
