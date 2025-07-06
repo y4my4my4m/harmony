@@ -9,7 +9,7 @@
             :key="userId" 
             class="profile-avatar" 
             :style="getProfileStyle(userId)"
-            @mousedown="startDrag(userId, $event)"
+            @mousedown="startDrag()"
           >
             <img 
               :src="getUserAvatar(userId)" 

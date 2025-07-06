@@ -1199,13 +1199,13 @@ export default defineComponent({
 .reaction-count {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: #72767d;
+  color: rgba(255, 255, 255, 0.5);
   min-width: 9px;
   text-align: center;
 }
 
 .reaction.reacted .reaction-count {
-  color: hsl(235, 85.6%, 64.7%);
+  color: hsl(0, 0%, 100%);
 }
 
 /* Missing emoji placeholder */
