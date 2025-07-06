@@ -226,12 +226,30 @@ handleEscapeKey(closeModal)
 
 // Lifecycle
 onMounted(async () => {
-  // Ensure fresh data when modal opens, especially for new users
-  if (publicServersStore.needsFreshData() || props.forceRefresh) {
-    await publicServersStore.forceRefresh()
-  } else {
-    // Always try to fetch if we don't have data yet
-    await publicServersStore.fetchPublicServers()
+  console.log('🚀 PublicServers modal opened')
+  console.log('📊 Current store state:', {
+    hasLoaded: publicServersStore.hasLoaded,
+    serversCount: publicServersStore.servers.length,
+    isLoading: publicServersStore.isLoading,
+    needsFreshData: publicServersStore.needsFreshData(),
+    forceRefresh: props.forceRefresh
+  })
+  
+  try {
+    // Ensure fresh data when modal opens, especially for new users
+    if (publicServersStore.needsFreshData() || props.forceRefresh) {
+      console.log('🔄 Force refreshing data for new user or stale data')
+      await publicServersStore.forceRefresh()
+    } else {
+      console.log('📋 Fetching public servers normally')
+      // Always try to fetch if we don't have data yet
+      await publicServersStore.fetchPublicServers()
+    }
+    
+    console.log('✅ PublicServers data loaded successfully')
+  } catch (error) {
+    console.error('❌ Error loading public servers in modal:', error)
+    toast.error('Failed to load communities. Please try again.')
   }
 })
 

@@ -66,9 +66,9 @@ defineEmits<Emits>()
   border: none;
   border-radius: 10px;
   padding: 14px 24px;
-  color: #1a1a1a;
+  color: #ffffff;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -76,6 +76,7 @@ defineEmits<Emits>()
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
+  box-shadow: 0 4px 15px rgba(87, 242, 135, 0.3);
 }
 
 .create-server-btn::before {
@@ -97,7 +98,6 @@ defineEmits<Emits>()
     0 8px 25px rgba(87, 242, 135, 0.4),
     0 0 0 1px rgba(87, 242, 135, 0.2);
 }
-
 .create-server-btn:active {
   transform: translateY(-1px);
 }

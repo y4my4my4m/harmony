@@ -593,7 +593,10 @@
           window.addEventListener('resize', handleResize);
 
           initialized = true;
+          console.log(`📊 Initialization complete. Servers: ${servers.value.length}, isDM: ${props.isDM}`)
+          
           if (servers.value.length === 0 && !props.isDM) {
+            console.log('🔄 No servers found, showing splash for new user')
             showNoServersSplash.value = true;
             return;
           }
@@ -643,23 +646,28 @@
 
       // Watch for server list changes to automatically hide splash and navigate to new server
       watch(() => servers.value.length, (newLength, oldLength) => {
+        console.log(`📊 Server list changed: ${oldLength || 0} → ${newLength}`)
+        
         // If servers were added (user joined a new server)
         if (newLength > (oldLength || 0) && showNoServersSplash.value) {
+          console.log('🎉 New server joined! Hiding splash and navigating...')
           showNoServersSplash.value = false;
           showPublicServers.value = false; // Also close the public servers modal
           
           // Navigate to the newly joined server (last server in the list)
           const newServer = servers.value[servers.value.length - 1];
           if (newServer && !props.isDM) {
+            console.log(`🚀 Navigating to new server: ${newServer.name} (${newServer.id})`)
             router.push({ name: 'Chat', params: { serverId: newServer.id } });
           }
         }
         
         // If all servers were removed, show splash again (unless in DM mode)
         if (newLength === 0 && !props.isDM) {
+          console.log('📭 No servers left, showing splash')
           showNoServersSplash.value = true;
         }
-      });
+      }, { immediate: true });
 
       // Voice channel helper function
       const getVoiceChannelName = () => {

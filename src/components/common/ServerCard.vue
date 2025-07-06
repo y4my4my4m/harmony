@@ -193,6 +193,7 @@ const handleOwnerClick = (event: Event) => {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: visible;
 }
 
 .server-card__icon-image {
