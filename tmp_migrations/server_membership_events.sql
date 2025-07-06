@@ -77,6 +77,7 @@ DECLARE
     user_profile RECORD;
     initiator_profile RECORD;
     message_content JSONB;
+    initiated_by_data JSONB;
 BEGIN
     -- Get user profile
     SELECT username, display_name, avatar_url 
@@ -84,12 +85,21 @@ BEGIN
     FROM profiles 
     WHERE id = p_user_id;
     
-    -- Get initiator profile if exists
+    -- Handle initiator profile data
     IF p_initiated_by IS NOT NULL THEN
         SELECT username, display_name, avatar_url 
         INTO initiator_profile 
         FROM profiles 
         WHERE id = p_initiated_by;
+        
+        initiated_by_data := jsonb_build_object(
+            'id', p_initiated_by,
+            'username', initiator_profile.username,
+            'display_name', initiator_profile.display_name,
+            'avatar_url', initiator_profile.avatar_url
+        );
+    ELSE
+        initiated_by_data := NULL;
     END IF;
     
     -- Build system message content
@@ -103,16 +113,7 @@ BEGIN
                 'display_name', user_profile.display_name,
                 'avatar_url', user_profile.avatar_url
             ),
-            'initiated_by', CASE 
-                WHEN p_initiated_by IS NOT NULL THEN
-                    jsonb_build_object(
-                        'id', p_initiated_by,
-                        'username', initiator_profile.username,
-                        'display_name', initiator_profile.display_name,
-                        'avatar_url', initiator_profile.avatar_url
-                    )
-                ELSE NULL
-            END,
+            'initiated_by', initiated_by_data,
             'timestamp', NOW()
         )
     );
@@ -133,6 +134,9 @@ DECLARE
     default_channel_id UUID;
     event_id UUID;
     user_profile RECORD;
+    invite_info RECORD;
+    via_invite BOOLEAN := false;
+    invite_temporary BOOLEAN := false;
 BEGIN
     -- Get user profile for system message
     SELECT username, display_name, avatar_url 
@@ -140,10 +144,28 @@ BEGIN
     FROM profiles 
     WHERE id = NEW.user_id;
 
+    -- Check if user joined via invite (look for recent invite usage)
+    -- We check for invites used within the last 5 minutes for this server
+    SELECT i.temporary, i.code, i.created_by
+    INTO invite_info
+    FROM invites i
+    WHERE i.server_id = NEW.server_id 
+      AND i.used = true
+      AND i.created_at >= (NEW.created_at - INTERVAL '5 minutes')
+    ORDER BY i.created_at DESC
+    LIMIT 1;
+    
+    IF FOUND THEN
+        via_invite := true;
+        invite_temporary := COALESCE(invite_info.temporary, false);
+    END IF;
+
     -- Log the membership event
     INSERT INTO server_membership_events (server_id, user_id, event_type, metadata)
     VALUES (NEW.server_id, NEW.user_id, 'join', jsonb_build_object(
         'joined_at', NEW.created_at,
+        'via_invite', via_invite,
+        'invite_temporary', invite_temporary,
         'username', user_profile.username,
         'display_name', user_profile.display_name
     ))
