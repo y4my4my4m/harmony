@@ -149,7 +149,7 @@
     class="tooltip"
     :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
   >
-    <div v-for="user in tooltip.content" :key="user.id">
+    <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
       <Avatar 
         :src="user.avatarUrl"
         size="xs"
@@ -1017,7 +1017,8 @@ export default defineComponent({
 }
 
 .message-gutter {
-  width: 62px;
+  width: 48px;
+  margin-left: 4px;
   flex-shrink: 0;
   position: relative;
 }
@@ -1078,11 +1079,11 @@ export default defineComponent({
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 4px;
+  margin: 2px 0;
 }
 
 .reactions-gutter {
-  width: 62px;
+  width: 48px;
   flex-shrink: 0;
 }
 
@@ -1158,17 +1159,17 @@ export default defineComponent({
 
 /* Highlighted message */
 .highlighted {
-  background-color: hsl(359, 82.6%, 59.4%, 0.1) !important;
-  border-left: 4px solid hsl(359, 82.6%, 59.4%);
+  background-color: hsla(34, 100%, 50%, 0.1) !important;
+  border-left: 4px solid hsl(34, 100%, 50%);
   animation: highlight-fade 3s ease-out;
 }
 
 @keyframes highlight-fade {
   0% {
-    background-color: hsl(359, 82.6%, 59.4%, 0.3) !important;
+    background-color: hsl(34, 100%, 50%, 0.3) !important;
   }
   100% {
-    background-color: hsl(359, 82.6%, 59.4%, 0.1) !important;
+    background-color: hsl(34, 100%, 50%, 0.1) !important;
   }
 }
 
@@ -1204,6 +1205,11 @@ export default defineComponent({
   height: 16px;
   border-radius: 50%;
   margin-right: 8px;
+}
+
+.tooltip-user {
+  display: flex;
+  align-items: center;
 }
 
 /* Loading skeletons */
