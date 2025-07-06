@@ -29,11 +29,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useServerUsersStore } from '@/stores/useServerUsers'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
-import { useServerChannelStore } from '@/stores/useServerChannel'
-import type { Channel } from '@/types'
 
 interface Props {
   currentChannelId: string
@@ -99,9 +97,12 @@ const updateDimensions = () => {
 
 onMounted(() => {
   updateDimensions()
+  window.addEventListener('resize', updateDimensions)
 })
 
-watch(() => window.innerWidth, updateDimensions)
+onUnmounted(() => {
+  window.removeEventListener('resize', updateDimensions)
+})
 </script>
 
   
