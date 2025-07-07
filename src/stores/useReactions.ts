@@ -310,15 +310,28 @@ export const useReactionsStore = defineStore('reactions', {
     /**
      * Handle real-time reaction updates
      */
-    handleRealtimeUpdate(payload: any) {
+    async handleRealtimeUpdate(payload: any) {
       const messageId = payload.new?.message_id || payload.old?.message_id;
       
       if (!messageId) {
         console.warn('🎯 No message_id found in reaction realtime payload, payload:', payload);
+        
+        // WORKAROUND: For DELETE events that only have reaction.id due to REPLICA IDENTITY issues
+        if (payload.eventType === 'DELETE' && payload.old?.id) {
+          console.log('🎯 Using fallback: refreshing all cached reactions due to missing message_id in DELETE event');
+          
+          // Refresh all cached reactions as fallback
+          // This is not ideal but ensures consistency until REPLICA IDENTITY FULL works properly
+          const messageIds = Array.from(this.reactionsByMessage.keys());
+          for (const msgId of messageIds) {
+            this.lastFetched.delete(msgId);
+            this.fetchMessageReactions(msgId, true);
+          }
+        }
         return;
       }
 
-      // console.log('🎯 Handling realtime reaction update for message:', messageId);
+      console.log('🎯 Handling realtime reaction update for message:', messageId);
       
       // Invalidate cache for this message and refetch
       this.lastFetched.delete(messageId);
