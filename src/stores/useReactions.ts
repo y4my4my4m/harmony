@@ -146,13 +146,13 @@ export const useReactionsStore = defineStore('reactions', {
       
       // Prevent rapid double-clicking
       if (this.reactionToggleInProgress.has(toggleKey)) {
-        console.log('🎯 Reaction toggle already in progress, ignoring duplicate request');
+        // console.log('🎯 Reaction toggle already in progress, ignoring duplicate request');
         return { success: false, reason: 'duplicate_request', message: 'Toggle already in progress' };
       }
 
       this.reactionToggleInProgress.add(toggleKey);
       this.toggleLockTimestamps.set(toggleKey, Date.now());
-      console.log('🎯 Toggle lock acquired for:', toggleKey);
+      // console.log('🎯 Toggle lock acquired for:', toggleKey);
 
       try {
         // Get current state before any operations
@@ -160,7 +160,7 @@ export const useReactionsStore = defineStore('reactions', {
         const hasReacted = this.hasUserReacted(messageId, emojiId, userId);
         const isAdding = !hasReacted;
 
-        console.log('🎯 Toggle reaction - User has reacted:', hasReacted, 'Will add:', isAdding);
+        // console.log('🎯 Toggle reaction - User has reacted:', hasReacted, 'Will add:', isAdding);
 
         // Apply optimistic update for immediate UI feedback
         this.optimisticallyUpdateReaction(messageId, emojiId, userId, isAdding);
@@ -177,7 +177,7 @@ export const useReactionsStore = defineStore('reactions', {
             this.revertOptimisticUpdate(messageId);
             return { success: false, reason: 'error', message: `Error removing reaction: ${error.message}` };
           }
-          console.log('🎯 Reaction removed successfully');
+          // console.log('🎯 Reaction removed successfully');
         } else {
           // Try to add reaction
           const { error } = await supabase
@@ -209,7 +209,7 @@ export const useReactionsStore = defineStore('reactions', {
             this.revertOptimisticUpdate(messageId);
             return { success: false, reason: 'error', message: `Error adding reaction: ${error.message}` };
           }
-          console.log('🎯 Reaction added successfully');
+          // console.log('🎯 Reaction added successfully');
         }
 
         // Refresh reactions for this message to get the final state from server
@@ -224,7 +224,7 @@ export const useReactionsStore = defineStore('reactions', {
         // Always remove the toggle lock
         this.reactionToggleInProgress.delete(toggleKey);
         this.toggleLockTimestamps.delete(toggleKey);
-        console.log('🎯 Toggle lock cleared for:', toggleKey);
+        // console.log('🎯 Toggle lock cleared for:', toggleKey);
       }
     },
 
@@ -232,7 +232,7 @@ export const useReactionsStore = defineStore('reactions', {
      * Optimistically update reaction state while API call is in progress
      */
     optimisticallyUpdateReaction(messageId: string, emojiId: string, userId: string, isAdding: boolean) {
-      console.log('🎯 Optimistic update:', { messageId, emojiId, userId, isAdding });
+      // console.log('🎯 Optimistic update:', { messageId, emojiId, userId, isAdding });
       
       const currentReactions = this.getMessageReactions(messageId);
       const updatedReactions = [...currentReactions];
@@ -265,7 +265,7 @@ export const useReactionsStore = defineStore('reactions', {
               message_id: messageId
             };
             updatedReactions.push(newReactionGroup);
-            console.log('🎯 Created new reaction group optimistically:', emojiData.name);
+            // console.log('🎯 Created new reaction group optimistically:', emojiData.name);
           } else {
             console.log('🎯 Could not create new reaction group optimistically - emoji data not cached');
           }
@@ -296,7 +296,7 @@ export const useReactionsStore = defineStore('reactions', {
       
       // Update cache with optimistic state
       this.reactionsByMessage.set(messageId, updatedReactions);
-      console.log('🎯 Optimistic update applied, new reaction count:', updatedReactions.length);
+      // console.log('🎯 Optimistic update applied, new reaction count:', updatedReactions.length);
     },
 
     /**
@@ -318,7 +318,7 @@ export const useReactionsStore = defineStore('reactions', {
         return;
       }
 
-      console.log('🎯 Handling realtime reaction update for message:', messageId);
+      // console.log('🎯 Handling realtime reaction update for message:', messageId);
       
       // Invalidate cache for this message and refetch
       this.lastFetched.delete(messageId);

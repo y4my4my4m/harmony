@@ -600,11 +600,11 @@ export default defineComponent({
     }
 
     const toggleReaction = (messageId: string, emoji: Emoji) => {
-      console.log('toggleReaction called for messageId:', messageId, 'emoji:', emoji.id);
+      // console.log('toggleReaction called for messageId:', messageId, 'emoji:', emoji.id);
       
       // Always hide tooltip when any reaction is toggled to prevent stale tooltips
       if (tooltip.value.visible) {
-        console.log('Hiding tooltip due to reaction toggle');
+        // console.log('Hiding tooltip due to reaction toggle');
         hideTooltip();
       }
       
