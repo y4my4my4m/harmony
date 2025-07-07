@@ -36,7 +36,7 @@
 - [ ] app
   - [x] mobile web
   - [x] PWA mobile
-    - [ ] service worker for notifications
+    - [x] service worker for notifications
   - [x] PWA desktop
   - [ ] desktop app using Tauri necssary?
 - [x] uuid for filenames
@@ -46,12 +46,12 @@
 
 - [x] file uploads
 - [x] files upload
-- [ ] emojis
+- [x] emojis
   - [x] server emojis
   - [x] cross server emojis
   - [x] emoji display
   - [x] emoji picker
-  - [ ] emoji in textarea
+  - [x] emoji in textarea
   - [x] emoji search  
 - [x] tenor implementation
 - [ ] media embeds
@@ -61,7 +61,7 @@
   - [~] url previews
   - [ ] audio
   - [ ] files/binaries
-- [ ] markdown
+- [x] markdown
 - [x] profile changes
 - [ ] server order
 - [ ] forgot password
