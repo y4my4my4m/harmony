@@ -532,6 +532,11 @@ export class UnifiedWebRTCService {
     return this.connections.get(userId)?.connectionState || null;
   }
 
+  getUserAudioElement(userId: string): HTMLAudioElement | null {
+    const connection = this.connections.get(userId);
+    return connection ? connection.audioElement : null;
+  }
+
   // =============================================================================
   // EVENT SYSTEM
   // =============================================================================

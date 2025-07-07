@@ -512,9 +512,25 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Add user to spatial audio
      */
     addUserToSpatialAudio(userId: string): void {
-      // NOTE: Spatial audio now hooks into existing HTMLAudioElements
-      // instead of creating duplicate audio processing
-      spatialAudioService.setupSpatialForUser(userId);
+      // Small delay to ensure HTMLAudioElement is fully set up
+      setTimeout(() => {
+        // Get the HTML audio element for this user from WebRTC service
+        const audioElement = unifiedWebRTC.getUserAudioElement(userId);
+        if (audioElement) {
+          spatialAudioService.setupSpatialForUser(userId, audioElement);
+        } else {
+          console.warn('No audio element found for user:', userId, '- retrying in 100ms');
+          // Retry once more if audio element isn't ready
+          setTimeout(() => {
+            const retryAudioElement = unifiedWebRTC.getUserAudioElement(userId);
+            if (retryAudioElement) {
+              spatialAudioService.setupSpatialForUser(userId, retryAudioElement);
+            } else {
+              console.warn('Audio element still not found for user:', userId);
+            }
+          }, 100);
+        }
+      }, 50);
     },
 
     /**

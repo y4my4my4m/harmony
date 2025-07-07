@@ -139,11 +139,16 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
     toggleSpatialAudio(): void {
       this.settings.enabled = !this.settings.enabled;
       
-      // If disabling, reset all audio effects
-      if (!this.settings.enabled) {
-        // This would trigger audio reset in the audio service
-        this.resetAudioEffects();
-      }
+      // Import and call spatial audio service
+      import('@/services/spatialAudio').then(({ spatialAudioService }) => {
+        if (!this.settings.enabled) {
+          // If disabling, reset all audio effects
+          spatialAudioService.disableSpatialAudio();
+        } else {
+          // If enabling, apply spatial effects
+          spatialAudioService.enableSpatialAudio();
+        }
+      });
     },
     
     // Toggle panel visibility
@@ -231,8 +236,11 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
     
     // Reset all audio effects (called when disabling spatial audio)
     resetAudioEffects(): void {
-      // This will be implemented by the audio service
       console.log('Resetting spatial audio effects');
+      // Import and call spatial audio service
+      import('@/services/spatialAudio').then(({ spatialAudioService }) => {
+        spatialAudioService.disableSpatialAudio();
+      });
     },
     
     // Clear all positions (when leaving channel)

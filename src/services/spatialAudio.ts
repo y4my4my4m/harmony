@@ -10,7 +10,8 @@ interface SpatialAudioNode {
   gainNode: GainNode;
   pannerNode: PannerNode | StereoPannerNode;
   convolver?: ConvolverNode;
-  source?: MediaStreamAudioSourceNode;
+  source?: MediaElementAudioSourceNode;
+  audioElement?: HTMLAudioElement;
 }
 
 export class SpatialAudioService {
@@ -53,7 +54,7 @@ export class SpatialAudioService {
     console.log('🎧 Set spatial audio listener:', userId);
   }
 
-  setupSpatialForUser(userId: string): void {
+  setupSpatialForUser(userId: string, audioElement?: HTMLAudioElement): void {
     if (!this.audioContext) {
       console.warn('Spatial audio not initialized');
       return;
@@ -65,38 +66,19 @@ export class SpatialAudioService {
       return;
     }
 
+    if (!audioElement) {
+      console.warn('No audio element provided for user:', userId);
+      return;
+    }
+
     console.log('🎧 Setting up spatial audio for user:', userId);
-    // This will be implemented to hook into existing HTMLAudioElements
-    // instead of creating new audio processing pipelines
-  }
-
-  addUser(userId: string, mediaStream: MediaStream): void {
-    if (!this.audioContext || !this.destination) {
-      console.warn('Spatial audio not initialized');
-      return;
-    }
-
-    // NOTE: This should ONLY be called for REMOTE user streams, 
-    // never for the local user's own microphone stream
     
-    // Safeguard: Don't process the listener's own stream
-    if (userId === this.listenerUserId) {
-      console.warn('Attempted to add listener\'s own stream to spatial audio - skipping');
-      return;
-    }
-    
-    // Remove existing node if it exists
-    this.removeUser(userId);
-
     try {
-      const audioTracks = mediaStream.getAudioTracks();
-      if (audioTracks.length === 0) {
-        console.warn('No audio tracks found for user:', userId);
-        return;
-      }
+      // Remove existing node if it exists
+      this.removeUser(userId);
 
-      // Create audio source from media stream
-      const source = this.audioContext.createMediaStreamSource(mediaStream);
+      // Create audio source from HTMLAudioElement
+      const source = this.audioContext.createMediaElementSource(audioElement);
       
       // Create gain node for volume control
       const gainNode = this.audioContext.createGain();
@@ -121,7 +103,7 @@ export class SpatialAudioService {
         gainNode.connect(pannerNode);
       }
       
-      pannerNode.connect(this.destination);
+      pannerNode.connect(this.destination!);
 
       // Store the nodes
       this.spatialNodes.set(userId, {
@@ -129,13 +111,36 @@ export class SpatialAudioService {
         gainNode,
         pannerNode,
         convolver,
-        source
+        source,
+        audioElement
       });
 
-      console.log('🎧 Added spatial audio for user:', userId);
+      console.log('🎧 Spatial audio set up for user:', userId);
+      
+      // Apply initial spatial effects
+      this.updateSpatialEffects();
     } catch (error) {
-      console.error('Failed to add spatial audio for user:', userId, error);
+      console.error('Failed to setup spatial audio for user:', userId, error);
     }
+  }
+
+  addUser(userId: string, audioElement: HTMLAudioElement): void {
+    if (!this.audioContext || !this.destination) {
+      console.warn('Spatial audio not initialized');
+      return;
+    }
+
+    // NOTE: This should ONLY be called for REMOTE user streams, 
+    // never for the local user's own microphone stream
+    
+    // Safeguard: Don't process the listener's own stream
+    if (userId === this.listenerUserId) {
+      console.warn('Attempted to add listener\'s own stream to spatial audio - skipping');
+      return;
+    }
+    
+    // Use setupSpatialForUser instead
+    this.setupSpatialForUser(userId, audioElement);
   }
 
   removeUser(userId: string): void {
@@ -168,6 +173,11 @@ export class SpatialAudioService {
     if (!this.listenerUserId) return;
 
     const spatialStore = useSpatialAudioStore();
+    
+    // Only apply spatial effects if spatial audio is enabled
+    if (!spatialStore.settings.enabled) {
+      return;
+    }
     
     this.spatialNodes.forEach((node, userId) => {
       if (userId === this.listenerUserId) return; // Don't apply effects to self
@@ -290,6 +300,30 @@ export class SpatialAudioService {
 
   enableSpatialAudio(): void {
     console.log('🎧 Spatial audio enabled');
+    
+    const spatialStore = useSpatialAudioStore();
+    
+    // Re-enable reverb if it was disabled
+    if (spatialStore.settings.enableReverb) {
+      this.spatialNodes.forEach((node, userId) => {
+        if (!node.convolver) {
+          try {
+            const convolver = this.createReverbNode();
+            
+            // Reconnect audio graph with reverb
+            node.gainNode.disconnect();
+            node.gainNode.connect(convolver);
+            convolver.connect(node.pannerNode);
+            
+            node.convolver = convolver;
+            console.log('🎧 Re-enabled reverb for user:', userId);
+          } catch (error) {
+            console.error('Failed to re-enable reverb for user:', userId, error);
+          }
+        }
+      });
+    }
+    
     this.updateSpatialEffects();
   }
 
@@ -300,12 +334,64 @@ export class SpatialAudioService {
     this.spatialNodes.forEach((node, userId) => {
       this.setUserGain(userId, 1); // Full volume
       this.setUserPanning(userId, 0); // Center pan
+      
+      // Disable reverb while spatial audio is off
+      if (node.convolver) {
+        try {
+          node.convolver.disconnect();
+          node.gainNode.disconnect();
+          node.gainNode.connect(node.pannerNode);
+        } catch (error) {
+          console.error('Failed to disable reverb for user:', userId, error);
+        }
+      }
     });
   }
 
   updateSettings(): void {
     // Update spatial effects with new settings
     this.updateSpatialEffects();
+    
+    // Recreate any convolver nodes if reverb settings changed
+    const spatialStore = useSpatialAudioStore();
+    this.spatialNodes.forEach((node, userId) => {
+      // Check if reverb setting changed
+      const shouldHaveReverb = spatialStore.settings.enableReverb;
+      const hasReverb = !!node.convolver;
+      
+      if (shouldHaveReverb && !hasReverb) {
+        // Add reverb
+        try {
+          const convolver = this.createReverbNode();
+          
+          // Reconnect audio graph with reverb
+          node.gainNode.disconnect();
+          node.gainNode.connect(convolver);
+          convolver.connect(node.pannerNode);
+          
+          node.convolver = convolver;
+          console.log('🎧 Added reverb for user:', userId);
+        } catch (error) {
+          console.error('Failed to add reverb for user:', userId, error);
+        }
+      } else if (!shouldHaveReverb && hasReverb) {
+        // Remove reverb
+        try {
+          if (node.convolver) {
+            node.convolver.disconnect();
+            node.convolver = undefined;
+          }
+          
+          // Reconnect audio graph without reverb
+          node.gainNode.disconnect();
+          node.gainNode.connect(node.pannerNode);
+          
+          console.log('🎧 Removed reverb for user:', userId);
+        } catch (error) {
+          console.error('Failed to remove reverb for user:', userId, error);
+        }
+      }
+    });
   }
 
   // =============================================================================
