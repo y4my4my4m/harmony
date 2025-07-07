@@ -2,11 +2,13 @@
 
 import './assets/main.css'
 import './assets/shared.css'
+import './assets/pwa.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
+import { pwaManager } from '@/services/PWAManager'
 import { useAuthStore } from '@/stores/auth'
 import { reactionCacheManager } from '@/utils/reactionCacheManager'
 
@@ -21,6 +23,7 @@ import MasonryWall from '@yeger/vue-masonry-wall'
 
 // TODO: FIXME
 import ClickOutsideDirective from './directives/ClickOutsideDirective';
+import { vHaptic } from './utils/hapticFeedback';
 
 const app = createApp(App);
 
@@ -52,9 +55,14 @@ app.directive('scroll-bottom', {
 });
   
 app.directive('click-outside', ClickOutsideDirective);
+app.directive('haptic', vHaptic);
 
 async function initializeApp() {
   try {
+    // Initialize PWA features first for better UX
+    await pwaManager.initialize()
+    console.log('🚀 PWA Manager initialized')
+    
     // Initialize auth store first to check for existing sessions
     const authStore = useAuthStore()
     await authStore.initializeAuth()

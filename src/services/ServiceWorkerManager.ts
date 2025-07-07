@@ -35,7 +35,7 @@ export class ServiceWorkerManager {
 
       console.log('✅ ServiceWorker: Registered successfully')
 
-      // Handle service worker updates
+      // Handle service worker updates with better UX
       this.registration.addEventListener('updatefound', () => {
         console.log('🔄 ServiceWorker: Update found')
         const newWorker = this.registration!.installing
@@ -44,7 +44,10 @@ export class ServiceWorkerManager {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               console.log('🆕 ServiceWorker: New version available')
-              this.handleServiceWorkerUpdate()
+              // Emit custom event for update notification
+              window.dispatchEvent(new CustomEvent('sw-update-available', {
+                detail: this.registration
+              }))
             }
           })
         }
@@ -52,6 +55,9 @@ export class ServiceWorkerManager {
 
       // Listen for messages from service worker
       navigator.serviceWorker.addEventListener('message', this.handleServiceWorkerMessage.bind(this))
+
+      // Prefetch critical resources
+      await this.prefetchCriticalResources()
 
       this.isRegistered = true
       return true
@@ -329,6 +335,63 @@ export class ServiceWorkerManager {
    */
   get serviceWorkerRegistration(): ServiceWorkerRegistration | null {
     return this.registration
+  }
+
+  /**
+   * Prefetch critical resources for better performance
+   */
+  async prefetchCriticalResources(): Promise<void> {
+    if (!this.registration) return
+
+    try {
+      await this.sendMessage({ type: 'PREFETCH_CRITICAL' })
+      console.log('📦 ServiceWorker: Critical resources prefetched')
+    } catch (error) {
+      console.warn('⚠️ ServiceWorker: Failed to prefetch critical resources:', error)
+    }
+  }
+
+  /**
+   * Get service worker version info
+   */
+  async getVersion(): Promise<{ version: string; updated: string } | null> {
+    if (!this.registration?.active) return null
+
+    try {
+      return new Promise((resolve) => {
+        const messageChannel = new MessageChannel()
+        
+        messageChannel.port1.onmessage = (event) => {
+          resolve(event.data)
+        }
+        
+        this.registration!.active!.postMessage(
+          { type: 'GET_VERSION' },
+          [messageChannel.port2]
+        )
+        
+        // Timeout after 5 seconds
+        setTimeout(() => resolve(null), 5000)
+      })
+    } catch (error) {
+      console.error('❌ Failed to get service worker version:', error)
+      return null
+    }
+  }
+
+  /**
+   * Check if app update is available
+   */
+  async checkForUpdate(): Promise<boolean> {
+    if (!this.registration) return false
+
+    try {
+      await this.registration.update()
+      return this.registration.waiting !== null
+    } catch (error) {
+      console.error('❌ Failed to check for updates:', error)
+      return false
+    }
   }
 }
 

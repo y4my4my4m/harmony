@@ -4,11 +4,38 @@
   
   <!-- Persistent Voice Connection -->
   <PersistentVoiceConnection />
+  
+  <!-- PWA Components -->
+  <PWAInstallBanner />
+  <PWAUpdateNotification />
 </template>
 
 <script setup lang="ts">
 import NotificationToast from '@/components/NotificationToast.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
+import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
+import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
+import { onMounted } from 'vue'
+import { hapticManager } from '@/utils/hapticFeedback'
+
+// Initialize haptic feedback for the app
+onMounted(() => {
+  // Add haptic feedback to common interactive elements
+  const addHapticToElements = (selector: string, pattern: string = 'light') => {
+    document.addEventListener('click', (e) => {
+      const element = (e.target as HTMLElement).closest(selector)
+      if (element && hapticManager.enabled) {
+        hapticManager.trigger({ pattern: pattern as any })
+      }
+    })
+  }
+
+  // Add haptic feedback to buttons and interactive elements
+  addHapticToElements('button', 'light')
+  addHapticToElements('.interactive-element', 'light')
+  addHapticToElements('a[href]', 'selection')
+  addHapticToElements('.card-interactive', 'medium')
+})
 </script>
 
 <style>
