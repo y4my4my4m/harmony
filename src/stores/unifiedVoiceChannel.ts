@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { nextTick } from 'vue';
 import { unifiedWebRTC, type UserMediaState } from '@/services/unifiedWebRTC';
+import { spatialAudioService } from '@/services/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
@@ -188,6 +189,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.localState = unifiedWebRTC.getLocalState();
         this.localStream = unifiedWebRTC.getLocalStream();
         
+        // Initialize spatial audio
+        await this.initializeSpatialAudio(userId);
+        
         // Start in dock mode, not overlay mode
         this.isOverlayVisible = false;
         
@@ -219,6 +223,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         // Leave WebRTC first
         await unifiedWebRTC.leaveChannel();
+
+        // Clean up spatial audio
+        this.cleanupSpatialAudio();
         
         // Update server presence
         if (this.currentServerId) {
@@ -392,6 +399,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.allUsers = this.allUsers.filter(u => u.userId !== data.userId);
         this.remoteStreams.delete(data.userId);
         
+        // Remove from spatial audio
+        this.removeUserFromSpatialAudio(data.userId);
+        
         this.playSound('voice_disconnect.mp3');
       });
 
@@ -410,8 +420,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         if (data.stream) {
           this.remoteStreams.set(data.userId, data.stream);
+          // Add to spatial audio
+          this.addUserToSpatialAudio(data.userId);
         } else {
           this.remoteStreams.delete(data.userId);
+          // Remove from spatial audio
+          this.removeUserFromSpatialAudio(data.userId);
         }
       });
 
@@ -454,7 +468,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       // Connection events
-      unifiedWebRTC.on('connection-state-changed', (data) => {
+      unifiedWebRTC.on('connection-state-changed', () => {
         // console.log('🔗 Connection state changed:', data);
       });
 
@@ -476,6 +490,61 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       } catch (error) {
         console.log('Error playing sound:', error);
       }
+    },
+
+    /**
+     * Initialize spatial audio system
+     */
+    async initializeSpatialAudio(userId: string): Promise<void> {
+      try {
+        // Initialize spatial audio service with direct MediaStream integration
+        // The spatial audio service will create processing chains from MediaStreams
+        await spatialAudioService.initialize();
+        spatialAudioService.setListener(userId);
+        
+        console.log('🎧 Spatial audio initialized for user:', userId);
+      } catch (error) {
+        console.error('Failed to initialize spatial audio:', error);
+      }
+    },
+
+    /**
+     * Add user to spatial audio using MediaStream directly
+     */
+    addUserToSpatialAudio(userId: string): void {
+      // Small delay to ensure MediaStream is properly set up
+      setTimeout(() => {
+        // Get the MediaStream for this user from WebRTC service
+        const userStream = unifiedWebRTC.getUserStream(userId);
+        if (userStream) {
+          spatialAudioService.setupSpatialForUser(userId, userStream);
+        } else {
+          console.warn('No media stream found for user:', userId, '- retrying in 100ms');
+          // Retry once more if stream isn't ready
+          setTimeout(() => {
+            const retryUserStream = unifiedWebRTC.getUserStream(userId);
+            if (retryUserStream) {
+              spatialAudioService.setupSpatialForUser(userId, retryUserStream);
+            } else {
+              console.warn('Media stream still not found for user:', userId);
+            }
+          }, 100);
+        }
+      }, 50);
+    },
+
+    /**
+     * Remove user from spatial audio
+     */
+    removeUserFromSpatialAudio(userId: string): void {
+      spatialAudioService.removeUser(userId);
+    },
+
+    /**
+     * Clean up spatial audio
+     */
+    cleanupSpatialAudio(): void {
+      spatialAudioService.destroy();
     },
 
     /**

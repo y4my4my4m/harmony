@@ -67,6 +67,16 @@
         </button>
 
         <button
+          @click="toggleSpatialPanel"
+          :class="['control-btn', 'spatial-btn', { 
+            active: spatialStore.isPanelVisible
+          }]"
+          title="Toggle Spatial Audio Panel"
+        >
+          <Icon name="map" />
+        </button>
+
+        <button
           @click="toggleSettings"
           :class="['control-btn', 'settings-btn', { active: showSettings }]"
           title="Voice Settings"
@@ -148,6 +158,12 @@
       @close="showSettings = false"
     />
 
+    <!-- Spatial Audio Panel -->
+    <SpatialAudioPanel 
+      :is-under-dock="currentMode === 'dock'"
+      :is-under-overlay="currentMode === 'overlay'"
+    />
+
     <!-- Full Overlay Mode -->
     <UnifiedVoiceOverlay
       v-if="currentMode === 'overlay'"
@@ -161,10 +177,12 @@
 <script lang="ts">
 import { defineComponent, computed, ref, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import UnifiedVoiceOverlay from './UnifiedVoiceOverlay.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
+import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
@@ -173,6 +191,7 @@ export default defineComponent({
   components: {
     UnifiedVoiceOverlay,
     VoiceSettingsPanel,
+    SpatialAudioPanel,
     Icon,
     Avatar
   },
@@ -181,6 +200,7 @@ export default defineComponent({
   setup() {
     // Explicitly type as 'any' to avoid leaking private types
     const voiceStore: any = useUnifiedVoiceChannelStore();
+    const spatialStore = useSpatialAudioStore();
     const authStore = useAuthStore();
     const serverUsersStore = useServerUsersStore();
     
@@ -244,6 +264,10 @@ export default defineComponent({
       showSettings.value = !showSettings.value;
     };
     
+    const toggleSpatialPanel = () => {
+      spatialStore.togglePanel();
+    };
+    
     const leaveChannel = async () => {
       await voiceStore.leaveVoiceChannel();
       currentMode.value = 'dock';
@@ -297,6 +321,7 @@ export default defineComponent({
     
     return {
       voiceStore,
+      spatialStore,
       channelName,
       currentMode,
       showSettings,
@@ -308,6 +333,7 @@ export default defineComponent({
       minimizeDock,
       collapseToMinimized,
       toggleSettings,
+      toggleSpatialPanel,
       leaveChannel,
       handleOverlayClosed
     };

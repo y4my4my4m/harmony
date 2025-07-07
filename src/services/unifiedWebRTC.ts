@@ -532,6 +532,11 @@ export class UnifiedWebRTCService {
     return this.connections.get(userId)?.connectionState || null;
   }
 
+  getUserAudioElement(userId: string): HTMLAudioElement | null {
+    const connection = this.connections.get(userId);
+    return connection ? connection.audioElement : null;
+  }
+
   // =============================================================================
   // EVENT SYSTEM
   // =============================================================================
@@ -1064,6 +1069,32 @@ export class UnifiedWebRTCService {
         console.log('▶️ Audio started playing for user:', connection.userId);
       };
     }
+  }
+
+  /**
+   * Enable or disable traditional HTMLAudioElement playback
+   * This should be called when spatial audio is toggled
+   */
+  setTraditionalAudioEnabled(enabled: boolean): void {
+    console.log(`🔊 Setting traditional audio enabled: ${enabled} for ${this.connections.size} connections`);
+    
+    this.connections.forEach(connection => {
+      if (connection.audioElement) {
+        const wasPlaying = !connection.audioElement.muted && !connection.audioElement.paused;
+        
+        // When spatial audio is enabled, mute the HTMLAudioElement to prevent double audio
+        // When spatial audio is disabled, unmute it for normal playback
+        connection.audioElement.muted = !enabled || this.localMediaState.isDeafened;
+        
+        const isNowPlaying = !connection.audioElement.muted && !connection.audioElement.paused;
+        
+        console.log(`🔊 ${connection.userId}: muted=${connection.audioElement.muted}, ` +
+                   `wasPlaying=${wasPlaying}, isNowPlaying=${isNowPlaying}, ` +
+                   `deafened=${this.localMediaState.isDeafened}`);
+      } else {
+        console.warn(`⚠️ No audioElement for user ${connection.userId}`);
+      }
+    });
   }
 
   private cleanupRemoteAudio(connection: UserConnection): void {
