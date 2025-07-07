@@ -103,20 +103,19 @@ const confirmAction = async () => {
   }
 }
 
-// Focus input when modal opens (if confirmation is required)
-watch(() => props.show, (isVisible) => {
-  if (isVisible && props.requireConfirmation) {
-    nextTick(() => {
-      confirmInput.value?.focus()
-    })
-  }
-})
-
-// Reset confirmation input when modal opens
+// Handle modal visibility changes
 watch(() => props.show, (isVisible) => {
   if (isVisible) {
+    // Reset confirmation input and loading state
     confirmationInput.value = ''
     isLoading.value = false
+    
+    // Focus input if confirmation is required
+    if (props.requireConfirmation) {
+      nextTick(() => {
+        confirmInput.value?.focus()
+      })
+    }
   }
 })
 </script>
