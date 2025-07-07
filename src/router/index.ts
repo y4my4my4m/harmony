@@ -5,6 +5,7 @@ import RegisterView from '@/views/RegisterView.vue';
 import NewProfile from '@/views/NewProfile.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
 import RichTextDemo from '@/components/RichTextDemo.vue';
+import AudioThemeShowcase from '@/components/demo/AudioThemeShowcase.vue';
 import { useAuthStore } from '@/stores/auth';
 
 const router = createRouter({
@@ -80,6 +81,12 @@ const router = createRouter({
       path: '/demo',
       name: 'RichTextDemo',
       component: RichTextDemo,
+      meta: { requiresAuth: false }
+    },
+    {
+      path: '/audio-demo',
+      name: 'AudioThemeDemo',
+      component: AudioThemeShowcase,
       meta: { requiresAuth: false }
     },
   ],
