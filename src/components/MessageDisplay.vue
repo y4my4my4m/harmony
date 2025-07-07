@@ -44,6 +44,21 @@
             </div>
             <div class="system-timestamp">{{ formatTimestamp(message.created_at) }}</div>
           </div>
+          
+          <!-- Message actions for system messages (if hovered) -->
+          <div class="message-actions" v-if="hoveredMessageId === message.id">
+            <div class="action-btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
+            <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
+            <div class="action-btn"><MoreIcon/></div>
+          </div>
+          
+          <!-- Reactions for system messages -->
+          <MessageReactions
+            :message="message"
+            @toggle-reaction="handleToggleReaction"
+            @show-reaction-tooltip="showTooltip"
+            @hide-reaction-tooltip="hideTooltip"
+          />
         </div>
 
         <!-- Regular Message Content -->
@@ -203,6 +218,7 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel'; 
+import { useServerPermissions } from '@/composables/useServerPermissions';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
@@ -251,6 +267,7 @@ export default defineComponent({
     const serverChannelStore = useServerChannelStore();
     const useChat = useChatStore();
     const authStore = useAuthStore();
+    const { isCurrentUserServerOwner } = useServerPermissions();
     
     // Initialize imageLoaded early to prevent initialization order issues
     const imageLoaded: Ref<Record<string, boolean>> = ref({});
@@ -328,7 +345,6 @@ export default defineComponent({
     };
 
     const hideTooltip = () => {
-      console.log('hideTooltip called, clearing timer and hiding tooltip');
       if (tooltipTimer.value) {
         clearTimeout(tooltipTimer.value);
         tooltipTimer.value = null;
@@ -1089,8 +1105,11 @@ export default defineComponent({
         return true;
       }
       
-      // TODO: Add admin permission check when admin roles are implemented
-      // For now, only allow editing own messages
+      // Server owners can edit any message (including system messages)
+      if (isCurrentUserServerOwner.value) {
+        return true;
+      }
+      
       return false;
     };
 
@@ -1102,8 +1121,11 @@ export default defineComponent({
         return true;
       }
       
-      // TODO: Add admin permission check when admin roles are implemented
-      // For now, only allow deleting own messages
+      // Server owners can delete any message (including system messages)
+      if (isCurrentUserServerOwner.value) {
+        return true;
+      }
+      
       return false;
     };
 

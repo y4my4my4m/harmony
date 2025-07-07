@@ -581,7 +581,6 @@ onMounted(() => {
   cursor: pointer;
   padding: 6px 8px;
   font-size: 12px;
-  font-weight: bold;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   width: 100%;
@@ -595,6 +594,13 @@ onMounted(() => {
 
 .group-header:hover {
   color: #b9bbbe;
+}
+
+.group-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  font-weight: bold;
 }
 
 .group-arrow {
