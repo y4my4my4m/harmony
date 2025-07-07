@@ -88,7 +88,12 @@ const handleReactionClick = async (emoji: Emoji) => {
   emit('toggle-reaction', props.message.id, emoji);
   
   // Update via the store
-  await reactionsStore.toggleReaction(props.message.id, emoji.id, currentUserId.value);
+  const result = await reactionsStore.toggleReaction(props.message.id, emoji.id, currentUserId.value);
+  
+  // Log result but don't show error for duplicate requests (they're expected)
+  if (!result.success && result.reason !== 'duplicate_request') {
+    console.error('🎯 Failed to toggle reaction:', result.message || result.reason);
+  }
 };
 
 // Show reaction tooltip

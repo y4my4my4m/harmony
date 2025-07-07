@@ -510,12 +510,14 @@ export const useChatStore = defineStore('chat', {
         
         // Use the reactions store for consistent handling
         const reactionsStore = useReactionsStore();
-        const success = await reactionsStore.toggleReaction(messageId, emojiId, userId);
+        const result = await reactionsStore.toggleReaction(messageId, emojiId, userId);
         
-        if (success) {
+        if (result.success) {
           console.log('🎯 Reaction successfully toggled');
+        } else if (result.reason === 'duplicate_request') {
+          console.log('🎯 Reaction toggle skipped (duplicate request prevented)');
         } else {
-          console.error('🎯 Failed to toggle reaction');
+          console.error('🎯 Failed to toggle reaction:', result.message || result.reason);
         }
       } catch (e) {
         console.error('Error during reaction toggle:', e);
