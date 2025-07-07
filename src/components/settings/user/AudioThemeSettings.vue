@@ -137,7 +137,7 @@ const testActions = [
 // =============================================================================
 
 const cacheInfo = computed(() => {
-  return AudioThemeService.getInstance().getCacheInfo()
+  return themeStore.getCacheInfo()
 })
 
 // =============================================================================
