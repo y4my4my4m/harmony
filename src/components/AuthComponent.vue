@@ -24,7 +24,7 @@
       <!-- Left Panel - Branding -->
       <div class="auth-branding">
         <div class="brand-content">
-          <div class="logo-container" @click="playSound('/assets/sounds/pirori-wet.mp3')">
+          <div class="logo-container" @click="themeStore.testAudio('ui_click')">>
             <img src="/icon_3d.png" alt="Harmony Logo" class="brand-logo" />
             <div class="logo-glow"></div>
           </div>
@@ -194,8 +194,8 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/useTheme'
 import { useToast } from 'vue-toastification'
-import { useAudioEffects } from '@/composables/useCommonUI'
 
 // Props
 interface Props {
@@ -209,8 +209,8 @@ const props = withDefaults(defineProps<Props>(), {
 // Composables
 const router = useRouter()
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
 const toast = useToast()
-const { playSound } = useAudioEffects()
 
 // Reactive state
 const email = ref('')

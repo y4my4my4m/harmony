@@ -67,6 +67,7 @@ import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useServerUsersStore } from '@/stores/useServerUsers'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { useThemeStore } from '@/stores/useTheme'
 import { getProfileWithAvatarUrl } from '@/services/profileService'
 import { useRouter } from 'vue-router'
 import type { User } from '@/types'
@@ -82,6 +83,7 @@ import NotificationBell from '@/components/NotificationBell.vue'
 const authStore = useAuthStore()
 const serverUsersStore = useServerUsersStore()
 const voiceChannelStore = useUnifiedVoiceChannelStore()
+const themeStore = useThemeStore()
 const router = useRouter()
 const profile = ref<User | null>(null)
 const showStatusDropdown = ref(false)
@@ -114,19 +116,17 @@ const isInVoiceChannel = computed(() => {
   return voiceChannelStore.isConnected
 })
 
-// Voice sound effects (proper ones for voice, not camera)
-const micOnSound = ref(new Audio('/assets/sounds/mic_on.mp3'))
-const micOffSound = ref(new Audio('/assets/sounds/mic_off.mp3'))
-
 const toggleMic = async () => {
   try {
     const wasMuted = voiceChannelStore.localState.isMuted
     await voiceChannelStore.toggleMute()
     
-    // Play appropriate sound effect
-    const sound = wasMuted ? micOnSound.value : micOffSound.value
-    sound.volume = 0.35
-    sound.play().catch(e => console.log('Could not play sound:', e))
+    // Play appropriate sound effect using theme system
+    if (wasMuted) {
+      themeStore.testAudio('ui_success') // Unmuted - positive sound
+    } else {
+      themeStore.testAudio('ui_click') // Muted - neutral sound
+    }
   } catch (error) {
     console.error('Failed to toggle mute:', error)
   }
@@ -137,11 +137,12 @@ const toggleHeadphones = async () => {
     const wasDeafened = voiceChannelStore.localState.isDeafened
     await voiceChannelStore.toggleDeafen()
     
-    // Play appropriate sound effect
-    // Deafening always results in muting, so play mute sound
-    const sound = wasDeafened ? micOnSound.value : micOffSound.value
-    sound.volume = 0.35
-    sound.play().catch(e => console.log('Could not play sound:', e))
+    // Play appropriate sound effect using theme system
+    if (wasDeafened) {
+      themeStore.testAudio('ui_success') // Undeafened - positive sound
+    } else {
+      themeStore.testAudio('ui_click') // Deafened - neutral sound
+    }
   } catch (error) {
     console.error('Failed to toggle deafen:', error)
   }
@@ -413,6 +414,7 @@ const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'o
 .status-text {
   flex-grow: 1;
   font-weight: 500;
+  width: 78px;
 }
 
 .checkmark {

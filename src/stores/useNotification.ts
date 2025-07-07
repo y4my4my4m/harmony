@@ -8,7 +8,8 @@ import type {
   Notification, 
   NotificationType,
   NotificationPreferences,
-  NotificationToast
+  NotificationToast,
+  AudioAction
 } from '@/types'
 
 interface NotificationState {
@@ -20,24 +21,23 @@ interface NotificationState {
   isDndActive: boolean
   toasts: NotificationToast[]
   realtimeSubscription: any
-  soundCache: Map<string, HTMLAudioElement>
   lastNotificationTime: Map<string, number>
   isInitialized: boolean
   hasPermission: boolean
   currentFilter: string
 }
 
-// Sound mappings for different notification types
-const NOTIFICATION_SOUNDS: Record<NotificationType, string> = {
-  mention: '/assets/sounds/poi1.mp3',
-  dm: '/assets/sounds/bubble1.mp3', 
-  reaction: '/assets/sounds/pirori-wet.mp3',
-  reply: '/assets/sounds/pirori-square-wet.mp3',
-  voice_channel_activity: '/assets/sounds/voice_connect.mp3',
-  server_invite: '/assets/sounds/n-ea-harmony.mp3',
-  friend_request: '/assets/sounds/n-aec-8va.mp3',
-  server_update: '/assets/sounds/3.mp3',
-  emoji_added: '/assets/sounds/pirori-wet.mp3'
+// Sound mappings for different notification types to audio actions
+const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
+  mention: 'mention',
+  dm: 'dm', 
+  reaction: 'reaction',
+  reply: 'reply',
+  voice_channel_activity: 'voice_channel_activity',
+  server_invite: 'server_invite',
+  friend_request: 'friend_request',
+  server_update: 'server_update',
+  emoji_added: 'emoji_added'
 }
 
 // Default notification preferences
@@ -74,7 +74,6 @@ export const useNotificationStore = defineStore('notification', {
     isDndActive: false,
     toasts: [],
     realtimeSubscription: null,
-    soundCache: new Map(),
     lastNotificationTime: new Map(),
     isInitialized: false,
     hasPermission: false,
@@ -469,19 +468,21 @@ export const useNotificationStore = defineStore('notification', {
       try {
         if (!this.shouldPlaySound(type)) return
 
-        const soundUrl = NOTIFICATION_SOUNDS[type]
-        if (!soundUrl) return
+        const audioAction = NOTIFICATION_SOUND_MAPPING[type]
+        if (!audioAction) return
 
-        // Use cached audio or create new
-        let audio = this.soundCache.get(soundUrl)
-        if (!audio) {
-          audio = new Audio(soundUrl)
-          audio.volume = 0.5
-          this.soundCache.set(soundUrl, audio)
+        // Get theme store for audio playback
+        const { useThemeStore } = await import('./useTheme')
+        const themeStore = useThemeStore()
+        
+        // Ensure theme system is initialized
+        if (!themeStore.isInitialized) {
+          await themeStore.initialize()
         }
-
-        await audio.play()
-        console.log(`🔊 Played sound for ${type}`)
+        
+        await themeStore.playAudio(audioAction)
+        
+        console.log(`🔊 Played sound for ${type} using professional theme system`)
       } catch (error) {
         console.error(`❌ Failed to play sound for ${type}:`, error)
       }

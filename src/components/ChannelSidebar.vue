@@ -260,6 +260,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { useThemeStore } from '@/stores/useTheme';
 import { statePersistence } from '@/services/StatePersistence';
 
 import type { PropType } from 'vue';
@@ -799,10 +800,9 @@ export default defineComponent({
     // Voice channel methods
     const serverUsersStore = useServerUsersStore();
     const voiceChannelStore = useUnifiedVoiceChannelStore();
+    const themeStore = useThemeStore();
     
     // Voice connection audio and state
-    const voiceOnSound = ref(new Audio('/assets/sounds/voice_connect.mp3'));
-    const voiceOffSound = ref(new Audio('/assets/sounds/voice_disconnect.mp3'));
 
     const isUserInVoiceChannel = (channelId: string): boolean => {
       if (!userId.value) return false;
@@ -825,7 +825,7 @@ export default defineComponent({
         
         if (success) {
           console.log(`✅ Successfully joined voice channel ${channelId}`);
-          voiceOnSound.value.play();
+          themeStore.testAudio('voice_connect');
         } else {
           console.error('❌ Failed to join voice channel');
         }
@@ -843,7 +843,7 @@ export default defineComponent({
         
         if (success) {
           console.log(`Successfully left voice channel ${channelId}`);
-          voiceOffSound.value.play();
+          themeStore.testAudio('voice_disconnect');
         }
       } catch (error) {
         console.error('Failed to leave voice channel:', error);

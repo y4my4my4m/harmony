@@ -170,10 +170,7 @@
   const authStore = useAuthStore();
   const profileStore = useProfileStore();
   const toast = useToast();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const notificationSound = ref(new Audio('/assets/sounds/poi1.mp3'));
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const notificationSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
+  // Remove unused notification sounds - now handled by theme system
 
       const route = useRoute();
       const router = useRouter();
@@ -647,7 +644,7 @@
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           // toast.success('Notification permission granted.');
-          // notificationSound2.value.play();
+          // Notification sounds are now handled by the theme system
         } else {
           toast.error('Notification permission denied.');
         }
@@ -656,7 +653,7 @@
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const showNotification = (title: string, options?: NotificationOptions) => {
         if (Notification.permission === 'granted') {
-          // notificationSound.value.play();
+          // Notification sounds are now handled by the theme system
           // new Notification(title, options);
         } else {
           toast.info('Notification permission not granted. Please allow notifications.');
