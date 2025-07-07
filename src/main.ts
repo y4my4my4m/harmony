@@ -8,6 +8,7 @@ import App from './App.vue'
 import router from './router'
 import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
 import { useAuthStore } from '@/stores/auth'
+import { reactionCacheManager } from '@/utils/reactionCacheManager'
 
 import Toast from 'vue-toastification';
 import "vue-toastification/dist/index.css";
@@ -67,6 +68,10 @@ async function initializeApp() {
     if (swSupported) {
       await serviceWorkerManager.requestNotificationPermission()
     }
+    
+    // Start reaction cache management
+    reactionCacheManager.startCleanup()
+    console.log('🎯 Reaction cache manager started')
   } catch (error) {
     console.error('❌ Error initializing service worker:', error)
   }
