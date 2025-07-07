@@ -133,29 +133,12 @@
         </div>
         
         <!-- Reactions -->
-        <div class="reactions" v-if="getValidReactions(message).length > 0">
-          <div class="reactions-gutter"></div>
-          <div class="reactions-container">
-            <div
-              v-for="reaction in getValidReactions(message)"
-              :key="reaction.id || `${reaction.emoji.id}-${reaction.count}`"
-              class="reaction"
-              @click="toggleReaction(message.id, reaction.emoji)"
-              @mouseenter="showTooltip($event, reaction)"
-              @mouseleave="hideTooltip"
-              :class="{'reacted': reaction.reactions && reaction.reactions.some(r => r.user_id === currentUserId)}"
-            >
-              <img 
-                v-if="reaction.emoji?.url"
-                :src="reaction.emoji.url" 
-                :alt="reaction.emoji.name || 'emoji'"
-                @error="console.error('Failed to load emoji:', reaction.emoji)"
-              />
-              <span v-else class="missing-emoji">?</span>
-              <span class="reaction-count">{{ reaction.count }}</span>
-            </div>
-          </div>
-        </div>
+        <MessageReactions
+          :message="message"
+          @toggle-reaction="handleToggleReaction"
+          @show-reaction-tooltip="showTooltip"
+          @hide-reaction-tooltip="hideTooltip"
+        />
           </div>
         </template>
       </div>
@@ -230,6 +213,7 @@ import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import MessageReactions from '@/components/MessageReactions.vue';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
 
 export default defineComponent({
@@ -258,7 +242,8 @@ export default defineComponent({
     DeleteIcon,
     MoreIcon,
     UnifiedMessageContent,
-    Avatar
+    Avatar,
+    MessageReactions
   },
   setup(props, { emit }) {
     const messageDisplayContainer = ref<HTMLDivElement | null>(null);
@@ -608,6 +593,11 @@ export default defineComponent({
       }
       
       emit('sendReaction', messageId, emoji);
+    }
+
+    const handleToggleReaction = (messageId: string, emoji: Emoji) => {
+      // This is called from the MessageReactions component
+      toggleReaction(messageId, emoji);
     }
 
     // Utility function to convert structured message content to editable text
@@ -1232,6 +1222,7 @@ export default defineComponent({
       handleWheel,
       deleteMessage,
       toggleReaction,
+      handleToggleReaction,
       startEdit,
       saveEdit,
       cancelEdit,
@@ -1477,80 +1468,6 @@ export default defineComponent({
 .action-btn:active {
   background-color: #2f3136;
   transform: scale(0.95);
-}
-
-/* Reactions */
-.reactions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 2px 0;
-}
-
-.reactions-gutter {
-  width: 48px;
-  flex-shrink: 0;
-}
-
-.reactions-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.reaction {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
-  background-color: #2d2f35;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.15s ease-out;
-  user-select: none;
-}
-
-.reaction:hover {
-  background-color: #40444b;
-  border-color: #4f545c;
-}
-
-.reaction.reacted {
-  background-color: hsl(235, 85.6%, 64.7%, 0.15);
-  border-color: hsl(235, 85.6%, 64.7%);
-}
-
-.reaction img {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-}
-
-.reaction-count {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.5);
-  min-width: 9px;
-  text-align: center;
-}
-
-.reaction.reacted .reaction-count {
-  color: hsl(0, 0%, 100%);
-}
-
-/* Missing emoji placeholder */
-.missing-emoji {
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #40444b;
-  border-radius: 2px;
-  font-size: 12px;
-  color: #72767d;
 }
 
 /* Gap indicator */
