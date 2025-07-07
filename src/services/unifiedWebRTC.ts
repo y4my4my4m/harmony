@@ -1071,6 +1071,21 @@ export class UnifiedWebRTCService {
     }
   }
 
+  /**
+   * Enable or disable traditional HTMLAudioElement playback
+   * This should be called when spatial audio is toggled
+   */
+  setTraditionalAudioEnabled(enabled: boolean): void {
+    this.connections.forEach(connection => {
+      if (connection.audioElement) {
+        // When spatial audio is enabled, mute the HTMLAudioElement to prevent double audio
+        // When spatial audio is disabled, unmute it for normal playback
+        connection.audioElement.muted = !enabled || this.localMediaState.isDeafened;
+        console.log(`🔊 Traditional audio for ${connection.userId}:`, enabled ? 'enabled' : 'disabled');
+      }
+    });
+  }
+
   private cleanupRemoteAudio(connection: UserConnection): void {
     if (connection.audioElement) {
       connection.audioElement.pause();

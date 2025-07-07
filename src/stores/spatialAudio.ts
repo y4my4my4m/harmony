@@ -157,20 +157,55 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
   // =============================================================================
   
   actions: {
-    // Toggle spatial audio on/off
-    toggleSpatialAudio(): void {
+    // Toggle spatial audio on/off with proper AudioContext management
+    async toggleSpatialAudio(): Promise<void> {
       this.settings.enabled = !this.settings.enabled;
       
-      // Import and call spatial audio service
-      import('@/services/spatialAudio').then(({ spatialAudioService }) => {
-        if (!this.settings.enabled) {
-          // If disabling, reset all audio effects
-          spatialAudioService.disableSpatialAudio();
+      console.log('🎧 Toggling spatial audio:', this.settings.enabled ? 'ON' : 'OFF');
+      
+      try {
+        // Import services
+        const { spatialAudioService } = await import('@/services/spatialAudio');
+        const { unifiedWebRTC } = await import('@/services/unifiedWebRTC');
+        
+        if (this.settings.enabled) {
+          // Enable spatial audio - this will create AudioContext if needed
+          await spatialAudioService.enableSpatialAudio();
+          
+          // Disable traditional HTMLAudioElement playback to prevent double audio
+          unifiedWebRTC.setTraditionalAudioEnabled(false);
         } else {
-          // If enabling, apply spatial effects
-          spatialAudioService.enableSpatialAudio();
+          // Disable spatial audio but keep AudioContext for potential re-enabling
+          spatialAudioService.disableSpatialAudio();
+          
+          // Re-enable traditional HTMLAudioElement playback
+          unifiedWebRTC.setTraditionalAudioEnabled(true);
         }
-      });
+        
+        console.log('✅ Spatial audio toggle completed');
+      } catch (error) {
+        console.error('❌ Failed to toggle spatial audio:', error);
+        // Revert the setting on error
+        this.settings.enabled = !this.settings.enabled;
+        throw error;
+      }
+    },
+    
+    // Initialize spatial audio when first needed
+    async initializeSpatialAudio(): Promise<void> {
+      if (!this.settings.enabled) {
+        console.log('🎧 Spatial audio disabled - skipping initialization');
+        return;
+      }
+      
+      try {
+        const { spatialAudioService } = await import('@/services/spatialAudio');
+        await spatialAudioService.initialize();
+        console.log('✅ Spatial audio initialized');
+      } catch (error) {
+        console.error('❌ Failed to initialize spatial audio:', error);
+        throw error;
+      }
     },
     
     // Toggle panel visibility
