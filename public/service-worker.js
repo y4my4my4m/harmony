@@ -63,6 +63,9 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (request.method !== 'GET') return
 
+  // Skip unsupported schemes (chrome-extension, moz-extension, etc.)
+  if (!url.protocol.startsWith('http')) return
+
   // Handle different types of requests
   if (url.pathname.startsWith('/api/')) {
     // API requests - network first with cache fallback
@@ -82,6 +85,12 @@ self.addEventListener('fetch', (event) => {
 // Caching strategies
 async function cacheFirstStrategy(request, cacheName) {
   try {
+    // Skip caching for unsupported schemes
+    const url = new URL(request.url)
+    if (!url.protocol.startsWith('http')) {
+      return fetch(request)
+    }
+
     const cachedResponse = await caches.match(request)
     if (cachedResponse) {
       return cachedResponse
@@ -101,6 +110,12 @@ async function cacheFirstStrategy(request, cacheName) {
 
 async function networkFirstStrategy(request, cacheName) {
   try {
+    // Skip caching for unsupported schemes
+    const url = new URL(request.url)
+    if (!url.protocol.startsWith('http')) {
+      return fetch(request)
+    }
+
     const networkResponse = await fetch(request)
     if (networkResponse.status === 200) {
       const cache = await caches.open(cacheName)
@@ -399,8 +414,14 @@ self.addEventListener('activate', (event) => {
 
 // Enhanced fetch handling with offline support
 self.addEventListener('fetch', (event) => {
-  // Only handle same-origin requests
+  // Only handle same-origin HTTP(S) requests
   if (!event.request.url.startsWith(self.location.origin)) {
+    return
+  }
+
+  // Skip unsupported schemes
+  const requestUrl = new URL(event.request.url)
+  if (!requestUrl.protocol.startsWith('http')) {
     return
   }
 
