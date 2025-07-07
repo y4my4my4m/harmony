@@ -26,11 +26,10 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
     
     // Get emojis for current server
-    currentServerEmojis: () => {
+    currentServerEmojis(this): ResolvedEmoji[] {
       const emojiCache = useEmojiCacheStore();
-      const store = useServerChannelStore();
-      if (!store.currentServerId) return [];
-      return emojiCache.getServerEmojis(store.currentServerId);
+      if (!this.currentServerId) return [];
+      return emojiCache.getServerEmojis(this.currentServerId);
     },
   },
 
@@ -523,31 +522,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
       await emojiCache.loadEmojisForServers(serverIds);
     },
 
-    // Legacy method for backward compatibility
-    async fetchAllEmojis() {
-      console.log('⚠️ fetchAllEmojis is deprecated, use emoji cache store instead');
-      await this.refreshEmojis();
-    },
-
-    // Legacy method for backward compatibility  
-    resolveAndCacheEmojis() {
-      console.log('⚠️ resolveAndCacheEmojis is deprecated, emoji resolution is automatic');
-      // Emoji resolution is now handled automatically by the cache store
-    },
-
-    // Legacy methods - kept for compatibility but delegate to cache
-    resolveNamingConflicts(): Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }> {
-      console.log('⚠️ resolveNamingConflicts is deprecated, use resolvedEmojiList getter instead');
-      return this.resolvedEmojiList;
-    },
-
-    cacheEmojis(emojisByServer: Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }>) {
-      console.log('⚠️ cacheEmojis is deprecated, caching is automatic');
-      // Caching is now handled automatically by the emoji cache store
-      // Parameter is kept for compatibility but not used
-      void emojisByServer;
-    },
-    
     getServerDetails(serverId: string): { name?: string; icon?: string } | undefined {
       return this.servers.find(server => server.id === serverId);
     },
