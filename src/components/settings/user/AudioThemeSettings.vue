@@ -7,121 +7,32 @@
       </p>
     </div>
 
-    <!-- Current Theme Display -->
-    <div class="current-theme-section">
-      <div class="current-theme-card" v-if="currentTheme">
-        <div class="theme-preview">
-          <div class="theme-icon">
-            🎵
-          </div>
-          <div class="theme-info">
-            <h3 class="theme-name">{{ currentTheme.name }}</h3>
-            <p class="theme-description">{{ currentTheme.description }}</p>
-            <span class="theme-author">by {{ currentTheme.author }}</span>
-          </div>
-        </div>
-        <div class="theme-actions">
-          <button 
-            @click="testCurrentTheme" 
-            class="test-btn"
-            :disabled="isLoading"
-          >
-            <Icon name="volume-2" />
-            Test Sound
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Volume Control -->
+    <!-- Main Audio Theme Manager -->
     <div class="settings-section">
-      <h3 class="section-title">Volume</h3>
-      
-      <div class="volume-control">
-        <div class="volume-slider-container">
-          <Icon name="volume-1" class="volume-icon" />
-          <input
-            v-model.number="localVolume"
-            @input="onVolumeChange"
-            type="range"
-            min="0"
-            max="100"
-            step="1"
-            class="volume-slider"
-          />
-          <Icon name="volume-2" class="volume-icon" />
-        </div>
-        <div class="volume-display">
-          {{ Math.round(localVolume) }}%
-        </div>
-      </div>
-    </div>
-
-    <!-- Theme Selection -->
-    <div class="settings-section">
-      <h3 class="section-title">Available Themes</h3>
-      
-      <div class="theme-grid">
-        <div
-          v-for="theme in availableThemes"
-          :key="theme.id"
-          :class="[
-            'theme-card',
-            { 
-              'active': theme.id === currentThemeId,
-              'loading': isLoading && pendingThemeId === theme.id
-            }
-          ]"
-          @click="selectTheme(theme.id)"
-        >
-          <div class="theme-card-header">
-            <div class="theme-icon-small">
-              {{ getThemeIcon(theme.id) }}
-            </div>
-            <div class="theme-title">
-              <h4>{{ theme.name }}</h4>
-              <span class="theme-version">v{{ theme.version }}</span>
-            </div>
-            <div class="theme-status">
-              <Icon 
-                v-if="theme.id === currentThemeId" 
-                name="check-circle" 
-                class="active-icon"
-              />
-              <div 
-                v-else-if="isLoading && pendingThemeId === theme.id"
-                class="loading-spinner"
-              />
-            </div>
-          </div>
-          
-          <p class="theme-description-small">{{ theme.description }}</p>
-          
-          <div class="theme-card-footer">
-            <span class="theme-author-small">{{ theme.author }}</span>
-            <button 
-              @click.stop="testTheme(theme.id)"
-              class="test-theme-btn"
-              :disabled="isLoading"
-            >
-              <Icon name="play" />
-            </button>
-          </div>
-        </div>
-      </div>
+      <AudioThemeManager 
+        :show-test-button="true"
+        :show-volume-control="true"
+        :show-status="true"
+        :show-cache-button="false"
+        :show-advanced="false"
+        @theme-changed="onThemeChanged"
+        @volume-changed="onVolumeChanged"
+        @tested="onThemeTested"
+      />
     </div>
 
     <!-- Quick Test Section -->
     <div class="settings-section">
       <h3 class="section-title">Sound Preview</h3>
+      <p class="section-description">Test how different actions will sound with your current theme</p>
       
       <div class="sound-test-grid">
         <button
           v-for="action in testActions"
           :key="action.id"
           @click="testSound(action.id)"
-          :class="['sound-test-btn', action.id]"
-          :disabled="isLoading"
+          :class="['sound-test-btn', action.category]"
+          :disabled="!themeStore.isReady"
         >
           <Icon :name="action.icon" />
           <span>{{ action.label }}</span>
@@ -131,24 +42,50 @@
 
     <!-- Advanced Settings -->
     <div class="settings-section advanced-section" v-if="showAdvanced">
-      <h3 class="section-title">Advanced</h3>
+      <h3 class="section-title">Advanced Audio Settings</h3>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Clear Audio Cache</h4>
-          <p class="setting-description">Clear cached audio files to force reload</p>
+          <h4 class="setting-label">Audio System Status</h4>
+          <p class="setting-description">Current status of the audio theme system</p>
         </div>
         <div class="setting-control">
-          <button @click="clearCache" class="clear-cache-btn">
+          <span :class="['status-badge', themeStore.systemStatus]">
+            {{ themeStore.systemStatus }}
+          </span>
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Clear Audio Cache</h4>
+          <p class="setting-description">Clear cached audio files to force reload of all sounds</p>
+        </div>
+        <div class="setting-control">
+          <button @click="clearCache" class="clear-cache-btn" :disabled="isLoading">
+            <Icon name="trash-2" />
             Clear Cache
           </button>
         </div>
       </div>
       
+      <div class="setting-item" v-if="cacheInfo">
+        <div class="setting-info">
+          <h4 class="setting-label">Cache Information</h4>
+          <p class="setting-description">{{ cacheInfo.size }}/{{ cacheInfo.maxSize }} sounds loaded</p>
+        </div>
+      </div>
+
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Cache Info</h4>
-          <p class="setting-description">{{ cacheInfo }}</p>
+          <h4 class="setting-label">Reset Audio System</h4>
+          <p class="setting-description">Reset all audio settings to defaults</p>
+        </div>
+        <div class="setting-control">
+          <button @click="resetSystem" class="reset-btn danger" :disabled="isLoading">
+            <Icon name="rotate-ccw" />
+            Reset System
+          </button>
         </div>
       </div>
     </div>
@@ -160,114 +97,137 @@
         {{ showAdvanced ? 'Hide' : 'Show' }} Advanced Settings
       </button>
     </div>
+
+    <!-- Status Messages -->
+    <div v-if="statusMessage" :class="['status-message', statusType]">
+      <Icon :name="getStatusIcon(statusType)" />
+      <span>{{ statusMessage }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/useTheme'
-import { audioThemeManager } from '@/services/AudioThemeManager'
+import { AudioThemeService } from '@/services/AudioThemeService'
+import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
 import Icon from '@/components/common/Icon.vue'
 import type { AudioAction } from '@/types'
+
+// =============================================================================
+// STATE
+// =============================================================================
 
 const themeStore = useThemeStore()
 
 // Local state
 const isLoading = ref(false)
-const pendingThemeId = ref<string | null>(null)
-const localVolume = ref(70)
 const showAdvanced = ref(false)
-
-// Computed properties
-const currentTheme = computed(() => themeStore.getCurrentAudioTheme)
-const currentThemeId = computed(() => themeStore.currentAudioTheme)
-const availableThemes = computed(() => themeStore.audioThemes)
-
-const cacheInfo = computed(() => {
-  const size = audioThemeManager.getCacheSize()
-  return `${size} audio files cached`
-})
+const statusMessage = ref('')
+const statusType = ref<'success' | 'error' | 'info'>('info')
 
 // Test actions for sound preview
-const testActions = ref([
-  { id: 'mention' as AudioAction, label: 'Mention', icon: 'at-sign' },
-  { id: 'dm' as AudioAction, label: 'Message', icon: 'message-circle' },
-  { id: 'reaction' as AudioAction, label: 'Reaction', icon: 'heart' },
-  { id: 'voice_connect' as AudioAction, label: 'Voice Join', icon: 'mic' },
-  { id: 'ui_success' as AudioAction, label: 'Success', icon: 'check' },
-  { id: 'ui_error' as AudioAction, label: 'Error', icon: 'x' }
-])
+const testActions = [
+  { id: 'mention', label: 'Mention', icon: 'at-sign', category: 'notification' },
+  { id: 'dm', label: 'Message', icon: 'message-circle', category: 'notification' },
+  { id: 'reaction', label: 'Reaction', icon: 'heart', category: 'notification' },
+  { id: 'voice_connect', label: 'Voice Join', icon: 'phone', category: 'voice' },
+  { id: 'voice_disconnect', label: 'Voice Leave', icon: 'phone-off', category: 'voice' },
+  { id: 'ui_success', label: 'Success', icon: 'check-circle', category: 'ui' },
+  { id: 'ui_error', label: 'Error', icon: 'alert-circle', category: 'ui' },
+  { id: 'ui_click', label: 'Click', icon: 'mouse-pointer', category: 'ui' }
+] as const
 
-// Methods
-const getThemeIcon = (themeId: string): string => {
-  const icons: Record<string, string> = {
-    'harmony': '🎵',
-    'professional': '💼',
-    'default': '🔊'
-  }
-  return icons[themeId] || '🎧'
-}
+// =============================================================================
+// COMPUTED
+// =============================================================================
 
-const selectTheme = async (themeId: string): Promise<void> => {
-  if (themeId === currentThemeId.value || isLoading.value) return
-  
-  isLoading.value = true
-  pendingThemeId.value = themeId
-  
-  try {
-    await themeStore.setAudioTheme(themeId)
-  } catch (error) {
-    console.error('Failed to set theme:', error)
-  } finally {
-    isLoading.value = false
-    pendingThemeId.value = null
-  }
-}
-
-const testTheme = async (themeId: string): Promise<void> => {
-  // Temporarily switch to theme for testing
-  const originalTheme = currentThemeId.value
-  
-  try {
-    audioThemeManager.setTheme(themeId)
-    await testSound('mention')
-  } finally {
-    // Switch back to original theme
-    audioThemeManager.setTheme(originalTheme)
-  }
-}
-
-const testCurrentTheme = (): void => {
-  testSound('mention')
-}
-
-const testSound = async (action: AudioAction): Promise<void> => {
-  try {
-    await themeStore.testAudio(action)
-  } catch (error) {
-    console.error('Failed to test sound:', error)
-  }
-}
-
-const onVolumeChange = (): void => {
-  themeStore.setAudioVolume(localVolume.value / 100)
-}
-
-const clearCache = (): void => {
-  themeStore.clearAudioCache()
-  // Show feedback
-  testSound('ui_success')
-}
-
-// Initialize
-onMounted(async () => {
-  await themeStore.initialize()
-  localVolume.value = Math.round(themeStore.audioVolume * 100)
+const cacheInfo = computed(() => {
+  return AudioThemeService.getInstance().getCacheInfo()
 })
 
-// Watch for volume changes from store
-watch(() => themeStore.audioVolume, (newVolume) => {
-  localVolume.value = Math.round(newVolume * 100)
+// =============================================================================
+// METHODS
+// =============================================================================
+
+const testSound = async (actionId: string): Promise<void> => {
+  try {
+    await themeStore.testAudio(actionId as AudioAction)
+    showStatus('success', `Tested ${actionId} successfully`)
+  } catch (error) {
+    console.error('Failed to test sound:', error)
+    showStatus('error', `Failed to test ${actionId}`)
+  }
+}
+
+const clearCache = async (): Promise<void> => {
+  try {
+    isLoading.value = true
+    await themeStore.clearAudioCache()
+    showStatus('success', 'Audio cache cleared successfully')
+  } catch (error) {
+    console.error('Failed to clear cache:', error)
+    showStatus('error', 'Failed to clear audio cache')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const resetSystem = async (): Promise<void> => {
+  try {
+    isLoading.value = true
+    await themeStore.resetAudioSystem()
+    showStatus('success', 'Audio system reset successfully')
+  } catch (error) {
+    console.error('Failed to reset system:', error)
+    showStatus('error', 'Failed to reset audio system')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const onThemeChanged = (themeId: string): void => {
+  showStatus('success', `Switched to ${themeId} theme`)
+}
+
+const onVolumeChanged = (volume: number): void => {
+  showStatus('info', `Volume set to ${Math.round(volume * 100)}%`)
+}
+
+const onThemeTested = (actionId: string): void => {
+  showStatus('success', `Tested ${actionId} sound`)
+}
+
+const showStatus = (type: 'success' | 'error' | 'info', message: string): void => {
+  statusType.value = type
+  statusMessage.value = message
+  
+  // Auto-hide after 3 seconds
+  setTimeout(() => {
+    statusMessage.value = ''
+  }, 3000)
+}
+
+const getStatusIcon = (type: string): string => {
+  const icons = {
+    success: 'check-circle',
+    error: 'alert-circle',
+    info: 'info'
+  }
+  return icons[type as keyof typeof icons] || 'info'
+}
+
+// =============================================================================
+// LIFECYCLE
+// =============================================================================
+
+onMounted(async () => {
+  try {
+    await themeStore.initialize()
+  } catch (error) {
+    console.error('Failed to initialize audio theme store:', error)
+    showStatus('error', 'Failed to initialize audio system')
+  }
 })
 </script>
 

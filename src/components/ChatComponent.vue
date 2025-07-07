@@ -62,6 +62,7 @@
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
   import { useServerUsersStore } from '@/stores/useServerUsers'; 
   import { useDMStore } from '@/stores/useDM';
+  import { useThemeStore } from '@/stores/useTheme';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { listen } from '@tauri-apps/api/event';
@@ -97,6 +98,7 @@
   const serverChannelStore = useServerChannelStore();
   const serverUsersStore = useServerUsersStore();
   const dmStore = useDMStore();
+  const themeStore = useThemeStore();
       const showDragDropArea = ref(false);
       const uploading = ref(false);
       const emojiListOpen = ref(false);
@@ -117,7 +119,6 @@
         return serverChannelStore.resolvedEmojiList;
       });
       
-      const reactionSound2 = ref(new Audio('/assets/sounds/bubble1.mp3'));
       const currentUserId = computed(() => authStore.session?.user?.id);
       const hasActiveUploads = ref(false);
       
@@ -427,8 +428,8 @@
         
         if (isPopupForReaction.value) {
           if (authStore.session?.user) {
-            reactionSound2.value.volume = 0.5;
-            reactionSound2.value.play();
+            // Play reaction sound using the new theme system
+            themeStore.testAudio('reaction');
             
             // Track emoji usage when used as reaction
             if (!props.isDM && serverChannelStore.currentServerId) {

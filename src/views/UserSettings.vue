@@ -102,6 +102,12 @@
             @update-appearance="handleAppearanceUpdate"
           />
 
+          <!-- Audio Themes Section -->
+          <AudioThemeSettings 
+            v-else-if="activeSection === 'audio'"
+            :loading="loading"
+          />
+
           <!-- Notifications Section -->
           <NotificationSettings 
             v-else-if="activeSection === 'notifications'"
@@ -166,6 +172,7 @@ import { useToast } from 'vue-toastification'
 import UserAccountSettings from '@/components/settings/user/UserAccountSettings.vue'
 import PrivacySettings from '@/components/settings/user/PrivacySettings.vue'
 import AppearanceSettings from '@/components/settings/user/AppearanceSettings.vue'
+import AudioThemeSettings from '@/components/settings/user/AudioThemeSettings.vue'
 import NotificationSettings from '@/components/settings/user/NotificationSettings.vue'
 import VoiceVideoSettings from '@/components/settings/user/VoiceVideoSettings.vue'
 import KeybindSettings from '@/components/settings/user/KeybindSettings.vue'
@@ -176,6 +183,7 @@ import AdvancedSettings from '@/components/settings/user/AdvancedSettings.vue'
 import UserIcon from '@/components/icons/User.vue'
 import ShieldIcon from '@/components/icons/Shield.vue'
 import PaletteIcon from '@/components/icons/Palette.vue'
+import VoiceIcon from '@/components/icons/VoiceIcon.vue'
 import BellIcon from '@/components/icons/Bell.vue'
 import MicIcon from '@/components/icons/Mic.vue'
 import KeyboardIcon from '@/components/icons/Keyboard.vue'
@@ -224,6 +232,7 @@ const userSections = computed(() => [
 
 const appSections = computed(() => [
   { id: 'appearance', label: 'Appearance', icon: PaletteIcon },
+  { id: 'audio', label: 'Audio Themes', icon: VoiceIcon },
   { id: 'notifications', label: 'Notifications', icon: BellIcon },
   { id: 'voice', label: 'Voice & Video', icon: MicIcon },
   { id: 'keybinds', label: 'Keybinds', icon: KeyboardIcon },

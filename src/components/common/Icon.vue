@@ -145,6 +145,100 @@
     
     <!-- Circle -->
     <circle v-if="name === 'circle'" cx="12" cy="12" r="10"></circle>
+    
+    <!-- At Sign -->
+    <circle v-if="name === 'at-sign'" cx="12" cy="12" r="4"></circle>
+    <path v-if="name === 'at-sign'" d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"></path>
+    
+    <!-- Message Circle -->
+    <path v-if="name === 'message-circle'" d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+    
+    <!-- Heart -->
+    <path v-if="name === 'heart'" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+    
+    <!-- Mouse Pointer -->
+    <path v-if="name === 'mouse-pointer'" d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
+    <path v-if="name === 'mouse-pointer'" d="M13 13l6 6"></path>
+    
+    <!-- Info -->
+    <circle v-if="name === 'info'" cx="12" cy="12" r="10"></circle>
+    <line v-if="name === 'info'" x1="12" y1="16" x2="12" y2="12"></line>
+    <line v-if="name === 'info'" x1="12" y1="8" x2="12.01" y2="8"></line>
+    
+    <!-- Music -->
+    <path v-if="name === 'music'" d="M9 18V5l12-2v13"></path>
+    <circle v-if="name === 'music'" cx="6" cy="18" r="3"></circle>
+    <circle v-if="name === 'music'" cx="18" cy="16" r="3"></circle>
+    
+    <!-- Volume 2 -->
+    <polygon v-if="name === 'volume-2'" points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <path v-if="name === 'volume-2'" d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+    
+    <!-- Database -->
+    <ellipse v-if="name === 'database'" cx="12" cy="5" rx="9" ry="3"></ellipse>
+    <path v-if="name === 'database'" d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+    <path v-if="name === 'database'" d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+    
+    <!-- Download -->
+    <path v-if="name === 'download'" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+    <polyline v-if="name === 'download'" points="7 10 12 15 17 10"></polyline>
+    <line v-if="name === 'download'" x1="12" y1="15" x2="12" y2="3"></line>
+    
+    <!-- Trash 2 -->
+    <polyline v-if="name === 'trash-2'" points="3 6 5 6 21 6"></polyline>
+    <path v-if="name === 'trash-2'" d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+    <line v-if="name === 'trash-2'" x1="10" y1="11" x2="10" y2="17"></line>
+    <line v-if="name === 'trash-2'" x1="14" y1="11" x2="14" y2="17"></line>
+    
+    <!-- Rotate CCW -->
+    <polyline v-if="name === 'rotate-ccw'" points="1 4 1 10 7 10"></polyline>
+    <path v-if="name === 'rotate-ccw'" d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+    
+    <!-- Eye -->
+    <path v-if="name === 'eye'" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+    <circle v-if="name === 'eye'" cx="12" cy="12" r="3"></circle>
+    
+    <!-- Eye Off -->
+    <path v-if="name === 'eye-off'" d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+    <line v-if="name === 'eye-off'" x1="1" y1="1" x2="23" y2="23"></line>
+    
+    <!-- Alert Circle -->
+    <circle v-if="name === 'alert-circle'" cx="12" cy="12" r="10"></circle>
+    <line v-if="name === 'alert-circle'" x1="12" y1="8" x2="12" y2="12"></line>
+    <line v-if="name === 'alert-circle'" x1="12" y1="16" x2="12.01" y2="16"></line>
+    
+    <!-- Volume 1 -->
+    <polygon v-if="name === 'volume-1'" points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <path v-if="name === 'volume-1'" d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+    
+    <!-- Refresh CW -->
+    <polyline v-if="name === 'refresh-cw'" points="23 4 23 10 17 10"></polyline>
+    <path v-if="name === 'refresh-cw'" d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+    
+    <!-- Loader -->
+    <line v-if="name === 'loader'" x1="12" y1="2" x2="12" y2="6"></line>
+    <line v-if="name === 'loader'" x1="12" y1="18" x2="12" y2="22"></line>
+    <line v-if="name === 'loader'" x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+    <line v-if="name === 'loader'" x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+    <line v-if="name === 'loader'" x1="2" y1="12" x2="6" y2="12"></line>
+    <line v-if="name === 'loader'" x1="18" y1="12" x2="22" y2="12"></line>
+    <line v-if="name === 'loader'" x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+    <line v-if="name === 'loader'" x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+    
+    <!-- Toggle Right -->
+    <rect v-if="name === 'toggle-right'" x="1" y="5" width="22" height="14" rx="7" ry="7"></rect>
+    <circle v-if="name === 'toggle-right'" cx="16" cy="12" r="3"></circle>
+    
+    <!-- Upload -->
+    <path v-if="name === 'upload'" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+    <polyline v-if="name === 'upload'" points="17 8 12 3 7 8"></polyline>
+    <line v-if="name === 'upload'" x1="12" y1="3" x2="12" y2="15"></line>
+    
+    <!-- Chevron Up -->
+    <polyline v-if="name === 'chevron-up'" points="18 15 12 9 6 15"></polyline>
+    
+    <!-- Chevron Down -->
+    <polyline v-if="name === 'chevron-down'" points="6 9 12 15 18 9"></polyline>
   </svg>
 </template>
 
