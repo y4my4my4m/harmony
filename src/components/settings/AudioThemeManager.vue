@@ -330,11 +330,11 @@ const volumeSliderStyle = computed(() => ({
 
 const getThemeIcon = (themeId: string): string => {
   const icons: Record<string, string> = {
-    'harmony': 'music',
-    'professional': 'briefcase',
-    'default': 'volume-2'
+    'harmony': '🎵',
+    'professional': '💼',
+    'default': '🔊'
   }
-  return icons[themeId] || 'headphones'
+  return icons[themeId] || '🎧'
 }
 
 const getStatusIcon = (): string => {

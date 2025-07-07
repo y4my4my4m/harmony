@@ -274,14 +274,14 @@ export class AudioThemeService {
    * Internal audio playback with fallback chain
    */
   private async performAudioPlayback(action: AudioAction): Promise<void> {
-    const soundPath = this.getSoundPathWithFallback(action)
-    if (!soundPath) {
-      console.warn(`No sound available for action: ${action}`)
-      return
-    }
-
     try {
-      const audio = await this.getOrCreateAudio(soundPath)
+      // Try to get the audio with fallback
+      const audio = await this.getAudioWithFallback(action)
+      if (!audio) {
+        console.warn(`No sound available for action: ${action}`)
+        return
+      }
+
       audio.volume = this.settings.volume
       audio.currentTime = 0
       
@@ -291,27 +291,36 @@ export class AudioThemeService {
       
       await audioClone.play()
       
+      const soundPath = audio.src
       this.emit('audioPlayed', { action, soundPath, theme: this.settings.selectedTheme })
     } catch (error) {
       console.warn(`Failed to play audio for ${action}:`, error)
-      this.emit('audioError', { action, soundPath, error })
+      this.emit('audioError', { action, soundPath: '', error })
     }
   }
 
   /**
-   * Get sound path with intelligent fallback
+   * Get audio with smart fallback loading
    */
-  private getSoundPathWithFallback(action: AudioAction): string | null {
-    // Try current theme first
+  private async getAudioWithFallback(action: AudioAction): Promise<HTMLAudioElement | null> {
+    // Step 1: Try current theme path
     const currentTheme = this.getCurrentTheme()
     if (currentTheme?.sounds[action]) {
-      return currentTheme.sounds[action]
+      try {
+        return await this.getOrCreateAudio(currentTheme.sounds[action])
+      } catch (error) {
+        console.warn(`Failed to load ${action} from current theme, trying fallback...`, error)
+      }
     }
 
-    // Fallback to default theme
+    // Step 2: Try default theme path as fallback
     const defaultTheme = this.themes.get('default')
     if (defaultTheme?.sounds[action]) {
-      return defaultTheme.sounds[action]
+      try {
+        return await this.getOrCreateAudio(defaultTheme.sounds[action])
+      } catch (error) {
+        console.warn(`Failed to load ${action} from default theme`, error)
+      }
     }
 
     return null
