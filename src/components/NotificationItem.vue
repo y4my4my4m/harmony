@@ -80,8 +80,6 @@
       
       <!-- Message Content -->
       <div class="notification-message">
-        <p class="message-text">{{ formattedMessage.message }}</p>
-        
         <!-- Rich Content for certain types -->
         <div v-if="hasRichContent" class="rich-content">
           <!-- Message Preview for mentions/replies -->
@@ -99,8 +97,14 @@
           
           <!-- Reaction Display -->
           <div v-if="reactionEmoji" class="reaction-display">
-            <span class="reaction-emoji">{{ reactionEmoji }}</span>
-            <span class="reaction-text">{{ reactionEmoji }} reaction</span>
+            <img 
+              v-if="reactionEmoji.url"
+              :src="reactionEmoji.url" 
+              :alt="reactionEmoji.name"
+              class="reaction-emoji-image"
+            />
+            <span v-else class="reaction-emoji-fallback">{{ reactionEmoji.name }}</span>
+            <span class="reaction-text">:{{ reactionEmoji.name }}: reaction</span>
           </div>
         </div>
       </div>
@@ -220,7 +224,11 @@ const channelInfo = computed(() => {
 
 const reactionEmoji = computed(() => {
   if (props.notification.type === 'reaction') {
-    return props.notification.data.reaction?.emoji_name || '👍'
+    const reactionData = props.notification.data.reaction
+    return {
+      name: reactionData?.emoji_name || '👍',
+      url: reactionData?.emoji_url || null
+    }
   }
   return null
 })
@@ -660,8 +668,16 @@ const typeIcon = computed(() => {
   font-size: 12px;
 }
 
-.reaction-emoji {
+.reaction-emoji-image {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.reaction-emoji-fallback {
   font-size: 16px;
+  flex-shrink: 0;
 }
 
 .reaction-text {

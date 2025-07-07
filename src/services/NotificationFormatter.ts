@@ -29,14 +29,15 @@ const MESSAGE_TEMPLATES = {
   
   reaction: {
     title: (data: any) => {
+      const reactorName = data.reactor.display_name || data.reactor.username
       if (data.location) {
-        return `${data.reactor.username} reacted to your message in #${data.location.channel_name}`
+        return `${reactorName} reacted to your message in #${data.location.channel_name}`
       } else {
-        return `${data.reactor.username} reacted to your message`
+        return `${reactorName} reacted to your message`
       }
     },
-    message: (data: any) => `${data.reaction.emoji_name} reaction`,
-    shortTitle: (data: any) => `${data.reaction.emoji_name} reaction`
+    message: (data: any) => `:${data.reaction.emoji_name}: reaction`,
+    shortTitle: (data: any) => `:${data.reaction.emoji_name}: reaction`
   },
   
   reply: {
@@ -123,7 +124,9 @@ export class NotificationFormatter {
    */
   static getUsername(notification: Notification): string {
     const data = notification.data
-    return data.sender?.username || data.reactor?.username || data.inviter?.username || 'Unknown'
+    return data.sender?.display_name || data.sender?.username || 
+           data.reactor?.display_name || data.reactor?.username || 
+           data.inviter?.display_name || data.inviter?.username || 'Unknown'
   }
   
   /**
