@@ -131,8 +131,7 @@ export class SpatialAudioService {
         await this.preloadImpulseResponses();
       }
       
-      // Start update loop for spatial effects
-      this.startUpdateLoop();
+      // Note: Update loop is started only when spatial audio is enabled via enableSpatialAudio()
       
     } catch (error) {
       console.error('❌ Failed to initialize spatial audio:', error);
@@ -166,17 +165,6 @@ export class SpatialAudioService {
     this.destination = this.audioContext.destination;
     
     console.log('🎛️ Master audio processing chain created with professional dynamics');
-  }
-
-  /**
-   * Start optimized update loop for spatial effects
-   */
-  private startUpdateLoop(): void {
-    const updateLoop = () => {
-      this.updateSpatialEffects();
-      this.animationFrameId = requestAnimationFrame(updateLoop);
-    };
-    updateLoop();
   }
 
   /**
@@ -424,9 +412,29 @@ export class SpatialAudioService {
     this.spatialNodes.forEach((node, userId) => {
       if (userId === this.listenerUserId) return; // Skip self
       
-      // Calculate spatial parameters with optimized math
+      // Get actual user positions for accurate positioning
+      const listenerPos = spatialStore.getUserPosition(this.listenerUserId!);
+      const userPos = spatialStore.getUserPosition(userId);
+      
+      if (!listenerPos || !userPos) {
+        // Fallback to legacy panning if no positions set
+        const gain = spatialStore.getAudioGain(this.listenerUserId!, userId);
+        const panning = spatialStore.getPanning(this.listenerUserId!, userId);
+        
+        if (Math.abs(gain - node.lastGain) > 0.005) {
+          this.setUserGain(userId, gain);
+          node.lastGain = gain;
+        }
+        
+        if (Math.abs(panning - node.lastPanning) > 0.005) {
+          this.setUserPanning(userId, panning);
+          node.lastPanning = panning;
+        }
+        return;
+      }
+      
+      // Use proper 3D positioning when positions are available
       const gain = spatialStore.getAudioGain(this.listenerUserId!, userId);
-      const panning = spatialStore.getPanning(this.listenerUserId!, userId);
       
       // Only update if values changed significantly (performance optimization)
       if (Math.abs(gain - node.lastGain) > 0.005) {
@@ -434,10 +442,8 @@ export class SpatialAudioService {
         node.lastGain = gain;
       }
       
-      if (Math.abs(panning - node.lastPanning) > 0.005) {
-        this.setUserPanning(userId, panning);
-        node.lastPanning = panning;
-      }
+      // Set 3D position directly instead of just panning
+      this.setUser3DPosition(userId, userPos.x, userPos.y);
     });
   }
 
@@ -448,6 +454,22 @@ export class SpatialAudioService {
     this.spatialNodes.forEach((node, userId) => {
       this.setUserGain(userId, 1.0); // Full volume
       this.setUserPanning(userId, 0.0); // Center pan
+      
+      // Reset 3D position to center if using PannerNode
+      if (node.pannerNode instanceof PannerNode) {
+        try {
+          if (node.pannerNode.positionX) {
+            node.pannerNode.positionX.setValueAtTime(0, this.audioContext!.currentTime);
+            node.pannerNode.positionY.setValueAtTime(0, this.audioContext!.currentTime);
+            node.pannerNode.positionZ.setValueAtTime(-1, this.audioContext!.currentTime);
+          } else {
+            node.pannerNode.setPosition(0, 0, -1);
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to reset 3D position for user:', userId, error);
+        }
+      }
+      
       node.lastGain = 1.0;
       node.lastPanning = 0.0;
     });
@@ -514,6 +536,99 @@ export class SpatialAudioService {
       }
     } catch (error) {
       console.error('❌ Failed to set panning for user:', userId, error);
+    }
+  }
+
+  /**
+   * Set user 3D position directly (more accurate than panning alone)
+   */
+  private setUser3DPosition(userId: string, x: number, y: number): void {
+    const node = this.spatialNodes.get(userId);
+    if (!node || !this.audioContext || !node.isConnected) return;
+    if (!(node.pannerNode instanceof PannerNode)) return; // Only works with PannerNode
+
+    try {
+      const spatialStore = useSpatialAudioStore();
+      
+      // Convert 2D screen coordinates to 3D audio space
+      // Scale positions to reasonable audio distances
+      const scale = spatialStore.settings.maxDistance / 200; // Scale factor
+      const audioX = (x - 300) * scale / 100; // Center at 300px, scale down
+      const audioY = (y - 200) * scale / 100; // Center at 200px, scale down  
+      const audioZ = -2; // Keep slightly in front of listener
+      
+      const currentTime = this.audioContext.currentTime;
+      const transitionTime = 0.05;
+      
+      // Apply 3D positioning
+      if (node.pannerNode.positionX) {
+        node.pannerNode.positionX.setTargetAtTime(audioX, currentTime, transitionTime);
+        node.pannerNode.positionY.setTargetAtTime(audioY, currentTime, transitionTime);
+        node.pannerNode.positionZ.setTargetAtTime(audioZ, currentTime, transitionTime);
+      } else {
+        // Fallback for older browsers
+        node.pannerNode.setPosition(audioX, audioY, audioZ);
+      }
+      
+      console.log(`🎧 Set 3D position for ${userId}: screen(${x},${y}) -> audio(${audioX.toFixed(2)},${audioY.toFixed(2)},${audioZ})`);
+    } catch (error) {
+      console.error('❌ Failed to set 3D position for user:', userId, error);
+    }
+  }
+
+  // =============================================================================
+  // POSITION MANAGEMENT
+  // =============================================================================
+
+  /**
+   * Update user position and trigger spatial effects recalculation
+   */
+  updateUserPosition(userId: string, x: number, y: number): void {
+    if (!this.isInitialized) {
+      console.warn('⚠️ Spatial audio not initialized - position update ignored');
+      return;
+    }
+
+    const spatialStore = useSpatialAudioStore();
+    
+    // Update position in store
+    spatialStore.setUserPosition(userId, x, y);
+    
+    // Immediately trigger spatial effects update for responsive positioning
+    this.updateSpatialEffects();
+    
+    console.log(`🎧 Updated position for ${userId}: (${x}, ${y})`);
+  }
+
+  /**
+   * Start continuous spatial audio updates (call once when spatial audio is enabled)
+   */
+  startSpatialUpdates(): void {
+    if (this.animationFrameId) {
+      return; // Already running
+    }
+
+    const updateLoop = () => {
+      if (this.isInitialized) {
+        this.updateSpatialEffects();
+        this.animationFrameId = requestAnimationFrame(updateLoop);
+      } else {
+        this.animationFrameId = null;
+      }
+    };
+    
+    this.animationFrameId = requestAnimationFrame(updateLoop);
+    console.log('🎧 Started spatial audio update loop');
+  }
+
+  /**
+   * Stop continuous spatial audio updates
+   */
+  stopSpatialUpdates(): void {
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+      console.log('🎧 Stopped spatial audio update loop');
     }
   }
 
@@ -701,6 +816,9 @@ export class SpatialAudioService {
       }
     }
     
+    // Start continuous spatial updates
+    this.startSpatialUpdates();
+    
     // Apply current spatial effects
     this.updateSpatialEffects();
     console.log('✅ Spatial audio enabled');
@@ -712,11 +830,8 @@ export class SpatialAudioService {
   disableSpatialAudio(): void {
     console.log('🎧 Disabling spatial audio...');
     
-    // Stop update loop
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
+    // Stop spatial update loop
+    this.stopSpatialUpdates();
     
     // Reset all audio effects to defaults
     this.resetToDefaultAudio();
