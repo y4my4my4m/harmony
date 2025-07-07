@@ -416,16 +416,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
 
       unifiedWebRTC.on('user-stream-changed', (data) => {
-        console.log('🎯 User stream changed event received:', data.userId, 'stream:', !!data.stream);
+        // console.log('📹 User stream changed:', data.userId, data.stream);
         
         if (data.stream) {
           this.remoteStreams.set(data.userId, data.stream);
-          console.log('🎯 Stream added for user:', data.userId, 'calling addUserToSpatialAudio...');
           // Add to spatial audio
           this.addUserToSpatialAudio(data.userId);
         } else {
           this.remoteStreams.delete(data.userId);
-          console.log('🎯 Stream removed for user:', data.userId, 'calling removeUserFromSpatialAudio...');
           // Remove from spatial audio
           this.removeUserFromSpatialAudio(data.userId);
         }
@@ -514,29 +512,21 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Add user to spatial audio
      */
     addUserToSpatialAudio(userId: string): void {
-      console.log('🎯 Adding user to spatial audio:', userId);
-      
-      // Small delay to ensure MediaStream is fully set up
-      setTimeout(async () => {
-        console.log('🎯 Looking for media stream for user:', userId);
-        // Get the MediaStream directly from WebRTC service
-        const mediaStream = unifiedWebRTC.getUserStream(userId);
-        if (mediaStream) {
-          console.log('🎯 Found media stream for user:', userId, 'setting up spatial audio...');
-          await spatialAudioService.setupSpatialForUser(userId, mediaStream);
-          console.log('🎯 Spatial audio setup completed for user:', userId);
+      // Small delay to ensure HTMLAudioElement is fully set up
+      setTimeout(() => {
+        // Get the HTML audio element for this user from WebRTC service
+        const audioElement = unifiedWebRTC.getUserAudioElement(userId);
+        if (audioElement) {
+          spatialAudioService.setupSpatialForUser(userId, audioElement);
         } else {
-          console.warn('🎯 No media stream found for user:', userId, '- retrying in 100ms');
-          // Retry once more if media stream isn't ready
-          setTimeout(async () => {
-            console.log('🎯 Retrying media stream lookup for user:', userId);
-            const retryMediaStream = unifiedWebRTC.getUserStream(userId);
-            if (retryMediaStream) {
-              console.log('🎯 Found media stream on retry for user:', userId, 'setting up spatial audio...');
-              await spatialAudioService.setupSpatialForUser(userId, retryMediaStream);
-              console.log('🎯 Spatial audio setup completed on retry for user:', userId);
+          console.warn('No audio element found for user:', userId, '- retrying in 100ms');
+          // Retry once more if audio element isn't ready
+          setTimeout(() => {
+            const retryAudioElement = unifiedWebRTC.getUserAudioElement(userId);
+            if (retryAudioElement) {
+              spatialAudioService.setupSpatialForUser(userId, retryAudioElement);
             } else {
-              console.warn('🎯 Media stream still not found for user:', userId);
+              console.warn('Audio element still not found for user:', userId);
             }
           }, 100);
         }

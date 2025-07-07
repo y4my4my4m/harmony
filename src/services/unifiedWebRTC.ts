@@ -1044,15 +1044,30 @@ export class UnifiedWebRTCService {
     const audioTracks = stream.getAudioTracks();
     
     if (audioTracks.length > 0) {
-      // Simply store the MediaStream - no HTMLAudioElement needed
-      // The spatial audio service will create MediaStreamSourceNode directly
-      console.log('Remote audio stream setup for user:', connection.userId, {
-        audioTracks: audioTracks.length,
-        active: stream.active
-      });
+      // Create audio element for remote audio playback
+      if (!connection.audioElement) {
+        connection.audioElement = new Audio();
+        connection.audioElement.autoplay = true;
+        // Note: playsInline is for video elements, not needed for audio
+      }
       
-      // The MediaStream is already stored in connection.remoteStream
-      // No additional setup needed - spatial audio will handle everything
+      // Set the stream
+      connection.audioElement.srcObject = stream;
+      
+      // Apply current deafen state
+      connection.audioElement.muted = this.localMediaState.isDeafened;
+      
+      console.log('🔊 Audio element created for user:', connection.userId, 'muted:', connection.audioElement.muted);
+      
+      // Handle audio element errors
+      connection.audioElement.onerror = (error) => {
+        console.error('❌ Audio element error for user', connection.userId, ':', error);
+      };
+      
+      // Log when audio starts playing
+      connection.audioElement.onplay = () => {
+        console.log('▶️ Audio started playing for user:', connection.userId);
+      };
     }
   }
 
@@ -1202,8 +1217,3 @@ export class UnifiedWebRTCService {
 // =============================================================================
 
 export const unifiedWebRTC = new UnifiedWebRTCService();
-
-// Make available globally for debugging
-if (typeof window !== 'undefined') {
-  (window as any).unifiedWebRTC = unifiedWebRTC;
-}

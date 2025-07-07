@@ -10,8 +10,8 @@ interface SpatialAudioNode {
   gainNode: GainNode;
   pannerNode: PannerNode | StereoPannerNode;
   convolver?: ConvolverNode;
-  source?: MediaStreamAudioSourceNode;
-  mediaStream?: MediaStream;
+  source?: MediaElementAudioSourceNode;
+  audioElement?: HTMLAudioElement;
 }
 
 export class SpatialAudioService {
@@ -31,66 +31,18 @@ export class SpatialAudioService {
     try {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       
-      // Always try to resume the audio context
-      if (this.audioContext.state !== 'running') {
-        console.log('🎧 AudioContext state:', this.audioContext.state, '- attempting to resume...');
+      if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
-        console.log('🎧 AudioContext resumed, new state:', this.audioContext.state);
       }
       
       this.destination = this.audioContext.destination;
       this.isInitialized = true;
       
-      console.log('🎧 Spatial Audio Service initialized successfully', {
-        sampleRate: this.audioContext.sampleRate,
-        state: this.audioContext.state,
-        destination: !!this.destination
-      });
+      console.log('🎧 Spatial Audio Service initialized');
     } catch (error) {
       console.error('Failed to initialize spatial audio:', error);
       throw error;
     }
-  }
-
-  // Force resume AudioContext (call this before spatial effects)
-  async ensureAudioContextRunning(): Promise<void> {
-    if (!this.audioContext) {
-      await this.initialize();
-      return;
-    }
-
-    if (this.audioContext.state !== 'running') {
-      console.log('🎧 Forcing AudioContext resume, current state:', this.audioContext.state);
-      try {
-        await this.audioContext.resume();
-        console.log('🎧 AudioContext force resumed, new state:', this.audioContext.state);
-      } catch (error) {
-        console.error('🎧 Failed to resume AudioContext:', error);
-      }
-    }
-  }
-
-  // Debug method to check audio routing
-  debugAudioRouting(): void {
-    console.log('🎧 === AUDIO ROUTING DEBUG ===');
-    console.log('AudioContext state:', this.audioContext?.state);
-    console.log('AudioContext sample rate:', this.audioContext?.sampleRate);
-    console.log('Number of spatial nodes:', this.spatialNodes.size);
-    
-    this.spatialNodes.forEach((node, userId) => {
-      console.log(`🎧 User ${userId}:`, {
-        hasSource: !!node.source,
-        hasGainNode: !!node.gainNode,
-        hasPannerNode: !!node.pannerNode,
-        hasConvolver: !!node.convolver,
-        gainValue: node.gainNode?.gain.value,
-        panValue: node.pannerNode instanceof StereoPannerNode ? node.pannerNode.pan.value : 'N/A',
-        hasMediaStream: !!node.mediaStream,
-        audioTracks: node.mediaStream?.getAudioTracks().length || 0,
-        mediaStreamActive: node.mediaStream?.active
-      });
-    });
-    console.log('🎧 === END DEBUG ===');
   }
 
   // =============================================================================
@@ -102,9 +54,7 @@ export class SpatialAudioService {
     console.log('🎧 Set spatial audio listener:', userId);
   }
 
-  async setupSpatialForUser(userId: string, mediaStream?: MediaStream): Promise<void> {
-    console.log('🎧 setupSpatialForUser called for user:', userId, 'mediaStream:', !!mediaStream, 'listenerUserId:', this.listenerUserId);
-    
+  setupSpatialForUser(userId: string, audioElement?: HTMLAudioElement): void {
     if (!this.audioContext) {
       console.warn('Spatial audio not initialized');
       return;
@@ -116,68 +66,22 @@ export class SpatialAudioService {
       return;
     }
 
-    if (!mediaStream) {
-      console.warn('No media stream provided for user:', userId);
+    if (!audioElement) {
+      console.warn('No audio element provided for user:', userId);
       return;
     }
 
-    // Ensure AudioContext is running before setting up audio routing
-    await this.ensureAudioContextRunning();
-
-    // Ensure audio context is running
-    if (this.audioContext.state !== 'running') {
-      console.log('🎧 AudioContext not running, attempting to resume for user:', userId);
-      this.audioContext.resume().then(() => {
-        console.log('🎧 AudioContext resumed, retrying setup for user:', userId);
-        this.setupSpatialForUser(userId, mediaStream);
-      }).catch(error => {
-        console.error('Failed to resume AudioContext:', error);
-      });
-      return;
-    }
-
-    console.log('🎧 Setting up spatial audio for user:', userId, {
-      hasAudioTracks: mediaStream.getAudioTracks().length > 0,
-      audioContextState: this.audioContext.state
-    });
+    console.log('🎧 Setting up spatial audio for user:', userId);
     
     try {
-      // Check if we already have a node for this user
-      const existingNode = this.spatialNodes.get(userId);
-      let source: MediaStreamAudioSourceNode;
-      
-      if (existingNode?.source && existingNode.mediaStream === mediaStream) {
-        // Reuse existing source node - don't disconnect it
-        source = existingNode.source;
-        console.log('🎧 Reusing existing MediaStreamSource for user:', userId);
-        
-        // Disconnect the existing audio graph but keep the source
-        existingNode.gainNode.disconnect();
-        existingNode.pannerNode.disconnect();
-        if (existingNode.convolver) {
-          existingNode.convolver.disconnect();
-        }
-      } else {
-        // Remove existing node completely if it exists
-        this.removeUserCompletely(userId);
-        
-        // Create new audio source from MediaStream
-        try {
-          console.log('🎧 Creating MediaStreamSource for user:', userId, '- audio will be routed through spatial audio');
-          
-          // CRITICAL: Use MediaStream directly - no HTMLAudioElement needed
-          source = this.audioContext.createMediaStreamSource(mediaStream);
-          
-          console.log('🎧 Created new MediaStreamSource for user:', userId, '- audio is now routed through Web Audio API');
-        } catch (error) {
-          console.error('🎧 Failed to create MediaStreamSource for user:', userId, error);
-          return;
-        }
-      }
+      // Remove existing node if it exists
+      this.removeUser(userId);
+
+      // Create audio source from HTMLAudioElement
+      const source = this.audioContext.createMediaElementSource(audioElement);
       
       // Create gain node for volume control
       const gainNode = this.audioContext.createGain();
-      gainNode.gain.value = 1; // Start at full volume
       
       // Create panner node for spatial positioning
       const pannerNode = this.createPannerNode();
@@ -191,19 +95,15 @@ export class SpatialAudioService {
 
       // Connect audio graph
       source.connect(gainNode);
-      console.log('🎧 Connected source to gain node for user:', userId);
       
       if (convolver) {
         gainNode.connect(convolver);
         convolver.connect(pannerNode);
-        console.log('🎧 Connected audio graph with reverb for user:', userId);
       } else {
         gainNode.connect(pannerNode);
-        console.log('🎧 Connected audio graph without reverb for user:', userId);
       }
       
       pannerNode.connect(this.destination!);
-      console.log('🎧 Connected to audio destination for user:', userId);
 
       // Store the nodes
       this.spatialNodes.set(userId, {
@@ -212,22 +112,19 @@ export class SpatialAudioService {
         pannerNode,
         convolver,
         source,
-        mediaStream
+        audioElement
       });
 
       console.log('🎧 Spatial audio set up for user:', userId);
       
-      // Debug audio routing
-      this.debugAudioRouting();
-      
       // Apply initial spatial effects
-      await this.updateSpatialEffects();
+      this.updateSpatialEffects();
     } catch (error) {
       console.error('Failed to setup spatial audio for user:', userId, error);
     }
   }
 
-  addUser(userId: string, mediaStream: MediaStream): void {
+  addUser(userId: string, audioElement: HTMLAudioElement): void {
     if (!this.audioContext || !this.destination) {
       console.warn('Spatial audio not initialized');
       return;
@@ -243,7 +140,7 @@ export class SpatialAudioService {
     }
     
     // Use setupSpatialForUser instead
-    this.setupSpatialForUser(userId, mediaStream);
+    this.setupSpatialForUser(userId, audioElement);
   }
 
   removeUser(userId: string): void {
@@ -251,9 +148,8 @@ export class SpatialAudioService {
     if (!node) return;
 
     try {
-      // Disconnect all nodes (but leave source connected to avoid InvalidStateError)
+      // Disconnect all nodes
       if (node.source) {
-        // Only disconnect the source from our audio graph, don't disconnect from the audio element
         node.source.disconnect();
       }
       node.gainNode.disconnect();
@@ -269,51 +165,19 @@ export class SpatialAudioService {
     }
   }
 
-  // Helper method to completely remove a user including the source node
-  private removeUserCompletely(userId: string): void {
-    const node = this.spatialNodes.get(userId);
-    if (!node) return;
-
-    try {
-      // Disconnect all nodes including the source
-      if (node.source) {
-        node.source.disconnect();
-      }
-      node.gainNode.disconnect();
-      node.pannerNode.disconnect();
-      if (node.convolver) {
-        node.convolver.disconnect();
-      }
-
-      this.spatialNodes.delete(userId);
-      console.log('🎧 Completely removed spatial audio for user:', userId);
-    } catch (error) {
-      console.error('Failed to completely remove spatial audio for user:', userId, error);
-    }
-  }
-
   // =============================================================================
   // SPATIAL EFFECTS
   // =============================================================================
 
-  async updateSpatialEffects(): Promise<void> {
-    if (!this.listenerUserId) {
-      console.log('🎧 No listener set, skipping spatial effects update');
-      return;
-    }
-
-    // Ensure AudioContext is running
-    await this.ensureAudioContextRunning();
+  updateSpatialEffects(): void {
+    if (!this.listenerUserId) return;
 
     const spatialStore = useSpatialAudioStore();
     
     // Only apply spatial effects if spatial audio is enabled
     if (!spatialStore.settings.enabled) {
-      console.log('🎧 Spatial audio disabled, skipping effects update');
       return;
     }
-    
-    console.log(`🎧 Updating spatial effects for ${this.spatialNodes.size} users`);
     
     this.spatialNodes.forEach((node, userId) => {
       if (userId === this.listenerUserId) return; // Don't apply effects to self
@@ -338,7 +202,6 @@ export class SpatialAudioService {
       // Smooth gain transition to avoid clicks
       const currentTime = this.audioContext.currentTime;
       node.gainNode.gain.setTargetAtTime(gain, currentTime, 0.1);
-      console.log(`🔊 Setting gain for ${userId}: ${gain.toFixed(3)}`);
     } catch (error) {
       console.error('Failed to set gain for user:', userId, error);
     }
@@ -354,12 +217,10 @@ export class SpatialAudioService {
       if (node.pannerNode instanceof StereoPannerNode) {
         // Use StereoPannerNode for simple stereo panning
         node.pannerNode.pan.setTargetAtTime(panning, currentTime, 0.1);
-        console.log(`🎛️ Setting stereo panning for ${userId}: ${panning.toFixed(3)}`);
       } else if (node.pannerNode instanceof PannerNode) {
         // Use PannerNode for 3D positioning (simplified to 2D)
         const distance = Math.abs(panning) * 10; // Scale for 3D positioning
         node.pannerNode.setPosition(panning * 10, 0, -distance);
-        console.log(`🎛️ Setting 3D panning for ${userId}: position(${(panning * 10).toFixed(1)}, 0, ${-distance.toFixed(1)})`);
       }
     } catch (error) {
       console.error('Failed to set panning for user:', userId, error);
@@ -442,17 +303,6 @@ export class SpatialAudioService {
     
     const spatialStore = useSpatialAudioStore();
     
-    // Ensure audio context is running
-    if (this.audioContext && this.audioContext.state !== 'running') {
-      console.log('🎧 Resuming AudioContext for spatial audio...');
-      this.audioContext.resume().then(() => {
-        console.log('🎧 AudioContext resumed, applying spatial effects');
-        this.updateSpatialEffects();
-      });
-    } else {
-      this.updateSpatialEffects();
-    }
-    
     // Re-enable reverb if it was disabled
     if (spatialStore.settings.enableReverb) {
       this.spatialNodes.forEach((node, userId) => {
@@ -473,6 +323,8 @@ export class SpatialAudioService {
         }
       });
     }
+    
+    this.updateSpatialEffects();
   }
 
   disableSpatialAudio(): void {
@@ -494,9 +346,6 @@ export class SpatialAudioService {
         }
       }
     });
-    
-    // Enable direct audio playback as fallback
-    this.enableDirectAudioPlayback();
   }
 
   updateSettings(): void {
@@ -545,20 +394,6 @@ export class SpatialAudioService {
     });
   }
 
-  // Force immediate spatial effects update (public method for testing)
-  forceUpdateSpatialEffects(): void {
-    console.log('🎧 Force updating spatial effects...');
-    
-    // Ensure audio context is running
-    if (this.audioContext && this.audioContext.state !== 'running') {
-      this.audioContext.resume().then(() => {
-        this.updateSpatialEffects();
-      });
-    } else {
-      this.updateSpatialEffects();
-    }
-  }
-
   // =============================================================================
   // CLEANUP
   // =============================================================================
@@ -566,7 +401,7 @@ export class SpatialAudioService {
   destroy(): void {
     // Remove all users
     this.spatialNodes.forEach((_, userId) => {
-      this.removeUserCompletely(userId);
+      this.removeUser(userId);
     });
     
     // Close audio context
@@ -581,208 +416,7 @@ export class SpatialAudioService {
     
     console.log('🎧 Spatial Audio Service destroyed');
   }
-
-  // Test method for debugging - call from browser console
-  async testAudioContext(): Promise<void> {
-    console.log('🎧 === TESTING AUDIO CONTEXT ===');
-    
-    if (!this.audioContext) {
-      console.log('❌ No AudioContext created');
-      return;
-    }
-    
-    console.log('AudioContext state:', this.audioContext.state);
-    console.log('AudioContext sample rate:', this.audioContext.sampleRate);
-    
-    // Try to resume if needed
-    if (this.audioContext.state !== 'running') {
-      console.log('Attempting to resume AudioContext...');
-      try {
-        await this.audioContext.resume();
-        console.log('✅ AudioContext resumed, new state:', this.audioContext.state);
-      } catch (error) {
-        console.error('❌ Failed to resume AudioContext:', error);
-      }
-    }
-    
-    // Create a test oscillator to verify audio is working
-    try {
-      const oscillator = this.audioContext.createOscillator();
-      const gainNode = this.audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(this.audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime); // A4 note
-      gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime); // Low volume
-      
-      oscillator.start(this.audioContext.currentTime);
-      oscillator.stop(this.audioContext.currentTime + 0.5); // 500ms beep
-      
-      console.log('🎵 Test tone should play if AudioContext is working');
-    } catch (error) {
-      console.error('❌ Failed to create test tone:', error);
-    }
-    
-    this.debugAudioRouting();
-  }
-
-  // Debug method to manually scan for remote users and set up spatial audio
-  async debugScanForRemoteUsers(): Promise<void> {
-    console.log('🎧 === SCANNING FOR REMOTE USERS ===');
-    
-    // Import the voice store to check for users
-    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel');
-    const voiceStore = useUnifiedVoiceChannelStore();
-    
-    console.log('Voice channel connected:', voiceStore.isConnected);
-    console.log('All users count:', voiceStore.allUsers.length);
-    console.log('Remote streams count:', voiceStore.remoteStreams.size);
-    console.log('Listener user ID:', this.listenerUserId);
-    
-    // Check each remote user
-    voiceStore.allUsers.forEach(user => {
-      if (user.userId !== this.listenerUserId) {
-        console.log(`🎧 Remote user found: ${user.userId}`, {
-          isAudioEnabled: user.isAudioEnabled,
-          hasStream: voiceStore.remoteStreams.has(user.userId)
-        });
-        
-        // Try to get their audio element
-        const audioElement = (window as any).unifiedWebRTC?.getUserAudioElement(user.userId);
-        console.log(`🎧 Audio element for ${user.userId}:`, !!audioElement);
-        
-        if (audioElement) {
-          console.log(`🎧 Audio element details for ${user.userId}:`, {
-            src: audioElement.src || 'No src',
-            srcObject: !!audioElement.srcObject,
-            paused: audioElement.paused,
-            muted: audioElement.muted,
-            volume: audioElement.volume,
-            readyState: audioElement.readyState
-          });
-          
-          // Try to set up spatial audio for this user
-          this.setupSpatialForUser(user.userId, audioElement);
-        }
-      }
-    });
-    
-    console.log('🎧 === END SCAN ===');
-  }
-
-  // Fallback method to enable direct audio playback when spatial audio is disabled
-  async enableDirectAudioPlayback(): Promise<void> {
-    console.log('🔊 Enabling direct audio playback (spatial audio disabled)');
-    
-    // Import the voice store to get all remote users
-    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel');
-    const voiceStore = useUnifiedVoiceChannelStore();
-    
-    // Start playback for all remote users that don't have spatial audio
-    voiceStore.allUsers.forEach(async (user) => {
-      if (user.userId !== this.listenerUserId) {
-        const audioElement = (window as any).unifiedWebRTC?.getUserAudioElement(user.userId);
-        if (audioElement && !this.spatialNodes.has(user.userId)) {
-          console.log('🔊 Restoring direct playback for user:', user.userId);
-          try {
-            // Restore the original play method
-            if ((audioElement as any)._originalPlay) {
-              audioElement.play = (audioElement as any)._originalPlay;
-            }
-            
-            // Unmute and start playback
-            audioElement.muted = false;
-            if (audioElement.paused) {
-              await audioElement.play();
-              console.log('🔊 Direct playback started for user:', user.userId);
-            }
-          } catch (error) {
-            console.error('🔊 Failed to start direct playback for user:', user.userId, error);
-          }
-        }
-      }
-    });
-  }
-
-  // Debug method to test if spatial audio is actually working
-  async testSpatialAudioRouting(): Promise<void> {
-    console.log('🎧 === TESTING SPATIAL AUDIO ROUTING ===');
-    
-    if (this.spatialNodes.size === 0) {
-      console.log('❌ No spatial audio nodes to test');
-      return;
-    }
-    
-    // First, check if audio elements are muted or paused
-    this.spatialNodes.forEach((node, userId) => {
-      console.log(`🎧 CRITICAL CHECK for user ${userId}:`, {
-        audioElementMuted: node.audioElement?.muted,
-        audioElementPaused: node.audioElement?.paused,
-        audioElementVolume: node.audioElement?.volume,
-        audioElementSrcObject: !!node.audioElement?.srcObject,
-        gainNodeValue: node.gainNode?.gain.value,
-        pannerNodeValue: node.pannerNode instanceof StereoPannerNode ? node.pannerNode.pan.value : 'N/A'
-      });
-      
-      // CRITICAL: Audio element MUST be muted to prevent direct playback
-      // MediaElementSourceNode processes audio even when the element is muted
-      if (!node.audioElement?.muted) {
-        console.error(`❌ CRITICAL: Audio element for ${userId} is NOT MUTED! This causes audio doubling!`);
-        console.log(`🎧 Forcing audio element mute for ${userId} to prevent direct playback`);
-        if (node.audioElement) {
-          node.audioElement.muted = true;
-        }
-      } else {
-        console.log(`✅ Audio element for ${userId} is correctly muted - only Web Audio API routing`);
-      }
-    });
-    
-    // For each spatial node, temporarily set extreme values to test if routing works
-    this.spatialNodes.forEach((node, userId) => {
-      console.log(`🎧 Testing routing for user: ${userId}`);
-      
-      // Test 1: Set gain to 0.1 (very low) for 2 seconds
-      console.log(`🎧 Test 1: Setting gain to 0.1 for ${userId}`);
-      node.gainNode.gain.setValueAtTime(0.1, this.audioContext!.currentTime);
-      
-      // Test 2: Set extreme panning for 2 seconds
-      if (node.pannerNode instanceof StereoPannerNode) {
-        console.log(`🎧 Test 2: Setting panning to -1.0 (full left) for ${userId}`);
-        node.pannerNode.pan.setValueAtTime(-1.0, this.audioContext!.currentTime);
-      }
-      
-      // Reset after 2 seconds
-      setTimeout(() => {
-        console.log(`🎧 Resetting audio effects for ${userId}`);
-        node.gainNode.gain.setValueAtTime(1.0, this.audioContext!.currentTime);
-        if (node.pannerNode instanceof StereoPannerNode) {
-          node.pannerNode.pan.setValueAtTime(0.0, this.audioContext!.currentTime);
-        }
-        
-        // Restore original mute state if it was muted
-        const originallyMuted = (window as any).unifiedWebRTC?.localMediaState?.isDeafened || false;
-        if (node.audioElement && originallyMuted) {
-          console.log(`🎧 Restoring mute state for ${userId}`);
-          node.audioElement.muted = true;
-        }
-      }, 2000);
-    });
-    
-    console.log('🎧 If you heard the audio get quieter and pan left, then routing is working!');
-    console.log('🎧 If you heard no change, then audio is still playing directly through HTMLAudioElement');
-    console.log('🎧 === END ROUTING TEST ===');
-  }
-
-  // =============================================================================
-  // CLEANUP
-  // =============================================================================
 }
 
 // Export singleton instance
 export const spatialAudioService = new SpatialAudioService();
-
-// Make available globally for debugging
-if (typeof window !== 'undefined') {
-  (window as any).spatialAudioService = spatialAudioService;
-}
