@@ -1137,11 +1137,30 @@ export default defineComponent({
 }
 
 .channel-item.mobile-disabled {
-  /* Disable dragging visual feedback on mobile for voice channels */
+  opacity: 0.8;
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+  position: relative;
+  background: linear-gradient(135deg, rgba(250, 166, 26, 0.1), rgba(250, 166, 26, 0.05));
+  border: 1px solid rgba(250, 166, 26, 0.2);
+}
+
+.channel-item.mobile-disabled::after {
+  content: 'Join Voice';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: #faa61a;
+  background: rgba(250, 166, 26, 0.2);
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  border: 1px solid rgba(250, 166, 26, 0.3);
+  font-weight: 500;
 }
 
 .channel-item.mobile-disabled .voice-controls {
@@ -1395,5 +1414,121 @@ export default defineComponent({
 .channel-context-menu.active,
 .category-context-menu.active {
   display: block;
+}
+
+/* =====================================
+   MOBILE RESPONSIVE STYLES
+   ===================================== */
+
+@media (max-width: 768px) {
+  .server-header {
+    width:100%;
+  }
+
+
+  /* Enhanced touch targets for mobile */
+  .channel-item,
+  .category-header {
+    min-height: 48px;
+    padding: 12px 24px;
+    border-radius: 12px;
+    margin: 4px 8px;
+  }
+
+  .channel-item {
+    display: flex;
+    align-items: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    width: calc(100% - 18px);
+  }
+
+  .channel-item:active {
+    transform: scale(0.98);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .channel-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .channel-name {
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .category-header {
+    margin: 16px 0 8px;
+  }
+
+  .category-name {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* Voice channel mobile optimizations */
+  .voice-channel-item {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .voice-info {
+    padding: 12px 0;
+  }
+
+  .voice-users {
+    gap: 8px;
+  }
+
+  .voice-user {
+    padding: 8px 12px;
+    border-radius: 8px;
+    min-height: 44px;
+  }
+
+
+  /* Context menu adjustments for mobile */
+  .channel-context-menu,
+  .category-context-menu {
+    width: 90vw;
+    max-width: 280px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .context-menu-item {
+    padding: 16px 20px;
+    font-size: 16px;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Reduce drag and drop functionality on mobile */
+  .drag-disabled {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .drag-disabled .channel-item,
+  .drag-disabled .category-header {
+    cursor: pointer !important;
+  }
+}
+
+/* Tablet responsive adjustments */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .channel-item,
+  .category-header {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  .channel-name {
+    font-size: 15px;
+  }
 }
 </style>

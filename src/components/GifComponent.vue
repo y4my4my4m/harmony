@@ -206,6 +206,7 @@
         .giphy-search {
             width: 90%;
             right: 20px;
+            transform: translateX(0%);
         }
     }
 </style>

@@ -322,6 +322,7 @@
       width: 280px;
       height: 350px;
       right: 20px;
+      transform: translateX(0%);
     }
   }
 </style>

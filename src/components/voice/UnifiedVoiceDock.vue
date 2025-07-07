@@ -394,8 +394,8 @@ export default defineComponent({
 }
 
 .user-avatar {
-  width: 100%;
-  height: 100%;
+  /* width: 100%;
+  height: 100%; */
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #40444b;
@@ -648,6 +648,10 @@ export default defineComponent({
     left: 10px;
     right: 10px;
   }
+  .unified-voice-dock.dock-mode {
+    left: 10px;
+    transform: translateX(0);
+  }
   
   .dock-container {
     min-width: auto;
@@ -676,7 +680,7 @@ export default defineComponent({
 
 @media (max-width: 480px) {
   .dock-container {
-    flex-direction: column;
+    /* flex-direction: column; */
     gap: 12px;
     padding: 12px;
   }

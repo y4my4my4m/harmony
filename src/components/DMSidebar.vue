@@ -611,7 +611,75 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .dm-sidebar {
     width: 100%;
-    max-width: 320px;
+    max-width: 360px;
+    min-width: 320px;
+    background: linear-gradient(135deg, var(--h-sidebar, #2b2d31) 0%, #252830 100%);
+  }
+
+  /* Enhanced mobile touch targets */
+  .dm-header {
+    padding: 20px 16px;
+    border-bottom: 1px solid rgba(88, 101, 242, 0.1);
+  }
+
+  .dm-title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .new-dm-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .new-dm-btn:active {
+    transform: scale(0.95);
+    background: rgba(88, 101, 242, 0.2);
+  }
+
+  .user-search-section {
+    padding: 16px;
+  }
+
+  .search-input {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 14px 16px;
+    border-radius: 12px;
+    min-height: 48px;
+  }
+
+  .conversation-item {
+    min-height: 64px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin: 4px 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .conversation-item:active {
+    transform: scale(0.98);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .user-avatar {
+    width: 48px;
+    height: 48px;
+  }
+
+  .conversation-info {
+    gap: 8px;
+  }
+
+  .conversation-name {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .last-message {
+    font-size: 14px;
+    line-height: 1.4;
   }
 }
 
@@ -622,16 +690,30 @@ onUnmounted(() => {
   }
   
   .dm-header {
-    padding: 12px 16px;
+    padding: 16px;
   }
   
   .user-search-section {
-    padding: 12px 16px;
+    padding: 16px;
   }
   
   .conversation-item {
-    padding: 12px 16px;
-    margin: 0 8px;
+    min-height: 60px;
+    padding: 10px 16px;
+    margin: 2px 8px;
+  }
+
+  .user-avatar {
+    width: 44px;
+    height: 44px;
+  }
+
+  .conversation-name {
+    font-size: 15px;
+  }
+
+  .last-message {
+    font-size: 13px;
   }
 }
 </style>
