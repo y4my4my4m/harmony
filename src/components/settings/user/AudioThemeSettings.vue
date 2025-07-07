@@ -97,18 +97,13 @@
         {{ showAdvanced ? 'Hide' : 'Show' }} Advanced Settings
       </button>
     </div>
-
-    <!-- Status Messages -->
-    <div v-if="statusMessage" :class="['status-message', statusType]">
-      <Icon :name="getStatusIcon(statusType)" />
-      <span>{{ statusMessage }}</span>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/useTheme'
+import { useNotificationStore } from '@/stores/useNotification'
 import { AudioThemeService } from '@/services/AudioThemeService'
 import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -119,12 +114,11 @@ import type { AudioAction } from '@/types'
 // =============================================================================
 
 const themeStore = useThemeStore()
+const notificationStore = useNotificationStore()
 
 // Local state
 const isLoading = ref(false)
 const showAdvanced = ref(false)
-const statusMessage = ref('')
-const statusType = ref<'success' | 'error' | 'info'>('info')
 
 // Test actions for sound preview
 const testActions = [
@@ -153,10 +147,20 @@ const cacheInfo = computed(() => {
 const testSound = async (actionId: string): Promise<void> => {
   try {
     await themeStore.testAudio(actionId as AudioAction)
-    showStatus('success', `Tested ${actionId} successfully`)
+    notificationStore.showToast(
+      'ui_success' as any,
+      'Sound Test',
+      `Tested ${actionId} successfully`,
+      2000
+    )
   } catch (error) {
     console.error('Failed to test sound:', error)
-    showStatus('error', `Failed to test ${actionId}`)
+    notificationStore.showToast(
+      'ui_error' as any,
+      'Sound Test Failed',
+      `Failed to test ${actionId}`,
+      3000
+    )
   }
 }
 
@@ -164,10 +168,20 @@ const clearCache = async (): Promise<void> => {
   try {
     isLoading.value = true
     await themeStore.clearAudioCache()
-    showStatus('success', 'Audio cache cleared successfully')
+    notificationStore.showToast(
+      'ui_success' as any,
+      'Cache Cleared',
+      'Audio cache cleared successfully',
+      2000
+    )
   } catch (error) {
     console.error('Failed to clear cache:', error)
-    showStatus('error', 'Failed to clear audio cache')
+    notificationStore.showToast(
+      'ui_error' as any,
+      'Cache Clear Failed',
+      'Failed to clear audio cache',
+      3000
+    )
   } finally {
     isLoading.value = false
   }
@@ -177,44 +191,52 @@ const resetSystem = async (): Promise<void> => {
   try {
     isLoading.value = true
     await themeStore.resetAudioSystem()
-    showStatus('success', 'Audio system reset successfully')
+    notificationStore.showToast(
+      'ui_success' as any,
+      'System Reset',
+      'Audio system reset successfully',
+      2000
+    )
   } catch (error) {
     console.error('Failed to reset system:', error)
-    showStatus('error', 'Failed to reset audio system')
+    notificationStore.showToast(
+      'ui_error' as any,
+      'Reset Failed',
+      'Failed to reset audio system',
+      3000
+    )
   } finally {
     isLoading.value = false
   }
 }
 
 const onThemeChanged = (themeId: string): void => {
-  showStatus('success', `Switched to ${themeId} theme`)
+  notificationStore.showToast(
+    'ui_success' as any,
+    'Theme Changed',
+    `Switched to ${themeId} theme`,
+    2000
+  )
 }
 
 const onVolumeChanged = (volume: number): void => {
-  showStatus('info', `Volume set to ${Math.round(volume * 100)}%`)
+  // Only show notification for significant volume changes (every 10%)
+  const roundedVolume = Math.round(volume * 10) * 10
+  notificationStore.showToast(
+    'ui_success' as any,
+    'Volume Updated',
+    `Volume set to ${roundedVolume}%`,
+    1500
+  )
 }
 
 const onThemeTested = (actionId: string): void => {
-  showStatus('success', `Tested ${actionId} sound`)
-}
-
-const showStatus = (type: 'success' | 'error' | 'info', message: string): void => {
-  statusType.value = type
-  statusMessage.value = message
-  
-  // Auto-hide after 3 seconds
-  setTimeout(() => {
-    statusMessage.value = ''
-  }, 3000)
-}
-
-const getStatusIcon = (type: string): string => {
-  const icons = {
-    success: 'check-circle',
-    error: 'alert-circle',
-    info: 'info'
-  }
-  return icons[type as keyof typeof icons] || 'info'
+  notificationStore.showToast(
+    'ui_success' as any,
+    'Theme Tested',
+    `Tested ${actionId} sound`,
+    1500
+  )
 }
 
 // =============================================================================
@@ -226,7 +248,12 @@ onMounted(async () => {
     await themeStore.initialize()
   } catch (error) {
     console.error('Failed to initialize audio theme store:', error)
-    showStatus('error', 'Failed to initialize audio system')
+    notificationStore.showToast(
+      'ui_error' as any,
+      'Initialization Failed',
+      'Failed to initialize audio system',
+      3000
+    )
   }
 })
 </script>

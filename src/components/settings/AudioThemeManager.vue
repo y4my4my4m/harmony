@@ -62,21 +62,20 @@
     </div>
 
     <!-- Theme Grid -->
-    <div class="theme-grid">
-      <div 
-        v-for="theme in displayedThemes"
-        :key="theme.id"
-        :class="[
-          'theme-card',
-          { 
-            active: theme.id === themeStore.currentAudioTheme,
-            loading: isThemeLoadingFn(theme.id),
-            preloading: themeStore.preloadingTheme === theme.id
-          }
-        ]"
-        @click="selectTheme(theme.id)"
-        @mouseenter="preloadTheme(theme.id)"
-      >
+    <div class="theme-grid">        <div 
+          v-for="theme in displayedThemes"
+          :key="theme.id"
+          :class="[
+            'theme-card',
+            { 
+              active: theme.id === themeStore.currentAudioTheme,
+              loading: isThemeLoading(theme.id),
+              preloading: themeStore.preloadingTheme === theme.id
+            }
+          ]"
+          @click="selectTheme(theme.id)"
+          @mouseenter="preloadTheme(theme.id)"
+        >
         <!-- Theme Preview Image -->
         <div class="theme-preview">
           <img 
@@ -91,7 +90,7 @@
           </div>
           
           <!-- Loading Overlay -->
-          <div v-if="isThemeLoadingFn(theme.id)" class="loading-overlay">
+          <div v-if="isThemeLoading(theme.id)" class="loading-overlay">
             <Icon name="loader" class="spinning" />
           </div>
           
@@ -117,7 +116,7 @@
             <span class="theme-author">by {{ theme.author }}</span>
             <div class="theme-actions">
               <button 
-                v-if="!isThemeLoadingFn(theme.id)" 
+                v-if="!isThemeLoading(theme.id)" 
                 @click.stop="testTheme(theme.id)"
                 class="mini-action-btn"
                 title="Test theme"
@@ -134,7 +133,7 @@
         </div>
 
         <!-- Loading Progress -->
-        <div v-if="isThemeLoadingFn(theme.id)" class="loading-progress">
+        <div v-if="isThemeLoading(theme.id)" class="loading-progress">
           <div class="progress-bar" :style="{ width: '60%' }"></div>
         </div>
       </div>
@@ -170,19 +169,17 @@
           <div class="volume-track">
             <div class="volume-fill" :style="{ width: `${localVolume}%` }"></div>
           </div>
-        </div>
-        
-        <div class="volume-presets">
-          <button 
-            v-for="preset in volumePresets"
-            :key="preset.value"
-            @click="setVolumePreset(preset.value)"
-            :class="['preset-btn', { active: isPresetActive(preset.value) }]"
-            :title="preset.label"
-          >
-            {{ preset.value }}%
-          </button>
-        </div>
+        </div>          <div class="volume-presets">
+            <button 
+              v-for="preset in volumePresets"
+              :key="preset.value"
+              @click="setVolumePreset(preset.value)"
+              :class="['preset-btn', { active: isVolumePresetActive(preset.value) }]"
+              :title="preset.label"
+            >
+              {{ preset.value }}%
+            </button>
+          </div>
       </div>
     </div>
 
@@ -238,6 +235,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useThemeStore } from '@/stores/useTheme'
+import { useAudioThemeCommon } from '@/composables/useAudioThemeCommon'
 import Icon from '@/components/common/Icon.vue'
 
 // =============================================================================
@@ -276,11 +274,28 @@ const emit = defineEmits<{
 
 const themeStore = useThemeStore()
 
-// UI State
-const localVolume = ref(70)
-const previousVolume = ref(70)
-const isThemeLoading = ref<Record<string, boolean>>({})
-const isTesting = ref(false)
+// Use shared composable for common functionality
+const {
+  localVolume,
+  isTesting,
+  themes,
+  getThemeIcon,
+  selectTheme: baseSelectTheme,
+  testCurrentTheme,
+  testTheme: baseTestTheme,
+  onVolumeChange: baseOnVolumeChange,
+  toggleMute,
+  setVolumePreset,
+  isVolumePresetActive,
+  isThemeLoading,
+  clearCache,
+  preloadTheme,
+  exportThemeSettings,
+  importThemeSettings,
+  resetToDefaults
+} = useAudioThemeCommon()
+
+// UI State specific to manager
 const showAdvancedOptions = ref(false)
 const cacheInfo = ref<any>(null)
 
@@ -293,23 +308,15 @@ const volumePresets = [
 ]
 
 // =============================================================================
-// HELPER FUNCTIONS
-// =============================================================================
-
-const isThemeLoadingFn = (themeId: string): boolean => {
-  return isThemeLoading.value[themeId] || false
-}
-
-// =============================================================================
 // COMPUTED
 // =============================================================================
 
 const displayedThemes = computed(() => {
-  const themes = themeStore.audioThemes
+  const themeList = themes.value
   
   if (props.categorized) {
     // Sort built-in themes first, then by name
-    return themes.sort((a, b) => {
+    return themeList.sort((a, b) => {
       if (a.isBuiltIn !== b.isBuiltIn) {
         return a.isBuiltIn ? -1 : 1
       }
@@ -317,7 +324,7 @@ const displayedThemes = computed(() => {
     })
   }
   
-  return themes
+  return themeList
 })
 
 const volumeSliderStyle = computed(() => ({
@@ -325,18 +332,27 @@ const volumeSliderStyle = computed(() => ({
 }))
 
 // =============================================================================
-// METHODS
+// METHODS - Wrapper methods that emit events
 // =============================================================================
 
-const getThemeIcon = (themeId: string): string => {
-  const icons: Record<string, string> = {
-    'harmony': '🎵',
-    'professional': '💼',
-    'default': '🔊'
+const selectTheme = async (themeId: string): Promise<void> => {
+  const success = await baseSelectTheme(themeId)
+  if (success) {
+    emit('themeChanged', themeId)
   }
-  return icons[themeId] || '🎧'
 }
 
+const testTheme = async (themeId: string): Promise<void> => {
+  await baseTestTheme(themeId)
+  emit('tested', themeId)
+}
+
+const onVolumeChange = (): void => {
+  baseOnVolumeChange()
+  emit('volumeChanged', localVolume.value / 100)
+}
+
+// Status helpers
 const getStatusIcon = (): string => {
   const status = themeStore.systemStatus
   const icons = {
@@ -351,10 +367,10 @@ const getStatusIcon = (): string => {
 
 const getStatusText = (): string => {
   const status = themeStore.systemStatus
-  const currentTheme = themeStore.getCurrentAudioTheme
+  const currentThemeData = themeStore.getCurrentAudioTheme
   
   const texts = {
-    ready: `Ready • ${currentTheme?.name || 'Unknown'}`,
+    ready: `Ready • ${currentThemeData?.name || 'Unknown'}`,
     loading: 'Loading theme system...',
     preloading: `Preloading ${themeStore.preloadingTheme}...`,
     error: 'System error detected',
@@ -363,140 +379,9 @@ const getStatusText = (): string => {
   return texts[status] || 'Unknown status'
 }
 
-const selectTheme = async (themeId: string): Promise<void> => {
-  if (themeId === themeStore.currentAudioTheme || isThemeLoadingFn(themeId)) {
-    return
-  }
-  
-  isThemeLoading.value[themeId] = true
-  
-  try {
-    const success = await themeStore.setAudioTheme(themeId)
-    if (success) {
-      emit('themeChanged', themeId)
-    }
-  } catch (error) {
-    console.error('Failed to select theme:', error)
-  } finally {
-    isThemeLoading.value[themeId] = false
-  }
-}
-
-const testTheme = async (themeId: string): Promise<void> => {
-  if (isTesting.value) return
-  
-  isTesting.value = true
-  
-  try {
-    // Temporarily switch to test theme
-    const originalTheme = themeStore.currentAudioTheme
-    if (themeId !== originalTheme) {
-      await themeStore.setAudioTheme(themeId)
-    }
-    
-    await themeStore.testAudio('mention')
-    emit('tested', themeId)
-    
-    // Switch back if needed
-    if (themeId !== originalTheme) {
-      setTimeout(() => {
-        themeStore.setAudioTheme(originalTheme)
-      }, 100)
-    }
-  } catch (error) {
-    console.error('Failed to test theme:', error)
-  } finally {
-    isTesting.value = false
-  }
-}
-
-const testCurrentTheme = async (): Promise<void> => {
-  await testTheme(themeStore.currentAudioTheme)
-}
-
-const preloadTheme = async (themeId: string): Promise<void> => {
-  if (themeStore.preloadingTheme === themeId) return
-  
-  try {
-    await themeStore.preloadTheme(themeId)
-  } catch (error) {
-    console.warn('Failed to preload theme:', error)
-  }
-}
-
-// Volume Controls
-const onVolumeChange = (): void => {
-  themeStore.setAudioVolume(localVolume.value / 100)
-  emit('volumeChanged', localVolume.value / 100)
-}
-
-const toggleMute = (): void => {
-  if (localVolume.value === 0) {
-    localVolume.value = previousVolume.value || 50
-  } else {
-    previousVolume.value = localVolume.value
-    localVolume.value = 0
-  }
-  onVolumeChange()
-}
-
-const setVolumePreset = (value: number): void => {
-  localVolume.value = value
-  onVolumeChange()
-}
-
-const isPresetActive = (value: number): boolean => {
-  return Math.abs(localVolume.value - value) < 5
-}
-
-// Advanced Functions
-const clearCache = (): void => {
-  themeStore.clearAudioCache()
-  updateCacheInfo()
-}
-
+// Cache management
 const updateCacheInfo = (): void => {
   cacheInfo.value = themeStore.getCacheInfo()
-}
-
-const exportThemeSettings = (): void => {
-  const settings = themeStore.exportPreferences()
-  const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `harmony-theme-settings-${new Date().toISOString().slice(0, 10)}.json`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-const importThemeSettings = (): void => {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.json'
-  input.onchange = (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        try {
-          const settings = JSON.parse(e.target?.result as string)
-          themeStore.importPreferences(settings)
-        } catch (error) {
-          console.error('Failed to import settings:', error)
-        }
-      }
-      reader.readAsText(file)
-    }
-  }
-  input.click()
-}
-
-const resetToDefaults = async (): Promise<void> => {
-  if (confirm('Reset all audio theme settings to defaults?')) {
-    await themeStore.resetToDefaults()
-    localVolume.value = 70
-  }
 }
 
 // =============================================================================

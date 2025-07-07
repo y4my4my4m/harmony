@@ -6,44 +6,43 @@
         v-if="showTestButton"
         @click="testCurrentTheme" 
         class="test-button"
-        :disabled="isLoading"
+        :disabled="isThemeLoading()"
       >
         <Icon name="volume-2" />
       </button>
     </div>
     
-    <div class="theme-selector">
-      <div 
-        v-for="theme in themes"
-        :key="theme.id"
-        :class="[
-          'theme-option',
-          { 
-            'active': theme.id === currentTheme,
-            'loading': isLoading && pendingTheme === theme.id
-          }
-        ]"
-        @click="selectTheme(theme.id)"
-      >
-        <div class="theme-icon">
-          {{ getThemeIcon(theme.id) }}
+    <div class="theme-selector">        <div 
+          v-for="theme in themes"
+          :key="theme.id"
+          :class="[
+            'theme-option',
+            { 
+              'active': theme.id === currentTheme,
+              'loading': isThemeLoading(theme.id)
+            }
+          ]"
+          @click="selectTheme(theme.id)"
+        >
+          <div class="theme-icon">
+            {{ getThemeIcon(theme.id) }}
+          </div>
+          <div class="theme-info">
+            <span class="theme-name">{{ theme.name }}</span>
+            <span class="theme-description">{{ theme.description }}</span>
+          </div>
+          <div class="theme-status">
+            <Icon 
+              v-if="theme.id === currentTheme" 
+              name="check" 
+              class="check-icon"
+            />
+            <div 
+              v-else-if="isThemeLoading(theme.id)"
+              class="loading-dot"
+            />
+          </div>
         </div>
-        <div class="theme-info">
-          <span class="theme-name">{{ theme.name }}</span>
-          <span class="theme-description">{{ theme.description }}</span>
-        </div>
-        <div class="theme-status">
-          <Icon 
-            v-if="theme.id === currentTheme" 
-            name="check" 
-            class="check-icon"
-          />
-          <div 
-            v-else-if="isLoading && pendingTheme === theme.id"
-            class="loading-dot"
-          />
-        </div>
-      </div>
     </div>
     
     <div v-if="showVolumeControl" class="volume-section">
@@ -65,8 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useThemeStore } from '@/stores/useTheme'
+import { useAudioThemeCommon } from '@/composables/useAudioThemeCommon'
 import Icon from '@/components/common/Icon.vue'
 
 interface Props {
@@ -75,73 +73,23 @@ interface Props {
   compact?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   showTestButton: true,
   showVolumeControl: true,
   compact: false
 })
 
-const themeStore = useThemeStore()
-
-// Local state
-const isLoading = ref(false)
-const pendingTheme = ref<string | null>(null)
-const localVolume = ref(70)
-
-// Computed
-const themes = computed(() => themeStore.audioThemes)
-const currentTheme = computed(() => themeStore.currentAudioTheme)
-
-// Methods
-const getThemeIcon = (themeId: string): string => {
-  const icons: Record<string, string> = {
-    'harmony': '🎵',
-    'professional': '💼',
-    'default': '🔊'
-  }
-  return icons[themeId] || '🎧'
-}
-
-const selectTheme = async (themeId: string): Promise<void> => {
-  if (themeId === currentTheme.value || isLoading.value) return
-  
-  isLoading.value = true
-  pendingTheme.value = themeId
-  
-  try {
-    await themeStore.setAudioTheme(themeId)
-  } catch (error) {
-    console.error('Failed to set theme:', error)
-  } finally {
-    isLoading.value = false
-    pendingTheme.value = null
-  }
-}
-
-const testCurrentTheme = async (): Promise<void> => {
-  try {
-    await themeStore.testAudio('mention')
-  } catch (error) {
-    console.error('Failed to test theme:', error)
-  }
-}
-
-const onVolumeChange = (): void => {
-  themeStore.setAudioVolume(localVolume.value / 100)
-}
-
-// Initialize
-onMounted(async () => {
-  if (!themeStore.isInitialized) {
-    await themeStore.initialize()
-  }
-  localVolume.value = Math.round(themeStore.audioVolume * 100)
-})
-
-// Watch for volume changes from store
-watch(() => themeStore.audioVolume, (newVolume) => {
-  localVolume.value = Math.round(newVolume * 100)
-})
+// Use shared composable
+const {
+  localVolume,
+  themes,
+  currentTheme,
+  getThemeIcon,
+  selectTheme,
+  testCurrentTheme,
+  onVolumeChange,
+  isThemeLoading
+} = useAudioThemeCommon()
 </script>
 
 <style scoped>
