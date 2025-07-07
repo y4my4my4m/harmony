@@ -524,11 +524,27 @@ export default defineComponent({
   line-height: 1.375;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* Display mode container */
+.content-display {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 /* Text content styling */
 .text-content {
   color: #dcddde;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .text-content :deep(.md-bold) {
@@ -564,6 +580,10 @@ export default defineComponent({
   color: #00aff4;
   text-decoration: none;
   word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .url-link:hover {
@@ -580,6 +600,10 @@ export default defineComponent({
   color: #c9c9ee;
   display: inline-block;
   transition: background-color 0.2s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .mention:hover {
@@ -687,6 +711,10 @@ export default defineComponent({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .file-name:hover {
@@ -815,6 +843,10 @@ export default defineComponent({
   color: #b9bbbe;
   font-style: italic;
   font-size: 14px;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .system-message-content .system-message-text {
@@ -826,6 +858,10 @@ export default defineComponent({
   color: #ffffff;
   cursor: pointer;
   transition: color 0.2s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .system-username:hover {
