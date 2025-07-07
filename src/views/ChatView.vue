@@ -253,6 +253,11 @@
         }
       };
 
+      // Define resize handler in component scope for proper cleanup
+      const handleResize = () => {
+        checkMobileDevice();
+      };
+
       // Mobile sidebar controls
       const toggleLeftSidebar = () => {
         if (isMobile.value) {
@@ -762,11 +767,7 @@
           // Subscribe to offline broadcast notifications
           serverUsersStore.subscribeToOfflineBroadcasts();
 
-          const handleResize = () => {
-            checkMobileDevice();
-          };
-
-          // Initial mobile check
+          // Initial mobile check and setup resize listener
           checkMobileDevice();
           window.addEventListener('resize', handleResize);
 
@@ -810,6 +811,19 @@
         // Clean up DM subscriptions if in DM mode
         if (props.isDM) {
           dmStore.cleanup();
+        }
+        
+        // Clean up event listeners to prevent memory leaks
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('resize', handleResize);
+        }
+        
+        // Clean up touch event listeners
+        const chatLayout = document.querySelector('#app');
+        if (chatLayout) {
+          chatLayout.removeEventListener('touchstart', onTouchStart);
+          chatLayout.removeEventListener('touchmove', onTouchMove);
+          chatLayout.removeEventListener('touchend', onTouchEnd);
         }
       });
 
