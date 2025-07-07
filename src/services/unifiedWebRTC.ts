@@ -1047,17 +1047,41 @@ export class UnifiedWebRTCService {
       // Create audio element for remote audio playback
       if (!connection.audioElement) {
         connection.audioElement = new Audio();
-        connection.audioElement.autoplay = true;
-        // Note: playsInline is for video elements, not needed for audio
+        
+        // Always set autoplay to false
+        // Either spatial audio will handle playback, or we'll manually start it
+        connection.audioElement.autoplay = false;
+        
+        console.log('🔊 Audio element created for user:', connection.userId, 'autoplay: false');
       }
       
       // Set the stream
       connection.audioElement.srcObject = stream;
       
-      // Apply current deafen state
-      connection.audioElement.muted = this.localMediaState.isDeafened;
+      // CRITICAL: Completely disable direct audio playback
+      // The audio element should NEVER play directly - only through Web Audio API
+      connection.audioElement.autoplay = false;
+      connection.audioElement.pause();
+      connection.audioElement.muted = true; // Keep muted to prevent any direct audio
       
-      console.log('🔊 Audio element created for user:', connection.userId, 'muted:', connection.audioElement.muted);
+      // Override the play method to prevent accidental direct playback
+      const originalPlay = connection.audioElement.play.bind(connection.audioElement);
+      connection.audioElement.play = () => {
+        console.log('🚫 Blocked direct audio playback for user:', connection.userId, '- using spatial audio routing');
+        return Promise.resolve();
+      };
+      
+      // Store the original play method in case we need it later
+      (connection.audioElement as any)._originalPlay = originalPlay;
+      
+      console.log('🔊 Audio element setup for user:', connection.userId, {
+        muted: connection.audioElement.muted,
+        paused: connection.audioElement.paused,
+        localUserDeafened: this.localMediaState.isDeafened,
+        volume: connection.audioElement.volume,
+        srcObject: !!connection.audioElement.srcObject,
+        directPlaybackBlocked: true
+      });
       
       // Handle audio element errors
       connection.audioElement.onerror = (error) => {
@@ -1217,3 +1241,8 @@ export class UnifiedWebRTCService {
 // =============================================================================
 
 export const unifiedWebRTC = new UnifiedWebRTCService();
+
+// Make available globally for debugging
+if (typeof window !== 'undefined') {
+  (window as any).unifiedWebRTC = unifiedWebRTC;
+}

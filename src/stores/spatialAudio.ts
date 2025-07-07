@@ -46,7 +46,7 @@ interface SpatialAudioState {
 export const useSpatialAudioStore = defineStore('spatialAudio', {
   state: (): SpatialAudioState => ({
     settings: {
-      enabled: false,
+      enabled: true, // Enable by default for testing
       maxDistance: 300,
       rolloffFactor: 1,
       panningModel: 'equalpower',
@@ -97,21 +97,38 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
     getAudioGain: (state) => (userId1: string, userId2: string): number => {
       if (!state.settings.enabled) return 1;
       
-      const distance = (state as any).getDistanceBetween(userId1, userId2);
+      const pos1 = state.userPositions.get(userId1);
+      const pos2 = state.userPositions.get(userId2);
+      
+      if (!pos1 || !pos2) return 1;
+      
+      const dx = pos1.x - pos2.x;
+      const dy = pos1.y - pos2.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
       const maxDistance = state.settings.maxDistance;
       
       if (distance >= maxDistance) return 0;
       
+      let gain = 1;
       switch (state.settings.distanceModel) {
         case 'linear':
-          return Math.max(0, 1 - (distance / maxDistance));
+          gain = Math.max(0, 1 - (distance / maxDistance));
+          break;
         case 'inverse':
-          return 1 / (1 + state.settings.rolloffFactor * distance / 50);
+          gain = 1 / (1 + state.settings.rolloffFactor * distance / 50);
+          break;
         case 'exponential':
-          return Math.pow(Math.max(0, 1 - distance / maxDistance), state.settings.rolloffFactor);
+          gain = Math.pow(Math.max(0, 1 - distance / maxDistance), state.settings.rolloffFactor);
+          break;
         default:
-          return 1;
+          gain = 1;
       }
+      
+      // Only log occasionally to avoid spam
+      if (Math.random() < 0.1) {
+        console.log(`🎧 Audio gain for ${userId2}: ${gain.toFixed(3)} (distance: ${distance.toFixed(1)}px)`);
+      }
+      return gain;
     },
     
     // Calculate panning (-1 to 1, left to right)
@@ -126,7 +143,12 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
       const dx = pos2.x - pos1.x;
       const maxPan = state.settings.maxDistance / 2;
       
-      return Math.max(-1, Math.min(1, dx / maxPan));
+      const panning = Math.max(-1, Math.min(1, dx / maxPan));
+      // Only log occasionally to avoid spam
+      if (Math.random() < 0.1) {
+        console.log(`🎧 Audio panning for ${userId2}: ${panning.toFixed(3)} (dx: ${dx.toFixed(1)}px)`);
+      }
+      return panning;
     }
   },
 

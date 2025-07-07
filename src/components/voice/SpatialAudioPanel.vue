@@ -257,6 +257,15 @@
           <Icon name="shuffle" />
           Randomize
         </button>
+        
+        <button
+          @click="testSpatialEffects"
+          class="action-btn test-btn"
+          title="Test Spatial Effects"
+        >
+          <Icon name="volume-spatial" />
+          Test Effects
+        </button>
       </div>
     </div>
   </div>
@@ -541,6 +550,44 @@ const randomizePositions = () => {
   }
 };
 
+const testSpatialEffects = () => {
+  console.log('🎧 === TESTING SPATIAL EFFECTS ===');
+  console.log('Current voice channel participants:', allParticipants.value.length);
+  console.log('All participants:', allParticipants.value.map(p => ({ userId: p.userId, audio: p.isAudioEnabled })));
+  console.log('Remote streams in store:', voiceStore.remoteStreams.size);
+  console.log('Remote stream user IDs:', Array.from(voiceStore.remoteStreams.keys()));
+  
+  // Force enable spatial audio
+  if (!spatialStore.settings.enabled) {
+    console.log('Enabling spatial audio for test...');
+    spatialStore.toggleSpatialAudio();
+  }
+  
+  // Scan for remote users and try to set up spatial audio
+  console.log('Scanning for remote users...');
+  spatialAudioService.debugScanForRemoteUsers();
+  
+  // Force update spatial effects
+  console.log('Forcing spatial effects update...');
+  spatialAudioService.forceUpdateSpatialEffects();
+  
+  // Debug audio routing
+  console.log('Debugging audio routing...');
+  spatialAudioService.debugAudioRouting();
+  
+  // Test if spatial audio routing is actually working
+  console.log('Testing spatial audio routing...');
+  spatialAudioService.testSpatialAudioRouting();
+  
+  // Show a brief test message
+  showUpdatedMessage.value = true;
+  setTimeout(() => {
+    showUpdatedMessage.value = false;
+  }, 2000);
+  
+  console.log('🎧 === END SPATIAL EFFECTS TEST ===');
+};
+
 // =============================================================================
 // LIFECYCLE & WATCHERS
 // =============================================================================
@@ -559,6 +606,17 @@ watch(() => spatialStore.settings.enabled, (enabled) => {
     spatialAudioService.enableSpatialAudio();
   } else {
     spatialAudioService.disableSpatialAudio();
+  }
+});
+
+// Watch for panel visibility to trigger spatial effects
+watch(() => spatialStore.isPanelVisible, (visible) => {
+  if (visible && spatialStore.settings.enabled) {
+    console.log('🎧 Spatial panel opened, triggering spatial effects...');
+    // Small delay to ensure everything is set up
+    setTimeout(() => {
+      spatialAudioService.forceUpdateSpatialEffects();
+    }, 100);
   }
 });
 
