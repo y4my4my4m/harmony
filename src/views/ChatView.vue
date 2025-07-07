@@ -168,6 +168,28 @@
       const isSidebarsVisible = ref(false);
       const isProfilesVisible = ref(false);
 
+      // Method to sync URL with restored state after initialization
+      const syncUrlWithRestoredState = async () => {
+        // Only sync if we're on the base chat route without specific server/channel
+        const isBaseRoute = route.name === 'Chat' && !route.params.serverId;
+        
+        if (isBaseRoute && currentServer.value?.id && currentChannelId.value && !isNavigatingRoute.value) {
+          console.log('🔄 Syncing URL with restored state:', currentServer.value.id, currentChannelId.value);
+          isNavigatingRoute.value = true;
+          try {
+            await router.replace({ 
+              name: 'Chat', 
+              params: { 
+                serverId: currentServer.value.id, 
+                channelId: currentChannelId.value 
+              } 
+            });
+          } finally {
+            isNavigatingRoute.value = false;
+          }
+        }
+      };
+
       // Method to manually scroll to the bottom
       const scrollToBottom = () => {
         isAtBottom.value = true;
@@ -655,7 +677,8 @@
           isAppInitialized.value = true;
           hasServersLoaded.value = true;
           
-          console.log(`📊 Initialization complete. Servers: ${servers.value.length}, isDM: ${props.isDM}`);
+          // Sync URL with restored state if needed
+          await syncUrlWithRestoredState();
           
           // No need to manually manage splash state - computed property handles this
           
@@ -698,7 +721,6 @@
 
           // After initialization, if there was a route that wasn't processed, trigger it
           if (route.params.serverId && route.params.serverId !== serverChannelStore.currentServerId) {
-            console.log('Processing initial route after initialization');
             isInitialRouteLoad.value = false; // Allow route processing
             // Trigger route watcher manually for the current route
             if (!isNavigatingRoute.value) {
@@ -734,28 +756,11 @@
       const isNavigatingRoute = ref(false);
       const isInitialRouteLoad = ref(true);
 
-      watch(route, async (newRoute, oldRoute) => {
-        console.log('Route watcher triggered:', { 
-          newRoute: newRoute.params, 
-          oldRoute: oldRoute?.params, 
-          isNavigating: isNavigatingRoute.value,
-          isInitial: isInitialRouteLoad.value,
-          initialized 
-        });
-        
-        // Log the exact route param values for debugging
-        console.log('Detailed route comparison:', {
-          newServerId: newRoute.params.serverId,
-          oldServerId: oldRoute?.params.serverId,
-          newChannelId: newRoute.params.channelId,
-          oldChannelId: oldRoute?.params.channelId,
-          serverIdType: typeof newRoute.params.serverId,
-          oldServerIdType: typeof oldRoute?.params.serverId
-        });
+      watch(route, async () => {
         
         // Prevent recursive route updates
         if (isNavigatingRoute.value) {
-          console.log('Route navigation already in progress, skipping to prevent recursion');
+          // console.log('Route navigation already in progress, skipping to prevent recursion');
           return;
         }
         
@@ -763,26 +768,11 @@
         if (isInitialRouteLoad.value) {
           isInitialRouteLoad.value = false;
           if (!initialized) {
-            console.log('Initial route load but not initialized yet, skipping');
+            // console.log('Initial route load but not initialized yet, skipping');
             return;
           }
         }
         
-        // Prevent unnecessary reloads if route params haven't actually changed
-        // Temporarily disabled to debug server switching issue
-        // if (oldRoute && 
-        //     newRoute.params.serverId === oldRoute.params.serverId && 
-        //     newRoute.params.channelId === oldRoute.params.channelId &&
-        //     newRoute.params.conversationId === oldRoute.params.conversationId) {
-        //   console.log('Route params unchanged, skipping reload', {
-        //     serverIdSame: newRoute.params.serverId === oldRoute.params.serverId,
-        //     channelIdSame: newRoute.params.channelId === oldRoute.params.channelId,
-        //     conversationIdSame: newRoute.params.conversationId === oldRoute.params.conversationId,
-        //     newServerId: newRoute.params.serverId,
-        //     oldServerId: oldRoute.params.serverId
-        //   });
-        //   return;
-        // }
         
         isNavigatingRoute.value = true;
         
@@ -790,11 +780,11 @@
           // Always try to load server and channel when route changes
           // regardless of initialization state, but with proper checks
           if (initialized) {
-            console.log('Loading server and channel for route change');
+            // console.log('Loading server and channel for route change');
             await loadServerAndChannel();
           } else {
             // If not initialized yet, just log and continue
-            console.log('Route change detected before initialization complete');
+            // console.log('Route change detected before initialization complete');
           }
         } finally {
           isNavigatingRoute.value = false;
@@ -810,17 +800,17 @@
 
       // Watch for server list changes to automatically navigate to new servers
       watch(() => servers.value.length, (newLength, oldLength) => {
-        console.log('Server list changed:', oldLength || 0, '->', newLength)
+        // console.log('Server list changed:', oldLength || 0, '->', newLength)
         
         // If servers were added (user joined a new server)
         if (newLength > (oldLength || 0) && shouldShowNoServersSplash.value) {
-          console.log('New server joined! Hiding splash and navigating...')
+          // console.log('New server joined! Hiding splash and navigating...')
           showPublicServers.value = false; // Also close the public servers modal
           
           // Navigate to the newly joined server (last server in the list)
           const newServer = servers.value[servers.value.length - 1];
           if (newServer && !props.isDM && !isNavigatingRoute.value) {
-            console.log('Navigating to new server:', newServer.name, '(' + newServer.id + ')')
+            // console.log('Navigating to new server:', newServer.name, '(' + newServer.id + ')')
             isNavigatingRoute.value = true;
             router.push({ name: 'Chat', params: { serverId: newServer.id } }).finally(() => {
               isNavigatingRoute.value = false;
