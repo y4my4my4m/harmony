@@ -115,6 +115,36 @@
     <!-- User -->
     <circle v-if="name === 'user'" cx="12" cy="7" r="4"></circle>
     <path v-if="name === 'user'" d="M20 21v-2a7 5 0 0 0-16 0v2"></path>
+    
+    <!-- Map -->
+    <polygon v-if="name === 'map'" points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+    <line v-if="name === 'map'" x1="8" y1="2" x2="8" y2="18"></line>
+    <line v-if="name === 'map'" x1="16" y1="6" x2="16" y2="22"></line>
+    
+    <!-- Volume Spatial -->
+    <polygon v-if="name === 'volume-spatial'" points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <circle v-if="name === 'volume-spatial'" cx="19" cy="9" r="2"></circle>
+    <circle v-if="name === 'volume-spatial'" cx="17" cy="15" r="1.5"></circle>
+    <circle v-if="name === 'volume-spatial'" cx="21" cy="15" r="1"></circle>
+    
+    <!-- Refresh -->
+    <polyline v-if="name === 'refresh'" points="23 4 23 10 17 10"></polyline>
+    <polyline v-if="name === 'refresh'" points="1 20 1 14 7 14"></polyline>
+    <path v-if="name === 'refresh'" d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+    
+    <!-- Shuffle -->
+    <polyline v-if="name === 'shuffle'" points="16 3 21 3 21 8"></polyline>
+    <line v-if="name === 'shuffle'" x1="4" y1="7" x2="4" y2="7"></line>
+    <line v-if="name === 'shuffle'" x1="21" y1="3" x2="11" y2="13"></line>
+    <line v-if="name === 'shuffle'" x1="16" y1="21" x2="21" y2="16"></line>
+    <line v-if="name === 'shuffle'" x1="4" y1="17" x2="9" y2="12"></line>
+    
+    <!-- Check Circle -->
+    <path v-if="name === 'check-circle'" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+    <polyline v-if="name === 'check-circle'" points="22 4 12 14.01 9 11.01"></polyline>
+    
+    <!-- Circle -->
+    <circle v-if="name === 'circle'" cx="12" cy="12" r="10"></circle>
   </svg>
 </template>
 
@@ -122,7 +152,7 @@
 import { defineComponent, computed } from 'vue';
 
 export default defineComponent({
-  name: 'Icon',
+  name: 'IconComponent',
   props: {
     name: {
       type: String,

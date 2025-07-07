@@ -46,6 +46,14 @@
               <Icon name="user" />
             </button>
             <button 
+              @click="toggleSpatialPanel"
+              class="layout-btn"
+              :class="{ active: spatialStore.isPanelVisible }"
+              title="Toggle Spatial Audio"
+            >
+              <Icon name="map" />
+            </button>
+            <button 
               @click="toggleSettings"
               class="layout-btn"
               :class="{ active: showSettings }"
@@ -183,14 +191,21 @@
         />
       </div>
     </Teleport>
+
+    <!-- Spatial Audio Panel -->
+    <SpatialAudioPanel 
+      :is-under-overlay="true"
+    />
   </Teleport>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
+import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import Icon from '@/components/common/Icon.vue';
 
 interface Props {
@@ -209,6 +224,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const voiceStore = useUnifiedVoiceChannelStore();
+const spatialStore = useSpatialAudioStore();
 const isEntering = ref(false);
 const isLeaving = ref(false);
 const showSettings = ref(false);
@@ -301,6 +317,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       showSettings.value = !showSettings.value;
     };
     
+    const toggleSpatialPanel = () => {
+      spatialStore.togglePanel();
+    };
     // =============================================================================
     // LIFECYCLE
     // =============================================================================
