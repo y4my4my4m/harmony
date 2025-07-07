@@ -953,7 +953,7 @@ onUnmounted(() => {
     width: calc(100vw - 24px);
     right: 12px;
     left: 12px;
-    max-height: 70vh;
+    max-height: 90vh;
   }
   
   .header-content {
@@ -964,7 +964,7 @@ onUnmounted(() => {
   
   .header-actions {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-end;
   }
   
   .notification-filters {
@@ -981,7 +981,7 @@ onUnmounted(() => {
   .notification-panel {
     width: calc(100vw - 16px);
     right: 8px;
-    left: 8px;
+    left: -48vw;
     border-radius: 12px;
   }
   

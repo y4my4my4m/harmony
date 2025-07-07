@@ -126,9 +126,7 @@ export default defineComponent({
 
 @media (max-width: 768px) {
   .file-upload-menu {
-    left: 50%;
-    transform: translateX(-50%);
-    min-width: 140px;
+    min-width: 150px;
   }
   
   .menu-item {

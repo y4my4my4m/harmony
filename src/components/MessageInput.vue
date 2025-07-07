@@ -596,6 +596,47 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     .message-input {
       position: sticky;
       bottom: 0;
+      margin: 0;
+      padding: 12px 16px;
+      background: var(--h-chat, #313338);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .message-container {
+      border-radius: 20px;
+      padding: 8px 12px;
+      min-height: 44px;
+      align-items: center;
+    }
+
+    .left-icons,
+    .right-icons {
+      gap: 8px;
+    }
+
+    .plus-icon-container,
+    .right-icons button {
+      width: 36px;
+      height: 36px;
+      border-radius: 18px;
+    }
+
+    .textarea-wrapper {
+      min-height: 28px;
+    }
+
+    /* Enhanced touch targets for mobile */
+    .left-icons > *,
+    .right-icons > * {
+      min-width: 24px;
+      min-height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sprite {
+      --scaleFactor: 1.25;
     }
   }
 </style>

@@ -19,11 +19,8 @@ export default defineComponent({
         height: 20px;
     }
     .deleteIcon path {
-        fill: #dd0000aa;
+        fill: #f04747;
         transition: fill .2s;
         cursor:pointer;
-    }
-    .deleteIcon:hover path {
-        fill: #DD0000;
     }
 </style>

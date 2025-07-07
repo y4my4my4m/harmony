@@ -1,5 +1,10 @@
 <template>
-  <!-- Loading Screen - Show during initial app load only -->
+  <!-- Loading Screen - Show during initial app load only -->    <!-- Edge Swipe Indicators -->
+  <div v-if="isMobile && isAppReady" class="edge-indicators">
+    <div class="edge-indicator left" :class="{ active: touchState.isEdgeSwipe && touchState.startX <= 25 }"></div>
+    <div class="edge-indicator right" :class="{ active: touchState.isEdgeSwipe && touchState.startX >= windowWidth - 25 }"></div>
+  </div>
+    
   <div v-if="!isAppReady" class="loading-overlay">
     <div class="loading-spinner">
       <div class="spinner"></div>
@@ -12,11 +17,56 @@
     v-else-if="shouldShowNoServersSplash"
     @showPublicServers="handleShowPublicServers"
   />
-  
-  <!-- Main Chat Layout -->
-  <div v-else class="chat-layout">
-    <!-- Left sidebar container that holds both server and channel/DM sidebars -->
-    <div class="left-sidebar-container" :class="{ 'open': isSidebarsVisible }">
+    <!-- Main Chat Layout -->
+  <div v-else class="chat-layout" :class="{ 'sidebar-open': isSidebarsVisible, 'profile-open': isProfilesVisible }">
+    <!-- Mobile Overlay Backdrop -->
+    <div 
+      v-if="isMobile && (isSidebarsVisible || isProfilesVisible)" 
+      class="mobile-overlay"
+      @click="closeMobileSidebars"
+    ></div>
+    
+    <!-- Mobile Top Navigation Bar -->
+    <div v-if="isMobile" class="mobile-nav-bar">
+      <button 
+        class="nav-toggle-btn left-nav"
+        @click="toggleLeftSidebar"
+        :class="{ active: isSidebarsVisible }"
+        aria-label="Toggle sidebar"
+      >
+        <div class="hamburger-lines">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </button>
+      
+      <div class="nav-title">
+        <span v-if="!isDM && currentServer" class="server-name">
+          {{ currentServer.name }}
+        </span>
+        <span v-else-if="isDM" class="dm-label">
+          Direct Messages
+        </span>
+        <span v-else class="app-name">
+          Harmony
+        </span>
+      </div>
+      
+      <button 
+        class="nav-toggle-btn right-nav"
+        @click="toggleRightSidebar"
+        :class="{ active: isProfilesVisible }"
+        aria-label="Toggle users"
+      >
+        <svg viewBox="0 0 24 24" class="nav-icon">
+          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Left Sidebar Container -->
+    <div class="left-sidebar-container" :class="{ 'mobile-open': isSidebarsVisible }">
       <ServerSidebar
         :servers="servers"
         @showPublicServers="handleShowPublicServers"
@@ -40,20 +90,16 @@
       <UserProfileComponent />
     </div>
     
-    <CreateChannel
-      v-if="!isDM"
-      :serverId="currentServer?.id || ''"
-      :categoryId="currentCategoryId"
-      :show="showCreateChannelForm"
-      @channelCreated="handleChannelCreated"
-      @close="showCreateChannelForm = false"
-    />
-    <div :class="{ 'open': isSidebarsVisible, 'profile-open': isProfilesVisible}" class="chat-area">
+    <!-- Main Chat Area -->
+    <div class="chat-area">
+      <!-- Voice Channel Scene -->
       <VoiceChannelScene 
         v-if="!isDM"
         :currentChannelId="currentChannelId"
         :serverId="currentServer?.id"
       />
+      
+      <!-- Chat Component -->
       <ChatComponent
         :messages="chatMessages"
         :isLoading="isLoading"
@@ -63,13 +109,27 @@
         @sendMessage="handleSendMessage"
       />
     </div>
-    <UserSidebar :class="{ 'open': isProfilesVisible }"  />
     
+    <!-- Right Sidebar (User List) -->
+    <UserSidebar class="right-sidebar" :class="{ 'mobile-open': isProfilesVisible }" />
+    
+    <!-- Create Channel Modal -->
+    <CreateChannel
+      v-if="!isDM"
+      :serverId="currentServer?.id || ''"
+      :categoryId="currentCategoryId"
+      :show="showCreateChannelForm"
+      @channelCreated="handleChannelCreated"
+      @close="showCreateChannelForm = false"
+    />
+    
+    <!-- Public Servers Modal -->
     <PublicServers 
       v-if="showPublicServers"
       :force-refresh="shouldForceRefreshPublicServers"
       @close="handleClosePublicServers"
     />
+
   </div>
 </template>
 
@@ -95,6 +155,7 @@
   import { useToast } from "vue-toastification";
   import type { Channel } from "@/types";
   import { useChannelSelection } from '@/composables/useUserProfile'
+  import { useMobileGestures } from '@/composables/useMobileGestures'
   import { statePersistence } from '@/services/StatePersistence'
   import { viewContextTracker } from '@/services/ViewContextTracker'
 
@@ -167,6 +228,57 @@
 
       const isSidebarsVisible = ref(false);
       const isProfilesVisible = ref(false);
+      const isMobile = ref(false);
+
+      // Computed property for window width to handle SSR and reactivity
+      const windowWidth = computed(() => {
+        return typeof window !== 'undefined' ? window.innerWidth : 768;
+      });
+
+      // Enhanced mobile detection and sidebar management
+      const checkMobileDevice = () => {
+        const wasMobile = isMobile.value;
+        isMobile.value = typeof window !== 'undefined' ? window.innerWidth <= 768 : false;
+        
+        if (isMobile.value) {
+          // On mobile: Always hide sidebars by default
+          isSidebarsVisible.value = false;
+          isProfilesVisible.value = false;
+        } else {
+          // On desktop: Show left sidebar by default, hide right sidebar
+          if (!wasMobile || !isSidebarsVisible.value) {
+            isSidebarsVisible.value = true;
+          }
+          isProfilesVisible.value = false;
+        }
+      };
+
+      // Define resize handler in component scope for proper cleanup
+      const handleResize = () => {
+        checkMobileDevice();
+      };
+
+      // Mobile sidebar controls
+      const toggleLeftSidebar = () => {
+        if (isMobile.value) {
+          isProfilesVisible.value = false; // Close right sidebar
+          isSidebarsVisible.value = !isSidebarsVisible.value;
+        }
+      };
+
+      const toggleRightSidebar = () => {
+        if (isMobile.value) {
+          isSidebarsVisible.value = false; // Close left sidebar
+          isProfilesVisible.value = !isProfilesVisible.value;
+        }
+      };
+
+      const closeMobileSidebars = () => {
+        if (isMobile.value) {
+          isSidebarsVisible.value = false;
+          isProfilesVisible.value = false;
+        }
+      };
 
       // Method to sync URL with restored state after initialization
       const syncUrlWithRestoredState = async () => {
@@ -572,81 +684,39 @@
         shouldForceRefreshPublicServers.value = false;
       };
 
-      const startX = ref(0);
-      const startY = ref(0);
-      const endX = ref(0);
-      const endY = ref(0);
-      const swipeThreshold = 150; // Increase swipe threshold
-      const verticalMovementThreshold = 150; // Adjust vertical movement threshold
+      // Use the mobile gestures composable for cleaner touch handling
+      const {
+        touchState,
+        handleTouchStart,
+        handleTouchMove,
+        handleTouchEnd
+      } = useMobileGestures();
 
-      const handleTouchStart = (touchEvent: Event) => {
-        const event = touchEvent as TouchEvent;
-        startX.value = event.touches[0].clientX;
-        startY.value = event.touches[0].clientY;
+      // Wrapper functions to integrate with our component logic
+      const onTouchStart = (event: TouchEvent) => {
+        handleTouchStart(event, isMobile.value);
       };
 
-      // const handleTouchMove = (touchEvent: Event) => {
-      //   touchEvent.preventDefault();
+      const onTouchMove = (event: TouchEvent) => {
+        const hasOpenSidebars = isSidebarsVisible.value || isProfilesVisible.value;
+        handleTouchMove(event, isMobile.value, hasOpenSidebars);
+      };
 
-      //   const event = touchEvent as TouchEvent;
-      //   let deltaX = event.touches[0].clientX - startX.value;
-
-      //   // Constrain deltaX to within the expected range
-      //   deltaX = Math.max(Math.min(deltaX, swipeThreshold), -swipeThreshold);
-
-      //   const sidebarElement = document.querySelector('.server-sidebar') as HTMLElement;
-      //   const profileSidebarElement = document.querySelector('.user-sidebar') as HTMLElement;
-
-      //   // Assuming a left swipe reveals the right (profile) sidebar and vice versa
-      //   if (sidebarElement && deltaX > 0) { // Adjust for revealing server sidebar
-      //     sidebarElement.style.transform = `translateX(${deltaX}px)`;
-      //   } else if (profileSidebarElement && deltaX < 0) { // Adjust for revealing profile sidebar
-      //     profileSidebarElement.style.transform = `translateX(${deltaX}px)`;
-      //   }
-      // };
-
-      const handleTouchEnd = (touchEvent: Event) => {
-        const event = touchEvent as TouchEvent;
-        endX.value = event.changedTouches[0].clientX;
-        endY.value = event.changedTouches[0].clientY;
-
-        const deltaX = endX.value - startX.value;
-        const deltaY = endY.value - startY.value;
-
-        // Check for a horizontal swipe and limited vertical movement
-        if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaY) < verticalMovementThreshold) {
-          event.preventDefault(); // Prevent default behavior if it's clearly a swipe
-          if (deltaX > 0) {
-            // Swipe right
-            toggleSidebars();
-          } else {
-            // Swipe left
-            toggleProfiles();
+      const onTouchEnd = (event: TouchEvent) => {
+        handleTouchEnd(event, isMobile.value, {
+          onSwipeRight: () => {
+            if (!isSidebarsVisible.value) {
+              toggleLeftSidebar();
+            }
+          },
+          onSwipeLeft: () => {
+            if (isSidebarsVisible.value) {
+              toggleLeftSidebar();
+            } else if (!isProfilesVisible.value) {
+              toggleRightSidebar();
+            }
           }
-        }
-      };
-
-      const toggleSidebars = () => {
-        // if currently viewing chat
-        if(isProfilesVisible.value == false)
-        {
-          isSidebarsVisible.value = !isSidebarsVisible.value;
-        }
-        else {
-          isProfilesVisible.value = !isProfilesVisible.value;
-        }
-      };
-
-      const toggleProfiles = () => {
-        // if currently viewing chat
-        if(isSidebarsVisible.value == false)
-        {
-          isProfilesVisible.value = !isProfilesVisible.value;
-
-        }
-        else {
-          isSidebarsVisible.value = !isSidebarsVisible.value;
-        }
+        });
       };
       
       // const usersInCurrentVoiceChannel = computed(() => {
@@ -697,17 +767,8 @@
           // Subscribe to offline broadcast notifications
           serverUsersStore.subscribeToOfflineBroadcasts();
 
-          const handleResize = () => {
-            // Adjust chat area and sidebars on resize
-            if (window.innerWidth > 768) {
-              isSidebarsVisible.value = true;
-              isProfilesVisible.value = false;
-            } else {
-              isSidebarsVisible.value = false;
-              isProfilesVisible.value = false;
-            }
-          };
-
+          // Initial mobile check and setup resize listener
+          checkMobileDevice();
           window.addEventListener('resize', handleResize);
 
           initialized = true;
@@ -734,10 +795,11 @@
           }
 
           const chatLayout = document.querySelector('#app');
-          // Event listeners
+          // Enhanced touch event listeners for better mobile experience
           if (chatLayout) {
-            chatLayout.addEventListener('touchstart', handleTouchStart as EventListener);
-            chatLayout.addEventListener('touchend', handleTouchEnd as EventListener);
+            chatLayout.addEventListener('touchstart', onTouchStart, { passive: false });
+            chatLayout.addEventListener('touchmove', onTouchMove, { passive: false });
+            chatLayout.addEventListener('touchend', onTouchEnd, { passive: false });
           }
         }
       });
@@ -749,6 +811,19 @@
         // Clean up DM subscriptions if in DM mode
         if (props.isDM) {
           dmStore.cleanup();
+        }
+        
+        // Clean up event listeners to prevent memory leaks
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('resize', handleResize);
+        }
+        
+        // Clean up touch event listeners
+        const chatLayout = document.querySelector('#app');
+        if (chatLayout) {
+          chatLayout.removeEventListener('touchstart', onTouchStart);
+          chatLayout.removeEventListener('touchmove', onTouchMove);
+          chatLayout.removeEventListener('touchend', onTouchEnd);
         }
       });
 
@@ -825,21 +900,163 @@
 </script>
 
 <style scoped>
+/* =====================================
+   MODERN MOBILE-FIRST CHAT LAYOUT
+   ===================================== */
+
+/* Base Chat Layout */
 .chat-layout {
   display: flex;
   height: 100vh;
   width: 100vw;
   position: relative;
+  overflow: hidden;
+  background: var(--h-chat, #313338);
 }
+
+/* =====================================
+   MOBILE NAVIGATION BAR
+   ===================================== */
+
+.mobile-nav-bar {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: linear-gradient(135deg, var(--h-black-dark, #1e1f22) 0%, #1a1b1e 100%);
+  border-bottom: 1px solid rgba(88, 101, 242, 0.1);
+  z-index: 1000;
+  padding: 0 20px;
+  align-items: center;
+  justify-content: space-between;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
+}
+
+.nav-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-toggle-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.2), rgba(88, 101, 242, 0.05));
+  border-radius: 16px;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-toggle-btn:hover::before,
+.nav-toggle-btn.active::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.nav-toggle-btn:active {
+  background: rgba(88, 101, 242, 0.3);
+  border-color: rgba(88, 101, 242, 0.4);
+  color: #5865f2;
+  transform: scale(0.95);
+}
+
+.nav-toggle-btn.active {
+  background: rgba(88, 101, 242, 0.2);
+  border-color: rgba(88, 101, 242, 0.3);
+  color: #5865f2;
+  transform: scale(1.05);
+}
+
+/* Hamburger Animation */
+.hamburger-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 22px;
+  height: 16px;
+  z-index: 1;
+}
+
+.hamburger-lines span {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center;
+}
+
+.nav-toggle-btn.active .hamburger-lines span:nth-child(1) {
+  transform: translateY(6.5px) rotate(45deg);
+}
+
+.nav-toggle-btn.active .hamburger-lines span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.nav-toggle-btn.active .hamburger-lines span:nth-child(3) {
+  transform: translateY(-6.5px) rotate(-45deg);
+}
+
+.nav-title {
+  flex: 1;
+  text-align: center;
+  font-weight: 700;
+  font-size: 18px;
+  color: #ffffff;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  margin: 0 20px;
+  background: linear-gradient(135deg, #ffffff, #e3e4e6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nav-icon {
+  width: 22px;
+  height: 22px;
+  fill: rgba(255, 255, 255, 0.4);
+  z-index: 1;
+}
+.nav-toggle-btn.active .hamburger-lines span{
+  background: currentColor;
+}
+.nav-toggle-btn.active .nav-icon {
+  fill: #5865f2;
+}
+
+/* =====================================
+   SIDEBAR CONTAINERS
+   ===================================== */
 
 .left-sidebar-container {
   display: flex;
   position: relative;
   width: 312px; /* 72px (server) + 240px (channel/DM) */
   min-width: 312px;
-  background: var(--h-sidebar);
-  transition: width 0.3s ease;
+  background: var(--h-sidebar, #2b2d31);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
 }
 
 .left-sidebar-container .server-sidebar {
@@ -849,6 +1066,7 @@
   bottom: 0;
   width: 72px;
   z-index: 1;
+  background: var(--h-server-sidebar, #1e1f22);
 }
 
 .left-sidebar-container .channel-sidebar,
@@ -858,6 +1076,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  background: var(--h-sidebar, #2b2d31);
 }
 
 .left-sidebar-container .user-profile {
@@ -867,82 +1086,194 @@
   right: 0;
   z-index: 2;
   width: 100%;
+  background: var(--h-black-dark, #1e1f22);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.notification-section {
-  position: absolute;
-  bottom: 72px; /* Height of user profile */
-  left: 72px; /* Offset from server sidebar */
-  right: 0;
-  padding: 12px 16px;
-  background: var(--h-sidebar);
-  border-top: 1px solid var(--h-chat-light);
-  z-index: 2;
-}
+/* =====================================
+   MAIN CHAT AREA
+   ===================================== */
 
 .chat-area {
   position: relative;
-  flex-grow: 1;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--h-chat);
-  padding-top: 6px;
+  background: var(--h-chat, #313338);
+  min-width: 0; /* Prevents flex item from overflowing */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.top-bar {
-  display: none;
+/* =====================================
+   RIGHT SIDEBAR (USER LIST)
+   ===================================== */
+
+.right-sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: var(--h-sidebar, #2b2d31);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
 }
 
-/* Mobile styles */
+/* =====================================
+   MOBILE OVERLAY
+   ===================================== */
+
+.mobile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 900;
+  opacity: 0;
+  animation: overlay-fade-in 0.3s ease-out forwards;
+}
+
+@keyframes overlay-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+/* =====================================
+   MOBILE RESPONSIVE STYLES
+   ===================================== */
+
 @media (max-width: 768px) {
-  .left-sidebar-container {
-    width: 0;
-    min-width: 0;
-    overflow: hidden;
-    transition: 0.3s ease-in-out;
-  }
-  
-  .left-sidebar-container.open {
-    width: 100%;
+  .mobile-nav-bar {
+    display: flex;
   }
 
-  .user-sidebar {
-    overflow: hidden;
-    width: 0;
-    transition: 0.3s ease-in-out;
+  .chat-layout {
+    padding-top: 64px; /* Account for mobile nav bar */
+  }
+
+  /* Left Sidebar Mobile Behavior */
+  .left-sidebar-container {
+    position: fixed;
+    top: 64px;
+    left: 0;
+    bottom: 0;
+    /* width: calc(85% - 20px); */
+    max-width: 360px;
+    min-width: 320px;
+    z-index: 950;
+    transform: translateX(-100%);
+    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    box-shadow: 12px 0 32px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(135deg, var(--h-sidebar, #2b2d31) 0%, #252830 100%);
+    border-right: 1px solid rgba(88, 101, 242, 0.2);
+  }
+
+  .left-sidebar-container.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Right Sidebar Mobile Behavior */
+  .right-sidebar {
+    position: fixed;
+    top: 64px;
+    right: 0;
+    bottom: 0;
+    width: 85%;
+    max-width: 320px;
+    min-width: 280px;
+    z-index: 950;
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(135deg, var(--h-sidebar, #2b2d31) 0%, #252830 100%);
+    border-left: 1px solid rgba(88, 101, 242, 0.2);
+  }
+
+  .right-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Chat Area Mobile Behavior */
+  .chat-area {
+    width: 100%;
+    flex: 1;
+    background: linear-gradient(135deg, var(--h-chat, #313338) 0%, #2c2f36 100%);
+  }
+
+  /* Enhanced mobile sidebar styling */
+  .left-sidebar-container .server-sidebar {
+    background: linear-gradient(135deg, var(--h-server-sidebar, #1e1f22) 0%, #191a1d 100%);
+    border-right: 1px solid rgba(88, 101, 242, 0.15);
+  }
+
+  .left-sidebar-container .channel-sidebar,
+  .left-sidebar-container .dm-sidebar {
+    background: linear-gradient(135deg, var(--h-sidebar, #2b2d31) 0%, #252830 100%);
+  }
+
+  /* Mobile overlay with enhanced backdrop */
+  .mobile-overlay {
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Professional mobile spacing */
+  .left-sidebar-container {
+    padding-right: 0;
+  }
+
+  .left-sidebar-container .channel-sidebar,
+  .left-sidebar-container .dm-sidebar {
     padding: 0;
   }
-  
-  .chat-area {
-    transition: 0.3s ease-in-out;
-    width: 100%;
-    overflow: hidden;
+}
+
+/* =====================================
+   TABLET RESPONSIVE STYLES
+   ===================================== */
+
+@media (max-width: 1024px) and (min-width: 769px) {
+  .left-sidebar-container {
+    width: 280px;
+    min-width: 280px;
   }
-  
-  .chat-container {
-    width: 100%;
-    overflow: hidden;
+
+  .left-sidebar-container .channel-sidebar,
+  .left-sidebar-container .dm-sidebar {
+    width: 208px; /* 280 - 72 */
   }
-  
-  .chat-area.open {
-    position: absolute;
-    overflow: hidden;
-    left: 100%;
-    width: 0;
-  }
-  
-  .chat-area.profile-open {
-    overflow: hidden;
-    right: 100%;
-    width: 0;
-  }
-  
-  .user-sidebar.open {
-    display: block;
-    width: 100%;
-    padding: 10px;
+
+  .right-sidebar {
+    width: 200px;
+    min-width: 200px;
   }
 }
+
+/* =====================================
+   LARGE SCREEN OPTIMIZATIONS
+   ===================================== */
+
+@media (min-width: 1400px) {
+  .left-sidebar-container {
+    width: 340px;
+    min-width: 340px;
+  }
+
+  .left-sidebar-container .channel-sidebar,
+  .left-sidebar-container .dm-sidebar {
+    width: 268px; /* 340 - 72 */
+  }
+
+  .right-sidebar {
+    width: 280px;
+    min-width: 280px;
+  }
+}
+
+/* =====================================
+   LOADING OVERLAY
+   ===================================== */
 
 .loading-overlay {
   position: fixed;
@@ -961,19 +1292,21 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
 }
 
 .loading-spinner p {
   color: #ffffff;
   font-size: 16px;
+  font-weight: 500;
   margin: 0;
+  opacity: 0.8;
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(88, 101, 242, 0.2);
   border-top: 3px solid #5865f2;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -983,4 +1316,105 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* =====================================
+   ACCESSIBILITY & REDUCED MOTION
+   ===================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* =====================================
+   HIGH CONTRAST MODE
+   ===================================== */
+
+@media (prefers-contrast: high) {
+  .left-sidebar-container,
+  .right-sidebar {
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .mobile-nav-bar {
+    border-bottom-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .nav-toggle-btn:hover::before {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* =====================================
+   EDGE SWIPE INDICATORS
+   ===================================== */
+
+.edge-indicators {
+  position: fixed;
+  top: 64px; /* Below the mobile nav bar */
+  left: 0;
+  right: 0;
+  height: calc(100% - 64px);
+  pointer-events: none;
+  z-index: 980;
+}
+
+.edge-indicator {
+  position: absolute;
+  width: 25px;
+  height: 100%;
+  background: transparent;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.edge-indicator.left {
+  left: 0;
+  background: linear-gradient(to right, rgba(88, 101, 242, 0.1), transparent);
+}
+
+.edge-indicator.right {
+  right: 0;
+  background: linear-gradient(to left, rgba(88, 101, 242, 0.1), transparent);
+}
+
+.edge-indicator.active {
+  background: linear-gradient(to right, rgba(88, 101, 242, 0.3), rgba(88, 101, 242, 0.1));
+}
+
+.edge-indicator.right.active {
+  background: linear-gradient(to left, rgba(88, 101, 242, 0.3), rgba(88, 101, 242, 0.1));
+}
+
+/* Add subtle glow effect for better visual feedback */
+.edge-indicator.active::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 60px;
+  background: rgba(88, 101, 242, 0.6);
+  border-radius: 2px;
+  box-shadow: 0 0 12px rgba(88, 101, 242, 0.4);
+  animation: edge-pulse 1s ease-in-out infinite alternate;
+}
+
+.edge-indicator.left.active::before {
+  left: 2px;
+}
+
+.edge-indicator.right.active::before {
+  right: 2px;
+}
+
+@keyframes edge-pulse {
+  0% { opacity: 0.6; transform: translateY(-50%) scale(1); }
+  100% { opacity: 1; transform: translateY(-50%) scale(1.1); }
+}
+
+/* =====================================
+   ===================================== */
 </style>

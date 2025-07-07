@@ -718,12 +718,53 @@ onMounted(() => {
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .user-sidebar {
-    width: 220px;
-    min-width: 220px;
+    width: 100%;
+    max-width: 320px;
+    min-width: 280px;
+    background: linear-gradient(135deg, var(--h-sidebar, #2b2d31) 0%, #252830 100%);
+    border-left: 1px solid rgba(88, 101, 242, 0.2);
   }
   
   .sidebar-hidden {
-    margin-right: -220px;
+    margin-right: -320px;
+  }
+
+  /* Enhanced mobile touch targets */
+  .control-btn {
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+
+  .group-header {
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: 12px;
+  }
+
+  .user-item {
+    min-height: 52px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    margin: 4px 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .user-item:active {
+    transform: scale(0.98);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .search-input {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 12px 16px;
+    border-radius: 12px;
+  }
+
+  .member-count {
+    font-size: 14px;
+    padding: 8px 16px;
   }
 }
 

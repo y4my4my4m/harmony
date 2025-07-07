@@ -1,10 +1,29 @@
 <template>
   <div class="user-settings">
     <div class="user-settings-container">
+      <!-- Mobile Navigation Header -->
+      <div class="mobile-nav" v-if="isMobile">
+        <button class="mobile-menu-btn" @click="toggleSidebar" aria-label="Toggle navigation">
+          <div class="hamburger-icon" :class="{ active: showSidebar }">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </button>
+        <h2 class="mobile-title">{{ currentSectionLabel }}</h2>
+        <button class="mobile-close-btn" @click="closeSettings" aria-label="Close settings">
+          <CloseIcon />
+        </button>
+      </div>
+
       <!-- Sidebar Navigation -->
-      <div class="settings-sidebar">
+      <div 
+        class="settings-sidebar" 
+        :class="{ 'mobile-hidden': isMobile && !showSidebar }"
+        v-touch:swipe.left="handleSidebarSwipe"
+      >
         <div class="settings-sidebar-content">
-          <h2 class="settings-title">User Settings</h2>
+          <h2 class="settings-title" v-if="!isMobile">User Settings</h2>
           
           <nav class="settings-nav">
             <div class="nav-section">
@@ -47,6 +66,13 @@
           </nav>
         </div>
       </div>
+
+      <!-- Sidebar Overlay (mobile) -->
+      <div 
+        v-if="isMobile && showSidebar" 
+        class="sidebar-overlay"
+        @click="closeSidebar"
+      ></div>
 
       <!-- Main Content Area -->
       <div class="settings-main">
@@ -113,8 +139,13 @@
         </div>
       </div>
 
-      <!-- Close Button -->
-      <button class="settings-close" @click="closeSettings" aria-label="Close settings">
+      <!-- Close Button (desktop only) -->
+      <button 
+        v-if="!isMobile"
+        class="settings-close" 
+        @click="closeSettings" 
+        aria-label="Close settings"
+      >
         <CloseIcon />
       </button>
     </div>
@@ -122,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar } from '@/services/profileService'
@@ -141,7 +172,7 @@ import KeybindSettings from '@/components/settings/user/KeybindSettings.vue'
 import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
 import AdvancedSettings from '@/components/settings/user/AdvancedSettings.vue'
 
-// Icons (you'll need to create or import these)
+// Icons
 import UserIcon from '@/components/icons/User.vue'
 import ShieldIcon from '@/components/icons/Shield.vue'
 import PaletteIcon from '@/components/icons/Palette.vue'
@@ -169,10 +200,21 @@ const authStore = useAuthStore()
 const toast = useToast()
 const settingsNav = createSettingsNavigator(router)
 
-// State
+// Reactive state
 const loading = ref(false)
 const profile = ref<User | null>(null)
 const activeSection = ref(props.section || 'account')
+const showSidebar = ref(false)
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+
+// Computed properties
+const isMobile = computed(() => windowWidth.value <= 768)
+
+const currentSectionLabel = computed(() => {
+  const allSections = [...userSections.value, ...appSections.value]
+  const section = allSections.find(s => s.id === activeSection.value)
+  return section?.label || 'Settings'
+})
 
 // Navigation sections
 const userSections = computed(() => [
@@ -196,8 +238,35 @@ const validSections = computed(() => [
 ])
 
 // Methods
+const handleResize = () => {
+  if (typeof window !== 'undefined') {
+    windowWidth.value = window.innerWidth
+    if (!isMobile.value) {
+      showSidebar.value = false
+    }
+  }
+}
+
+const toggleSidebar = () => {
+  showSidebar.value = !showSidebar.value
+}
+
+const closeSidebar = () => {
+  showSidebar.value = false
+}
+
+const handleSidebarSwipe = () => {
+  if (isMobile.value) {
+    closeSidebar()
+  }
+}
+
 const setActiveSection = (sectionId: string) => {
   activeSection.value = sectionId
+  // Close sidebar on mobile after selection
+  if (isMobile.value) {
+    closeSidebar()
+  }
   // Update URL to reflect the active section
   settingsNav.replaceSection(sectionId as SettingsSection)
 }
@@ -303,8 +372,14 @@ watch(() => props.section, (newSection) => {
   }
 }, { immediate: true })
 
-// Initialize
+// Lifecycle
 onMounted(async () => {
+  // Setup resize listener with SSR safety
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handleResize)
+    handleResize() // Set initial width
+  }
+
   // Validate and set initial section
   const routeSection = Array.isArray(route.params.section) ? route.params.section[0] : route.params.section
   const initialSection = routeSection || props.section || 'account'
@@ -326,6 +401,12 @@ onMounted(async () => {
     } finally {
       loading.value = false
     }
+  }
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', handleResize)
   }
 })
 </script>
@@ -360,12 +441,100 @@ onMounted(async () => {
   box-shadow: none;
 }
 
+/* Mobile Navigation */
+.mobile-nav {
+  display: none;
+  height: 60px;
+  background-color: var(--h-chat);
+  border-bottom: 1px solid var(--h-chat-light);
+  padding: 0 16px;
+  align-items: center;
+  justify-content: space-between;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+}
+
+.mobile-menu-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.mobile-menu-btn:hover {
+  background-color: var(--h-chat-light);
+}
+
+.hamburger-icon {
+  width: 24px;
+  height: 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.hamburger-icon span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background-color: #b9bbbe;
+  border-radius: 1px;
+  transition: all 0.3s ease;
+}
+
+.hamburger-icon.active span:nth-child(1) {
+  transform: rotate(45deg) translate(6px, 6px);
+}
+
+.hamburger-icon.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger-icon.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(6px, -6px);
+}
+
+.mobile-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+  text-align: center;
+  flex: 1;
+}
+
+.mobile-close-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  color: #b9bbbe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.mobile-close-btn:hover {
+  background-color: var(--h-chat-light);
+  color: #ffffff;
+}
+
+/* Sidebar */
 .settings-sidebar {
   width: 260px;
   background-color: var(--h-chat);
   border-right: 1px solid var(--h-chat-light);
   display: flex;
   flex-direction: column;
+  transition: transform 0.3s ease;
 }
 
 .settings-sidebar-content {
@@ -406,7 +575,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px;
+  padding: 12px 16px;
   background: none;
   border: none;
   color: #b9bbbe;
@@ -414,8 +583,9 @@ onMounted(async () => {
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 6px;
   transition: all 0.15s ease;
+  min-height: 44px; /* Better touch target */
 }
 
 .nav-item:hover {
@@ -444,6 +614,7 @@ onMounted(async () => {
   color: #ed4245 !important;
 }
 
+/* Main Content */
 .settings-main {
   flex: 1;
   display: flex;
@@ -457,6 +628,7 @@ onMounted(async () => {
   padding: 24px 32px;
 }
 
+/* Close Button */
 .settings-close {
   position: absolute;
   top: 16px;
@@ -472,6 +644,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
+  z-index: 1002;
 }
 
 .settings-close:hover {
@@ -479,6 +652,18 @@ onMounted(async () => {
   color: #ffffff;
 }
 
+/* Sidebar Overlay */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Mobile Styles */
 @media (max-width: 768px) {
   .user-settings {
     padding: 0;
@@ -489,17 +674,100 @@ onMounted(async () => {
     border-radius: 0;
     max-width: none;
   }
+
+  .mobile-nav {
+    display: flex;
+  }
   
   .settings-sidebar {
-    width: 200px;
+    position: fixed;
+    top: 60px; /* Below mobile nav */
+    left: 0;
+    width: 280px;
+    height: calc(100vh - 60px);
+    z-index: 1000;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .settings-sidebar.mobile-hidden {
+    transform: translateX(-100%);
+  }
+  
+  .settings-main {
+    margin-top: 60px; /* Space for mobile nav */
   }
   
   .settings-content {
-    padding: 16px 20px;
+    padding: 20px 16px;
   }
   
   .settings-title {
     font-size: 18px;
+  }
+
+  /* Hide desktop close button on mobile */
+  .settings-close {
+    display: none;
+  }
+
+  /* Improve touch targets on mobile */
+  .nav-item {
+    padding: 16px 20px;
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  .nav-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .nav-section-title {
+    font-size: 13px;
+    margin: 0 0 12px 12px;
+  }
+
+  .settings-nav {
+    gap: 20px;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .settings-sidebar {
+    width: 100vw;
+  }
+  
+  .settings-content {
+    padding: 16px 12px;
+  }
+
+  .mobile-title {
+    font-size: 16px;
+  }
+}
+
+/* Transitions and animations */
+@media (prefers-reduced-motion: no-preference) {
+  .settings-sidebar {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .hamburger-icon span {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar-overlay {
+    animation: fadeIn 0.3s ease;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 </style>
