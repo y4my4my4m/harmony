@@ -10,8 +10,8 @@ interface SpatialAudioNode {
   gainNode: GainNode;
   pannerNode: PannerNode | StereoPannerNode;
   convolver?: ConvolverNode;
-  source?: MediaElementAudioSourceNode;
-  audioElement?: HTMLAudioElement;
+  source?: MediaStreamAudioSourceNode;
+  mediaStream?: MediaStream;
 }
 
 export class SpatialAudioService {
@@ -85,10 +85,9 @@ export class SpatialAudioService {
         hasConvolver: !!node.convolver,
         gainValue: node.gainNode?.gain.value,
         panValue: node.pannerNode instanceof StereoPannerNode ? node.pannerNode.pan.value : 'N/A',
-        audioElementPaused: node.audioElement?.paused,
-        audioElementMuted: node.audioElement?.muted,
-        audioElementVolume: node.audioElement?.volume,
-        audioElementSrc: node.audioElement?.src?.slice(-50) // Last 50 chars
+        hasMediaStream: !!node.mediaStream,
+        audioTracks: node.mediaStream?.getAudioTracks().length || 0,
+        mediaStreamActive: node.mediaStream?.active
       });
     });
     console.log('🎧 === END DEBUG ===');
@@ -103,8 +102,8 @@ export class SpatialAudioService {
     console.log('🎧 Set spatial audio listener:', userId);
   }
 
-  async setupSpatialForUser(userId: string, audioElement?: HTMLAudioElement): Promise<void> {
-    console.log('🎧 setupSpatialForUser called for user:', userId, 'audioElement:', !!audioElement, 'listenerUserId:', this.listenerUserId);
+  async setupSpatialForUser(userId: string, mediaStream?: MediaStream): Promise<void> {
+    console.log('🎧 setupSpatialForUser called for user:', userId, 'mediaStream:', !!mediaStream, 'listenerUserId:', this.listenerUserId);
     
     if (!this.audioContext) {
       console.warn('Spatial audio not initialized');
@@ -117,8 +116,8 @@ export class SpatialAudioService {
       return;
     }
 
-    if (!audioElement) {
-      console.warn('No audio element provided for user:', userId);
+    if (!mediaStream) {
+      console.warn('No media stream provided for user:', userId);
       return;
     }
 
@@ -130,7 +129,7 @@ export class SpatialAudioService {
       console.log('🎧 AudioContext not running, attempting to resume for user:', userId);
       this.audioContext.resume().then(() => {
         console.log('🎧 AudioContext resumed, retrying setup for user:', userId);
-        this.setupSpatialForUser(userId, audioElement);
+        this.setupSpatialForUser(userId, mediaStream);
       }).catch(error => {
         console.error('Failed to resume AudioContext:', error);
       });
@@ -138,24 +137,19 @@ export class SpatialAudioService {
     }
 
     console.log('🎧 Setting up spatial audio for user:', userId, {
-      audioElementSrc: audioElement.src || 'No src',
-      audioElementSrcObject: !!audioElement.srcObject,
-      audioElementPaused: audioElement.paused,
-      audioElementMuted: audioElement.muted,
-      audioElementVolume: audioElement.volume,
-      audioElementReadyState: audioElement.readyState,
+      hasAudioTracks: mediaStream.getAudioTracks().length > 0,
       audioContextState: this.audioContext.state
     });
     
     try {
       // Check if we already have a node for this user
       const existingNode = this.spatialNodes.get(userId);
-      let source: MediaElementAudioSourceNode;
+      let source: MediaStreamAudioSourceNode;
       
-      if (existingNode?.source && existingNode.audioElement === audioElement) {
+      if (existingNode?.source && existingNode.mediaStream === mediaStream) {
         // Reuse existing source node - don't disconnect it
         source = existingNode.source;
-        console.log('🎧 Reusing existing MediaElementSource for user:', userId);
+        console.log('🎧 Reusing existing MediaStreamSource for user:', userId);
         
         // Disconnect the existing audio graph but keep the source
         existingNode.gainNode.disconnect();
@@ -167,38 +161,17 @@ export class SpatialAudioService {
         // Remove existing node completely if it exists
         this.removeUserCompletely(userId);
         
-        // Create new audio source from HTMLAudioElement
-        try {      // IMPORTANT: When we create a MediaElementSourceNode, the audio element
-      // stops playing directly to speakers and must be routed through Web Audio API
-      console.log('🎧 Creating MediaElementSource for user:', userId, '- audio will be routed through spatial audio');
-      
-      // CRITICAL CHECK: Verify the audio element is not muted and has volume
-      console.log('🎧 BEFORE MediaElementSource - Audio element state:', {
-        paused: audioElement.paused,
-        muted: audioElement.muted,
-        volume: audioElement.volume,
-        srcObject: !!audioElement.srcObject,
-        readyState: audioElement.readyState
-      });
-      
-      source = this.audioContext.createMediaElementSource(audioElement);
-      
-      // CRITICAL CHECK: After creating MediaElementSource, the audio should stop playing directly
-      console.log('🎧 AFTER MediaElementSource - Audio element state:', {
-        paused: audioElement.paused,
-        muted: audioElement.muted,
-        volume: audioElement.volume
-      });
-      
-      console.log('🎧 Created new MediaElementSource for user:', userId, '- audio is now routed through Web Audio API');
+        // Create new audio source from MediaStream
+        try {
+          console.log('🎧 Creating MediaStreamSource for user:', userId, '- audio will be routed through spatial audio');
+          
+          // CRITICAL: Use MediaStream directly - no HTMLAudioElement needed
+          source = this.audioContext.createMediaStreamSource(mediaStream);
+          
+          console.log('🎧 Created new MediaStreamSource for user:', userId, '- audio is now routed through Web Audio API');
         } catch (error) {
-          if (error instanceof DOMException && error.name === 'InvalidStateError') {
-            console.error('🎧 Audio element already connected for user:', userId, '- this should not happen with our current setup');
-            // The audio element is already connected to a different MediaElementSourceNode
-            // This means we have a logic error in our setup/cleanup
-            return;
-          }
-          throw error;
+          console.error('🎧 Failed to create MediaStreamSource for user:', userId, error);
+          return;
         }
       }
       
@@ -232,35 +205,6 @@ export class SpatialAudioService {
       pannerNode.connect(this.destination!);
       console.log('🎧 Connected to audio destination for user:', userId);
 
-      // IMPORTANT: When we create a MediaElementSourceNode, the audio element
-      // should automatically stop playing directly to speakers and route through Web Audio API.
-      // However, to be absolutely sure, let's explicitly manage playback:
-      
-      // First, ensure the audio element is playing (required for MediaElementSourceNode)
-      // We need to use the original play method since we might have overridden it
-      const originalPlay = (audioElement as any)._originalPlay || audioElement.play.bind(audioElement);
-      
-      if (audioElement.paused) {
-        console.log('🎧 Starting audio playback for user:', userId);
-        try {
-          // CRITICAL: Keep the audio element muted to prevent direct playback
-          // The MediaElementSourceNode will still process the audio even if muted
-          audioElement.muted = true;
-          await originalPlay();
-          console.log('🎧 Audio playback started for user:', userId, '(muted for spatial routing)');
-        } catch (error) {
-          console.error('🎧 Failed to start audio playback for user:', userId, error);
-        }
-      } else {
-        console.log('🎧 Audio element already playing for user:', userId, '- ensuring muted for spatial routing only');
-        // CRITICAL: Ensure muted to prevent direct audio playback
-        audioElement.muted = true;
-      }
-
-      // Ensure the audio element volume is at maximum since we're controlling volume through gainNode
-      audioElement.volume = 1.0;
-      console.log('🎧 Audio element configured for user:', userId, '- muted for direct playback, volume controlled by gainNode');
-
       // Store the nodes
       this.spatialNodes.set(userId, {
         userId,
@@ -268,7 +212,7 @@ export class SpatialAudioService {
         pannerNode,
         convolver,
         source,
-        audioElement
+        mediaStream
       });
 
       console.log('🎧 Spatial audio set up for user:', userId);
@@ -283,7 +227,7 @@ export class SpatialAudioService {
     }
   }
 
-  addUser(userId: string, audioElement: HTMLAudioElement): void {
+  addUser(userId: string, mediaStream: MediaStream): void {
     if (!this.audioContext || !this.destination) {
       console.warn('Spatial audio not initialized');
       return;
@@ -299,7 +243,7 @@ export class SpatialAudioService {
     }
     
     // Use setupSpatialForUser instead
-    this.setupSpatialForUser(userId, audioElement);
+    this.setupSpatialForUser(userId, mediaStream);
   }
 
   removeUser(userId: string): void {

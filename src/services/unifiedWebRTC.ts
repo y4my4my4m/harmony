@@ -1044,54 +1044,15 @@ export class UnifiedWebRTCService {
     const audioTracks = stream.getAudioTracks();
     
     if (audioTracks.length > 0) {
-      // Create audio element for remote audio playback
-      if (!connection.audioElement) {
-        connection.audioElement = new Audio();
-        
-        // Always set autoplay to false
-        // Either spatial audio will handle playback, or we'll manually start it
-        connection.audioElement.autoplay = false;
-        
-        console.log('🔊 Audio element created for user:', connection.userId, 'autoplay: false');
-      }
-      
-      // Set the stream
-      connection.audioElement.srcObject = stream;
-      
-      // CRITICAL: Completely disable direct audio playback
-      // The audio element should NEVER play directly - only through Web Audio API
-      connection.audioElement.autoplay = false;
-      connection.audioElement.pause();
-      connection.audioElement.muted = true; // Keep muted to prevent any direct audio
-      
-      // Override the play method to prevent accidental direct playback
-      const originalPlay = connection.audioElement.play.bind(connection.audioElement);
-      connection.audioElement.play = () => {
-        console.log('🚫 Blocked direct audio playback for user:', connection.userId, '- using spatial audio routing');
-        return Promise.resolve();
-      };
-      
-      // Store the original play method in case we need it later
-      (connection.audioElement as any)._originalPlay = originalPlay;
-      
-      console.log('🔊 Audio element setup for user:', connection.userId, {
-        muted: connection.audioElement.muted,
-        paused: connection.audioElement.paused,
-        localUserDeafened: this.localMediaState.isDeafened,
-        volume: connection.audioElement.volume,
-        srcObject: !!connection.audioElement.srcObject,
-        directPlaybackBlocked: true
+      // Simply store the MediaStream - no HTMLAudioElement needed
+      // The spatial audio service will create MediaStreamSourceNode directly
+      console.log('Remote audio stream setup for user:', connection.userId, {
+        audioTracks: audioTracks.length,
+        active: stream.active
       });
       
-      // Handle audio element errors
-      connection.audioElement.onerror = (error) => {
-        console.error('❌ Audio element error for user', connection.userId, ':', error);
-      };
-      
-      // Log when audio starts playing
-      connection.audioElement.onplay = () => {
-        console.log('▶️ Audio started playing for user:', connection.userId);
-      };
+      // The MediaStream is already stored in connection.remoteStream
+      // No additional setup needed - spatial audio will handle everything
     }
   }
 
