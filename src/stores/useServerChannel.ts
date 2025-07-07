@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Server, Category, Channel, ResolvedEmoji } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { statePersistence } from '@/services/StatePersistence';
 
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
@@ -13,6 +14,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
     currentServer: {} as Server,
     currentServerId: null as string | null,
     currentChannelId: null as string | null,
+    isInitializing: false as boolean,
+    hasInitialized: false as boolean,
   }),
 
   getters: {
@@ -35,31 +38,131 @@ export const useServerChannelStore = defineStore('serverChannel', {
     async initializeUserEnvironment(userId: string): Promise<void> {
       try {
         console.log('🚀 Initializing user environment...');
+        this.isInitializing = true;
         
         // Fetch user's servers first
         await this.fetchServersForUser(userId);
+        
+        // Restore last selected server and channel from persistence
+        await this.restorePersistedState();
         
         // Initialize emoji cache with user's servers
         const emojiCache = useEmojiCacheStore();
         const serverIds = this.servers.map(server => server.id);
         await emojiCache.initialize(serverIds);
         
-        // // Set up server notifications
-        // await this.subscribeAndListentoServerNotifications(userId);
+        // Mark app as initialized to prevent flash on subsequent loads
+        statePersistence.setAppInitialized(true);
+        this.hasInitialized = true;
+        this.isInitializing = false;
         
         console.log('✅ User environment initialized successfully');
       } catch (error) {
         console.error('❌ Failed to initialize user environment:', error);
+        this.isInitializing = false;
         throw error;
       }
     },
 
-    // async subscribeAndListentoServerNotifications(userId: string) {
-    //   this.servers.forEach(server => {
-    //     subscribeToServerNotifications(userId, server.id);
-    //     console.log('Subscribed to server notifications for server:', server.id);
-    //   });
-    // },
+    async restorePersistedState(): Promise<void> {
+      if (this.servers.length === 0) return;
+
+      // Initialize persistence service first
+      await statePersistence.initialize()
+      
+      const lastServerId = statePersistence.getLastServer();
+      
+      // Validate that the last server still exists in user's servers
+      const serverExists = this.servers.some(server => server.id === lastServerId);
+      
+      if (lastServerId && serverExists) {
+        console.log('🔄 Restoring last selected server:', lastServerId);
+        this.setCurrentServer(lastServerId);
+        
+        // Fetch categories and channels for the server first
+        await this.fetchCategoriesAndChannels(lastServerId);
+        
+        // Restore last channel for this server
+        const lastChannelId = statePersistence.getLastChannel(lastServerId);
+        if (lastChannelId && this.channels.some(channel => channel.id === lastChannelId)) {
+          console.log('🔄 Restoring last selected channel:', lastChannelId);
+          this.setCurrentChannel(lastChannelId);
+        } else if (this.channels.length > 0) {
+          // Set default channel if last channel doesn't exist
+          const defaultChannel = this.getDefaultChannel();
+          if (defaultChannel) {
+            this.setCurrentChannel(defaultChannel);
+          }
+        }
+      } else if (this.servers.length > 0) {
+        // No valid last server, select first available server
+        console.log('🔄 No valid last server, selecting first available');
+        this.setCurrentServer(this.servers[0].id);
+        
+        // Fetch categories and channels for the first server
+        await this.fetchCategoriesAndChannels(this.servers[0].id);
+        
+        if (this.channels.length > 0) {
+          const defaultChannel = this.getDefaultChannel();
+          if (defaultChannel) {
+            this.setCurrentChannel(defaultChannel);
+          }
+        }
+      }
+      
+      // Mark state persistence as complete
+      statePersistence.setRestorationComplete()
+    },
+
+    getDefaultChannel(): string | null {
+      // Priority order for channel selection:
+      // 1. First text channel in first category
+      // 2. First orphan text channel
+      // 3. Any first channel as fallback
+
+      // Try to find first text channel in first category
+      if (this.categories && this.categories.length > 0) {
+        for (const category of this.categories) {
+          const categoryChannelList = this.categoryChannels[category.id] || [];
+          const firstTextChannel = categoryChannelList.find(ch => ch.type === 0);
+          if (firstTextChannel) {
+            return firstTextChannel.id;
+          }
+        }
+      }
+
+      // Try to find first orphan text channel
+      const orphanChannels = this.channels.filter(channel => !channel.category);
+      const firstOrphanTextChannel = orphanChannels.find(ch => ch.type === 0);
+      if (firstOrphanTextChannel) {
+        return firstOrphanTextChannel.id;
+      }
+
+      // Fallback to any first available channel
+      const firstChannel = this.channels.find(ch => ch.type === 0) || this.channels[0];
+      return firstChannel?.id || null;
+    },
+
+    setCurrentServer(serverId: string): void {
+      const server = this.servers.find(s => s.id === serverId);
+      if (server) {
+        this.currentServerId = serverId;
+        this.currentServer = server;
+        // Persist state asynchronously without blocking
+        statePersistence.setLastServer(serverId).catch(console.error);
+        console.log('📍 Current server set to:', server.name);
+      }
+    },
+
+    setCurrentChannel(channelId: string | null): void {
+      this.currentChannelId = channelId;
+      if (channelId && this.currentServerId) {
+        // Persist state asynchronously without blocking
+        statePersistence.setLastChannel(this.currentServerId, channelId).catch(console.error);
+        const channel = this.channels.find(c => c.id === channelId);
+        console.log('📍 Current channel set to:', channel?.name || channelId);
+      }
+    },
 
     async fetchServersForUser(userId: string) {
       const { data, error } = await supabase
@@ -141,6 +244,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       Object.keys(this.categoryChannels).forEach(categoryId => {
         this.categoryChannels[categoryId].sort((a, b) => (a.order || 0) - (b.order || 0));
       });
+
+      // Update current server state
+      this.setCurrentServer(serverId);
     },
 
     async moveChannelToCategory(channelId: string, newCategoryId: string | null) {
@@ -435,22 +541,15 @@ export const useServerChannelStore = defineStore('serverChannel', {
       return this.resolvedEmojiList;
     },
 
-    cacheEmojis(_emojisByServer: Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }>) {
+    cacheEmojis(emojisByServer: Record<string, { server_name: string; server_icon?: string; emojis: ResolvedEmoji[]; }>) {
       console.log('⚠️ cacheEmojis is deprecated, caching is automatic');
       // Caching is now handled automatically by the emoji cache store
+      // Parameter is kept for compatibility but not used
+      void emojisByServer;
     },
     
     getServerDetails(serverId: string): { name?: string; icon?: string } | undefined {
       return this.servers.find(server => server.id === serverId);
-    },
-
-    setCurrentServer(serverId: string) {
-      this.currentServerId = serverId;
-      this.getCurrentServer();
-    },
-
-    setCurrentChannel(channelId: string) {
-      this.currentChannelId = channelId;
     },
 
     // Enhanced emoji search using cache

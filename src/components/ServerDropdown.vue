@@ -26,7 +26,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   toggle: []
   showCategoryCreator: [value: boolean]
-  createChannel: [value: null]
+  createChannel: [value?: string]
   openInviteModal: []
 }>();
 
@@ -40,7 +40,7 @@ const canCreateCategories = computed(() => channelPermissions.value.canCreateCat
 const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels);
 
 const createChannel = () => {
-  emit('createChannel', null);
+  emit('createChannel', undefined);
   closeDropdown();
 };
 

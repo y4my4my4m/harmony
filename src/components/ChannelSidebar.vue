@@ -199,6 +199,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { statePersistence } from '@/services/StatePersistence';
 
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
@@ -218,10 +219,6 @@ interface DragState {
   sourceCategoryId: string | null;
   targetCategoryId: string | null;
   isOver: boolean;
-}
-
-interface CategoryOpenState {
-  [key: string]: boolean;
 }
 
 export default defineComponent({
@@ -272,8 +269,6 @@ export default defineComponent({
       getDragCursor,
     } = useChannelPermissions();
 
-    const categoryOpenState = ref<CategoryOpenState>({});
-
     // Drag state management
     const dragState = ref<DragState>({
       isDragging: false,
@@ -294,8 +289,38 @@ export default defineComponent({
       return authStore.session?.user?.id || '';
     });
 
-    // Add collapsed categories state
+    // Enhanced collapsed categories state with persistence
     const collapsedCategories = ref(new Set<string>())
+
+    // Initialize category collapse states from persistence
+    const initializeCategoryStates = async () => {
+      if (!props.currentServer?.id) return
+      
+      try {
+        await statePersistence.initialize()
+        const savedStates = statePersistence.getServerCategoryStates(props.currentServer.id)
+        
+        // Apply saved collapse states
+        const newCollapsedSet = new Set<string>()
+        Object.entries(savedStates).forEach(([categoryId, isCollapsed]) => {
+          if (isCollapsed) {
+            newCollapsedSet.add(categoryId)
+          }
+        })
+        
+        collapsedCategories.value = newCollapsedSet
+        console.log('📂 Initialized category states for server:', props.currentServer.id, savedStates)
+      } catch (error) {
+        console.warn('⚠️ Failed to initialize category states:', error)
+      }
+    }
+
+    // Watch for server changes to load category states
+    watch(() => props.currentServer?.id, async (newServerId) => {
+      if (newServerId) {
+        await initializeCategoryStates()
+      }
+    }, { immediate: true })
 
     // Compute orphan channels (channels not in any category)
     const orphanChannels = computed({
@@ -381,20 +406,9 @@ export default defineComponent({
         return [];
       }
       return storeCategories.value.map(category => {
-        // Check reactive state first, then fall back to localStorage
-        let isExpanded;
-        if (category.id in categoryOpenState.value) {
-          isExpanded = categoryOpenState.value[category.id];
-        } else {
-          const savedState = localStorage.getItem(`category-${category.id}-expanded`);
-          isExpanded = savedState !== null ? savedState === 'true' : true;
-          // Initialize the reactive state with the saved value
-          categoryOpenState.value[category.id] = isExpanded;
-        }
-        
         return {
           ...category,
-          expanded: isExpanded,
+          expanded: !collapsedCategories.value.has(category.id), // Use our centralized state
           channels: props.categoryChannels[category.id] || [],
         };
       });
@@ -402,7 +416,7 @@ export default defineComponent({
 
     // Force reactivity by using a key that changes when categories change
     const categoriesKey = computed(() => {
-      return serverChannelStore.categories.map(c => `${c.id}-${c.order}`).join(',');
+      return serverChannelStore.categories.map((c: any) => `${c.id}-${c.order}`).join(',');
     });
 
     // Reorderable categories for drag and drop - now reactive to store changes
@@ -566,10 +580,10 @@ export default defineComponent({
     const hasNotifications = (channel: Channel): boolean => {
       // TODO: Implement actual notification checking logic
       // For now, return false, but this should check for:
-      // - Unread messages
+      // - Unread messages  
       // - Mentions
       // - Important announcements
-      // console.log('Checking notifications for channel:', channel.id);
+      console.log('Checking notifications for channel:', channel.id);
       return false;
     };
 
@@ -593,13 +607,30 @@ export default defineComponent({
       return hasImportantChannels;
     };
 
-    // Category collapse toggle
-    const toggleCategory = (categoryId: string) => {
-      if (collapsedCategories.value.has(categoryId)) {
+    // Category collapse toggle with persistence
+    const toggleCategory = async (categoryId: string) => {
+      const wasCollapsed = collapsedCategories.value.has(categoryId)
+      
+      if (wasCollapsed) {
         collapsedCategories.value.delete(categoryId)
       } else {
         collapsedCategories.value.add(categoryId)
       }
+      
+      // Persist the new state
+      if (props.currentServer?.id) {
+        try {
+          await statePersistence.setCategoryCollapseState(
+            props.currentServer.id, 
+            categoryId, 
+            !wasCollapsed
+          )
+        } catch (error) {
+          console.warn('⚠️ Failed to persist category collapse state:', error)
+        }
+      }
+      
+      console.log('📂 Category toggled:', { categoryId, collapsed: !wasCollapsed })
     }
 
     // Helper functions for Discord-like behavior

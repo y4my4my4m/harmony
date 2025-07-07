@@ -192,6 +192,15 @@
     class="tooltip"
     :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
   >
+    <div class="tooltip-header">
+      <img 
+        v-if="tooltip.emoji?.url"
+        :src="tooltip.emoji.url"
+        :alt="tooltip.emoji.name || 'emoji'"
+        class="tooltip-emoji"
+      />
+      <span class="emoji-name">:{{ tooltip.emoji?.name }}:</span>
+    </div>
     <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
       <Avatar 
         :src="user.avatarUrl"
@@ -368,6 +377,23 @@ export default defineComponent({
       });
       return urls;
     });
+
+    // Helper function to get user ID from reply message
+    const getReplyUserId = (replyMessageId: string) => {
+      // First check if message is in current messages
+      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
+      if (currentMessage) {
+        return currentMessage.user_id;
+      }
+
+      // Check if message is in reply cache
+      const cachedMessage = replyMessages.value[replyMessageId];
+      if (cachedMessage) {
+        return cachedMessage.user_id;
+      }
+
+      return 'unknown';
+    };
 
     // Watch for changes in messages for parsing
     watch(() => props.messages, (newMessages) => {
@@ -1137,22 +1163,6 @@ export default defineComponent({
       return user?.avatar_url || '/default_avatar.png';
     };
 
-    const getReplyUserId = (replyMessageId: string) => {
-      // First check if message is in current messages
-      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
-      if (currentMessage) {
-        return currentMessage.user_id;
-      }
-
-      // Check if message is in reply cache
-      const cachedMessage = replyMessages.value[replyMessageId];
-      if (cachedMessage) {
-        return cachedMessage.user_id;
-      }
-
-      return 'unknown';
-    };
-
     const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
       // Don't fetch if already exists or is being fetched
       if (replyMessages.value[replyMessageId] || 
@@ -1694,6 +1704,23 @@ export default defineComponent({
 .tooltip-user {
   display: flex;
   align-items: center;
+}
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 8px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #40444b49;
+}
+.tooltip-emoji {
+  width: 48px;
+  height: 48px;
+  margin-right: 4px;
+}
+.tooltip-emoji-name {
+  font-size: 0.875rem;
+  color: #dcddde;
 }
 
 /* Loading skeletons */
