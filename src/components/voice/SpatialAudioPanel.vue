@@ -221,7 +221,15 @@
     <!-- Panel Footer -->
     <div class="panel-footer">
       <div class="footer-info">
-        <span v-if="spatialStore.settings.enabled" class="status-enabled">
+        <span v-if="showUpdatedMessage" class="status-updated">
+          <Icon name="check-circle" />
+          Updated!
+        </span>
+        <span v-else-if="isUpdatingSpatialAudio" class="status-updating">
+          <Icon name="refresh" />
+          Updating Audio...
+        </span>
+        <span v-else-if="spatialStore.settings.enabled" class="status-enabled">
           <Icon name="check-circle" />
           Spatial Audio Active
         </span>
@@ -287,6 +295,11 @@ const authStore = useAuthStore();
 const gridContainer = ref<HTMLElement | null>(null);
 const showSettings = ref(false);
 const gridSize = ref({ width: 600, height: 400 });
+const isUpdatingSpatialAudio = ref(false);
+const showUpdatedMessage = ref(false);
+
+// Local visual positions for smooth dragging (separate from store)
+const localVisualPositions = ref<Map<string, { x: number, y: number }>>(new Map());
 
 // Local settings for smooth updates
 const localSettings = ref({ ...spatialStore.settings });
@@ -308,6 +321,12 @@ const otherParticipants = computed(() =>
 // =============================================================================
 
 const getPosition = (userId: string) => {
+  // During drag, use local visual position for smooth movement
+  if (spatialStore.isDragging && localVisualPositions.value.has(userId)) {
+    return localVisualPositions.value.get(userId)!;
+  }
+  
+  // Otherwise use store position
   const position = spatialStore.getUserPosition(userId);
   if (position) return position;
   
@@ -358,6 +377,12 @@ const getUserProfile = (userId: string) => {
 // DRAG & DROP
 // =============================================================================
 
+// Debounce timer for spatial audio updates during drag
+let spatialUpdateTimer: number | null = null;
+let settingsUpdateTimer: number | null = null;
+const SPATIAL_UPDATE_INTERVAL = 100; // Update every 100ms while dragging
+const SETTINGS_UPDATE_DELAY = 300; // Delay settings updates by 300ms
+
 const handleAvatarMouseDown = (event: MouseEvent, userId: string) => {
   event.preventDefault();
   event.stopPropagation();
@@ -369,6 +394,11 @@ const handleAvatarMouseDown = (event: MouseEvent, userId: string) => {
   const startY = event.clientY - rect.top;
   
   spatialStore.startDrag(userId, startX, startY);
+  
+  // Start debounced spatial audio updates
+  if (spatialStore.settings.enabled) {
+    startSpatialUpdateTimer();
+  }
 };
 
 const handleGridMouseDown = (event: MouseEvent) => {
@@ -379,7 +409,7 @@ const handleGridMouseDown = (event: MouseEvent) => {
 };
 
 const handleGridMouseMove = (event: MouseEvent) => {
-  if (!spatialStore.isDragging) return;
+  if (!spatialStore.isDragging || !spatialStore.draggedUserId) return;
   
   const rect = gridContainer.value?.getBoundingClientRect();
   if (!rect) return;
@@ -387,17 +417,75 @@ const handleGridMouseMove = (event: MouseEvent) => {
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
   
-  spatialStore.updateDrag(x, y);
+  // Calculate new position with bounds checking
+  const dragOffset = spatialStore.dragOffset;
+  const newX = Math.max(20, Math.min(rect.width - 20, x - dragOffset.x));
+  const newY = Math.max(20, Math.min(rect.height - 20, y - dragOffset.y));
   
-  // Update spatial audio in real-time
-  if (spatialStore.settings.enabled) {
-    spatialAudioService.updateSpatialEffects();
-  }
+  // Update LOCAL visual position immediately for 60fps smooth movement
+  localVisualPositions.value.set(spatialStore.draggedUserId, { x: newX, y: newY });
+  
+  // Store position is updated by the debounced timer or on release
 };
 
 const handleGridMouseUp = () => {
-  if (spatialStore.isDragging) {
+  if (spatialStore.isDragging && spatialStore.draggedUserId) {
+    // Stop the debounced timer
+    stopSpatialUpdateTimer();
+    
+    // Sync local visual position to store
+    const localPos = localVisualPositions.value.get(spatialStore.draggedUserId);
+    if (localPos) {
+      spatialStore.setUserPosition(spatialStore.draggedUserId, localPos.x, localPos.y);
+      localVisualPositions.value.delete(spatialStore.draggedUserId);
+    }
+    
+    // Final spatial audio update on release
+    if (spatialStore.settings.enabled) {
+      spatialAudioService.updateSpatialEffects();
+      
+      // Show brief "updated" message
+      showUpdatedMessage.value = true;
+      setTimeout(() => {
+        showUpdatedMessage.value = false;
+      }, 1500);
+    }
+    
     spatialStore.endDrag();
+  }
+};
+
+const startSpatialUpdateTimer = () => {
+  if (spatialUpdateTimer) return;
+  
+  isUpdatingSpatialAudio.value = true;
+  
+  spatialUpdateTimer = window.setInterval(() => {
+    if (spatialStore.isDragging && spatialStore.settings.enabled && spatialStore.draggedUserId) {
+      // Sync local visual position to store for spatial audio calculations
+      const localPos = localVisualPositions.value.get(spatialStore.draggedUserId);
+      if (localPos) {
+        spatialStore.setUserPosition(spatialStore.draggedUserId, localPos.x, localPos.y);
+      }
+      
+      // Update spatial audio effects
+      spatialAudioService.updateSpatialEffects();
+    }
+  }, SPATIAL_UPDATE_INTERVAL);
+};
+
+const stopSpatialUpdateTimer = () => {
+  if (spatialUpdateTimer) {
+    clearInterval(spatialUpdateTimer);
+    spatialUpdateTimer = null;
+    isUpdatingSpatialAudio.value = false;
+  }
+};
+
+const stopSettingsUpdateTimer = () => {
+  if (settingsUpdateTimer) {
+    clearTimeout(settingsUpdateTimer);
+    settingsUpdateTimer = null;
   }
 };
 
@@ -415,12 +503,21 @@ const toggleSettings = () => {
 };
 
 const updateSettings = () => {
+  // Clear existing timer
+  if (settingsUpdateTimer) {
+    clearTimeout(settingsUpdateTimer);
+  }
+  
+  // Update settings immediately for UI responsiveness
   spatialStore.updateSettings(localSettings.value);
   
-  if (spatialStore.settings.enabled) {
-    spatialAudioService.updateSettings();
-    spatialAudioService.updateSpatialEffects();
-  }
+  // Debounce the spatial audio updates
+  settingsUpdateTimer = window.setTimeout(() => {
+    if (spatialStore.settings.enabled) {
+      spatialAudioService.updateSettings();
+      spatialAudioService.updateSpatialEffects();
+    }
+  }, SETTINGS_UPDATE_DELAY);
 };
 
 const resetAllPositions = () => {
@@ -499,6 +596,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateGridSize);
+  stopSpatialUpdateTimer();
+  stopSettingsUpdateTimer();
   spatialStore.endDrag();
 });
 </script>
@@ -777,11 +876,12 @@ onUnmounted(() => {
   width: 50px;
   height: 50px;
   cursor: grab;
-  transition: all 0.2s ease;
+  transition: filter 0.2s ease, opacity 0.2s ease; /* Don't animate transform for smooth dragging */
   user-select: none;
 }
 
-.spatial-avatar:hover {
+.spatial-avatar:not(.is-dragging):hover {
+  transition: all 0.2s ease; /* Re-enable transition for hover when not dragging */
   transform: scale(1.1);
   z-index: 10 !important;
 }
@@ -790,6 +890,7 @@ onUnmounted(() => {
   cursor: grabbing;
   transform: scale(1.2);
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.6));
+  transition: transform 0.1s ease, filter 0.1s ease; /* Only animate scale and filter, not position */
 }
 
 .spatial-avatar.spatial-disabled {
@@ -924,6 +1025,22 @@ onUnmounted(() => {
   gap: 4px;
 }
 
+.status-updating {
+  color: #ffa500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: pulse-updating 1.5s infinite;
+}
+
+.status-updated {
+  color: #00d4aa;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: fade-in-out 1.5s ease-in-out;
+}
+
 .status-disabled {
   color: #b5bac1;
   display: flex;
@@ -961,6 +1078,19 @@ onUnmounted(() => {
   0% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.1); opacity: 0.7; }
   100% { transform: scale(1.2); opacity: 0; }
+}
+
+@keyframes pulse-updating {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+@keyframes fade-in-out {
+  0% { opacity: 0; transform: translateY(5px); }
+  20% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); }
 }
 
 /* Responsive */

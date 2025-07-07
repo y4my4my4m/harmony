@@ -421,7 +421,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         if (data.stream) {
           this.remoteStreams.set(data.userId, data.stream);
           // Add to spatial audio
-          this.addUserToSpatialAudio(data.userId, data.stream);
+          this.addUserToSpatialAudio(data.userId);
         } else {
           this.remoteStreams.delete(data.userId);
           // Remove from spatial audio
@@ -497,18 +497,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     async initializeSpatialAudio(userId: string): Promise<void> {
       try {
+        // Initialize spatial audio service without adding streams
+        // The spatial audio service will hook into existing HTMLAudioElements
         await spatialAudioService.initialize();
         spatialAudioService.setListener(userId);
-        
-        // Add local stream if available
-        if (this.localStream) {
-          spatialAudioService.addUser(userId, this.localStream);
-        }
-        
-        // Add existing remote streams
-        this.remoteStreams.forEach((stream, remoteUserId) => {
-          spatialAudioService.addUser(remoteUserId, stream);
-        });
         
         console.log('🎧 Spatial audio initialized for user:', userId);
       } catch (error) {
@@ -519,8 +511,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     /**
      * Add user to spatial audio
      */
-    addUserToSpatialAudio(userId: string, stream: MediaStream): void {
-      spatialAudioService.addUser(userId, stream);
+    addUserToSpatialAudio(userId: string): void {
+      // NOTE: Spatial audio now hooks into existing HTMLAudioElements
+      // instead of creating duplicate audio processing
+      spatialAudioService.setupSpatialForUser(userId);
     },
 
     /**

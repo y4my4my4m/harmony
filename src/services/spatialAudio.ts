@@ -53,12 +53,38 @@ export class SpatialAudioService {
     console.log('🎧 Set spatial audio listener:', userId);
   }
 
+  setupSpatialForUser(userId: string): void {
+    if (!this.audioContext) {
+      console.warn('Spatial audio not initialized');
+      return;
+    }
+
+    // Safeguard: Don't process the listener's own stream
+    if (userId === this.listenerUserId) {
+      console.warn('Attempted to setup spatial audio for listener - skipping');
+      return;
+    }
+
+    console.log('🎧 Setting up spatial audio for user:', userId);
+    // This will be implemented to hook into existing HTMLAudioElements
+    // instead of creating new audio processing pipelines
+  }
+
   addUser(userId: string, mediaStream: MediaStream): void {
     if (!this.audioContext || !this.destination) {
       console.warn('Spatial audio not initialized');
       return;
     }
 
+    // NOTE: This should ONLY be called for REMOTE user streams, 
+    // never for the local user's own microphone stream
+    
+    // Safeguard: Don't process the listener's own stream
+    if (userId === this.listenerUserId) {
+      console.warn('Attempted to add listener\'s own stream to spatial audio - skipping');
+      return;
+    }
+    
     // Remove existing node if it exists
     this.removeUser(userId);
 
