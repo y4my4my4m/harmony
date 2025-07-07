@@ -1143,9 +1143,9 @@
     top: 64px;
     left: 0;
     bottom: 0;
-    width: calc(85% - 20px);
-    /* max-width: 360px; */
-    /* min-width: 320px; */
+    /* width: calc(85% - 20px); */
+    max-width: 360px;
+    min-width: 320px;
     z-index: 950;
     transform: translateX(-100%);
     transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);

@@ -1,6 +1,24 @@
 <template>
   <div class="server-settings">
-    <div class="server-settings-header">
+    <!-- Mobile Navigation Header -->
+    <div class="mobile-nav" v-if="isMobile">
+      <button class="mobile-menu-btn" @click="toggleSidebar" aria-label="Toggle navigation">
+        <div class="hamburger-icon" :class="{ active: showSidebar }">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </button>
+      <h1 class="mobile-title">{{ currentSectionLabel }}</h1>
+      <button class="mobile-back-btn" @click="back" aria-label="Back to chat">
+        <svg width="20" height="20" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20v-2z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Desktop Header -->
+    <div class="server-settings-header" v-if="!isMobile">
       <button class="back-button" @click="back" aria-label="Back to chat">
         <svg width="24" height="24" viewBox="0 0 24 24">
           <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20v-2z"/>
@@ -38,22 +56,46 @@
     </div>
 
     <div class="server-settings-content">
-      <div class="server-settings-sidebar">
+      <!-- Sidebar Navigation -->
+      <div 
+        class="server-settings-sidebar" 
+        :class="{ 'mobile-hidden': isMobile && !showSidebar }"
+        v-touch:swipe.left="handleSidebarSwipe"
+      >
         <nav class="settings-nav">
           <button 
             v-for="section in availableSections" 
             :key="section.id"
             class="nav-item"
             :class="{ active: activeSection === section.id }"
-            @click="activeSection = section.id"
+            @click="setActiveSection(section.id)"
           >
             {{ section.label }}
           </button>
         </nav>
       </div>
 
+      <!-- Sidebar Overlay (mobile) -->
+      <div 
+        v-if="isMobile && showSidebar" 
+        class="sidebar-overlay"
+        @click="closeSidebar"
+      ></div>
+
       <div class="server-settings-main">
         <div class="settings-container">
+          <!-- Mobile Save Actions (shown at top on mobile when needed) -->
+          <div v-if="isMobile && permissions.canSaveChanges" class="mobile-save-actions">
+            <button 
+              class="btn btn-primary btn-mobile" 
+              @click="handleSave"
+              :disabled="loading || !hasChanges"
+            >
+              <span v-if="loading" class="loading-spinner"></span>
+              {{ hasChanges ? 'Save Changes' : 'No Changes' }}
+            </button>
+          </div>
+
           <!-- Permission Warning for Read-Only Users -->
           <div v-if="!permissions.canEditBasicInfo && activeSection === 'overview'" class="permission-notice">
             <div class="notice-content">
@@ -115,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, watch } from 'vue'
+import { onMounted, ref, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useServerStore } from '@/stores/server'
@@ -141,13 +183,16 @@ const serverStore = useServerStore()
 const toast = useToast()
 const { serverSettingsPermissions } = useServerPermissions()
 
-// State
+// Reactive state
 const loading = ref(false)
 const ownerName = ref('')
 const selectedFile = ref<File | null>(null)
 const emojis = ref<Emoji[]>([])
 const activeSection = ref('overview')
+const showSidebar = ref(false)
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
 
+// Server state
 const server = ref<Server>({
   id: '',
   name: '',
@@ -160,6 +205,14 @@ const server = ref<Server>({
 })
 
 const originalServer = ref<Server | null>(null)
+
+// Computed properties
+const isMobile = computed(() => windowWidth.value <= 768)
+
+const currentSectionLabel = computed(() => {
+  const section = availableSections.value.find(s => s.id === activeSection.value)
+  return section?.label || 'Server Settings'
+})
 
 // Computed permissions
 const permissions = computed(() => serverSettingsPermissions.value)
@@ -206,6 +259,36 @@ const hasChanges = computed(() => {
 })
 
 // Methods
+const handleResize = () => {
+  if (typeof window !== 'undefined') {
+    windowWidth.value = window.innerWidth
+    if (!isMobile.value) {
+      showSidebar.value = false
+    }
+  }
+}
+
+const toggleSidebar = () => {
+  showSidebar.value = !showSidebar.value
+}
+
+const closeSidebar = () => {
+  showSidebar.value = false
+}
+
+const handleSidebarSwipe = () => {
+  if (isMobile.value) {
+    closeSidebar()
+  }
+}
+
+const setActiveSection = (sectionId: string) => {
+  activeSection.value = sectionId
+  // Close sidebar on mobile after selection
+  if (isMobile.value) {
+    closeSidebar()
+  }
+}
 const fetchServer = async () => {
   try {
     loading.value = true
@@ -284,26 +367,42 @@ const back = () => {
   router.push({ name: 'Chat', params: { serverId: props.serverId } })
 }
 
-// Lifecycle
-onMounted(async () => {
-  await Promise.all([fetchServer(), fetchEmojis()])
-})
-
-// Watch for unsaved changes warning
-watch(hasChanges, (newValue) => {
-  if (newValue && permissions.value.canSaveChanges) {
-    window.addEventListener('beforeunload', handleBeforeUnload)
-  } else {
-    window.removeEventListener('beforeunload', handleBeforeUnload)
-  }
-})
-
+// SSR-safe beforeunload handler
 const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   if (hasChanges.value) {
     e.preventDefault()
     e.returnValue = ''
   }
 }
+
+// Lifecycle
+onMounted(async () => {
+  // Setup resize listener with SSR safety
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handleResize)
+    handleResize() // Set initial width
+  }
+
+  await Promise.all([fetchServer(), fetchEmojis()])
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', handleResize)
+    window.removeEventListener('beforeunload', handleBeforeUnload)
+  }
+})
+
+// Watch for unsaved changes warning
+watch(hasChanges, (newValue) => {
+  if (typeof window !== 'undefined') {
+    if (newValue && permissions.value.canSaveChanges) {
+      window.addEventListener('beforeunload', handleBeforeUnload)
+    } else {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }
+})
 </script>
 
 <style scoped>
@@ -315,6 +414,89 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   color: #ffffff;
 }
 
+/* Mobile Navigation */
+.mobile-nav {
+  display: none;
+  height: 60px;
+  background-color: var(--h-chat);
+  border-bottom: 1px solid var(--h-chat-light);
+  padding: 0 16px;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.mobile-menu-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.mobile-menu-btn:hover {
+  background-color: var(--h-chat-light);
+}
+
+.hamburger-icon {
+  width: 24px;
+  height: 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.hamburger-icon span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background-color: #b9bbbe;
+  border-radius: 1px;
+  transition: all 0.3s ease;
+}
+
+.hamburger-icon.active span:nth-child(1) {
+  transform: rotate(45deg) translate(6px, 6px);
+}
+
+.hamburger-icon.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger-icon.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(6px, -6px);
+}
+
+.mobile-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+  text-align: center;
+  flex: 1;
+}
+
+.mobile-back-btn {
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  color: #b9bbbe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.mobile-back-btn:hover {
+  background-color: var(--h-chat-light);
+  color: #ffffff;
+}
+
+/* Desktop Header */
 .server-settings-header {
   display: flex;
   align-items: center;
@@ -323,40 +505,6 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   background-color: var(--h-chat);
   border-bottom: 1px solid var(--h-chat-light);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
-}
-
-.permission-notice {
-  margin-bottom: 24px;
-  padding: 16px;
-  background-color: rgba(250, 166, 26, 0.1);
-  border: 1px solid rgba(250, 166, 26, 0.3);
-  border-radius: 8px;
-}
-
-.notice-content {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.notice-icon {
-  flex-shrink: 0;
-  margin-top: 2px;
-  color: #faa61a;
-}
-
-.notice-text h4 {
-  margin: 0 0 4px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #faa61a;
-}
-
-.notice-text p {
-  margin: 0;
-  font-size: 13px;
-  color: #b9bbbe;
-  line-height: 1.4;
 }
 
 .back-button {
@@ -401,6 +549,7 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 36px;
 }
 
 .btn:disabled {
@@ -428,6 +577,13 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   color: #ffffff;
 }
 
+.btn-mobile {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 15px;
+  min-height: 48px;
+}
+
 .loading-spinner {
   width: 16px;
   height: 16px;
@@ -437,6 +593,7 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   animation: spin 1s linear infinite;
 }
 
+/* Content Layout */
 .server-settings-content {
   display: flex;
   flex: 1;
@@ -448,6 +605,7 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   background-color: var(--h-chat);
   border-right: 1px solid var(--h-chat-light);
   padding: 24px 0;
+  transition: transform 0.3s ease;
 }
 
 .settings-nav {
@@ -458,7 +616,7 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 8px 24px;
+  padding: 12px 24px;
   background: none;
   border: none;
   color: #b9bbbe;
@@ -468,6 +626,7 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   cursor: pointer;
   transition: all 0.15s ease;
   border-left: 3px solid transparent;
+  min-height: 44px; /* Better touch target */
 }
 
 .nav-item:hover {
@@ -492,26 +651,151 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   margin: 0 auto;
 }
 
+/* Mobile Save Actions */
+.mobile-save-actions {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: var(--h-chat);
+  border-radius: 8px;
+  border: 1px solid var(--h-chat-light);
+}
+
+/* Permission Notice */
+.permission-notice {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: rgba(250, 166, 26, 0.1);
+  border: 1px solid rgba(250, 166, 26, 0.3);
+  border-radius: 8px;
+}
+
+.notice-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.notice-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #faa61a;
+}
+
+.notice-text h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #faa61a;
+}
+
+.notice-text p {
+  margin: 0;
+  font-size: 13px;
+  color: #b9bbbe;
+  line-height: 1.4;
+}
+
+/* Sidebar Overlay */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Animations */
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
+/* Mobile Styles */
 @media (max-width: 768px) {
+  .mobile-nav {
+    display: flex;
+  }
+
   .server-settings-header {
-    padding: 12px 16px;
-  }
-  
-  .server-settings-title {
-    font-size: 18px;
-  }
-  
-  .server-settings-sidebar {
     display: none;
+  }
+  
+  .server-settings-content {
+    margin-top: 60px; /* Space for mobile nav */
+  }
+
+  .server-settings-sidebar {
+    position: fixed;
+    top: 60px; /* Below mobile nav */
+    left: 0;
+    width: 280px;
+    height: calc(100vh - 60px);
+    z-index: 1000;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .server-settings-sidebar.mobile-hidden {
+    transform: translateX(-100%);
   }
   
   .server-settings-main {
     padding: 16px;
+  }
+
+  /* Improve touch targets on mobile */
+  .nav-item {
+    padding: 16px 24px;
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  .mobile-title {
+    font-size: 16px;
+  }
+
+  .settings-container {
+    max-width: none;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .server-settings-sidebar {
+    width: 100vw;
+  }
+  
+  .server-settings-main {
+    padding: 12px;
+  }
+
+  .mobile-title {
+    font-size: 15px;
+  }
+}
+
+/* Transitions and animations */
+@media (prefers-reduced-motion: no-preference) {
+  .server-settings-sidebar {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .hamburger-icon span {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar-overlay {
+    animation: fadeIn 0.3s ease;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 </style>
