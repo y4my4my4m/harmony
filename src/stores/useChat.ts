@@ -582,6 +582,45 @@ export const useChatStore = defineStore('chat', {
         .on(
           'postgres_changes',
           { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'messages',
+            filter: `channel_id=eq.${channelId}`
+          },
+          (payload) => {
+            const updatedMessage: Message = {
+              id: payload.new.id,
+              created_at: new Date(payload.new.created_at),
+              channel_id: payload.new.channel_id,
+              user_id: payload.new.user_id,
+              content: payload.new.content,
+              reactions: payload.new.reactions,
+              reply_to: payload.new.reply_to,
+              is_system: payload.new.is_system,
+              updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
+            };
+
+            this.updateMessageInCache(updatedMessage.id, updatedMessage);
+            console.log('🔄 Message updated via real-time:', updatedMessage.id);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { 
+            event: 'DELETE', 
+            schema: 'public', 
+            table: 'messages',
+            filter: `channel_id=eq.${channelId}`
+          },
+          (payload) => {
+            const deletedMessageId = payload.old.id;
+            this.removeMessageFromCache(deletedMessageId);
+            console.log('🗑️ Message deleted via real-time:', deletedMessageId);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { 
             event: 'DELETE', 
             schema: 'public', 
             table: 'reactions',
