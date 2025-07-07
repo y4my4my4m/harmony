@@ -1,13 +1,19 @@
 <template>
-  <PublicServers 
-    v-if="showPublicServers"
-    :force-refresh="shouldForceRefreshPublicServers"
-    @close="handleClosePublicServers"
-  />
+  <!-- Loading Screen - Show during initial app load only -->
+  <div v-if="!isAppReady" class="loading-overlay">
+    <div class="loading-spinner">
+      <div class="spinner"></div>
+      <p>Loading Harmony...</p>
+    </div>
+  </div>
+  
+  <!-- No Servers Splash - Only show if no servers and not in DM mode -->
   <NoServersSplash 
-    v-if="showNoServersSplash"
+    v-else-if="shouldShowNoServersSplash"
     @showPublicServers="handleShowPublicServers"
   />
+  
+  <!-- Main Chat Layout -->
   <div v-else class="chat-layout">
     <!-- Left sidebar container that holds both server and channel/DM sidebars -->
     <div class="left-sidebar-container" :class="{ 'open': isSidebarsVisible }">
@@ -58,6 +64,12 @@
       />
     </div>
     <UserSidebar :class="{ 'open': isProfilesVisible }"  />
+    
+    <PublicServers 
+      v-if="showPublicServers"
+      :force-refresh="shouldForceRefreshPublicServers"
+      @close="handleClosePublicServers"
+    />
   </div>
 </template>
 
@@ -83,6 +95,7 @@
   import { useToast } from "vue-toastification";
   import type { Channel } from "@/types";
   import { useChannelSelection } from '@/composables/useUserProfile'
+  import { statePersistence } from '@/services/StatePersistence'
   import { viewContextTracker } from '@/services/ViewContextTracker'
 
   interface Props {
@@ -115,9 +128,24 @@
       // Professional async state management
       const currentRequestId = ref(0);
       let currentAbortController: AbortController | null = null;
-      const isLoading = ref(false);
+      
+      // Simplified state management for cleaner UX
+      const isAppInitialized = ref(false);
+      const hasServersLoaded = ref(false);
+      const isLoading = ref(false); // For async operations
+      
+      // Computed properties for clean template logic
+      const isAppReady = computed(() => {
+        // App is ready when initialized AND servers have been loaded (even if 0 servers)
+        return isAppInitialized.value && hasServersLoaded.value;
+      });
+      
+      const shouldShowNoServersSplash = computed(() => {
+        // Only show splash if app is fully ready, has no servers, and public servers not shown
+        return isAppReady.value && servers.value.length === 0 && !showPublicServers.value;
+      });
 
-      const showNoServersSplash = ref(false);
+      // State management 
       const showPublicServers = ref(false);
       const shouldForceRefreshPublicServers = ref(false);
       const isAtBottom = ref(true); // Default to true for initial load
@@ -607,6 +635,12 @@
         const userId = authStore.session?.user?.id;
         if (userId) {
           try {
+            // Initialize state persistence early and check if app was previously initialized
+            await statePersistence.initialize();
+            
+            // Don't skip loading screen on first load - let the full initialization process handle it
+            // This prevents the flash of "no servers" before servers are actually loaded
+            
             // make sure this is only checked once?
             await profileStore.checkProfileCompletion(userId);
           } catch (error: any) {
@@ -614,7 +648,16 @@
             router.push('/new-profile');
           }
 
+          // Initialize the user environment which includes server loading
           await serverChannelStore.initializeUserEnvironment(userId);
+          
+          // Mark both initialization flags as complete
+          isAppInitialized.value = true;
+          hasServersLoaded.value = true;
+          
+          console.log(`📊 Initialization complete. Servers: ${servers.value.length}, isDM: ${props.isDM}`);
+          
+          // No need to manually manage splash state - computed property handles this
           
           // Initialize presence for current user
           const userProfile = serverUsersStore.userProfiles[userId];
@@ -645,14 +688,11 @@
           window.addEventListener('resize', handleResize);
 
           initialized = true;
-          console.log(`📊 Initialization complete. Servers: ${servers.value.length}, isDM: ${props.isDM}`)
-          
-          if (servers.value.length === 0 && !props.isDM) {
-            console.log('🔄 No servers found, showing splash for new user')
-            showNoServersSplash.value = true;
-            return;
-          }
 
+          
+          // Mark app as initialized to prevent future splash flashes
+          await statePersistence.setAppInitialized(true);
+          
           await loadServerAndChannel();
           requestNotificationPermission();
 
@@ -753,11 +793,8 @@
             console.log('Loading server and channel for route change');
             await loadServerAndChannel();
           } else {
-            // If not initialized yet, but we have a valid route with serverId,
-            // ensure we don't show the splash screen
-            if (route.params.serverId && servers.value.length > 0) {
-              showNoServersSplash.value = false;
-            }
+            // If not initialized yet, just log and continue
+            console.log('Route change detected before initialization complete');
           }
         } finally {
           isNavigatingRoute.value = false;
@@ -771,20 +808,19 @@
         }
       });
 
-      // Watch for server list changes to automatically hide splash and navigate to new server
+      // Watch for server list changes to automatically navigate to new servers
       watch(() => servers.value.length, (newLength, oldLength) => {
-        console.log(`📊 Server list changed: ${oldLength || 0} → ${newLength}`)
+        console.log('Server list changed:', oldLength || 0, '->', newLength)
         
         // If servers were added (user joined a new server)
-        if (newLength > (oldLength || 0) && showNoServersSplash.value) {
-          console.log('🎉 New server joined! Hiding splash and navigating...')
-          showNoServersSplash.value = false;
+        if (newLength > (oldLength || 0) && shouldShowNoServersSplash.value) {
+          console.log('New server joined! Hiding splash and navigating...')
           showPublicServers.value = false; // Also close the public servers modal
           
           // Navigate to the newly joined server (last server in the list)
           const newServer = servers.value[servers.value.length - 1];
           if (newServer && !props.isDM && !isNavigatingRoute.value) {
-            console.log(`🚀 Navigating to new server: ${newServer.name} (${newServer.id})`)
+            console.log('Navigating to new server:', newServer.name, '(' + newServer.id + ')')
             isNavigatingRoute.value = true;
             router.push({ name: 'Chat', params: { serverId: newServer.id } }).finally(() => {
               isNavigatingRoute.value = false;
@@ -792,11 +828,7 @@
           }
         }
         
-        // If all servers were removed, show splash again (unless in DM mode)
-        if (newLength === 0 && !props.isDM) {
-          console.log('📭 No servers left, showing splash')
-          showNoServersSplash.value = true;
-        }
+        // No need to manually set splash state - computed property handles this
       }, { immediate: true });
 
 
@@ -923,31 +955,38 @@
 }
 
 .loading-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--h-black, #1e1f22);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
+  z-index: 9999;
 }
 
 .loading-spinner {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 16px;
+}
+
+.loading-spinner p {
+  color: #ffffff;
+  font-size: 16px;
+  margin: 0;
 }
 
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-top: 4px solid #007bff;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top: 3px solid #5865f2;
   border-radius: 50%;
-  animation: spin 0.6s linear infinite;
+  animation: spin 1s linear infinite;
 }
 
 @keyframes spin {

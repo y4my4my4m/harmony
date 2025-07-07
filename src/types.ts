@@ -14,7 +14,7 @@ export interface Channel {
   name: string;
   // type: 'text' | 'voice';
   type: number;
-  category: string;
+  category: string | null;
   order: number;
 }
 

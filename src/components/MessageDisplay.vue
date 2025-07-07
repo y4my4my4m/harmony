@@ -369,6 +369,23 @@ export default defineComponent({
       return urls;
     });
 
+    // Helper function to get user ID from reply message
+    const getReplyUserId = (replyMessageId: string) => {
+      // First check if message is in current messages
+      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
+      if (currentMessage) {
+        return currentMessage.user_id;
+      }
+
+      // Check if message is in reply cache
+      const cachedMessage = replyMessages.value[replyMessageId];
+      if (cachedMessage) {
+        return cachedMessage.user_id;
+      }
+
+      return 'unknown';
+    };
+
     // Watch for changes in messages for parsing
     watch(() => props.messages, (newMessages) => {
       if (!newMessages || !Array.isArray(newMessages)) {
@@ -1135,22 +1152,6 @@ export default defineComponent({
       }
       
       return user?.avatar_url || '/default_avatar.png';
-    };
-
-    const getReplyUserId = (replyMessageId: string) => {
-      // First check if message is in current messages
-      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
-      if (currentMessage) {
-        return currentMessage.user_id;
-      }
-
-      // Check if message is in reply cache
-      const cachedMessage = replyMessages.value[replyMessageId];
-      if (cachedMessage) {
-        return cachedMessage.user_id;
-      }
-
-      return 'unknown';
     };
 
     const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
