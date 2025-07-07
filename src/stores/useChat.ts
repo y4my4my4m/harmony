@@ -506,16 +506,16 @@ export const useChatStore = defineStore('chat', {
 
     async addReaction(messageId: string, emojiId: string, userId: string) {
       try {
-        console.log('🎯 Adding reaction:', { messageId, emojiId, userId });
+        // console.log('🎯 Adding reaction:', { messageId, emojiId, userId });
         
         // Use the reactions store for consistent handling
         const reactionsStore = useReactionsStore();
         const result = await reactionsStore.toggleReaction(messageId, emojiId, userId);
         
         if (result.success) {
-          console.log('🎯 Reaction successfully toggled');
+          // console.log('🎯 Reaction successfully toggled');
         } else if (result.reason === 'duplicate_request') {
-          console.log('🎯 Reaction toggle skipped (duplicate request prevented)');
+          // console.log('🎯 Reaction toggle skipped (duplicate request prevented)');
         } else {
           console.error('🎯 Failed to toggle reaction:', result.message || result.reason);
         }
@@ -575,7 +575,7 @@ export const useChatStore = defineStore('chat', {
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'reactions' },
           async (payload) => {
-            console.log('🟢 INSERT event received for reaction:', payload);
+            // console.log('🟢 INSERT event received for reaction:', payload);
             reactionsStore.handleRealtimeUpdate(payload);
           }
         )
@@ -588,7 +588,7 @@ export const useChatStore = defineStore('chat', {
             filter: undefined
           },
           async (payload) => {
-            console.log('🔥 DELETE event received for reaction:', payload);
+            // console.log('🔥 DELETE event received for reaction:', payload);
             reactionsStore.handleRealtimeUpdate(payload);
           }
         )

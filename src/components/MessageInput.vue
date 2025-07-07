@@ -236,8 +236,12 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
         const triggerLength = mentionMatch[0].length;
         const username = mention.username || mention.display_name;
         const newText = currentText.substring(0, cursorPosition - triggerLength) + 
-                       `@${username}` + 
+                       `${username}` + 
                        currentText.substring(cursorPosition);
+        //  TODO: this wont properly place the cursor after the mention
+        // Set the cursor position after the mention
+        // richEditorRef.value.insertTextAtCursor?.(username);
+        // richEditorRef.value.setCursorPosition?.(cursorPosition - triggerLength + username.length);
         
         emit('update:modelValue', newText);
       }

@@ -576,5 +576,162 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       this.publicServers = data;
     },
-  },
+
+    async deleteChannel(channelId: string): Promise<void> {
+      try {
+        const { error } = await supabase
+          .from('channels')
+          .delete()
+          .eq('id', channelId);
+
+        if (error) {
+          console.error('Error deleting channel:', error);
+          throw error;
+        }
+
+        // Remove channel from local state
+        this.channels = this.channels.filter(channel => channel.id !== channelId);
+        
+        // Remove from category channels if it was in a category
+        Object.keys(this.categoryChannels).forEach(categoryId => {
+          this.categoryChannels[categoryId] = this.categoryChannels[categoryId].filter(
+            channel => channel.id !== channelId
+          );
+        });
+
+        // If this was the current channel, switch to another channel
+        if (this.currentChannelId === channelId) {
+          const defaultChannel = this.getDefaultChannel();
+          if (defaultChannel) {
+            this.setCurrentChannel(defaultChannel);
+          } else {
+            this.currentChannelId = null;
+          }
+        }
+
+        console.log('✅ Channel deleted successfully:', channelId);
+      } catch (error) {
+        console.error('❌ Failed to delete channel:', error);
+        throw error;
+      }
+    },
+
+    async deleteCategory(categoryId: string): Promise<void> {
+      try {
+        // First, move all channels in this category to orphans (no category)
+        const channelsInCategory = this.categoryChannels[categoryId] || [];
+        if (channelsInCategory.length > 0) {
+          const { error: updateError } = await supabase
+            .from('channels')
+            .update({ category_id: null })
+            .in('id', channelsInCategory.map(channel => channel.id));
+
+          if (updateError) {
+            console.error('Error moving channels to orphans:', updateError);
+            throw updateError;
+          }
+        }
+
+        // Then delete the category
+        const { error } = await supabase
+          .from('channel_categories')
+          .delete()
+          .eq('id', categoryId);
+
+        if (error) {
+          console.error('Error deleting category:', error);
+          throw error;
+        }
+
+        // Update local state
+        this.categories = this.categories.filter(category => category.id !== categoryId);
+        
+        // Move channels to orphans in local state
+        if (channelsInCategory.length > 0) {
+          channelsInCategory.forEach(channel => {
+            channel.category_id = null;
+          });
+        }
+        
+        // Remove category from categoryChannels
+        delete this.categoryChannels[categoryId];
+
+        console.log('✅ Category deleted successfully:', categoryId);
+      } catch (error) {
+        console.error('❌ Failed to delete category:', error);
+        throw error;
+      }
+    },
+
+    async updateChannel(channelData: { id: string; name?: string; description?: string }): Promise<void> {
+      try {
+        const updateData: any = {};
+        if (channelData.name !== undefined) updateData.name = channelData.name;
+        if (channelData.description !== undefined) updateData.description = channelData.description;
+
+        const { data, error } = await supabase
+          .from('channels')
+          .update(updateData)
+          .eq('id', channelData.id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error updating channel:', error);
+          throw error;
+        }
+
+        // Update local state
+        const channelIndex = this.channels.findIndex(channel => channel.id === channelData.id);
+        if (channelIndex !== -1) {
+          this.channels[channelIndex] = { ...this.channels[channelIndex], ...data };
+        }
+
+        // Update in category channels if it exists
+        Object.keys(this.categoryChannels).forEach(categoryId => {
+          const categoryChannelIndex = this.categoryChannels[categoryId].findIndex(
+            channel => channel.id === channelData.id
+          );
+          if (categoryChannelIndex !== -1) {
+            this.categoryChannels[categoryId][categoryChannelIndex] = {
+              ...this.categoryChannels[categoryId][categoryChannelIndex],
+              ...data
+            };
+          }
+        });
+
+        console.log('✅ Channel updated successfully:', channelData.id);
+      } catch (error) {
+        console.error('❌ Failed to update channel:', error);
+        throw error;
+      }
+    },
+
+    async updateCategory(categoryData: { id: string; name: string }): Promise<void> {
+      try {
+        const { data, error } = await supabase
+          .from('channel_categories')
+          .update({ name: categoryData.name })
+          .eq('id', categoryData.id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error updating category:', error);
+          throw error;
+        }
+
+        // Update local state
+        const categoryIndex = this.categories.findIndex(category => category.id === categoryData.id);
+        if (categoryIndex !== -1) {
+          this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...data };
+        }
+
+        console.log('✅ Category updated successfully:', categoryData.id);
+      } catch (error) {
+        console.error('❌ Failed to update category:', error);
+        throw error;
+      }
+    },
+  }
 });

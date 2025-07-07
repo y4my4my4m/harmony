@@ -37,10 +37,12 @@
             :key="element.id" 
             :class="['channel-item', { 
               'selected': element.id === currentChannelId,
-              'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id
+              'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
+              'mobile-disabled': isMobile && element.type === 1
             }]" 
             @click="selectChannel(element.id)"
-            :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
+            @contextmenu="openChannelContextMenu($event, element)"
+            :style="{ cursor: element.type === 1 && isMobile ? 'pointer' : getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
             :data-channel-id="element.id"
             :data-category-id="null"
           >
@@ -50,23 +52,26 @@
               <span class="channel-name">{{ element.name }}</span>
             </div>
             <!-- Voice channel controls -->
-            <div v-if="element.type === 1" class="voice-controls">
-              <button
-                v-if="!isUserInVoiceChannel(element.id)"
-                @click.stop="joinVoiceChannel(element.id)"
-                class="voice-btn join-btn"
-                title="Join voice channel"
-              >
-                🎤
-              </button>
-              <button
-                v-else
-                @click.stop="leaveVoiceChannel(element.id)"
-                class="voice-btn leave-btn"
-                title="Leave voice channel"
-              >
-                🔇
-              </button>
+            <div v-if="element.type === 1" class="voice-controls">                    <button
+                      v-if="!isUserInVoiceChannel(element.id)"
+                      @click.stop="joinVoiceChannel(element.id)"
+                      @touchstart.stop="handleVoiceChannelTouch"
+                      @touchend.stop="handleVoiceChannelTouch"
+                      class="voice-btn join-btn"
+                      title="Join voice channel"
+                    >
+                      🎤
+                    </button>
+                    <button
+                      v-else
+                      @click.stop="leaveVoiceChannel(element.id)"
+                      @touchstart.stop="handleVoiceChannelTouch"
+                      @touchend.stop="handleVoiceChannelTouch"
+                      class="voice-btn leave-btn"
+                      title="Leave voice channel"
+                    >
+                      🔇
+                    </button>
               <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
                 {{ getUsersInVoiceChannel(element.id).length }}
               </span>
@@ -92,6 +97,7 @@
           <div 
             class="category-header"
             @click="toggleCategory(category.id)"
+            @contextmenu="openCategoryContextMenu($event, category)"
             :class="{ 
               'collapsed': collapsedCategories.has(category.id),
               'has-visible-channels': shouldShowCategoryContent(category)
@@ -132,10 +138,12 @@
                   :class="{ 
                     'selected': currentChannelId === channel.id,
                     'in-collapsed-category': collapsedCategories.has(category.id),
-                    'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id
+                    'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
+                    'mobile-disabled': isMobile && channel.type === 1
                   }"
                   @click="selectChannel(channel.id)"
-                  :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
+                  @contextmenu="openChannelContextMenu($event, channel)"
+                  :style="{ cursor: channel.type === 1 && isMobile ? 'pointer' : getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
                   :data-channel-id="channel.id"
                   :data-category-id="category.id"
                 >
@@ -150,6 +158,8 @@
                     <button
                       v-if="!isUserInVoiceChannel(channel.id)"
                       @click.stop="joinVoiceChannel(channel.id)"
+                      @touchstart.stop="handleVoiceChannelTouch"
+                      @touchend.stop="handleVoiceChannelTouch"
                       class="voice-btn join-btn"
                       title="Join voice channel"
                     >
@@ -158,6 +168,8 @@
                     <button
                       v-else
                       @click.stop="leaveVoiceChannel(channel.id)"
+                      @touchstart.stop="handleVoiceChannelTouch"
+                      @touchend.stop="handleVoiceChannelTouch"
                       class="voice-btn leave-btn"
                       title="Leave voice channel"
                     >
@@ -188,11 +200,60 @@
       :server-data="currentServerData"
       @close="closeInviteModal"
     />
+
+    <!-- Context Menus -->
+    <ChannelContextMenu
+      :is-visible="showChannelContextMenu"
+      :position="contextMenuPosition"
+      :channel="selectedChannel"
+      @close="closeContextMenus"
+      @invite-users="handleInviteUsers"
+      @edit-channel="handleEditChannel"
+      @delete-channel="handleDeleteChannel"
+    />
+
+    <CategoryContextMenu
+      :is-visible="showCategoryContextMenu"
+      :position="contextMenuPosition"
+      :category="selectedCategory"
+      @close="closeContextMenus"
+      @create-channel="handleCreateChannelInCategory"
+      @edit-category="handleEditCategory"
+      @delete-category="handleDeleteCategory"
+    />
+
+    <!-- Edit Modals -->
+    <ChannelEditModal
+      :show="showChannelEditModal"
+      :channel="selectedChannel"
+      @close="closeChannelEditModal"
+      @updated="handleChannelUpdated"
+    />
+
+    <CategoryEditModal
+      :show="showCategoryEditModal"
+      :category="selectedCategory"
+      @close="closeCategoryEditModal"
+      @updated="handleCategoryUpdated"
+    />
+
+    <!-- Confirmation Modal -->
+    <ConfirmationModal
+      :show="showConfirmationModal"
+      :title="confirmationConfig.title"
+      :message="confirmationConfig.message"
+      :secondary-message="confirmationConfig.secondaryMessage"
+      :confirm-button-text="confirmationConfig.confirmButtonText"
+      :require-confirmation="confirmationConfig.requireConfirmation"
+      :confirmation-text="confirmationConfig.confirmationText"
+      @close="closeConfirmationModal"
+      @confirm="confirmationConfig.onConfirm"
+    />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch } from 'vue';
+import { defineComponent, ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
@@ -210,6 +271,11 @@ import SpeakerIcon from '@/components/icons/Speaker.vue';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
+import ChannelContextMenu from './ChannelContextMenu.vue';
+import CategoryContextMenu from './CategoryContextMenu.vue';
+import ChannelEditModal from './ChannelEditModal.vue';
+import CategoryEditModal from './CategoryEditModal.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
 
 import draggable from "vuedraggable";
 
@@ -231,6 +297,11 @@ export default defineComponent({
     SpeakerIcon,
     draggable,
     InviteModal,
+    ChannelContextMenu,
+    CategoryContextMenu,
+    ChannelEditModal,
+    CategoryEditModal,
+    ConfirmationModal,
   },
   props: {
     currentServer: {
@@ -261,6 +332,27 @@ export default defineComponent({
     const authStore = useAuthStore();
     const router = useRouter();
     
+    // Context menu state
+    const showChannelContextMenu = ref(false);
+    const showCategoryContextMenu = ref(false);
+    const contextMenuPosition = ref({ x: 0, y: 0 });
+    const selectedChannel = ref<Channel | null>(null);
+    const selectedCategory = ref<Category | null>(null);
+    
+    // Modal state
+    const showChannelEditModal = ref(false);
+    const showCategoryEditModal = ref(false);
+    const showConfirmationModal = ref(false);
+    const confirmationConfig = ref({
+      title: '',
+      message: '',
+      secondaryMessage: '',
+      confirmButtonText: 'Delete',
+      requireConfirmation: false,
+      confirmationText: 'DELETE',
+      onConfirm: () => {}
+    });
+    
     // Use the channel permissions composable
     const {
       canDragAndDrop,
@@ -278,12 +370,24 @@ export default defineComponent({
       isOver: false,
     });
 
-    // Drag group configuration
+    // Check if we're on mobile device
+    const isMobile = computed(() => {
+      return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    });
+
+    // Modify drag group to disable on mobile for voice channels
     const dragGroup = computed(() => ({
       name: 'channels',
-      put: canDragAndDrop.value,
-      pull: canDragAndDrop.value,
+      put: canDragAndDrop.value && !isMobile.value,
+      pull: canDragAndDrop.value && !isMobile.value,
     }));
+
+    // Handle voice channel touch events to prevent drag conflict
+    const handleVoiceChannelTouch = (event: TouchEvent) => {
+      // Stop event propagation to prevent drag and drop from interfering
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
 
     const userId = computed(() => {
       return authStore.session?.user?.id || '';
@@ -746,6 +850,149 @@ export default defineComponent({
       }
     };
 
+    // Context menu handlers
+    const openChannelContextMenu = (event: MouseEvent, channel: Channel) => {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      selectedChannel.value = channel;
+      contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+      showChannelContextMenu.value = true;
+      
+      // Close category context menu if open
+      showCategoryContextMenu.value = false;
+    };
+
+    const openCategoryContextMenu = (event: MouseEvent, category: Category) => {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      selectedCategory.value = category;
+      contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+      showCategoryContextMenu.value = true;
+      
+      // Close channel context menu if open
+      showChannelContextMenu.value = false;
+    };
+
+    const closeContextMenus = () => {
+      showChannelContextMenu.value = false;
+      showCategoryContextMenu.value = false;
+      selectedChannel.value = null;
+      selectedCategory.value = null;
+    };
+
+    // Context menu action handlers
+    const handleInviteUsers = () => {
+      openInviteModal();
+    };
+
+    const handleEditChannel = (channel: Channel) => {
+      selectedChannel.value = channel;
+      showChannelEditModal.value = true;
+    };
+
+    const handleDeleteChannel = (channel: Channel) => {
+      selectedChannel.value = channel;
+      confirmationConfig.value = {
+        title: 'Delete Channel',
+        message: `Are you sure you want to delete #${channel.name}?`,
+        secondaryMessage: 'This action cannot be undone. All messages in this channel will be permanently deleted.',
+        confirmButtonText: 'Delete Channel',
+        requireConfirmation: true,
+        confirmationText: channel.name,
+        onConfirm: async () => {
+          try {
+            await serverChannelStore.deleteChannel(channel.id);
+            console.log('Channel deleted successfully:', channel.name);
+            showConfirmationModal.value = false;
+          } catch (error) {
+            console.error('Failed to delete channel:', error);
+            // TODO: Show error notification
+            showConfirmationModal.value = false;
+          }
+        }
+      };
+      showConfirmationModal.value = true;
+    };
+
+    const handleCreateChannelInCategory = (category: Category) => {
+      emit('createChannel', category.id);
+    };
+
+    const handleEditCategory = (category: Category) => {
+      selectedCategory.value = category;
+      showCategoryEditModal.value = true;
+    };
+
+    const handleDeleteCategory = (category: Category) => {
+      selectedCategory.value = category;
+      const channelCount = (props.categoryChannels[category.id] || []).length;
+      const channelText = channelCount === 1 ? 'channel' : 'channels';
+      
+      confirmationConfig.value = {
+        title: 'Delete Category',
+        message: `Are you sure you want to delete "${category.name}"?`,
+        secondaryMessage: channelCount > 0 
+          ? `This category contains ${channelCount} ${channelText}. All channels will be moved to the top of the channel list.`
+          : 'This action cannot be undone.',
+        confirmButtonText: 'Delete Category',
+        requireConfirmation: true,
+        confirmationText: category.name,
+        onConfirm: async () => {
+          try {
+            await serverChannelStore.deleteCategory(category.id);
+            console.log('Category deleted successfully:', category.name);
+            showConfirmationModal.value = false;
+          } catch (error) {
+            console.error('Failed to delete category:', error);
+            // TODO: Show error notification
+            showConfirmationModal.value = false;
+          }
+        }
+      };
+      showConfirmationModal.value = true;
+    };
+
+    // Modal handlers
+    const closeChannelEditModal = () => {
+      showChannelEditModal.value = false;
+      selectedChannel.value = null;
+    };
+
+    const closeCategoryEditModal = () => {
+      showCategoryEditModal.value = false;
+      selectedCategory.value = null;
+    };
+
+    const closeConfirmationModal = () => {
+      showConfirmationModal.value = false;
+    };
+
+    const handleChannelUpdated = (updatedChannel: Channel) => {
+      // The store handles updating the local state
+      console.log('Channel updated:', updatedChannel.name);
+    };
+
+    const handleCategoryUpdated = (updatedCategory: Category) => {
+      // The store handles updating the local state
+      console.log('Category updated:', updatedCategory.name);
+    };
+
+    // Close context menus when clicking outside
+    const handleGlobalClick = () => {
+      closeContextMenus();
+    };
+
+    // Add global click listener
+    onMounted(() => {
+      document.addEventListener('click', handleGlobalClick);
+    });
+
+    onUnmounted(() => {
+      document.removeEventListener('click', handleGlobalClick);
+    });
+
     return { 
       isDropdownOpen, 
       toggleDropdown,
@@ -793,6 +1040,37 @@ export default defineComponent({
       getUsersInVoiceChannel,
       joinVoiceChannel,
       leaveVoiceChannel,
+      handleVoiceChannelTouch,
+      isMobile,
+
+      // Context menu state
+      showChannelContextMenu,
+      showCategoryContextMenu,
+      contextMenuPosition,
+      selectedChannel,
+      selectedCategory,
+      openChannelContextMenu,
+      openCategoryContextMenu,
+      closeContextMenus,
+      handleInviteUsers,
+      handleEditChannel,
+      handleDeleteChannel,
+      handleCreateChannelInCategory,
+      handleEditCategory,
+      handleDeleteCategory,
+      
+      // Modal state
+      showChannelEditModal,
+      showCategoryEditModal,
+      showConfirmationModal,
+      confirmationConfig,
+      
+      // Modal handlers
+      closeChannelEditModal,
+      closeCategoryEditModal,
+      closeConfirmationModal,
+      handleChannelUpdated,
+      handleCategoryUpdated,
     };
   }
 });
@@ -856,6 +1134,20 @@ export default defineComponent({
   position: relative;
   background-color: var(--h-sidebar-light);
   color: #FFF;
+}
+
+.channel-item.mobile-disabled {
+  /* Disable dragging visual feedback on mobile for voice channels */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.channel-item.mobile-disabled .voice-controls {
+  /* Ensure voice controls are easily tappable on mobile */
+  z-index: 10;
+  position: relative;
 }
 
 .channel-item.dragging {
@@ -1066,5 +1358,42 @@ export default defineComponent({
 
 .empty-category-placeholder:hover {
   background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Context menu styles */
+.channel-context-menu,
+.category-context-menu {
+  position: absolute;
+  z-index: 1000;
+  background: var(--h-sidebar);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  padding: 8px 0;
+  width: 200px;
+}
+
+.context-menu-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-size: 14px;
+  color: rgb(220, 220, 220);
+}
+
+.context-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Hide context menus by default */
+.channel-context-menu,
+.category-context-menu {
+  display: none;
+}
+
+/* Show context menu when active */
+.channel-context-menu.active,
+.category-context-menu.active {
+  display: block;
 }
 </style>
