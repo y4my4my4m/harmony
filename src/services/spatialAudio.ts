@@ -945,6 +945,32 @@ export class SpatialAudioService {
     };
   }
 
+  /**
+   * Debug method to check audio output state
+   */
+  debugAudioState(): void {
+    console.log('🔍 Spatial Audio Debug State:');
+    console.log('- Initialized:', this.isInitialized);
+    console.log('- AudioContext state:', this.audioContext?.state || 'not-created');
+    console.log('- Active spatial nodes:', this.spatialNodes.size);
+    console.log('- Update loop running:', !!this.animationFrameId);
+    
+    this.spatialNodes.forEach((node, userId) => {
+      console.log(`- User ${userId}:`, {
+        connected: node.isConnected,
+        hasGain: !!node.gainNode,
+        hasPanner: !!node.pannerNode,
+        hasConvolver: !!node.convolver,
+        lastGain: node.lastGain,
+        lastPanning: node.lastPanning
+      });
+    });
+    
+    const spatialStore = useSpatialAudioStore();
+    console.log('- Spatial audio enabled in store:', spatialStore.settings.enabled);
+    console.log('- User positions:', Array.from(spatialStore.userPositions.entries()));
+  }
+
   // =============================================================================
   // CLEANUP
   // =============================================================================

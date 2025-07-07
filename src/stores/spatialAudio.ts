@@ -169,17 +169,34 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
         const { unifiedWebRTC } = await import('@/services/unifiedWebRTC');
         
         if (this.settings.enabled) {
-          // Enable spatial audio - this will create AudioContext if needed
-          await spatialAudioService.enableSpatialAudio();
-          
-          // Disable traditional HTMLAudioElement playback to prevent double audio
+          // First disable traditional audio to prevent double output
           unifiedWebRTC.setTraditionalAudioEnabled(false);
+          console.log('🔇 Traditional audio disabled');
+          
+          // Then enable spatial audio - this will create AudioContext if needed
+          await spatialAudioService.enableSpatialAudio();
+          console.log('🎧 Spatial audio enabled');
+          
+          // Setup spatial audio for any existing users
+          const allUsers = unifiedWebRTC.getAllUsers();
+          for (const user of allUsers) {
+            if (user.userId !== unifiedWebRTC.getLocalState().userId) {
+              const userStream = unifiedWebRTC.getUserStream(user.userId);
+              if (userStream) {
+                console.log(`🎧 Setting up spatial audio for existing user: ${user.userId}`);
+                await spatialAudioService.setupSpatialForUser(user.userId, userStream);
+              }
+            }
+          }
+          
         } else {
           // Disable spatial audio but keep AudioContext for potential re-enabling
           spatialAudioService.disableSpatialAudio();
+          console.log('🎧 Spatial audio disabled');
           
           // Re-enable traditional HTMLAudioElement playback
           unifiedWebRTC.setTraditionalAudioEnabled(true);
+          console.log('🔊 Traditional audio re-enabled');
         }
         
         console.log('✅ Spatial audio toggle completed');
