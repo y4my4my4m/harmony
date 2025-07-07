@@ -64,7 +64,7 @@ export class AudioThemeService {
       author: 'Harmony Team',
       version: '1.0.0',
       isBuiltIn: true,
-      preview: '/assets/images/themes/default-preview.webp',
+      preview: '/assets/sounds/default/default-preview.webp',
       sounds: {
         // Notifications
         mention: '/assets/sounds/default/mention.mp3',
@@ -104,7 +104,7 @@ export class AudioThemeService {
       author: 'Harmony Team',
       version: '1.2.0',
       isBuiltIn: true,
-      preview: '/assets/images/themes/harmony-preview.webp',
+      preview: '/assets/sounds/harmony/harmony-preview.webp',
       sounds: {
         // Notifications with unique harmony sounds
         mention: '/assets/sounds/harmony/mention.mp3',
@@ -144,7 +144,7 @@ export class AudioThemeService {
       author: 'Harmony Team',
       version: '1.0.0',
       isBuiltIn: true,
-      preview: '/assets/images/themes/professional-preview.webp',
+      preview: '/assets/sounds/discord/professional-preview.webp',
       sounds: {
         // Professional notification sounds (using existing assets)
         mention: '/assets/sounds/discord/mention.mp3', // Repurposed
