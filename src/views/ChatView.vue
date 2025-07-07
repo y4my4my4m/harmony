@@ -92,12 +92,6 @@
     
     <!-- Main Chat Area -->
     <div class="chat-area">
-      <!-- Voice Channel Scene -->
-      <VoiceChannelScene 
-        v-if="!isDM"
-        :currentChannelId="currentChannelId"
-        :serverId="currentServer?.id"
-      />
       
       <!-- Chat Component -->
       <ChatComponent
@@ -142,7 +136,6 @@
   import UserSidebar from '@/components/UserSidebar.vue';
   import UserProfileComponent from '@/components/UserProfileComponent.vue';
   import NoServersSplash from '@/components/NoServersSplash.vue';
-  import VoiceChannelScene from '@/components/VoiceChannelScene.vue';
   import CreateChannel from '@/components/CreateChannel.vue';
   import PublicServers from '@/components/PublicServers.vue';
   import { useServerUsersStore } from '@/stores/useServerUsers';

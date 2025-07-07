@@ -516,7 +516,7 @@ onUnmounted(() => {
   backdrop-filter: blur(20px);
   width: 600px;
   height: 500px;
-  z-index: 9995;
+  z-index: 10500;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -525,12 +525,15 @@ onUnmounted(() => {
 
 .panel-under-overlay {
   bottom: 20px;
-  right: 20px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  /* right: 20px; */
 }
 
 .panel-under-dock {
-  bottom: 100px;
-  right: 20px;
+  bottom: 180px;
+  right: -25px;
 }
 
 /* Panel Header */
