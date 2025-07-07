@@ -70,7 +70,7 @@
           'theme-card',
           { 
             active: theme.id === themeStore.currentAudioTheme,
-            loading: isThemeLoading(theme.id),
+            loading: isThemeLoadingFn(theme.id),
             preloading: themeStore.preloadingTheme === theme.id
           }
         ]"
@@ -91,7 +91,7 @@
           </div>
           
           <!-- Loading Overlay -->
-          <div v-if="isThemeLoading(theme.id)" class="loading-overlay">
+          <div v-if="isThemeLoadingFn(theme.id)" class="loading-overlay">
             <Icon name="loader" class="spinning" />
           </div>
           
@@ -117,7 +117,7 @@
             <span class="theme-author">by {{ theme.author }}</span>
             <div class="theme-actions">
               <button 
-                v-if="!isThemeLoading(theme.id)" 
+                v-if="!isThemeLoadingFn(theme.id)" 
                 @click.stop="testTheme(theme.id)"
                 class="mini-action-btn"
                 title="Test theme"
@@ -134,7 +134,7 @@
         </div>
 
         <!-- Loading Progress -->
-        <div v-if="isThemeLoading(theme.id)" class="loading-progress">
+        <div v-if="isThemeLoadingFn(theme.id)" class="loading-progress">
           <div class="progress-bar" :style="{ width: '60%' }"></div>
         </div>
       </div>
@@ -293,6 +293,14 @@ const volumePresets = [
 ]
 
 // =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+const isThemeLoadingFn = (themeId: string): boolean => {
+  return isThemeLoading.value[themeId] || false
+}
+
+// =============================================================================
 // COMPUTED
 // =============================================================================
 
@@ -356,7 +364,7 @@ const getStatusText = (): string => {
 }
 
 const selectTheme = async (themeId: string): Promise<void> => {
-  if (themeId === themeStore.currentAudioTheme || isThemeLoading.value[themeId]) {
+  if (themeId === themeStore.currentAudioTheme || isThemeLoadingFn(themeId)) {
     return
   }
   
