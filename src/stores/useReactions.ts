@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Emoji } from '@/types';
+import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 
 export interface ReactionGroup {
   id: string;
@@ -249,8 +250,26 @@ export const useReactionsStore = defineStore('reactions', {
               reactions: [...existingGroup.reactions, { reaction_id: 'temp', user_id: userId }]
             };
           }
+        } else {
+          // Create new reaction group for first reaction
+          // Try to get emoji data from the emoji cache
+          const emojiCacheStore = useEmojiCacheStore();
+          const emojiData = emojiCacheStore.getEmojiById(emojiId);
+          
+          if (emojiData) {
+            const newReactionGroup: ReactionGroup = {
+              id: `temp-${emojiId}`, // Temporary ID for optimistic update
+              count: 1,
+              emoji: emojiData,
+              reactions: [{ reaction_id: 'temp', user_id: userId }],
+              message_id: messageId
+            };
+            updatedReactions.push(newReactionGroup);
+            console.log('🎯 Created new reaction group optimistically:', emojiData.name);
+          } else {
+            console.log('🎯 Could not create new reaction group optimistically - emoji data not cached');
+          }
         }
-        // Note: We can't add new emoji groups optimistically without emoji data
       } else {
         if (existingGroupIndex >= 0) {
           // Remove user from existing group

@@ -10,7 +10,7 @@
       <!-- Reaction groups -->
       <div
         v-for="reactionGroup in reactions"
-        :key="`${reactionGroup.emoji.id}-${reactionGroup.count}`"
+        :key="reactionGroup.id"
         class="reaction"
         :class="{ 
           'reacted': hasUserReacted(reactionGroup.emoji.id),
