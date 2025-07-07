@@ -964,7 +964,7 @@ onUnmounted(() => {
   
   .header-actions {
     width: 100%;
-    justify-content: end;
+    justify-content: flex-end;
   }
   
   .notification-filters {
