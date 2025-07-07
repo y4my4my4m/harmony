@@ -88,7 +88,7 @@ class StatePersistenceService {
         }
         
         this.state = { ...DEFAULT_STATE, ...parsed }
-        console.log('� Loaded persisted state (v' + STATE_VERSION + '):', this.state)
+        console.log('✅ Loaded persisted state (v' + STATE_VERSION + '):', this.state)
       } else {
         console.log('📱 No persisted state found, using defaults')
         this.state = { ...DEFAULT_STATE }
