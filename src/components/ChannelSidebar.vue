@@ -683,13 +683,17 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
 </script>
 
 <style scoped>
-.channel-sidebar {
+/* .channel-sidebar {
   width: 240px;
   min-width: 240px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   height: 100vh;
+} */
+.channel-sidebar {
+  background: var(--h-channel-sidebar, #2f3136);
+  height: 100%;
 }
 
 .server-header {
@@ -702,7 +706,7 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
   padding: 10px;
   font-size: 1.2rem;
   font-weight: 500;
-  background: var(--vt-c-divider-light-2);
+  background: var(--background-tertiary);
   position: relative;
   z-index: 1;
   box-shadow: 0 1px 5px 0px rgba(0,0,0,0.25);
@@ -712,7 +716,7 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
 }
 
 .server-name:hover {
-  background: rgba(0,0,0,0.1);
+  background: var(--background-secondary);
 }
 
 .channel-item {

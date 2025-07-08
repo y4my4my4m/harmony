@@ -43,6 +43,14 @@
   --h-chat-lighter: #313336; /* input area background */
   --h-chat-dark: #141618;
   --h-chat-darker: #0c0d0e;
+  
+  --background-primary: #26272b;
+  --background-secondary: #17181a;
+  --background-tertiary: #141416;
+  --background-quaternary: #101113;
+  --background-quinary: #0e0f11;
+  --background-senary: #0a0b0d;
+  --background-septenary: #070809;
 
   --gutter: 16px;
   --avatar-size: 40px;
@@ -51,20 +59,6 @@
   --interactive-muted: hsl( 228 calc( 1 * 6%) 32.5% / 1);
 }
 
-/* semantic color variables for this project */
-/* :root {
-  --color-background: var(--vt-c-white);
-  --color-background-soft: var(--vt-c-white-soft);
-  --color-background-mute: var(--vt-c-white-mute);
-
-  --color-border: var(--vt-c-divider-light-2);
-  --color-border-hover: var(--vt-c-divider-light-1);
-
-  --color-heading: var(--vt-c-text-light-1);
-  --color-text: var(--vt-c-text-light-1);
-
-  --section-gap: 160px;
-} */
 
 /* @media (prefers-color-scheme: dark) { */
 :root {
@@ -78,7 +72,7 @@
   --color-heading: var(--vt-c-text-dark-1);
   --color-text: var(--vt-c-text-dark-2);
 
-  --border-color: var(--vt-c-divider-dark-2);
+  --border-color: #232529;
 }
 /* } */
 
@@ -95,7 +89,7 @@
   user-select: text;
 }
 .draggable {
-  user-select:auto;
+  user-select: auto;
 }
 
 body {

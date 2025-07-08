@@ -199,6 +199,10 @@ const navigationItems = computed(() => [
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--background-tertiary);
+  border-top-left-radius: 10px;
+  border-left: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-color);
 }
 
 /* Chat Mode Styles */

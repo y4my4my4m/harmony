@@ -991,7 +991,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 72px 240px 1fr 240px;
   grid-template-rows: 48px 1fr;
   height: 100vh;
-  background: var(--background-primary);
+  background: transparent;
 }
 
 .context-bar-container {
@@ -1002,20 +1002,16 @@ onBeforeUnmount(() => {
 .sidebar-container {
   display: flex;
   flex-direction: row;
-  background: var(--background-primary);
+  background: var(--background-tertiary);
 }
 
 .server-sidebar-container {
   grid-area: servers;
-  background: var(--background-tertiary);
 }
 
 .channel-sidebar-container {
   grid-area: channels;
-  background: var(--background-secondary);
-  border-top-left-radius: 10px;
-  border-left: 1px solid var(--border-color);
-  border-top: 1px solid var(--border-color);
+  background: var(--background-tertiary);
 }
 .user-profile-section {
   position: fixed;
@@ -1032,7 +1028,6 @@ onBeforeUnmount(() => {
 
 .right-sidebar-container {
   grid-area: rightbar;
-  background: var(--background-primary);
 }
 
 .mobile-overlay {
