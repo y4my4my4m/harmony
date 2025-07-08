@@ -1297,7 +1297,8 @@ export default defineComponent({
   flex-grow: 1;
   overflow-y: auto;
   margin-right: 4px;
-  padding: 40px 0 10px 0;
+  padding: 20px 0 10px 0;
+  height: calc(100vh - 165px);
 }
 
 /* Individual message item */
