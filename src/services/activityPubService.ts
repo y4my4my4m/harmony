@@ -592,6 +592,113 @@ export class ActivityPubService {
   }
 
   /**
+   * Resolve a user handle to a user object
+   */
+  async resolveUserByHandle(handle: string): Promise<FederatedUser | null> {
+    try {
+      // Remove @ prefix if present
+      const cleanHandle = handle.startsWith('@') ? handle.substring(1) : handle;
+      
+      // Parse handle - can be "username" or "username@domain"
+      const parts = cleanHandle.split('@');
+      const username = parts[0];
+      const domain = parts[1] || 'har.mony.lol';
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', username)
+        .eq('domain', domain)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') return null; // Not found
+        throw error;
+      }
+      
+      return {
+        id: data.id,
+        username: data.username,
+        display_name: data.display_name,
+        domain: data.domain,
+        avatar_url: data.avatar_url,
+        handle: domain === 'har.mony.lol' 
+          ? `@${username}`
+          : `@${username}@${domain}`,
+        is_local: data.is_local,
+        bio: data.about,
+        verified: false,
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        about: data.about,
+        federated_id: data.federated_id,
+        public_key: data.public_key,
+        inbox_url: data.inbox_url,
+        outbox_url: data.outbox_url,
+        followers_url: data.followers_url,
+        following_url: data.following_url,
+        featured_url: data.featured_url,
+        last_synced_at: data.last_synced_at
+      } as FederatedUser;
+    } catch (error) {
+      console.error('Failed to resolve user by handle:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get user by ID (for navigation from UUIDs)
+   */
+  async getUserById(userId: string): Promise<FederatedUser | null> {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw error;
+      }
+      
+      return {
+        id: data.id,
+        username: data.username,
+        display_name: data.display_name,
+        domain: data.domain,
+        avatar_url: data.avatar_url,
+        handle: data.domain === 'har.mony.lol' 
+          ? `@${data.username}`
+          : `@${data.username}@${data.domain}`,
+        is_local: data.is_local,
+        bio: data.about,
+        verified: false,
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        about: data.about,
+        federated_id: data.federated_id,
+        public_key: data.public_key,
+        inbox_url: data.inbox_url,
+        outbox_url: data.outbox_url,
+        followers_url: data.followers_url,
+        following_url: data.following_url,
+        featured_url: data.featured_url,
+        last_synced_at: data.last_synced_at
+      } as FederatedUser;
+    } catch (error) {
+      console.error('Failed to get user by ID:', error);
+      return null;
+    }
+  }
+
+  /**
    * Get user's timeline using SQL helper function
    */
   async getUserTimeline(

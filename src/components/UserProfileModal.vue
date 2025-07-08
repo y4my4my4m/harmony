@@ -57,8 +57,8 @@
         <div class="profile-header">
           <div class="avatar-container">
             <div class="avatar-wrapper">
-              <img 
-                :src="user?.avatar_url || '/default-avatar.png'" 
+              <Avatar 
+                :src="user?.avatar_url || '/default_avatar.png'" 
                 :alt="`${user?.display_name || 'User'}'s avatar`"
                 class="profile-avatar"
                 @error="handleAvatarError"
@@ -337,6 +337,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/activitypub'
 import BaseModal from '@/components/common/BaseModal.vue'
 import type { User, FederatedUser } from '@/types'
+import Avatar from './common/Avatar.vue'
 
 interface Props {
   show: boolean

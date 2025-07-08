@@ -233,6 +233,7 @@
 
     <UserProfileModal
       v-if="selectedUser"
+      :show="!!selectedUser"
       :user="selectedUser"
       @close="closeUserProfile"
       @follow="handleFollow"
@@ -296,13 +297,13 @@ const timelineTabs = [
   { id: 'public', label: 'Federated', icon: 'globe' }
 ];
 
-const navigationItems = [
-  { id: 'profile', label: 'Profile', path: '/u/' + authStore.session?.user?.id, icon: 'user' },
+const navigationItems = computed(() => [
+  { id: 'profile', label: 'Profile', path: '/u/' + currentUserHandle.value, icon: 'user' },
   { id: 'notifications', label: 'Notifications', path: '/monyverse/notifications', icon: 'bell' },
   { id: 'bookmarks', label: 'Bookmarks', path: '/monyverse/bookmarks', icon: 'bookmark' },
   { id: 'lists', label: 'Lists', path: '/monyverse/lists', icon: 'list' },
   { id: 'settings', label: 'Settings', path: '/settings', icon: 'settings' }
-];
+]);
 
 // Computed
 const currentUser = computed(() => profileStore.profile);
@@ -440,6 +441,11 @@ const handleFollow = async (userId: string) => {
     await activityPubStore.followUser(userId);
     // Update local counts
     followingCount.value++;
+    
+    // Update the selected user's following state if it's the same user
+    if (selectedUser.value && selectedUser.value.id === userId) {
+      selectedUser.value.is_following = true;
+    }
   } catch (error) {
     console.error('Failed to follow user:', error);
   }
@@ -450,6 +456,11 @@ const handleUnfollow = async (userId: string) => {
     await activityPubStore.unfollowUser(userId);
     // Update local counts
     followingCount.value--;
+    
+    // Update the selected user's following state if it's the same user
+    if (selectedUser.value && selectedUser.value.id === userId) {
+      selectedUser.value.is_following = false;
+    }
   } catch (error) {
     console.error('Failed to unfollow user:', error);
   }

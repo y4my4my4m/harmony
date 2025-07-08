@@ -198,6 +198,7 @@
 
     <UserProfileModal
       v-if="selectedUser"
+      :show="!!selectedUser"
       :user="selectedUser"
       @close="closeUserProfile"
       @follow="handleFollow"
