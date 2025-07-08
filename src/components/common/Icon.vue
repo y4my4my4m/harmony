@@ -239,6 +239,135 @@
     
     <!-- Chevron Down -->
     <polyline v-if="name === 'chevron-down'" points="6 9 12 15 18 9"></polyline>
+    
+    <!-- Image -->
+    <rect v-if="name === 'image'" x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+    <circle v-if="name === 'image'" cx="8.5" cy="8.5" r="1.5"></circle>
+    <polyline v-if="name === 'image'" points="21 15 16 10 5 21"></polyline>
+    
+    <!-- Smile -->
+    <circle v-if="name === 'smile'" cx="12" cy="12" r="10"></circle>
+    <path v-if="name === 'smile'" d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+    <line v-if="name === 'smile'" x1="9" y1="9" x2="9.01" y2="9"></line>
+    <line v-if="name === 'smile'" x1="15" y1="9" x2="15.01" y2="9"></line>
+    
+    <!-- Alert Triangle -->
+    <path v-if="name === 'alert-triangle'" d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+    <line v-if="name === 'alert-triangle'" x1="12" y1="9" x2="12" y2="13"></line>
+    <line v-if="name === 'alert-triangle'" x1="12" y1="17" x2="12.01" y2="17"></line>
+    
+    <!-- Globe -->
+    <circle v-if="name === 'globe'" cx="12" cy="12" r="10"></circle>
+    <line v-if="name === 'globe'" x1="2" y1="12" x2="22" y2="12"></line>
+    <path v-if="name === 'globe'" d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+    
+    <!-- Unlock -->
+    <rect v-if="name === 'unlock'" x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+    <path v-if="name === 'unlock'" d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+    
+    <!-- Users -->
+    <path v-if="name === 'users'" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+    <circle v-if="name === 'users'" cx="9" cy="7" r="4"></circle>
+    <path v-if="name === 'users'" d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+    <path v-if="name === 'users'" d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+    
+    <!-- Mail -->
+    <path v-if="name === 'mail'" d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+    <polyline v-if="name === 'mail'" points="22 6 12 13 2 6"></polyline>
+    
+    <!-- Check -->
+    <polyline v-if="name === 'check'" points="20 6 9 17 4 12"></polyline>
+    
+    <!-- Save -->
+    <path v-if="name === 'save'" d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+    <polyline v-if="name === 'save'" points="17 21 17 13 7 13 7 21"></polyline>
+    <polyline v-if="name === 'save'" points="7 3 7 8 15 8"></polyline>
+    
+    <!-- Spinner -->
+    <path v-if="name === 'spinner'" d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+    
+    <!-- Edit -->
+    <path v-if="name === 'edit'" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+    <path v-if="name === 'edit'" d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    
+    <!-- Sparkles -->
+    <path v-if="name === 'sparkles'" d="M9 11H7l1.5-4 4-1.5L11 7l-2 4z"></path>
+    <path v-if="name === 'sparkles'" d="M19 15h-2l1-3 3-1-2 2-1 2z"></path>
+    <path v-if="name === 'sparkles'" d="M5 5h2l-1 3-3 1 2-2 1-2z"></path>
+    <circle v-if="name === 'sparkles'" cx="12" cy="12" r="1"></circle>
+    
+    <!-- Reblog (Repeat) -->
+    <polyline v-if="name === 'reblog'" points="17 1 21 5 17 9"></polyline>
+    <path v-if="name === 'reblog'" d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+    <polyline v-if="name === 'reblog'" points="7 23 3 19 7 15"></polyline>
+    <path v-if="name === 'reblog'" d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+    
+    <!-- Federation (Share) -->
+    <circle v-if="name === 'federation'" cx="18" cy="5" r="3"></circle>
+    <circle v-if="name === 'federation'" cx="6" cy="12" r="3"></circle>
+    <circle v-if="name === 'federation'" cx="18" cy="19" r="3"></circle>
+    <line v-if="name === 'federation'" x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+    <line v-if="name === 'federation'" x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+    
+    <!-- Reply (Message Square) -->
+    <path v-if="name === 'reply'" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    
+    <!-- Warning (Alert Triangle) alias -->
+    <path v-if="name === 'warning'" d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+    <line v-if="name === 'warning'" x1="12" y1="9" x2="12" y2="13"></line>
+    <line v-if="name === 'warning'" x1="12" y1="17" x2="12.01" y2="17"></line>
+    
+    <!-- More Horizontal -->
+    <circle v-if="name === 'more-horizontal'" cx="12" cy="12" r="1"></circle>
+    <circle v-if="name === 'more-horizontal'" cx="19" cy="12" r="1"></circle>
+    <circle v-if="name === 'more-horizontal'" cx="5" cy="12" r="1"></circle>
+    
+    <!-- Link -->
+    <path v-if="name === 'link'" d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+    <path v-if="name === 'link'" d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+    
+    <!-- Trash -->
+    <polyline v-if="name === 'trash'" points="3 6 5 6 21 6"></polyline>
+    <path v-if="name === 'trash'" d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+    
+    <!-- Close (same as X) -->
+    <line v-if="name === 'close'" x1="18" y1="6" x2="6" y2="18"></line>
+    <line v-if="name === 'close'" x1="6" y1="6" x2="18" y2="18"></line>
+    
+    <!-- File -->
+    <path v-if="name === 'file'" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+    <polyline v-if="name === 'file'" points="14 2 14 8 20 8"></polyline>
+    <line v-if="name === 'file'" x1="16" y1="13" x2="8" y2="13"></line>
+    <line v-if="name === 'file'" x1="16" y1="17" x2="8" y2="17"></line>
+    <polyline v-if="name === 'file'" points="10 9 9 9 8 9"></polyline>
+    
+    <!-- Volume X -->
+    <polygon v-if="name === 'volume-x'" points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <line v-if="name === 'volume-x'" x1="23" y1="9" x2="17" y2="15"></line>
+    <line v-if="name === 'volume-x'" x1="17" y1="9" x2="23" y2="15"></line>
+    
+    <!-- User X -->
+    <path v-if="name === 'user-x'" d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle v-if="name === 'user-x'" cx="8.5" cy="7" r="4"></circle>
+    <line v-if="name === 'user-x'" x1="18" y1="8" x2="23" y2="13"></line>
+    <line v-if="name === 'user-x'" x1="23" y1="8" x2="18" y2="13"></line>
+    
+    <!-- Flag -->
+    <path v-if="name === 'flag'" d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+    <line v-if="name === 'flag'" x1="4" y1="22" x2="4" y2="15"></line>
+    
+    <!-- Chevron Left -->
+    <polyline v-if="name === 'chevron-left'" points="15 18 9 12 15 6"></polyline>
+    
+    <!-- Chevron Right -->
+    <polyline v-if="name === 'chevron-right'" points="9 18 15 12 9 6"></polyline>
+    
+    <!-- Mony Mascot (Custom ActivityPub/Fediverse icon) -->
+    <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="10"></circle>
+    <path v-if="name === 'mony-mascot'" d="M8 12c0-2.21 1.79-4 4-4s4 1.79 4 4"></path>
+    <circle v-if="name === 'mony-mascot'" cx="9" cy="10" r="1"></circle>
+    <circle v-if="name === 'mony-mascot'" cx="15" cy="10" r="1"></circle>
+    <path v-if="name === 'mony-mascot'" d="M8 16c.5 1 1.5 2 4 2s3.5-1 4-2"></path>
   </svg>
 </template>
 
