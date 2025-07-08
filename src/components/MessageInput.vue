@@ -470,8 +470,8 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 <style scoped>
   .message-input {
     display: flex;
-    padding: 10px 12px;
-    background-color: var(--h-chat);
+    padding: 10px 12px 20px 12px;
+    /* background-color: var(--h-chat); */
     flex-direction: column;
   }
   

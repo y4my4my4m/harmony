@@ -2,7 +2,7 @@
 
 import './assets/main.css'
 import './assets/shared.css'
-import './assets/pwa.css'
+// import './assets/pwa.css' // should only be added when on mobile
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'

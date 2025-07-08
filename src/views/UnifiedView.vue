@@ -988,8 +988,8 @@ onBeforeUnmount(() => {
   grid-template-areas: 
     "context context context context"
     "servers channels content rightbar";
-  grid-template-columns: 72px 240px 1fr 240px;
-  grid-template-rows: 48px 1fr;
+  grid-template-columns: 72px 295px 1fr 240px;
+  grid-template-rows: 36px 1fr;
   height: 100vh;
   background: transparent;
 }
@@ -1015,8 +1015,8 @@ onBeforeUnmount(() => {
 }
 .user-profile-section {
   position: fixed;
-  left:0;
-  bottom:0;
+  left: 10px;
+  bottom: 10px;
 }
 
 .main-content-area {

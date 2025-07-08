@@ -703,7 +703,6 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
 }
 
 .server-name {
-  padding: 10px;
   font-size: 1.2rem;
   font-weight: 500;
   background: var(--background-tertiary);
@@ -712,6 +711,11 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
   text-align: center;
   cursor: pointer;
   transition: 0.2s ease-in-out;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2rem;
 }
 
 .server-name:hover {

@@ -194,7 +194,7 @@ const navigationItems = computed(() => [
 
 <style scoped>
 .adaptive-channel-sidebar {
-  width: 240px;
+  width: 295px;
   height: 100%;
   display: flex;
   flex-direction: column;

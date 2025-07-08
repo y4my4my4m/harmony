@@ -238,10 +238,12 @@ const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'o
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
+  width: 345px;
   background: var(--h-black-dark);
   padding: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  height: 72px;
+  border-radius: 12px;
   /* Remove position: fixed since it's now inside the left sidebar container */
 }
 
