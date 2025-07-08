@@ -20,7 +20,7 @@
         :is="inputComponent"
         :id="inputId"
         ref="inputRef"
-        v-model="modelValue"
+        :value="modelValue"
         :type="computedType"
         :placeholder="placeholder"
         :disabled="disabled"

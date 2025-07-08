@@ -1,11 +1,12 @@
 <template>
   <UnifiedModal
-    v-model="modelValue"
+    :model-value="modelValue"
     :title="title"
     :subtitle="subtitle"
     size="sm"
     :persistent="requireConfirmation && !isConfirmed"
     @close="handleClose"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
     <template #icon>
       <svg viewBox="0 0 24 24" class="warning-icon">
@@ -24,7 +25,7 @@
       <div v-if="requireConfirmation" class="confirmation-section">
         <UnifiedInput
           v-model="confirmationInput"
-          :label="`Type "${confirmationText}" to confirm`"
+          :label="confirmationLabel"
           :placeholder="confirmationText"
           :error-message="showConfirmationError ? 'Please type the exact text to confirm' : undefined"
           autofocus
@@ -90,6 +91,10 @@ const emit = defineEmits<Emits>()
 const confirmationInput = ref('')
 const isLoading = ref(false)
 const showConfirmationError = ref(false)
+
+const confirmationLabel = computed(() => {
+  return `Type "${props.confirmationText}" to confirm`
+})
 
 const isConfirmed = computed(() => {
   if (!props.requireConfirmation) return true
