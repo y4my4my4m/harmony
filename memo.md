@@ -51,3 +51,25 @@ Do not name things "discord"
 1. server owner should be able to edit/delete messages, channels, categories
 2. server owner should be able to rename/delete categories and channels
 3. can't join voice chat on mobile because it automatically starts the channel dragging feature
+
+
+---
+
+I'd like to add a new dimension to my webapp.
+It's a chatapp like discord, but I want to add a federated activitypub so that users can follow each other across different instances, like Mastodon or Pleroma. There should be a whole "tweeting" system where users can post short messages, images, and videos, and others can follow them, just like other federated platforms. In the serverbar, there should be a button to enter the activitypub feed, which will show the posts from users you follow, and you can also post your own messages there. Notifications should be unified.
+
+Currently, we're saving the username as @username@domain (IE: @y4my4m@harmony.com), but i want to change it so that username is saved as just username (IE: y4my4m) and we have a new column that's domain (IE: harmony.com) that will be used to create the full identity.
+
+Make full use of supabase's realtime features to ensure that the activitypub feed updates in real-time when actions are performed.
+Make sure everything is professional, scalable, clean, and DRY.
+
+Harmony (the app/brand)
+mony (the action, pronounced “MO-nee”)
+monyverse (community/universe idea)
+
+I want it to have a professional and fun look, gamer/internaut ish, something modern that you'd see on dribbble.com or something, good UI/UX.
+
+Please create a professional, clean, scalable and DRY code resembling what discord and federated activitypub are doing.
+You may refactor and change almost everything but don't lose functionality
+
+Do not name things "discord"
