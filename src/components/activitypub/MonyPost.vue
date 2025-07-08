@@ -1,7 +1,7 @@
 <!-- MonyPost Component - Individual post display -->
 <!-- Professional, engaging UI for ActivityPub posts -->
 <template>
-  <article class="mony-post" :class="{ 'is-reply': post.in_reply_to }">
+  <article class="mony-post rounded" :class="{ 'is-reply': post.in_reply_to }">
     <!-- Reblog Header (if this is a reblog) -->
     <div v-if="post.reblog" class="reblog-header">
       <Icon name="reblog" class="reblog-icon" />
@@ -359,14 +359,21 @@ const vClickOutside = {
 
 <style scoped>
 .mony-post {
-  background-color: #1f2937;
-  border-bottom: 1px solid #374151;
+  background-color: var(--background-quinary);
+  border-bottom: 1px solid var(--border-color);
   transition: background-color 0.2s;
   cursor: pointer;
 }
+.mony-post.rounded {
+  min-width: 420px;
+  width: 50vw;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 16px;
+}
 
 .mony-post:hover {
-  background-color: #252f3f;
+  background-color: var(--background-quaternary);
 }
 
 .mony-post.is-reply {

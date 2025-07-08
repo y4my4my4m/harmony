@@ -3,7 +3,7 @@
     <!-- Chat Mode Content -->
     <div v-if="mode === 'chat'" class="content-section chat-content">
       <div class="chat-header">
-        <Icon name="hash" /> <span>{{ currentServer?.name || 'Channel' }}</span>
+        <div class="channel-header"><HashTagIcon class="channel-icon" /><span>{{ currentChannel?.name || 'Channel' }}</span></div>
       </div>
       <ChatComponent
         :messages="chatMessages"
@@ -17,56 +17,61 @@
     
     <!-- ActivityPub Mode Content -->
     <div v-else-if="mode === 'activitypub'" class="content-section activitypub-content">
-      <!-- New Post Composer (Inline) -->
-      <div v-if="currentFeed === 'home'" class="inline-composer">
-        <MonyComposerInline @post-created="$emit('post-created', $event)" />
+      <div class="mony-header">
+        <span>test</span>
       </div>
-
-      <!-- Timeline Feed -->
-      <div class="timeline-feed">
-        <!-- Loading State -->
-        <div v-if="isLoadingFeed && posts.length === 0" class="loading-state">
-          <div class="loading-spinner"></div>
-          <p>Loading the timeline...</p>
+      <div class="mony-content">
+        <!-- New Post Composer (Inline) -->
+        <div v-if="currentFeed === 'home'" class="inline-composer">
+          <MonyComposerInline @post-created="$emit('post-created', $event)" />
         </div>
 
-        <!-- Empty State -->
-        <div v-else-if="!isLoadingFeed && posts.length === 0" class="empty-state">
-          <Icon name="users" :size="48" />
-          <h3>Welcome to Social!</h3>
-          <p>{{ getEmptyStateMessage() }}</p>
-          <button 
-            v-if="currentFeed === 'home'" 
-            @click="$emit('switch-feed', 'public')" 
-            class="explore-btn"
-          >
-            Explore Public Timeline
-          </button>
-        </div>
+        <!-- Timeline Feed -->
+        <div class="timeline-feed">
+          <!-- Loading State -->
+          <div v-if="isLoadingFeed && posts.length === 0" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>Loading the timeline...</p>
+          </div>
 
-        <!-- Posts -->
-        <div v-else class="posts-container">
-          <MonyPost
-            v-for="post in posts"
-            :key="post.id"
-            :post="post"
-            @reply="$emit('reply-to-post', $event)"
-            @favorite="$emit('favorite-post', $event)"
-            @reblog="$emit('reblog-post', $event)"
-            @delete="$emit('delete-post', $event)"
-            @user-click="$emit('show-user-profile', $event)"
-          />
-
-          <!-- Load More -->
-          <div v-if="hasMorePosts" class="load-more-container">
-            <button
-              @click="$emit('load-more-posts')"
-              :disabled="isLoadingFeed"
-              class="load-more-btn"
+          <!-- Empty State -->
+          <div v-else-if="!isLoadingFeed && posts.length === 0" class="empty-state">
+            <Icon name="users" :size="48" />
+            <h3>Welcome to Social!</h3>
+            <p>{{ getEmptyStateMessage() }}</p>
+            <button 
+              v-if="currentFeed === 'home'" 
+              @click="$emit('switch-feed', 'public')" 
+              class="explore-btn"
             >
-              <Icon v-if="isLoadingFeed" name="loader" class="spinning" />
-              <span>{{ isLoadingFeed ? 'Loading...' : 'Load More' }}</span>
+              Explore Public Timeline
             </button>
+          </div>
+
+          <!-- Posts -->
+          <div v-else class="posts-container">
+            <MonyPost
+              v-for="post in posts"
+              :key="post.id"
+              :post="post"
+              @reply="$emit('reply-to-post', $event)"
+              @favorite="$emit('favorite-post', $event)"
+              @reblog="$emit('reblog-post', $event)"
+              @delete="$emit('delete-post', $event)"
+              @user-click="$emit('show-user-profile', $event)"
+            />
+
+            <!-- Load More -->
+            <div v-if="hasMorePosts" class="load-more-container">
+              <button
+                @click="$emit('load-more-posts')"
+                :disabled="isLoadingFeed"
+                class="load-more-btn"
+              >
+                <Icon v-if="isLoadingFeed" name="loader" class="spinning" />
+                <span>{{ isLoadingFeed ? 'Loading...' : 'Load More' }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -80,6 +85,7 @@ import ChatComponent from '@/components/ChatComponent.vue';
 import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Icon from '@/components/common/Icon.vue';
+import HashTagIcon from '@/components/icons/HashTag.vue';
 import type { Message, TimelinePost } from '@/types';
 
 interface Props {
@@ -89,6 +95,7 @@ interface Props {
   chatMessages?: Message[];
   isLoading?: boolean;
   isDM?: boolean;
+  currentChannel?: any;
   
   // ActivityPub mode props
   currentFeed?: 'home' | 'local' | 'public';
@@ -102,6 +109,7 @@ const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   isDM: false,
   currentFeed: 'home',
+  currentChannel: null,
   posts: () => [],
   isLoadingFeed: false,
   hasMorePosts: false
@@ -169,7 +177,7 @@ const getEmptyStateMessage = () => {
   /* Inherits from ChatComponent styles */
 }
 
-.chat-header {
+.chat-header, .mony-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -178,6 +186,24 @@ const getEmptyStateMessage = () => {
   background: var(--background-primary);
   height: 48px;
 }
+
+.channel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.channel-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.mony-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
 /* ActivityPub Mode Styles */
 .activitypub-content {
   overflow: hidden;
@@ -193,7 +219,6 @@ const getEmptyStateMessage = () => {
 }
 
 .inline-composer {
-  border-bottom: 1px solid var(--border-color);
   background: var(--background-primary);
   position: sticky;
   top: 0;
@@ -268,6 +293,8 @@ const getEmptyStateMessage = () => {
 .posts-container {
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .load-more-container {

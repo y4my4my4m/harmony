@@ -258,8 +258,8 @@ const navigationItems = computed(() => [
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  border-bottom: 2px solid var(--border-color);
-  background: var(--background-secondary);
+  border-bottom: 1px solid var(--border-color);
+  height: 48px;
 }
 
 .dm-title {
@@ -295,7 +295,8 @@ const navigationItems = computed(() => [
   align-items: center;
   justify-content: space-between;
   padding-bottom: 12px;
-  border-bottom: 2px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  height: 48px;
 }
 
 .social-title {

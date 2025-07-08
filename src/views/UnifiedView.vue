@@ -100,6 +100,7 @@
         :posts="posts"
         :is-loading-feed="isLoadingFeed"
         :has-more-posts="hasMorePosts"
+        :current-channel="currentChannel"
         @load-more-messages="fetchMoreMessages"
         @update:is-at-bottom="isAtBottom = $event"
         @send-message="handleSendMessage"
