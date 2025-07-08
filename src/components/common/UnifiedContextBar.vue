@@ -3,6 +3,8 @@
     <!-- Chat Mode Context Bar -->
     <div v-if="mode === 'chat'" class="context-content chat-context">
       <div class="context-left">
+      </div>
+      <div class="context-center">
         <button 
           v-if="isMobile"
           class="mobile-menu-btn"
@@ -21,8 +23,8 @@
               class="server-icon"
             />
             <div class="server-details">
-              <h2 class="server-name">{{ currentServer.name }}</h2>
-              <span v-if="currentChannel" class="channel-name"># {{ currentChannel.name }}</span>
+              <h2 class="server-name">{{ currentServer.name }}<span v-if="currentChannel" class="channel-name"># {{ currentChannel.name }}</span></h2>
+              
             </div>
           </div>
           <div class="dm-info" v-else-if="isDM">
@@ -34,7 +36,6 @@
           </div>
         </div>
       </div>
-      
       <div class="context-actions">
         <button 
           v-if="!isDM"
@@ -233,6 +234,14 @@ const currentFeedTitle = computed(() => {
   min-width: 0;
 }
 
+.context-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
 .mobile-menu-btn {
   display: flex;
   align-items: center;
@@ -295,6 +304,9 @@ const currentFeedTitle = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.channel-name {
+  margin-left: 10px;
 }
 
 .context-actions {

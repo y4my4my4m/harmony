@@ -709,13 +709,13 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
   background: var(--background-tertiary);
   position: relative;
   z-index: 1;
-  box-shadow: 0 1px 5px 0px rgba(0,0,0,0.25);
   text-align: center;
   cursor: pointer;
   transition: 0.2s ease-in-out;
 }
 
 .server-name:hover {
+  box-shadow: 0 1px 5px 0px rgba(0,0,0,0.25);
   background: var(--background-secondary);
 }
 
