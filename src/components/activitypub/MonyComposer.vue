@@ -203,7 +203,6 @@
           :closeEmojiList="() => showEmojiPicker = false"
         />
       </div>
-    </div>
   </UnifiedModal>
 </template>
 
