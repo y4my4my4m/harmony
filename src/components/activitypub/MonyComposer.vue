@@ -144,7 +144,7 @@
                 >
                   <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
                   <span class="hidden sm:inline">{{ visibilityOptions.find(v => v.value === visibility)?.label }}</span>
-                  <Icon name="chevron-down" size="16" />
+                  <Icon name="chevron-down" :size="16" />
                 </button>
 
                 <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
@@ -160,7 +160,7 @@
                       <div class="option-label">{{ option.label }}</div>
                       <div class="option-description">{{ option.description }}</div>
                     </div>
-                    <Icon v-if="visibility === option.value" name="check" size="16" />
+                    <Icon v-if="visibility === option.value" name="check" :size="16" />
                   </button>
                 </div>
               </div>

@@ -107,7 +107,7 @@
                 :title="`Visibility: ${visibilityLabels[visibility]}`"
               >
                 <Icon :name="visibilityIcons[visibility]" />
-                <Icon name="chevron-down" size="12" />
+                <Icon name="chevron-down" :size="12" />
               </button>
               
               <div v-if="showVisibilityMenu" class="visibility-menu">

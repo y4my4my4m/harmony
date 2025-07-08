@@ -31,7 +31,7 @@
               class="clear-btn"
               title="Clear search"
             >
-              <Icon name="x" size="16" />
+              <Icon name="x" :size="16" />
             </button>
           </div>
           
@@ -59,7 +59,7 @@
 
           <!-- Empty State -->
           <div v-else-if="!isSearching && searchResults.length === 0 && searchQuery" class="empty-state">
-            <Icon name="users" size="48" />
+            <Icon name="users" :size="48" />
             <h3>No users found</h3>
             <p>Try searching with a different username or display name.</p>
             <div class="search-tips">
@@ -74,7 +74,7 @@
 
           <!-- Initial State -->
           <div v-else-if="!searchQuery" class="initial-state">
-            <Icon name="search" size="48" />
+            <Icon name="search" :size="48" />
             <h3>Search for Users</h3>
             <p>Find users from this instance or across the fediverse.</p>
             

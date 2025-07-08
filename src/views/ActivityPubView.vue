@@ -130,7 +130,7 @@
 
           <!-- Empty State -->
           <div v-else-if="!isLoadingFeed && posts.length === 0" class="empty-state">
-            <Icon name="users" size="48" />
+            <Icon name="users" :size="48" />
             <h3>Welcome to the Monyverse!</h3>
             <p>{{ getEmptyStateMessage() }}</p>
             <button v-if="currentTimeline === 'home'" @click="switchTimeline('public')" class="explore-btn">

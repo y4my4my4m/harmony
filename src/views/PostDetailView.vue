@@ -27,7 +27,7 @@
 
       <!-- Error state -->
       <div v-else-if="error" class="error-state">
-        <Icon name="alert-circle" size="48" />
+        <Icon name="alert-circle" :size="48" />
         <h3>Post not found</h3>
         <p>{{ error }}</p>
         <button @click="goBack" class="back-home-btn">
@@ -100,7 +100,7 @@
 
         <!-- Empty replies state -->
         <div v-else-if="!isLoadingReplies" class="empty-replies">
-          <Icon name="message-circle" size="32" />
+          <Icon name="message-circle" :size="32" />
           <p>No replies yet. Be the first to reply!</p>
           <button @click="showReplyComposer = true" class="reply-cta-btn">
             Reply to this mony

@@ -9,7 +9,7 @@
 
     <!-- Error State -->
     <div v-else-if="error" class="error-state">
-      <Icon name="user-x" size="48" />
+      <Icon name="user-x" :size="48" />
       <h2>Profile not found</h2>
       <p>{{ error }}</p>
       <button @click="$router.go(-1)" class="back-btn">
@@ -144,7 +144,7 @@
         <!-- Posts Tab -->
         <div v-if="activeTab === 'posts'" class="posts-tab">
           <div v-if="userPosts.length === 0 && !isLoadingPosts" class="empty-state">
-            <Icon name="message-circle" size="48" />
+            <Icon name="message-circle" :size="48" />
             <h3>No monies yet</h3>
             <p>{{ isCurrentUser ? "You haven't" : `${user.display_name || user.username} hasn't` }} posted anything yet.</p>
           </div>
@@ -176,7 +176,7 @@
         <!-- Following Tab -->
         <div v-else-if="activeTab === 'following'" class="following-tab">
           <div v-if="followingUsers.length === 0" class="empty-state">
-            <Icon name="users" size="48" />
+            <Icon name="users" :size="48" />
             <h3>Not following anyone</h3>
             <p>{{ isCurrentUser ? "You're" : `${user.display_name || user.username} is` }} not following anyone yet.</p>
           </div>
@@ -195,7 +195,7 @@
         <!-- Followers Tab -->
         <div v-else-if="activeTab === 'followers'" class="followers-tab">
           <div v-if="followerUsers.length === 0" class="empty-state">
-            <Icon name="users" size="48" />
+            <Icon name="users" :size="48" />
             <h3>No followers</h3>
             <p>{{ isCurrentUser ? "You don't" : `${user.display_name || user.username} doesn't` }} have any followers yet.</p>
           </div>

@@ -73,12 +73,12 @@
         <!-- Empty State -->
         <div v-else class="empty-feed">
           <div class="empty-illustration">
-            <Icon name="mony-mascot" size="96" />
+            <Icon name="mony-mascot" :size="96" />
           </div>
           <h3>{{ emptyStateTitle }}</h3>
           <p>{{ emptyStateMessage }}</p>
           <button v-if="currentView === 'home'" class="discover-button" @click="switchFeed('public')">
-            <Icon name="globe" />
+            <Icon name="globe" :size="16" />
             <span>Discover the Monyverse</span>
           </button>
         </div>

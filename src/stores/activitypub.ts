@@ -144,8 +144,11 @@ export const useActivityPubStore = defineStore('activitypub', {
     async loadHomeFeed(maxId?: string) {
       this.isLoadingFeed = true;
       try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
         const { data, error } = await supabase.rpc('get_user_timeline', {
-          p_user_id: supabase.auth.getUser().then(u => u.data.user?.id),
+          p_user_id: user.data.user.id,
           p_timeline_type: 'home',
           p_limit: 20,
           p_max_id: maxId
@@ -153,7 +156,26 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
 
-        const posts = data.map(this.transformDatabasePostToTimelinePost);
+        const posts = data ? data.map(this.transformTimelineResultToTimelinePost) : [];
+        
+        // If no timeline data exists, fallback to direct post query for development
+        if (posts.length === 0 && !maxId) {
+          console.warn('No timeline entries found, falling back to direct post query');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('posts')
+            .select(`
+              *,
+              author:profiles(*)
+            `)
+            .eq('visibility', 'public')
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false })
+            .limit(10);
+          
+          if (!fallbackError && fallbackData) {
+            posts.push(...fallbackData.map(this.transformDatabasePostToTimelinePost));
+          }
+        }
         
         if (maxId) {
           this.homeFeed.posts.push(...posts);
@@ -177,7 +199,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     async loadPublicFeed(maxId?: string) {
       this.isLoadingFeed = true;
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('posts')
           .select(`
             *,
@@ -187,6 +209,21 @@ export const useActivityPubStore = defineStore('activitypub', {
           .eq('is_deleted', false)
           .order('created_at', { ascending: false })
           .limit(20);
+
+        // Add pagination if maxId is provided
+        if (maxId) {
+          const { data: maxPost } = await supabase
+            .from('posts')
+            .select('created_at')
+            .eq('id', maxId)
+            .single();
+          
+          if (maxPost) {
+            query = query.lt('created_at', maxPost.created_at);
+          }
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
@@ -382,6 +419,50 @@ export const useActivityPubStore = defineStore('activitypub', {
           is_favorited: false,
           is_reblogged: false,
           is_bookmarked: false
+        }
+      };
+    },
+
+    /**
+     * Transform RPC timeline result to TimelinePost
+     */
+    transformTimelineResultToTimelinePost(result: any): TimelinePost {
+      return {
+        id: result.post_id,
+        created_at: result.created_at,
+        updated_at: result.created_at, // RPC doesn't return updated_at
+        content: result.content,
+        content_warning: undefined, // Not returned by RPC
+        language: 'en', // Default
+        author_id: result.author_id,
+        ap_id: undefined, // Not returned by RPC
+        ap_type: 'Note', // Default
+        url: undefined, // Not returned by RPC
+        in_reply_to: result.in_reply_to,
+        conversation_id: undefined, // Not returned by RPC
+        visibility: result.visibility,
+        is_local: true, // Default for now
+        is_federated: true, // Default for now
+        replies_count: result.replies_count,
+        reblogs_count: result.reblogs_count,
+        favorites_count: result.favorites_count,
+        media_attachments: result.media_attachments || [],
+        metadata: {}, // Default
+        is_sensitive: false, // Default
+        is_deleted: false, // Default
+        deleted_at: undefined,
+        author: {
+          id: result.author_id,
+          username: result.author_username,
+          display_name: result.author_display_name,
+          avatar_url: result.author_avatar_url,
+          domain: result.author_domain,
+          handle: `@${result.author_username}${result.author_domain !== 'harmony.com' ? '@' + result.author_domain : ''}`
+        },
+        interactions: {
+          is_favorited: result.is_favorited,
+          is_reblogged: result.is_reblogged,
+          is_bookmarked: false // Not returned by RPC
         }
       };
     },

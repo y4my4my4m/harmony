@@ -322,6 +322,12 @@
     <circle v-if="name === 'users'" cx="9" cy="7" r="4"></circle>
     <path v-if="name === 'users'" d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
     <path v-if="name === 'users'" d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+
+    <!-- User Plus -->
+    <path v-if="name === 'user-plus'" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+    <circle v-if="name === 'user-plus'" cx="9" cy="7" r="4"></circle>
+    <line v-if="name === 'user-plus'" x1="16" y1="11" x2="22" y2="11"></line>
+    <line v-if="name === 'user-plus'" x1="19" y1="8" x2="19" y2="14"></line>
     
     <!-- Mail -->
     <path v-if="name === 'mail'" d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
