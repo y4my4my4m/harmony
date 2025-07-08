@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import ChatView from '@/views/ChatView.vue';
+import UnifiedView from '@/views/UnifiedView.vue';
 import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
@@ -17,15 +17,21 @@ const router = createRouter({
     {
       path: '/chat/:serverId?/:channelId?',
       name: 'Chat',
-      component: ChatView,
-      props: true,
+      component: UnifiedView,
+      props: route => ({
+        mode: 'chat',
+        serverId: route.params.serverId,
+        channelId: route.params.channelId,
+        isDM: false
+      }),
       meta: { requiresAuth: true },
     },
     {
       path: '/dm/:conversationId?',
       name: 'DM',
-      component: ChatView,
+      component: UnifiedView,
       props: route => ({ 
+        mode: 'chat',
         isDM: true, 
         conversationId: route.params.conversationId 
       }),
@@ -34,8 +40,21 @@ const router = createRouter({
     {
       path: '/dm',
       name: 'DMHome',
-      component: ChatView,
-      props: { isDM: true },
+      component: UnifiedView,
+      props: { 
+        mode: 'chat',
+        isDM: true 
+      },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/social/:timeline?',
+      name: 'Social',
+      component: UnifiedView,
+      props: route => ({ 
+        mode: 'activitypub',
+        timeline: route.params.timeline || 'home'
+      }),
       meta: { requiresAuth: true },
     },
     {
@@ -48,12 +67,13 @@ const router = createRouter({
       name: 'Register',
       component: RegisterView
     },
+    // Legacy route redirects for backward compatibility
     {
       path: '/monyverse/:timeline?',
       name: 'Monyverse',
-      component: () => import('@/views/ActivityPubView.vue'),
-      props: route => ({ 
-        timeline: route.params.timeline || 'home'
+      redirect: route => ({
+        name: 'Social',
+        params: { timeline: route.params.timeline || 'home' }
       }),
       meta: { requiresAuth: true },
     },
@@ -119,6 +139,7 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'Login' });
   } else if ((to.name === 'Login' || to.name === 'Home') && isLoggedIn) {
+    // Default to chat mode when logging in
     next({ name: 'Chat' });
   } else {
     next();
