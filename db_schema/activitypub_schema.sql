@@ -586,7 +586,7 @@ BEGIN
     WHERE te.user_id = p_user_id
     AND te.timeline_type = p_timeline_type
     AND p.is_deleted = false
-    AND (p_max_id IS NULL OR p.created_at < (SELECT created_at FROM posts WHERE id = p_max_id))
+    AND (p_max_id IS NULL OR p.created_at < (SELECT p2.created_at FROM posts p2 WHERE p2.id = p_max_id))
     ORDER BY p.created_at DESC
     LIMIT p_limit;
 END;

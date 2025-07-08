@@ -197,17 +197,17 @@ const switchFeed = async (feedType: 'home' | 'public' | 'local') => {
   switch (feedType) {
     case 'home':
       if (activityPubStore.homeFeed.posts.length === 0) {
-        await activityPubStore.loadHomeFeed(true);
+        await activityPubStore.loadHomeFeed();
       }
       break;
     case 'public':
       if (activityPubStore.publicFeed.posts.length === 0) {
-        await activityPubStore.loadPublicFeed(true);
+        await activityPubStore.loadPublicFeed();
       }
       break;
     case 'local':
       if (activityPubStore.localFeed.posts.length === 0) {
-        await activityPubStore.loadLocalFeed(true);
+        await activityPubStore.loadLocalFeed();
       }
       break;
   }
@@ -215,15 +215,21 @@ const switchFeed = async (feedType: 'home' | 'public' | 'local') => {
 
 const loadMore = () => {
   switch (currentView.value) {
-    case 'home':
-      activityPubStore.loadHomeFeed(false);
+    case 'home': {
+      const homeLastPost = activityPubStore.homeFeed.posts[activityPubStore.homeFeed.posts.length - 1];
+      activityPubStore.loadHomeFeed(homeLastPost?.id);
       break;
-    case 'public':
-      activityPubStore.loadPublicFeed(false);
+    }
+    case 'public': {
+      const publicLastPost = activityPubStore.publicFeed.posts[activityPubStore.publicFeed.posts.length - 1];
+      activityPubStore.loadPublicFeed(publicLastPost?.id);
       break;
-    case 'local':
-      activityPubStore.loadLocalFeed(false);
+    }
+    case 'local': {
+      const localLastPost = activityPubStore.localFeed.posts[activityPubStore.localFeed.posts.length - 1];
+      activityPubStore.loadLocalFeed(localLastPost?.id);
       break;
+    }
   }
 };
 
@@ -302,7 +308,7 @@ onMounted(async () => {
   await activityPubStore.initializeRealtime();
   
   // Load initial home feed
-  await activityPubStore.loadHomeFeed(true);
+  await activityPubStore.loadHomeFeed();
 });
 
 onUnmounted(() => {
@@ -313,7 +319,7 @@ onUnmounted(() => {
 // Auto-refresh on focus
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && currentView.value === 'home') {
-    activityPubStore.loadHomeFeed(true);
+    activityPubStore.loadHomeFeed();
   }
 });
 </script>

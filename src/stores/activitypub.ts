@@ -227,7 +227,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (error) throw error;
 
-        const posts = data.map(this.transformDatabasePostToTimelinePost);
+        const posts = data ? data.map(this.transformDatabasePostToTimelinePost) : [];
         
         if (maxId) {
           this.publicFeed.posts.push(...posts);
@@ -240,6 +240,59 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       } catch (error) {
         console.error('Failed to load public feed:', error);
+      } finally {
+        this.isLoadingFeed = false;
+      }
+    },
+
+    /**
+     * Load the local timeline
+     */
+    async loadLocalFeed(maxId?: string) {
+      this.isLoadingFeed = true;
+      try {
+        let query = supabase
+          .from('posts')
+          .select(`
+            *,
+            author:profiles(*)
+          `)
+          .eq('visibility', 'public')
+          .eq('is_deleted', false)
+          .eq('is_local', true) // Only local posts
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        // Add pagination if maxId is provided
+        if (maxId) {
+          const { data: maxPost } = await supabase
+            .from('posts')
+            .select('created_at')
+            .eq('id', maxId)
+            .single();
+          
+          if (maxPost) {
+            query = query.lt('created_at', maxPost.created_at);
+          }
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+
+        const posts = data ? data.map(this.transformDatabasePostToTimelinePost) : [];
+        
+        if (maxId) {
+          this.localFeed.posts.push(...posts);
+        } else {
+          this.localFeed.posts = posts;
+        }
+
+        this.localFeed.has_more = posts.length === 20;
+        this.localFeed.cursor = posts[posts.length - 1]?.id;
+
+      } catch (error) {
+        console.error('Failed to load local feed:', error);
       } finally {
         this.isLoadingFeed = false;
       }
