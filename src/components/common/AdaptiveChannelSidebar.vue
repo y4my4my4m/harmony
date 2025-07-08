@@ -127,11 +127,6 @@
         </div>
       </div>
     </div>
-    
-    <!-- User Profile at Bottom -->
-    <div class="user-profile-section">
-      <UserProfileComponent />
-    </div>
   </div>
 </template>
 
@@ -140,7 +135,6 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import ChannelSidebar from '@/components/ChannelSidebar.vue';
 import DMSidebar from '@/components/DMSidebar.vue';
-import UserProfileComponent from '@/components/UserProfileComponent.vue';
 import Icon from '@/components/common/Icon.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';

@@ -52,26 +52,27 @@
               <span class="channel-name">{{ element.name }}</span>
             </div>
             <!-- Voice channel controls -->
-            <div v-if="element.type === 1" class="voice-controls">                    <button
-                      v-if="!isUserInVoiceChannel(element.id)"
-                      @click.stop="joinVoiceChannel(element.id)"
-                      @touchstart.stop="handleVoiceChannelTouch"
-                      @touchend.stop="handleVoiceChannelTouch"
-                      class="voice-btn join-btn"
-                      title="Join voice channel"
-                    >
-                      🎤
-                    </button>
-                    <button
-                      v-else
-                      @click.stop="leaveVoiceChannel(element.id)"
-                      @touchstart.stop="handleVoiceChannelTouch"
-                      @touchend.stop="handleVoiceChannelTouch"
-                      class="voice-btn leave-btn"
-                      title="Leave voice channel"
-                    >
-                      🔇
-                    </button>
+            <div v-if="element.type === 1" class="voice-controls">
+              <button
+                v-if="!isUserInVoiceChannel(element.id)"
+                @click.stop="joinVoiceChannel(element.id)"
+                @touchstart.stop="handleVoiceChannelTouch"
+                @touchend.stop="handleVoiceChannelTouch"
+                class="voice-btn join-btn"
+                title="Join voice channel"
+              >
+                🎤
+              </button>
+              <button
+                v-else
+                @click.stop="leaveVoiceChannel(element.id)"
+                @touchstart.stop="handleVoiceChannelTouch"
+                @touchend.stop="handleVoiceChannelTouch"
+                class="voice-btn leave-btn"
+                title="Leave voice channel"
+              >
+                🔇
+              </button>
               <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
                 {{ getUsersInVoiceChannel(element.id).length }}
               </span>
@@ -252,8 +253,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, ref, computed, watch, onMounted, onUnmounted } from 'vue';
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
@@ -288,792 +289,397 @@ interface DragState {
   isOver: boolean;
 }
 
-export default defineComponent({
-  name: 'ChannelSidebar',
-  components: {
-    ServerDropdown,
-    CategoryCreator,
-    ArrowDownIcon,
-    HashTagIcon,
-    SpeakerIcon,
-    draggable,
-    InviteModal,
-    ChannelContextMenu,
-    CategoryContextMenu,
-    ChannelEditModal,
-    CategoryEditModal,
-    ConfirmationModal,
+// Props and Emits
+const props = defineProps({
+  currentServer: {
+    type: Object,
+    required: true
   },
-  props: {
-    currentServer: {
-      type: Object,
-      required: true
-    },
-    channels: {
-      type: Array as PropType<Channel[]>,
-      required: true
-    },
-    categories: {
-      type: Array as PropType<Category[]>,
-    },
-    categoryChannels: {
-      type: Object as PropType<{ [key: string]: Channel[] }>,
-      required: true
-    },
-    currentChannelId: {
-      type: String,
-      required: true
-    },
+  channels: {
+    type: Array as PropType<Channel[]>,
+    required: true
   },
-  setup(props, { emit }) {
-    const isDropdownOpen = ref(false);
-    const showInviteModal = ref(false);
-    const isCategoryCreatorOpen = ref(false);
-    const serverChannelStore = useServerChannelStore();
-    const authStore = useAuthStore();
-    const router = useRouter();
-    
-    // Context menu state
-    const showChannelContextMenu = ref(false);
-    const showCategoryContextMenu = ref(false);
-    const contextMenuPosition = ref({ x: 0, y: 0 });
-    const selectedChannel = ref<Channel | null>(null);
-    const selectedCategory = ref<Category | null>(null);
-    
-    // Modal state
-    const showChannelEditModal = ref(false);
-    const showCategoryEditModal = ref(false);
-    const showConfirmationModal = ref(false);
-    const confirmationConfig = ref({
-      title: '',
-      message: '',
-      secondaryMessage: '',
-      confirmButtonText: 'Delete',
-      requireConfirmation: false,
-      confirmationText: 'DELETE',
-      onConfirm: () => {}
-    });
-    
-    // Use the channel permissions composable
-    const {
-      canDragAndDrop,
-      canCreateChannels,
-      canMoveChannelsBetweenCategories,
-      getDragCursor,
-    } = useChannelPermissions();
+  categories: {
+    type: Array as PropType<Category[]>,
+  },
+  categoryChannels: {
+    type: Object as PropType<{ [key: string]: Channel[] }>,
+    required: true
+  },
+  currentChannelId: {
+    type: String,
+    required: true
+  },
+});
 
-    // Drag state management
-    const dragState = ref<DragState>({
-      isDragging: false,
-      draggedItem: null,
-      sourceCategoryId: null,
-      targetCategoryId: null,
-      isOver: false,
-    });
+const emit = defineEmits<{
+  (e: 'createChannel', categoryId?: string): void
+}>();
 
-    // Check if we're on mobile device
-    const isMobile = computed(() => {
-      return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    });
+// State
+const isDropdownOpen = ref(false);
+const showInviteModal = ref(false);
+const isCategoryCreatorOpen = ref(false);
 
-    // Modify drag group to disable on mobile for voice channels
-    const dragGroup = computed(() => ({
-      name: 'channels',
-      put: canDragAndDrop.value && !isMobile.value,
-      pull: canDragAndDrop.value && !isMobile.value,
-    }));
+// Context menu state
+const showChannelContextMenu = ref(false);
+const showCategoryContextMenu = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
+const selectedChannel = ref<Channel | null>(null);
+const selectedCategory = ref<Category | null>(null);
 
-    // Handle voice channel touch events to prevent drag conflict
-    const handleVoiceChannelTouch = (event: TouchEvent) => {
-      // Stop event propagation to prevent drag and drop from interfering
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-    };
+// Modal state
+const showChannelEditModal = ref(false);
+const showCategoryEditModal = ref(false);
+const showConfirmationModal = ref(false);
+const confirmationConfig = ref({
+  title: '',
+  message: '',
+  secondaryMessage: '',
+  confirmButtonText: 'Delete',
+  requireConfirmation: false,
+  confirmationText: 'DELETE',
+  onConfirm: () => {}
+});
 
-    const userId = computed(() => {
-      return authStore.session?.user?.id || '';
-    });
+// Drag state
+const dragState = ref<DragState>({
+  isDragging: false,
+  draggedItem: null,
+  sourceCategoryId: null,
+  targetCategoryId: null,
+  isOver: false,
+});
 
-    // Enhanced collapsed categories state with persistence
-    const collapsedCategories = ref(new Set<string>())
+// Stores and Composables
+const serverChannelStore = useServerChannelStore();
+const authStore = useAuthStore();
+const router = useRouter();
+const serverUsersStore = useServerUsersStore();
+const voiceChannelStore = useUnifiedVoiceChannelStore();
+const themeStore = useThemeStore();
+const { canDragAndDrop, canCreateChannels, canMoveChannelsBetweenCategories, getDragCursor } = useChannelPermissions();
 
-    // Initialize category collapse states from persistence
-    const initializeCategoryStates = async () => {
-      if (!props.currentServer?.id) return
-      
-      try {
-        await statePersistence.initialize()
-        const savedStates = statePersistence.getServerCategoryStates(props.currentServer.id)
-        
-        // Apply saved collapse states
-        const newCollapsedSet = new Set<string>()
-        Object.entries(savedStates).forEach(([categoryId, isCollapsed]) => {
-          if (isCollapsed) {
-            newCollapsedSet.add(categoryId)
-          }
-        })
-        
-        collapsedCategories.value = newCollapsedSet
-        console.log('📂 Initialized category states for server:', props.currentServer.id, savedStates)
-      } catch (error) {
-        console.warn('⚠️ Failed to initialize category states:', error)
-      }
+// Computed Properties
+const isMobile = computed(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+const userId = computed(() => authStore.session?.user?.id || '');
+
+const dragGroup = computed(() => ({
+  name: 'channels',
+  put: canDragAndDrop.value && !isMobile.value,
+  pull: canDragAndDrop.value && !isMobile.value,
+}));
+
+const currentServerData = computed(() => {
+  const memberCount = Object.keys(serverUsersStore.userProfiles).length || props.currentServer.member_count || 0;
+  return {
+    id: props.currentServer.id,
+    name: props.currentServer.name,
+    icon_url: props.currentServer.icon_url,
+    member_count: memberCount
+  };
+});
+
+// Category & Channel Data Management
+const collapsedCategories = ref(new Set<string>());
+
+const orphanChannels = computed({
+  get: () => {
+    if (!props.channels || !Array.isArray(props.channels)) return [];
+    const categoryChannelIds = new Set(Object.values(props.categoryChannels || {}).flat().map(c => c.id));
+    return props.channels
+      .filter(channel => !categoryChannelIds.has(channel.id))
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  },
+  set: async (newChannels) => {
+    try {
+      await serverChannelStore.reorderChannelsInCategory(null, newChannels);
+    } catch (error) {
+      console.error('Failed to reorder orphan channels:', error);
     }
+  }
+});
 
-    // Watch for server changes to load category states
-    watch(() => props.currentServer?.id, async (newServerId) => {
-      if (newServerId) {
-        await initializeCategoryStates()
-      }
-    }, { immediate: true })
+const categoryChannelsCache = ref<Map<string, any>>(new Map());
 
-    // Compute orphan channels (channels not in any category)
-    const orphanChannels = computed({
-      get: () => {
-        if (!props.channels || !Array.isArray(props.channels)) {
-          return [];
-        }
-        
-        const categoryChannelIds = new Set();
-        Object.values(props.categoryChannels || {}).forEach(channels => {
-          channels.forEach(channel => categoryChannelIds.add(channel.id));
-        });
-        
-        return props.channels
-          .filter(channel => !categoryChannelIds.has(channel.id))
-          .sort((a, b) => (a.order || 0) - (b.order || 0));
-      },
-      set: async (newChannels) => {
-        // Handle reordering of orphan channels
-        try {
-          await serverChannelStore.reorderChannelsInCategory(null, newChannels);
-        } catch (error) {
-          console.error('Failed to reorder orphan channels:', error);
-        }
-      }
-    });
-
-    // Create computed properties for each category's channels with proper setters
-    const getCategoryChannelsComputed = (categoryId: string) => {
-      return computed({
-        get: () => {
-          const categoryChannels = props.categoryChannels?.[categoryId] || [];
-          const channelsInCategory = props.channels
-            .filter(channel => categoryChannels.some(catChannel => catChannel.id === channel.id))
-            .sort((a, b) => (a.order || 0) - (b.order || 0));
-          
-          // If category is collapsed, only show selected channel and channels with notifications
-          if (collapsedCategories.value.has(categoryId)) {
-            return channelsInCategory.filter(channel => 
-              channel.id === props.currentChannelId || hasNotifications(channel)
-            );
-          }
-          
-          // If expanded, show all channels
-          return channelsInCategory;
-        },
-        set: async (newChannels: Channel[]) => {
-          // Handle reordering within the same category
-          try {
-            await serverChannelStore.reorderChannelsInCategory(categoryId, newChannels);
-          } catch (error) {
-            console.error(`Failed to reorder channels in category ${categoryId}:`, error);
-          }
-        }
-      });
-    };
-
-    // Cache computed properties for categories to avoid recreation
-    const categoryChannelsCache = ref<Map<string, any>>(new Map());
-    
-    const getCachedCategoryChannels = (categoryId: string) => {
-      if (!categoryChannelsCache.value.has(categoryId)) {
-        categoryChannelsCache.value.set(categoryId, getCategoryChannelsComputed(categoryId));
-      }
-      return categoryChannelsCache.value.get(categoryId);
-    };
-
-    // Clear cache when categories change - watch store categories instead of props
-    watch(() => serverChannelStore.categories, () => {
-      categoryChannelsCache.value.clear();
-    }, { deep: true });
-
-    // Also clear cache when store categoryChannels mapping changes
-    watch(() => serverChannelStore.categoryChannels, () => {
-      categoryChannelsCache.value.clear();
-    }, { deep: true });
-
-    // Instead of using props.categories, read directly from store for immediate reactivity
-    const storeCategories = computed(() => serverChannelStore.categories);
-
-    const combinedCategories = computed(() => {
-      if (!Array.isArray(storeCategories.value)) {
-        return [];
-      }
-      return storeCategories.value.map(category => {
-        return {
-          ...category,
-          expanded: !collapsedCategories.value.has(category.id), // Use our centralized state
-          channels: props.categoryChannels[category.id] || [],
-        };
-      });
-    });
-
-    // Force reactivity by using a key that changes when categories change
-    const categoriesKey = computed(() => {
-      return serverChannelStore.categories.map((c: any) => `${c.id}-${c.order}`).join(',');
-    });
-
-    // Reorderable categories for drag and drop - now reactive to store changes
-    const reorderableCategories = computed({
-      get: () => {
-        // console.log('🔄 Categories getter called, current order:', serverChannelStore.categories.map(c => `${c.name}(${c.order})`));
-        return combinedCategories.value;
-      },
-      set: (newCategories) => {
-        // console.log('🎯 Setting new category order:', newCategories.map(c => `${c.name}(${c.order})`));
-        // Handle category reordering
-        serverChannelStore.updateCategoryOrder(newCategories);
-      }
-    });
-
-    // Drag event handlers
-    const onDragStart = (evt: any) => {
-      if (!canDragAndDrop.value) {
-        evt.preventDefault();
-        return false;
-      }
-
-      const channelId = evt.item.dataset.channelId;
-      const categoryId = evt.item.dataset.categoryId;
+const getCategoryChannelsComputed = (categoryId: string) => {
+  return computed({
+    get: () => {
+      const categoryChannels = props.categoryChannels?.[categoryId] || [];
+      const channelsInCategory = props.channels
+        .filter(channel => categoryChannels.some(catChannel => catChannel.id === channel.id))
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
       
-      // Find the channel being dragged
-      let draggedChannel: Channel | null = null;
-      
-      if (categoryId === 'null' || !categoryId) {
-        // Dragging from orphan channels
-        draggedChannel = orphanChannels.value.find(ch => ch.id === channelId) || null;
-      } else {
-        // Dragging from a category
-        const categoryChannels = props.categoryChannels[categoryId] || [];
-        draggedChannel = categoryChannels.find(ch => ch.id === channelId) || null;
-      }
-
-      if (!draggedChannel) {
-        console.error('Could not find dragged channel:', channelId);
-        evt.preventDefault();
-        return false;
-      }
-
-      dragState.value = {
-        isDragging: true,
-        draggedItem: draggedChannel,
-        sourceCategoryId: categoryId === 'null' ? null : categoryId,
-        targetCategoryId: null,
-        isOver: false,
-      };
-
-      // Add visual feedback
-      document.body.classList.add('dragging-channel');
-    };
-
-    const onDragEnd = async (evt: any) => {
-      // Clean up visual feedback
-      document.body.classList.remove('dragging-channel');
-      
-      const wasSuccessfulMove = evt.to !== evt.from || evt.newIndex !== evt.oldIndex;
-      
-      if (wasSuccessfulMove && dragState.value.draggedItem) {
-        console.log('Drag completed successfully');
-      }
-
-      // Reset drag state
-      dragState.value = {
-        isDragging: false,
-        draggedItem: null,
-        sourceCategoryId: null,
-        targetCategoryId: null,
-        isOver: false,
-      };
-    };
-
-    const onChannelAddedToCategory = async (evt: { item: HTMLElement }, categoryId: string) => {
-      if (!canMoveChannelsBetweenCategories.value) {
-        console.warn('No permission to move channels between categories');
-        return;
-      }
-
-      const channelId = evt.item.dataset.channelId;
-      const draggedChannel = dragState.value.draggedItem;
-
-      if (!draggedChannel || draggedChannel.id !== channelId) {
-        console.error('Channel data mismatch during category move');
-        return;
-      }
-
-      try {
-        console.log(`Moving channel ${channelId} to category ${categoryId}`);
-        await serverChannelStore.moveChannelToCategory(channelId, categoryId);
-        // No need to refresh data - optimistic updates handle this
-      } catch (error) {
-        console.error('Failed to move channel to category:', error);
-        // The store will automatically rollback on error
-      }
-    };
-
-    const onChannelAddedToOrphans = async (evt: any) => {
-      if (!canMoveChannelsBetweenCategories.value) {
-        console.warn('No permission to move channels');
-        return;
-      }
-
-      const channelId = evt.item.dataset.channelId;
-      const draggedChannel = dragState.value.draggedItem;
-
-      if (!draggedChannel || draggedChannel.id !== channelId) {
-        console.error('Channel data mismatch during orphan move');
-        return;
-      }
-
-      try {
-        console.log(`Moving channel ${channelId} to orphan channels (no category)`);
-        await serverChannelStore.moveChannelToCategory(channelId, null);
-        // No need to refresh data - optimistic updates handle this
-      } catch (error) {
-        console.error('Failed to move channel to orphan channels:', error);
-        // The store will automatically rollback on error
-      }
-    };
-
-    const onChannelRemovedFromCategory = () => {
-      // This is handled by the add events, just logging for debugging
-      console.log('Channel removed from category');
-    };
-
-    // Channel filtering and organization
-    const getVisibleChannelsForCategory = (category: Category): Channel[] => {
-      const categoryChannels = props.categoryChannels?.[category.id] || [];
-      const channelsInCategory = props.channels.filter(channel => 
-        categoryChannels.some(catChannel => catChannel.id === channel.id)
-      );
-      
-      // If category is collapsed, only show selected channel and channels with notifications
-      if (collapsedCategories.value.has(category.id)) {
+      if (collapsedCategories.value.has(categoryId)) {
         return channelsInCategory.filter(channel => 
           channel.id === props.currentChannelId || hasNotifications(channel)
         );
       }
-      
-      // If expanded, show all channels
       return channelsInCategory;
-    };
-
-    // Channel icon mapping
-    const getChannelIcon = (channelType: number): string => {
-      // Updated to handle numeric channel types
-      const iconMap: Record<number, string> = {
-        0: 'HashTagIcon', // text channel
-        1: 'SpeakerIcon', // voice channel
-        2: 'mdi-video', // video channel
-        3: 'mdi-bullhorn', // announcement channel
-        4: 'mdi-forum' // forum channel
-      };
-      return iconMap[channelType] || 'HashTagIcon';
-    };
-
-    // Enhanced notification checking
-    const hasNotifications = (channel: Channel): boolean => {
-      // TODO: Implement actual notification checking logic
-      // For now, return false, but this should check for:
-      // - Unread messages  
-      // - Mentions
-      // - Important announcements
-      console.log('Checking notifications for channel:', channel.id);
-      return false;
-    };
-
-    // Updated helper to determine if category content should be shown
-    const shouldShowCategoryContent = (category: Category): boolean => {
-      const categoryChannels = props.categoryChannels?.[category.id] || [];
-      const channelsInCategory = props.channels.filter(channel => 
-        categoryChannels.some(catChannel => catChannel.id === channel.id)
-      );
-      
-      // Always show if category is expanded
-      if (!collapsedCategories.value.has(category.id)) {
-        return channelsInCategory.length > 0;
+    },
+    set: async (newChannels: Channel[]) => {
+      try {
+        await serverChannelStore.reorderChannelsInCategory(categoryId, newChannels);
+      } catch (error) {
+        console.error(`Failed to reorder channels in category ${categoryId}:`, error);
       }
-      
-      // If collapsed, show if there are important channels (selected or with notifications)
-      const hasImportantChannels = channelsInCategory.some(channel => 
-        channel.id === props.currentChannelId || hasNotifications(channel)
-      );
-      
-      return hasImportantChannels;
-    };
-
-    // Category collapse toggle with persistence
-    const toggleCategory = async (categoryId: string) => {
-      const wasCollapsed = collapsedCategories.value.has(categoryId)
-      
-      if (wasCollapsed) {
-        collapsedCategories.value.delete(categoryId)
-      } else {
-        collapsedCategories.value.add(categoryId)
-      }
-      
-      // Persist the new state
-      if (props.currentServer?.id) {
-        try {
-          await statePersistence.setCategoryCollapseState(
-            props.currentServer.id, 
-            categoryId, 
-            !wasCollapsed
-          )
-        } catch (error) {
-          console.warn('⚠️ Failed to persist category collapse state:', error)
-        }
-      }
-      
-      console.log('📂 Category toggled:', { categoryId, collapsed: !wasCollapsed })
     }
+  });
+};
 
-    // Helper functions for Discord-like behavior
-    const toggleDropdown = () => {
-      isDropdownOpen.value = !isDropdownOpen.value;
-    };
+const getCachedCategoryChannels = (categoryId: string) => {
+  if (!categoryChannelsCache.value.has(categoryId)) {
+    categoryChannelsCache.value.set(categoryId, getCategoryChannelsComputed(categoryId));
+  }
+  return categoryChannelsCache.value.get(categoryId);
+};
 
-    const selectChannel = (channelId: string) => {
-      router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId } });
-    };
+const storeCategories = computed(() => serverChannelStore.categories);
 
-    const emitCreateChannel = (categoryId?: string) => {
-      emit('createChannel', categoryId);
-    };
-
-    const showCategoryCreator = () => {
-      isCategoryCreatorOpen.value = !isCategoryCreatorOpen.value;
-    };
-
-    const openInviteModal = () => {
-      showInviteModal.value = true;
-    };
-
-    const closeInviteModal = () => {
-      showInviteModal.value = false;
-    };
-
-    // Current server data for invite modal
-    const currentServerData = computed(() => {
-      // Get member count from the users store since it's more accurate
-      const memberCount = Object.keys(serverUsersStore.userProfiles).length || props.currentServer.member_count || 0;
-      
-      return {
-        id: props.currentServer.id,
-        name: props.currentServer.name,
-        icon_url: props.currentServer.icon_url,
-        member_count: memberCount
-      };
-    });
-
-    const createCategory = async (categoryName: string) => {
-      try {
-        const category = await serverChannelStore.createCategory(categoryName, props.currentServer.id);
-        if (category) {
-          // Refresh categories and channels to show the new category
-          await serverChannelStore.fetchCategoriesAndChannels(props.currentServer.id);
-          console.log('Category created successfully:', category);
-        }
-      } catch (error) {
-        console.error('Failed to create category:', error);
-      } finally {
-        isCategoryCreatorOpen.value = false;
-      }
-    };
-
-    const handleChannelCreated = (channel: Channel) => {
-      console.log('Channel created:', channel);
-      selectChannel(channel.id);
-      serverChannelStore.fetchChannels(props.currentServer.id);
-    };
-
-    // Voice channel methods
-    const serverUsersStore = useServerUsersStore();
-    const voiceChannelStore = useUnifiedVoiceChannelStore();
-    const themeStore = useThemeStore();
-    
-    // Voice connection audio and state
-
-    const isUserInVoiceChannel = (channelId: string): boolean => {
-      if (!userId.value) return false;
-      // Check if we're connected to this specific voice channel via the voice store
-      return voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId;
-    };
-
-    const getUsersInVoiceChannel = (channelId: string): string[] => {
-      return serverUsersStore.getUsersInVoiceChannel(channelId);
-    };
-
-    const joinVoiceChannel = async (channelId: string) => {
-      if (!userId.value || !props.currentServer?.id) return;
-      
-      try {
-        console.log(`🎯 Joining voice channel ${channelId} directly`);
-        
-        // Join voice channel directly without navigating away from current text channel
-        const success = await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id);
-        
-        if (success) {
-          console.log(`✅ Successfully joined voice channel ${channelId}`);
-          themeStore.testAudio('voice_connect');
-        } else {
-          console.error('❌ Failed to join voice channel');
-        }
-      } catch (error) {
-        console.error('❌ Error joining voice channel:', error);
-      }
-    };
-
-    const leaveVoiceChannel = async (channelId: string) => {
-      if (!userId.value || !props.currentServer?.id) return;
-      
-      try {
-        // Use the voice channel store which handles both WebRTC disconnection and server presence
-        const success = await voiceChannelStore.leaveVoiceChannel();
-        
-        if (success) {
-          console.log(`Successfully left voice channel ${channelId}`);
-          themeStore.testAudio('voice_disconnect');
-        }
-      } catch (error) {
-        console.error('Failed to leave voice channel:', error);
-      }
-    };
-
-    // Context menu handlers
-    const openChannelContextMenu = (event: MouseEvent, channel: Channel) => {
-      event.preventDefault();
-      event.stopPropagation();
-      
-      selectedChannel.value = channel;
-      contextMenuPosition.value = { x: event.clientX, y: event.clientY };
-      showChannelContextMenu.value = true;
-      
-      // Close category context menu if open
-      showCategoryContextMenu.value = false;
-    };
-
-    const openCategoryContextMenu = (event: MouseEvent, category: Category) => {
-      event.preventDefault();
-      event.stopPropagation();
-      
-      selectedCategory.value = category;
-      contextMenuPosition.value = { x: event.clientX, y: event.clientY };
-      showCategoryContextMenu.value = true;
-      
-      // Close channel context menu if open
-      showChannelContextMenu.value = false;
-    };
-
-    const closeContextMenus = () => {
-      showChannelContextMenu.value = false;
-      showCategoryContextMenu.value = false;
-      selectedChannel.value = null;
-      selectedCategory.value = null;
-    };
-
-    // Context menu action handlers
-    const handleInviteUsers = () => {
-      openInviteModal();
-    };
-
-    const handleEditChannel = (channel: Channel) => {
-      selectedChannel.value = channel;
-      showChannelEditModal.value = true;
-    };
-
-    const handleDeleteChannel = (channel: Channel) => {
-      selectedChannel.value = channel;
-      confirmationConfig.value = {
-        title: 'Delete Channel',
-        message: `Are you sure you want to delete #${channel.name}?`,
-        secondaryMessage: 'This action cannot be undone. All messages in this channel will be permanently deleted.',
-        confirmButtonText: 'Delete Channel',
-        requireConfirmation: true,
-        confirmationText: channel.name,
-        onConfirm: async () => {
-          try {
-            await serverChannelStore.deleteChannel(channel.id);
-            console.log('Channel deleted successfully:', channel.name);
-            showConfirmationModal.value = false;
-          } catch (error) {
-            console.error('Failed to delete channel:', error);
-            // TODO: Show error notification
-            showConfirmationModal.value = false;
-          }
-        }
-      };
-      showConfirmationModal.value = true;
-    };
-
-    const handleCreateChannelInCategory = (category: Category) => {
-      emit('createChannel', category.id);
-    };
-
-    const handleEditCategory = (category: Category) => {
-      selectedCategory.value = category;
-      showCategoryEditModal.value = true;
-    };
-
-    const handleDeleteCategory = (category: Category) => {
-      selectedCategory.value = category;
-      const channelCount = (props.categoryChannels[category.id] || []).length;
-      const channelText = channelCount === 1 ? 'channel' : 'channels';
-      
-      confirmationConfig.value = {
-        title: 'Delete Category',
-        message: `Are you sure you want to delete "${category.name}"?`,
-        secondaryMessage: channelCount > 0 
-          ? `This category contains ${channelCount} ${channelText}. All channels will be moved to the top of the channel list.`
-          : 'This action cannot be undone.',
-        confirmButtonText: 'Delete Category',
-        requireConfirmation: true,
-        confirmationText: category.name,
-        onConfirm: async () => {
-          try {
-            await serverChannelStore.deleteCategory(category.id);
-            console.log('Category deleted successfully:', category.name);
-            showConfirmationModal.value = false;
-          } catch (error) {
-            console.error('Failed to delete category:', error);
-            // TODO: Show error notification
-            showConfirmationModal.value = false;
-          }
-        }
-      };
-      showConfirmationModal.value = true;
-    };
-
-    // Modal handlers
-    const closeChannelEditModal = () => {
-      showChannelEditModal.value = false;
-      selectedChannel.value = null;
-    };
-
-    const closeCategoryEditModal = () => {
-      showCategoryEditModal.value = false;
-      selectedCategory.value = null;
-    };
-
-    const closeConfirmationModal = () => {
-      showConfirmationModal.value = false;
-    };
-
-    const handleChannelUpdated = (updatedChannel: Channel) => {
-      // The store handles updating the local state
-      console.log('Channel updated:', updatedChannel.name);
-    };
-
-    const handleCategoryUpdated = (updatedCategory: Category) => {
-      // The store handles updating the local state
-      console.log('Category updated:', updatedCategory.name);
-    };
-
-    // Close context menus when clicking outside
-    const handleGlobalClick = () => {
-      closeContextMenus();
-    };
-
-    // Add global click listener
-    onMounted(() => {
-      document.addEventListener('click', handleGlobalClick);
-    });
-
-    onUnmounted(() => {
-      document.removeEventListener('click', handleGlobalClick);
-    });
-
-    return { 
-      isDropdownOpen, 
-      toggleDropdown,
-      selectChannel,
-      serverChannelStore,
-      emitCreateChannel,
-      handleChannelCreated,
-      toggleCategory,
-      collapsedCategories,
-      isCategoryCreatorOpen,
-      showCategoryCreator,
-      createCategory,
-      combinedCategories,
-      reorderableCategories,
-      orphanChannels,
-      categoriesKey, // Add this to expose it to the template
-      showInviteModal,
-      openInviteModal,
-      closeInviteModal,
-      currentServerData,
-      
-      // Channel filtering functions
-      getVisibleChannelsForCategory,
-      getChannelIcon,
-      hasNotifications,
-      shouldShowCategoryContent,
-      getCachedCategoryChannels,
-      
-      // Drag & Drop
-      dragState,
-      dragGroup,
-      onDragStart,
-      onDragEnd,
-      onChannelAddedToCategory,
-      onChannelAddedToOrphans,
-      onChannelRemovedFromCategory,
-      
-      // Permissions
-      canDragAndDrop,
-      canCreateChannels,
-      getDragCursor,
-      
-      // Voice channel methods
-      isUserInVoiceChannel,
-      getUsersInVoiceChannel,
-      joinVoiceChannel,
-      leaveVoiceChannel,
-      handleVoiceChannelTouch,
-      isMobile,
-
-      // Context menu state
-      showChannelContextMenu,
-      showCategoryContextMenu,
-      contextMenuPosition,
-      selectedChannel,
-      selectedCategory,
-      openChannelContextMenu,
-      openCategoryContextMenu,
-      closeContextMenus,
-      handleInviteUsers,
-      handleEditChannel,
-      handleDeleteChannel,
-      handleCreateChannelInCategory,
-      handleEditCategory,
-      handleDeleteCategory,
-      
-      // Modal state
-      showChannelEditModal,
-      showCategoryEditModal,
-      showConfirmationModal,
-      confirmationConfig,
-      
-      // Modal handlers
-      closeChannelEditModal,
-      closeCategoryEditModal,
-      closeConfirmationModal,
-      handleChannelUpdated,
-      handleCategoryUpdated,
-    };
+const reorderableCategories = computed({
+  get: () => {
+    if (!Array.isArray(storeCategories.value)) return [];
+    return storeCategories.value.map(category => ({
+      ...category,
+      channels: props.categoryChannels[category.id] || [],
+    }));
+  },
+  set: (newCategories) => {
+    serverChannelStore.updateCategoryOrder(newCategories);
   }
 });
+
+const categoriesKey = computed(() => serverChannelStore.categories.map((c: any) => `${c.id}-${c.order}`).join(','));
+
+// Methods
+const initializeCategoryStates = async () => {
+  if (!props.currentServer?.id) return;
+  try {
+    await statePersistence.initialize();
+    const savedStates = statePersistence.getServerCategoryStates(props.currentServer.id);
+    const newCollapsedSet = new Set<string>();
+    Object.entries(savedStates).forEach(([categoryId, isCollapsed]) => {
+      if (isCollapsed) newCollapsedSet.add(categoryId);
+    });
+    collapsedCategories.value = newCollapsedSet;
+  } catch (error) {
+    console.warn('⚠️ Failed to initialize category states:', error);
+  }
+};
+
+const handleVoiceChannelTouch = (event: TouchEvent) => {
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+};
+
+const onDragStart = (evt: any) => {
+  if (!canDragAndDrop.value) {
+    evt.preventDefault();
+    return false;
+  }
+  const channelId = evt.item.dataset.channelId;
+  const categoryId = evt.item.dataset.categoryId;
+  const allChannels = [...orphanChannels.value, ...Object.values(props.categoryChannels).flat()];
+  const draggedChannel = allChannels.find(ch => ch.id === channelId) || null;
+
+  if (!draggedChannel) {
+    evt.preventDefault();
+    return false;
+  }
+  dragState.value = {
+    isDragging: true,
+    draggedItem: draggedChannel,
+    sourceCategoryId: categoryId === 'null' ? null : categoryId,
+    targetCategoryId: null,
+    isOver: false,
+  };
+  document.body.classList.add('dragging-channel');
+};
+
+const onDragEnd = (evt: any) => {
+  document.body.classList.remove('dragging-channel');
+  dragState.value = { isDragging: false, draggedItem: null, sourceCategoryId: null, targetCategoryId: null, isOver: false };
+};
+
+const onChannelAddedToCategory = async (evt: { item: HTMLElement }, categoryId: string) => {
+  if (!canMoveChannelsBetweenCategories.value) return;
+  const channelId = evt.item.dataset.channelId;
+  if (!dragState.value.draggedItem || dragState.value.draggedItem.id !== channelId) return;
+  try {
+    await serverChannelStore.moveChannelToCategory(channelId, categoryId);
+  } catch (error) {
+    console.error('Failed to move channel to category:', error);
+  }
+};
+
+const onChannelAddedToOrphans = async (evt: any) => {
+  if (!canMoveChannelsBetweenCategories.value) return;
+  const channelId = evt.item.dataset.channelId;
+  if (!dragState.value.draggedItem || dragState.value.draggedItem.id !== channelId) return;
+  try {
+    await serverChannelStore.moveChannelToCategory(channelId, null);
+  } catch (error) {
+    console.error('Failed to move channel to orphan channels:', error);
+  }
+};
+
+
+
+const hasNotifications = (channel: Channel): boolean => false; // Placeholder for notification logic
+
+const shouldShowCategoryContent = (category: Category): boolean => {
+  const categoryChannelsList = props.categoryChannels?.[category.id] || [];
+  if (!collapsedCategories.value.has(category.id)) return categoryChannelsList.length > 0;
+  return categoryChannelsList.some(channel => channel.id === props.currentChannelId || hasNotifications(channel));
+};
+
+const toggleCategory = async (categoryId: string) => {
+  const wasCollapsed = collapsedCategories.value.has(categoryId);
+  wasCollapsed ? collapsedCategories.value.delete(categoryId) : collapsedCategories.value.add(categoryId);
+  if (props.currentServer?.id) {
+    try {
+      await statePersistence.setCategoryCollapseState(props.currentServer.id, categoryId, !wasCollapsed);
+    } catch (error) {
+      console.warn('⚠️ Failed to persist category collapse state:', error);
+    }
+  }
+};
+
+const toggleDropdown = () => isDropdownOpen.value = !isDropdownOpen.value;
+const selectChannel = (channelId: string) => router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId } });
+const emitCreateChannel = (categoryId?: string) => emit('createChannel', categoryId);
+const showCategoryCreator = () => isCategoryCreatorOpen.value = !isCategoryCreatorOpen.value;
+const openInviteModal = () => showInviteModal.value = true;
+const closeInviteModal = () => showInviteModal.value = false;
+
+const createCategory = async (categoryName: string) => {
+  try {
+    await serverChannelStore.createCategory(categoryName, props.currentServer.id);
+  } catch (error) {
+    console.error('Failed to create category:', error);
+  } finally {
+    isCategoryCreatorOpen.value = false;
+  }
+};
+
+const handleChannelCreated = (channel: Channel) => {
+  selectChannel(channel.id);
+  serverChannelStore.fetchChannels(props.currentServer.id);
+};
+
+const isUserInVoiceChannel = (channelId: string): boolean => voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId;
+const getUsersInVoiceChannel = (channelId: string): string[] => serverUsersStore.getUsersInVoiceChannel(channelId);
+
+const joinVoiceChannel = async (channelId: string) => {
+  if (await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id)) {
+    themeStore.testAudio('voice_connect');
+  }
+};
+
+const leaveVoiceChannel = async (channelId: string) => {
+  if (await voiceChannelStore.leaveVoiceChannel()) {
+    themeStore.testAudio('voice_disconnect');
+  }
+};
+
+const openContextMenu = (event: MouseEvent, item: Channel | Category, type: 'channel' | 'category') => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeContextMenus();
+  if (type === 'channel') {
+    selectedChannel.value = item as Channel;
+    showChannelContextMenu.value = true;
+  } else {
+    selectedCategory.value = item as Category;
+    showCategoryContextMenu.value = true;
+  }
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+};
+
+const openChannelContextMenu = (event: MouseEvent, channel: Channel) => openContextMenu(event, channel, 'channel');
+const openCategoryContextMenu = (event: MouseEvent, category: Category) => openContextMenu(event, category, 'category');
+
+const closeContextMenus = () => {
+  showChannelContextMenu.value = false;
+  showCategoryContextMenu.value = false;
+};
+
+const handleInviteUsers = () => openInviteModal();
+
+const handleEditChannel = (channel: Channel) => {
+  selectedChannel.value = channel;
+  showChannelEditModal.value = true;
+};
+
+const handleDeleteChannel = (channel: Channel) => {
+  selectedChannel.value = channel;
+  confirmationConfig.value = {
+    title: 'Delete Channel',
+    message: `Are you sure you want to delete #${channel.name}?`,
+    secondaryMessage: 'This action cannot be undone. All messages in this channel will be permanently deleted.',
+    confirmButtonText: 'Delete Channel',
+    requireConfirmation: true,
+    confirmationText: channel.name,
+    onConfirm: async () => {
+      try {
+        await serverChannelStore.deleteChannel(channel.id);
+        closeConfirmationModal();
+      } catch (error) {
+        console.error('Failed to delete channel:', error);
+        closeConfirmationModal();
+      }
+    }
+  };
+  showConfirmationModal.value = true;
+};
+
+const handleCreateChannelInCategory = (category: Category) => emit('createChannel', category.id);
+
+const handleEditCategory = (category: Category) => {
+  selectedCategory.value = category;
+  showCategoryEditModal.value = true;
+};
+
+const handleDeleteCategory = (category: Category) => {
+  selectedCategory.value = category;
+  const channelCount = (props.categoryChannels[category.id] || []).length;
+  confirmationConfig.value = {
+    title: 'Delete Category',
+    message: `Are you sure you want to delete "${category.name}"?`,
+    secondaryMessage: channelCount > 0 ? `This category contains ${channelCount} channel(s). All channels will be moved to the top of the channel list.` : 'This action cannot be undone.',
+    confirmButtonText: 'Delete Category',
+    requireConfirmation: true,
+    confirmationText: category.name,
+    onConfirm: async () => {
+      try {
+        await serverChannelStore.deleteCategory(category.id);
+        closeConfirmationModal();
+      } catch (error) {
+        console.error('Failed to delete category:', error);
+        closeConfirmationModal();
+      }
+    }
+  };
+  showConfirmationModal.value = true;
+};
+
+const closeChannelEditModal = () => showChannelEditModal.value = false;
+const closeCategoryEditModal = () => showCategoryEditModal.value = false;
+const closeConfirmationModal = () => showConfirmationModal.value = false;
+const handleChannelUpdated = (updatedChannel: Channel) => {}; // Store handles updates
+const handleCategoryUpdated = (updatedCategory: Category) => {}; // Store handles updates
+
+// Lifecycle Hooks
+watch(() => props.currentServer?.id, (newServerId) => {
+  if (newServerId) initializeCategoryStates();
+}, { immediate: true });
+
+watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
+watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });
+
+onMounted(() => document.addEventListener('click', closeContextMenus));
+onUnmounted(() => document.removeEventListener('click', closeContextMenus));
+
 </script>
 
 <style scoped>

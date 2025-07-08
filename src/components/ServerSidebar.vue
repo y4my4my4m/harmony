@@ -118,7 +118,6 @@ export default defineComponent({
 <style scoped>
 .server-sidebar {
   width: 72px;
-  background-color: var(--h-black);
   display:flex;
   flex-direction: column;
   align-items: center;

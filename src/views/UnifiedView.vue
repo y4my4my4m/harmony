@@ -53,35 +53,42 @@
     </div>
     
     <!-- Server List Sidebar (Always Visible) -->
-    <div class="server-sidebar-container">
-      <ServerSidebar
-        :servers="servers"
-        @showPublicServers="handleShowPublicServers"
-      />
+    <div class="sidebar-container">
+      <div class="server-sidebar-container">
+        <ServerSidebar
+          :servers="servers"
+          @showPublicServers="handleShowPublicServers"
+        />
+      </div>
+      
+      <!-- Adaptive Channel Sidebar -->
+      <div class="channel-sidebar-container" :class="{ 'mobile-open': isSidebarsVisible }">
+        <AdaptiveChannelSidebar
+          :mode="currentMode"
+          :current-server="currentServer"
+          :channels="channels"
+          :current-channel-id="currentChannelId"
+          :categories="categories"
+          :category-channels="categoryChannels"
+          :is-d-m="isDM"
+          :following-count="followingCount"
+          :followers-count="followersCount"
+          :instance-domain="instanceDomain"
+          :instance-user-count="instanceUserCount"
+          :instance-post-count="instancePostCount"
+          @channel-selected="handleChannelSelected"
+          @create-channel="handleCreateChannel"
+          @conversation-selected="handleDMConversationSelected"
+          @switch-mode="handleSwitchMode"
+        />
+      </div>
+
+      <!-- User Profile at Bottom -->
+      <div class="user-profile-section">
+        <UserProfileComponent />
+      </div>
     </div>
-    
-    <!-- Adaptive Channel Sidebar -->
-    <div class="channel-sidebar-container" :class="{ 'mobile-open': isSidebarsVisible }">
-      <AdaptiveChannelSidebar
-        :mode="currentMode"
-        :current-server="currentServer"
-        :channels="channels"
-        :current-channel-id="currentChannelId"
-        :categories="categories"
-        :category-channels="categoryChannels"
-        :is-d-m="isDM"
-        :following-count="followingCount"
-        :followers-count="followersCount"
-        :instance-domain="instanceDomain"
-        :instance-user-count="instanceUserCount"
-        :instance-post-count="instancePostCount"
-        @channel-selected="handleChannelSelected"
-        @create-channel="handleCreateChannel"
-        @conversation-selected="handleDMConversationSelected"
-        @switch-mode="handleSwitchMode"
-      />
-    </div>
-    
+
     <!-- Main Content Area -->
     <div class="main-content-area">
       <UnifiedContentArea
@@ -212,6 +219,9 @@ import { useToast } from "vue-toastification";
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue';
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue';
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue';
+
+// User Profile Components
+import UserProfileComponent from '@/components/UserProfileComponent.vue';
 
 // Chat Components
 import ServerSidebar from '@/components/ServerSidebar.vue';
@@ -989,6 +999,13 @@ onBeforeUnmount(() => {
   z-index: 100;
 }
 
+.sidebar-container {
+  display: flex;
+  flex-direction: row;
+  background: var(--background-primary);
+  border-top: 1px solid var(--border-color);
+}
+
 .server-sidebar-container {
   grid-area: servers;
   background: var(--background-tertiary);
@@ -999,6 +1016,11 @@ onBeforeUnmount(() => {
   grid-area: channels;
   background: var(--background-secondary);
   border-right: 1px solid var(--border-color);
+}
+.user-profile-section {
+  position: fixed;
+  left:0;
+  bottom:0;
 }
 
 .main-content-area {

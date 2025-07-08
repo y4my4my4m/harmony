@@ -472,7 +472,6 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     display: flex;
     padding: 10px 12px;
     background-color: var(--h-chat);
-    border-radius: 8px;
     flex-direction: column;
   }
   

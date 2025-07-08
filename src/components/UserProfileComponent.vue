@@ -283,7 +283,7 @@ const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'o
 
 .user-info {
   flex-grow: 1;
-  margin-left: 20px;
+  margin-left: 4px;
 }
 
 .user-name {
