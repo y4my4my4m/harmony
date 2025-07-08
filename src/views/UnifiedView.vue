@@ -91,79 +91,81 @@
 
     <!-- Main Content Area -->
     <div class="main-content-area">
-      <UnifiedContentArea
-        :mode="currentMode"
-        :chat-messages="chatMessages"
-        :is-loading="isLoading"
-        :is-d-m="isDM"
-        :current-feed="currentFeed"
-        :posts="posts"
-        :is-loading-feed="isLoadingFeed"
-        :has-more-posts="hasMorePosts"
-        :current-channel="currentChannel"
-        @load-more-messages="fetchMoreMessages"
-        @update:is-at-bottom="isAtBottom = $event"
-        @send-message="handleSendMessage"
-        @refresh-timeline="handleRefreshTimeline"
-        @post-created="handlePostCreated"
-        @switch-feed="handleSwitchFeed"
-        @reply-to-post="handleReplyToPost"
-        @favorite-post="handleFavoritePost"
-        @reblog-post="handleReblogPost"
-        @delete-post="handleDeletePost"
-        @show-user-profile="handleShowUserProfile"
-        @load-more-posts="handleLoadMorePosts"
-      />
-    </div>
-    
-    <!-- Right Sidebar -->
-    <div class="right-sidebar-container" :class="{ 'mobile-open': isProfilesVisible }">
-      <!-- Chat Mode: User List -->
-      <UserSidebar v-if="currentMode === 'chat'" />
-      
-      <!-- ActivityPub Mode: Trending & Suggestions -->
-      <div v-else-if="currentMode === 'activitypub'" class="activitypub-right-sidebar">
-        <!-- Trending Section -->
-        <div class="sidebar-section">
-          <h3 class="section-title">Trending</h3>
-          <div class="trending-list">
-            <div 
-              v-for="trend in trendingTopics"
-              :key="trend.tag"
-              class="trending-item"
-            >
-              <span class="trending-tag">#{{ trend.tag }}</span>
-              <span class="trending-count">{{ formatNumber(trend.count) }} posts</span>
+      <MainContentAreaHeader :mode="currentMode" :current-feed="currentFeed" :is-mobile="isMobile" :current-channel="currentChannel" @switch-feed="handleSwitchFeed" />
+      <div class="main-content-area-content">
+        <UnifiedContentArea
+          :mode="currentMode"
+          :chat-messages="chatMessages"
+          :is-loading="isLoading"
+          :is-d-m="isDM"
+          :current-feed="currentFeed"
+          :posts="posts"
+          :is-loading-feed="isLoadingFeed"
+          :has-more-posts="hasMorePosts"
+          @load-more-messages="fetchMoreMessages"
+          @update:is-at-bottom="isAtBottom = $event"
+          @send-message="handleSendMessage"
+          @refresh-timeline="handleRefreshTimeline"
+          @post-created="handlePostCreated"
+          @switch-feed="handleSwitchFeed"
+          @reply-to-post="handleReplyToPost"
+          @favorite-post="handleFavoritePost"
+          @reblog-post="handleReblogPost"
+          @delete-post="handleDeletePost"
+          @show-user-profile="handleShowUserProfile"
+          @load-more-posts="handleLoadMorePosts"
+        />
+        <!-- Right Sidebar -->
+        <div class="right-sidebar-container" :class="{ 'mobile-open': isProfilesVisible }">
+          <!-- Chat Mode: User List -->
+          <UserSidebar v-if="currentMode === 'chat'" />
+          
+          <!-- ActivityPub Mode: Trending & Suggestions -->
+          <div v-else-if="currentMode === 'activitypub'" class="activitypub-right-sidebar">
+            <!-- Trending Section -->
+            <div class="sidebar-section">
+              <h3 class="section-title">Trending</h3>
+              <div class="trending-list">
+                <div 
+                  v-for="trend in trendingTopics"
+                  :key="trend.tag"
+                  class="trending-item"
+                >
+                  <span class="trending-tag">#{{ trend.tag }}</span>
+                  <span class="trending-count">{{ formatNumber(trend.count) }} posts</span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Suggested Users -->
-        <div class="sidebar-section">
-          <h3 class="section-title">Suggested Follows</h3>
-          <div class="suggested-users">
-            <UserCard
-              v-for="user in suggestedUsers"
-              :key="user.id"
-              :user="user"
-              :show-follow-btn="true"
-              @follow="handleFollow"
-              @unfollow="handleUnfollow"
-            />
-          </div>
-        </div>
+            <!-- Suggested Users -->
+            <div class="sidebar-section">
+              <h3 class="section-title">Suggested Follows</h3>
+              <div class="suggested-users">
+                <UserCard
+                  v-for="user in suggestedUsers"
+                  :key="user.id"
+                  :user="user"
+                  :show-follow-btn="true"
+                  @follow="handleFollow"
+                  @unfollow="handleUnfollow"
+                />
+              </div>
+            </div>
 
-        <!-- Instance Info -->
-        <div class="sidebar-section">
-          <h3 class="section-title">Instance Info</h3>
-          <div class="instance-info">
-            <p class="instance-domain">{{ instanceDomain }}</p>
-            <p class="instance-users">{{ instanceUserCount }} users</p>
-            <p class="instance-posts">{{ instancePostCount }} posts</p>
+            <!-- Instance Info -->
+            <div class="sidebar-section">
+              <h3 class="section-title">Instance Info</h3>
+              <div class="instance-info">
+                <p class="instance-domain">{{ instanceDomain }}</p>
+                <p class="instance-users">{{ instanceUserCount }} users</p>
+                <p class="instance-posts">{{ instancePostCount }} posts</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
     
     <!-- Modals and Overlays -->
     <!-- Chat Mode Modals -->
@@ -220,6 +222,7 @@ import { useToast } from "vue-toastification";
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue';
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue';
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue';
+import MainContentAreaHeader from '@/components/MainContentAreaHeader.vue';
 
 // User Profile Components
 import UserProfileComponent from '@/components/UserProfileComponent.vue';
@@ -988,13 +991,19 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-areas: 
     "context context context context"
-    "servers channels content rightbar";
-  grid-template-columns: 72px 295px 1fr 240px;
+    "servers channels content content";
+  grid-template-columns: 72px 295px 1fr;
   grid-template-rows: 36px 1fr;
   height: 100vh;
   background: transparent;
 }
-
+.main-content-area-content {
+  display: grid;
+  grid-template-areas: "content rightbar";
+  grid-template-columns: 1fr 240px;
+  grid-template-rows: 1fr;
+  overflow: hidden;
+}
 .context-bar-container {
   grid-area: context;
   z-index: 100;
@@ -1078,6 +1087,7 @@ onBeforeUnmount(() => {
   padding: 16px;
   overflow-y: auto;
   height: 100%;
+  border-left: 1px solid var(--border-color);
 }
 
 .sidebar-section {
