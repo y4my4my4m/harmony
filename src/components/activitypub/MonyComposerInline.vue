@@ -3,10 +3,11 @@
   <div class="inline-composer">
     <div class="composer-content">
       <!-- User Avatar -->
-      <img 
-        :src="currentUser?.avatar_url || '/default_avatar.png'" 
-        :alt="currentUser?.display_name"
-        class="user-avatar"
+      <Avatar 
+        :src="currentUser?.avatar_url"
+        :alt="currentUser?.display_name || currentUser?.username"
+        size="md"
+        :interactive="true"
       />
       
       <!-- Composer Form -->
@@ -148,6 +149,7 @@ import { useActivityPubStore } from '@/stores/activitypub';
 import { useProfileStore } from '@/stores/useProfile';
 import type { Post, MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '../common/Avatar.vue';
 
 // Emit events
 const emit = defineEmits<{

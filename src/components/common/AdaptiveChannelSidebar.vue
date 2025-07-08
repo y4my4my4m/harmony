@@ -65,10 +65,12 @@
 
       <!-- User Profile Card -->
       <div class="user-profile-card">
-        <img 
-          :src="currentUser?.avatar_url || '/default_avatar.png'" 
-          :alt="currentUser?.display_name"
-          class="user-avatar"
+        <Avatar
+          :src="currentUser?.avatar_url"
+          :alt="currentUser?.display_name || currentUser?.username"
+          size="md"
+          :interactive="true"
+          @click="$emit('profile-click')"
         />
         <div class="user-info">
           <h3 class="user-name">{{ currentUser?.display_name || currentUser?.username }}</h3>
@@ -123,6 +125,7 @@ import { useRoute } from 'vue-router';
 import ChannelSidebar from '@/components/ChannelSidebar.vue';
 import DMSidebar from '@/components/DMSidebar.vue';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '@/components/common/Avatar.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import type { Server, Channel, Category } from '@/types';
@@ -167,6 +170,9 @@ defineEmits<{
   
   // Mode switching
   'switch-mode': [mode: 'chat' | 'activitypub'];
+  
+  // Profile events
+  'profile-click': [];
 }>();
 
 const route = useRoute();
@@ -341,12 +347,7 @@ const navigationItems = computed(() => [
   border: 1px solid var(--border-color);
 }
 
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
+
 
 .user-info {
   flex: 1;

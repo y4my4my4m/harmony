@@ -22,11 +22,11 @@
           :to="`/u/${author.handle}`" 
           class="author-info"
         >
-          <img 
-            :src="author.avatar_url || '/default_avatar.png'" 
-            :alt="author.display_name"
-            class="author-avatar"
-            loading="lazy"
+          <Avatar 
+            :src="author.avatar_url"
+            :alt="author.display_name || author.username"
+            size="md"
+            :interactive="true"
           />
           <div class="author-details">
             <div class="author-name">
@@ -208,6 +208,7 @@ import type { TimelinePost } from '@/types';
 import MonyContent from './MonyContent.vue';
 import MonyMediaGallery from './MonyMediaGallery.vue';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '../common/Avatar.vue';
 
 // Props
 interface Props {
