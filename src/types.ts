@@ -495,6 +495,9 @@ export interface MediaAttachment {
   };
   description?: string;
   blurhash?: string;
+  mime_type?: string; // e.g., 'image/jpeg', 'video/mp4'
+  filename?: string; // Original filename if available
+  size?: number; // Size in bytes
 }
 
 export interface ActivityPubFollow {

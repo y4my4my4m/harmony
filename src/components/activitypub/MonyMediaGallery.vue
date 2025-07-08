@@ -1,7 +1,7 @@
 <!-- MonyMediaGallery - Display media attachments in posts -->
 <template>
   <div 
-    v-if="mediaAttachments.length > 0" 
+    v-if="mediaAttachments && mediaAttachments.length > 0" 
     class="media-gallery"
     :class="galleryClass"
   >
