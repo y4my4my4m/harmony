@@ -195,7 +195,6 @@ const formatNumber = (num: number): string => {
 
 const handleUserClick = () => {
   emit('user-click', props.user);
-  router.push(`/u/${props.user.handle}`);
 };
 
 const handleFollowToggle = async () => {

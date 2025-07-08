@@ -4,13 +4,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 
 interface Props {
   content: string;
 }
 
 const props = defineProps<Props>();
+
+const emit = defineEmits<{
+  'user-mention-click': [handle: string];
+  'hashtag-click': [tag: string];
+}>();
 
 // Basic content formatting
 const formattedContent = computed(() => {
@@ -22,13 +27,13 @@ const formattedContent = computed(() => {
   // Convert mentions (@username@domain or @username)
   formatted = formatted.replace(
     /@([a-zA-Z0-9_.-]+)(?:@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))?/g,
-    '<a href="/u/@$1$2" class="mention">@$1$2</a>'
+    '<a href="#" class="mention" data-mention="@$1$2">@$1$2</a>'
   );
   
   // Convert hashtags
   formatted = formatted.replace(
     /#([a-zA-Z0-9_-]+)/g,
-    '<a href="/tags/$1" class="hashtag">#$1</a>'
+    '<a href="#" class="hashtag" data-hashtag="$1">#$1</a>'
   );
   
   // Convert URLs
@@ -38,6 +43,33 @@ const formattedContent = computed(() => {
   );
   
   return formatted;
+});
+
+// Handle clicks on mentions and hashtags
+const handleClick = (event: Event) => {
+  const target = event.target as HTMLElement;
+  
+  if (target.classList.contains('mention')) {
+    event.preventDefault();
+    const handle = target.getAttribute('data-mention');
+    if (handle) {
+      emit('user-mention-click', handle);
+    }
+  } else if (target.classList.contains('hashtag')) {
+    event.preventDefault();
+    const tag = target.getAttribute('data-hashtag');
+    if (tag) {
+      emit('hashtag-click', tag);
+    }
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClick);
 });
 </script>
 
@@ -52,6 +84,7 @@ const formattedContent = computed(() => {
   color: var(--h-brand, #5865f2);
   text-decoration: none;
   font-weight: 500;
+  cursor: pointer;
 }
 
 .mony-content :deep(.mention:hover) {
@@ -62,6 +95,7 @@ const formattedContent = computed(() => {
   color: #1d9bf0;
   text-decoration: none;
   font-weight: 500;
+  cursor: pointer;
 }
 
 .mony-content :deep(.hashtag:hover) {

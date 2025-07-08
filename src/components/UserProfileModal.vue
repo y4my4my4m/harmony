@@ -108,21 +108,57 @@
             <span class="stat-value">{{ userStatus === 'online' ? 'Active' : 'Offline' }}</span>
             <span class="stat-label">Status</span>
           </div>
+          
+          <!-- ActivityPub/Federated User Stats -->
           <div v-if="socialStats" class="stat-item">
-            <span class="stat-value">{{ socialStats.posts }}</span>
+            <span class="stat-value">{{ formatSocialCount(socialStats.posts) }}</span>
             <span class="stat-label">Posts</span>
           </div>
           <div v-if="socialStats" class="stat-item">
-            <span class="stat-value">{{ socialStats.following }}</span>
+            <span class="stat-value">{{ formatSocialCount(socialStats.following) }}</span>
             <span class="stat-label">Following</span>
           </div>
           <div v-if="socialStats" class="stat-item">
-            <span class="stat-value">{{ socialStats.followers }}</span>
+            <span class="stat-value">{{ formatSocialCount(socialStats.followers) }}</span>
             <span class="stat-label">Followers</span>
           </div>
+          
+          <!-- Chat User Stats -->
           <div v-else class="stat-item">
             <span class="stat-value">{{ user?.roles?.length || 0 }}</span>
             <span class="stat-label">Roles</span>
+          </div>
+        </div>
+
+        <!-- Federation Info (for federated users) -->
+        <div v-if="isFederatedUser(user) && !user.is_local" class="federation-section">
+          <h3 class="section-title">
+            <svg viewBox="0 0 24 24" class="section-icon">
+              <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z" fill="currentColor"/>
+            </svg>
+            Federation Info
+          </h3>
+          <div class="federation-info">
+            <div class="federation-item">
+              <span class="federation-label">Instance:</span>
+              <span class="federation-value">{{ user.domain }}</span>
+              <div v-if="instanceInfo" class="instance-badge" :class="instanceInfo.status">
+                {{ instanceInfo.software || 'Unknown' }}
+              </div>
+            </div>
+            <div class="federation-item">
+              <span class="federation-label">Profile URL:</span>
+              <a :href="user.instance_url || `https://${user.domain}/@${user.username}`" 
+                 target="_blank" 
+                 rel="noopener noreferrer" 
+                 class="federation-link">
+                View on {{ user.domain }}
+              </a>
+            </div>
+            <div v-if="user.last_status_at" class="federation-item">
+              <span class="federation-label">Last active:</span>
+              <span class="federation-value">{{ formatLastSeen(user.last_status_at) }}</span>
+            </div>
           </div>
         </div>
 
@@ -134,33 +170,79 @@
           </div>
         </div>
 
+        <!-- Custom Fields (for federated users) -->
+        <div v-if="isFederatedUser(user) && user.fields?.length" class="fields-section">
+          <h3 class="section-title">Profile Fields</h3>
+          <div class="profile-fields">
+            <div v-for="field in user.fields" :key="field.name" class="profile-field">
+              <div class="field-name">{{ field.name }}</div>
+              <div class="field-value" v-html="formatFieldValue(field.value)"></div>
+              <div v-if="field.verified_at" class="field-verified" title="Verified">
+                <svg viewBox="0 0 24 24" class="verified-icon">
+                  <path d="M12,2L15.09,8.26L22,9L17,14.14L18.18,21.02L12,17.77L5.82,21.02L7,14.14L2,9L8.91,8.26L12,2Z" fill="currentColor"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- User Activities -->
         <div class="activities-section">
           <h3 class="section-title">Activity</h3>
           <div class="activity-grid">
-            <div class="activity-card">
-              <div class="activity-icon">
-                <svg viewBox="0 0 24 24">
-                  <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4C22,2.89 21.1,2 20,2Z" fill="currentColor"/>
-                </svg>
+            <!-- Chat User Activities -->
+            <template v-if="!isFederatedUser(user)">
+              <div class="activity-card">
+                <div class="activity-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4C22,2.89 21.1,2 20,2Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div class="activity-info">
+                  <span class="activity-title">Messages</span>
+                  <span class="activity-value">{{ user?.message_count || 0 }}</span>
+                </div>
               </div>
-              <div class="activity-info">
-                <span class="activity-title">Messages</span>
-                <span class="activity-value">{{ user?.message_count || 0 }}</span>
+              
+              <div class="activity-card">
+                <div class="activity-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div class="activity-info">
+                  <span class="activity-title">Voice Time</span>
+                  <span class="activity-value">{{ formatVoiceTime(user?.voice_time) }}</span>
+                </div>
               </div>
-            </div>
+            </template>
             
-            <div class="activity-card">
-              <div class="activity-icon">
-                <svg viewBox="0 0 24 24">
-                  <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z" fill="currentColor"/>
-                </svg>
+            <!-- Federated User Activities -->
+            <template v-else>
+              <div class="activity-card">
+                <div class="activity-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M17,12V3A1,1 0 0,0 16,2H3A1,1 0 0,0 2,3V17L6,13H16A1,1 0 0,0 17,12M21,6H19V15H6V17A1,1 0 0,0 7,18H18L22,22V7A1,1 0 0,0 21,6Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div class="activity-info">
+                  <span class="activity-title">Posts</span>
+                  <span class="activity-value">{{ formatSocialCount(socialStats?.posts || 0) }}</span>
+                </div>
               </div>
-              <div class="activity-info">
-                <span class="activity-title">Voice Time</span>
-                <span class="activity-value">{{ formatVoiceTime(user?.voice_time) }}</span>
+              
+              <div class="activity-card">
+                <div class="activity-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,6A2,2 0 0,0 10,8A2,2 0 0,0 12,10A2,2 0 0,0 14,8A2,2 0 0,0 12,6M12,13C14.67,13 20,14.33 20,17V20H4V17C4,14.33 9.33,13 12,13M12,14.9C9.03,14.9 5.9,16.36 5.9,17V18.1H18.1V17C18.1,16.36 14.97,14.9 12,14.9Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div class="activity-info">
+                  <span class="activity-title">Interactions</span>
+                  <span class="activity-value">{{ formatSocialCount((socialStats?.followers || 0) + (socialStats?.following || 0)) }}</span>
+                </div>
               </div>
-            </div>
+            </template>
           </div>
         </div>
 
@@ -350,6 +432,31 @@ const formatVoiceTime = (minutes: number | undefined) => {
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
   return `${hours}h ${remainingMinutes}m`
+}
+
+const formatSocialCount = (count: number) => {
+  if (count === 0) return '0'
+  if (count < 1000) return count.toString()
+  if (count < 1000000) return `${(count / 1000).toFixed(1)}k`
+  return `${(count / 1000000).toFixed(1)}M`
+}
+
+const formatLastSeen = (dateString: string) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric'
+  })
+}
+
+const formatFieldValue = (value: any) => {
+  if (typeof value === 'string') {
+    return value.replace(/\n/g, '<br>')
+  }
+  return value
 }
 
 const copyUserId = async () => {
@@ -737,6 +844,15 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-icon {
+  width: 16px;
+  height: 16px;
+  color: #5865f2;
 }
 
 .about-section {
@@ -755,6 +871,56 @@ onMounted(() => {
   margin: 0;
   line-height: 1.5;
   word-wrap: break-word;
+}
+
+.fields-section {
+  margin-bottom: 24px;
+}
+
+.profile-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.profile-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.profile-field:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.field-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f2f3f5;
+  min-width: 100px;
+}
+
+.field-value {
+  font-size: 14px;
+  color: #b5bac1;
+  flex: 1;
+  word-break: break-all;
+}
+
+.field-verified {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: #f0b232;
+  flex-shrink: 0;
 }
 
 .activities-section {
@@ -817,6 +983,88 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 700;
   color: #f2f3f5;
+}
+
+.federation-section {
+  margin-bottom: 24px;
+}
+
+.federation-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+
+.federation-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #b5bac1;
+}
+
+.federation-label {
+  font-weight: 600;
+  color: #f2f3f5;
+  min-width: 60px;
+}
+
+.federation-value {
+  font-weight: 500;
+  color: #f2f3f5;
+  flex: 1;
+}
+
+.federation-link {
+  color: #5865f2;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.federation-link:hover {
+  text-decoration: underline;
+}
+
+.instance-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.instance-badge.online {
+  background: rgba(4, 190, 77, 0.2);
+  border-color: rgba(4, 190, 77, 0.3);
+  color: #23a55a;
+}
+
+.instance-badge.idle {
+  background: rgba(240, 178, 51, 0.2);
+  border-color: rgba(240, 178, 51, 0.3);
+  color: #f0b232;
+}
+
+.instance-badge.dnd {
+  background: rgba(237, 66, 69, 0.2);
+  border-color: rgba(237, 66, 69, 0.3);
+  color: #ed4245;
+}
+
+.instance-badge.offline {
+  background: rgba(128, 132, 142, 0.2);
+  border-color: rgba(128, 132, 142, 0.3);
+  color: #80848e;
 }
 
 .note-section {
