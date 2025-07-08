@@ -114,6 +114,15 @@
         </div>
         
         <button 
+          v-if="currentFeed === 'home'"
+          class="action-btn"
+          @click="$emit('refresh-timeline')"
+          title="Refresh Timeline"
+        >
+          <Icon name="refresh-cw" />
+        </button>
+        
+        <button 
           class="action-btn"
           @click="$emit('open-search')"
           title="Search"
@@ -180,6 +189,7 @@ defineEmits<{
   'toggle-voice-panel': [];
   'toggle-search': [];
   'switch-feed': [feedType: 'home' | 'local' | 'public'];
+  'refresh-timeline': [];
   'open-search': [];
   'open-composer': [];
 }>();
