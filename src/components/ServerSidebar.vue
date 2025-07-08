@@ -36,7 +36,7 @@
       :key="server.id" 
       class="server-item"
       :style="{ backgroundImage: 'url(' + server.icon + ')' }" 
-      :class="[{ 'selected': server.id === serverChannelStore.currentServerId && !isDMSelected }]"
+      :class="[{ 'selected': server.id === serverChannelStore.currentServerId && !isDMSelected && !isMonyverseSelected }]"
       @click="selectServer(server.id)">
     </div>
   </div>
