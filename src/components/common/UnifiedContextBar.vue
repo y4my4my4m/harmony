@@ -17,14 +17,13 @@
         <div class="context-title">
           <div class="server-info" v-if="!isDM && currentServer">
             <img 
-              v-if="currentServer.icon_url" 
-              :src="currentServer.icon_url" 
+              v-if="currentServer.icon" 
+              :src="currentServer.icon" 
               :alt="currentServer.name"
               class="server-icon"
             />
             <div class="server-details">
-              <h2 class="server-name">{{ currentServer.name }}<span v-if="currentChannel" class="channel-name"># {{ currentChannel.name }}</span></h2>
-              
+              <h2 class="server-name">{{ currentServer.name }}</h2>
             </div>
           </div>
           <div class="dm-info" v-else-if="isDM">
@@ -280,7 +279,7 @@ const currentFeedTitle = computed(() => {
 .server-icon {
   width: 24px;
   height: 24px;
-  border-radius: 50%;
+  border-radius: 4px;
   object-fit: cover;
 }
 
@@ -290,12 +289,12 @@ const currentFeedTitle = computed(() => {
 
 .server-name, .dm-title, .app-name, .feed-name {
   font-size: 16px;
-  font-weight: 600;
   margin: 0;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0.8;
 }
 
 .channel-name, .instance-name {
