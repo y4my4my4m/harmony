@@ -523,6 +523,13 @@ const onChannelAddedToOrphans = async (evt: any) => {
   }
 };
 
+const onChannelRemovedFromCategory = (evt: any) => {
+  // This handles when a channel is removed from a category during drag operations
+  // The actual move logic is handled by the corresponding @add event handler
+  // This is mainly for cleanup or visual feedback if needed
+  console.log('Channel removed from category during drag operation');
+};
+
 
 
 const hasNotifications = (channel: Channel): boolean => false; // Placeholder for notification logic
