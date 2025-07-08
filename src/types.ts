@@ -652,3 +652,26 @@ export interface ActivityPubActivityObject {
   to?: string[];
   cc?: string[];
 }
+
+// Federated user type for ActivityPub/Monyverse users
+export interface FederatedUser extends Profile {
+  handle: string; // @username or @username@domain
+  posts_count?: number;
+  following_count?: number;
+  followers_count?: number;
+  verified?: boolean;
+  bio?: string; // Alias for about
+  is_following?: boolean;
+  is_follower?: boolean;
+  is_blocked?: boolean;
+  is_muted?: boolean;
+  instance_url?: string;
+  last_status_at?: string;
+  note?: string; // Personal note about this user
+  emojis?: any[];
+  fields?: Array<{
+    name: string;
+    value: string;
+    verified_at?: string;
+  }>;
+}

@@ -251,7 +251,7 @@ import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue'
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import UserCard from '@/components/activitypub/UserCard.vue';
 import UserSearchModal from '@/components/activitypub/UserSearchModal.vue';
-import UserProfileModal from '@/components/activitypub/UserProfileModal.vue';
+import UserProfileModal from '@/components/UserProfileModal.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Props

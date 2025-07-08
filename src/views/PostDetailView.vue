@@ -152,7 +152,7 @@ import type { TimelinePost, FederatedUser } from '@/types';
 // Components
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue';
-import UserProfileModal from '@/components/activitypub/UserProfileModal.vue';
+import UserProfileModal from '@/components/UserProfileModal.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Props

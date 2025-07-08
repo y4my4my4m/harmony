@@ -207,7 +207,7 @@ import type { TimelinePost } from '@/types';
 // Components
 import MonyContent from './MonyContent.vue';
 import MonyMediaGallery from './MonyMediaGallery.vue';
-import Icon from '@/components/ui/Icon.vue';
+import Icon from '@/components/common/Icon.vue';
 
 // Props
 interface Props {
