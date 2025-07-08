@@ -283,6 +283,10 @@ const isAppInitialized = ref(false);
 const hasServersLoaded = ref(false);
 const isLoading = ref(false);
 
+// Professional async state management
+const currentRequestId = ref(0);
+let currentAbortController: AbortController | null = null;
+
 // UI State
 const isSidebarsVisible = ref(false);
 const isProfilesVisible = ref(false);
@@ -320,7 +324,11 @@ const isAppReady = computed(() => {
 });
 
 const shouldShowNoServersSplash = computed(() => {
-  return currentMode.value === 'chat' && isAppReady.value && servers.value.length === 0 && !showPublicServers.value;
+  return currentMode.value === 'chat' && 
+         !isDM.value && 
+         isAppReady.value && 
+         servers.value.length === 0 && 
+         !showPublicServers.value;
 });
 
 const windowWidth = computed(() => {
@@ -338,8 +346,11 @@ const currentChannel = computed(() => {
   return channels.value.find(c => c.id === currentChannelId.value);
 });
 
+// Route-based state
+const isDM = computed(() => props.isDM || route.name === 'DM');
+
 const chatMessages = computed(() => {
-  return props.isDM ? dmStore.currentDMMessages : chatStore.messages;
+  return isDM.value ? dmStore.currentDMMessages : chatStore.messages;
 });
 
 // ActivityPub computed properties
@@ -682,30 +693,208 @@ const formatNumber = (num: number): string => {
   return num.toString();
 };
 
-// Watch route changes to update mode and state
-watch(() => route.name, (newRouteName) => {
-  if (newRouteName === 'Social') {
-    currentMode.value = 'activitypub';
-    if (route.params.timeline) {
-      currentFeed.value = route.params.timeline as 'home' | 'local' | 'public';
+// Navigation and state loading
+const loadServerAndChannel = async () => {
+  if (isLoading.value) return;
+  
+  try {
+    isLoading.value = true;
+    
+    const requestId = ++currentRequestId.value;
+    if (currentAbortController) {
+      currentAbortController.abort();
     }
-  } else {
-    currentMode.value = 'chat';
+    currentAbortController = new AbortController();
+    
+    if (props.isDM || isDM.value) {
+      // DM mode handling
+      if (props.conversationId) {
+        // Set current conversation first to establish subscription
+        dmStore.setCurrentConversation(props.conversationId);
+        
+        // Check cache first for instant loading
+        const isCached = dmStore.isCacheValid(props.conversationId);
+        
+        if (isCached) {
+          dmStore.loadCachedMessages(props.conversationId);
+          scrollToBottom();
+        } else {
+          dmStore.clearDMMessages();
+          await dmStore.fetchConversationMessages(props.conversationId);
+          scrollToBottom();
+        }
+      }
+    } else {
+      // Regular chat mode
+      if (props.serverId) {
+        // Set the server first
+        serverChannelStore.setCurrentServer(props.serverId);
+        
+        // Fetch categories and channels for this server
+        await serverChannelStore.fetchCategoriesAndChannels(props.serverId);
+        
+        if (props.channelId) {
+          // Set specific channel and load messages
+          serverChannelStore.setCurrentChannel(props.channelId);
+          
+          // Check if messages are cached
+          const isCached = chatStore.isMessageCached(props.channelId);
+          
+          if (isCached) {
+            const isValidCache = await chatStore.isChannelCacheValid(props.channelId);
+            if (isValidCache) {
+              chatStore.loadCachedMessages(props.channelId);
+            } else {
+              chatStore.clearMessages();
+              await chatStore.fetchMessages(props.channelId);
+            }
+          } else {
+            chatStore.clearMessages();
+            await chatStore.fetchMessages(props.channelId);
+          }
+          chatStore.subscribeToMessages(props.channelId);
+          scrollToBottom();
+          
+        } else {
+          // Set first available channel
+          const defaultChannel = getDefaultChannel(channels.value, categories.value, categoryChannels.value);
+          if (defaultChannel) {
+            serverChannelStore.setCurrentChannel(defaultChannel);
+            
+            // Load messages for default channel
+            const isCached = chatStore.isMessageCached(defaultChannel);
+            if (isCached) {
+              const isValidCache = await chatStore.isChannelCacheValid(defaultChannel);
+              if (isValidCache) {
+                chatStore.loadCachedMessages(defaultChannel);
+              } else {
+                chatStore.clearMessages();
+                await chatStore.fetchMessages(defaultChannel);
+              }
+            } else {
+              chatStore.clearMessages();
+              await chatStore.fetchMessages(defaultChannel);
+            }
+            chatStore.subscribeToMessages(defaultChannel);
+            scrollToBottom();
+          }
+        }
+      } else {
+        // No server specified, set first server
+        const firstServer = servers.value[0];
+        if (firstServer) {
+          serverChannelStore.setCurrentServer(firstServer.id);
+          
+          // Fetch categories and channels for this server
+          await serverChannelStore.fetchCategoriesAndChannels(firstServer.id);
+          
+          const defaultChannel = getDefaultChannel(channels.value, categories.value, categoryChannels.value);
+          if (defaultChannel) {
+            serverChannelStore.setCurrentChannel(defaultChannel);
+            
+            // Load messages for default channel
+            const isCached = chatStore.isMessageCached(defaultChannel);
+            if (isCached) {
+              const isValidCache = await chatStore.isChannelCacheValid(defaultChannel);
+              if (isValidCache) {
+                chatStore.loadCachedMessages(defaultChannel);
+              } else {
+                chatStore.clearMessages();
+                await chatStore.fetchMessages(defaultChannel);
+              }
+            } else {
+              chatStore.clearMessages();
+              await chatStore.fetchMessages(defaultChannel);
+            }
+            chatStore.subscribeToMessages(defaultChannel);
+            scrollToBottom();
+          }
+        }
+      }
+    }
+    
+  } catch (error: any) {
+    if (error.name !== 'AbortError') {
+      console.error('Error loading server and channel:', error);
+      toast.error('Failed to load chat data');
+    }
+  } finally {
+    isLoading.value = false;
+    currentAbortController = null;
+  }
+};
+
+
+
+// Watch route changes
+watch(route, async () => {
+  if (isAppInitialized.value) {
+    await loadServerAndChannel();
+  }
+}, { immediate: false });
+
+// Watch for server list changes to automatically navigate to new servers
+watch(() => servers.value.length, (newLength, oldLength) => {
+  // If servers were added (user joined a new server)
+  if (newLength > (oldLength || 0) && shouldShowNoServersSplash.value) {
+    showPublicServers.value = false; // Also close the public servers modal
+    
+    // Navigate to the newly joined server (last server in the list)
+    const newServer = servers.value[servers.value.length - 1];
+    if (newServer && !isDM.value) {
+      router.push({ name: 'Chat', params: { serverId: newServer.id } });
+    }
   }
 }, { immediate: true });
 
 // Lifecycle hooks
 onMounted(async () => {
+  const userId = authStore.session?.user?.id;
+  if (userId) {
+    try {
+      // Initialize state persistence early
+      await statePersistence.initialize();
+      
+      // Check profile completion
+      await profileStore.checkProfileCompletion(userId);
+    } catch (error: any) {
+      console.log(error);
+      router.push('/new-profile');
+      return;
+    }
+
+    // Initialize the user environment which includes server loading
+    await serverChannelStore.initializeUserEnvironment(userId);
+    
+    // Mark both initialization flags as complete
+    isAppInitialized.value = true;
+    hasServersLoaded.value = true;
+    
+    // Initialize presence for current user
+    const userProfile = serverUsersStore.userProfiles[userId];
+    if (userProfile && currentServer.value?.id) {
+      serverUsersStore.initializePresence(
+        currentServer.value.id, 
+        userId, 
+        userProfile.display_name || userProfile.username || 'Unknown User', 
+        userProfile.avatar_url
+      );
+    }
+    serverUsersStore.subscribeToUserStatuses();
+    
+    // Subscribe to offline broadcast notifications
+    serverUsersStore.subscribeToOfflineBroadcasts();
+    
+    // Load initial server and channel state
+    await loadServerAndChannel();
+  }
+  
   checkMobileDevice();
   window.addEventListener('resize', handleResize);
   
   if (isMobile.value) {
     initializeMobileGestures();
   }
-  
-  // Initialize app
-  isAppInitialized.value = true;
-  hasServersLoaded.value = true; // Simplified for this example
   
   // Load initial data based on mode
   if (currentMode.value === 'activitypub') {
@@ -715,6 +904,14 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
+  
+  // Clean up presence when component unmounts
+  serverUsersStore.cleanup();
+  
+  // Clean up DM subscriptions if in DM mode
+  if (props.isDM) {
+    dmStore.cleanup();
+  }
 });
 </script>
 

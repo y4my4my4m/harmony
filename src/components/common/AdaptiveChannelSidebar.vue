@@ -17,8 +17,15 @@
       </div>
       
       <div class="chat-content">
+        <!-- Debug info (remove in production) -->
+        <div v-if="false" style="background: red; color: white; padding: 4px; font-size: 10px;">
+          Server: {{ currentServer?.name || 'None' }} | 
+          Channels: {{ channels?.length || 0 }} |
+          Categories: {{ categories?.length || 0 }}
+        </div>
+        
         <ChannelSidebar
-          :currentServer="currentServer"
+          :currentServer="currentServer || undefined"
           :channels="channels"
           :currentChannelId="currentChannelId"
           :categories="categories"
@@ -137,7 +144,7 @@ import UserProfileComponent from '@/components/UserProfileComponent.vue';
 import Icon from '@/components/common/Icon.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
-import type { Server, Channel, Category, CategoryChannels } from '@/types';
+import type { Server, Channel, Category } from '@/types';
 
 interface Props {
   mode: 'chat' | 'activitypub';
@@ -147,7 +154,7 @@ interface Props {
   channels?: Channel[];
   currentChannelId?: string;
   categories?: Category[];
-  categoryChannels?: CategoryChannels;
+  categoryChannels?: Record<string, Channel[]>;
   isDM?: boolean;
   
   // ActivityPub mode props
