@@ -24,7 +24,7 @@
       <!-- Left Panel - Branding -->
       <div class="auth-branding">
         <div class="brand-content">
-          <div class="logo-container" @click="themeStore.testAudio('ui_click')">>
+          <div class="logo-container" @click="themeStore.testAudio('ui_click')">
             <img src="/icon_3d.png" alt="Harmony Logo" class="brand-logo" />
             <div class="logo-glow"></div>
           </div>

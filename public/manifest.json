@@ -139,13 +139,13 @@
       "purpose": "maskable"
     },
     {
-      "src": "/harmony_icon1.png",
+      "src": "/icon_3d.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/harmony_icon1.png",
+      "src": "/icon_3d.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

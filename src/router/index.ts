@@ -2,10 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import ChatView from '@/views/ChatView.vue';
 import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
-import NewProfile from '@/views/NewProfile.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
-import RichTextDemo from '@/components/RichTextDemo.vue';
-import AudioThemeShowcase from '@/components/demo/AudioThemeShowcase.vue';
 import { useAuthStore } from '@/stores/auth';
 
 const router = createRouter({
@@ -54,7 +51,7 @@ const router = createRouter({
     {
       path: '/new-profile',
       name: 'NewProfile',
-      component: NewProfile,
+      component: () => import('@/views/NewProfile.vue'),
       meta: { requiresAuth: true },
     },
     {
@@ -80,13 +77,13 @@ const router = createRouter({
     {
       path: '/demo',
       name: 'RichTextDemo',
-      component: RichTextDemo,
+      component: () => import('@/components/demo/RichTextDemo.vue'),
       meta: { requiresAuth: false }
     },
     {
       path: '/audio-demo',
       name: 'AudioThemeDemo',
-      component: AudioThemeShowcase,
+      component: () => import('@/components/demo/AudioThemeShowcase.vue'),
       meta: { requiresAuth: false }
     },
   ],
