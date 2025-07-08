@@ -13,7 +13,7 @@
       <div class="user-details">
         <div class="user-name">
           {{ user.display_name || user.username }}
-          <Icon v-if="user.is_verified" name="verified" class="verified-icon" />
+          <Icon v-if="user.verified" name="verified" class="verified-icon" />
         </div>
         <div class="user-handle">{{ user.handle }}</div>
         

@@ -43,7 +43,7 @@
             <div class="name-section">
               <h1 class="display-name">
                 {{ user.display_name || user.username }}
-                <Icon v-if="user.is_verified" name="verified" class="verified-icon" />
+                <Icon v-if="user.verified" name="verified" class="verified-icon" />
               </h1>
               <p class="user-handle">{{ user.handle }}</p>
             </div>
@@ -333,7 +333,7 @@ const loadUserProfile = async (handle: string) => {
         avatar_url: '/default_avatar.png',
         bio: 'Local user profile',
         is_local: true,
-        is_verified: false,
+        verified: false,
         followers_count: 0,
         following_count: 0,
         posts_count: 0,

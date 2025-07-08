@@ -373,7 +373,8 @@ document.addEventListener('click', handleClickOutside);
   resize: none;
   min-height: 60px;
   max-height: 200px;
-  padding: 0;
+  padding: 4px;
+  border-radius: 4px;;
   font-family: inherit;
 }
 
@@ -387,8 +388,8 @@ document.addEventListener('click', handleClickOutside);
 
 .character-counter {
   position: absolute;
-  bottom: 0;
-  right: 0;
+  bottom: 4px;
+  right: 4px;
   font-size: 0.75rem;
   color: #80848e;
   pointer-events: none;
