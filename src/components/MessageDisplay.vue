@@ -33,7 +33,7 @@
         <!-- System Message (join/leave announcements) -->
         <div v-if="message.is_system" class="system-message">
           <div class="system-message-content">
-            <div class="system-timestamp">{{ formatTimestamp(message.created_at) }}</div>
+            <div class="system-timestamp" v-html="formatSystemTimestamp(message.created_at)"></div>
             <div class="system-content">
               <div class="system-icon">👋</div>
               <div class="system-text">
@@ -914,6 +914,19 @@ export default defineComponent({
       }
     };
 
+    const formatSystemTimestamp = (timestamp: Date) => {
+      const date = new Date(timestamp);
+      if (!isValid(date)) return '';
+      
+      if (isToday(date)) {
+        return format(date, 'p'); // Time only for today
+      } else if (isYesterday(date)) {
+        return `Yesterday at<br/>${format(date, 'p')}`;
+      } else {
+        return `${format(date, 'MMM d, yyyy')}<br/>${format(date, 'p')}`; // Full date and time for older messages
+      }
+    };
+
     // Check if a date separator should be shown before this message
     const shouldShowDateSeparator = (message: Message, index: number): boolean => {
       if (index === 0) return false; // Don't show date separator for first message
@@ -1227,6 +1240,7 @@ export default defineComponent({
       getUserAvatar,
       getUserIdFromMessage,
       formatTimestamp,
+      formatSystemTimestamp,
       shouldShowDateSeparator,
       getIndicatorStyle,
       formatDateSeparator,
@@ -1770,14 +1784,13 @@ export default defineComponent({
 
 /* System Messages (Join/Leave Announcements) */
 .system-message {
-  padding: 0 16px;
+  padding: 0 16px 0 0;
 }
 
 .system-message-content {
   display: flex;
   align-items: center;
   flex-direction: row;
-  gap: 8px;
   margin: 8px 0;
 }
 
@@ -1811,7 +1824,7 @@ export default defineComponent({
 }
 
 .system-timestamp {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   color: #72767d;
   opacity: 0.7;
   flex-shrink: 0;
