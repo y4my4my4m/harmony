@@ -5,7 +5,6 @@
 
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
-import { federationService } from '@/services/activitypub/federationService';
 import type { 
   Post, 
   TimelinePost, 
@@ -131,7 +130,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async initialize() {
       try {
-        await federationService.initialize();
+        // Initialize federation service (no setup needed - singleton pattern)
         await this.loadFollowedUsers();
         console.log('🌐 ActivityPub store initialized');
       } catch (error) {

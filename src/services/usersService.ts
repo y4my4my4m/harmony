@@ -1,5 +1,5 @@
 import { supabase } from '@/supabase';
-import type { User } from '@/types';
+import type { Profile } from '@/types';
 
 
 // TODO: fix the RLS!!!
@@ -14,7 +14,7 @@ const getUserIdsForServer = async (serverId: string): Promise<string[]> => {
   return data.map(item => item.user_id);
 };
 
-const getProfiles = async (userIds: string[]): Promise<User[]> => {
+const getProfiles = async (userIds: string[]): Promise<Profile[]> => {
     const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -24,7 +24,7 @@ const getProfiles = async (userIds: string[]): Promise<User[]> => {
     return data;
 };
 
-const getProfilesWithAvatarUrls = async (userIds: string[]): Promise<User[]> => {
+const getProfilesWithAvatarUrls = async (userIds: string[]): Promise<Profile[]> => {
     const profiles = await getProfiles(userIds);
     const avatarUrls = profiles.map(profile => profile.avatar_url).filter(url => url);
 

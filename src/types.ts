@@ -15,6 +15,7 @@ export interface Channel {
   // type: 'text' | 'voice';
   type: number;
   category: string | null;
+  category_id: string | null; // Added for compatibility
   order: number;
 }
 
@@ -33,6 +34,7 @@ export interface User {
   display_name?: string;
   avatar_url?: string;
   status: UserStatus;
+  roles?: Role[]; // Added for compatibility
   created_at?: string;
   updated_at?: string;
   last_seen?: string;
@@ -674,4 +676,38 @@ export interface FederatedUser extends Profile {
     value: string;
     verified_at?: string;
   }>;
+}
+
+// Additional ActivityPub types for components
+
+// Post type alias for ActivityPub posts  
+export type Post = ActivityPubPost;
+
+// Enhanced post type for timeline display
+export type TimelinePost = EnhancedActivityPubPost;
+
+// Post composer state
+export interface PostComposerState {
+  content: string;
+  contentWarning?: string;
+  visibility: 'public' | 'unlisted' | 'followers' | 'direct';
+  sensitive: boolean;
+  language: string;
+  replyTo?: string;
+  mediaAttachments: MediaAttachment[];
+  poll?: {
+    options: string[];
+    multiple: boolean;
+    expiresIn: number; // seconds
+  };
+  scheduledAt?: string;
+}
+
+// Feed structure for timeline management
+export interface MonyFeed {
+  posts: TimelinePost[];
+  has_more: boolean;
+  cursor?: string;
+  loading?: boolean;
+  error?: string;
 }

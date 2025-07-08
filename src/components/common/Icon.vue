@@ -255,7 +255,59 @@
     <path v-if="name === 'alert-triangle'" d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
     <line v-if="name === 'alert-triangle'" x1="12" y1="9" x2="12" y2="13"></line>
     <line v-if="name === 'alert-triangle'" x1="12" y1="17" x2="12.01" y2="17"></line>
-    
+
+    <!-- Home -->
+    <path v-if="name === 'home'" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z"></path>
+    <polyline v-if="name === 'home'" points="9 22 9 12 15 12 15 22"></polyline>
+
+    <!-- Bookmark -->
+    <path v-if="name === 'bookmark'" d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+    <polyline v-if="name === 'bookmark'" points="17 21 12 16 7 21"></polyline>
+
+    <!-- Bell -->
+    <path v-if="name === 'bell'" d="M18 8A6 6 0 0 0 6 8v5a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2V8a6 6 0 0 0-6-6 6 6 0 0 0-6 6"></path>
+    <path v-if="name === 'bell'" d="M15 21a3 3 0 0 1-6 0"></path>
+
+    <!-- Search -->
+    <circle v-if="name === 'search'" cx="11" cy="11" r="8"></circle>
+    <line v-if="name === 'search'" x1="21" y1="21" x2="16.65" y2="16.65"></line>
+
+    <!-- Chevron Left -->
+    <polyline v-if="name === 'chevron-left'" points="15 18 9 9 15"></polyline>
+
+    <!-- Chevron Right -->
+    <polyline v-if="name === 'chevron-right'" points="9 18 15 9 15"></polyline>
+
+    <!-- Chevron Up Down -->
+    <polyline v-if="name === 'chevron-up-down'" points="18 16 12 10 6 16"></polyline>
+    <polyline v-if="name === 'chevron-up-down'" points="6 8 12 14 18 8"></polyline>
+
+    <!-- Chevron Left Right -->
+    <polyline v-if="name === 'chevron-left-right'" points="8 18 14 12 8 6"></polyline>
+    <polyline v-if="name === 'chevron-left-right'" points="16 6 10 12 16 18"></polyline>
+
+    <!-- Plus -->
+    <line v-if="name === 'plus'" x1="12" y1="5" x2="12" y2="19"></line>
+    <line v-if="name === 'plus'" x1="5" y1="12" x2="19" y2="12"></line>
+
+    <!-- Minus -->
+    <line v-if="name === 'minus'" x1="5" y1="12" x2="19" y2="12"></line>
+
+    <!-- X Circle -->
+    <circle v-if="name === 'x-circle'" cx="12" cy="12" r="10"></circle>
+    <line v-if="name === 'x-circle'" x1="15" y1="9" x2="9" y2="15"></line>
+    <line v-if="name === 'x-circle'" x1="9" y1="9" x2="15" y2="15"></line>
+
+    <!-- Visibility -->
+    <path v-if="name === 'visibility'" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+    <circle v-if="name === 'visibility'" cx="12" cy="12" r="3"></circle>
+    <path v-if="name === 'visibility'" d="M15 12a3 3 0 0 1-6 0"></path>
+
+    <!-- Lock -->
+    <rect v-if="name === 'lock'" x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+    <path v-if="name === 'lock'" d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+    <line v-if="name === 'lock'" x1="12" y1="16" x2="12" y2="16"></line>
+
     <!-- Globe -->
     <circle v-if="name === 'globe'" cx="12" cy="12" r="10"></circle>
     <line v-if="name === 'globe'" x1="2" y1="12" x2="22" y2="12"></line>
@@ -382,13 +434,27 @@ export default defineComponent({
       required: true
     },
     size: {
-      type: String,
+      type: [String, Number],
       default: 'md',
-      validator: (value: string) => ['xs', 'sm', 'md', 'lg', 'xl'].includes(value)
+      validator: (value: string | number) => {
+        if (typeof value === 'number') return value > 0 && value <= 128;
+        if (typeof value === 'string') {
+          // Check if it's a valid size string
+          if (['xs', 'sm', 'md', 'lg', 'xl'].includes(value)) return true;
+          // Check if it's a numeric string
+          const num = parseInt(value, 10);
+          return !isNaN(num) && num > 0 && num <= 128;
+        }
+        return false;
+      }
     }
   },
   setup(props) {
     const iconSize = computed(() => {
+      if (typeof props.size === 'number') {
+        return props.size;
+      }
+      
       const sizes = {
         xs: 12,
         sm: 16,
