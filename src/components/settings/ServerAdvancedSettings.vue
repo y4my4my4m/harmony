@@ -69,67 +69,18 @@
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="modal-overlay" @click="hideDeleteConfirmation">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3 class="modal-title">Delete Server</h3>
-          <button class="modal-close" @click="hideDeleteConfirmation">
-            <svg width="24" height="24" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
-            </svg>
-          </button>
-        </div>
-        
-        <div class="modal-body">
-          <div class="warning-section">
-            <svg class="warning-icon" width="48" height="48" viewBox="0 0 24 24">
-              <path fill="#ed4245" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
-            </svg>
-            <h4 class="warning-title">This action cannot be undone!</h4>
-            <p class="warning-text">
-              Deleting <strong>{{ serverName }}</strong> will permanently remove:
-            </p>
-            <ul class="warning-list">
-              <li>All channels and messages</li>
-              <li>All server emojis and files</li>
-              <li>All member data and roles</li>
-              <li>Server settings and configuration</li>
-            </ul>
-          </div>
-
-          <div class="confirmation-section">
-            <label class="confirmation-label">
-              To confirm deletion, type the exact server name: <strong>{{ serverName }}</strong>
-            </label>
-            <input
-              v-model="confirmationText"
-              type="text"
-              class="confirmation-input"
-              :class="{ 'error': confirmationError }"
-              placeholder="Type server name here..."
-              @input="validateConfirmation"
-            />
-            <div v-if="confirmationError" class="error-message">
-              {{ confirmationError }}
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn btn-secondary" @click="hideDeleteConfirmation" :disabled="deleting">
-            Cancel
-          </button>
-          <button 
-            class="btn btn-danger" 
-            @click="confirmDeleteServer"
-            :disabled="!isConfirmationValid || deleting"
-          >
-            <span v-if="deleting" class="loading-spinner"></span>
-            {{ deleting ? 'Deleting...' : 'Delete Server' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <UnifiedConfirmationModal
+      v-model="showDeleteModal"
+      title="Delete Server"
+      :message="`Deleting ${serverName} will permanently remove all channels, messages, emojis, files, member data, roles, and server configuration.`"
+      secondary-message="This action cannot be undone!"
+      confirm-button-text="Delete Server"
+      :require-confirmation="true"
+      :confirmation-text="serverName"
+      :danger-action="true"
+      @confirm="confirmDeleteServer"
+      @cancel="hideDeleteConfirmation"
+    />
   </div>
 </template>
 
@@ -139,6 +90,7 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useServerStore } from '@/stores/server'
 import { useAuthStore } from '@/stores/auth'
+import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
 
 interface ServerAdvancedPermissions {
   canDeleteServer: boolean
@@ -161,42 +113,17 @@ const authStore = useAuthStore()
 
 // State
 const showDeleteModal = ref(false)
-const confirmationText = ref('')
-const confirmationError = ref('')
-const deleting = ref(false)
-
-// Computed
-const isConfirmationValid = computed(() => {
-  return confirmationText.value === props.serverName && !confirmationError.value
-})
 
 // Methods
 const showDeleteConfirmation = () => {
   showDeleteModal.value = true
-  confirmationText.value = ''
-  confirmationError.value = ''
 }
 
 const hideDeleteConfirmation = () => {
   showDeleteModal.value = false
-  confirmationText.value = ''
-  confirmationError.value = ''
-}
-
-const validateConfirmation = () => {
-  if (confirmationText.value && confirmationText.value !== props.serverName) {
-    confirmationError.value = 'Server name does not match'
-  } else {
-    confirmationError.value = ''
-  }
 }
 
 const confirmDeleteServer = async () => {
-  if (!isConfirmationValid.value) {
-    confirmationError.value = 'Please type the exact server name to confirm'
-    return
-  }
-
   const userId = authStore.session?.user?.id
   if (!userId) {
     toast.error('Authentication required')
@@ -204,7 +131,6 @@ const confirmDeleteServer = async () => {
   }
 
   try {
-    deleting.value = true
     const success = await serverStore.deleteServer(props.serverId, userId)
     
     if (success) {
@@ -218,8 +144,6 @@ const confirmDeleteServer = async () => {
   } catch (error: any) {
     console.error('Error deleting server:', error)
     toast.error(error.message || 'Failed to delete server')
-  } finally {
-    deleting.value = false
   }
 }
 
@@ -427,154 +351,7 @@ const formatDate = (dateString: string | undefined): string => {
   color: #ffffff;
 }
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--h-chat);
-  border-radius: 8px;
-  width: 100%;
-  max-width: 500px;
-  border: 1px solid var(--h-chat-light);
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--h-chat-light);
-}
-
-.modal-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #ffffff;
-  margin: 0;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  color: #b9bbbe;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.15s ease;
-}
-
-.modal-close:hover {
-  background-color: var(--h-chat-light);
-  color: #ffffff;
-}
-
-.modal-body {
-  padding: 20px;
-}
-
-.warning-section {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.warning-icon {
-  margin-bottom: 12px;
-}
-
-.warning-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ed4245;
-  margin: 0 0 8px 0;
-}
-
-.warning-text {
-  font-size: 14px;
-  color: #b9bbbe;
-  margin: 0 0 12px 0;
-}
-
-.warning-list {
-  text-align: left;
-  color: #b9bbbe;
-  font-size: 13px;
-  margin: 0;
-  padding-left: 20px;
-}
-
-.warning-list li {
-  margin-bottom: 4px;
-}
-
-.confirmation-section {
-  margin-bottom: 24px;
-}
-
-.confirmation-label {
-  display: block;
-  font-size: 14px;
-  color: #ffffff;
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-
-.confirmation-input {
-  width: 100%;
-  padding: 12px;
-  background-color: var(--h-chat-darker);
-  border: 1px solid var(--h-chat-light);
-  border-radius: 4px;
-  color: #ffffff;
-  font-size: 14px;
-  transition: border-color 0.15s ease;
-}
-
-.confirmation-input:focus {
-  outline: none;
-  border-color: #5865f2;
-}
-
-.confirmation-input.error {
-  border-color: #ed4245;
-}
-
-.error-message {
-  font-size: 12px;
-  color: #ed4245;
-  margin-top: 4px;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  padding: 16px 20px;
-  border-top: 1px solid var(--h-chat-light);
-}
-
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid #ffffff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+/* Modal styles now handled by UnifiedConfirmationModal */
 
 @media (max-width: 768px) {
   .danger-action {
@@ -589,10 +366,6 @@ const formatDate = (dateString: string | undefined): string => {
   
   .settings-card {
     padding: 16px;
-  }
-  
-  .modal-content {
-    margin: 0 16px;
   }
 }
 </style>

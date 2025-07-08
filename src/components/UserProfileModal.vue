@@ -1,9 +1,9 @@
 <template>
-  <BaseModal 
-    :show="show" 
+  <UnifiedModal
+    v-model="isOpen"
+    size="lg"
+    :closable="true"
     @close="$emit('close')"
-    :show-header="false"
-    :compact="false"
   >
     <div class="profile-modal-content">
       <!-- Cover Banner -->
@@ -18,11 +18,6 @@
           >
             <svg viewBox="0 0 24 24" class="action-icon">
               <path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" fill="currentColor"/>
-            </svg>
-          </button>
-          <button @click="$emit('close')" class="close-button">
-            <svg viewBox="0 0 24 24" class="close-icon">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="currentColor"/>
             </svg>
           </button>
         </div>
@@ -245,15 +240,15 @@
         </div>
       </div>
     </div>
-  </BaseModal>
+  </UnifiedModal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/activitypub'
-import BaseModal from '@/components/common/BaseModal.vue'
+import UnifiedModal from '@/components/shared/UnifiedModal.vue'
 import type { User, FederatedUser } from '@/types'
 
 interface Props {
@@ -274,8 +269,14 @@ const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
 // Reactive state
+const isOpen = ref(false)
 const showActionsMenu = ref(false)
 const userNote = ref('')
+
+// Watch for show prop changes
+watch(() => props.show, (newValue) => {
+  isOpen.value = newValue
+}, { immediate: true })
 
 // Type guards
 const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUser => {
@@ -454,7 +455,6 @@ onMounted(() => {
 <style scoped>
 .profile-modal-content {
   position: relative;
-  margin: -24px -32px;
 }
 
 .profile-banner {
@@ -480,8 +480,7 @@ onMounted(() => {
   z-index: 10;
 }
 
-.action-button,
-.close-button {
+.action-button {
   width: 32px;
   height: 32px;
   background: rgba(0, 0, 0, 0.5);
@@ -496,8 +495,7 @@ onMounted(() => {
   transition: all 0.2s ease;
 }
 
-.action-button:hover,
-.close-button:hover {
+.action-button:hover {
   background: rgba(0, 0, 0, 0.7);
   border-color: rgba(255, 255, 255, 0.2);
   transform: scale(1.05);
