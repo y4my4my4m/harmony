@@ -73,6 +73,21 @@ class UnifiedAppService {
   // Event listeners for system events
   private eventListeners = new Map<string, Function[]>()
   
+  // Store event handler references for proper cleanup
+  private onlineHandler = () => {
+    this.state.isOffline = false
+    this.emit('network:online')
+  }
+  
+  private offlineHandler = () => {
+    this.state.isOffline = true
+    this.emit('network:offline')
+  }
+  
+  private resizeHandler = () => {
+    this.state.isMobile = window.innerWidth < 768
+  }
+  
   private constructor() {
     this.setupNetworkListeners()
     this.setupMobileDetection()
@@ -280,28 +295,17 @@ class UnifiedAppService {
   // ===== NETWORK STATE =====
   
   private setupNetworkListeners(): void {
-    window.addEventListener('online', () => {
-      this.state.isOffline = false
-      this.emit('network:online')
-    })
-    
-    window.addEventListener('offline', () => {
-      this.state.isOffline = true
-      this.emit('network:offline')
-    })
-    
+    window.addEventListener('online', this.onlineHandler)
+    window.addEventListener('offline', this.offlineHandler)
     this.state.isOffline = !navigator.onLine
   }
   
   // ===== MOBILE DETECTION =====
   
   private setupMobileDetection(): void {
-    const checkMobile = () => {
-      this.state.isMobile = window.innerWidth < 768
-    }
-    
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
+    // Set initial mobile state
+    this.state.isMobile = window.innerWidth < 768
+    window.addEventListener('resize', this.resizeHandler)
   }
   
   // ===== EVENT SYSTEM =====
@@ -390,9 +394,9 @@ class UnifiedAppService {
   
   destroy(): void {
     this.eventListeners.clear()
-    window.removeEventListener('online', () => {})
-    window.removeEventListener('offline', () => {})
-    window.removeEventListener('resize', () => {})
+    window.removeEventListener('online', this.onlineHandler)
+    window.removeEventListener('offline', this.offlineHandler)
+    window.removeEventListener('resize', this.resizeHandler)
   }
 }
 
