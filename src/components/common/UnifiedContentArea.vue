@@ -14,20 +14,6 @@
     
     <!-- ActivityPub Mode Content -->
     <div v-else-if="mode === 'activitypub'" class="content-section activitypub-content">
-      <!-- Timeline Header -->
-      <div class="timeline-header">
-        <h2 class="timeline-title">{{ currentTimelineTitle }}</h2>
-        <button
-          v-if="currentFeed === 'home'"
-          @click="$emit('refresh-timeline')"
-          :disabled="isLoadingFeed"
-          class="refresh-btn"
-          title="Refresh timeline"
-        >
-          <Icon name="refresh-cw" :class="{ spinning: isLoadingFeed }" />
-        </button>
-      </div>
-
       <!-- New Post Composer (Inline) -->
       <div v-if="currentFeed === 'home'" class="inline-composer">
         <MonyComposerInline @post-created="$emit('post-created', $event)" />
@@ -185,49 +171,6 @@ const getEmptyStateMessage = () => {
   overflow: hidden;
 }
 
-.timeline-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--background-primary);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.timeline-title {
-  font-size: 20px;
-  font-weight: 700;
-  margin: 0;
-  color: var(--text-primary);
-}
-
-.refresh-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: none;
-  border: none;
-  border-radius: 50%;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.refresh-btn:hover {
-  background: var(--background-hover);
-  color: var(--text-primary);
-}
-
-.refresh-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .spinning {
   animation: spin 1s linear infinite;
 }
@@ -241,7 +184,7 @@ const getEmptyStateMessage = () => {
   border-bottom: 1px solid var(--border-color);
   background: var(--background-primary);
   position: sticky;
-  top: 72px;
+  top: 0;
   z-index: 9;
 }
 
@@ -348,14 +291,6 @@ const getEmptyStateMessage = () => {
 
 /* Responsive design */
 @media (max-width: 768px) {
-  .timeline-header {
-    padding: 12px 16px;
-  }
-  
-  .timeline-title {
-    font-size: 18px;
-  }
-  
   .empty-state {
     padding: 40px 16px;
   }

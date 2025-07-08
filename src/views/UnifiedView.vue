@@ -29,33 +29,41 @@
     </div>
     
     <!-- Unified Context Bar -->
-    <UnifiedContextBar
-      :mode="currentMode"
-      :is-mobile="isMobile"
-      :left-sidebar-open="isSidebarsVisible"
-      :right-sidebar-open="isProfilesVisible"
-      :voice-panel-open="voicePanelOpen"
-      :current-server="currentServer"
-      :current-channel="currentChannel"
-      :is-d-m="isDM"
-      :current-feed="currentFeed"
-      :instance-domain="instanceDomain"
-      @toggle-left-sidebar="toggleLeftSidebar"
-      @toggle-right-sidebar="toggleRightSidebar"
-      @toggle-voice-panel="toggleVoicePanel"
-      @toggle-search="handleToggleSearch"
-      @switch-feed="handleSwitchFeed"
-      @open-search="handleOpenSearch"
-      @open-composer="handleOpenComposer"
-    />
-    
-    <!-- Left Sidebar Container -->
-    <div class="left-sidebar-container" :class="{ 'mobile-open': isSidebarsVisible }">
-      <UnifiedSidebar
+    <div class="context-bar-container">
+      <UnifiedContextBar
         :mode="currentMode"
-        :mobile-open="isSidebarsVisible"
         :is-mobile="isMobile"
+        :left-sidebar-open="isSidebarsVisible"
+        :right-sidebar-open="isProfilesVisible"
+        :voice-panel-open="voicePanelOpen"
+        :current-server="currentServer"
+        :current-channel="currentChannel"
+        :is-d-m="isDM"
+        :current-feed="currentFeed"
+        :instance-domain="instanceDomain"
+        @toggle-left-sidebar="toggleLeftSidebar"
+        @toggle-right-sidebar="toggleRightSidebar"
+        @toggle-voice-panel="toggleVoicePanel"
+        @toggle-search="handleToggleSearch"
+        @switch-feed="handleSwitchFeed"
+        @refresh-timeline="handleRefreshTimeline"
+        @open-search="handleOpenSearch"
+        @open-composer="handleOpenComposer"
+      />
+    </div>
+    
+    <!-- Server List Sidebar (Always Visible) -->
+    <div class="server-sidebar-container">
+      <ServerSidebar
         :servers="servers"
+        @showPublicServers="handleShowPublicServers"
+      />
+    </div>
+    
+    <!-- Adaptive Channel Sidebar -->
+    <div class="channel-sidebar-container" :class="{ 'mobile-open': isSidebarsVisible }">
+      <AdaptiveChannelSidebar
+        :mode="currentMode"
         :current-server="currentServer"
         :channels="channels"
         :current-channel-id="currentChannelId"
@@ -64,7 +72,9 @@
         :is-d-m="isDM"
         :following-count="followingCount"
         :followers-count="followersCount"
-        @show-public-servers="handleShowPublicServers"
+        :instance-domain="instanceDomain"
+        :instance-user-count="instanceUserCount"
+        :instance-post-count="instancePostCount"
         @channel-selected="handleChannelSelected"
         @create-channel="handleCreateChannel"
         @conversation-selected="handleDMConversationSelected"
@@ -200,10 +210,11 @@ import { useToast } from "vue-toastification";
 
 // Unified Components
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue';
-import UnifiedSidebar from '@/components/common/UnifiedSidebar.vue';
+import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue';
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue';
 
 // Chat Components
+import ServerSidebar from '@/components/ServerSidebar.vue';
 import UserSidebar from '@/components/UserSidebar.vue';
 import NoServersSplash from '@/components/NoServersSplash.vue';
 import CreateChannel from '@/components/CreateChannel.vue';
@@ -744,17 +755,28 @@ onBeforeUnmount(() => {
 .unified-layout {
   display: grid;
   grid-template-areas: 
-    "context context context"
-    "sidebar content rightbar";
-  grid-template-columns: 240px 1fr 240px;
+    "context context context context"
+    "servers channels content rightbar";
+  grid-template-columns: 72px 240px 1fr 240px;
   grid-template-rows: 48px 1fr;
   height: 100vh;
   background: var(--background-primary);
 }
 
-.left-sidebar-container {
-  grid-area: sidebar;
-  background: var(--background-primary);
+.context-bar-container {
+  grid-area: context;
+  z-index: 100;
+}
+
+.server-sidebar-container {
+  grid-area: servers;
+  background: var(--background-tertiary);
+  border-right: 1px solid var(--border-color);
+}
+
+.channel-sidebar-container {
+  grid-area: channels;
+  background: var(--background-secondary);
   border-right: 1px solid var(--border-color);
 }
 
@@ -894,7 +916,11 @@ onBeforeUnmount(() => {
     grid-template-rows: 48px 1fr;
   }
   
-  .left-sidebar-container {
+  .server-sidebar-container {
+    display: none; /* Hide server sidebar on mobile */
+  }
+  
+  .channel-sidebar-container {
     position: fixed;
     left: 0;
     top: 48px;
@@ -903,9 +929,10 @@ onBeforeUnmount(() => {
     z-index: 200;
     transform: translateX(-100%);
     transition: transform 0.3s ease;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
   }
   
-  .left-sidebar-container.mobile-open {
+  .channel-sidebar-container.mobile-open {
     transform: translateX(0);
   }
   
@@ -918,6 +945,7 @@ onBeforeUnmount(() => {
     z-index: 200;
     transform: translateX(100%);
     transition: transform 0.3s ease;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
   }
   
   .right-sidebar-container.mobile-open {

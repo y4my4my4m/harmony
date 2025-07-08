@@ -1,17 +1,23 @@
 <template>
-  <div class="unified-sidebar" :class="{ 'mobile-open': mobileOpen, mobile: isMobile }">
-    <!-- Chat Mode Sidebar -->
-    <div v-if="mode === 'chat'" class="sidebar-content chat-sidebar">
-      <!-- Server Navigation -->
-      <ServerSidebar
-        :servers="servers"
-        @showPublicServers="$emit('show-public-servers')"
-      />
+  <div class="adaptive-channel-sidebar">
+    <!-- Chat Mode: Regular Channels -->
+    <div v-if="mode === 'chat' && !isDM" class="chat-mode-container">
+      <div class="chat-header">
+        <div class="chat-title">
+          <Icon name="hash" />
+          <h2>{{ currentServer?.name || 'Channels' }}</h2>
+        </div>
+        <button 
+          @click="$emit('switch-mode', 'activitypub')"
+          class="mode-toggle-btn"
+          title="Switch to Social"
+        >
+          <Icon name="globe" />
+        </button>
+      </div>
       
-      <!-- Channel/DM Navigation -->
-      <div class="navigation-area">
+      <div class="chat-content">
         <ChannelSidebar
-          v-if="!isDM"
           :currentServer="currentServer"
           :channels="channels"
           :currentChannelId="currentChannelId"
@@ -20,52 +26,49 @@
           @channelSelected="$emit('channel-selected', $event)"
           @createChannel="$emit('create-channel', $event)"
         />
-        <DMSidebar
-          v-else
-          @conversationSelected="$emit('conversation-selected', $event)"
-        />
-      </div>
-      
-      <!-- Social Mode Quick Access -->
-      <div class="mode-quick-access">
-        <button 
-          @click="$emit('switch-mode', 'activitypub')" 
-          class="social-access-btn"
-          title="Switch to Social Mode"
-        >
-          <Icon name="globe" />
-          <span>Social Feed</span>
-        </button>
-      </div>
-      
-      <!-- User Profile at Bottom -->
-      <div class="user-profile-section">
-        <UserProfileComponent />
       </div>
     </div>
     
-    <!-- ActivityPub Mode Sidebar -->
-    <div v-else-if="mode === 'activitypub'" class="sidebar-content activitypub-sidebar">
-      <!-- Mode Switcher -->
-      <div class="mode-switcher">
-        <button 
-          @click="$emit('switch-mode', 'chat')"
-          class="mode-btn chat-mode-btn"
-          title="Switch to Chat"
-        >
+    <!-- DM Mode: Conversations List -->
+    <div v-else-if="mode === 'chat' && isDM" class="dm-mode-container">
+      <div class="dm-header">
+        <div class="dm-title">
           <Icon name="message-circle" />
-          <span>Chat</span>
-        </button>
+          <h2>Direct Messages</h2>
+        </div>
         <button 
           @click="$emit('switch-mode', 'activitypub')"
-          class="mode-btn activitypub-mode-btn active"
-          title="Social Mode"
+          class="mode-toggle-btn"
+          title="Switch to Social"
         >
           <Icon name="globe" />
-          <span>Social</span>
         </button>
       </div>
       
+      <div class="dm-content">
+        <DMSidebar
+          @conversationSelected="$emit('conversation-selected', $event)"
+        />
+      </div>
+    </div>
+    
+    <!-- ActivityPub Mode: Social Navigation -->
+    <div v-else-if="mode === 'activitypub'" class="social-sidebar">
+      <!-- Header -->
+      <div class="social-header">
+        <div class="social-title">
+          <Icon name="globe" />
+          <h2>Social</h2>
+        </div>
+        <button 
+          @click="$emit('switch-mode', 'chat')"
+          class="mode-toggle-btn"
+          title="Switch to Chat"
+        >
+          <Icon name="message-circle" />
+        </button>
+      </div>
+
       <!-- User Profile Card -->
       <div class="user-profile-card">
         <img 
@@ -80,16 +83,19 @@
       </div>
 
       <!-- Navigation Links -->
-      <nav class="activitypub-nav">
-        <router-link 
-          v-for="navItem in navigationItems"
-          :key="navItem.id"
-          :to="navItem.path"
-          :class="['nav-item', { active: $route.path === navItem.path }]"
-        >
-          <Icon :name="navItem.icon" />
-          <span>{{ navItem.label }}</span>
-        </router-link>
+      <nav class="social-nav">
+        <div class="nav-section">
+          <h4 class="nav-section-title">Navigation</h4>
+          <router-link 
+            v-for="navItem in navigationItems"
+            :key="navItem.id"
+            :to="navItem.path"
+            :class="['nav-item', { active: $route.path === navItem.path }]"
+          >
+            <Icon :name="navItem.icon" />
+            <span>{{ navItem.label }}</span>
+          </router-link>
+        </div>
       </nav>
 
       <!-- Quick Stats -->
@@ -104,16 +110,20 @@
         </div>
       </div>
 
-      <!-- Back to Chat (Alternative to mode switcher) -->
-      <div class="mode-actions">
-        <button 
-          @click="$emit('switch-mode', 'chat')" 
-          class="back-to-chat-btn"
-        >
-          <Icon name="message-circle" />
-          <span>Back to Chat</span>
-        </button>
+      <!-- Instance Info -->
+      <div class="instance-info">
+        <h4 class="section-title">Instance</h4>
+        <div class="instance-details">
+          <p class="instance-domain">{{ instanceDomain }}</p>
+          <p class="instance-stats">{{ instanceUserCount }} users</p>
+          <p class="instance-stats">{{ instancePostCount }} posts</p>
+        </div>
       </div>
+    </div>
+    
+    <!-- User Profile at Bottom -->
+    <div class="user-profile-section">
+      <UserProfileComponent />
     </div>
   </div>
 </template>
@@ -121,7 +131,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import ServerSidebar from '@/components/ServerSidebar.vue';
 import ChannelSidebar from '@/components/ChannelSidebar.vue';
 import DMSidebar from '@/components/DMSidebar.vue';
 import UserProfileComponent from '@/components/UserProfileComponent.vue';
@@ -132,11 +141,8 @@ import type { Server, Channel, Category, CategoryChannels } from '@/types';
 
 interface Props {
   mode: 'chat' | 'activitypub';
-  mobileOpen?: boolean;
-  isMobile?: boolean;
   
   // Chat mode props
-  servers?: Server[];
   currentServer?: Server | null;
   channels?: Channel[];
   currentChannelId?: string;
@@ -147,24 +153,26 @@ interface Props {
   // ActivityPub mode props
   followingCount?: number;
   followersCount?: number;
+  instanceDomain?: string;
+  instanceUserCount?: number;
+  instancePostCount?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  mobileOpen: false,
-  isMobile: false,
-  servers: () => [],
   channels: () => [],
   currentChannelId: '',
   categories: () => [],
   categoryChannels: () => ({}),
   isDM: false,
   followingCount: 0,
-  followersCount: 0
+  followersCount: 0,
+  instanceDomain: 'harmony.com',
+  instanceUserCount: 0,
+  instancePostCount: 0
 });
 
 defineEmits<{
   // Chat mode events
-  'show-public-servers': [];
   'channel-selected': [channelId: string];
   'create-channel': [categoryId: string];
   'conversation-selected': [conversationId: string];
@@ -197,77 +205,139 @@ const navigationItems = computed(() => [
 </script>
 
 <style scoped>
-.unified-sidebar {
+.adaptive-channel-sidebar {
   width: 240px;
   height: 100%;
-  background: var(--background-primary);
+  background: var(--background-secondary);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  position: relative;
-  transition: transform 0.3s ease;
-}
-
-.sidebar-content {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  overflow: hidden;
 }
 
 /* Chat Mode Styles */
-.chat-sidebar {
-  /* Inherits from existing sidebar styles */
+.chat-mode-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.navigation-area {
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 2px solid var(--border-color);
+  background: var(--background-secondary);
+}
+
+.chat-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-title h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-content {
   flex: 1;
   overflow: hidden;
 }
 
-.user-profile-section {
-  border-top: 1px solid var(--border-color);
+/* DM Mode Styles */
+.dm-mode-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 2px solid var(--border-color);
   background: var(--background-secondary);
 }
 
-/* ActivityPub Mode Styles */
-.activitypub-sidebar {
+.dm-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dm-title h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.dm-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Social Mode Styles */
+.social-sidebar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   padding: 16px;
   gap: 20px;
+  overflow-y: auto;
 }
 
-.mode-switcher {
+.social-header {
   display: flex;
-  background: var(--background-tertiary);
-  border-radius: 8px;
-  padding: 4px;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border-color);
 }
 
-.mode-btn {
-  flex: 1;
+.social-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.social-title h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.mode-toggle-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 12px;
+  width: 32px;
+  height: 32px;
   background: none;
   border: none;
   border-radius: 6px;
   color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.mode-btn:hover {
+.mode-toggle-btn:hover {
   background: var(--background-hover);
-  color: var(--text-primary);
-}
-
-.mode-btn.active {
-  background: var(--brand-primary);
-  color: white;
+  color: var(--brand-primary);
 }
 
 .user-profile-card {
@@ -275,7 +345,7 @@ const navigationItems = computed(() => [
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: var(--background-secondary);
+  background: var(--background-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
@@ -311,23 +381,35 @@ const navigationItems = computed(() => [
   text-overflow: ellipsis;
 }
 
-.activitypub-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.social-nav {
+  flex: 1;
+}
+
+.nav-section {
+  margin-bottom: 20px;
+}
+
+.nav-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 0 0 8px 0;
+  letter-spacing: 0.02em;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   text-decoration: none;
   color: var(--text-secondary);
   border-radius: 6px;
   transition: all 0.15s ease;
   font-size: 14px;
   font-weight: 500;
+  margin-bottom: 2px;
 }
 
 .nav-item:hover {
@@ -344,7 +426,7 @@ const navigationItems = computed(() => [
   display: flex;
   justify-content: space-around;
   padding: 16px;
-  background: var(--background-secondary);
+  background: var(--background-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
@@ -367,90 +449,60 @@ const navigationItems = computed(() => [
   font-weight: 500;
 }
 
-.mode-actions {
-  margin-top: auto;
-}
-
-.back-to-chat-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--background-secondary);
+.instance-info {
+  padding: 16px;
+  background: var(--background-primary);
+  border-radius: 8px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-secondary);
+  margin: 0 0 12px 0;
+  letter-spacing: 0.02em;
+}
+
+.instance-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.instance-domain {
   font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.back-to-chat-btn:hover {
-  background: var(--background-hover);
+  font-weight: 600;
   color: var(--text-primary);
-  border-color: var(--border-hover);
+  margin: 0;
 }
 
-.mode-quick-access {
-  padding: 12px 16px;
+.instance-stats {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.user-profile-section {
   border-top: 1px solid var(--border-color);
   background: var(--background-secondary);
 }
 
-.social-access-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.social-access-btn:hover {
-  background: var(--brand-primary);
-  color: white;
-  border-color: var(--brand-primary);
-}
-
-/* Mobile Styles */
-.unified-sidebar.mobile {
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 200;
-  transform: translateX(-100%);
-}
-
-.unified-sidebar.mobile.mobile-open {
-  transform: translateX(0);
-}
-
+/* Mobile responsive */
 @media (max-width: 768px) {
-  .unified-sidebar {
-    width: 280px;
+  .adaptive-channel-sidebar {
+    width: 100%;
   }
   
-  .activitypub-sidebar {
+  .social-sidebar {
     padding: 12px;
     gap: 16px;
   }
   
-  .user-profile-card {
-    padding: 12px;
-  }
-  
-  .quick-stats {
+  .user-profile-card,
+  .quick-stats,
+  .instance-info {
     padding: 12px;
   }
 }

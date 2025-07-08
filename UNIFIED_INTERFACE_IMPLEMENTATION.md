@@ -1,8 +1,22 @@
-# Unified Interface Implementation
+# Unified Interface Implementation - REFACTORED
 
 ## Overview
 
-Successfully implemented a unified interface that seamlessly integrates chat mode (Discord-like functionality) and ActivityPub mode (federated social media) while maintaining maximum code reuse and a professional, scalable architecture.
+Successfully implemented and refactored a unified interface that seamlessly integrates chat mode (Discord-like functionality) and ActivityPub mode (federated social media) following proper Discord-like architecture with maximum code reuse and clean, organized CSS structure.
+
+## Key Improvements Made
+
+### 1. **Proper Discord-like Layout Structure**
+- **ServerSidebar**: Always visible narrow left sidebar (72px) with server icons
+- **AdaptiveChannelSidebar**: Context-aware channel sidebar (240px) that adapts content based on mode
+- **Clean Grid Layout**: Four-column grid (`servers | channels | content | rightbar`)
+- **No More Complex Nested Sidebars**: Simplified component hierarchy
+
+### 2. **CSS Architecture Cleanup**
+- **Organized Scoped Styles**: Each component has clean, well-organized CSS
+- **Consistent Spacing**: Unified padding, margins, and border patterns
+- **Mobile-First Responsive**: Proper mobile breakpoints and touch-friendly design
+- **CSS Grid Layout**: Modern grid-based layout instead of complex flexbox nesting
 
 ## Architecture
 
@@ -21,33 +35,44 @@ Successfully implemented a unified interface that seamlessly integrates chat mod
   - Search and compose buttons
   - Instance information
 
-#### 2. UnifiedSidebar (`src/components/common/UnifiedSidebar.vue`)
-- **Purpose**: Adaptive sidebar that changes content based on mode
-- **Chat Mode Content**:
-  - Server navigation (reuses existing `ServerSidebar`)
-  - Channel/DM navigation (reuses existing `ChannelSidebar`/`DMSidebar`)
-  - User profile section
-  - Quick access to Social mode
-- **ActivityPub Mode Content**:
-  - Mode switcher
-  - User profile card with handle
-  - Navigation links (Profile, Notifications, Bookmarks, etc.)
-  - Follow stats
-  - Back to Chat button
+#### 2. ServerSidebar (`src/components/ServerSidebar.vue`)
+- **Purpose**: Always-visible narrow left sidebar for server navigation
+- **Features**:
+  - Server icons in vertical list
+  - Add server button
+  - Public servers discovery
+  - Consistent across all modes
 
-#### 3. UnifiedContentArea (`src/components/common/UnifiedContentArea.vue`)
+#### 3. AdaptiveChannelSidebar (`src/components/common/AdaptiveChannelSidebar.vue`)
+- **Purpose**: Context-aware middle sidebar that adapts content based on current mode
+- **Chat Mode (Channels)**:
+  - Server name header with mode switch button
+  - Channel list and categories (reuses existing `ChannelSidebar`)
+  - User profile section at bottom
+- **Chat Mode (DMs)**:
+  - "Direct Messages" header with mode switch button
+  - Conversation list (reuses existing `DMSidebar`)
+  - User profile section at bottom
+- **ActivityPub Mode (Social)**:
+  - "Social" header with mode switch button
+  - User profile card with handle and stats
+  - Navigation links (Profile, Notifications, Bookmarks, etc.)
+  - Quick stats (Following/Followers)
+  - Instance information
+
+#### 4. UnifiedContentArea (`src/components/common/UnifiedContentArea.vue`)
 - **Purpose**: Main content area that switches between chat and ActivityPub content
 - **Chat Mode Content**:
   - Reuses existing `ChatComponent` entirely
   - Message display and input
   - Loading states
 - **ActivityPub Mode Content**:
-  - Timeline header with refresh button
-  - Inline post composer for home feed
+  - Inline post composer for home feed (sticky at top)
   - Post feed with loading/empty states
   - Load more functionality
+  - Clean, streamlined layout
 
-#### 4. UnifiedView (`src/views/UnifiedView.vue`)
+#### 5. UnifiedView (`src/views/UnifiedView.vue`)
 - **Purpose**: Main orchestrating component that manages state and routing
 - **Features**:
   - Mode switching between chat and ActivityPub
@@ -55,6 +80,41 @@ Successfully implemented a unified interface that seamlessly integrates chat mod
   - Mobile responsive layout
   - Unified modals and overlays
   - Comprehensive event handling
+
+## Layout Structure
+
+### Grid Layout
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    UnifiedContextBar                        │
+│                   (spans all columns)                      │
+├────────┬──────────────────┬─────────────────┬───────────────┤
+│        │                  │                 │               │
+│ Server │  Adaptive        │   Main Content  │ Right Sidebar │
+│ Icons  │  Channel         │   Area          │ (Users/       │
+│        │  Sidebar         │                 │  Trending)    │
+│ 72px   │  240px          │   1fr           │ 240px         │
+│        │                  │                 │               │
+│        │ • Chat: Channels │ • Chat: Messages│ • Chat: Users │
+│        │ • DM: Convos     │ • Social: Posts │ • Social:     │
+│        │ • Social: Nav    │                 │   Trending    │
+└────────┴──────────────────┴─────────────────┴───────────────┘
+```
+
+### Mobile Layout
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    UnifiedContextBar                        │
+│              (with hamburger menus)                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│                   Main Content Area                         │
+│                     (full width)                           │
+│                                                             │
+│  [Channel Sidebar slides in from left when opened]         │
+│  [Right Sidebar slides in from right when opened]          │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### Key Design Principles
 
