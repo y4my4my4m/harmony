@@ -161,10 +161,11 @@ class UnifiedAppService {
   setMode(mode: AppMode): void {
     if (this.state.currentMode === mode) return
     
-    console.log(`🔄 Switching from ${this.state.currentMode} to ${mode}`)
+    const previous = this.state.currentMode
+    console.log(`🔄 Switching from ${previous} to ${mode}`)
     
     this.state.currentMode = mode
-    this.emit('mode:changed', { from: this.state.currentMode, to: mode })
+    this.emit('mode:changed', { from: previous, to: mode })
   }
   
   setChatMode(mode: ChatMode): void {
