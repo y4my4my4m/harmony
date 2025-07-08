@@ -1,13 +1,11 @@
 <template>
-  <UnifiedModal
-    v-model="isOpen"
-    size="lg"
-    :show-close-button="true"
-    is-profile
-    no-padding
+  <BaseModal 
+    :show="show" 
     @close="$emit('close')"
+    :show-header="false"
+    :compact="false"
   >
-    <template #customHeader>
+    <div class="profile-modal-content">
       <!-- Cover Banner -->
       <div class="profile-banner" :style="{ background: user?.color || '#5865f2' }">
         <div class="banner-gradient"></div>
@@ -22,22 +20,13 @@
               <path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" fill="currentColor"/>
             </svg>
           </button>
-          
-          <!-- Close button integrated into banner -->
-          <button 
-            @click="$emit('close')"
-            class="banner-close-button"
-            aria-label="Close profile"
-          >
+          <button @click="$emit('close')" class="close-button">
             <svg viewBox="0 0 24 24" class="close-icon">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="currentColor"/>
             </svg>
           </button>
         </div>
       </div>
-    </template>
-
-    <div class="profile-modal-content">
 
       <!-- Actions Dropdown -->
       <div v-if="showActionsMenu" class="actions-dropdown" @click.stop>
@@ -256,15 +245,15 @@
         </div>
       </div>
     </div>
-  </UnifiedModal>
+  </BaseModal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/activitypub'
-import UnifiedModal from '@/components/shared/UnifiedModal.vue'
+import BaseModal from '@/components/common/BaseModal.vue'
 import type { User, FederatedUser } from '@/types'
 
 interface Props {
@@ -285,14 +274,8 @@ const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
 // Reactive state
-const isOpen = ref(false)
 const showActionsMenu = ref(false)
 const userNote = ref('')
-
-// Watch for show prop changes
-watch(() => props.show, (newValue) => {
-  isOpen.value = newValue
-}, { immediate: true })
 
 // Type guards
 const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUser => {
@@ -471,6 +454,7 @@ onMounted(() => {
 <style scoped>
 .profile-modal-content {
   position: relative;
+  margin: -24px -32px;
 }
 
 .profile-banner {
@@ -496,7 +480,8 @@ onMounted(() => {
   z-index: 10;
 }
 
-.action-button {
+.action-button,
+.close-button {
   width: 32px;
   height: 32px;
   background: rgba(0, 0, 0, 0.5);
@@ -511,7 +496,8 @@ onMounted(() => {
   transition: all 0.2s ease;
 }
 
-.action-button:hover {
+.action-button:hover,
+.close-button:hover {
   background: rgba(0, 0, 0, 0.7);
   border-color: rgba(255, 255, 255, 0.2);
   transform: scale(1.05);
@@ -520,27 +506,6 @@ onMounted(() => {
 .action-button.active {
   background: rgba(88, 101, 242, 0.8);
   border-color: #5865f2;
-}
-
-.banner-close-button {
-  width: 32px;
-  height: 32px;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #ffffff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.banner-close-button:hover {
-  background: rgba(220, 38, 38, 0.8);
-  border-color: rgba(220, 38, 38, 0.8);
-  transform: scale(1.05);
 }
 
 .action-icon,
