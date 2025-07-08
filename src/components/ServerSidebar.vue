@@ -68,9 +68,9 @@ export default defineComponent({
       return route.name === 'DM' || route.name === 'DMHome';
     });
 
-    // Check if we're currently in Monyverse
+    // Check if we're currently in Monyverse/Social (ActivityPub)
     const isMonyverseSelected = computed(() => {
-      return route.name === 'Monyverse';
+      return route.name === 'Monyverse' || route.name === 'Social';
     });
 
     // Get unread count from ActivityPub store

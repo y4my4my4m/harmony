@@ -826,12 +826,36 @@ const loadServerAndChannel = async () => {
 
 
 
-// Watch route changes
+// Watch route changes to update mode and load data
 watch(route, async () => {
   if (isAppInitialized.value) {
-    await loadServerAndChannel();
+    // Update mode based on route
+    if (route.name === 'Social' || route.name === 'Monyverse') {
+      currentMode.value = 'activitypub';
+      if (route.params.timeline) {
+        currentFeed.value = route.params.timeline as 'home' | 'local' | 'public';
+      }
+      await loadTimeline();
+    } else {
+      currentMode.value = 'chat';
+    }
+    
+    // Load server/channel data for chat routes only
+    if (currentMode.value === 'chat') {
+      await loadServerAndChannel();
+    }
   }
 }, { immediate: false });
+
+// Watch for mode changes from props (when component is created with specific mode)
+watch(() => props.mode, (newMode) => {
+  currentMode.value = newMode;
+}, { immediate: true });
+
+// Watch for timeline changes from props
+watch(() => props.timeline, (newTimeline) => {
+  currentFeed.value = newTimeline;
+}, { immediate: true });
 
 // Watch for server list changes to automatically navigate to new servers
 watch(() => servers.value.length, (newLength, oldLength) => {
