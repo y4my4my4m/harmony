@@ -779,22 +779,22 @@ const createServer = async () => {
 }
 
 .preview-description {
-  font-size: 12px;
-  color: #b9bbbe;
-  margin: 0 0 8px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-2);
 }
 
 .preview-tags {
   display: flex;
-  gap: 6px;
+  gap: var(--space-1);
 }
 
 .tag {
   font-size: 10px;
   padding: 2px 6px;
-  background: rgba(87, 242, 135, 0.2);
-  color: #57f287;
-  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--harmony-success);
+  border-radius: var(--radius-sm);
   font-weight: 500;
 }
 

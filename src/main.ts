@@ -1,5 +1,5 @@
-// import './assets/reset.css'
-
+// Import unified design system first
+import './assets/design-system.css'
 import './assets/main.css'
 import './assets/shared.css'
 // Dynamically import 'pwa.css' based on mobile detection
