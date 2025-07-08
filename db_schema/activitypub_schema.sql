@@ -15,7 +15,7 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS domain TEXT;
 UPDATE profiles SET 
     domain = CASE 
         WHEN username LIKE '%@%' THEN split_part(username, '@', -1)
-        ELSE 'harmony.com'
+        ELSE 'har.mony.lol'
     END
 WHERE domain IS NULL;
 
@@ -28,11 +28,11 @@ UPDATE profiles SET
 WHERE username LIKE '%@%';
 
 -- Step 4: Set default domain for null values
-UPDATE profiles SET domain = 'harmony.com' WHERE domain IS NULL;
+UPDATE profiles SET domain = 'har.mony.lol' WHERE domain IS NULL;
 
 -- Step 5: Make domain NOT NULL
 ALTER TABLE profiles ALTER COLUMN domain SET NOT NULL;
-ALTER TABLE profiles ALTER COLUMN domain SET DEFAULT 'harmony.com';
+ALTER TABLE profiles ALTER COLUMN domain SET DEFAULT 'har.mony.lol';
 
 -- Create index for efficient federated user lookups
 CREATE INDEX IF NOT EXISTS idx_profiles_username_domain ON profiles(username, domain);
@@ -599,7 +599,7 @@ DECLARE
     user_record profiles%ROWTYPE;
 BEGIN
     SELECT * INTO user_record FROM profiles WHERE id = p_user_id;
-    IF user_record.domain = 'harmony.com' THEN
+    IF user_record.domain = 'har.mony.lol' THEN
         RETURN '@' || user_record.username;
     ELSE
         RETURN '@' || user_record.username || '@' || user_record.domain;

@@ -19,25 +19,6 @@
       </router-link>
     </div>
 
-    <!-- Monyverse Button -->
-    <div class="nav-section">
-      <router-link 
-        to="/monyverse" 
-        class="nav-item monyverse-button"
-        :class="{ 'active': isMonyverseRoute }"
-        title="Monyverse - Federated Social Feed"
-      >
-        <div class="nav-icon">
-          <svg viewBox="0 0 24 24" class="icon">
-            <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10Z" fill="currentColor"/>
-          </svg>
-        </div>
-        <div v-if="activitypubStore.unreadCount > 0" class="unread-badge">
-          {{ activitypubStore.unreadCount > 99 ? '99+' : activitypubStore.unreadCount }}
-        </div>
-      </router-link>
-    </div>
-
     <!-- Divider -->
     <div class="nav-divider"></div>
 
@@ -114,7 +95,6 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDMStore } from '@/stores/useDM'
-import { useActivityPubStore } from '@/stores/activitypub'
 import type { Server } from '@/types'
 
 interface Props {
@@ -132,15 +112,10 @@ const emit = defineEmits<{
 const route = useRoute()
 const router = useRouter()
 const dmStore = useDMStore()
-const activitypubStore = useActivityPubStore()
 
 // Computed properties
 const isDMRoute = computed(() => {
   return route.path.startsWith('/dm')
-})
-
-const isMonyverseRoute = computed(() => {
-  return route.path.startsWith('/monyverse')
 })
 
 const showAddServerModal = computed({
@@ -237,31 +212,6 @@ const getServerAcronym = (serverName: string): string => {
 .dm-button:hover,
 .dm-button.active {
   background: var(--h-brand, #5865f2);
-}
-
-.monyverse-button {
-  background: var(--h-chat, #36393f);
-  color: #ffffff;
-  position: relative;
-}
-
-.monyverse-button:hover,
-.monyverse-button.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.monyverse-button .nav-icon {
-  color: #a78bfa;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.monyverse-button:hover .nav-icon,
-.monyverse-button.active .nav-icon {
-  color: #ffffff;
-  -webkit-text-fill-color: #ffffff;
 }
 
 .nav-icon {
