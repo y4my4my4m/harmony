@@ -191,14 +191,6 @@ const getEmptyStateMessage = () => {
    TIMELINE COMPONENTS
    ============================================================================= */
 
-.inline-composer {
-  background: var(--background-primary);
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
-  border-bottom: 1px solid var(--border-color);
-}
-
 .timeline-feed {
   flex: 1;
   overflow-y: auto;

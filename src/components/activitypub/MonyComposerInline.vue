@@ -334,11 +334,11 @@ document.addEventListener('click', handleClickOutside);
 
 <style scoped>
 .inline-composer {
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-primary);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 1rem;
-  margin-bottom: 1rem;
+  margin: 1rem;
 }
 
 .composer-content {

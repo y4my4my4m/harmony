@@ -787,11 +787,6 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
-.inline-composer {
-  padding: 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
 .timeline-feed {
   padding: 1rem 0;
 }

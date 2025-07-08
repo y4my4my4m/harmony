@@ -1,15 +1,18 @@
 <!-- MonyComposer Component - Post creation interface -->
 <!-- Professional, feature-rich composer for the Monyverse -->
 <template>
-  <UnifiedModal
-    :model-value="isOpen"
-    :title="composerState.in_reply_to ? 'Reply to Mony' : 'Create a Mony'"
-    size="lg"
-    :show-close-button="true"
-    @close="onClose"
-    @update:model-value="$emit('close')"
-  >
-    <div class="composer-container" :class="{ 'is-reply': composerState.in_reply_to }">
+  <Teleport to="body">
+    <div v-if="isOpen" class="composer-overlay" @click.self="onClose">
+      <div class="composer-modal" :class="{ 'is-reply': composerState.in_reply_to }">
+        <!-- Header -->
+        <div class="composer-header">
+          <h2 class="composer-title">
+            {{ composerState.in_reply_to ? 'Reply to Mony' : 'Create a Mony' }}
+          </h2>
+          <button class="close-button" @click="onClose">
+            <Icon name="x" />
+          </button>
+        </div>
 
         <!-- Reply Context -->
         <div v-if="replyToPost" class="reply-context">
@@ -203,7 +206,8 @@
           :closeEmojiList="() => showEmojiPicker = false"
         />
       </div>
-  </UnifiedModal>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -217,7 +221,6 @@ import MonyMediaUpload from './MonyMediaUpload.vue';
 import EmojiPopup from '@/components/EmojiPopup.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
-import UnifiedModal from '@/components/shared/UnifiedModal.vue';
 
 // Props
 interface Props {
@@ -477,14 +480,63 @@ const vClickOutside = {
 </script>
 
 <style scoped>
-.composer-container {
-  background-color: var(--background-secondary);
-  max-height: 80vh;
-  overflow-y: auto;
+.composer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
 }
 
-.composer-container.is-reply {
-  /* Additional styles for reply mode */
+.composer-modal {
+  background-color: #1f2937;
+  border-radius: 1rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 1px solid #374151;
+}
+
+.composer-modal.is-reply {
+  max-width: 700px;
+}
+
+.composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 1.5rem 0;
+  border-bottom: 1px solid #374151;
+  padding-bottom: 1rem;
+}
+
+.composer-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: white;
+  margin: 0;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+.close-button:hover {
+  background-color: #374151;
+  color: white;
 }
 
 .reply-context {
