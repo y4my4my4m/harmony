@@ -32,17 +32,19 @@
 
         <!-- System Message (join/leave announcements) -->
         <div v-if="message.is_system" class="system-message">
-          <div class="system-content">
-            <div class="system-icon">👋</div>
-            <div class="system-text">
-              <UnifiedMessageContent 
-                :content="message.content"
-                :message-id="message.id"
-                :is-system="true"
-                @show-user-profile="showUserProfile"
-              />
-            </div>
+          <div class="system-message-content">
             <div class="system-timestamp">{{ formatTimestamp(message.created_at) }}</div>
+            <div class="system-content">
+              <div class="system-icon">👋</div>
+              <div class="system-text">
+                <UnifiedMessageContent 
+                  :content="message.content"
+                  :message-id="message.id"
+                  :is-system="true"
+                  @show-user-profile="showUserProfile"
+                />
+              </div>
+            </div>
           </div>
           
           <!-- Message actions for system messages (if hovered) -->
@@ -1767,8 +1769,15 @@ export default defineComponent({
 
 /* System Messages (Join/Leave Announcements) */
 .system-message {
-  margin: 8px 0;
   padding: 0 16px;
+}
+
+.system-message-content {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  gap: 8px;
+  margin: 8px 0;
 }
 
 .system-content {
@@ -1779,9 +1788,12 @@ export default defineComponent({
   background-color: rgba(88, 101, 242, 0.1);
   border-left: 4px solid #5865f2;
   border-radius: 0 4px 4px 0;
+  margin-left: 4px;
   font-size: 0.875rem;
+  width: 100%;
   color: #b9bbbe;
 }
+
 
 .system-icon {
   font-size: 1rem;

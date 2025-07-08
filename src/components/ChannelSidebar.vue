@@ -690,11 +690,12 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
   display: flex;
   flex-direction: column;
   height: 100vh;
-} */
+} 
 .channel-sidebar {
   background: var(--h-channel-sidebar, #2f3136);
   height: 100%;
 }
+*/
 
 .server-header {
   position: relative;
@@ -716,6 +717,7 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
   align-items: center;
   justify-content: center;
   line-height: 1.2rem;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .server-name:hover {

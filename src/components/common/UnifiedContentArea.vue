@@ -2,6 +2,9 @@
   <div class="unified-content-area">
     <!-- Chat Mode Content -->
     <div v-if="mode === 'chat'" class="content-section chat-content">
+      <div class="chat-header">
+        <Icon name="hash" /> <span>{{ currentServer?.name || 'Channel' }}</span>
+      </div>
       <ChatComponent
         :messages="chatMessages"
         :isLoading="isLoading"
@@ -158,7 +161,7 @@ const getEmptyStateMessage = () => {
 .content-section {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: calc(100vh - 80px)
 }
 
 /* Chat Mode Styles */
@@ -166,6 +169,15 @@ const getEmptyStateMessage = () => {
   /* Inherits from ChatComponent styles */
 }
 
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-primary);
+  height: 48px;
+}
 /* ActivityPub Mode Styles */
 .activitypub-content {
   overflow: hidden;

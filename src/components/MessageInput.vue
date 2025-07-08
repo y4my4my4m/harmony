@@ -529,7 +529,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     padding: 4px 8px;
     border-radius: 8px;
     border: none;
-    background-color: var(--h-chat-light);
+    background-color: var(--background-quaternary);
     transition: .2s;
   }
 

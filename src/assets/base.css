@@ -43,12 +43,22 @@
   --h-chat-lighter: #313336; /* input area background */
   --h-chat-dark: #141618;
   --h-chat-darker: #0c0d0e;
-  
-  --background-primary: #26272b;
+
+  --icon-muted: #9c343a;
+  --icon-active: #fbfbfb;
+  --icon-primary: #9999a0;
+  --icon-secondary: #66666b;
+  --icon-tertiary: #444447;
+  --icon-quaternary: #222225;
+  --icon-quinary: #111113;
+  --icon-senary: #000002;
+  --icon-septenary: #000001;
+
+  --background-primary: #1a1a1e;
   --background-secondary: #17181a;
-  --background-tertiary: #141416;
-  --background-quaternary: #101113;
-  --background-quinary: #0e0f11;
+  --background-tertiary: #121214;
+  --background-quaternary: #222327;
+  --background-quinary: #202024;
   --background-senary: #0a0b0d;
   --background-septenary: #070809;
 
@@ -70,7 +80,8 @@
   --color-border-hover: var(--vt-c-divider-dark-1);
 
   --color-heading: var(--vt-c-text-dark-1);
-  --color-text: var(--vt-c-text-dark-2);
+  /* --color-text: var(--vt-c-text-dark-2); */
+  --color-text: #fbfbfb;
 
   --border-color: #232529;
 }

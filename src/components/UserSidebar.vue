@@ -402,7 +402,7 @@ onMounted(() => {
 .user-sidebar {
   width: 240px;
   min-width: 240px;
-  background-color: var(--h-sidebar);
+  background-color: var(--background-quinary);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -421,7 +421,7 @@ onMounted(() => {
 .sidebar-header {
   padding: 16px 8px 8px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  background-color: var(--h-sidebar);
+  background-color: var(--background-quinary);
 }
 
 .search-container {
