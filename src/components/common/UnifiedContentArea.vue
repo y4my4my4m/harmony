@@ -163,124 +163,123 @@ const getEmptyStateMessage = () => {
   height: calc(100vh - 80px)
 }
 
-/* Chat Mode Styles */
+/* =============================================================================
+   UNIFIED CONTENT AREA STYLES
+   Clean, consistent styling for both chat and ActivityPub modes
+   ============================================================================= */
+
+/* Chat Mode */
 .chat-content {
-  /* Inherits from ChatComponent styles */
-}
-
-
-/* ActivityPub Mode Styles */
-.activitypub-content {
+  height: 100%;
   overflow: hidden;
 }
 
-.spinning {
-  animation: spin 1s linear infinite;
+/* ActivityPub Mode */
+.activitypub-content {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.mony-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
+
+/* =============================================================================
+   TIMELINE COMPONENTS
+   ============================================================================= */
 
 .inline-composer {
   background: var(--background-primary);
   position: sticky;
   top: 0;
-  z-index: 9;
+  z-index: var(--z-sticky);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .timeline-feed {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 20px;
+  padding: var(--space-4);
+  scroll-behavior: smooth;
 }
 
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: var(--text-secondary);
-}
+/* =============================================================================
+   STATE COMPONENTS
+   ============================================================================= */
 
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 2px solid var(--border-color);
-  border-top: 2px solid var(--brand-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
-}
-
+.loading-state,
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 60px 20px;
+  padding: var(--space-16) var(--space-4);
   text-align: center;
   color: var(--text-secondary);
+  min-height: 400px;
+}
+
+.loading-spinner {
+  width: var(--space-8);
+  height: var(--space-8);
+  border: 2px solid var(--border-color);
+  border-top: 2px solid var(--brand-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--space-4);
 }
 
 .empty-state h3 {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 16px 0 8px 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  margin: var(--space-4) 0 var(--space-2) 0;
   color: var(--text-primary);
 }
 
 .empty-state p {
-  font-size: 14px;
-  margin: 0 0 20px 0;
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-5) 0;
   max-width: 300px;
-  line-height: 1.4;
+  line-height: var(--line-height-relaxed);
+}
+
+/* =============================================================================
+   ACTION BUTTONS
+   ============================================================================= */
+
+.explore-btn,
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-decoration: none;
 }
 
 .explore-btn {
-  padding: 10px 20px;
   background: var(--brand-primary);
   color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
 }
 
 .explore-btn:hover {
   background: var(--brand-primary-hover);
-}
-
-.posts-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-
-.load-more-container {
-  display: flex;
-  justify-content: center;
-  padding: 20px;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .load-more-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
   background: var(--background-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-color: var(--border-color);
   color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
 }
 
 .load-more-btn:hover {
@@ -291,51 +290,58 @@ const getEmptyStateMessage = () => {
 .load-more-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
-/* .feed-switcher {
+/* =============================================================================
+   LAYOUT CONTAINERS
+   ============================================================================= */
+
+.posts-container {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: 20px;
-  padding: 4px;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.feed-tab {
+.load-more-container {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: none;
-  border: none;
-  border-radius: 16px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-  background: var(--background-tertiary);
+  justify-content: center;
+  padding: var(--space-5);
 }
 
-.feed-tab:hover {
-  background: var(--background-hover);
-  color: var(--text-primary);
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+.spinning {
+  animation: spin 1s linear infinite;
 }
 
-.feed-tab.active {
-  background: var(--brand-primary);
-  color: white;
-} */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
-/* Responsive design */
+/* =============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================= */
+
 @media (max-width: 768px) {
-  .empty-state {
-    padding: 40px 16px;
+  .timeline-feed {
+    padding: var(--space-3);
   }
   
+  .empty-state,
   .loading-state {
-    padding: 40px 16px;
+    padding: var(--space-10) var(--space-4);
+    min-height: 300px;
+  }
+  
+  .posts-container {
+    max-width: 100%;
   }
 }
 </style>

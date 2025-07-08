@@ -2,10 +2,12 @@
   <UnifiedModal
     v-model="isOpen"
     size="lg"
-    :closable="true"
+    :show-close-button="true"
+    is-profile
+    no-padding
     @close="$emit('close')"
   >
-    <div class="profile-modal-content">
+    <template #customHeader>
       <!-- Cover Banner -->
       <div class="profile-banner" :style="{ background: user?.color || '#5865f2' }">
         <div class="banner-gradient"></div>
@@ -20,8 +22,22 @@
               <path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" fill="currentColor"/>
             </svg>
           </button>
+          
+          <!-- Close button integrated into banner -->
+          <button 
+            @click="$emit('close')"
+            class="banner-close-button"
+            aria-label="Close profile"
+          >
+            <svg viewBox="0 0 24 24" class="close-icon">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="currentColor"/>
+            </svg>
+          </button>
         </div>
       </div>
+    </template>
+
+    <div class="profile-modal-content">
 
       <!-- Actions Dropdown -->
       <div v-if="showActionsMenu" class="actions-dropdown" @click.stop>
@@ -504,6 +520,27 @@ onMounted(() => {
 .action-button.active {
   background: rgba(88, 101, 242, 0.8);
   border-color: #5865f2;
+}
+
+.banner-close-button {
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.banner-close-button:hover {
+  background: rgba(220, 38, 38, 0.8);
+  border-color: rgba(220, 38, 38, 0.8);
+  transform: scale(1.05);
 }
 
 .action-icon,

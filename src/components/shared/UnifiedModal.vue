@@ -19,14 +19,23 @@
           class="modal-container"
           :class="[
             `modal-${size}`,
-            { 'modal-full-height': fullHeight },
+            { 
+              'modal-full-height': fullHeight,
+              'modal-profile': isProfile,
+              'modal-no-padding': noPadding
+            },
             containerClass
           ]"
           @click.stop
           ref="containerRef"
         >
+          <!-- Custom Header Slot (for profile banners, etc.) -->
+          <div v-if="$slots.customHeader" class="modal-custom-header">
+            <slot name="customHeader" />
+          </div>
+
           <!-- Header with optional icon -->
-          <header v-if="!hideHeader" class="modal-header">
+          <header v-if="!hideHeader && !$slots.customHeader" class="modal-header">
             <div class="modal-header-content">
               <!-- Icon slot or component -->
               <div v-if="icon || $slots.icon" class="modal-icon">
@@ -57,7 +66,7 @@
           </header>
 
           <!-- Main content area -->
-          <main class="modal-body custom-scrollbar">
+          <main class="modal-body custom-scrollbar" :class="{ 'no-padding': noPadding }">
             <slot />
           </main>
 
@@ -115,6 +124,8 @@ interface Props {
   containerClass?: string
   actions?: ModalAction[]
   closeButtonLabel?: string
+  isProfile?: boolean
+  noPadding?: boolean
 }
 
 interface Emits {
@@ -396,6 +407,24 @@ onUnmounted(() => {
 .modal-body {
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Profile modal customizations */
+.modal-profile {
+  overflow: hidden;
+}
+
+.modal-custom-header {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.modal-body.no-padding {
+  padding: 0;
+}
+
+.modal-no-padding .modal-body {
+  padding: 0;
 }
 
 /* Better contrast for accessibility */
