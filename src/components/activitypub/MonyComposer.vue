@@ -198,10 +198,10 @@
         </div>
 
         <!-- Emoji Picker -->
-        <EmojiPicker
+        <EmojiPopup
           v-if="showEmojiPicker"
-          @select="insertEmoji"
-          @close="showEmojiPicker = false"
+          @sendEmoji="insertEmoji"
+          :closeEmojiList="() => showEmojiPicker = false"
         />
       </div>
     </div>
@@ -216,8 +216,8 @@ import type { PostComposerState, Post } from '@/types';
 // Components
 import MonyContent from './MonyContent.vue';
 import MonyMediaUpload from './MonyMediaUpload.vue';
-import EmojiPicker from '@/components/ui/EmojiPicker.vue';
-import Icon from '@/components/ui/Icon.vue';
+import EmojiPopup from '@/components/EmojiPopup.vue';
+import Icon from '@/components/common/Icon.vue';
 
 // Props
 interface Props {

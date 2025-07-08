@@ -130,7 +130,7 @@ import MonyComposer from './MonyComposer.vue';
 import MonyPostDetail from './MonyPostDetail.vue';
 import PostSkeleton from './PostSkeleton.vue';
 import ErrorToast from './ErrorToast.vue';
-import Icon from '@/components/ui/Icon.vue';
+import Icon from '@/components/common/Icon.vue';
 
 // Store
 const activityPubStore = useActivityPubStore();
