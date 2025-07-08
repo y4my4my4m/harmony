@@ -273,12 +273,6 @@
     <circle v-if="name === 'search'" cx="11" cy="11" r="8"></circle>
     <line v-if="name === 'search'" x1="21" y1="21" x2="16.65" y2="16.65"></line>
 
-    <!-- Chevron Left -->
-    <polyline v-if="name === 'chevron-left'" points="15 18 9 9 15"></polyline>
-
-    <!-- Chevron Right -->
-    <polyline v-if="name === 'chevron-right'" points="9 18 15 9 15"></polyline>
-
     <!-- Chevron Up Down -->
     <polyline v-if="name === 'chevron-up-down'" points="18 16 12 10 6 16"></polyline>
     <polyline v-if="name === 'chevron-up-down'" points="6 8 12 14 18 8"></polyline>
