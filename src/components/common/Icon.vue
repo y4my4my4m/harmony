@@ -414,6 +414,15 @@
     
     <!-- Chevron Right -->
     <polyline v-if="name === 'chevron-right'" points="9 18 15 12 9 6"></polyline>
+
+    <!-- Arrow-left -->
+    <!-- an arrow that points to the left -->
+    <line v-if="name === 'arrow-left'" x1="19" y1="12" x2="5" y2="12"></line>
+    <polyline v-if="name === 'arrow-left'" points="12 5 5 12 12 19"></polyline>
+
+    <!-- Arrow-right -->
+    <line v-if="name === 'arrow-right'" x1="5" y1="12" x2="19" y2="12"></line>
+    <polyline v-if="name === 'arrow-right'" points="12 19 19 12 12 5"></polyline>
     
     <!-- Mony Mascot (Custom ActivityPub/Fediverse icon) -->
     <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="10"></circle>

@@ -18,7 +18,19 @@
     <!-- ActivityPub Mode Content -->
     <div v-else-if="mode === 'activitypub'" class="content-section activitypub-content">
       <div class="mony-header">
-        <span>test</span>
+        <!-- Feed Type Switcher -->
+        <div class="feed-switcher">
+          <button
+            v-for="tab in feedTabs"
+            :key="tab.id"
+            @click="$emit('switch-feed', tab.id)"
+            :class="['feed-tab', { active: currentFeed === tab.id }]"
+            :title="tab.label"
+          >
+            <Icon :name="tab.icon" />
+            <span v-if="!isMobile">{{ tab.label }}</span>
+          </button>
+        </div>
       </div>
       <div class="mony-content">
         <!-- New Post Composer (Inline) -->
@@ -326,6 +338,41 @@ const getEmptyStateMessage = () => {
 .load-more-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.feed-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 20px;
+  padding: 4px;
+}
+
+.feed-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  border-radius: 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  background: var(--background-tertiary);
+}
+
+.feed-tab:hover {
+  background: var(--background-hover);
+  color: var(--text-primary);
+}
+
+.feed-tab.active {
+  background: var(--brand-primary);
+  color: white;
 }
 
 /* Responsive design */

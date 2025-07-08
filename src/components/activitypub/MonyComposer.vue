@@ -18,10 +18,11 @@
         <div v-if="replyToPost" class="reply-context">
           <div class="reply-thread-line"></div>
           <div class="reply-to-post">
-            <img 
-              :src="replyToPost.author?.avatar_url || '/default_avatar.png'"
-              :alt="replyToPost.author?.display_name"
-              class="reply-author-avatar"
+            <Avatar 
+              :src="replyToPost.author?.avatar_url"
+              :alt="replyToPost.author?.display_name || replyToPost.author?.username"
+              size="md"
+              :interactive="true"
             />
             <div class="reply-content">
               <div class="reply-author">
@@ -38,10 +39,11 @@
         <!-- Main Composer -->
         <div class="composer-body">
           <div class="composer-user">
-            <img 
-              :src="currentUser?.avatar_url || '/default_avatar.png'"
-              :alt="currentUser?.display_name"
-              class="user-avatar"
+            <Avatar 
+              :src="currentUser?.avatar_url"
+              :alt="currentUser?.display_name || currentUser?.username"
+              size="md"
+              :interactive="true"
             />
           </div>
 
@@ -218,6 +220,7 @@ import MonyContent from './MonyContent.vue';
 import MonyMediaUpload from './MonyMediaUpload.vue';
 import EmojiPopup from '@/components/EmojiPopup.vue';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '../common/Avatar.vue';
 
 // Props
 interface Props {

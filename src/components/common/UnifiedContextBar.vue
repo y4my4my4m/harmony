@@ -77,7 +77,8 @@
     
     <!-- ActivityPub Mode Context Bar -->
     <div v-else-if="mode === 'activitypub'" class="context-content activitypub-context">
-      <div class="context-left">
+      <div class="context-left"></div>
+      <div class="context-center">
         <button 
           v-if="isMobile"
           class="mobile-menu-btn"
@@ -91,27 +92,13 @@
           <div class="feed-info">
             <Icon name="globe" />
             <div class="feed-details">
-              <h2 class="feed-name">{{ currentFeedTitle }}</h2>
-              <span class="instance-name">{{ instanceDomain }}</span>
+              <div class="feed-name"><span>{{ currentFeedTitle }}</span><span>|</span><span class="instance-name">{{ instanceDomain }}</span></div>
             </div>
           </div>
         </div>
       </div>
       
       <div class="context-actions">
-        <!-- Feed Type Switcher -->
-        <div class="feed-switcher">
-          <button
-            v-for="tab in feedTabs"
-            :key="tab.id"
-            @click="$emit('switch-feed', tab.id)"
-            :class="['feed-tab', { active: currentFeed === tab.id }]"
-            :title="tab.label"
-          >
-            <Icon :name="tab.icon" />
-            <span v-if="!isMobile">{{ tab.label }}</span>
-          </button>
-        </div>
         
         <button 
           v-if="currentFeed === 'home'"
@@ -295,6 +282,9 @@ const currentFeedTitle = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .channel-name, .instance-name {
@@ -312,41 +302,6 @@ const currentFeedTitle = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.feed-switcher {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--background-tertiary);
-  border-radius: 20px;
-  padding: 4px;
-}
-
-.feed-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: none;
-  border: none;
-  border-radius: 16px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.feed-tab:hover {
-  background: var(--background-hover);
-  color: var(--text-primary);
-}
-
-.feed-tab.active {
-  background: var(--brand-primary);
-  color: white;
 }
 
 .action-btn {

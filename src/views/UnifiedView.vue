@@ -973,7 +973,7 @@ onBeforeUnmount(() => {
   width: 40px;
   height: 40px;
   border: 3px solid var(--border-color);
-  border-top: 3px solid var(--brand-primary);
+  border-top: 3px solid #5865f2;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;

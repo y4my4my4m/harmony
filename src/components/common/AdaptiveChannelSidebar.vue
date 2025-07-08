@@ -63,56 +63,59 @@
         </button>
       </div>
 
-      <!-- User Profile Card -->
-      <div class="user-profile-card">
-        <Avatar
-          :src="currentUser?.avatar_url"
-          :alt="currentUser?.display_name || currentUser?.username"
-          size="md"
-          :interactive="true"
-          @click="$emit('profile-click')"
-        />
-        <div class="user-info">
-          <h3 class="user-name">{{ currentUser?.display_name || currentUser?.username }}</h3>
-          <p class="user-handle">{{ currentUserHandle }}</p>
-        </div>
-      </div>
+      <div class="social-sidebar-content">
 
-      <!-- Navigation Links -->
-      <nav class="social-nav">
-        <div class="nav-section">
-          <h4 class="nav-section-title">Navigation</h4>
-          <router-link 
-            v-for="navItem in navigationItems"
-            :key="navItem.id"
-            :to="navItem.path"
-            :class="['nav-item', { active: $route.path === navItem.path }]"
-          >
-            <Icon :name="navItem.icon" />
-            <span>{{ navItem.label }}</span>
-          </router-link>
+        <!-- User Profile Card -->
+        <div class="user-profile-card">
+          <Avatar
+            :src="currentUser?.avatar_url"
+            :alt="currentUser?.display_name || currentUser?.username"
+            size="md"
+            :interactive="true"
+            @click="$emit('profile-click')"
+          />
+          <div class="user-info">
+            <h3 class="user-name">{{ currentUser?.display_name || currentUser?.username }}</h3>
+            <p class="user-handle">{{ currentUserHandle }}</p>
+          </div>
         </div>
-      </nav>
 
-      <!-- Quick Stats -->
-      <div class="quick-stats">
-        <div class="stat-item">
-          <span class="stat-value">{{ followingCount }}</span>
-          <span class="stat-label">Following</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ followersCount }}</span>
-          <span class="stat-label">Followers</span>
-        </div>
-      </div>
+        <!-- Navigation Links -->
+        <nav class="social-nav">
+          <div class="nav-section">
+            <h4 class="nav-section-title">Navigation</h4>
+            <router-link 
+              v-for="navItem in navigationItems"
+              :key="navItem.id"
+              :to="navItem.path"
+              :class="['nav-item', { active: $route.path === navItem.path }]"
+            >
+              <Icon :name="navItem.icon" />
+              <span>{{ navItem.label }}</span>
+            </router-link>
+          </div>
+        </nav>
 
-      <!-- Instance Info -->
-      <div class="instance-info">
-        <h4 class="section-title">Instance</h4>
-        <div class="instance-details">
-          <p class="instance-domain">{{ instanceDomain }}</p>
-          <p class="instance-stats">{{ instanceUserCount }} users</p>
-          <p class="instance-stats">{{ instancePostCount }} posts</p>
+        <!-- Quick Stats -->
+        <div class="quick-stats">
+          <div class="stat-item">
+            <span class="stat-value">{{ followingCount }}</span>
+            <span class="stat-label">Following</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ followersCount }}</span>
+            <span class="stat-label">Followers</span>
+          </div>
+        </div>
+
+        <!-- Instance Info -->
+        <div class="instance-info">
+          <h4 class="section-title">Instance</h4>
+          <div class="instance-details">
+            <p class="instance-domain">{{ instanceDomain }}</p>
+            <p class="instance-stats">{{ instanceUserCount }} users</p>
+            <p class="instance-stats">{{ instancePostCount }} posts</p>
+          </div>
         </div>
       </div>
     </div>
@@ -259,7 +262,8 @@ const navigationItems = computed(() => [
   overflow: hidden;
 }
 
-.dm-header {
+.dm-header,
+.social-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -291,18 +295,16 @@ const navigationItems = computed(() => [
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 16px;
   gap: 20px;
   overflow-y: auto;
+  padding-bottom: 100px;
 }
 
-.social-header {
+.social-sidebar-content {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
-  height: 48px;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px;
 }
 
 .social-title {
