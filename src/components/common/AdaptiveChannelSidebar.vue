@@ -2,19 +2,6 @@
   <div class="adaptive-channel-sidebar">
     <!-- Chat Mode: Regular Channels -->
     <div v-if="mode === 'chat' && !isDM" class="chat-mode-container">
-      <div class="chat-header">
-        <div class="chat-title">
-          <Icon name="hash" />
-          <h2>{{ currentServer?.name || 'Channels' }}</h2>
-        </div>
-        <button 
-          @click="$emit('switch-mode', 'activitypub')"
-          class="mode-toggle-btn"
-          title="Switch to Social"
-        >
-          <Icon name="globe" />
-        </button>
-      </div>
       
       <div class="chat-content">
         <!-- Debug info (remove in production) -->
@@ -209,8 +196,6 @@ const navigationItems = computed(() => [
 .adaptive-channel-sidebar {
   width: 240px;
   height: 100%;
-  background: var(--background-secondary);
-  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: hidden;

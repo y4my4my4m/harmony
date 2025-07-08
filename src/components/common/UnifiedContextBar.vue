@@ -210,7 +210,6 @@ const currentFeedTitle = computed(() => {
 .unified-context-bar {
   height: 48px;
   background: var(--background-secondary);
-  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   padding: 0 16px;

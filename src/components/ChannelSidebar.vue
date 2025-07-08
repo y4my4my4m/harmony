@@ -686,7 +686,6 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
 .channel-sidebar {
   width: 240px;
   min-width: 240px;
-  background-color: var(--h-sidebar);
   overflow-y: auto;
   display: flex;
   flex-direction: column;

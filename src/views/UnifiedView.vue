@@ -1003,19 +1003,19 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: row;
   background: var(--background-primary);
-  border-top: 1px solid var(--border-color);
 }
 
 .server-sidebar-container {
   grid-area: servers;
   background: var(--background-tertiary);
-  border-right: 1px solid var(--border-color);
 }
 
 .channel-sidebar-container {
   grid-area: channels;
   background: var(--background-secondary);
-  border-right: 1px solid var(--border-color);
+  border-top-left-radius: 10px;
+  border-left: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-color);
 }
 .user-profile-section {
   position: fixed;
@@ -1027,12 +1027,12 @@ onBeforeUnmount(() => {
   grid-area: content;
   background: var(--background-primary);
   overflow: hidden;
+  border-top: 1px solid var(--border-color);
 }
 
 .right-sidebar-container {
   grid-area: rightbar;
   background: var(--background-primary);
-  border-left: 1px solid var(--border-color);
 }
 
 .mobile-overlay {
