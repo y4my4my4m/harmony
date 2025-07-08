@@ -32,17 +32,19 @@
 
         <!-- System Message (join/leave announcements) -->
         <div v-if="message.is_system" class="system-message">
-          <div class="system-content">
-            <div class="system-icon">👋</div>
-            <div class="system-text">
-              <UnifiedMessageContent 
-                :content="message.content"
-                :message-id="message.id"
-                :is-system="true"
-                @show-user-profile="showUserProfile"
-              />
+          <div class="system-message-content">
+            <div class="system-timestamp" v-html="formatSystemTimestamp(message.created_at)"></div>
+            <div class="system-content">
+              <div class="system-icon">👋</div>
+              <div class="system-text">
+                <UnifiedMessageContent 
+                  :content="message.content"
+                  :message-id="message.id"
+                  :is-system="true"
+                  @show-user-profile="showUserProfile"
+                />
+              </div>
             </div>
-            <div class="system-timestamp">{{ formatTimestamp(message.created_at) }}</div>
           </div>
           
           <!-- Message actions for system messages (if hovered) -->
@@ -912,6 +914,19 @@ export default defineComponent({
       }
     };
 
+    const formatSystemTimestamp = (timestamp: Date) => {
+      const date = new Date(timestamp);
+      if (!isValid(date)) return '';
+      
+      if (isToday(date)) {
+        return format(date, 'p'); // Time only for today
+      } else if (isYesterday(date)) {
+        return `Yesterday at<br/>${format(date, 'p')}`;
+      } else {
+        return `${format(date, 'MMM d, yyyy')}<br/>${format(date, 'p')}`; // Full date and time for older messages
+      }
+    };
+
     // Check if a date separator should be shown before this message
     const shouldShowDateSeparator = (message: Message, index: number): boolean => {
       if (index === 0) return false; // Don't show date separator for first message
@@ -1225,6 +1240,7 @@ export default defineComponent({
       getUserAvatar,
       getUserIdFromMessage,
       formatTimestamp,
+      formatSystemTimestamp,
       shouldShowDateSeparator,
       getIndicatorStyle,
       formatDateSeparator,
@@ -1295,7 +1311,8 @@ export default defineComponent({
   flex-grow: 1;
   overflow-y: auto;
   margin-right: 4px;
-  padding: 40px 0 10px 0;
+  padding: 20px 0 10px 0;
+  height: calc(100vh - 165px);
 }
 
 /* Individual message item */
@@ -1767,8 +1784,14 @@ export default defineComponent({
 
 /* System Messages (Join/Leave Announcements) */
 .system-message {
+  padding: 0 16px 0 0;
+}
+
+.system-message-content {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
   margin: 8px 0;
-  padding: 0 16px;
 }
 
 .system-content {
@@ -1779,9 +1802,12 @@ export default defineComponent({
   background-color: rgba(88, 101, 242, 0.1);
   border-left: 4px solid #5865f2;
   border-radius: 0 4px 4px 0;
+  margin-left: 4px;
   font-size: 0.875rem;
+  width: 100%;
   color: #b9bbbe;
 }
+
 
 .system-icon {
   font-size: 1rem;
@@ -1798,7 +1824,7 @@ export default defineComponent({
 }
 
 .system-timestamp {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   color: #72767d;
   opacity: 0.7;
   flex-shrink: 0;

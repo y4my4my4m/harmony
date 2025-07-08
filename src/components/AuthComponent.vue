@@ -949,10 +949,10 @@ onMounted(async () => {
 }
 
 .loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #40444b;
+  border-top: 2px solid #5865f2;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

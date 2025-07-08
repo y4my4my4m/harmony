@@ -1,5 +1,4 @@
 <!-- ActivityPub Feed Component - The heart of the Monyverse -->
-<!-- Professional, modern, Discord-like UI with federation features -->
 <template>
   <div class="mony-feed">
     <!-- Feed Header -->

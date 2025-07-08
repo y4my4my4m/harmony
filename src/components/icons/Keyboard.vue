@@ -1,5 +1,21 @@
 <template>
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M7,2V4H8V18A4,4 0 0,0 12,22A4,4 0 0,0 16,18V4H17V2H7M11,16C10.4,16 10,15.6 10,15C10,14.4 10.4,14 11,14C11.6,14 12,14.4 12,15C12,15.6 11.6,16 11,16M13,16C12.4,16 12,15.6 12,15C12,14.4 12.4,14 13,14C13.6,14 14,14.4 14,15C14,15.6 13.6,16 13,16M11,12C10.4,12 10,11.6 10,11C10,10.4 10.4,10 11,10C11.6,10 12,10.4 12,11C12,11.6 11.6,12 11,12M13,12C12.4,12 12,11.6 12,11C12,10.4 12.4,10 13,10C13.6,10 14,10.4 14,11C14,11.6 13.6,12 13,12M11,8C10.4,8 10,7.6 10,7C10,6.4 10.4,6 11,6C11.6,6 12,6.4 12,7C12,7.6 11.6,8 11,8M13,8C12.4,8 12,7.6 12,7C12,6.4 12.4,6 13,6C13.6,6 14,6.4 14,7C14,7.6 13.6,8 13,8Z"/>
+    <!-- Keyboard base -->
+    <rect x="3" y="8" width="18" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+    
+    <!-- Simple key rows -->
+    <rect x="5" y="10" width="14" height="1" rx="0.5" fill="currentColor" opacity="0.6"/>
+    <rect x="5" y="12" width="14" height="1" rx="0.5" fill="currentColor" opacity="0.6"/>
+    
+    <!-- Spacebar -->
+    <rect x="8" y="14.5" width="8" height="1" rx="0.5" fill="currentColor" opacity="0.6"/>
   </svg>
 </template>
+
+<script lang="ts">
+import { defineComponent } from 'vue';
+
+export default defineComponent({
+  name: 'KeyboardIcon',
+});
+</script>

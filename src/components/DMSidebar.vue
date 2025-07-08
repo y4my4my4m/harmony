@@ -273,7 +273,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.dm-sidebar {
+/* .dm-sidebar {
   width: 240px;
   min-width: 240px;
   background: var(--h-channel-sidebar, #2f3136);
@@ -281,7 +281,7 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100vh;
   border-right: 1px solid var(--h-chat-light, #40444b);
-}
+} */
 
 .dm-header {
   padding: 16px;
@@ -611,9 +611,9 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .dm-sidebar {
     width: 100%;
-    max-width: 360px;
+    /* max-width: 360px;
     min-width: 320px;
-    background: linear-gradient(135deg, var(--h-sidebar, #2b2d31) 0%, #252830 100%);
+    background: linear-gradient(135deg, var(--h-sidebar, #2b2d31) 0%, #252830 100%); */
   }
 
   /* Enhanced mobile touch targets */

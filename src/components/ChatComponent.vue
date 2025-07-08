@@ -492,7 +492,6 @@
   .chat-container {
     display: flex;
     flex-direction: column;
-    height: 100%;
     /* custom wallpapers/styling for users */
     /* background:#000; */
     /* background-image: url('https://wallpaperswide.com/download/counter_strike_cs_go-wallpaper-1920x1080.jpg'); */

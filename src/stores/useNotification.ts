@@ -721,11 +721,20 @@ export const useNotificationStore = defineStore('notification', {
               // Navigate to server
               router.push(`/servers/${navData.serverId}`)
               break
+              
+            case 'activitypub':
+            case 'mention':
+            case 'like':
+            case 'reblog':
+            case 'follow':
+              // Navigate to ActivityPub timeline for federated notifications
+              router.push('/social/home')
+              break
+            
+            default:
+              console.log('⚠️ No navigation data available for notification type:', navData.type)
           }
-          
           console.log('📍 Navigated to notification source using formatted data')
-        } else {
-          console.log('⚠️ No navigation data available for notification')
         }
       } catch (error) {
         console.error('❌ Error handling notification click:', error)

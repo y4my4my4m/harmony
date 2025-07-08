@@ -470,9 +470,8 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 <style scoped>
   .message-input {
     display: flex;
-    padding: 10px 12px;
-    background-color: var(--h-chat);
-    border-radius: 8px;
+    padding: 10px 12px 20px 12px;
+    /* background-color: var(--h-chat); */
     flex-direction: column;
   }
   
@@ -527,10 +526,10 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     display: flex;
     align-items: center;
     flex-grow: 1;
-    padding: 8px;
+    padding: 4px 8px;
     border-radius: 8px;
     border: none;
-    background-color: var(--h-chat-light);
+    background-color: var(--background-quaternary);
     transition: .2s;
   }
 
