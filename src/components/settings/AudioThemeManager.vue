@@ -835,6 +835,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
+  z-index: 1;
 }
 
 .volume-track {

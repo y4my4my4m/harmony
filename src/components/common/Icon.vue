@@ -423,6 +423,9 @@
     <!-- Arrow-right -->
     <line v-if="name === 'arrow-right'" x1="5" y1="12" x2="19" y2="12"></line>
     <polyline v-if="name === 'arrow-right'" points="12 19 19 12 12 5"></polyline>
+
+    <!-- Play -->
+    <polygon v-if="name === 'play'" points="6 4 20 12 6 20 6 4"></polygon>
     
     <!-- Mony Mascot (Custom ActivityPub/Fediverse icon) -->
     <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="10"></circle>
