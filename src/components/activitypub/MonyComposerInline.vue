@@ -526,8 +526,8 @@ document.addEventListener('click', handleClickOutside);
 
 .visibility-menu {
   position: absolute;
-  bottom: 100%;
-  left: 0;
+  top: calc(100% - 34px);
+  left: 60px;
   width: 240px;
   background: var(--h-sidebar, #2b2d31);
   border: 1px solid rgba(255, 255, 255, 0.08);
