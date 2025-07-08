@@ -43,9 +43,10 @@
       </Transition>
     </button>
 
-    <!-- Modern Notification Panel -->
-    <Transition name="panel-slide" appear>
-      <div v-if="isOpen" class="notification-panel" @click.stop>
+    <!-- Modern Notification Panel - Teleported to body -->
+    <Teleport to="body">
+      <Transition name="panel-slide" appear>
+        <div v-if="isOpen" class="notification-panel" @click.stop>
         <!-- Panel Header with Gradient -->
         <div class="panel-header">
           <div class="header-content">
@@ -172,12 +173,15 @@
           </div>
         </div>
       </div>
-    </Transition>
+      </Transition>
+    </Teleport>
     
-    <!-- Modern Backdrop with Blur -->
-    <Transition name="backdrop-fade">
-      <div v-if="isOpen" class="notification-backdrop" @click="closePanel"></div>
-    </Transition>
+    <!-- Modern Backdrop with Blur - Also teleported -->
+    <Teleport to="body">
+      <Transition name="backdrop-fade">
+        <div v-if="isOpen" class="notification-backdrop" @click="closePanel"></div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -463,11 +467,11 @@ onUnmounted(() => {
 
 /* Modern notification panel */
 .notification-panel {
-  position: absolute;
-  bottom: calc(100% + 12px);
-  left: 0;
+  position: fixed;
+  bottom: 100px;
+  left: 200px;
   width: 420px;
-  max-height: 80vh;
+  max-height: calc(100vh - 120px);
   background: var(--h-chat);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
@@ -953,7 +957,7 @@ onUnmounted(() => {
     width: calc(100vw - 24px);
     right: 12px;
     left: 12px;
-    max-height: 90vh;
+    max-height: calc(100vh - 80px);
   }
   
   .header-content {
