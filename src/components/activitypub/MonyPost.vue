@@ -240,6 +240,7 @@ const emit = defineEmits<{
   'user-mention-click': [handle: string];
   'hashtag-click': [tag: string];
   'user-click': [user: any]; // For when clicking on the author
+  'show-conversation': [postId: string]; // New emit for showing conversation
 }>();
 
 // Store
@@ -367,8 +368,10 @@ const onDelete = () => {
 };
 
 const showReplyTarget = () => {
-  // Navigate to the reply target or show context
-  // This could open a thread view or highlight the parent post
+  if (props.post.in_reply_to) {
+    // Navigate to the parent post or conversation thread
+    emit('show-conversation', props.post.in_reply_to);
+  }
 };
 
 const copyLink = async () => {
@@ -403,7 +406,9 @@ const vClickOutside = {
   }
 };
 
-const handleAuthorClick = () => {
+const handleAuthorClick = (event: Event) => {
+  event.preventDefault();
+  event.stopPropagation();
   emit('user-click', author.value);
 };
 

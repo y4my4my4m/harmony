@@ -1,10 +1,10 @@
 <!-- MonyContent - Render ActivityPub post content with rich formatting -->
 <template>
-  <div class="mony-content" v-html="formattedContent"></div>
+  <div class="mony-content" @click="handleContentClick" v-html="formattedContent"></div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed } from 'vue';
 
 interface Props {
   content: string;
@@ -45,32 +45,26 @@ const formattedContent = computed(() => {
   return formatted;
 });
 
-// Handle clicks on mentions and hashtags
-const handleClick = (event: Event) => {
+// Handle clicks on mentions and hashtags within this component's content
+const handleContentClick = (event: Event) => {
   const target = event.target as HTMLElement;
   
   if (target.classList.contains('mention')) {
     event.preventDefault();
+    event.stopPropagation();
     const handle = target.getAttribute('data-mention');
     if (handle) {
       emit('user-mention-click', handle);
     }
   } else if (target.classList.contains('hashtag')) {
     event.preventDefault();
+    event.stopPropagation();
     const tag = target.getAttribute('data-hashtag');
     if (tag) {
       emit('hashtag-click', tag);
     }
   }
 };
-
-onMounted(() => {
-  document.addEventListener('click', handleClick);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClick);
-});
 </script>
 
 <style scoped>

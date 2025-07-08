@@ -591,6 +591,99 @@ export class ActivityPubService {
     } as FederatedUser;
   }
 
+  /**
+   * Get user's timeline using SQL helper function
+   */
+  async getUserTimeline(
+    userId: string,
+    timelineType: 'home' | 'public' | 'local' = 'home',
+    options: TimelineOptions = {}
+  ): Promise<TimelinePost[]> {
+    const limit = options.limit || 20;
+    const maxId = options.max_id || null;
+
+    const { data, error } = await supabase
+      .rpc('get_user_timeline', {
+        p_user_id: userId,
+        p_timeline_type: timelineType,
+        p_limit: limit,
+        p_max_id: maxId
+      });
+
+    if (error) throw error;
+
+    return data?.map((post: any) => ({
+      id: post.post_id,
+      content: post.content,
+      author_id: post.author_id,
+      created_at: post.created_at,
+      visibility: post.visibility,
+      replies_count: post.replies_count,
+      reblogs_count: post.reblogs_count,
+      favorites_count: post.favorites_count,
+      in_reply_to: post.in_reply_to,
+      media_attachments: post.media_attachments,
+      author: {
+        id: post.author_id,
+        username: post.author_username,
+        display_name: post.author_display_name,
+        avatar_url: post.author_avatar_url,
+        domain: post.author_domain,
+        handle: post.author_domain === 'har.mony.lol' 
+          ? `@${post.author_username}`
+          : `@${post.author_username}@${post.author_domain}`
+      },
+      interactions: {
+        is_favorited: post.is_favorited,
+        is_reblogged: post.is_reblogged,
+        is_bookmarked: false
+      }
+    })) || [];
+  }
+
+  /**
+   * Get user handle using SQL helper function
+   */
+  async getUserHandle(userId: string): Promise<string | null> {
+    const { data, error } = await supabase
+      .rpc('get_user_handle', {
+        p_user_id: userId
+      });
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Search federated users using SQL helper function
+   */
+  async searchFederatedUsers(query: string, limit: number = 10): Promise<FederatedUser[]> {
+    const { data, error } = await supabase
+      .rpc('search_federated_users', {
+        p_query: query,
+        p_limit: limit
+      });
+
+    if (error) throw error;
+
+    return data?.map((user: any) => ({
+      id: user.user_id,
+      username: user.username,
+      display_name: user.display_name,
+      domain: user.domain,
+      avatar_url: user.avatar_url,
+      handle: user.handle,
+      is_local: user.is_local,
+      bio: '',
+      verified: false,
+      followers_count: 0,
+      following_count: 0,
+      posts_count: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })) || [];
+  }
+
   // =============================================
   // UTILITY METHODS
   // =============================================

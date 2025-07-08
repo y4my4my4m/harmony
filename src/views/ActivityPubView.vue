@@ -149,6 +149,9 @@
               @reblog="handleReblog"
               @delete="handleDeletePost"
               @user-click="showUserProfile"
+              @user-mention-click="handleMentionClick"
+              @hashtag-click="handleHashtagClick"
+              @show-conversation="showConversation"
             />
 
             <!-- Load More -->
@@ -194,6 +197,7 @@
               :show-follow-btn="true"
               @follow="handleFollow"
               @unfollow="handleUnfollow"
+              @user-click="showUserProfile"
             />
           </div>
         </div>
@@ -457,6 +461,23 @@ const showUserProfile = (user: FederatedUser) => {
 
 const closeUserProfile = () => {
   selectedUser.value = null;
+};
+
+const handleMentionClick = (handle: string) => {
+  // Handle mention click - could search for user or open profile
+  console.log('Mention clicked:', handle);
+  // TODO: Implement user search or profile opening for mentions
+};
+
+const handleHashtagClick = (tag: string) => {
+  // Handle hashtag click - could search for posts with this tag
+  console.log('Hashtag clicked:', tag);
+  // TODO: Implement hashtag search or filtering
+};
+
+const showConversation = (postId: string) => {
+  // Navigate to conversation thread
+  router.push(`/monyverse/post/${postId}`);
 };
 
 const openSearch = () => {
