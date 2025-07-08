@@ -17,6 +17,19 @@
         <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M4,4H20V16H5.17L4,17.17V4Z" fill="currentColor"/>
       </svg>
     </div>
+
+    <!-- Monyverse Button -->
+    <div 
+      class="monyverse-button"
+      :class="{ 'selected': isMonyverseSelected }"
+      @click="goToMonyverse"
+      title="Monyverse - Federated Social"
+    >
+      <div class="monyverse-icon">M</div>
+      <div v-if="unreadCount > 0" class="unread-badge">
+        {{ unreadCount > 99 ? '99+' : unreadCount }}
+      </div>
+    </div>
     
     <div class="separator"></div>
     <div v-for="server in servers" 
@@ -33,6 +46,7 @@
 import { defineComponent, ref, watch, computed } from 'vue';
 import type { Server } from '@/types';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useActivityPubStore } from '@/stores/activitypub';
 import { useRouter, useRoute } from 'vue-router';
 
 export default defineComponent({
@@ -45,12 +59,23 @@ export default defineComponent({
   setup(props, { emit }) {
     const showPublicServers = ref(false);
     const serverChannelStore = useServerChannelStore();
+    const activityPubStore = useActivityPubStore();
     const router = useRouter();
     const route = useRoute();
 
     // Check if we're currently in DM mode
     const isDMSelected = computed(() => {
       return route.name === 'DM' || route.name === 'DMHome';
+    });
+
+    // Check if we're currently in Monyverse
+    const isMonyverseSelected = computed(() => {
+      return route.name === 'Monyverse';
+    });
+
+    // Get unread count from ActivityPub store
+    const unreadCount = computed(() => {
+      return activityPubStore.unreadCount;
     });
 
     const togglePublicServers = () => {
@@ -71,11 +96,18 @@ export default defineComponent({
       router.push({ name: 'DMHome' });
     };
 
+    const goToMonyverse = () => {
+      router.push({ name: 'Monyverse' });
+    };
+
     return {
       showPublicServers,
       selectServer,
       goToDMs,
+      goToMonyverse,
       isDMSelected,
+      isMonyverseSelected,
+      unreadCount,
       serverChannelStore,
       togglePublicServers
     };
@@ -133,6 +165,75 @@ export default defineComponent({
   color: #ffffff;
 }
 
+/* Monyverse Button */
+.monyverse-button {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  margin: 10px;
+  padding: 4px;
+  border-radius: 12px;
+  text-align: center;
+  vertical-align: middle;
+  cursor: pointer;
+  position: relative;
+  left: 0;
+  transition: border 0.6s ease-in-out, all 0.2s ease-in-out;
+  border: 3px solid transparent;
+  background-origin: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.monyverse-icon {
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  transition: transform 0.2s ease;
+}
+
+.monyverse-button:hover {
+  left: 5px;
+  transform: scale(1.05);
+}
+
+.monyverse-button:hover .monyverse-icon {
+  transform: scale(1.1);
+}
+
+.monyverse-button.selected {
+  background: linear-gradient(135deg, #5865f2 0%, #7289da 100%);
+  border: 3px solid var(--h-primary);
+  border-radius: 50%;
+}
+
+.unread-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #f04747;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
 .portal,
 .server-item {
   width: 48px;
@@ -163,11 +264,13 @@ export default defineComponent({
   margin-bottom: 5px;
 }
 .dm-button:hover,
+.monyverse-button:hover,
 .portal:hover,
 .server-item:hover {
   left:5px;
 }
 .dm-button::before,
+.monyverse-button::before,
 .portal::before,
 .server-item::before {
   opacity:0;
@@ -182,6 +285,7 @@ export default defineComponent({
   background-color: var(--vt-c-divider-dark-1);
 }
 .dm-button:hover::before,
+.monyverse-button:hover::before,
 .portal:hover::before,
 .server-item:hover::before {
   left:-16px;
@@ -189,6 +293,7 @@ export default defineComponent({
 }
 
 .dm-button.selected,
+.monyverse-button.selected,
 .portal.selected,
 .server-item.selected {
   border: 3px solid var(--h-primary);

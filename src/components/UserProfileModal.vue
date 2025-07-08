@@ -77,7 +77,7 @@
                   </svg>
                 </span>
               </h1>
-              <p class="username">{{ user?.username || '@unknown' }}</p>
+              <p class="username">{{ displayHandle }}</p>
             </div>
 
             <div class="user-badges">
@@ -108,17 +108,29 @@
             <span class="stat-value">{{ userStatus === 'online' ? 'Active' : 'Offline' }}</span>
             <span class="stat-label">Status</span>
           </div>
-          <div class="stat-item">
+          <div v-if="socialStats" class="stat-item">
+            <span class="stat-value">{{ socialStats.posts }}</span>
+            <span class="stat-label">Posts</span>
+          </div>
+          <div v-if="socialStats" class="stat-item">
+            <span class="stat-value">{{ socialStats.following }}</span>
+            <span class="stat-label">Following</span>
+          </div>
+          <div v-if="socialStats" class="stat-item">
+            <span class="stat-value">{{ socialStats.followers }}</span>
+            <span class="stat-label">Followers</span>
+          </div>
+          <div v-else class="stat-item">
             <span class="stat-value">{{ user?.roles?.length || 0 }}</span>
             <span class="stat-label">Roles</span>
           </div>
         </div>
 
         <!-- About Section -->
-        <div v-if="user?.about" class="about-section">
+        <div v-if="displayAbout" class="about-section">
           <h3 class="section-title">About</h3>
           <div class="about-content">
-            <p class="about-text">{{ user.about }}</p>
+            <p class="about-text">{{ displayAbout }}</p>
           </div>
         </div>
 
@@ -170,27 +182,55 @@
 
         <!-- Action Buttons -->
         <div class="profile-actions">
-          <button 
-            v-if="!isCurrentUser" 
-            @click="sendDirectMessage"
-            class="primary-action-btn"
-          >
-            <svg viewBox="0 0 24 24" class="btn-icon">
-              <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4C22,2.89 21.1,2 20,2Z" fill="currentColor"/>
-            </svg>
-            Send Message
-          </button>
-          
-          <button 
-            v-if="isCurrentUser" 
-            @click="openSettings"
-            class="primary-action-btn"
-          >
-            <svg viewBox="0 0 24 24" class="btn-icon">
-              <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" fill="currentColor"/>
-            </svg>
-            Edit Profile
-          </button>
+          <!-- Chat user actions -->
+          <template v-if="!isFederatedUser(user)">
+            <button 
+              v-if="!isCurrentUser" 
+              @click="sendDirectMessage"
+              class="primary-action-btn"
+            >
+              <svg viewBox="0 0 24 24" class="btn-icon">
+                <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4C22,2.89 21.1,2 20,2Z" fill="currentColor"/>
+              </svg>
+              Send Message
+            </button>
+            
+            <button 
+              v-if="isCurrentUser" 
+              @click="openSettings"
+              class="primary-action-btn"
+            >
+              <svg viewBox="0 0 24 24" class="btn-icon">
+                <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" fill="currentColor"/>
+              </svg>
+              Edit Profile
+            </button>
+          </template>
+
+          <!-- Federated user actions -->
+          <template v-else-if="!isCurrentUser">
+            <button 
+              @click="handleFollowToggle"
+              class="primary-action-btn"
+              :class="{ 'following': user.is_following }"
+            >
+              <svg viewBox="0 0 24 24" class="btn-icon">
+                <path v-if="!user.is_following" d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
+                <path v-else d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
+              </svg>
+              {{ user.is_following ? 'Unfollow' : 'Follow' }}
+            </button>
+            
+            <button 
+              @click="mentionUser"
+              class="secondary-action-btn"
+            >
+              <svg viewBox="0 0 24 24" class="btn-icon">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.54 0 3-.36 4.31-1.01L21 22l-1.01-4.69C20.64 15 21 13.54 21 12c0-5.52-4.48-10-10-10zm0 2c4.41 0 8 3.59 8 8 0 1.18-.26 2.29-.74 3.3L18.43 17l-1.7-.83C15.71 16.74 14.18 17 12 17c-4.41 0-8-3.59-8-8s3.59-8 8-8z" fill="currentColor"/>
+              </svg>
+              Mention
+            </button>
+          </template>
 
           <button 
             v-if="!isCurrentUser && canManageUser" 
@@ -212,26 +252,35 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useActivityPubStore } from '@/stores/activitypub'
 import BaseModal from '@/components/common/BaseModal.vue'
-import type { User } from '@/types'
+import type { User, FederatedUser } from '@/types'
 
 interface Props {
   show: boolean
-  user: User | null
+  user: User | FederatedUser | null
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
   invite: []
+  follow?: [userId: string]
+  unfollow?: [userId: string]
 }>()
 
 const router = useRouter()
 const authStore = useAuthStore()
+const activityPubStore = useActivityPubStore()
 
 // Reactive state
 const showActionsMenu = ref(false)
 const userNote = ref('')
+
+// Type guards
+const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUser => {
+  return user !== null && 'handle' in user
+}
 
 // Computed properties
 const isCurrentUser = computed(() => {
@@ -241,6 +290,37 @@ const isCurrentUser = computed(() => {
 const canManageUser = computed(() => {
   // Add logic based on user permissions/roles
   return !isCurrentUser.value
+})
+
+const displayHandle = computed(() => {
+  if (!props.user) return '@unknown'
+  
+  if (isFederatedUser(props.user)) {
+    return props.user.handle
+  }
+  
+  // For chat users, show @username
+  return `@${props.user.username || 'unknown'}`
+})
+
+const displayAbout = computed(() => {
+  if (!props.user) return null
+  
+  if (isFederatedUser(props.user)) {
+    return props.user.bio || props.user.about
+  }
+  
+  return props.user.about
+})
+
+const socialStats = computed(() => {
+  if (!props.user || !isFederatedUser(props.user)) return null
+  
+  return {
+    posts: props.user.posts_count || 0,
+    following: props.user.following_count || 0,
+    followers: props.user.followers_count || 0
+  }
 })
 
 const userStatus = computed(() => {
@@ -297,6 +377,35 @@ const openSettings = () => {
   emit('close')
 }
 
+const handleFollowToggle = async () => {
+  if (!props.user || !isFederatedUser(props.user)) return
+  
+  try {
+    if (props.user.is_following) {
+      await activityPubStore.unfollowUser(props.user.id)
+      emit('unfollow', props.user.id)
+    } else {
+      await activityPubStore.followUser(props.user.id)
+      emit('follow', props.user.id)
+    }
+  } catch (error) {
+    console.error('Failed to toggle follow:', error)
+  }
+}
+
+const mentionUser = () => {
+  if (!props.user || !isFederatedUser(props.user)) return
+  
+  // Open the Monyverse composer with a mention
+  activityPubStore.openComposer({
+    content: `${props.user.handle} `
+  })
+  
+  // Navigate to Monyverse and close modal
+  router.push('/monyverse')
+  emit('close')
+}
+
 const openInviteModal = () => {
   emit('invite')
   showActionsMenu.value = false
@@ -340,11 +449,6 @@ const loadUserNote = () => {
 onMounted(() => {
   loadUserNote()
 })
-
-// Close actions menu when clicking outside
-const handleClickOutside = () => {
-  showActionsMenu.value = false
-}
 </script>
 
 <style scoped>
@@ -785,9 +889,19 @@ const handleClickOutside = () => {
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
 }
 
+.primary-action-btn.following {
+  background: linear-gradient(135deg, #43b581, #369970);
+  box-shadow: 0 2px 8px rgba(67, 181, 129, 0.3);
+}
+
 .primary-action-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+}
+
+.primary-action-btn.following:hover {
+  background: linear-gradient(135deg, #f04747, #d73c3c);
+  box-shadow: 0 4px 12px rgba(240, 71, 71, 0.4);
 }
 
 .secondary-action-btn {

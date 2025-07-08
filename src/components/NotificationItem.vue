@@ -97,14 +97,15 @@
           
           <!-- Reaction Display -->
           <div v-if="reactionEmoji" class="reaction-display">
+            <span class="reaction-text"><strong>{{ notification.data.reactor.display_name }}</strong> reacted with </span>
             <img 
               v-if="reactionEmoji.url"
               :src="reactionEmoji.url" 
               :alt="reactionEmoji.name"
+              :title="`:${reactionEmoji.name}:`"
               class="reaction-emoji-image"
             />
             <span v-else class="reaction-emoji-fallback">{{ reactionEmoji.name }}</span>
-            <span class="reaction-text">:{{ reactionEmoji.name }}: reaction</span>
           </div>
         </div>
       </div>
@@ -663,14 +664,17 @@ const typeIcon = computed(() => {
 
 .reaction-display {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 4px;
+  background: rgba(79, 84, 92, 0.3);
+  padding: 6px;
+  border-radius: 4px;
 }
 
 .reaction-emoji-image {
-  width: 16px;
-  height: 16px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
   flex-shrink: 0;
 }

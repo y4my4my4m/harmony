@@ -94,7 +94,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useDMStore } from '@/stores/useDM'
 import type { Server } from '@/types'
 
@@ -112,7 +111,6 @@ const emit = defineEmits<{
 
 const route = useRoute()
 const router = useRouter()
-const serverChannelStore = useServerChannelStore()
 const dmStore = useDMStore()
 
 // Computed properties

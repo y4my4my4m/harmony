@@ -218,7 +218,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue';
 import type { User } from '@/types';
-import UserProfileModal from './UserProfileModal.vue';
+import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';

@@ -49,6 +49,29 @@ const router = createRouter({
       component: RegisterView
     },
     {
+      path: '/monyverse/:timeline?',
+      name: 'Monyverse',
+      component: () => import('@/views/ActivityPubView.vue'),
+      props: route => ({ 
+        timeline: route.params.timeline || 'home'
+      }),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/u/:handle',
+      name: 'UserProfile',
+      component: () => import('@/views/UserProfileView.vue'),
+      props: true,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/posts/:postId',
+      name: 'PostDetail',
+      component: () => import('@/views/PostDetailView.vue'),
+      props: true,
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/new-profile',
       name: 'NewProfile',
       component: () => import('@/views/NewProfile.vue'),
