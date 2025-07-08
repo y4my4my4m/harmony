@@ -466,7 +466,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           display_name: dbPost.author.display_name,
           avatar_url: dbPost.author.avatar_url,
           domain: dbPost.author.domain,
-          handle: `@${dbPost.author.username}${dbPost.author.domain !== 'harmony.com' ? '@' + dbPost.author.domain : ''}`
+          handle: `@${dbPost.author.username}${dbPost.author.domain !== 'har.mony.lol' ? '@' + dbPost.author.domain : ''}`
         },
         interactions: {
           is_favorited: false,

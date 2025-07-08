@@ -160,7 +160,7 @@ const props = withDefaults(defineProps<Props>(), {
   isDM: false,
   followingCount: 0,
   followersCount: 0,
-  instanceDomain: 'harmony.com',
+  instanceDomain: 'har.mony.lol',
   instanceUserCount: 0,
   instancePostCount: 0
 });
@@ -186,8 +186,8 @@ const currentUser = computed(() => profileStore.profile);
 
 const currentUserHandle = computed(() => {
   if (!currentUser.value) return '';
-  const domain = currentUser.value.domain || 'harmony.com';
-  return domain === 'harmony.com' 
+  const domain = currentUser.value.domain || 'har.mony.lol';
+  return domain === 'har.mony.lol' 
     ? `@${currentUser.value.username}`
     : `@${currentUser.value.username}@${domain}`;
 });

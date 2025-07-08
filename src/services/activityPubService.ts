@@ -19,7 +19,7 @@ export class ActivityPubService {
   private currentDomain: string;
 
   constructor() {
-    this.currentDomain = import.meta.env.VITE_DOMAIN || 'harmony.com';
+    this.currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
   }
 
   static getInstance(): ActivityPubService {

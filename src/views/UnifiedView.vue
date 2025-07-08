@@ -324,7 +324,7 @@ const trendingTopics = ref([
 const suggestedUsers = ref<FederatedUser[]>([]);
 const instanceUserCount = ref(0);
 const instancePostCount = ref(0);
-const instanceDomain = ref('harmony.com');
+const instanceDomain = ref('har.mony.lol');
 
 // Mobile gestures
 const { touchState, initializeMobileGestures } = useMobileGestures();

@@ -167,7 +167,7 @@ const props = withDefaults(defineProps<Props>(), {
   voicePanelOpen: false,
   isDM: false,
   currentFeed: 'home',
-  instanceDomain: 'harmony.com'
+  instanceDomain: 'har.mony.lol'
 });
 
 defineEmits<{

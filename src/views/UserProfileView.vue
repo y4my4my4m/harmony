@@ -327,8 +327,8 @@ const loadUserProfile = async (handle: string) => {
       user.value = {
         id: handle,
         username: handle,
-        domain: 'harmony.com',
-        handle: `@${handle}@harmony.com`,
+        domain: 'har.mony.lol',
+        handle: `@${handle}@har.mony.lol`,
         display_name: handle,
         avatar_url: '/default_avatar.png',
         bio: 'Local user profile',

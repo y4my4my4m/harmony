@@ -198,7 +198,7 @@ const loadPost = async () => {
       author: {
         id: 'user1',
         username: 'alice',
-        domain: 'harmony.com',
+        domain: 'har.mony.lol',
         handle: '@alice',
         display_name: 'Alice Johnson',
         avatar_url: '/default_avatar.png',

@@ -18,6 +18,7 @@
     <!-- ActivityPub Mode Content -->
     <div v-else-if="mode === 'activitypub'" class="content-section activitypub-content">
       <div class="mony-header">
+        <div></div>
         <!-- Feed Type Switcher -->
         <div class="feed-switcher">
           <button
@@ -31,6 +32,7 @@
             <span v-if="!isMobile">{{ tab.label }}</span>
           </button>
         </div>
+        <div></div>
       </div>
       <div class="mony-content">
         <!-- New Post Composer (Inline) -->
@@ -340,7 +342,7 @@ const getEmptyStateMessage = () => {
   cursor: not-allowed;
 }
 
-.feed-switcher {
+/* .feed-switcher {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -373,7 +375,68 @@ const getEmptyStateMessage = () => {
 .feed-tab.active {
   background: var(--brand-primary);
   color: white;
+} */
+
+/* Feed Switcher */
+.feed-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(32, 34, 37, 0.8);
+  border: 2px solid rgba(88, 101, 242, 0.3);
+  border-radius: 16px;
+  padding: 4px;
+  backdrop-filter: blur(10px);
 }
+
+.feed-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  color: #80848e;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.feed-tab::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.1), rgba(88, 101, 242, 0.05));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.feed-tab:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.feed-tab:hover::before {
+  opacity: 1;
+}
+
+.feed-tab.active {
+  background: linear-gradient(135deg, var(--brand-primary), #4752c4);
+  color: #ffffff;
+  box-shadow: 
+    0 4px 15px rgba(88, 101, 242, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.feed-tab.active::before {
+  opacity: 0;
+}
+
 
 /* Responsive design */
 @media (max-width: 768px) {
