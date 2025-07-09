@@ -74,6 +74,43 @@ const MESSAGE_TEMPLATES = {
     title: (data: any) => `New emoji added: ${data.emoji.name}`,
     message: (data: any) => `${data.emoji.name} is now available in ${data.location.server_name}`,
     shortTitle: (data: any) => `New emoji`
+  },
+
+  // ActivityPub notification templates
+  activitypub_follow: {
+    title: (data: any) => `${data.follower.display_name || data.follower.username} started following you`,
+    message: (data: any) => `${data.follower.handle || '@' + data.follower.username} is now following you`,
+    shortTitle: (data: any) => `New follower`
+  },
+
+  activitypub_favorite: {
+    title: (data: any) => `${data.user.display_name || data.user.username} favorited your post`,
+    message: (data: any) => data.post_content ? `"${data.post_content.substring(0, 50)}${data.post_content.length > 50 ? '...' : ''}"` : 'Your post was favorited',
+    shortTitle: (data: any) => `Post favorited`
+  },
+
+  activitypub_reblog: {
+    title: (data: any) => `${data.user.display_name || data.user.username} reblogged your post`,
+    message: (data: any) => data.post_content ? `"${data.post_content.substring(0, 50)}${data.post_content.length > 50 ? '...' : ''}"` : 'Your post was reblogged',
+    shortTitle: (data: any) => `Post reblogged`
+  },
+
+  activitypub_mention: {
+    title: (data: any) => `${data.author.display_name || data.author.username} mentioned you`,
+    message: (data: any) => data.post_content ? `"${data.post_content.substring(0, 50)}${data.post_content.length > 50 ? '...' : ''}"` : 'You were mentioned in a post',
+    shortTitle: (data: any) => `Mention`
+  },
+
+  activitypub_reply: {
+    title: (data: any) => `${data.author.display_name || data.author.username} replied to your post`,
+    message: (data: any) => data.post_content ? `"${data.post_content.substring(0, 50)}${data.post_content.length > 50 ? '...' : ''}"` : 'Someone replied to your post',
+    shortTitle: (data: any) => `New reply`
+  },
+
+  activitypub_follow_request: {
+    title: (data: any) => `${data.follower.display_name || data.follower.username} wants to follow you`,
+    message: (data: any) => `${data.follower.handle || '@' + data.follower.username} sent you a follow request`,
+    shortTitle: (data: any) => `Follow request`
   }
 } as const
 
@@ -126,7 +163,11 @@ export class NotificationFormatter {
     const data = notification.data
     return data.sender?.display_name || data.sender?.username || 
            data.reactor?.display_name || data.reactor?.username || 
-           data.inviter?.display_name || data.inviter?.username || 'Unknown'
+           data.inviter?.display_name || data.inviter?.username ||
+           // ActivityPub notifications
+           data.follower?.display_name || data.follower?.username ||
+           data.user?.display_name || data.user?.username ||
+           data.author?.display_name || data.author?.username || 'Unknown'
   }
   
   /**
@@ -134,7 +175,9 @@ export class NotificationFormatter {
    */
   static getAvatarUrl(notification: Notification): string {
     const data = notification.data
-    return data.sender?.avatar_url || data.reactor?.avatar_url || data.inviter?.avatar_url || '/default_avatar.png'
+    return data.sender?.avatar_url || data.reactor?.avatar_url || data.inviter?.avatar_url ||
+           // ActivityPub notifications  
+           data.follower?.avatar_url || data.user?.avatar_url || data.author?.avatar_url || '/default_avatar.png'
   }
   
   /**
