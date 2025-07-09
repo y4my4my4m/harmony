@@ -543,11 +543,35 @@ onUnmounted(() => {
 
 .quick-stats {
   display: flex;
+  flex-direction: column;
   justify-content: space-around;
   padding: 16px;
   background: var(--background-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
+}
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  width: 100%;
+  padding: 16px;
+}
+.stats-refresh {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  width: 100%;
+  padding: 16px;
 }
 
 .stat-item {
@@ -569,11 +593,76 @@ onUnmounted(() => {
 }
 
 .instance-info {
+  display: flex;
+  flex-direction: column;
   padding: 16px;
   background: var(--background-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
+
+.instance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.instance-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.instance-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.instance-status .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+.instance-status.online .status-dot {
+  background: var(--success);
+}
+.instance-status.offline .status-dot {
+  background: var(--error);
+}
+.instance-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.instance-domain {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.instance-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 16px;
+}
+.instance-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 16px;
+  flex-direction: column;
+}
+
+
 
 .section-title {
   font-size: 12px;
