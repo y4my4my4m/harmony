@@ -9,9 +9,7 @@
       </div>
       
       <button @click="$emit('createServer')" class="create-server-btn">
-        <svg viewBox="0 0 24 24" class="btn-icon">
-          <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
-        </svg>
+        <Icon name="plus" :size="18" />
         <span class="btn-text">Create Your Own Server</span>
       </button>
     </div>
@@ -21,6 +19,8 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/common/Icon.vue';
+
 interface Emits {
   (e: 'createServer'): void
 }
