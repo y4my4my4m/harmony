@@ -123,7 +123,7 @@ import { ref } from 'vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import ReplyIcon from '@/components/icons/Reply.vue';
 import UserIcon from '@/components/icons/User.vue';
-import type { FederatedUser, TimelinePost } from '../../../types';
+import type { FederatedUser, TimelinePost } from '@/types';
 import Avatar from '@/components/common/Avatar.vue';
 
 interface Props {

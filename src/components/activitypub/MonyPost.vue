@@ -166,10 +166,11 @@
 
         <button 
           class="action-button bookmark-button"
+          :class="{ active: post.interactions?.is_bookmarked }"
           @click="onBookmark"
-          title="Bookmark"
+          :title="post.interactions?.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
         >
-          <Icon name="bookmark" />
+          <Icon :name="post.interactions?.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
 
         <div class="action-menu">

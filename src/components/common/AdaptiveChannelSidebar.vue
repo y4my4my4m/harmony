@@ -12,7 +12,8 @@
         </div>
         
         <ChannelSidebar
-          :currentServer="currentServer || undefined"
+          v-if="currentServer"
+          :currentServer="currentServer"
           :channels="channels"
           :currentChannelId="currentChannelId"
           :categories="categories"
@@ -213,6 +214,7 @@ const getUserProfilePath = () => {
 };
 
 const navigationItems = computed(() => [
+  { id: 'feed', label: 'Feed', path: '/social/home', icon: 'mony-mascot' },
   { id: 'profile', label: 'Profile', path: getUserProfilePath(), icon: 'user' },
   { id: 'notifications', label: 'Notifications', path: '/social/notifications', icon: 'bell' },
   { id: 'bookmarks', label: 'Bookmarks', path: '/social/bookmarks', icon: 'bookmark' },

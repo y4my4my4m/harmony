@@ -163,7 +163,7 @@ const isCurrentUser = computed(() => {
 });
 
 const isFollowing = computed(() => {
-  return activityPubStore.isFollowing(props.user.id);
+  return activityPubStore.followedUsers.has(props.user.id);
 });
 
 const isMuted = computed(() => {

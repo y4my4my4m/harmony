@@ -340,7 +340,7 @@ const instancePostCount = ref(0);
 const instanceDomain = ref('har.mony.lol');
 
 // Mobile gestures
-const { touchState, initializeMobileGestures } = useMobileGestures();
+const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd, resetTouchState } = useMobileGestures();
 
 // Computed properties
 const isAppReady = computed(() => {
@@ -599,7 +599,7 @@ const handlePostCreated = (post: TimelinePost) => {
 const handleReplyToPost = (post: TimelinePost) => {
   activityPubStore.openComposer({
     in_reply_to: post.id,
-    content: post.author.handle
+    content: `@${post.author.username}${post.author.domain !== 'har.mony.lol' ? '@' + post.author.domain : ''}`
   });
 };
 
@@ -645,10 +645,10 @@ const handleComposerSubmit = async () => {
     await activityPubStore.createPost({
       content: activityPubStore.composerState.content,
       visibility: activityPubStore.composerState.visibility,
-      content_warning: activityPubStore.composerState.content_warning,
-      in_reply_to: activityPubStore.composerState.in_reply_to,
-      media_attachments: activityPubStore.composerState.media_attachments,
-      is_sensitive: activityPubStore.composerState.is_sensitive
+      content_warning: activityPubStore.composerState.contentWarning,
+      in_reply_to: activityPubStore.composerState.replyTo,
+      media_attachments: activityPubStore.composerState.mediaAttachments,
+      is_sensitive: activityPubStore.composerState.sensitive
     });
   } catch (error) {
     console.error('Failed to create post:', error);
@@ -967,7 +967,8 @@ onMounted(async () => {
   window.addEventListener('resize', handleResize);
   
   if (isMobile.value) {
-    initializeMobileGestures();
+    // Mobile gestures are already initialized, just set up event listeners if needed
+    // The gesture handlers are available directly from the composable
   }
   
   // Load initial data based on mode
