@@ -9,7 +9,7 @@
 import { ref, reactive, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
-import { useActivityPubStore } from '@/stores/activitypub'
+import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useDMStore } from '@/stores/useDM'
 
 export type AppMode = 'chat' | 'activitypub'

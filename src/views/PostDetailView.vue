@@ -146,7 +146,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useActivityPubStore } from '@/stores/activitypub';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import type { TimelinePost, FederatedUser } from '@/types';
 
 // Components

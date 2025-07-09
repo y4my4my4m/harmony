@@ -258,7 +258,7 @@ import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
-import { useActivityPubStore } from '@/stores/activitypub';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 
 // Composables
 import { useChannelSelection } from '@/composables/useUserProfile';
@@ -615,7 +615,7 @@ const handlePostCreated = (post: TimelinePost) => {
 
 const handleReplyToPost = (post: TimelinePost) => {
   activityPubStore.openComposer({
-    in_reply_to: post.id,
+    replyTo: post.id,
     content: `@${post.author.username}${post.author.domain !== 'har.mony.lol' ? '@' + post.author.domain : ''}`
   });
 };

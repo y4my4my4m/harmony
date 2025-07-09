@@ -46,7 +46,7 @@
 import { defineComponent, ref, watch, computed } from 'vue';
 import type { Server } from '@/types';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useActivityPubStore } from '@/stores/activitypub';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useRouter, useRoute } from 'vue-router';
 
 export default defineComponent({
@@ -98,6 +98,7 @@ export default defineComponent({
     };
 
     const goToMonyverse = () => {
+      activityPubStore.clearUnreadCount();
       router.push({ name: 'Monyverse' });
     };
 

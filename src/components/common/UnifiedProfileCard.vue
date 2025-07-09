@@ -156,7 +156,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useActivityPubStore } from '@/stores/activitypub'
+import { useActivityPubStore } from '@/stores/useActivityPub'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
 import type { User, FederatedUser } from '@/types'
