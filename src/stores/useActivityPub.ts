@@ -722,9 +722,14 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Format post content for storage
      */
     formatPostContent(content: string): any {
-      // For now, store as simple text
-      // TODO: Parse mentions, hashtags, etc.
-      return content;
+      // Format content as JSONB structure similar to messages
+      // This matches the expected database schema
+      return [
+        {
+          type: 'text',
+          text: content
+        }
+      ];
     },
 
     /**
@@ -807,11 +812,21 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Transform database post to TimelinePost
      */
     transformDatabasePostToTimelinePost(post: any): TimelinePost {
+      // Keep content in JSONB format for consistency with message structure
+      let processedContent = post.content;
+      
+      // Ensure content is in the correct array format
+      if (typeof post.content === 'string') {
+        processedContent = [{ type: 'text', text: post.content }];
+      } else if (!Array.isArray(post.content)) {
+        processedContent = [{ type: 'text', text: '' }];
+      }
+
       return {
         id: post.id,
         created_at: post.created_at,
         updated_at: post.updated_at,
-        content: post.content,
+        content: processedContent,
         content_warning: post.content_warning,
         language: post.language || 'en',
         author_id: post.author_id,

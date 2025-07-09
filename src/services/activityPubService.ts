@@ -63,34 +63,46 @@ export class ActivityPubService {
       metadata: {}
     };
 
-    const { data, error } = await supabase
+    // Insert the post first
+    const { data: insertedPost, error: insertError } = await supabase
       .from('posts')
       .insert(post)
+      .select('*')
+      .single();
+
+    if (insertError) throw insertError;
+
+    // Generate ActivityPub ID for local posts
+    if (insertedPost.is_local) {
+      const ap_id = `https://${this.currentDomain}/posts/${insertedPost.id}`;
+      const url = ap_id;
+
+      const { error: updateError } = await supabase
+        .from('posts')
+        .update({ ap_id, url })
+        .eq('id', insertedPost.id);
+
+      if (updateError) throw updateError;
+
+      insertedPost.ap_id = ap_id;
+      insertedPost.url = url;
+    }
+
+    // Now fetch the complete post with author information
+    const { data: completePost, error: fetchError } = await supabase
+      .from('posts')
       .select(`
         *,
-        author:profiles!posts_author_id_fkey (
+        author:profiles (
           id, username, display_name, domain, avatar_url, is_local
         )
       `)
+      .eq('id', insertedPost.id)
       .single();
 
-    if (error) throw error;
+    if (fetchError) throw fetchError;
 
-    // Generate ActivityPub ID for local posts
-    if (data.is_local) {
-      const ap_id = `https://${this.currentDomain}/posts/${data.id}`;
-      const url = ap_id;
-
-      await supabase
-        .from('posts')
-        .update({ ap_id, url })
-        .eq('id', data.id);
-
-      data.ap_id = ap_id;
-      data.url = url;
-    }
-
-    return data as Post;
+    return completePost as Post;
   }
 
   /**
