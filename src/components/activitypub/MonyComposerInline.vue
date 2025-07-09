@@ -145,7 +145,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { useActivityPubStore } from '@/stores/activitypub';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useProfileStore } from '@/stores/useProfile';
 import type { Post, MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';

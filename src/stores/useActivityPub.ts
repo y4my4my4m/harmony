@@ -1,743 +1,1315 @@
-// ActivityPub Store - State management for federated social features
-// Professional Pinia store for the Monyverse
+/**
+ * ActivityPub Store - Pinia store for managing federated content and state
+ * Professional state management for the Monyverse
+ */
+
 import { defineStore } from 'pinia';
+import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
 import type { 
   Post, 
   TimelinePost, 
-  FederatedUser, 
-  PostComposerState,
+  PostComposerState, 
   MonyFeed,
-  TimelineOptions
+  FederatedUser,
+  Notification
 } from '@/types';
 
-export const useActivityPubStore = defineStore('activityPub', {
-  state: () => ({
+interface ActivityPubState {
+  // Feed state
+  homeFeed: MonyFeed;
+  publicFeed: MonyFeed;
+  localFeed: MonyFeed;
+  userFeeds: Map<string, MonyFeed>;
+  
+  // User state
+  followedUsers: Set<string>;
+  blockedUsers: Set<string>;
+  mutedUsers: Set<string>;
+  
+  // Count tracking for realtime updates
+  followingCount: number;
+  followersCount: number;
+  
+  // Instance state
+  knownInstances: any[];
+  blockedInstances: Set<string>;
+  
+  // UI state
+  isComposerOpen: boolean;
+  composerState: PostComposerState;
+  selectedPost?: Post;
+  
+  // Loading states
+  isLoadingFeed: boolean;
+  isLoadingPost: boolean;
+  isLoadingProfile: boolean;
+  isPosting: boolean;
+  
+  // Realtime subscriptions
+  realtimeSubscriptions: Map<string, any>;
+  
+  // Notification integration
+  lastNotificationCheck: Date | null;
+  unreadCount: number;
+}
+
+export const useActivityPubStore = defineStore('activitypub', {
+  state: (): ActivityPubState => ({
     // Feed state
     homeFeed: {
       posts: [],
       has_more: true,
-      cursor: null
-    } as MonyFeed,
-    
+      cursor: undefined
+    },
     publicFeed: {
       posts: [],
       has_more: true,
-      cursor: null
-    } as MonyFeed,
-    
+      cursor: undefined
+    },
     localFeed: {
       posts: [],
       has_more: true,
-      cursor: null
-    } as MonyFeed,
-    
-    userFeeds: new Map<string, MonyFeed>(),
+      cursor: undefined
+    },
+    userFeeds: new Map(),
     
     // User state
-    followedUsers: new Set<string>(),
-    searchResults: [] as FederatedUser[],
+    followedUsers: new Set(),
+    blockedUsers: new Set(),
+    mutedUsers: new Set(),
     
-    // Post composer state
+    // Count tracking
+    followingCount: 0,
+    followersCount: 0,
+    
+    // Instance state
+    knownInstances: [],
+    blockedInstances: new Set(),
+    
+    // UI state
     isComposerOpen: false,
     composerState: {
       content: '',
-      visibility: 'public' as const,
-      content_warning: undefined,
-      in_reply_to: undefined,
-      media_attachments: [],
-      is_sensitive: false,
-      language: 'en'
-    } as PostComposerState,
-    
-    // Selected content
-    selectedPost: null as Post | null,
-    selectedUser: null as FederatedUser | null,
+      visibility: 'public',
+      contentWarning: undefined,
+      sensitive: false,
+      language: 'en',
+      replyTo: undefined,
+      mediaAttachments: []
+    },
+    selectedPost: undefined,
     
     // Loading states
-    isLoadingHomeFeed: false,
-    isLoadingPublicFeed: false,
-    isLoadingLocalFeed: false,
-    isLoadingUserFeed: false,
+    isLoadingFeed: false,
     isLoadingPost: false,
     isLoadingProfile: false,
     isPosting: false,
-    isSearching: false,
     
-    // Real-time subscriptions
-    feedSubscription: null as any,
-    postsSubscription: null as any,
-    followsSubscription: null as any,
+    // Realtime subscriptions
+    realtimeSubscriptions: new Map(),
     
-    // UI state
-    currentView: 'home' as 'home' | 'public' | 'local' | 'profile' | 'post',
-    showSensitiveContent: false,
-    
-    // Error handling
-    lastError: null as string | null,
+    // Notification integration
+    lastNotificationCheck: null,
+    unreadCount: 0
   }),
 
   getters: {
-    // Feed getters
-    currentFeed: (state) => {
-      switch (state.currentView) {
-        case 'home': return state.homeFeed;
-        case 'public': return state.publicFeed;
-        case 'local': return state.localFeed;
-        default: return state.homeFeed;
-      }
+    /**
+     * Get formatted following count
+     */
+    formattedFollowingCount(): string {
+      return this.followingCount > 999 ? `${(this.followingCount / 1000).toFixed(1)}K` : this.followingCount.toString();
     },
-    
-    // User interaction state
-    isFollowingUser: (state) => (userId: string) => {
+
+    /**
+     * Get formatted followers count
+     */
+    formattedFollowersCount(): string {
+      return this.followersCount > 999 ? `${(this.followersCount / 1000).toFixed(1)}K` : this.followersCount.toString();
+    },
+
+    /**
+     * Check if user is following another user
+     */
+    isFollowing: (state) => (userId: string) => {
       return state.followedUsers.has(userId);
     },
-    
-    // Loading state combinators
-    isLoadingAnyFeed: (state) => {
-      return state.isLoadingHomeFeed || 
-             state.isLoadingPublicFeed || 
-             state.isLoadingLocalFeed || 
-             state.isLoadingUserFeed;
+
+    /**
+     * Check if user is blocked
+     */
+    isBlocked: (state) => (userId: string) => {
+      return state.blockedUsers.has(userId);
     },
-    
-    // Post interaction helpers
-    getPostById: (state) => (postId: string): TimelinePost | undefined => {
-      // Search all feeds for the post
-      const allPosts = [
-        ...state.homeFeed.posts,
-        ...state.publicFeed.posts,
-        ...state.localFeed.posts,
-        ...Array.from(state.userFeeds.values()).flatMap(feed => feed.posts)
-      ];
-      return allPosts.find(post => post.id === postId);
+
+    /**
+     * Check if user is muted
+     */
+    isMuted: (state) => (userId: string) => {
+      return state.mutedUsers.has(userId);
     },
-    
-    // Composer validation
-    canPost: (state) => {
-      return state.composerState.content.trim().length > 0 && 
-             state.composerState.content.length <= 500 && // Character limit
-             !state.isPosting;
+
+    /**
+     * Get current user's federated stats
+     */
+    currentUserStats: (state) => ({
+      following: state.followingCount,
+      followers: state.followersCount,
+      posts: state.homeFeed.posts.filter(p => p.author_id === state.followedUsers.values().next().value).length
+    }),
+
+    /**
+     * Get timeline posts by feed type
+     */
+    getTimelinePosts: (state) => (timeline: 'home' | 'public' | 'local') => {
+      switch (timeline) {
+        case 'home': return state.homeFeed.posts;
+        case 'public': return state.publicFeed.posts;
+        case 'local': return state.localFeed.posts;
+        default: return [];
+      }
     }
   },
 
   actions: {
-    // =============================================
-    // FEED MANAGEMENT
-    // =============================================
-    
     /**
-     * Load home timeline (following + own posts)
+     * Initialize the ActivityPub store with enhanced realtime
      */
-    async loadHomeFeed(refresh = false, options: TimelineOptions = {}) {
-      if (this.isLoadingHomeFeed) return;
-      
+    async initialize() {
       try {
-        this.isLoadingHomeFeed = true;
-        this.lastError = null;
+        console.log('🌐 Initializing ActivityPub store...');
         
-        if (refresh) {
-          this.homeFeed.posts = [];
-          this.homeFeed.cursor = null;
-          this.homeFeed.has_more = true;
-        }
+        // Load user relationships and counts
+        await this.loadFollowedUsers();
+        await this.loadFollowCounts();
+        await this.loadUserPreferences();
         
-        const posts = await activityPubService.getTimeline('home', {
-          limit: options.limit || 20,
-          max_id: refresh ? undefined : this.homeFeed.cursor || undefined
-        });
+        // Setup comprehensive realtime subscriptions
+        this.setupEnhancedRealtimeSubscriptions();
         
-        if (refresh) {
-          this.homeFeed.posts = posts;
-        } else {
-          this.homeFeed.posts.push(...posts);
-        }
-        
-        this.homeFeed.has_more = posts.length === (options.limit || 20);
-        this.homeFeed.cursor = posts.length > 0 ? posts[posts.length - 1].created_at : null;
-        
+        console.log('✅ ActivityPub store initialized successfully');
       } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to load home feed';
-        console.error('Error loading home feed:', error);
-      } finally {
-        this.isLoadingHomeFeed = false;
+        console.error('❌ Failed to initialize ActivityPub store:', error);
       }
     },
-    
+
     /**
-     * Load public timeline (all public posts)
+     * Load follow counts for the current user
      */
-    async loadPublicFeed(refresh = false, options: TimelineOptions = {}) {
-      if (this.isLoadingPublicFeed) return;
-      
+    async loadFollowCounts() {
       try {
-        this.isLoadingPublicFeed = true;
-        this.lastError = null;
-        
-        if (refresh) {
-          this.publicFeed.posts = [];
-          this.publicFeed.cursor = null;
-          this.publicFeed.has_more = true;
-        }
-        
-        const posts = await activityPubService.getPublicTimeline({
-          limit: options.limit || 20,
-          max_id: refresh ? undefined : this.publicFeed.cursor || undefined
-        });
-        
-        if (refresh) {
-          this.publicFeed.posts = posts;
-        } else {
-          this.publicFeed.posts.push(...posts);
-        }
-        
-        this.publicFeed.has_more = posts.length === (options.limit || 20);
-        this.publicFeed.cursor = posts.length > 0 ? posts[posts.length - 1].created_at : null;
-        
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) return;
+
+        // Get following count
+        const { count: followingCount } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('follower_id', user.data.user.id)
+          .eq('status', 'accepted');
+
+        // Get followers count
+        const { count: followersCount } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', user.data.user.id)
+          .eq('status', 'accepted');
+
+        this.followingCount = followingCount || 0;
+        this.followersCount = followersCount || 0;
+
+        console.log(`📊 Follow counts loaded: ${this.followingCount} following, ${this.followersCount} followers`);
       } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to load public feed';
-        console.error('Error loading public feed:', error);
-      } finally {
-        this.isLoadingPublicFeed = false;
+        console.error('❌ Failed to load follow counts:', error);
       }
     },
-    
+
     /**
-     * Load local timeline (this instance only)
+     * Load user preferences for ActivityPub
      */
-    async loadLocalFeed(refresh = false, options: TimelineOptions = {}) {
-      if (this.isLoadingLocalFeed) return;
-      
+    async loadUserPreferences() {
       try {
-        this.isLoadingLocalFeed = true;
-        this.lastError = null;
-        
-        if (refresh) {
-          this.localFeed.posts = [];
-          this.localFeed.cursor = null;
-          this.localFeed.has_more = true;
-        }
-        
-        const posts = await activityPubService.getLocalTimeline({
-          limit: options.limit || 20,
-          max_id: refresh ? undefined : this.localFeed.cursor || undefined
-        });
-        
-        if (refresh) {
-          this.localFeed.posts = posts;
-        } else {
-          this.localFeed.posts.push(...posts);
-        }
-        
-        this.localFeed.has_more = posts.length === (options.limit || 20);
-        this.localFeed.cursor = posts.length > 0 ? posts[posts.length - 1].created_at : null;
-        
+        // const user = await supabase.auth.getUser();
+        // if (!user.data.user) return;
+
+        // const { data, error } = await supabase
+        //   .from('profiles')
+        //   .select('activitypub_preferences')
+        //   .eq('id', user.data.user.id)
+        //   .single();
+
+        // if (error) throw error;
+
+        // Store preferences in state if needed
+        // console.log('⚙️ User preferences loaded');
+
+        // TODO: were currently storing everything in notificaiton_preferences i believe? all preferences are separates columns in the database.
       } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to load local feed';
-        console.error('Error loading local feed:', error);
-      } finally {
-        this.isLoadingLocalFeed = false;
+        console.error('❌ Failed to load user preferences:', error);
       }
     },
-    
+
     /**
-     * Load user-specific feed
+     * Setup enhanced realtime subscriptions for ActivityPub
      */
-    async loadUserFeed(userId: string, refresh = false, options: TimelineOptions = {}) {
-      if (this.isLoadingUserFeed) return;
+    setupEnhancedRealtimeSubscriptions() {
+      const user = supabase.auth.getUser();
+      if (!user) return;
+
+      // Clean up existing subscriptions
+      this.cleanupRealtimeSubscriptions();
+
+      // Use activityPubService for realtime subscriptions
+      const postsChannel = activityPubService.subscribeToPostUpdates(
+        (post) => this.handleRealtimePostCreate(post),
+        (post) => this.handleRealtimePostUpdate(post),
+        (post) => this.handleRealtimePostDelete(post)
+      );
+
+      const followsChannel = activityPubService.subscribeToFollowUpdates(
+        (follow) => this.handleRealtimeFollowCreate(follow),
+        (follow) => this.handleRealtimeFollowUpdate(follow),
+        (follow) => this.handleRealtimeFollowDelete(follow)
+      );
+
+      const interactionsChannel = activityPubService.subscribeToInteractionUpdates(
+        (interaction) => this.handleRealtimeInteractionChange({ event: 'INSERT', new: interaction }),
+        (interaction) => this.handleRealtimeInteractionChange({ event: 'DELETE', old: interaction })
+      );
+
+      // Store subscriptions for cleanup
+      this.realtimeSubscriptions.set('posts', postsChannel);
+      this.realtimeSubscriptions.set('follows', followsChannel);
+      this.realtimeSubscriptions.set('interactions', interactionsChannel);
+
+      console.log('🔔 Enhanced realtime subscriptions established using ActivityPub service');
+    },
+
+    /**
+     * Handle realtime post creation
+     */
+    handleRealtimePostCreate(post: any) {
+      console.log('📝 New post received:', post);
       
-      try {
-        this.isLoadingUserFeed = true;
-        this.lastError = null;
+      const timelinePost = this.transformDatabasePostToTimelinePost(post);
+      
+      // Add to public feed if public
+      if (post.visibility === 'public') {
+        this.publicFeed.posts.unshift(timelinePost);
+        // Limit feed size
+        if (this.publicFeed.posts.length > 100) {
+          this.publicFeed.posts = this.publicFeed.posts.slice(0, 100);
+        }
+      }
+      
+      // Add to local feed if local
+      if (post.is_local && post.visibility === 'public') {
+        this.localFeed.posts.unshift(timelinePost);
+        if (this.localFeed.posts.length > 100) {
+          this.localFeed.posts = this.localFeed.posts.slice(0, 100);
+        }
+      }
+      
+      // Add to home feed if following the author and increment unread count
+      if (this.followedUsers.has(post.author_id)) {
+        this.homeFeed.posts.unshift(timelinePost);
+        this.unreadCount++;
+        if (this.homeFeed.posts.length > 100) {
+          this.homeFeed.posts = this.homeFeed.posts.slice(0, 100);
+        }
+      }
+    },
+
+    /**
+     * Handle realtime post updates
+     */
+    handleRealtimePostUpdate(post: any) {
+      console.log('📝 Post updated:', post);
+      
+      const timelinePost = this.transformDatabasePostToTimelinePost(post);
+      this.updatePostInAllFeeds(timelinePost);
+    },
+
+    /**
+     * Handle realtime post deletion
+     */
+    handleRealtimePostDelete(post: any) {
+      console.log('🗑️ Post deleted:', post);
+      
+      this.removePostFromAllFeeds(post.id);
+    },
+
+    /**
+     * Handle realtime follow creation
+     */
+    async handleRealtimeFollowCreate(follow: any) {
+      console.log('👥 New follow relationship:', follow);
+      
+      const currentUser = await supabase.auth.getUser();
+      if (!currentUser.data.user) return;
+
+      // Update counts based on relationship
+      if (follow.follower_id === currentUser.data.user.id) {
+        // Current user started following someone
+        this.followingCount++;
+        this.followedUsers.add(follow.following_id);
+      } else if (follow.following_id === currentUser.data.user.id) {
+        // Someone started following current user
+        this.followersCount++;
         
-        if (refresh || !this.userFeeds.has(userId)) {
-          this.userFeeds.set(userId, {
-            posts: [],
-            has_more: true,
-            cursor: null
+        // Create notification for new follower
+        this.createFollowNotification(follow);
+      }
+    },
+
+    /**
+     * Handle realtime follow updates (status changes)
+     */
+    async handleRealtimeFollowUpdate(follow: any) {
+      console.log('👥 Follow relationship updated:', follow);
+      
+      const currentUser = await supabase.auth.getUser();
+      if (!currentUser.data.user) return;
+
+      // Handle status changes (accepted/rejected)
+      if (follow.status === 'accepted') {
+        if (follow.follower_id === currentUser.data.user.id) {
+          this.followedUsers.add(follow.following_id);
+        }
+      } else if (follow.status === 'rejected') {
+        if (follow.follower_id === currentUser.data.user.id) {
+          this.followedUsers.delete(follow.following_id);
+        }
+      }
+    },
+
+    /**
+     * Handle realtime follow deletion
+     */
+    async handleRealtimeFollowDelete(follow: any) {
+      console.log('👥 Follow relationship deleted:', follow);
+      
+      const currentUser = await supabase.auth.getUser();
+      if (!currentUser.data.user) return;
+
+      // Update counts based on relationship
+      if (follow.follower_id === currentUser.data.user.id) {
+        // Current user unfollowed someone
+        this.followingCount--;
+        this.followedUsers.delete(follow.following_id);
+      } else if (follow.following_id === currentUser.data.user.id) {
+        // Someone unfollowed current user
+        this.followersCount--;
+      }
+    },
+
+    /**
+     * Handle realtime interaction changes
+     */
+    handleRealtimeInteractionChange(payload: any) {
+      console.log('💫 Interaction changed:', payload);
+      
+      const interaction = payload.new || payload.old;
+      if (!interaction) return;
+
+      // Update interaction counts in posts
+      this.updatePostInteractionCounts(
+        interaction.post_id, 
+        interaction.interaction_type, 
+        payload.event || payload.eventType
+      );
+    },
+
+    /**
+     * Create notification for new follower
+     */
+    async createFollowNotification(follow: any) {
+      try {
+        // Get follower profile
+        const { data: follower } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', follow.follower_id)
+          .single();
+
+        if (!follower) return;
+
+        // Create notification
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: follow.following_id,
+            type: 'activitypub_follow',
+            title: 'New Follower',
+            message: `${follower.display_name || follower.username} started following you`,
+            data: {
+              follower_id: follow.follower_id,
+              follower_username: follower.username,
+              follower_display_name: follower.display_name,
+              follower_avatar_url: follower.avatar_url,
+              follow_id: follow.id,
+              timestamp: new Date().toISOString()
+            },
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
           });
-        }
-        
-        const userFeed = this.userFeeds.get(userId)!;
-        
-        const posts = await activityPubService.getUserPosts(userId, {
-          limit: options.limit || 20,
-          max_id: refresh ? undefined : userFeed.cursor || undefined
-        });
-        
-        if (refresh) {
-          userFeed.posts = posts;
-        } else {
-          userFeed.posts.push(...posts);
-        }
-        
-        userFeed.has_more = posts.length === (options.limit || 20);
-        userFeed.cursor = posts.length > 0 ? posts[posts.length - 1].created_at : null;
-        
+
+        console.log('🔔 Follow notification created');
       } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to load user feed';
-        console.error('Error loading user feed:', error);
-      } finally {
-        this.isLoadingUserFeed = false;
+        console.error('❌ Failed to create follow notification:', error);
       }
     },
-    
-    // =============================================
-    // POST MANAGEMENT
-    // =============================================
-    
+
+    /**
+     * Update post interaction counts
+     */
+    updatePostInteractionCounts(postId: string, interactionType: string, eventType: string) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
+          
+          switch (interactionType) {
+            case 'favorite':
+              post.favorites_count = Math.max(0, (post.favorites_count || 0) + delta);
+              break;
+            case 'reblog':
+              post.reblogs_count = Math.max(0, (post.reblogs_count || 0) + delta);
+              break;
+            case 'reply':
+              post.replies_count = Math.max(0, (post.replies_count || 0) + delta);
+              break;
+          }
+        }
+      });
+    },
+
+    /**
+     * Update post in all feeds
+     */
+    updatePostInAllFeeds(post: TimelinePost) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const index = feed.posts.findIndex(p => p.id === post.id);
+        if (index !== -1) {
+          feed.posts[index] = post;
+        }
+      });
+      
+      // Update in user feeds
+      this.userFeeds.forEach(feed => {
+        const index = feed.posts.findIndex(p => p.id === post.id);
+        if (index !== -1) {
+          feed.posts[index] = post;
+        }
+      });
+    },
+
+    /**
+     * Remove post from all feeds
+     */
+    removePostFromAllFeeds(postId: string) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        feed.posts = feed.posts.filter(p => p.id !== postId);
+      });
+      
+      // Remove from user feeds
+      this.userFeeds.forEach(feed => {
+        feed.posts = feed.posts.filter(p => p.id !== postId);
+      });
+    },
+
+    /**
+     * Clean up realtime subscriptions
+     */
+    cleanupRealtimeSubscriptions() {
+      this.realtimeSubscriptions.forEach((channel, key) => {
+        supabase.removeChannel(channel);
+      });
+      this.realtimeSubscriptions.clear();
+      
+      console.log('🧹 Realtime subscriptions cleaned up');
+    },
+
+    /**
+     * Load the user's home timeline
+     */
+    async loadHomeFeed(maxId?: string) {
+      this.isLoadingFeed = true;
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        // Use activityPubService for timeline loading
+        const posts = await activityPubService.getUserTimeline(
+          user.data.user.id,
+          'home',
+          { 
+            limit: 20,
+            max_id: maxId 
+          }
+        );
+        
+        if (maxId) {
+          this.homeFeed.posts.push(...posts);
+        } else {
+          this.homeFeed.posts = posts;
+          // Clear unread count when refreshing home feed
+          this.unreadCount = 0;
+        }
+
+        this.homeFeed.has_more = posts.length === 20;
+        this.homeFeed.cursor = posts[posts.length - 1]?.id;
+
+      } catch (error) {
+        console.error('Failed to load home feed:', error);
+      } finally {
+        this.isLoadingFeed = false;
+      }
+    },
+
+    /**
+     * Load the public timeline
+     */
+    async loadPublicFeed(maxId?: string) {
+      this.isLoadingFeed = true;
+      try {
+        // Use activityPubService for public timeline
+        const posts = await activityPubService.getPublicTimeline({
+          limit: 20,
+          max_id: maxId
+        });
+        
+        if (maxId) {
+          this.publicFeed.posts.push(...posts);
+        } else {
+          this.publicFeed.posts = posts;
+        }
+
+        this.publicFeed.has_more = posts.length === 20;
+        this.publicFeed.cursor = posts[posts.length - 1]?.id;
+
+      } catch (error) {
+        console.error('Failed to load public feed:', error);
+      } finally {
+        this.isLoadingFeed = false;
+      }
+    },
+
+    /**
+     * Load the local timeline
+     */
+    async loadLocalFeed(maxId?: string) {
+      this.isLoadingFeed = true;
+      try {
+        // Use activityPubService for local timeline
+        const posts = await activityPubService.getLocalTimeline({
+          limit: 20,
+          max_id: maxId
+        });
+        
+        if (maxId) {
+          this.localFeed.posts.push(...posts);
+        } else {
+          this.localFeed.posts = posts;
+        }
+
+        this.localFeed.has_more = posts.length === 20;
+        this.localFeed.cursor = posts[posts.length - 1]?.id;
+
+        console.log(`📍 Local feed loaded: ${posts.length} posts`);
+
+      } catch (error) {
+        console.error('Failed to load local feed:', error);
+      } finally {
+        this.isLoadingFeed = false;
+      }
+    },
+
     /**
      * Create a new post (Mony)
      */
-    async createPost() {
-      if (!this.canPost) return;
-      
+    async createPost(postData?: {
+      content?: string;
+      visibility?: Post['visibility'];
+      content_warning?: string;
+      contentWarning?: string;
+      in_reply_to?: string;
+      replyTo?: string;
+      media_attachments?: File[];
+      mediaAttachments?: any[];
+      is_sensitive?: boolean;
+      sensitive?: boolean;
+    }) {
+      this.isPosting = true;
       try {
-        this.isPosting = true;
-        this.lastError = null;
-        
+        // Use postData if provided, otherwise use composer state
+        const content = postData?.content || this.composerState.content;
+        const visibility = postData?.visibility || this.composerState.visibility;
+        const contentWarning = postData?.content_warning || postData?.contentWarning || this.composerState.contentWarning;
+        const replyTo = postData?.in_reply_to || postData?.replyTo || this.composerState.replyTo;
+        const mediaAttachments = postData?.media_attachments || [];
+        const sensitive = postData?.is_sensitive ?? postData?.sensitive ?? this.composerState.sensitive;
+
+        // Upload media attachments if any
+        const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
+
+        // Use activityPubService to create the post
         const post = await activityPubService.createPost({
-          content: this.parseContentText(this.composerState.content),
-          visibility: this.composerState.visibility,
-          content_warning: this.composerState.content_warning,
-          in_reply_to: this.composerState.in_reply_to,
-          media_attachments: this.composerState.media_attachments,
-          is_sensitive: this.composerState.is_sensitive,
-          language: this.composerState.language
+          content: this.formatPostContent(content),
+          visibility: visibility,
+          content_warning: contentWarning,
+          in_reply_to: replyTo,
+          media_attachments: mediaUrls,
+          is_sensitive: sensitive || false,
+          language: 'en'
         });
-        
-        // Add to appropriate feeds
-        this.addPostToFeeds(post);
-        
-        // Reset composer
-        this.resetComposer();
-        
+
+        // Close composer
+        this.closeComposer();
+
+        // Add to local feeds immediately for better UX (realtime will handle this too)
+        const timelinePost = this.transformDatabasePostToTimelinePost(post);
+        this.homeFeed.posts.unshift(timelinePost);
+        if (visibility === 'public') {
+          this.publicFeed.posts.unshift(timelinePost);
+          if (post.is_local) {
+            this.localFeed.posts.unshift(timelinePost);
+          }
+        }
+
         return post;
-        
       } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to create post';
-        console.error('Error creating post:', error);
+        console.error('Failed to create post:', error);
         throw error;
       } finally {
         this.isPosting = false;
       }
     },
-    
+
+    /**
+     * Upload media attachments
+     */
+    async uploadMediaAttachments(files: File[]): Promise<any[]> {
+      const uploadPromises = files.map(async (file) => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        const filePath = `posts/${fileName}`;
+
+        const { data, error } = await supabase.storage
+          .from('user_media')
+          .upload(filePath, file);
+
+        if (error) throw error;
+
+        return {
+          type: file.type.startsWith('image/') ? 'Image' : 'Document',
+          url: data.path,
+          mediaType: file.type,
+          name: file.name
+        };
+      });
+
+      return Promise.all(uploadPromises);
+    },
+
+    /**
+     * Format post content for storage
+     */
+    formatPostContent(content: string): any {
+      // Format content as JSONB structure similar to messages
+      // This matches the expected database schema
+      return [
+        {
+          type: 'text',
+          text: content
+        }
+      ];
+    },
+
+    /**
+     * Federate a post to remote instances
+     */
+    async federatePost(postId: string) {
+      try {
+        // This would be handled by a background job in production
+        // For now, just log the federation intent
+        console.log(`🌐 Federating post ${postId}`);
+      } catch (error) {
+        console.error('Failed to federate post:', error);
+      }
+    },
+
+    /**
+     * Load post with author information
+     */
+    async loadPostWithAuthor(postId: string): Promise<TimelinePost | null> {
+      try {
+        const { data, error } = await supabase
+          .from('posts')
+          .select(`
+            *,
+            author:profiles(*)
+          `)
+          .eq('id', postId)
+          .single();
+
+        if (error) throw error;
+
+        return this.transformDatabasePostToTimelinePost(data);
+      } catch (error) {
+        console.error('Failed to load post with author:', error);
+        return null;
+      }
+    },
+
+    /**
+     * Transform RPC timeline result to TimelinePost
+     */
+    transformTimelineResultToTimelinePost(result: any): TimelinePost {
+      return {
+        id: result.post_id,
+        created_at: result.created_at,
+        updated_at: result.created_at, // RPC doesn't return updated_at
+        content: result.content,
+        content_warning: undefined, // Not returned by RPC
+        language: 'en', // Default
+        author_id: result.author_id,
+        ap_id: undefined, // Not returned by RPC
+        ap_type: 'Note', // Default
+        url: undefined, // Not returned by RPC
+        in_reply_to: result.in_reply_to,
+        conversation_id: undefined, // Not returned by RPC
+        visibility: result.visibility,
+        is_local: true, // Default for now
+        is_federated: true, // Default for now
+        replies_count: result.replies_count,
+        reblogs_count: result.reblogs_count,
+        favorites_count: result.favorites_count,
+        media_attachments: result.media_attachments || [],
+        metadata: {}, // Default
+        is_sensitive: false, // Default
+        is_deleted: false, // Default
+        deleted_at: undefined,
+        author: {
+          id: result.author_id,
+          username: result.author_username,
+          display_name: result.author_display_name,
+          avatar_url: result.author_avatar_url,
+          domain: result.author_domain
+        },
+        is_favorited: result.is_favorited,
+        is_reblogged: result.is_reblogged
+      };
+    },
+
+    /**
+     * Transform database post to TimelinePost
+     */
+    transformDatabasePostToTimelinePost(post: any): TimelinePost {
+      // Keep content in JSONB format for consistency with message structure
+      let processedContent = post.content;
+      
+      // Ensure content is in the correct array format
+      if (typeof post.content === 'string') {
+        processedContent = [{ type: 'text', text: post.content }];
+      } else if (!Array.isArray(post.content)) {
+        processedContent = [{ type: 'text', text: '' }];
+      }
+
+      return {
+        id: post.id,
+        created_at: post.created_at,
+        updated_at: post.updated_at,
+        content: processedContent,
+        content_warning: post.content_warning,
+        language: post.language || 'en',
+        author_id: post.author_id,
+        ap_id: post.ap_id,
+        ap_type: post.ap_type,
+        url: post.url,
+        in_reply_to: post.in_reply_to,
+        conversation_id: post.conversation_id,
+        visibility: post.visibility,
+        is_local: post.is_local,
+        is_federated: post.is_federated,
+        replies_count: post.replies_count || 0,
+        reblogs_count: post.reblogs_count || 0,
+        favorites_count: post.favorites_count || 0,
+        media_attachments: post.media_attachments || [],
+        metadata: post.metadata || {},
+        is_sensitive: post.is_sensitive,
+        is_deleted: post.is_deleted,
+        deleted_at: post.deleted_at,
+        author: post.author || {
+          id: post.author_id,
+          username: 'Unknown',
+          display_name: 'Unknown User',
+          avatar_url: '/default_avatar.png',
+          domain: 'local'
+        },
+        is_favorited: false,
+        is_reblogged: false
+      };
+    },
+
+    /**
+     * Update post interaction in local state
+     */
+    updatePostInteraction(postId: string, type: 'favorite' | 'reblog' | 'bookmark', isActive: boolean) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          if (type === 'favorite') {
+            post.is_favorited = isActive;
+            post.favorites_count += isActive ? 1 : -1;
+          } else if (type === 'reblog') {
+            post.is_reblogged = isActive;
+            post.reblogs_count += isActive ? 1 : -1;
+          } else if (type === 'bookmark') {
+            // Bookmark state would be tracked separately if needed
+            console.log(`Bookmark ${isActive ? 'added' : 'removed'} for post ${postId}`);
+          }
+        }
+      });
+    },
+
+    /**
+     * Open composer
+     */
+    openComposer(options: Partial<PostComposerState> = {}) {
+      this.composerState = { ...this.composerState, ...options };
+      this.isComposerOpen = true;
+    },
+
+    /**
+     * Close composer
+     */
+         closeComposer() {
+       this.isComposerOpen = false;
+       this.composerState = {
+         content: '',
+         visibility: 'public',
+         contentWarning: undefined,
+         sensitive: false,
+         language: 'en',
+         replyTo: undefined,
+         mediaAttachments: []
+       };
+     },
+
+    /**
+     * Update composer state
+     */
+    updateComposer(updates: Partial<PostComposerState>) {
+      this.composerState = { ...this.composerState, ...updates };
+    },
+
+    /**
+     * Update composer content  
+     */
+    updateComposerContent(content: string) {
+      this.composerState.content = content;
+    },
+
+    /**
+     * Update composer visibility
+     */
+    updateComposerVisibility(visibility: PostComposerState['visibility']) {
+      this.composerState.visibility = visibility;
+    },
+
+    /**
+     * Subscribe to real-time updates
+     */
+    subscribeToRealtimeUpdates() {
+      // Subscribe to new posts
+      supabase
+        .channel('activitypub_posts')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'posts' },
+          (payload) => {
+            console.log('New post received:', payload.new);
+            // TODO: Add to appropriate timelines based on visibility and following
+          }
+        )
+        .subscribe();
+
+      // Subscribe to post interactions
+      supabase
+        .channel('activitypub_interactions')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'post_interactions' },
+          (payload) => {
+            console.log('Post interaction update:', payload);
+            // TODO: Update post interaction counts
+          }
+        )
+        .subscribe();
+
+      // Subscribe to follow relationships
+      supabase
+        .channel('activitypub_follows')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'follows' },
+          (payload) => {
+            console.log('Follow relationship update:', payload);
+            // TODO: Update follow state
+          }
+        )
+        .subscribe();
+    },
+
+    /**
+     * Resolve a user handle to a user object
+     */
+    async resolveUserByHandle(handle: string): Promise<FederatedUser | null> {
+      return await activityPubService.resolveUserByHandle(handle);
+    },
+
+    /**
+     * Get user by ID (for navigation from UUIDs)
+     */
+    async getUserById(userId: string): Promise<FederatedUser | null> {
+      return await activityPubService.getUserById(userId);
+    },
+
+    /**
+     * Mute a user
+     */
+    async muteUser(userId: string) {
+      try {
+        // TODO: Implement mute API call
+        console.log('Muting user:', userId);
+        this.mutedUsers.add(userId);
+      } catch (error) {
+        console.error('Failed to mute user:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Unmute a user
+     */
+    async unmuteUser(userId: string) {
+      try {
+        // TODO: Implement unmute API call
+        console.log('Unmuting user:', userId);
+        this.mutedUsers.delete(userId);
+      } catch (error) {
+        console.error('Failed to unmute user:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Block a user
+     */
+    async blockUser(userId: string) {
+      try {
+        // TODO: Implement block API call
+        console.log('Blocking user:', userId);
+        this.blockedUsers.add(userId);
+        
+        // Also unfollow if following
+        if (this.followedUsers.has(userId)) {
+          await this.unfollowUser(userId);
+        }
+      } catch (error) {
+        console.error('Failed to block user:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Unblock a user
+     */
+    async unblockUser(userId: string) {
+      try {
+        // TODO: Implement unblock API call
+        console.log('Unblocking user:', userId);
+        this.blockedUsers.delete(userId);
+      } catch (error) {
+        console.error('Failed to unblock user:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Toggle post favorite (like)
+     */
+    async toggleFavorite(postId: string) {
+      try {
+        const result = await activityPubService.toggleFavorite(postId);
+        
+        // Update local state
+        this.updatePostInteraction(postId, 'favorite', result.favorited);
+
+      } catch (error) {
+        console.error('Failed to toggle favorite:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Toggle post bookmark
+     */
+    async toggleBookmark(postId: string) {
+      try {
+        const result = await activityPubService.toggleBookmark(postId);
+        
+        // Update local state
+        this.updatePostInteraction(postId, 'bookmark', result.bookmarked);
+
+      } catch (error) {
+        console.error('Failed to toggle bookmark:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Get bookmarked posts
+     */
+    async getBookmarks(options: { limit?: number; cursor?: string | null } = {}) {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        const limit = options.limit || 20;
+        
+        let query = supabase
+          .from('post_interactions')
+          .select(`
+            created_at,
+            post:posts(
+              *,
+              author:profiles(*)
+            )
+          `)
+          .eq('user_id', user.data.user.id)
+          .eq('interaction_type', 'bookmark')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (options.cursor) {
+          query = query.lt('created_at', options.cursor);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const posts = data ? data.map(item => this.transformDatabasePostToTimelinePost(item.post)).filter(Boolean) : [];
+        
+        return {
+          posts,
+          cursor: posts.length > 0 ? data[data.length - 1].created_at : null,
+          hasMore: posts.length === limit
+        };
+      } catch (error) {
+        console.error('Failed to get bookmarks:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Clear all bookmarks
+     */
+    async clearAllBookmarks() {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        const { error } = await supabase
+          .from('post_interactions')
+          .delete()
+          .eq('user_id', user.data.user.id)
+          .eq('interaction_type', 'bookmark');
+
+        if (error) throw error;
+      } catch (error) {
+        console.error('Failed to clear bookmarks:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Toggle post reblog
+     */
+    async toggleReblog(postId: string) {
+      try {
+        const result = await activityPubService.toggleReblog(postId);
+        
+        // Update local state
+        this.updatePostInteraction(postId, 'reblog', result.reblogged);
+
+      } catch (error) {
+        console.error('Failed to toggle reblog:', error);
+        throw error;
+      }
+    },
+
     /**
      * Delete a post
      */
     async deletePost(postId: string) {
       try {
-        await activityPubService.deletePost(postId);
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        // Mark post as deleted
+        const { error } = await supabase
+          .from('posts')
+          .update({ 
+            is_deleted: true, 
+            deleted_at: new Date().toISOString() 
+          })
+          .eq('id', postId)
+          .eq('author_id', user.data.user.id);
+
+        if (error) throw error;
+
+        // Remove from local feeds
         this.removePostFromFeeds(postId);
+
       } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to delete post';
-        console.error('Error deleting post:', error);
+        console.error('Failed to delete post:', error);
         throw error;
       }
     },
-    
-    /**
-     * Get a specific post
-     */
-    async getPost(postId: string): Promise<Post | null> {
-      try {
-        this.isLoadingPost = true;
-        const post = await activityPubService.getPost(postId);
-        if (post) {
-          this.selectedPost = post;
-        }
-        return post;
-      } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to load post';
-        console.error('Error loading post:', error);
-        return null;
-      } finally {
-        this.isLoadingPost = false;
-      }
-    },
-    
-    // =============================================
-    // POST INTERACTIONS
-    // =============================================
-    
-    /**
-     * Favorite/unfavorite a post
-     */
-    async toggleFavorite(postId: string) {
-      try {
-        const post = this.getPostById(postId);
-        if (!post) return;
-        
-        if (post.is_favorited) {
-          await activityPubService.unfavoritePost(postId);
-          post.is_favorited = false;
-          post.favorites_count = Math.max(0, post.favorites_count - 1);
-        } else {
-          await activityPubService.favoritePost(postId);
-          post.is_favorited = true;
-          post.favorites_count += 1;
-        }
-        
-        this.updatePostInFeeds(post);
-        
-      } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to toggle favorite';
-        console.error('Error toggling favorite:', error);
-      }
-    },
-    
-    /**
-     * Reblog/unreblog a post
-     */
-    async toggleReblog(postId: string) {
-      try {
-        const post = this.getPostById(postId);
-        if (!post) return;
-        
-        if (post.is_reblogged) {
-          await activityPubService.unreblogPost(postId);
-          post.is_reblogged = false;
-          post.reblogs_count = Math.max(0, post.reblogs_count - 1);
-        } else {
-          await activityPubService.reblogPost(postId);
-          post.is_reblogged = true;
-          post.reblogs_count += 1;
-        }
-        
-        this.updatePostInFeeds(post);
-        
-      } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to toggle reblog';
-        console.error('Error toggling reblog:', error);
-      }
-    },
-    
-    /**
-     * Bookmark/unbookmark a post
-     */
-    async toggleBookmark(postId: string) {
-      try {
-        const post = this.getPostById(postId);
-        if (!post) return;
-        
-        if (post.is_bookmarked) {
-          await activityPubService.unbookmarkPost(postId);
-          post.is_bookmarked = false;
-        } else {
-          await activityPubService.bookmarkPost(postId);
-          post.is_bookmarked = true;
-        }
-        
-        this.updatePostInFeeds(post);
-        
-      } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to toggle bookmark';
-        console.error('Error toggling bookmark:', error);
-      }
-    },
-    
-    // =============================================
-    // USER MANAGEMENT
-    // =============================================
-    
-    /**
-     * Follow/unfollow a user
-     */
-    async toggleFollow(userId: string) {
-      try {
-        if (this.followedUsers.has(userId)) {
-          await activityPubService.unfollowUser(userId);
-          this.followedUsers.delete(userId);
-        } else {
-          await activityPubService.followUser(userId);
-          this.followedUsers.add(userId);
-        }
-      } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to toggle follow';
-        console.error('Error toggling follow:', error);
-      }
-    },
-    
-    /**
-     * Search for users
-     */
-    async searchUsers(query: string) {
-      if (!query.trim()) {
-        this.searchResults = [];
-        return;
-      }
-      
-      try {
-        this.isSearching = true;
-        this.searchResults = await activityPubService.searchUsers(query);
-      } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to search users';
-        console.error('Error searching users:', error);
-      } finally {
-        this.isSearching = false;
-      }
-    },
-    
-    /**
-     * Get user by handle
-     */
-    async getUserByHandle(handle: string): Promise<FederatedUser | null> {
-      try {
-        this.isLoadingProfile = true;
-        const user = await activityPubService.getUserByHandle(handle);
-        if (user) {
-          this.selectedUser = user;
-        }
-        return user;
-      } catch (error) {
-        this.lastError = error instanceof Error ? error.message : 'Failed to load user';
-        console.error('Error loading user:', error);
-        return null;
-      } finally {
-        this.isLoadingProfile = false;
-      }
-    },
-    
-    // =============================================
-    // COMPOSER MANAGEMENT
-    // =============================================
-    
-    /**
-     * Open post composer
-     */
-    openComposer(replyTo?: string) {
-      this.isComposerOpen = true;
-      if (replyTo) {
-        this.composerState.in_reply_to = replyTo;
-      }
-    },
-    
-    /**
-     * Close post composer
-     */
-    closeComposer() {
-      this.isComposerOpen = false;
-      this.resetComposer();
-    },
-    
-    /**
-     * Reset composer state
-     */
-    resetComposer() {
-      this.composerState = {
-        content: '',
-        visibility: 'public',
-        content_warning: undefined,
-        in_reply_to: undefined,
-        media_attachments: [],
-        is_sensitive: false,
-        language: 'en'
-      };
-    },
-    
-    /**
-     * Update composer content
-     */
-    updateComposerContent(content: string) {
-      this.composerState.content = content;
-    },
-    
-    /**
-     * Update composer visibility
-     */
-    updateComposerVisibility(visibility: Post['visibility']) {
-      this.composerState.visibility = visibility;
-    },
-    
-    // =============================================
-    // REAL-TIME SUBSCRIPTIONS
-    // =============================================
-    
-    /**
-     * Initialize real-time subscriptions
-     */
-    async initializeRealtime() {
-      try {
-        // Subscribe to posts for real-time updates
-        this.postsSubscription = supabase
-          .channel('posts_channel')
-          .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'posts' }, 
-            (payload: any) => this.handleNewPost(payload.new)
-          )
-          .on('postgres_changes', 
-            { event: 'UPDATE', schema: 'public', table: 'posts' }, 
-            (payload: any) => this.handlePostUpdate(payload.new)
-          )
-          .on('postgres_changes', 
-            { event: 'DELETE', schema: 'public', table: 'posts' }, 
-            (payload: any) => this.handlePostDelete(payload.old)
-          )
-          .subscribe();
-        
-        // Subscribe to follows for real-time follow notifications
-        this.followsSubscription = supabase
-          .channel('follows_channel')
-          .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'follows' }, 
-            (payload: any) => this.handleNewFollow(payload.new)
-          )
-          .subscribe();
-          
-        console.log('✅ ActivityPub real-time subscriptions initialized');
-        
-      } catch (error) {
-        console.error('❌ Failed to initialize ActivityPub real-time:', error);
-      }
-    },
-    
-    /**
-     * Cleanup real-time subscriptions
-     */
-    cleanupRealtime() {
-      if (this.postsSubscription) {
-        supabase.removeChannel(this.postsSubscription);
-        this.postsSubscription = null;
-      }
-      
-      if (this.followsSubscription) {
-        supabase.removeChannel(this.followsSubscription);
-        this.followsSubscription = null;
-      }
-      
-      console.log('🧹 ActivityPub real-time subscriptions cleaned up');
-    },
-    
-    // =============================================
-    // REAL-TIME EVENT HANDLERS
-    // =============================================
-    
-    /**
-     * Handle new post real-time event
-     */
-    handleNewPost(post: Post) {
-      // Add to appropriate feeds based on visibility and following status
-      if (post.visibility === 'public') {
-        this.publicFeed.posts.unshift(post as TimelinePost);
-        if (post.is_local) {
-          this.localFeed.posts.unshift(post as TimelinePost);
-        }
-      }
-      
-      // Add to home feed if following the author
-      if (this.followedUsers.has(post.author_id)) {
-        this.homeFeed.posts.unshift(post as TimelinePost);
-      }
-    },
-    
-    /**
-     * Handle post update real-time event
-     */
-    handlePostUpdate(post: Post) {
-      this.updatePostInFeeds(post as TimelinePost);
-    },
-    
-    /**
-     * Handle post delete real-time event
-     */
-    handlePostDelete(post: Post) {
-      this.removePostFromFeeds(post.id);
-    },
-    
-    /**
-     * Handle new follow real-time event
-     */
-    handleNewFollow(follow: any) {
-      // This could trigger a notification
-      console.log('New follow:', follow);
-    },
-    
-    // =============================================
-    // UTILITY METHODS
-    // =============================================
-    
-    /**
-     * Parse content text into MessagePart array
-     */
-    parseContentText(content: string): any[] {
-      // Basic implementation - can be enhanced for mentions, hashtags, etc.
-      return [{ type: 'text', text: content }];
-    },
-    
-    /**
-     * Add post to relevant feeds
-     */
-    addPostToFeeds(post: Post) {
-      const timelinePost = post as TimelinePost;
-      
-      // Add to home feed (always for own posts)
-      this.homeFeed.posts.unshift(timelinePost);
-      
-      // Add to public feed if public
-      if (post.visibility === 'public') {
-        this.publicFeed.posts.unshift(timelinePost);
-        
-        // Add to local feed if local
-        if (post.is_local) {
-          this.localFeed.posts.unshift(timelinePost);
-        }
-      }
-      
-      // Add to user feed if exists
-      if (this.userFeeds.has(post.author_id)) {
-        this.userFeeds.get(post.author_id)!.posts.unshift(timelinePost);
-      }
-    },
-    
-    /**
-     * Update post in all feeds
-     */
-    updatePostInFeeds(post: TimelinePost) {
-      const updateInFeed = (feed: MonyFeed) => {
-        const index = feed.posts.findIndex(p => p.id === post.id);
-        if (index !== -1) {
-          feed.posts[index] = { ...feed.posts[index], ...post };
-        }
-      };
-      
-      updateInFeed(this.homeFeed);
-      updateInFeed(this.publicFeed);
-      updateInFeed(this.localFeed);
-      
-      this.userFeeds.forEach(feed => updateInFeed(feed));
-    },
-    
+
     /**
      * Remove post from all feeds
      */
     removePostFromFeeds(postId: string) {
-      const removeFromFeed = (feed: MonyFeed) => {
+      // Remove from home feed
+      this.homeFeed.posts = this.homeFeed.posts.filter(p => p.id !== postId);
+      
+      // Remove from public feed
+      this.publicFeed.posts = this.publicFeed.posts.filter(p => p.id !== postId);
+      
+      // Remove from local feed
+      this.localFeed.posts = this.localFeed.posts.filter(p => p.id !== postId);
+      
+      // Remove from user feeds
+      this.userFeeds.forEach(feed => {
         feed.posts = feed.posts.filter(p => p.id !== postId);
-      };
-      
-      removeFromFeed(this.homeFeed);
-      removeFromFeed(this.publicFeed);
-      removeFromFeed(this.localFeed);
-      
-      this.userFeeds.forEach(feed => removeFromFeed(feed));
+      });
     },
-    
-    /**
-     * Switch current view
-     */
-    switchView(view: typeof this.currentView) {
-      this.currentView = view;
-    },
-    
-    /**
-     * Clear error state
-     */
-    clearError() {
-      this.lastError = null;
-    }
-  }
-});
 
-// Don't forget to import supabase
-import { supabase } from '@/supabase';
+         /**
+      * Load users that the current user follows
+      */
+     async loadFollowedUsers() {
+       try {
+         const user = await supabase.auth.getUser();
+         if (!user.data.user) return;
+
+         const { data, error } = await supabase
+           .from('follows')
+           .select('following_id')
+           .eq('follower_id', user.data.user.id)
+           .eq('status', 'accepted');
+
+         if (error) throw error;
+
+         this.followedUsers = new Set(data.map(f => f.following_id));
+       } catch (error) {
+         console.error('Failed to load followed users:', error);
+       }
+     },
+
+     /**
+      * Follow a user
+      */
+     async followUser(userId: string) {
+       try {
+         await activityPubService.followUser(userId);
+         
+         this.followedUsers.add(userId);
+         this.followingCount++;
+       } catch (error) {
+         console.error('Failed to follow user:', error);
+         throw error;
+       }
+     },
+
+     /**
+      * Unfollow a user
+      */
+     async unfollowUser(userId: string) {
+       try {
+         await activityPubService.unfollowUser(userId);
+         
+         this.followedUsers.delete(userId);
+         this.followingCount--;
+       } catch (error) {
+         console.error('Failed to unfollow user:', error);
+         throw error;
+       }
+     },
+
+     /**
+      * Get followers count for a user
+      */
+     async getFollowersCount(userId: string): Promise<number> {
+       try {
+         const { count, error } = await supabase
+           .from('follows')
+           .select('*', { count: 'exact', head: true })
+           .eq('following_id', userId)
+           .eq('status', 'accepted');
+
+         if (error) throw error;
+         return count || 0;
+       } catch (error) {
+         console.error('Failed to get followers count:', error);
+         return 0;
+       }
+     },
+
+     /**
+      * Get following count for a user
+      */
+     async getFollowingCount(userId: string): Promise<number> {
+       try {
+         const { count, error } = await supabase
+           .from('follows')
+           .select('*', { count: 'exact', head: true })
+           .eq('follower_id', userId)
+           .eq('status', 'accepted');
+
+         if (error) throw error;
+         return count || 0;
+       } catch (error) {
+         console.error('Failed to get following count:', error);
+         return 0;
+       }
+     },
+
+     /**
+      * Clear unread count manually
+      */
+     clearUnreadCount() {
+       this.unreadCount = 0;
+     },
+
+     /**
+      * Cleanup store
+      */
+     cleanup() {
+       this.cleanupRealtimeSubscriptions();
+       this.unreadCount = 0;
+       console.log('🧹 ActivityPub store cleaned up');
+     }
+   }
+ });

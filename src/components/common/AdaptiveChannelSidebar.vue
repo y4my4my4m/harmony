@@ -46,8 +46,8 @@
         />
       </div>
     </div>
-    
-    <!-- ActivityPub Mode: Social Navigation -->
+
+    <!-- ActivityPub Mode: Social/Federated Sidebar -->
     <div v-else-if="mode === 'activitypub'" class="social-sidebar">
       <!-- Header -->
       <div class="social-header">
@@ -97,25 +97,59 @@
           </div>
         </nav>
 
-        <!-- Quick Stats -->
+        <!-- Enhanced Quick Stats with Realtime Updates -->
         <div class="quick-stats">
-          <div class="stat-item">
-            <span class="stat-value">{{ followingCount }}</span>
-            <span class="stat-label">Following</span>
+          <div class="stats-header">
+            <h4 class="stats-title">Your Activity</h4>
+            <button class="stats-refresh" @click="refreshStats" :disabled="isRefreshing">
+              <Icon name="refresh-cw" :class="{ spinning: isRefreshing }" />
+            </button>
           </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ followersCount }}</span>
-            <span class="stat-label">Followers</span>
+          <div class="stats-grid">
+            <div class="stat-item following" @click="navigateToFollowing">
+              <div class="stat-value">{{ activityPubStore.formattedFollowingCount }}</div>
+              <div class="stat-label">Following</div>
+              <div class="stat-change" v-if="followingChange !== 0">
+                <Icon :name="followingChange > 0 ? 'arrow-up' : 'arrow-down'" />
+                <span>{{ Math.abs(followingChange) }}</span>
+              </div>
+            </div>
+            <div class="stat-item followers" @click="navigateToFollowers">
+              <div class="stat-value">{{ activityPubStore.formattedFollowersCount }}</div>
+              <div class="stat-label">Followers</div>
+              <div class="stat-change" v-if="followersChange !== 0">
+                <Icon :name="followersChange > 0 ? 'arrow-up' : 'arrow-down'" />
+                <span>{{ Math.abs(followersChange) }}</span>
+              </div>
+            </div>
+            <div class="stat-item posts" @click="navigateToProfile">
+              <div class="stat-value">{{ postsCount }}</div>
+              <div class="stat-label">Posts</div>
+            </div>
           </div>
         </div>
 
         <!-- Instance Info -->
         <div class="instance-info">
-          <h4 class="section-title">Instance</h4>
+          <div class="instance-header">
+            <h4 class="instance-title">Instance</h4>
+            <div class="instance-status online">
+              <div class="status-dot"></div>
+              <span>Online</span>
+            </div>
+          </div>
           <div class="instance-details">
-            <p class="instance-domain">{{ instanceDomain }}</p>
-            <p class="instance-stats">{{ instanceUserCount }} users</p>
-            <p class="instance-stats">{{ instancePostCount }} posts</p>
+            <div class="instance-domain">{{ instanceDomain }}</div>
+            <div class="instance-stats">
+              <div class="instance-stat">
+                <span class="stat-value">{{ instanceUserCount }}</span>
+                <span class="stat-label">users</span>
+              </div>
+              <div class="instance-stat">
+                <span class="stat-value">{{ instancePostCount }}</span>
+                <span class="stat-label">posts</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -124,28 +158,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
-import ChannelSidebar from '@/components/ChannelSidebar.vue';
-import DMSidebar from '@/components/DMSidebar.vue';
-import Icon from '@/components/common/Icon.vue';
-import Avatar from '@/components/common/Avatar.vue';
-import { useAuthStore } from '@/stores/auth';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useProfileStore } from '@/stores/useProfile';
-import type { Server, Channel, Category } from '@/types';
+import type { Server, Channel, Category, User } from '@/types';
+import Avatar from '@/components/common/Avatar.vue';
+import Icon from '@/components/common/Icon.vue';
 
+// Props
 interface Props {
   mode: 'chat' | 'activitypub';
-  
-  // Chat mode props
-  currentServer?: Server | null;
-  channels?: Channel[];
+  currentServer?: Server;
+  channels: Channel[];
   currentChannelId?: string;
-  categories?: Category[];
-  categoryChannels?: Record<string, Channel[]>;
+  categories: Category[];
+  categoryChannels: Record<string, Channel[]>;
   isDM?: boolean;
-  
-  // ActivityPub mode props
   followingCount?: number;
   followersCount?: number;
   instanceDomain?: string;
@@ -154,6 +183,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  mode: 'chat',
   channels: () => [],
   currentChannelId: '',
   categories: () => [],
@@ -177,12 +207,21 @@ defineEmits<{
   
   // Profile events
   'profile-click': [];
+  'compose-post': [];
 }>();
 
 const route = useRoute();
-const authStore = useAuthStore();
+const router = useRouter();
+const activityPubStore = useActivityPubStore();
 const profileStore = useProfileStore();
 
+// State
+const followingChange = ref(0);
+const followersChange = ref(0);
+const previousFollowingCount = ref(0);
+const previousFollowersCount = ref(0);
+
+// Computed properties
 const currentUser = computed(() => profileStore.profile);
 
 const currentUserHandle = computed(() => {
@@ -213,6 +252,13 @@ const getUserProfilePath = () => {
   return `/u/${handle}`;
 };
 
+
+const postsCount = computed(() => {
+  return activityPubStore.homeFeed.posts.filter(post => 
+    post.author_id === currentUser.value?.id
+  ).length;
+});
+
 const navigationItems = computed(() => [
   { id: 'feed', label: 'Feed', path: '/social/home', icon: 'mony-mascot' },
   { id: 'profile', label: 'Profile', path: getUserProfilePath(), icon: 'user' },
@@ -221,6 +267,63 @@ const navigationItems = computed(() => [
   { id: 'lists', label: 'Lists', path: '/social/lists', icon: 'list' },
   { id: 'settings', label: 'Settings', path: '/settings', icon: 'settings' }
 ]);
+
+
+const navigateToFollowing = () => {
+  router.push('/social/following');
+};
+
+const navigateToFollowers = () => {
+  router.push('/social/followers');
+};
+
+const navigateToProfile = () => {
+  router.push(`/u/${currentUserHandle.value.replace('@', '')}`);
+};
+
+
+// Watch for changes in follow counts to show delta indicators
+watch(() => activityPubStore.followingCount, (newCount) => {
+  if (previousFollowingCount.value !== 0) {
+    followingChange.value = newCount - previousFollowingCount.value;
+    if (followingChange.value !== 0) {
+      // Clear the change indicator after 3 seconds
+      setTimeout(() => {
+        followingChange.value = 0;
+      }, 3000);
+    }
+  }
+  previousFollowingCount.value = newCount;
+});
+
+watch(() => activityPubStore.followersCount, (newCount) => {
+  if (previousFollowersCount.value !== 0) {
+    followersChange.value = newCount - previousFollowersCount.value;
+    if (followersChange.value !== 0) {
+      // Clear the change indicator after 3 seconds
+      setTimeout(() => {
+        followersChange.value = 0;
+      }, 3000);
+    }
+  }
+  previousFollowersCount.value = newCount;
+});
+
+// Lifecycle
+onMounted(() => {
+  // Initialize previous counts
+  previousFollowingCount.value = activityPubStore.followingCount;
+  previousFollowersCount.value = activityPubStore.followersCount;
+  
+  // Initialize ActivityPub store if in social mode
+  if (props.mode === 'activitypub') {
+    activityPubStore.initialize();
+  }
+});
+
+onUnmounted(() => {
+  // Cleanup if needed
+});
 </script>
 
 <style scoped>
@@ -440,11 +543,35 @@ const navigationItems = computed(() => [
 
 .quick-stats {
   display: flex;
+  flex-direction: column;
   justify-content: space-around;
   padding: 16px;
   background: var(--background-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
+}
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  width: 100%;
+  padding: 16px;
+}
+.stats-refresh {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  width: 100%;
+  padding: 16px;
 }
 
 .stat-item {
@@ -466,11 +593,76 @@ const navigationItems = computed(() => [
 }
 
 .instance-info {
+  display: flex;
+  flex-direction: column;
   padding: 16px;
   background: var(--background-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
+
+.instance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.instance-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.instance-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.instance-status .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+.instance-status.online .status-dot {
+  background: var(--success);
+}
+.instance-status.offline .status-dot {
+  background: var(--error);
+}
+.instance-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.instance-domain {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.instance-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 16px;
+}
+.instance-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 16px;
+  flex-direction: column;
+}
+
+
 
 .section-title {
   font-size: 12px;

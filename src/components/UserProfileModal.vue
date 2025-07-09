@@ -334,7 +334,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useActivityPubStore } from '@/stores/activitypub'
+import { useActivityPubStore } from '@/stores/useActivityPub'
 import BaseModal from '@/components/common/BaseModal.vue'
 import type { User, FederatedUser } from '@/types'
 import Avatar from './common/Avatar.vue'

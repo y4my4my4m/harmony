@@ -1,9 +1,8 @@
-<!-- PostDetailView - Detailed view of a single Monyverse post -->
 <template>
-  <div class="post-detail-view">
+  <div class="post-detail-display">
     <!-- Header with back navigation -->
     <div class="detail-header">
-      <button @click="goBack" class="back-btn" title="Go back">
+      <button @click="$emit('back')" class="back-btn" title="Go back">
         <Icon name="arrow-left" />
       </button>
       <h1 class="detail-title">Mony</h1>
@@ -30,7 +29,7 @@
         <Icon name="alert-circle" :size="48" />
         <h3>Post not found</h3>
         <p>{{ error }}</p>
-        <button @click="goBack" class="back-home-btn">
+        <button @click="$emit('back')" class="back-home-btn">
           Go back to timeline
         </button>
       </div>
@@ -42,11 +41,12 @@
           <MonyPost
             :post="post"
             :is-detail-view="true"
-            @reply="handleReply"
-            @favorite="handleFavorite"
-            @reblog="handleReblog"
-            @delete="handleDelete"
-            @user-click="handleUserClick"
+            @reply="$emit('reply', $event)"
+            @favorite="$emit('favorite', $event)"
+            @reblog="$emit('reblog', $event)"
+            @bookmark="$emit('bookmark', $event)"
+            @delete="$emit('delete', $event)"
+            @user-click="$emit('user-click', $event)"
           />
         </article>
 
@@ -78,11 +78,12 @@
               :key="reply.id"
               :post="reply"
               :is-reply="true"
-              @reply="handleReply"
-              @favorite="handleFavorite"
-              @reblog="handleReblog"
-              @delete="handleDelete"
-              @user-click="handleUserClick"
+              @reply="$emit('reply', $event)"
+              @favorite="$emit('favorite', $event)"
+              @reblog="$emit('reblog', $event)"
+              @bookmark="$emit('bookmark', $event)"
+              @delete="$emit('delete', $event)"
+              @user-click="$emit('user-click', $event)"
             />
 
             <!-- Load more replies -->
@@ -108,51 +109,17 @@
         </div>
       </div>
     </div>
-
-    <!-- Related posts sidebar (desktop) -->
-    <aside v-if="relatedPosts.length > 0" class="related-sidebar">
-      <h3 class="sidebar-title">Related</h3>
-      <div class="related-posts">
-        <div
-          v-for="relatedPost in relatedPosts"
-          :key="relatedPost.id"
-          class="related-item"
-          @click="navigateToPost(relatedPost.id)"
-        >
-          <img
-            :src="relatedPost.author.avatar_url || '/default_avatar.png'"
-            :alt="relatedPost.author.display_name"
-            class="related-avatar"
-          />
-          <div class="related-content">
-            <div class="related-author">{{ relatedPost.author.display_name }}</div>
-            <div class="related-text">{{ truncateText(relatedPost.content, 80) }}</div>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- User profile modal -->
-    <UserProfileModal
-      v-if="selectedUser"
-      :user="selectedUser"
-      @close="selectedUser = null"
-      @follow="handleFollow"
-      @unfollow="handleUnfollow"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
-import type { TimelinePost, FederatedUser } from '@/types';
+import type { TimelinePost } from '@/types';
 
 // Components
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue';
-import UserProfileModal from '@/components/UserProfileModal.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Props
@@ -162,16 +129,23 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// Stores and router
+// Emits
+defineEmits<{
+  reply: [post: TimelinePost];
+  favorite: [postId: string];
+  reblog: [postId: string];
+  bookmark: [postId: string];
+  delete: [postId: string];
+  'user-click': [user: any];
+  back: [];
+}>();
+
+// Store
 const activityPubStore = useActivityPubStore();
-const route = useRoute();
-const router = useRouter();
 
 // State
 const post = ref<TimelinePost | null>(null);
 const replies = ref<TimelinePost[]>([]);
-const relatedPosts = ref<TimelinePost[]>([]);
-const selectedUser = ref<FederatedUser | null>(null);
 const isLoading = ref(true);
 const isLoadingReplies = ref(false);
 const isLoadingMoreReplies = ref(false);
@@ -186,48 +160,17 @@ const loadPost = async () => {
   error.value = null;
 
   try {
-    // TODO: Implement actual post loading from API
-    // For now, simulate loading
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Load the post using the ActivityPub store
+    const loadedPost = await activityPubStore.loadPostWithAuthor(props.postId);
     
-    // Mock post data
-    post.value = {
-      id: props.postId,
-      content: `This is a detailed view of post ${props.postId}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.`,
-      created_at: new Date().toISOString(),
-      author: {
-        id: 'user1',
-        username: 'alice',
-        domain: 'har.mony.lol',
-        handle: '@alice',
-        display_name: 'Alice Johnson',
-        avatar_url: '/default_avatar.png',
-        bio: 'Software developer and ActivityPub enthusiast',
-        is_local: true,
-        verified: false,
-        followers_count: 142,
-        following_count: 89,
-        posts_count: 234,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      visibility: 'public',
-      favorites_count: 5,
-      reblogs_count: 2,
-      replies_count: 3,
-      is_favorited: false,
-      is_reblogged: false,
-      media_attachments: [],
-      reblog: null,
-      reblog_author: null,
-      in_reply_to: null,
-      content_warning: null,
-      is_sensitive: false
-    };
-
-    totalReplies.value = post.value.replies_count;
+    if (!loadedPost) {
+      throw new Error('Post not found');
+    }
+    
+    post.value = loadedPost;
+    totalReplies.value = post.value.replies_count || 0;
+    
     await loadReplies();
-    await loadRelatedPosts();
   } catch (err) {
     console.error('Failed to load post:', err);
     error.value = 'Failed to load post. It might have been deleted or you might not have permission to view it.';
@@ -241,47 +184,12 @@ const loadReplies = async () => {
 
   isLoadingReplies.value = true;
   try {
-    // TODO: Implement actual replies loading
+    // TODO: Implement actual replies loading from ActivityPub service
+    // For now, use mock data
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Mock replies data
-    replies.value = [
-      {
-        id: 'reply1',
-        content: 'Great post! Thanks for sharing.',
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        author: {
-          id: 'user2',
-          username: 'bob',
-          domain: 'mastodon.social',
-          handle: '@bob@mastodon.social',
-          display_name: 'Bob Smith',
-          avatar_url: '/default_avatar.png',
-          bio: 'Federated social media user',
-          is_local: false,
-          verified: false,
-          followers_count: 67,
-          following_count: 123,
-          posts_count: 89,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        visibility: 'public',
-        favorites_count: 1,
-        reblogs_count: 0,
-        replies_count: 0,
-        is_favorited: false,
-        is_reblogged: false,
-        media_attachments: [],
-        reblog: null,
-        reblog_author: null,
-        in_reply_to: post.value.id,
-        content_warning: null,
-        is_sensitive: false
-      }
-    ];
-    
-    hasMoreReplies.value = replies.value.length < totalReplies.value;
+    replies.value = [];
+    hasMoreReplies.value = false;
   } catch (err) {
     console.error('Failed to load replies:', err);
   } finally {
@@ -302,33 +210,16 @@ const loadMoreReplies = async () => {
   }
 };
 
-const loadRelatedPosts = async () => {
-  try {
-    // TODO: Load related posts based on tags, author, etc.
-    relatedPosts.value = [];
-  } catch (err) {
-    console.error('Failed to load related posts:', err);
-  }
-};
-
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.go(-1);
-  } else {
-    router.push({ name: 'Monyverse' });
-  }
-};
-
 const sharePost = async () => {
   if (!post.value) return;
 
-  const url = `${window.location.origin}/posts/${post.value.id}`;
+  const url = `${window.location.origin}/social/post/${post.value.id}`;
   
   if (navigator.share) {
     try {
       await navigator.share({
         title: `Mony by ${post.value.author.display_name}`,
-        text: post.value.content,
+        text: post.value.content as string,
         url: url
       });
     } catch (err) {
@@ -346,10 +237,6 @@ const openActions = () => {
   console.log('Open actions menu');
 };
 
-const handleReply = () => {
-  showReplyComposer.value = true;
-};
-
 const handleReplyCreated = (newReply: TimelinePost) => {
   replies.value.unshift(newReply);
   totalReplies.value++;
@@ -357,73 +244,13 @@ const handleReplyCreated = (newReply: TimelinePost) => {
   
   // Update post reply count
   if (post.value) {
-    post.value.replies_count++;
+    post.value.replies_count = (post.value.replies_count || 0) + 1;
   }
 };
 
-const handleFavorite = async (postId: string) => {
-  try {
-    await activityPubStore.toggleFavorite(postId);
-    
-    // Update local state
-    if (post.value && post.value.id === postId) {
-      post.value.is_favorited = !post.value.is_favorited;
-      post.value.favorites_count += post.value.is_favorited ? 1 : -1;
-    }
-    
-    // Update reply if it was favorited
-    const reply = replies.value.find(r => r.id === postId);
-    if (reply) {
-      reply.is_favorited = !reply.is_favorited;
-      reply.favorites_count += reply.is_favorited ? 1 : -1;
-    }
-  } catch (error) {
-    console.error('Failed to toggle favorite:', error);
-  }
-};
-
-const handleReblog = async (postId: string) => {
-  // TODO: Implement reblog
-  console.log('Reblog post:', postId);
-};
-
-const handleDelete = async (postId: string) => {
-  // TODO: Implement delete with confirmation
-  console.log('Delete post:', postId);
-};
-
-const handleUserClick = (user: FederatedUser) => {
-  selectedUser.value = user;
-};
-
-const handleFollow = async (userId: string) => {
-  try {
-    await activityPubStore.followUser(userId);
-  } catch (error) {
-    console.error('Failed to follow user:', error);
-  }
-};
-
-const handleUnfollow = async (userId: string) => {
-  try {
-    await activityPubStore.unfollowUser(userId);
-  } catch (error) {
-    console.error('Failed to unfollow user:', error);
-  }
-};
-
-const navigateToPost = (postId: string) => {
-  router.push({ name: 'PostDetail', params: { postId } });
-};
-
-const truncateText = (text: string, maxLength: number): string => {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
-};
-
-// Watch for route changes
-watch(() => route.params.postId, (newPostId) => {
-  if (newPostId && typeof newPostId === 'string') {
+// Watch for postId changes
+watch(() => props.postId, (newPostId) => {
+  if (newPostId) {
     loadPost();
   }
 }, { immediate: true });
@@ -435,12 +262,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.post-detail-view {
+.post-detail-display {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background: var(--h-chat, #313338);
-  color: white;
+  height: 100%;
+  background: var(--background-primary);
 }
 
 .detail-header {
@@ -448,8 +274,8 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
-  background: var(--h-sidebar, #2b2d31);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -462,21 +288,21 @@ onMounted(() => {
   background: none;
   border: none;
   border-radius: 6px;
-  color: #80848e;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .back-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
+  background: var(--background-hover);
+  color: var(--text-primary);
 }
 
 .detail-title {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0;
-  color: white;
+  color: var(--text-primary);
 }
 
 .header-actions {
@@ -494,14 +320,14 @@ onMounted(() => {
   background: none;
   border: none;
   border-radius: 6px;
-  color: #80848e;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .action-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
+  background: var(--background-hover);
+  color: var(--text-primary);
 }
 
 .detail-content {
@@ -520,7 +346,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #80848e;
+  color: var(--text-secondary);
   padding: 3rem 1rem;
   flex: 1;
 }
@@ -528,8 +354,8 @@ onMounted(() => {
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.08);
-  border-top: 3px solid var(--h-brand, #5865f2);
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--brand-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
@@ -543,13 +369,13 @@ onMounted(() => {
 }
 
 .error-state h3 {
-  color: white;
+  color: var(--text-primary);
   margin: 1rem 0 0.5rem;
   font-size: 1.25rem;
 }
 
 .back-home-btn {
-  background: var(--h-brand, #5865f2);
+  background: var(--brand-primary);
   border: none;
   border-radius: 6px;
   color: white;
@@ -561,7 +387,7 @@ onMounted(() => {
 }
 
 .back-home-btn:hover {
-  background: #4752c4;
+  background: var(--brand-primary-hover);
 }
 
 .post-container {
@@ -571,39 +397,42 @@ onMounted(() => {
 }
 
 .main-post {
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-secondary);
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  border: 1px solid var(--border-color);
 }
 
 .reply-composer {
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-secondary);
   border-radius: 12px;
   padding: 1rem;
   margin-bottom: 1.5rem;
+  border: 1px solid var(--border-color);
 }
 
 .replies-section {
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-secondary);
   border-radius: 12px;
   padding: 1.5rem;
+  border: 1px solid var(--border-color);
 }
 
 .replies-title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
   margin: 0 0 1rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .loading-replies {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  color: #80848e;
+  color: var(--text-secondary);
   padding: 1rem;
 }
 
@@ -615,10 +444,10 @@ onMounted(() => {
 
 .load-more-btn {
   width: 100%;
-  background: var(--h-chat, #313338);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -630,8 +459,8 @@ onMounted(() => {
 }
 
 .load-more-btn:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-hover);
+  background: var(--background-hover);
 }
 
 .load-more-btn:disabled {
@@ -644,7 +473,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  color: #80848e;
+  color: var(--text-secondary);
   padding: 2rem;
 }
 
@@ -653,7 +482,7 @@ onMounted(() => {
 }
 
 .reply-cta-btn {
-  background: var(--h-brand, #5865f2);
+  background: var(--brand-primary);
   border: none;
   border-radius: 6px;
   color: white;
@@ -664,71 +493,7 @@ onMounted(() => {
 }
 
 .reply-cta-btn:hover {
-  background: #4752c4;
-}
-
-.related-sidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 300px;
-  height: 100vh;
-  background: var(--h-sidebar, #2b2d31);
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 1.5rem;
-  overflow-y: auto;
-}
-
-.sidebar-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: white;
-  margin: 0 0 1rem;
-}
-
-.related-posts {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.related-item {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.related-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.related-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.related-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.related-author {
-  font-weight: 500;
-  color: white;
-  margin-bottom: 0.25rem;
-  font-size: 0.875rem;
-}
-
-.related-text {
-  color: #80848e;
-  font-size: 0.75rem;
-  line-height: 1.4;
+  background: var(--brand-primary-hover);
 }
 
 .spinning {
@@ -746,10 +511,6 @@ onMounted(() => {
     padding: 1rem;
   }
   
-  .related-sidebar {
-    display: none;
-  }
-  
   .post-container {
     max-width: 100%;
   }
@@ -760,10 +521,4 @@ onMounted(() => {
     padding: 1rem;
   }
 }
-
-@media (min-width: 1200px) {
-  .detail-content {
-    margin-right: 320px;
-  }
-}
-</style>
+</style> 

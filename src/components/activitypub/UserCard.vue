@@ -111,7 +111,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useActivityPubStore } from '@/stores/activitypub';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';

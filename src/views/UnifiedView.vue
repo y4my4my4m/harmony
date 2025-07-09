@@ -107,6 +107,7 @@
           :profile-handle="props.profileHandle"
           :special-view-data="specialViewData"
           :has-more-special-data="hasMoreSpecialData"
+          :post-id="props.postId"
           @load-more-messages="fetchMoreMessages"
           @update:is-at-bottom="isAtBottom = $event"
           @send-message="handleSendMessage"
@@ -124,6 +125,7 @@
           @unfollow-user="handleUnfollow"
           @clear-all-bookmarks="handleClearAllBookmarks"
           @load-more-special-data="handleLoadMoreSpecialData"
+          @back-to-timeline="handleBackToTimeline"
         />
         <!-- Right Sidebar -->
         <div class="right-sidebar-container" :class="{ 'mobile-open': isProfilesVisible }">
@@ -258,7 +260,7 @@ import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
-import { useActivityPubStore } from '@/stores/activitypub';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 
 // Composables
 import { useChannelSelection } from '@/composables/useUserProfile';
@@ -279,7 +281,8 @@ interface Props {
   mode?: 'chat' | 'activitypub';
   timeline?: 'home' | 'local' | 'public';
   profileHandle?: string;
-  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications';
+  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post';
+  postId?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -600,7 +603,7 @@ const loadTimeline = async () => {
       await activityPubStore.loadPublicFeed();
       break;
     case 'local':
-      // TODO: Implement local timeline
+      await activityPubStore.loadLocalFeed();
       break;
   }
 };
@@ -615,7 +618,7 @@ const handlePostCreated = (post: TimelinePost) => {
 
 const handleReplyToPost = (post: TimelinePost) => {
   activityPubStore.openComposer({
-    in_reply_to: post.id,
+    replyTo: post.id,
     content: `@${post.author.username}${post.author.domain !== 'har.mony.lol' ? '@' + post.author.domain : ''}`
   });
 };
@@ -705,7 +708,7 @@ const handleLoadMorePosts = async () => {
       await activityPubStore.loadPublicFeed(lastPost?.id);
       break;
     case 'local':
-      // TODO: Implement local timeline pagination
+      await activityPubStore.loadLocalFeed(lastPost?.id);
       break;
   }
 };
@@ -721,7 +724,7 @@ const handleComposerSubmit = async () => {
       visibility: activityPubStore.composerState.visibility,
       content_warning: activityPubStore.composerState.contentWarning,
       in_reply_to: activityPubStore.composerState.replyTo,
-      media_attachments: activityPubStore.composerState.mediaAttachments,
+      media_attachments: [], // Convert MediaAttachment[] to File[] when implementing file upload
       is_sensitive: activityPubStore.composerState.sensitive
     });
   } catch (error) {
@@ -773,6 +776,11 @@ const handleOpenSearch = () => {
 
 const closeSearch = () => {
   showSearchModal.value = false;
+};
+
+const handleBackToTimeline = () => {
+  // Navigate back to timeline from post detail
+  router.push({ name: 'Social', params: { timeline: currentFeed.value } });
 };
 
 const scrollToBottom = () => {

@@ -46,7 +46,7 @@
 import { defineComponent, ref, watch, computed } from 'vue';
 import type { Server } from '@/types';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useActivityPubStore } from '@/stores/activitypub';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useRouter, useRoute } from 'vue-router';
 
 export default defineComponent({
@@ -70,7 +70,8 @@ export default defineComponent({
 
     // Check if we're currently in Monyverse/Social (ActivityPub)
     const isMonyverseSelected = computed(() => {
-      return route.name === 'Monyverse' || route.name === 'Social';
+      // TODO: this is a hack to check if we're in the monyverse/social view
+      return route.name === 'Monyverse' || route.name === 'Social' || route.name === 'UserProfile' || route.name === 'Followers' || route.name === 'Following' || route.name === 'Lists' || route.name === 'Notifications' || route.name === 'Bookmarks';
     });
 
     // Get unread count from ActivityPub store
@@ -97,6 +98,7 @@ export default defineComponent({
     };
 
     const goToMonyverse = () => {
+      activityPubStore.clearUnreadCount();
       router.push({ name: 'Monyverse' });
     };
 

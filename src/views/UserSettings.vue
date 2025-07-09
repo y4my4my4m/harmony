@@ -115,6 +115,13 @@
             @update-notifications="handleNotificationsUpdate"
           />
 
+          <!-- ActivityPub Notifications Section -->
+          <ActivityPubNotificationSettings 
+            v-else-if="activeSection === 'activitypub'"
+            :loading="loading"
+            @update-preferences="handleActivityPubNotificationsUpdate"
+          />
+
           <!-- Voice & Video Section -->
           <VoiceVideoSettings 
             v-else-if="activeSection === 'voice'"
@@ -174,6 +181,7 @@ import PrivacySettings from '@/components/settings/user/PrivacySettings.vue'
 import AppearanceSettings from '@/components/settings/user/AppearanceSettings.vue'
 import AudioThemeSettings from '@/components/settings/user/AudioThemeSettings.vue'
 import NotificationSettings from '@/components/settings/user/NotificationSettings.vue'
+import ActivityPubNotificationSettings from '@/components/settings/user/ActivityPubNotificationSettings.vue'
 import VoiceVideoSettings from '@/components/settings/user/VoiceVideoSettings.vue'
 import KeybindSettings from '@/components/settings/user/KeybindSettings.vue'
 import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
@@ -234,6 +242,7 @@ const appSections = computed(() => [
   { id: 'appearance', label: 'Appearance', icon: PaletteIcon },
   { id: 'audio', label: 'Audio Themes', icon: VoiceIcon },
   { id: 'notifications', label: 'Notifications', icon: BellIcon },
+  { id: 'activitypub', label: 'ActivityPub', icon: GlobeIcon },
   { id: 'voice', label: 'Voice & Video', icon: MicIcon },
   { id: 'keybinds', label: 'Keybinds', icon: KeyboardIcon },
   { id: 'language', label: 'Language', icon: GlobeIcon },
@@ -342,6 +351,12 @@ const handleAppearanceUpdate = async (appearanceSettings: any) => {
 const handleNotificationsUpdate = async (notificationSettings: any) => {
   // Handle notification settings update
   console.log('Notification settings updated:', notificationSettings)
+}
+
+const handleActivityPubNotificationsUpdate = async (activityPubSettings: any) => {
+  // Handle ActivityPub notification settings update
+  // The ActivityPub notification settings component handles its own persistence
+  console.log('ActivityPub notification settings updated:', activityPubSettings)
 }
 
 const handleVoiceSettingsUpdate = async (voiceSettings: any) => {

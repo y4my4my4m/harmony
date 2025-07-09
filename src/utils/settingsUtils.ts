@@ -9,6 +9,7 @@ export type SettingsSection =
   | 'privacy' 
   | 'appearance' 
   | 'notifications' 
+  | 'activitypub'
   | 'voice' 
   | 'keybinds' 
   | 'language' 

@@ -133,10 +133,14 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/posts/:postId',
+      path: '/social/post/:postId',
       name: 'PostDetail',
-      component: () => import('@/views/PostDetailView.vue'),
-      props: true,
+      component: UnifiedView,
+      props: route => ({
+        mode: 'activitypub',
+        viewType: 'post',
+        postId: route.params.postId
+      }),
       meta: { requiresAuth: true },
     },
     {

@@ -74,6 +74,67 @@ const MESSAGE_TEMPLATES = {
     title: (data: any) => `New emoji added: ${data.emoji.name}`,
     message: (data: any) => `${data.emoji.name} is now available in ${data.location.server_name}`,
     shortTitle: (data: any) => `New emoji`
+  },
+
+  // ActivityPub notification templates
+  activitypub_follow: {
+    title: (data: any) => `${data.follower.display_name || data.follower.username} started following you`,
+    message: (data: any) => `${data.follower.handle || '@' + data.follower.username} is now following you`,
+    shortTitle: (data: any) => `New follower`
+  },
+
+  activitypub_favorite: {
+    title: (data: any) => `${data.user.display_name || data.user.username} favorited your post`,
+    message: (data: any) => {
+      if (data.post_content) {
+        const content = data.post_content.substring(0, 120);
+        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      }
+      return 'Click to see the post';
+    },
+    shortTitle: (data: any) => `Post favorited`
+  },
+
+  activitypub_reblog: {
+    title: (data: any) => `${data.user.display_name || data.user.username} reblogged your post`,
+    message: (data: any) => {
+      if (data.post_content) {
+        const content = data.post_content.substring(0, 120);
+        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      }
+      return 'Click to see the post';
+    },
+    shortTitle: (data: any) => `Post reblogged`
+  },
+
+  activitypub_mention: {
+    title: (data: any) => `${data.author.display_name || data.author.username} mentioned you`,
+    message: (data: any) => {
+      if (data.post_content) {
+        const content = data.post_content.substring(0, 120);
+        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      }
+      return 'Click to see the mention';
+    },
+    shortTitle: (data: any) => `Mention`
+  },
+
+  activitypub_reply: {
+    title: (data: any) => `${data.author.display_name || data.author.username} replied to your post`,
+    message: (data: any) => {
+      if (data.post_content) {
+        const content = data.post_content.substring(0, 120);
+        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      }
+      return 'Click to see the reply';
+    },
+    shortTitle: (data: any) => `New reply`
+  },
+
+  activitypub_follow_request: {
+    title: (data: any) => `${data.follower.display_name || data.follower.username} wants to follow you`,
+    message: (data: any) => `${data.follower.handle || '@' + data.follower.username} sent you a follow request`,
+    shortTitle: (data: any) => `Follow request`
   }
 } as const
 
@@ -126,7 +187,11 @@ export class NotificationFormatter {
     const data = notification.data
     return data.sender?.display_name || data.sender?.username || 
            data.reactor?.display_name || data.reactor?.username || 
-           data.inviter?.display_name || data.inviter?.username || 'Unknown'
+           data.inviter?.display_name || data.inviter?.username ||
+           // ActivityPub notifications
+           data.follower?.display_name || data.follower?.username ||
+           data.user?.display_name || data.user?.username ||
+           data.author?.display_name || data.author?.username || 'Unknown'
   }
   
   /**
@@ -134,7 +199,9 @@ export class NotificationFormatter {
    */
   static getAvatarUrl(notification: Notification): string {
     const data = notification.data
-    return data.sender?.avatar_url || data.reactor?.avatar_url || data.inviter?.avatar_url || '/default_avatar.png'
+    return data.sender?.avatar_url || data.reactor?.avatar_url || data.inviter?.avatar_url ||
+           // ActivityPub notifications  
+           data.follower?.avatar_url || data.user?.avatar_url || data.author?.avatar_url || '/default_avatar.png'
   }
   
   /**
@@ -159,7 +226,9 @@ export class NotificationFormatter {
     return !!(
       data.conversation?.id ||
       (data.location?.server_id && data.location?.channel_id) ||
-      data.location?.server_id
+      data.location?.server_id ||
+      // ActivityPub notifications with post IDs
+      (notification.type.startsWith('activitypub_') && data.post_id)
     )
   }
   
@@ -168,6 +237,17 @@ export class NotificationFormatter {
    */
   static getNavigationData(notification: Notification) {
     const data = notification.data
+    
+    // ActivityPub post navigation
+    if (notification.type.startsWith('activitypub_') && data.post_id) {
+      return {
+        type: 'activitypub_post' as const,
+        postId: data.post_id,
+        postUrl: data.post_url,
+        // For mentions/replies, might want to highlight the specific part
+        highlightUser: data.author?.id || data.user?.id
+      }
+    }
     
     if (data.conversation?.id) {
       return {
