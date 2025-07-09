@@ -5,6 +5,7 @@
 
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
+import { activityPubService } from '@/services/activityPubService';
 import type { 
   Post, 
   TimelinePost, 
@@ -59,17 +60,17 @@ export const useActivityPubStore = defineStore('activitypub', {
     homeFeed: {
       posts: [],
       has_more: true,
-      cursor: null
+      cursor: undefined
     },
     publicFeed: {
       posts: [],
       has_more: true,
-      cursor: null
+      cursor: undefined
     },
     localFeed: {
       posts: [],
       has_more: true,
-      cursor: null
+      cursor: undefined
     },
     userFeeds: new Map(),
     
@@ -570,35 +571,15 @@ export const useActivityPubStore = defineStore('activitypub', {
         const user = await supabase.auth.getUser();
         if (!user.data.user) throw new Error('User not authenticated');
 
-        const { data, error } = await supabase.rpc('get_user_timeline', {
-          p_user_id: user.data.user.id,
-          p_timeline_type: 'home',
-          p_limit: 20,
-          p_max_id: maxId
-        });
-
-        if (error) throw error;
-
-        const posts = data ? data.map(this.transformTimelineResultToTimelinePost) : [];
-        
-        // If no timeline data exists, fallback to direct post query for development
-        if (posts.length === 0 && !maxId) {
-          console.warn('No timeline entries found, falling back to direct post query');
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from('posts')
-            .select(`
-              *,
-              author:profiles(*)
-            `)
-            .eq('visibility', 'public')
-            .eq('is_deleted', false)
-            .order('created_at', { ascending: false })
-            .limit(10);
-          
-          if (!fallbackError && fallbackData) {
-            posts.push(...fallbackData.map(this.transformDatabasePostToTimelinePost));
+        // Use activityPubService for timeline loading
+        const posts = await activityPubService.getUserTimeline(
+          user.data.user.id,
+          'home',
+          { 
+            limit: 20,
+            max_id: maxId 
           }
-        }
+        );
         
         if (maxId) {
           this.homeFeed.posts.push(...posts);
@@ -624,35 +605,11 @@ export const useActivityPubStore = defineStore('activitypub', {
     async loadPublicFeed(maxId?: string) {
       this.isLoadingFeed = true;
       try {
-        let query = supabase
-          .from('posts')
-          .select(`
-            *,
-            author:profiles(*)
-          `)
-          .eq('visibility', 'public')
-          .eq('is_deleted', false)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        // Add pagination if maxId is provided
-        if (maxId) {
-          const { data: maxPost } = await supabase
-            .from('posts')
-            .select('created_at')
-            .eq('id', maxId)
-            .single();
-          
-          if (maxPost) {
-            query = query.lt('created_at', maxPost.created_at);
-          }
-        }
-
-        const { data, error } = await query;
-
-        if (error) throw error;
-
-        const posts = data ? data.map(this.transformDatabasePostToTimelinePost) : [];
+        // Use activityPubService for public timeline
+        const posts = await activityPubService.getPublicTimeline({
+          limit: 20,
+          max_id: maxId
+        });
         
         if (maxId) {
           this.publicFeed.posts.push(...posts);
@@ -676,36 +633,11 @@ export const useActivityPubStore = defineStore('activitypub', {
     async loadLocalFeed(maxId?: string) {
       this.isLoadingFeed = true;
       try {
-        let query = supabase
-          .from('posts')
-          .select(`
-            *,
-            author:profiles(*)
-          `)
-          .eq('visibility', 'public')
-          .eq('is_deleted', false)
-          .eq('is_local', true) // Only local posts
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        // Add pagination if maxId is provided
-        if (maxId) {
-          const { data: maxPost } = await supabase
-            .from('posts')
-            .select('created_at')
-            .eq('id', maxId)
-            .single();
-          
-          if (maxPost) {
-            query = query.lt('created_at', maxPost.created_at);
-          }
-        }
-
-        const { data, error } = await query;
-
-        if (error) throw error;
-
-        const posts = data ? data.map(this.transformDatabasePostToTimelinePost) : [];
+        // Use activityPubService for local timeline
+        const posts = await activityPubService.getLocalTimeline({
+          limit: 20,
+          max_id: maxId
+        });
         
         if (maxId) {
           this.localFeed.posts.push(...posts);
@@ -740,9 +672,6 @@ export const useActivityPubStore = defineStore('activitypub', {
     }) {
       this.isPosting = true;
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
-
         // Use postData if provided, otherwise use composer state
         const content = postData?.content || this.composerState.content;
         const visibility = postData?.visibility || this.composerState.visibility;
@@ -754,39 +683,28 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Upload media attachments if any
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
 
-        // Create post in database
-        const { data: post, error } = await supabase
-          .from('posts')
-          .insert({
-            content: this.formatPostContent(content),
-            content_warning: contentWarning,
-            visibility: visibility,
-            in_reply_to: replyTo,
-            author_id: user.data.user.id,
-            media_attachments: mediaUrls,
-            is_sensitive: sensitive || false,
-            language: 'en'
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
+        // Use activityPubService to create the post
+        const post = await activityPubService.createPost({
+          content: this.formatPostContent(content),
+          visibility: visibility,
+          content_warning: contentWarning,
+          in_reply_to: replyTo,
+          media_attachments: mediaUrls,
+          is_sensitive: sensitive || false,
+          language: 'en'
+        });
 
         // Close composer
         this.closeComposer();
 
-        // Add to local feed immediately for better UX
-        const timelinePost = await this.loadPostWithAuthor(post.id);
-        if (timelinePost) {
-          this.homeFeed.posts.unshift(timelinePost);
-          if (visibility === 'public') {
-            this.publicFeed.posts.unshift(timelinePost);
+        // Add to local feeds immediately for better UX (realtime will handle this too)
+        const timelinePost = this.transformDatabasePostToTimelinePost(post);
+        this.homeFeed.posts.unshift(timelinePost);
+        if (visibility === 'public') {
+          this.publicFeed.posts.unshift(timelinePost);
+          if (post.is_local) {
+            this.localFeed.posts.unshift(timelinePost);
           }
-        }
-
-        // Federation: Send to followers if needed
-        if (post.visibility === 'public' || post.visibility === 'unlisted') {
-          await this.federatePost(post.id);
         }
 
         return post;
@@ -902,14 +820,10 @@ export const useActivityPubStore = defineStore('activitypub', {
           username: result.author_username,
           display_name: result.author_display_name,
           avatar_url: result.author_avatar_url,
-          domain: result.author_domain,
-          handle: `@${result.author_username}${result.author_domain !== 'harmony.com' ? '@' + result.author_domain : ''}`
+          domain: result.author_domain
         },
-        interactions: {
-          is_favorited: result.is_favorited,
-          is_reblogged: result.is_reblogged,
-          is_bookmarked: false // Not returned by RPC
-        }
+        is_favorited: result.is_favorited,
+        is_reblogged: result.is_reblogged
       };
     },
 
@@ -946,14 +860,10 @@ export const useActivityPubStore = defineStore('activitypub', {
           username: 'Unknown',
           display_name: 'Unknown User',
           avatar_url: '/default_avatar.png',
-          domain: 'local',
-          handle: '@unknown'
+          domain: 'local'
         },
-        interactions: {
-          is_favorited: false,
-          is_reblogged: false,
-          is_bookmarked: false
-        }
+        is_favorited: false,
+        is_reblogged: false
       };
     },
 
@@ -967,13 +877,14 @@ export const useActivityPubStore = defineStore('activitypub', {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
           if (type === 'favorite') {
-            post.interactions.is_favorited = isActive;
+            post.is_favorited = isActive;
             post.favorites_count += isActive ? 1 : -1;
           } else if (type === 'reblog') {
-            post.interactions.is_reblogged = isActive;
+            post.is_reblogged = isActive;
             post.reblogs_count += isActive ? 1 : -1;
           } else if (type === 'bookmark') {
-            post.interactions.is_bookmarked = isActive;
+            // Bookmark state would be tracked separately if needed
+            console.log(`Bookmark ${isActive ? 'added' : 'removed'} for post ${postId}`);
           }
         }
       });
@@ -1072,107 +983,14 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Resolve a user handle to a user object
      */
     async resolveUserByHandle(handle: string): Promise<FederatedUser | null> {
-      try {
-        // Remove @ prefix if present
-        const cleanHandle = handle.startsWith('@') ? handle.substring(1) : handle;
-        
-        // Parse handle - can be "username" or "username@domain"
-        const parts = cleanHandle.split('@');
-        const username = parts[0];
-        const domain = parts[1] || 'har.mony.lol';
-        
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('username', username)
-          .eq('domain', domain)
-          .single();
-        
-        if (error) {
-          if (error.code === 'PGRST116') return null; // Not found
-          throw error;
-        }
-        
-        return {
-          id: data.id,
-          username: data.username,
-          display_name: data.display_name,
-          domain: data.domain,
-          avatar_url: data.avatar_url,
-          handle: domain === 'har.mony.lol' 
-            ? `@${username}`
-            : `@${username}@${domain}`,
-          is_local: data.is_local,
-          bio: data.about,
-          verified: false,
-          followers_count: 0,
-          following_count: 0,
-          posts_count: 0,
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-          about: data.about,
-          federated_id: data.federated_id,
-          public_key: data.public_key,
-          inbox_url: data.inbox_url,
-          outbox_url: data.outbox_url,
-          followers_url: data.followers_url,
-          following_url: data.following_url,
-          featured_url: data.featured_url,
-          last_synced_at: data.last_synced_at
-        } as FederatedUser;
-      } catch (error) {
-        console.error('Failed to resolve user by handle:', error);
-        return null;
-      }
+      return await activityPubService.resolveUserByHandle(handle);
     },
 
     /**
      * Get user by ID (for navigation from UUIDs)
      */
     async getUserById(userId: string): Promise<FederatedUser | null> {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
-        
-        if (error) {
-          if (error.code === 'PGRST116') return null;
-          throw error;
-        }
-        
-        return {
-          id: data.id,
-          username: data.username,
-          display_name: data.display_name,
-          domain: data.domain,
-          avatar_url: data.avatar_url,
-          handle: data.domain === 'har.mony.lol' 
-            ? `@${data.username}`
-            : `@${data.username}@${data.domain}`,
-          is_local: data.is_local,
-          bio: data.about,
-          verified: false,
-          followers_count: 0,
-          following_count: 0,
-          posts_count: 0,
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-          about: data.about,
-          federated_id: data.federated_id,
-          public_key: data.public_key,
-          inbox_url: data.inbox_url,
-          outbox_url: data.outbox_url,
-          followers_url: data.followers_url,
-          following_url: data.following_url,
-          featured_url: data.featured_url,
-          last_synced_at: data.last_synced_at
-        } as FederatedUser;
-      } catch (error) {
-        console.error('Failed to get user by ID:', error);
-        return null;
-      }
+      return await activityPubService.getUserById(userId);
     },
 
     /**
@@ -1241,37 +1059,19 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async toggleFavorite(postId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        // Check current state from local feeds
+        const allPosts = [...this.homeFeed.posts, ...this.publicFeed.posts, ...this.localFeed.posts];
+        const post = allPosts.find(p => p.id === postId);
+        const isFavorited = post?.is_favorited || false;
 
-        // Check if already favorited
-        const { data: existing } = await supabase
-          .from('post_interactions')
-          .select('id')
-          .eq('user_id', user.data.user.id)
-          .eq('post_id', postId)
-          .eq('interaction_type', 'favorite')
-          .single();
-
-        if (existing) {
-          // Remove favorite
-          await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('id', existing.id);
+        if (isFavorited) {
+          await activityPubService.unfavoritePost(postId);
         } else {
-          // Add favorite
-          await supabase
-            .from('post_interactions')
-            .insert({
-              user_id: user.data.user.id,
-              post_id: postId,
-              interaction_type: 'favorite'
-            });
+          await activityPubService.favoritePost(postId);
         }
 
         // Update local state
-        this.updatePostInteraction(postId, 'favorite', !existing);
+        this.updatePostInteraction(postId, 'favorite', !isFavorited);
 
       } catch (error) {
         console.error('Failed to toggle favorite:', error);
@@ -1284,37 +1084,16 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async toggleBookmark(postId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
-
-        // Check if already bookmarked
-        const { data: existing } = await supabase
-          .from('post_interactions')
-          .select('id')
-          .eq('user_id', user.data.user.id)
-          .eq('post_id', postId)
-          .eq('interaction_type', 'bookmark')
-          .single();
-
-        if (existing) {
-          // Remove bookmark
-          await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('id', existing.id);
-        } else {
-          // Add bookmark
-          await supabase
-            .from('post_interactions')
-            .insert({
-              user_id: user.data.user.id,
-              post_id: postId,
-              interaction_type: 'bookmark'
-            });
+        // For now, we'll determine bookmark state from checking if the call succeeds
+        // This could be optimized by tracking bookmark state locally
+        try {
+          await activityPubService.bookmarkPost(postId);
+          this.updatePostInteraction(postId, 'bookmark', true);
+        } catch (error) {
+          // If bookmark fails, try unbookmark (might already be bookmarked)
+          await activityPubService.unbookmarkPost(postId);
+          this.updatePostInteraction(postId, 'bookmark', false);
         }
-
-        // Update local state
-        this.updatePostInteraction(postId, 'bookmark', !existing);
 
       } catch (error) {
         console.error('Failed to toggle bookmark:', error);
@@ -1505,31 +1284,10 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      async followUser(userId: string) {
        try {
-         const user = await supabase.auth.getUser();
-         if (!user.data.user) throw new Error('User not authenticated');
-
-         const { data, error } = await supabase
-           .from('follows')
-           .insert({
-             follower_id: user.data.user.id,
-             following_id: userId,
-             status: 'accepted',
-             is_local: true
-           })
-           .select()
-           .single();
-
-         if (error) {
-           if (error.code === '23505') {
-             throw new Error('Already following this user');
-           }
-           throw error;
-         }
-
+         await activityPubService.followUser(userId);
+         
          this.followedUsers.add(userId);
          this.followingCount++;
-
-         // TODO: Send ActivityPub Follow activity for remote users
        } catch (error) {
          console.error('Failed to follow user:', error);
          throw error;
@@ -1541,21 +1299,10 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      async unfollowUser(userId: string) {
        try {
-         const user = await supabase.auth.getUser();
-         if (!user.data.user) throw new Error('User not authenticated');
-
-         const { error } = await supabase
-           .from('follows')
-           .delete()
-           .eq('follower_id', user.data.user.id)
-           .eq('following_id', userId);
-
-         if (error) throw error;
-
+         await activityPubService.unfollowUser(userId);
+         
          this.followedUsers.delete(userId);
          this.followingCount--;
-
-         // TODO: Send ActivityPub Undo Follow activity for remote users
        } catch (error) {
          console.error('Failed to unfollow user:', error);
          throw error;

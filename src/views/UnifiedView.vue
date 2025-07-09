@@ -721,7 +721,7 @@ const handleComposerSubmit = async () => {
       visibility: activityPubStore.composerState.visibility,
       content_warning: activityPubStore.composerState.contentWarning,
       in_reply_to: activityPubStore.composerState.replyTo,
-      media_attachments: activityPubStore.composerState.mediaAttachments,
+      media_attachments: [], // Convert MediaAttachment[] to File[] when implementing file upload
       is_sensitive: activityPubStore.composerState.sensitive
     });
   } catch (error) {
