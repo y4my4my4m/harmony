@@ -155,6 +155,14 @@
     
     <!-- Heart -->
     <path v-if="name === 'heart'" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+
+    <!-- Heart Filled -->
+    <path
+      v-if="name === 'heart-filled'"
+      d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+      fill="currentColor"
+      stroke="none"
+    ></path>
     
     <!-- Mouse Pointer -->
     <path v-if="name === 'mouse-pointer'" d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>

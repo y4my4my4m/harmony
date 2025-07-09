@@ -164,6 +164,7 @@
           <span v-if="post.favorites_count > 0">{{ formatCount(post.favorites_count) }}</span>
         </button>
 
+        <!-- TODO: implement bookmarking -->
         <button 
           class="action-button bookmark-button"
           :class="{ active: post.interactions?.is_bookmarked }"
