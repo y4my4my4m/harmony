@@ -70,7 +70,8 @@ export default defineComponent({
 
     // Check if we're currently in Monyverse/Social (ActivityPub)
     const isMonyverseSelected = computed(() => {
-      return route.name === 'Monyverse' || route.name === 'Social';
+      // TODO: this is a hack to check if we're in the monyverse/social view
+      return route.name === 'Monyverse' || route.name === 'Social' || route.name === 'UserProfile' || route.name === 'Followers' || route.name === 'Following' || route.name === 'Lists' || route.name === 'Notifications' || route.name === 'Bookmarks';
     });
 
     // Get unread count from ActivityPub store

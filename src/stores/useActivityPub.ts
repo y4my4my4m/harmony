@@ -118,6 +118,14 @@ export const useActivityPubStore = defineStore('activityPub', {
       return state.composerState.content.trim().length > 0 && 
              state.composerState.content.length <= 500 && // Character limit
              !state.isPosting;
+    },
+
+    getTimelinePosts: (state) => (timeline: 'home' | 'public' | 'local') => {
+      switch (timeline) {
+        case 'home': return state.homeFeed.posts;
+        case 'public': return state.publicFeed.posts;
+        case 'local': return state.localFeed.posts;
+      }
     }
   },
 
@@ -125,6 +133,12 @@ export const useActivityPubStore = defineStore('activityPub', {
     // =============================================
     // FEED MANAGEMENT
     // =============================================
+
+    async initialize() {
+      await this.loadHomeFeed();
+      await this.loadPublicFeed();
+      await this.loadLocalFeed();
+    },
     
     /**
      * Load home timeline (following + own posts)
