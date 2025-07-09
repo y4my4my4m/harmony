@@ -600,7 +600,7 @@ const loadTimeline = async () => {
       await activityPubStore.loadPublicFeed();
       break;
     case 'local':
-      // TODO: Implement local timeline
+      await activityPubStore.loadLocalFeed();
       break;
   }
 };
@@ -705,7 +705,7 @@ const handleLoadMorePosts = async () => {
       await activityPubStore.loadPublicFeed(lastPost?.id);
       break;
     case 'local':
-      // TODO: Implement local timeline pagination
+      await activityPubStore.loadLocalFeed(lastPost?.id);
       break;
   }
 };

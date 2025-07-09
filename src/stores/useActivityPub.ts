@@ -620,6 +620,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.localFeed.has_more = posts.length === 20;
         this.localFeed.cursor = posts[posts.length - 1]?.id;
 
+        console.log(`📍 Local feed loaded: ${posts.length} posts`);
+
       } catch (error) {
         console.error('Failed to load local feed:', error);
       } finally {
