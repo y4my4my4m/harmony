@@ -133,16 +133,6 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/u/:handle',
-      name: 'UserProfile',
-      component: UnifiedView,
-      props: route => ({ 
-        mode: 'activitypub',
-        profileHandle: route.params.handle
-      }),
-      meta: { requiresAuth: true },
-    },
-    {
       path: '/posts/:postId',
       name: 'PostDetail',
       component: () => import('@/views/PostDetailView.vue'),
