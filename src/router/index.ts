@@ -80,8 +80,11 @@ const router = createRouter({
     {
       path: '/u/:handle',
       name: 'UserProfile',
-      component: () => import('@/views/UserProfileView.vue'),
-      props: true,
+      component: UnifiedView,
+      props: route => ({ 
+        mode: 'activitypub',
+        profileHandle: route.params.handle
+      }),
       meta: { requiresAuth: true },
     },
     {

@@ -14,7 +14,24 @@
     
     <!-- ActivityPub Mode Content -->
     <div v-else-if="mode === 'activitypub'" class="content-section activitypub-content">
-      <div class="mony-content">
+      <!-- Profile Mode -->
+      <ProfileDisplay 
+        v-if="isProfileMode"
+        :user="profileUser"
+        :posts="[]"
+        :loading="false"
+        @follow="$emit('follow-user', $event)"
+        @unfollow="$emit('unfollow-user', $event)"
+        @reply-to-post="$emit('reply-to-post', $event)"
+        @favorite-post="$emit('favorite-post', $event)"
+        @reblog-post="$emit('reblog-post', $event)"
+        @delete-post="$emit('delete-post', $event)"
+        @show-user-profile="$emit('show-user-profile', $event)"
+        @load-more-posts="$emit('load-more-posts')"
+      />
+      
+      <!-- Timeline Mode -->
+      <div v-else class="mony-content">
         <!-- New Post Composer (Inline) -->
         <div v-if="currentFeed === 'home'" class="inline-composer">
           <MonyComposerInline @post-created="$emit('post-created', $event)" />
@@ -78,8 +95,9 @@ import { computed } from 'vue';
 import ChatComponent from '@/components/ChatComponent.vue';
 import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
+import ProfileDisplay from './ProfileDisplay.vue';
 import Icon from '@/components/common/Icon.vue';
-import type { Message, TimelinePost } from '@/types';
+import type { Message, TimelinePost, FederatedUser } from '@/types';
 
 interface Props {
   mode: 'chat' | 'activitypub';
@@ -94,6 +112,11 @@ interface Props {
   posts?: TimelinePost[];
   isLoadingFeed?: boolean;
   hasMorePosts?: boolean;
+  
+  // Profile mode props
+  isProfileMode?: boolean;
+  profileUser?: FederatedUser | null;
+  profileHandle?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -103,7 +126,10 @@ const props = withDefaults(defineProps<Props>(), {
   currentFeed: 'home',
   posts: () => [],
   isLoadingFeed: false,
-  hasMorePosts: false
+  hasMorePosts: false,
+  isProfileMode: false,
+  profileUser: null,
+  profileHandle: undefined
 });
 
 defineEmits<{
@@ -122,6 +148,10 @@ defineEmits<{
   'delete-post': [postId: string];
   'show-user-profile': [user: any];
   'load-more-posts': [];
+  
+  // Profile mode events
+  'follow-user': [userId: string];
+  'unfollow-user': [userId: string];
 }>();
 
 const feedTabs = [
@@ -186,6 +216,188 @@ const getEmptyStateMessage = () => {
   flex-direction: column;
   height: 100%;
 }
+
+/* =============================================================================
+   PROFILE COMPONENTS
+   ============================================================================= */
+
+.profile-content {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--background-primary);
+}
+
+.profile-display {
+  height: 100%;
+}
+
+.profile-header {
+  position: relative;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.profile-banner {
+  height: 200px;
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary, #4752c4));
+  position: relative;
+}
+
+.profile-info {
+  padding: 0 24px 24px 24px;
+  position: relative;
+}
+
+.profile-avatar-section {
+  position: absolute;
+  top: -50px;
+  left: 24px;
+}
+
+.profile-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 4px solid var(--background-primary);
+  object-fit: cover;
+  background: var(--background-secondary);
+}
+
+.profile-details {
+  margin-top: 60px;
+}
+
+.profile-name {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: var(--text-primary);
+}
+
+.profile-handle {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin: 0 0 16px 0;
+}
+
+.profile-bio {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+}
+
+.profile-stats {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.profile-actions {
+  margin-top: 16px;
+}
+
+.follow-btn, .unfollow-btn {
+  padding: 8px 24px;
+  border-radius: 20px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.follow-btn {
+  background: var(--brand-primary);
+  color: white;
+}
+
+.follow-btn:hover {
+  background: var(--brand-primary-hover, #4752c4);
+}
+
+.unfollow-btn {
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.unfollow-btn:hover {
+  background: var(--background-hover);
+}
+
+.profile-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-primary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.tab {
+  padding: 16px 24px;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+  background: var(--background-hover);
+}
+
+.tab.active {
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
+}
+
+.profile-posts {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.empty-posts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--text-secondary);
+  gap: 16px;
+  text-align: center;
+}
+
+.empty-posts h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+
 
 /* =============================================================================
    TIMELINE COMPONENTS

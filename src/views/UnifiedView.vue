@@ -102,6 +102,9 @@
           :posts="posts"
           :is-loading-feed="isLoadingFeed"
           :has-more-posts="hasMorePosts"
+          :is-profile-mode="isProfileMode"
+          :profile-user="profileUser"
+          :profile-handle="props.profileHandle"
           @load-more-messages="fetchMoreMessages"
           @update:is-at-bottom="isAtBottom = $event"
           @send-message="handleSendMessage"
@@ -114,6 +117,8 @@
           @delete-post="handleDeletePost"
           @show-user-profile="handleShowUserProfile"
           @load-more-posts="handleLoadMorePosts"
+          @follow-user="handleFollow"
+          @unfollow-user="handleUnfollow"
         />
         <!-- Right Sidebar -->
         <div class="right-sidebar-container" :class="{ 'mobile-open': isProfilesVisible }">
@@ -268,12 +273,14 @@ interface Props {
   conversationId?: string;
   mode?: 'chat' | 'activitypub';
   timeline?: 'home' | 'local' | 'public';
+  profileHandle?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isDM: false,
   mode: 'chat',
-  timeline: 'home'
+  timeline: 'home',
+  profileHandle: undefined
 });
 
 // Stores
@@ -292,6 +299,8 @@ const router = useRouter();
 // State Management
 const currentMode = ref<'chat' | 'activitypub'>(props.mode);
 const currentFeed = ref<'home' | 'local' | 'public'>(props.timeline);
+const isProfileMode = ref(!!props.profileHandle);
+const profileUser = ref<FederatedUser | null>(null);
 
 // App initialization state
 const isAppInitialized = ref(false);
@@ -590,7 +599,7 @@ const handlePostCreated = (post: TimelinePost) => {
 const handleReplyToPost = (post: TimelinePost) => {
   activityPubStore.openComposer({
     in_reply_to: post.id,
-    content: `@${post.author.handle} `
+    content: post.author.handle
   });
 };
 
@@ -839,6 +848,19 @@ const loadServerAndChannel = async () => {
   }
 };
 
+// Load profile data when profileHandle is provided
+const loadProfileUser = async () => {
+  if (!props.profileHandle) return;
+  
+  try {
+    const user = await activityPubStore.resolveUserByHandle(props.profileHandle);
+    if (user) {
+      profileUser.value = user;
+    }
+  } catch (error) {
+    console.error('Failed to load profile user:', error);
+  }
+};
 
 
 // Watch route changes to update mode and load data
@@ -883,6 +905,16 @@ watch(() => servers.value.length, (newLength, oldLength) => {
     if (newServer && !isDM.value) {
       router.push({ name: 'Chat', params: { serverId: newServer.id } });
     }
+  }
+}, { immediate: true });
+
+// Watch for profile handle changes
+watch(() => props.profileHandle, async (newHandle) => {
+  isProfileMode.value = !!newHandle;
+  if (newHandle) {
+    await loadProfileUser();
+  } else {
+    profileUser.value = null;
   }
 }, { immediate: true });
 

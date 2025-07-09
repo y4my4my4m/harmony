@@ -426,6 +426,13 @@
 
     <!-- Play -->
     <polygon v-if="name === 'play'" points="6 4 20 12 6 20 6 4"></polygon>
+
+    <!-- Share -->
+    <circle v-if="name === 'share'" cx="18" cy="5" r="3"></circle>
+    <circle v-if="name === 'share'" cx="6" cy="12" r="3"></circle>
+    <circle v-if="name === 'share'" cx="18" cy="19" r="3"></circle>
+    <line v-if="name === 'share'" x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+    <line v-if="name === 'share'" x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
     
     <!-- Mony Mascot (Custom ActivityPub/Fediverse icon) -->
     <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="10"></circle>
