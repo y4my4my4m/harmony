@@ -230,19 +230,21 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async loadUserPreferences() {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) return;
+        // const user = await supabase.auth.getUser();
+        // if (!user.data.user) return;
 
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('activitypub_preferences')
-          .eq('id', user.data.user.id)
-          .single();
+        // const { data, error } = await supabase
+        //   .from('profiles')
+        //   .select('activitypub_preferences')
+        //   .eq('id', user.data.user.id)
+        //   .single();
 
-        if (error) throw error;
+        // if (error) throw error;
 
         // Store preferences in state if needed
-        console.log('⚙️ User preferences loaded');
+        // console.log('⚙️ User preferences loaded');
+
+        // TODO: were currently storing everything in notificaiton_preferences i believe? all preferences are separates columns in the database.
       } catch (error) {
         console.error('❌ Failed to load user preferences:', error);
       }
