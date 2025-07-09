@@ -107,6 +107,7 @@
           :profile-handle="props.profileHandle"
           :special-view-data="specialViewData"
           :has-more-special-data="hasMoreSpecialData"
+          :post-id="props.postId"
           @load-more-messages="fetchMoreMessages"
           @update:is-at-bottom="isAtBottom = $event"
           @send-message="handleSendMessage"
@@ -124,6 +125,7 @@
           @unfollow-user="handleUnfollow"
           @clear-all-bookmarks="handleClearAllBookmarks"
           @load-more-special-data="handleLoadMoreSpecialData"
+          @back-to-timeline="handleBackToTimeline"
         />
         <!-- Right Sidebar -->
         <div class="right-sidebar-container" :class="{ 'mobile-open': isProfilesVisible }">
@@ -279,7 +281,8 @@ interface Props {
   mode?: 'chat' | 'activitypub';
   timeline?: 'home' | 'local' | 'public';
   profileHandle?: string;
-  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications';
+  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post';
+  postId?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -773,6 +776,11 @@ const handleOpenSearch = () => {
 
 const closeSearch = () => {
   showSearchModal.value = false;
+};
+
+const handleBackToTimeline = () => {
+  // Navigate back to timeline from post detail
+  router.push({ name: 'Social', params: { timeline: currentFeed.value } });
 };
 
 const scrollToBottom = () => {

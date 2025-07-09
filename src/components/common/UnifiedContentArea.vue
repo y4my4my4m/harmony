@@ -30,6 +30,20 @@
         @load-more-posts="$emit('load-more-posts')"
       />
       
+      <!-- Post Detail View -->
+      <div v-else-if="viewType === 'post'" class="post-detail-content">
+        <PostDetailDisplay
+          :post-id="postId || ''"
+          @reply="$emit('reply-to-post', $event)"
+          @favorite="$emit('favorite-post', $event)"
+          @reblog="$emit('reblog-post', $event)"
+          @bookmark="$emit('bookmark-post', $event)"
+          @delete="$emit('delete-post', $event)"
+          @user-click="$emit('show-user-profile', $event)"
+          @back="$emit('back-to-timeline')"
+        />
+      </div>
+      
       <!-- Special Views (Bookmarks, Lists, etc.) -->
       <div v-else-if="viewType !== 'timeline'" class="special-view-content">
         <div class="special-view-header">
@@ -168,6 +182,7 @@ import ChatComponent from '@/components/ChatComponent.vue';
 import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import ProfileDisplay from './ProfileDisplay.vue';
+import PostDetailDisplay from './PostDetailDisplay.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Message, TimelinePost, FederatedUser } from '@/types';
 
@@ -180,7 +195,7 @@ interface Props {
   isDM?: boolean;
   
   // ActivityPub mode props
-  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications';
+  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post';
   currentFeed?: 'home' | 'local' | 'public';
   posts?: TimelinePost[];
   isLoadingFeed?: boolean;
@@ -191,6 +206,9 @@ interface Props {
   profileHandle?: string;
   specialViewData?: TimelinePost[]; // Generic data for bookmarks, lists, etc.
   hasMoreSpecialData?: boolean;
+  
+  // Post detail props
+  postId?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -233,6 +251,9 @@ defineEmits<{
   // Special view events
   'clear-all-bookmarks': [];
   'load-more-special-data': [];
+  
+  // Post detail events
+  'back-to-timeline': [];
 }>();
 
 const feedTabs = [

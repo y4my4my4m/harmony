@@ -800,12 +800,11 @@ export const useNotificationStore = defineStore('notification', {
               break
 
             case 'activitypub_post':
-              // Navigate to specific ActivityPub post in social mode
-              // For now, go to home timeline - but could be enhanced to show specific post
-              router.push('/social/home')
-              
-              // Future enhancement: Navigate to specific post with highlighting
-              // router.push(`/social/post/${navData.postId}`)
+              // Navigate to specific ActivityPub post using unified view
+              router.push({
+                name: 'PostDetail',
+                params: { postId: navData.postId }
+              })
               
               console.log(`🎯 Navigated to ActivityPub post: ${navData.postId}`)
               if (navData.highlightUser) {
