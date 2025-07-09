@@ -451,7 +451,7 @@ const handleSwitchMode = async (mode: 'chat' | 'activitypub') => {
       // Navigate to default ActivityPub route (home timeline)
       await router.push({ 
         name: 'Social', 
-        params: { timeline: 'home' } 
+        params: { timeline: currentFeed.value } 
       });
       await loadTimeline();
     }
