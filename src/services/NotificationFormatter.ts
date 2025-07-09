@@ -85,25 +85,49 @@ const MESSAGE_TEMPLATES = {
 
   activitypub_favorite: {
     title: (data: any) => `${data.user.display_name || data.user.username} favorited your post`,
-    message: (data: any) => data.post_content ? `"${data.post_content.substring(0, 50)}${data.post_content.length > 50 ? '...' : ''}"` : 'Your post was favorited',
+    message: (data: any) => {
+      if (data.post_content) {
+        const content = data.post_content.substring(0, 120);
+        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      }
+      return 'Click to see the post';
+    },
     shortTitle: (data: any) => `Post favorited`
   },
 
   activitypub_reblog: {
     title: (data: any) => `${data.user.display_name || data.user.username} reblogged your post`,
-    message: (data: any) => data.post_content ? `"${data.post_content.substring(0, 50)}${data.post_content.length > 50 ? '...' : ''}"` : 'Your post was reblogged',
+    message: (data: any) => {
+      if (data.post_content) {
+        const content = data.post_content.substring(0, 120);
+        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      }
+      return 'Click to see the post';
+    },
     shortTitle: (data: any) => `Post reblogged`
   },
 
   activitypub_mention: {
     title: (data: any) => `${data.author.display_name || data.author.username} mentioned you`,
-    message: (data: any) => data.post_content ? `"${data.post_content.substring(0, 50)}${data.post_content.length > 50 ? '...' : ''}"` : 'You were mentioned in a post',
+    message: (data: any) => {
+      if (data.post_content) {
+        const content = data.post_content.substring(0, 120);
+        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      }
+      return 'Click to see the mention';
+    },
     shortTitle: (data: any) => `Mention`
   },
 
   activitypub_reply: {
     title: (data: any) => `${data.author.display_name || data.author.username} replied to your post`,
-    message: (data: any) => data.post_content ? `"${data.post_content.substring(0, 50)}${data.post_content.length > 50 ? '...' : ''}"` : 'Someone replied to your post',
+    message: (data: any) => {
+      if (data.post_content) {
+        const content = data.post_content.substring(0, 120);
+        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
+      }
+      return 'Click to see the reply';
+    },
     shortTitle: (data: any) => `New reply`
   },
 
@@ -202,7 +226,9 @@ export class NotificationFormatter {
     return !!(
       data.conversation?.id ||
       (data.location?.server_id && data.location?.channel_id) ||
-      data.location?.server_id
+      data.location?.server_id ||
+      // ActivityPub notifications with post IDs
+      (notification.type.startsWith('activitypub_') && data.post_id)
     )
   }
   
@@ -211,6 +237,17 @@ export class NotificationFormatter {
    */
   static getNavigationData(notification: Notification) {
     const data = notification.data
+    
+    // ActivityPub post navigation
+    if (notification.type.startsWith('activitypub_') && data.post_id) {
+      return {
+        type: 'activitypub_post' as const,
+        postId: data.post_id,
+        postUrl: data.post_url,
+        // For mentions/replies, might want to highlight the specific part
+        highlightUser: data.author?.id || data.user?.id
+      }
+    }
     
     if (data.conversation?.id) {
       return {
