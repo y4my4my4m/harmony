@@ -258,62 +258,30 @@ export const useActivityPubStore = defineStore('activitypub', {
       // Clean up existing subscriptions
       this.cleanupRealtimeSubscriptions();
 
-      // Subscribe to posts updates
-      const postsChannel = supabase
-        .channel('activitypub_posts_enhanced')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'posts' },
-          (payload) => this.handleRealtimePostCreate(payload.new)
-        )
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'posts' },
-          (payload) => this.handleRealtimePostUpdate(payload.new)
-        )
-        .on(
-          'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'posts' },
-          (payload) => this.handleRealtimePostDelete(payload.old)
-        )
-        .subscribe();
+      // Use activityPubService for realtime subscriptions
+      const postsChannel = activityPubService.subscribeToPostUpdates(
+        (post) => this.handleRealtimePostCreate(post),
+        (post) => this.handleRealtimePostUpdate(post),
+        (post) => this.handleRealtimePostDelete(post)
+      );
 
-      // Subscribe to follow relationship updates
-      const followsChannel = supabase
-        .channel('activitypub_follows_enhanced')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'follows' },
-          (payload) => this.handleRealtimeFollowCreate(payload.new)
-        )
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'follows' },
-          (payload) => this.handleRealtimeFollowUpdate(payload.new)
-        )
-        .on(
-          'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'follows' },
-          (payload) => this.handleRealtimeFollowDelete(payload.old)
-        )
-        .subscribe();
+      const followsChannel = activityPubService.subscribeToFollowUpdates(
+        (follow) => this.handleRealtimeFollowCreate(follow),
+        (follow) => this.handleRealtimeFollowUpdate(follow),
+        (follow) => this.handleRealtimeFollowDelete(follow)
+      );
 
-      // Subscribe to post interactions
-      const interactionsChannel = supabase
-        .channel('activitypub_interactions_enhanced')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'post_interactions' },
-          (payload) => this.handleRealtimeInteractionChange(payload)
-        )
-        .subscribe();
+      const interactionsChannel = activityPubService.subscribeToInteractionUpdates(
+        (interaction) => this.handleRealtimeInteractionChange({ event: 'INSERT', new: interaction }),
+        (interaction) => this.handleRealtimeInteractionChange({ event: 'DELETE', old: interaction })
+      );
 
       // Store subscriptions for cleanup
       this.realtimeSubscriptions.set('posts', postsChannel);
       this.realtimeSubscriptions.set('follows', followsChannel);
       this.realtimeSubscriptions.set('interactions', interactionsChannel);
 
-      console.log('🔔 Enhanced realtime subscriptions established');
+      console.log('🔔 Enhanced realtime subscriptions established using ActivityPub service');
     },
 
     /**
@@ -444,7 +412,11 @@ export const useActivityPubStore = defineStore('activitypub', {
       if (!interaction) return;
 
       // Update interaction counts in posts
-      this.updatePostInteractionCounts(interaction.post_id, interaction.type, payload.eventType);
+      this.updatePostInteractionCounts(
+        interaction.post_id, 
+        interaction.interaction_type, 
+        payload.event || payload.eventType
+      );
     },
 
     /**
@@ -499,13 +471,13 @@ export const useActivityPubStore = defineStore('activitypub', {
           
           switch (interactionType) {
             case 'favorite':
-              post.favorites_count = Math.max(0, post.favorites_count + delta);
+              post.favorites_count = Math.max(0, (post.favorites_count || 0) + delta);
               break;
             case 'reblog':
-              post.reblogs_count = Math.max(0, post.reblogs_count + delta);
+              post.reblogs_count = Math.max(0, (post.reblogs_count || 0) + delta);
               break;
             case 'reply':
-              post.replies_count = Math.max(0, post.replies_count + delta);
+              post.replies_count = Math.max(0, (post.replies_count || 0) + delta);
               break;
           }
         }
@@ -1059,19 +1031,10 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async toggleFavorite(postId: string) {
       try {
-        // Check current state from local feeds
-        const allPosts = [...this.homeFeed.posts, ...this.publicFeed.posts, ...this.localFeed.posts];
-        const post = allPosts.find(p => p.id === postId);
-        const isFavorited = post?.is_favorited || false;
-
-        if (isFavorited) {
-          await activityPubService.unfavoritePost(postId);
-        } else {
-          await activityPubService.favoritePost(postId);
-        }
-
+        const result = await activityPubService.toggleFavorite(postId);
+        
         // Update local state
-        this.updatePostInteraction(postId, 'favorite', !isFavorited);
+        this.updatePostInteraction(postId, 'favorite', result.favorited);
 
       } catch (error) {
         console.error('Failed to toggle favorite:', error);
@@ -1084,16 +1047,10 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async toggleBookmark(postId: string) {
       try {
-        // For now, we'll determine bookmark state from checking if the call succeeds
-        // This could be optimized by tracking bookmark state locally
-        try {
-          await activityPubService.bookmarkPost(postId);
-          this.updatePostInteraction(postId, 'bookmark', true);
-        } catch (error) {
-          // If bookmark fails, try unbookmark (might already be bookmarked)
-          await activityPubService.unbookmarkPost(postId);
-          this.updatePostInteraction(postId, 'bookmark', false);
-        }
+        const result = await activityPubService.toggleBookmark(postId);
+        
+        // Update local state
+        this.updatePostInteraction(postId, 'bookmark', result.bookmarked);
 
       } catch (error) {
         console.error('Failed to toggle bookmark:', error);
@@ -1171,37 +1128,10 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async toggleReblog(postId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
-
-        // Check if already reblogged
-        const { data: existing } = await supabase
-          .from('post_interactions')
-          .select('id')
-          .eq('user_id', user.data.user.id)
-          .eq('post_id', postId)
-          .eq('interaction_type', 'reblog')
-          .single();
-
-        if (existing) {
-          // Remove reblog
-          await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('id', existing.id);
-        } else {
-          // Add reblog
-          await supabase
-            .from('post_interactions')
-            .insert({
-              user_id: user.data.user.id,
-              post_id: postId,
-              interaction_type: 'reblog'
-            });
-        }
-
+        const result = await activityPubService.toggleReblog(postId);
+        
         // Update local state
-        this.updatePostInteraction(postId, 'reblog', !existing);
+        this.updatePostInteraction(postId, 'reblog', result.reblogged);
 
       } catch (error) {
         console.error('Failed to toggle reblog:', error);

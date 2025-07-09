@@ -401,6 +401,33 @@ export class ActivityPubService {
   // =============================================
 
   /**
+   * Toggle favorite (like) status for a post
+   */
+  async toggleFavorite(postId: string): Promise<{ favorited: boolean; interaction?: PostInteraction }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Check if already favorited
+    const { data: existing } = await supabase
+      .from('post_interactions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('post_id', postId)
+      .eq('interaction_type', 'favorite')
+      .single();
+
+    if (existing) {
+      // Remove favorite
+      await this.unfavoritePost(postId);
+      return { favorited: false };
+    } else {
+      // Add favorite
+      const interaction = await this.favoritePost(postId);
+      return { favorited: true, interaction };
+    }
+  }
+
+  /**
    * Favorite (like) a post
    */
   async favoritePost(postId: string): Promise<PostInteraction> {
@@ -449,6 +476,33 @@ export class ActivityPubService {
   }
 
   /**
+   * Toggle reblog (share) status for a post
+   */
+  async toggleReblog(postId: string): Promise<{ reblogged: boolean; interaction?: PostInteraction }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Check if already reblogged
+    const { data: existing } = await supabase
+      .from('post_interactions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('post_id', postId)
+      .eq('interaction_type', 'reblog')
+      .single();
+
+    if (existing) {
+      // Remove reblog
+      await this.unreblogPost(postId);
+      return { reblogged: false };
+    } else {
+      // Add reblog
+      const interaction = await this.reblogPost(postId);
+      return { reblogged: true, interaction };
+    }
+  }
+
+  /**
    * Reblog (share) a post
    */
   async reblogPost(postId: string): Promise<PostInteraction> {
@@ -494,6 +548,33 @@ export class ActivityPubService {
       .eq('interaction_type', 'reblog');
 
     if (error) throw error;
+  }
+
+  /**
+   * Toggle bookmark status for a post
+   */
+  async toggleBookmark(postId: string): Promise<{ bookmarked: boolean; interaction?: PostInteraction }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Check if already bookmarked
+    const { data: existing } = await supabase
+      .from('post_interactions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('post_id', postId)
+      .eq('interaction_type', 'bookmark')
+      .single();
+
+    if (existing) {
+      // Remove bookmark
+      await this.unbookmarkPost(postId);
+      return { bookmarked: false };
+    } else {
+      // Add bookmark
+      const interaction = await this.bookmarkPost(postId);
+      return { bookmarked: true, interaction };
+    }
   }
 
   /**
@@ -829,6 +910,126 @@ export class ActivityPubService {
    */
   generatePostUrl(postId: string, domain: string = this.currentDomain): string {
     return `https://${domain}/posts/${postId}`;
+  }
+
+  // =============================================
+  // REALTIME INTEGRATION
+  // =============================================
+
+  /**
+   * Subscribe to post realtime updates
+   */
+  subscribeToPostUpdates(
+    onPostCreate?: (post: any) => void,
+    onPostUpdate?: (post: any) => void,
+    onPostDelete?: (post: any) => void
+  ) {
+    const channel = supabase
+      .channel('activitypub_posts_service')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'posts' },
+        (payload) => onPostCreate?.(payload.new)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'posts' },
+        (payload) => onPostUpdate?.(payload.new)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'posts' },
+        (payload) => onPostDelete?.(payload.old)
+      )
+      .subscribe();
+
+    return channel;
+  }
+
+  /**
+   * Subscribe to interaction realtime updates
+   */
+  subscribeToInteractionUpdates(
+    onInteractionCreate?: (interaction: any) => void,
+    onInteractionDelete?: (interaction: any) => void
+  ) {
+    const channel = supabase
+      .channel('activitypub_interactions_service')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'post_interactions' },
+        (payload) => onInteractionCreate?.(payload.new)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'post_interactions' },
+        (payload) => onInteractionDelete?.(payload.old)
+      )
+      .subscribe();
+
+    return channel;
+  }
+
+  /**
+   * Subscribe to follow realtime updates
+   */
+  subscribeToFollowUpdates(
+    onFollowCreate?: (follow: any) => void,
+    onFollowUpdate?: (follow: any) => void,
+    onFollowDelete?: (follow: any) => void
+  ) {
+    const channel = supabase
+      .channel('activitypub_follows_service')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'follows' },
+        (payload) => onFollowCreate?.(payload.new)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'follows' },
+        (payload) => onFollowUpdate?.(payload.new)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'follows' },
+        (payload) => onFollowDelete?.(payload.old)
+      )
+      .subscribe();
+
+    return channel;
+  }
+
+  /**
+   * Get current interaction state for a post and user
+   */
+  async getPostInteractionState(postId: string): Promise<{
+    is_favorited: boolean;
+    is_reblogged: boolean;
+    is_bookmarked: boolean;
+  }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { is_favorited: false, is_reblogged: false, is_bookmarked: false };
+
+    const { data: interactions } = await supabase
+      .from('post_interactions')
+      .select('interaction_type')
+      .eq('user_id', user.id)
+      .eq('post_id', postId);
+
+    const state = {
+      is_favorited: false,
+      is_reblogged: false,
+      is_bookmarked: false
+    };
+
+    interactions?.forEach(interaction => {
+      if (interaction.interaction_type === 'favorite') state.is_favorited = true;
+      if (interaction.interaction_type === 'reblog') state.is_reblogged = true;
+      if (interaction.interaction_type === 'bookmark') state.is_bookmarked = true;
+    });
+
+    return state;
   }
 }
 
