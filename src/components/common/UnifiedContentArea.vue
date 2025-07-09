@@ -30,6 +30,74 @@
         @load-more-posts="$emit('load-more-posts')"
       />
       
+      <!-- Bookmarks Mode -->
+      <div v-else-if="isBookmarksMode" class="bookmarks-content">
+        <div class="bookmarks-header">
+          <div class="header-content">
+            <h1 class="page-title">
+              <Icon name="bookmark" />
+              Bookmarks
+            </h1>
+            <p class="page-subtitle">Posts you've saved for later</p>
+          </div>
+          
+          <!-- Clear All Button -->
+          <button 
+            v-if="bookmarkedPosts && bookmarkedPosts.length > 0"
+            @click="$emit('clear-all-bookmarks')"
+            class="clear-all-btn"
+          >
+            <Icon name="trash" />
+            Clear All
+          </button>
+        </div>
+
+        <div class="timeline-feed">
+          <!-- Loading State -->
+          <div v-if="isLoadingFeed && (!bookmarkedPosts || bookmarkedPosts.length === 0)" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>Loading your bookmarks...</p>
+          </div>
+
+          <!-- Empty State -->
+          <div v-else-if="!isLoadingFeed && (!bookmarkedPosts || bookmarkedPosts.length === 0)" class="empty-state">
+            <Icon name="bookmark" :size="48" />
+            <h3>No bookmarks yet</h3>
+            <p>Posts you bookmark will appear here for easy access later.</p>
+            <button @click="$emit('switch-feed', 'home')" class="explore-btn">
+              Browse Timeline
+            </button>
+          </div>
+
+          <!-- Bookmarked Posts -->
+          <div v-else class="posts-container">
+            <MonyPost
+              v-for="post in bookmarkedPosts"
+              :key="post.id"
+              :post="post"
+              @reply="$emit('reply-to-post', $event)"
+              @favorite="$emit('favorite-post', $event)"
+              @reblog="$emit('reblog-post', $event)"
+              @bookmark="$emit('bookmark-post', $event)"
+              @delete="$emit('delete-post', $event)"
+              @user-click="$emit('show-user-profile', $event)"
+            />
+
+            <!-- Load More -->
+            <div v-if="hasMoreBookmarks" class="load-more-container">
+              <button
+                @click="$emit('load-more-bookmarks')"
+                :disabled="isLoadingFeed"
+                class="load-more-btn"
+              >
+                <Icon v-if="isLoadingFeed" name="loader" class="spinning" />
+                <span>{{ isLoadingFeed ? 'Loading...' : 'Load More' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <!-- Timeline Mode -->
       <div v-else class="mony-content">
         <!-- New Post Composer (Inline) -->
@@ -117,6 +185,11 @@ interface Props {
   isProfileMode?: boolean;
   profileUser?: FederatedUser | null;
   profileHandle?: string;
+  
+  // Bookmarks mode props
+  isBookmarksMode?: boolean;
+  bookmarkedPosts?: TimelinePost[];
+  hasMoreBookmarks?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -129,7 +202,10 @@ const props = withDefaults(defineProps<Props>(), {
   hasMorePosts: false,
   isProfileMode: false,
   profileUser: null,
-  profileHandle: undefined
+  profileHandle: undefined,
+  isBookmarksMode: false,
+  bookmarkedPosts: () => [],
+  hasMoreBookmarks: false
 });
 
 defineEmits<{
@@ -145,6 +221,7 @@ defineEmits<{
   'reply-to-post': [post: TimelinePost];
   'favorite-post': [postId: string];
   'reblog-post': [postId: string];
+  'bookmark-post': [postId: string];
   'delete-post': [postId: string];
   'show-user-profile': [user: any];
   'load-more-posts': [];
@@ -152,6 +229,10 @@ defineEmits<{
   // Profile mode events
   'follow-user': [userId: string];
   'unfollow-user': [userId: string];
+  
+  // Bookmarks mode events
+  'clear-all-bookmarks': [];
+  'load-more-bookmarks': [];
 }>();
 
 const feedTabs = [
@@ -215,6 +296,69 @@ const getEmptyStateMessage = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+/* =============================================================================
+   BOOKMARKS COMPONENTS
+   ============================================================================= */
+
+.bookmarks-content {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--background-primary);
+}
+
+.bookmarks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-primary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-content {
+  flex: 1;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: var(--text-primary);
+}
+
+.page-subtitle {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.clear-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-all-btn:hover {
+  background: var(--background-hover);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
 }
 
 /* =============================================================================

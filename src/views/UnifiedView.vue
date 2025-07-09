@@ -105,6 +105,9 @@
           :is-profile-mode="isProfileMode"
           :profile-user="profileUser"
           :profile-handle="props.profileHandle"
+          :is-bookmarks-mode="isBookmarksMode"
+          :bookmarked-posts="bookmarkedPosts"
+          :has-more-bookmarks="hasMoreBookmarks"
           @load-more-messages="fetchMoreMessages"
           @update:is-at-bottom="isAtBottom = $event"
           @send-message="handleSendMessage"
@@ -114,11 +117,14 @@
           @reply-to-post="handleReplyToPost"
           @favorite-post="handleFavoritePost"
           @reblog-post="handleReblogPost"
+          @bookmark-post="handleBookmarkPost"
           @delete-post="handleDeletePost"
           @show-user-profile="handleShowUserProfile"
           @load-more-posts="handleLoadMorePosts"
           @follow-user="handleFollow"
           @unfollow-user="handleUnfollow"
+          @clear-all-bookmarks="handleClearAllBookmarks"
+          @load-more-bookmarks="handleLoadMoreBookmarks"
         />
         <!-- Right Sidebar -->
         <div class="right-sidebar-container" :class="{ 'mobile-open': isProfilesVisible }">
@@ -274,13 +280,15 @@ interface Props {
   mode?: 'chat' | 'activitypub';
   timeline?: 'home' | 'local' | 'public';
   profileHandle?: string;
+  isBookmarksMode?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isDM: false,
   mode: 'chat',
   timeline: 'home',
-  profileHandle: undefined
+  profileHandle: undefined,
+  isBookmarksMode: false
 });
 
 // Stores
@@ -300,7 +308,11 @@ const router = useRouter();
 const currentMode = ref<'chat' | 'activitypub'>(props.mode);
 const currentFeed = ref<'home' | 'local' | 'public'>(props.timeline);
 const isProfileMode = ref(!!props.profileHandle);
+const isBookmarksMode = ref(!!props.isBookmarksMode);
 const profileUser = ref<FederatedUser | null>(null);
+const bookmarkedPosts = ref<TimelinePost[]>([]);
+const hasMoreBookmarks = ref(false);
+const bookmarksCursor = ref<string | null>(null);
 
 // App initialization state
 const isAppInitialized = ref(false);
@@ -617,6 +629,57 @@ const handleReblogPost = async (postId: string) => {
 
 const handleDeletePost = async (postId: string) => {
   console.log('Delete post:', postId);
+};
+
+const handleBookmarkPost = async (postId: string) => {
+  try {
+    await activityPubStore.toggleBookmark(postId);
+    // If we're in bookmarks mode, refresh the bookmarks
+    if (isBookmarksMode.value) {
+      await loadBookmarks();
+    }
+  } catch (error) {
+    console.error('Failed to toggle bookmark:', error);
+  }
+};
+
+const handleClearAllBookmarks = async () => {
+  try {
+    await activityPubStore.clearAllBookmarks();
+    bookmarkedPosts.value = [];
+    hasMoreBookmarks.value = false;
+    bookmarksCursor.value = null;
+    toast.success('All bookmarks cleared');
+  } catch (error) {
+    console.error('Failed to clear bookmarks:', error);
+    toast.error('Failed to clear bookmarks');
+  }
+};
+
+const handleLoadMoreBookmarks = async () => {
+  try {
+    const result = await activityPubStore.getBookmarks({
+      limit: 20,
+      cursor: bookmarksCursor.value
+    });
+    
+    bookmarkedPosts.value.push(...result.posts);
+    bookmarksCursor.value = result.cursor;
+    hasMoreBookmarks.value = result.hasMore;
+  } catch (error) {
+    console.error('Failed to load more bookmarks:', error);
+  }
+};
+
+const loadBookmarks = async () => {
+  try {
+    const result = await activityPubStore.getBookmarks({ limit: 20 });
+    bookmarkedPosts.value = result.posts;
+    bookmarksCursor.value = result.cursor;
+    hasMoreBookmarks.value = result.hasMore;
+  } catch (error) {
+    console.error('Failed to load bookmarks:', error);
+  }
 };
 
 const handleLoadMorePosts = async () => {
@@ -973,7 +1036,11 @@ onMounted(async () => {
   
   // Load initial data based on mode
   if (currentMode.value === 'activitypub') {
-    await loadTimeline();
+    if (isBookmarksMode.value) {
+      await loadBookmarks();
+    } else {
+      await loadTimeline();
+    }
   }
 });
 

@@ -48,6 +48,30 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/social/bookmarks',
+      name: 'Bookmarks',
+      component: UnifiedView,
+      props: { 
+        mode: 'activitypub',
+        isBookmarksMode: true
+      },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/social/followers',
+      name: 'Followers',
+      component: () => import('@/views/FollowersView.vue'),
+      props: { viewType: 'followers' },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/social/following',
+      name: 'Following',
+      component: () => import('@/views/FollowersView.vue'),
+      props: { viewType: 'following' },
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/social/:timeline?',
       name: 'Social',
       component: UnifiedView,
