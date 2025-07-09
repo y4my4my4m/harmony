@@ -53,8 +53,39 @@ const router = createRouter({
       component: UnifiedView,
       props: { 
         mode: 'activitypub',
-        isBookmarksMode: true
+        viewType: 'bookmarks'
       },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/social/notifications',
+      name: 'Notifications',
+      component: UnifiedView,
+      props: { 
+        mode: 'activitypub',
+        viewType: 'notifications'
+      },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/social/lists',
+      name: 'Lists',
+      component: UnifiedView,
+      props: { 
+        mode: 'activitypub',
+        viewType: 'lists'
+      },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/u/:handle',
+      name: 'UserProfile',
+      component: UnifiedView,
+      props: route => ({
+        mode: 'activitypub',
+        viewType: 'profile',
+        profileHandle: route.params.handle
+      }),
       meta: { requiresAuth: true },
     },
     {

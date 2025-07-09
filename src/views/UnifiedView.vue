@@ -98,16 +98,15 @@
           :chat-messages="chatMessages"
           :is-loading="isLoading"
           :is-d-m="isDM"
+          :view-type="currentViewType"
           :current-feed="currentFeed"
           :posts="posts"
           :is-loading-feed="isLoadingFeed"
           :has-more-posts="hasMorePosts"
-          :is-profile-mode="isProfileMode"
           :profile-user="profileUser"
           :profile-handle="props.profileHandle"
-          :is-bookmarks-mode="isBookmarksMode"
-          :bookmarked-posts="bookmarkedPosts"
-          :has-more-bookmarks="hasMoreBookmarks"
+          :special-view-data="specialViewData"
+          :has-more-special-data="hasMoreSpecialData"
           @load-more-messages="fetchMoreMessages"
           @update:is-at-bottom="isAtBottom = $event"
           @send-message="handleSendMessage"
@@ -124,7 +123,7 @@
           @follow-user="handleFollow"
           @unfollow-user="handleUnfollow"
           @clear-all-bookmarks="handleClearAllBookmarks"
-          @load-more-bookmarks="handleLoadMoreBookmarks"
+          @load-more-special-data="handleLoadMoreSpecialData"
         />
         <!-- Right Sidebar -->
         <div class="right-sidebar-container" :class="{ 'mobile-open': isProfilesVisible }">
@@ -280,7 +279,7 @@ interface Props {
   mode?: 'chat' | 'activitypub';
   timeline?: 'home' | 'local' | 'public';
   profileHandle?: string;
-  isBookmarksMode?: boolean;
+  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications';
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -288,7 +287,7 @@ const props = withDefaults(defineProps<Props>(), {
   mode: 'chat',
   timeline: 'home',
   profileHandle: undefined,
-  isBookmarksMode: false
+  viewType: 'timeline'
 });
 
 // Stores
@@ -307,12 +306,13 @@ const router = useRouter();
 // State Management
 const currentMode = ref<'chat' | 'activitypub'>(props.mode);
 const currentFeed = ref<'home' | 'local' | 'public'>(props.timeline);
-const isProfileMode = ref(!!props.profileHandle);
-const isBookmarksMode = ref(!!props.isBookmarksMode);
+const currentViewType = ref<'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications'>(
+  props.viewType || (props.profileHandle ? 'profile' : 'timeline')
+);
 const profileUser = ref<FederatedUser | null>(null);
-const bookmarkedPosts = ref<TimelinePost[]>([]);
-const hasMoreBookmarks = ref(false);
-const bookmarksCursor = ref<string | null>(null);
+const specialViewData = ref<TimelinePost[]>([]);
+const hasMoreSpecialData = ref(false);
+const specialViewCursor = ref<string | null>(null);
 
 // App initialization state
 const isAppInitialized = ref(false);
@@ -443,14 +443,19 @@ const handleSwitchMode = async (mode: 'chat' | 'activitypub') => {
       await router.push({ name: 'Chat' });
     }
   } else {
-    // Navigate to ActivityPub route
-    await router.push({ 
-      name: 'Social', 
-      params: { timeline: currentFeed.value } 
-    });
+    // Only navigate to default Social route if we're not already on an ActivityPub route
+    const currentRoute = route.name;
+    const isActivityPubRoute = ['Social', 'Monyverse', 'UserProfile', 'Bookmarks', 'Notifications', 'Lists'].includes(currentRoute as string);
     
-    // Load ActivityPub data if needed
-    await loadTimeline();
+    if (!isActivityPubRoute) {
+      // Navigate to default ActivityPub route (home timeline)
+      await router.push({ 
+        name: 'Social', 
+        params: { timeline: 'home' } 
+      });
+      await loadTimeline();
+    }
+    // If already on an ActivityPub route, just update the mode without navigation
   }
 };
 
@@ -634,9 +639,9 @@ const handleDeletePost = async (postId: string) => {
 const handleBookmarkPost = async (postId: string) => {
   try {
     await activityPubStore.toggleBookmark(postId);
-    // If we're in bookmarks mode, refresh the bookmarks
-    if (isBookmarksMode.value) {
-      await loadBookmarks();
+    // If we're in bookmarks view, refresh the data
+    if (currentViewType.value === 'bookmarks') {
+      await loadSpecialViewData();
     }
   } catch (error) {
     console.error('Failed to toggle bookmark:', error);
@@ -646,9 +651,9 @@ const handleBookmarkPost = async (postId: string) => {
 const handleClearAllBookmarks = async () => {
   try {
     await activityPubStore.clearAllBookmarks();
-    bookmarkedPosts.value = [];
-    hasMoreBookmarks.value = false;
-    bookmarksCursor.value = null;
+    specialViewData.value = [];
+    hasMoreSpecialData.value = false;
+    specialViewCursor.value = null;
     toast.success('All bookmarks cleared');
   } catch (error) {
     console.error('Failed to clear bookmarks:', error);
@@ -656,29 +661,35 @@ const handleClearAllBookmarks = async () => {
   }
 };
 
-const handleLoadMoreBookmarks = async () => {
+const handleLoadMoreSpecialData = async () => {
   try {
-    const result = await activityPubStore.getBookmarks({
-      limit: 20,
-      cursor: bookmarksCursor.value
-    });
-    
-    bookmarkedPosts.value.push(...result.posts);
-    bookmarksCursor.value = result.cursor;
-    hasMoreBookmarks.value = result.hasMore;
+    if (currentViewType.value === 'bookmarks') {
+      const result = await activityPubStore.getBookmarks({
+        limit: 20,
+        cursor: specialViewCursor.value
+      });
+      
+      specialViewData.value.push(...result.posts);
+      specialViewCursor.value = result.cursor;
+      hasMoreSpecialData.value = result.hasMore;
+    }
+    // TODO: Add handlers for other view types (lists, notifications, etc.)
   } catch (error) {
-    console.error('Failed to load more bookmarks:', error);
+    console.error('Failed to load more special data:', error);
   }
 };
 
-const loadBookmarks = async () => {
+const loadSpecialViewData = async () => {
   try {
-    const result = await activityPubStore.getBookmarks({ limit: 20 });
-    bookmarkedPosts.value = result.posts;
-    bookmarksCursor.value = result.cursor;
-    hasMoreBookmarks.value = result.hasMore;
+    if (currentViewType.value === 'bookmarks') {
+      const result = await activityPubStore.getBookmarks({ limit: 20 });
+      specialViewData.value = result.posts;
+      specialViewCursor.value = result.cursor;
+      hasMoreSpecialData.value = result.hasMore;
+    }
+    // TODO: Add handlers for other view types (lists, notifications, etc.)
   } catch (error) {
-    console.error('Failed to load bookmarks:', error);
+    console.error('Failed to load special view data:', error);
   }
 };
 
@@ -930,17 +941,37 @@ const loadProfileUser = async () => {
 watch(route, async () => {
   if (isAppInitialized.value) {
     // Update mode based on route
-    if (route.name === 'Social' || route.name === 'Monyverse' || route.name === 'UserProfile') {
+    const activityPubRoutes = ['Social', 'Monyverse', 'UserProfile', 'Bookmarks', 'Notifications', 'Lists'];
+    if (activityPubRoutes.includes(route.name as string)) {
       currentMode.value = 'activitypub';
-      if (route.params.timeline) {
-        currentFeed.value = route.params.timeline as 'home' | 'local' | 'public';
+      
+      // Update viewType and feed based on route
+      if (route.name === 'UserProfile') {
+        currentViewType.value = 'profile';
+      } else if (route.name === 'Bookmarks') {
+        currentViewType.value = 'bookmarks';
+      } else if (route.name === 'Notifications') {
+        currentViewType.value = 'notifications';
+      } else if (route.name === 'Lists') {
+        currentViewType.value = 'lists';
+      } else {
+        currentViewType.value = 'timeline';
+        if (route.params.timeline) {
+          currentFeed.value = route.params.timeline as 'home' | 'local' | 'public';
+        }
       }
-      // Load timeline for Social/Monyverse routes, but not for UserProfile (it loads profile data)
-      if (route.name === 'Social' || route.name === 'Monyverse') {
+      
+      // Load appropriate data based on viewType
+      if (currentViewType.value === 'timeline') {
         await loadTimeline();
+      } else if (currentViewType.value === 'profile') {
+        await loadProfileUser();
+      } else {
+        await loadSpecialViewData();
       }
     } else {
       currentMode.value = 'chat';
+      currentViewType.value = 'timeline';
     }
     
     // Load server/channel data for chat routes only
@@ -960,6 +991,13 @@ watch(() => props.timeline, (newTimeline) => {
   currentFeed.value = newTimeline;
 }, { immediate: true });
 
+// Watch for viewType changes from props
+watch(() => props.viewType, (newViewType) => {
+  if (newViewType) {
+    currentViewType.value = newViewType;
+  }
+}, { immediate: true });
+
 // Watch for server list changes to automatically navigate to new servers
 watch(() => servers.value.length, (newLength, oldLength) => {
   // If servers were added (user joined a new server)
@@ -976,8 +1014,8 @@ watch(() => servers.value.length, (newLength, oldLength) => {
 
 // Watch for profile handle changes
 watch(() => props.profileHandle, async (newHandle) => {
-  isProfileMode.value = !!newHandle;
   if (newHandle) {
+    currentViewType.value = 'profile';
     await loadProfileUser();
   } else {
     profileUser.value = null;
@@ -1036,10 +1074,12 @@ onMounted(async () => {
   
   // Load initial data based on mode
   if (currentMode.value === 'activitypub') {
-    if (isBookmarksMode.value) {
-      await loadBookmarks();
-    } else {
+    if (currentViewType.value === 'timeline') {
       await loadTimeline();
+    } else if (currentViewType.value === 'profile') {
+      await loadProfileUser();
+    } else {
+      await loadSpecialViewData();
     }
   }
 });

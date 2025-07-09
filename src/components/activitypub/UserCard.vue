@@ -3,11 +3,10 @@
   <div class="user-card" :class="{ compact: isCompact }">
     <!-- User Avatar and Basic Info -->
     <div class="user-info" @click="handleUserClick">
-      <img 
-        :src="user.avatar_url || '/default_avatar.png'" 
+      <Avatar 
+        :src="user.avatar_url" 
         :alt="user.display_name"
         class="user-avatar"
-        loading="lazy"
       />
       
       <div class="user-details">
@@ -116,6 +115,7 @@ import { useActivityPubStore } from '@/stores/activitypub';
 import { useAuthStore } from '@/stores/auth';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '@/components/common/Avatar.vue';
 
 // Props
 interface Props {

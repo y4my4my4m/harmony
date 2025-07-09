@@ -14,9 +14,9 @@
     
     <!-- ActivityPub Mode Content -->
     <div v-else-if="mode === 'activitypub'" class="content-section activitypub-content">
-      <!-- Profile Mode -->
+      <!-- Profile View -->
       <ProfileDisplay 
-        v-if="isProfileMode"
+        v-if="viewType === 'profile'"
         :user="profileUser"
         :posts="[]"
         :loading="false"
@@ -30,20 +30,20 @@
         @load-more-posts="$emit('load-more-posts')"
       />
       
-      <!-- Bookmarks Mode -->
-      <div v-else-if="isBookmarksMode" class="bookmarks-content">
-        <div class="bookmarks-header">
+      <!-- Special Views (Bookmarks, Lists, etc.) -->
+      <div v-else-if="viewType !== 'timeline'" class="special-view-content">
+        <div class="special-view-header">
           <div class="header-content">
             <h1 class="page-title">
-              <Icon name="bookmark" />
-              Bookmarks
+              <Icon :name="getViewIcon(viewType)" />
+              {{ getViewTitle(viewType) }}
             </h1>
-            <p class="page-subtitle">Posts you've saved for later</p>
+            <p class="page-subtitle">{{ getViewSubtitle(viewType) }}</p>
           </div>
           
-          <!-- Clear All Button -->
+          <!-- Clear All Button (for bookmarks) -->
           <button 
-            v-if="bookmarkedPosts && bookmarkedPosts.length > 0"
+            v-if="viewType === 'bookmarks' && specialViewData && specialViewData.length > 0"
             @click="$emit('clear-all-bookmarks')"
             class="clear-all-btn"
           >
@@ -54,25 +54,29 @@
 
         <div class="timeline-feed">
           <!-- Loading State -->
-          <div v-if="isLoadingFeed && (!bookmarkedPosts || bookmarkedPosts.length === 0)" class="loading-state">
+          <div v-if="isLoadingFeed && (!specialViewData || specialViewData.length === 0)" class="loading-state">
             <div class="loading-spinner"></div>
-            <p>Loading your bookmarks...</p>
+            <p>Loading your {{ viewType }}...</p>
           </div>
 
           <!-- Empty State -->
-          <div v-else-if="!isLoadingFeed && (!bookmarkedPosts || bookmarkedPosts.length === 0)" class="empty-state">
-            <Icon name="bookmark" :size="48" />
-            <h3>No bookmarks yet</h3>
-            <p>Posts you bookmark will appear here for easy access later.</p>
-            <button @click="$emit('switch-feed', 'home')" class="explore-btn">
+          <div v-else-if="!isLoadingFeed && (!specialViewData || specialViewData.length === 0)" class="empty-state">
+            <Icon :name="getViewIcon(viewType)" :size="48" />
+            <h3>{{ getEmptyStateTitle(viewType) }}</h3>
+            <p>{{ getSpecialViewEmptyMessage(viewType) }}</p>
+            <button 
+              v-if="viewType === 'bookmarks'"
+              @click="$emit('switch-feed', 'home')" 
+              class="explore-btn"
+            >
               Browse Timeline
             </button>
           </div>
 
-          <!-- Bookmarked Posts -->
+          <!-- Posts -->
           <div v-else class="posts-container">
             <MonyPost
-              v-for="post in bookmarkedPosts"
+              v-for="post in specialViewData"
               :key="post.id"
               :post="post"
               @reply="$emit('reply-to-post', $event)"
@@ -84,9 +88,9 @@
             />
 
             <!-- Load More -->
-            <div v-if="hasMoreBookmarks" class="load-more-container">
+            <div v-if="hasMoreSpecialData" class="load-more-container">
               <button
-                @click="$emit('load-more-bookmarks')"
+                @click="$emit('load-more-special-data')"
                 :disabled="isLoadingFeed"
                 class="load-more-btn"
               >
@@ -98,7 +102,7 @@
         </div>
       </div>
       
-      <!-- Timeline Mode -->
+      <!-- Timeline View -->
       <div v-else class="mony-content">
         <!-- New Post Composer (Inline) -->
         <div v-if="currentFeed === 'home'" class="inline-composer">
@@ -176,36 +180,32 @@ interface Props {
   isDM?: boolean;
   
   // ActivityPub mode props
+  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications';
   currentFeed?: 'home' | 'local' | 'public';
   posts?: TimelinePost[];
   isLoadingFeed?: boolean;
   hasMorePosts?: boolean;
   
-  // Profile mode props
-  isProfileMode?: boolean;
+  // Special view props (profile, bookmarks, etc.)
   profileUser?: FederatedUser | null;
   profileHandle?: string;
-  
-  // Bookmarks mode props
-  isBookmarksMode?: boolean;
-  bookmarkedPosts?: TimelinePost[];
-  hasMoreBookmarks?: boolean;
+  specialViewData?: TimelinePost[]; // Generic data for bookmarks, lists, etc.
+  hasMoreSpecialData?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   chatMessages: () => [],
   isLoading: false,
   isDM: false,
+  viewType: 'timeline',
   currentFeed: 'home',
   posts: () => [],
   isLoadingFeed: false,
   hasMorePosts: false,
-  isProfileMode: false,
   profileUser: null,
   profileHandle: undefined,
-  isBookmarksMode: false,
-  bookmarkedPosts: () => [],
-  hasMoreBookmarks: false
+  specialViewData: () => [],
+  hasMoreSpecialData: false
 });
 
 defineEmits<{
@@ -230,9 +230,9 @@ defineEmits<{
   'follow-user': [userId: string];
   'unfollow-user': [userId: string];
   
-  // Bookmarks mode events
+  // Special view events
   'clear-all-bookmarks': [];
-  'load-more-bookmarks': [];
+  'load-more-special-data': [];
 }>();
 
 const feedTabs = [
@@ -256,6 +256,78 @@ const getEmptyStateMessage = () => {
       return 'No local posts yet from this instance.';
     default:
       return 'No posts found.';
+  }
+};
+
+// Helper functions for special views
+const getViewIcon = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'bookmark';
+    case 'lists':
+      return 'list';
+    case 'notifications':
+      return 'bell';
+    case 'profile':
+      return 'user';
+    default:
+      return 'home';
+  }
+};
+
+const getViewTitle = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'Bookmarks';
+    case 'lists':
+      return 'Lists';
+    case 'notifications':
+      return 'Notifications';
+    case 'profile':
+      return 'Profile';
+    default:
+      return 'Timeline';
+  }
+};
+
+const getViewSubtitle = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'Posts you\'ve saved for later';
+    case 'lists':
+      return 'Curated lists of users and topics';
+    case 'notifications':
+      return 'Stay updated with your activity';
+    case 'profile':
+      return 'Your profile and posts';
+    default:
+      return 'Your timeline';
+  }
+};
+
+const getEmptyStateTitle = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'No bookmarks yet';
+    case 'lists':
+      return 'No lists yet';
+    case 'notifications':
+      return 'No notifications yet';
+    default:
+      return 'Nothing here yet';
+  }
+};
+
+const getSpecialViewEmptyMessage = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'Posts you bookmark will appear here for easy access later.';
+    case 'lists':
+      return 'Create lists to organize users and topics you follow.';
+    case 'notifications':
+      return 'When someone interacts with your posts, you\'ll see it here.';
+    default:
+      return 'Content will appear here when available.';
   }
 };
 </script>
@@ -299,16 +371,16 @@ const getEmptyStateMessage = () => {
 }
 
 /* =============================================================================
-   BOOKMARKS COMPONENTS
+   SPECIAL VIEW COMPONENTS (Bookmarks, Lists, Notifications, etc.)
    ============================================================================= */
 
-.bookmarks-content {
+.special-view-content {
   height: 100%;
   overflow-y: auto;
   background: var(--background-primary);
 }
 
-.bookmarks-header {
+.special-view-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
