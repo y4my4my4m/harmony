@@ -182,7 +182,12 @@ const setActiveTab = (tabId: string) => {
 .profile-banner {
   height: 200px;
   background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary, #4752c4));
+  position: absolute;
+}
+
+.profile-avatar-section {
   position: relative;
+  padding: 40px 0 20px 0;
 }
 
 .profile-info {
@@ -197,9 +202,6 @@ const setActiveTab = (tabId: string) => {
   background: var(--background-secondary);
 }
 
-.profile-details {
-  margin-top: 60px;
-}
 
 .profile-name {
   font-size: 24px;
