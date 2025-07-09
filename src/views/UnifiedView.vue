@@ -867,12 +867,15 @@ const loadProfileUser = async () => {
 watch(route, async () => {
   if (isAppInitialized.value) {
     // Update mode based on route
-    if (route.name === 'Social' || route.name === 'Monyverse') {
+    if (route.name === 'Social' || route.name === 'Monyverse' || route.name === 'UserProfile') {
       currentMode.value = 'activitypub';
       if (route.params.timeline) {
         currentFeed.value = route.params.timeline as 'home' | 'local' | 'public';
       }
-      await loadTimeline();
+      // Load timeline for Social/Monyverse routes, but not for UserProfile (it loads profile data)
+      if (route.name === 'Social' || route.name === 'Monyverse') {
+        await loadTimeline();
+      }
     } else {
       currentMode.value = 'chat';
     }
