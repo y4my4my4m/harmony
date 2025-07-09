@@ -266,7 +266,13 @@ export type NotificationType =
   | 'friend_request'
   | 'voice_channel_activity'
   | 'server_update'
-  | 'emoji_added';
+  | 'emoji_added'
+  | 'activitypub_follow'
+  | 'activitypub_favorite'
+  | 'activitypub_reblog'
+  | 'activitypub_mention'
+  | 'activitypub_reply'
+  | 'activitypub_follow_request';
 
 export interface NotificationData {
   message_id?: string;
@@ -281,6 +287,32 @@ export interface NotificationData {
   channel_name?: string;
   username?: string;
   display_name?: string;
+  
+  // ActivityPub specific data
+  post_id?: string;
+  post_content?: string;
+  post_url?: string;
+  follower_id?: string;
+  follower_username?: string;
+  follower_display_name?: string;
+  follower_avatar_url?: string;
+  follower_domain?: string;
+  follower_handle?: string;
+  follow_id?: string;
+  interaction_type?: 'favorite' | 'reblog' | 'bookmark';
+  interaction_id?: string;
+  mention_content?: string;
+  reply_content?: string;
+  activity_id?: string;
+  activity_type?: string;
+  timestamp?: string;
+  location?: {
+    server_id?: string;
+    channel_id?: string;
+    conversation_id?: string;
+    instance_domain?: string;
+  };
+  
   [key: string]: any;
 }
 
@@ -317,6 +349,31 @@ export interface NotificationPreferences {
   dnd_enabled: boolean;
   dnd_start_time: string;
   dnd_end_time: string;
+  
+  // ActivityPub notifications
+  activitypub_notifications: boolean;
+  activitypub_follows: boolean;
+  activitypub_favorites: boolean;
+  activitypub_reblogs: boolean;
+  activitypub_mentions: boolean;
+  activitypub_replies: boolean;
+  activitypub_follow_requests: boolean;
+  
+  // ActivityPub desktop notifications
+  activitypub_desktop_notifications: boolean;
+  activitypub_desktop_follows: boolean;
+  activitypub_desktop_favorites: boolean;
+  activitypub_desktop_reblogs: boolean;
+  activitypub_desktop_mentions: boolean;
+  activitypub_desktop_replies: boolean;
+  
+  // ActivityPub sound notifications
+  activitypub_sound_notifications: boolean;
+  activitypub_sound_follows: boolean;
+  activitypub_sound_favorites: boolean;
+  activitypub_sound_reblogs: boolean;
+  activitypub_sound_mentions: boolean;
+  activitypub_sound_replies: boolean;
   
   created_at: string;
   updated_at: string;

@@ -57,6 +57,31 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
     dnd_start_time TIME DEFAULT '22:00:00',
     dnd_end_time TIME DEFAULT '08:00:00',
     
+    -- ActivityPub notifications
+    activitypub_notifications BOOLEAN DEFAULT TRUE,
+    activitypub_follows BOOLEAN DEFAULT TRUE,
+    activitypub_favorites BOOLEAN DEFAULT TRUE,
+    activitypub_reblogs BOOLEAN DEFAULT TRUE,
+    activitypub_mentions BOOLEAN DEFAULT TRUE,
+    activitypub_replies BOOLEAN DEFAULT TRUE,
+    activitypub_follow_requests BOOLEAN DEFAULT TRUE,
+    
+    -- ActivityPub desktop notifications
+    activitypub_desktop_notifications BOOLEAN DEFAULT TRUE,
+    activitypub_desktop_follows BOOLEAN DEFAULT TRUE,
+    activitypub_desktop_favorites BOOLEAN DEFAULT FALSE,
+    activitypub_desktop_reblogs BOOLEAN DEFAULT FALSE,
+    activitypub_desktop_mentions BOOLEAN DEFAULT TRUE,
+    activitypub_desktop_replies BOOLEAN DEFAULT TRUE,
+    
+    -- ActivityPub sound notifications
+    activitypub_sound_notifications BOOLEAN DEFAULT TRUE,
+    activitypub_sound_follows BOOLEAN DEFAULT TRUE,
+    activitypub_sound_favorites BOOLEAN DEFAULT FALSE,
+    activitypub_sound_reblogs BOOLEAN DEFAULT FALSE,
+    activitypub_sound_mentions BOOLEAN DEFAULT TRUE,
+    activitypub_sound_replies BOOLEAN DEFAULT TRUE,
+    
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

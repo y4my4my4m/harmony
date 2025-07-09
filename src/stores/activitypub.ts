@@ -10,7 +10,8 @@ import type {
   TimelinePost, 
   PostComposerState, 
   MonyFeed,
-  FederatedUser
+  FederatedUser,
+  Notification
 } from '@/types';
 
 interface ActivityPubState {
@@ -24,6 +25,10 @@ interface ActivityPubState {
   followedUsers: Set<string>;
   blockedUsers: Set<string>;
   mutedUsers: Set<string>;
+  
+  // Count tracking for realtime updates
+  followingCount: number;
+  followersCount: number;
   
   // Instance state
   knownInstances: any[];
@@ -39,20 +44,42 @@ interface ActivityPubState {
   isLoadingPost: boolean;
   isLoadingProfile: boolean;
   isPosting: boolean;
+  
+  // Realtime subscriptions
+  realtimeSubscriptions: Map<string, any>;
+  
+  // Notification integration
+  lastNotificationCheck: Date | null;
 }
 
 export const useActivityPubStore = defineStore('activitypub', {
   state: (): ActivityPubState => ({
     // Feed state
-    homeFeed: { posts: [], has_more: true, cursor: undefined },
-    publicFeed: { posts: [], has_more: true, cursor: undefined },
-    localFeed: { posts: [], has_more: true, cursor: undefined },
+    homeFeed: {
+      posts: [],
+      has_more: true,
+      cursor: null
+    },
+    publicFeed: {
+      posts: [],
+      has_more: true,
+      cursor: null
+    },
+    localFeed: {
+      posts: [],
+      has_more: true,
+      cursor: null
+    },
     userFeeds: new Map(),
     
     // User state
     followedUsers: new Set(),
     blockedUsers: new Set(),
     mutedUsers: new Set(),
+    
+    // Count tracking
+    followingCount: 0,
+    followersCount: 0,
     
     // Instance state
     knownInstances: [],
@@ -63,11 +90,11 @@ export const useActivityPubStore = defineStore('activitypub', {
     composerState: {
       content: '',
       visibility: 'public',
-      content_warning: '',
-      in_reply_to: undefined,
-      media_attachments: [],
-      is_sensitive: false,
-      language: 'en'
+      contentWarning: undefined,
+      sensitive: false,
+      language: 'en',
+      replyTo: undefined,
+      mediaAttachments: []
     },
     selectedPost: undefined,
     
@@ -75,24 +102,28 @@ export const useActivityPubStore = defineStore('activitypub', {
     isLoadingFeed: false,
     isLoadingPost: false,
     isLoadingProfile: false,
-    isPosting: false
+    isPosting: false,
+    
+    // Realtime subscriptions
+    realtimeSubscriptions: new Map(),
+    
+    // Notification integration
+    lastNotificationCheck: null
   }),
 
   getters: {
     /**
-     * Get posts for a specific timeline
+     * Get formatted following count
      */
-    getTimelinePosts: (state) => (timeline: 'home' | 'public' | 'local') => {
-      switch (timeline) {
-        case 'home':
-          return state.homeFeed.posts;
-        case 'public':
-          return state.publicFeed.posts;
-        case 'local':
-          return state.localFeed.posts;
-        default:
-          return [];
-      }
+    formattedFollowingCount(): string {
+      return this.followingCount > 999 ? `${(this.followingCount / 1000).toFixed(1)}K` : this.followingCount.toString();
+    },
+
+    /**
+     * Get formatted followers count
+     */
+    formattedFollowersCount(): string {
+      return this.followersCount > 999 ? `${(this.followersCount / 1000).toFixed(1)}K` : this.followersCount.toString();
     },
 
     /**
@@ -117,26 +148,402 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Get unread count for notifications/new posts
+     * Get current user's federated stats
      */
-    unreadCount: () => {
-      // For now, return 0 - this will be implemented with notifications
-      return 0;
-    }
+    currentUserStats: (state) => ({
+      following: state.followingCount,
+      followers: state.followersCount,
+      posts: state.homeFeed.posts.filter(p => p.author_id === state.followedUsers.values().next().value).length
+    })
   },
 
   actions: {
     /**
-     * Initialize the ActivityPub store
+     * Initialize the ActivityPub store with enhanced realtime
      */
     async initialize() {
       try {
-        // Initialize federation service (no setup needed - singleton pattern)
+        console.log('🌐 Initializing ActivityPub store...');
+        
+        // Load user relationships and counts
         await this.loadFollowedUsers();
-        console.log('🌐 ActivityPub store initialized');
+        await this.loadFollowCounts();
+        await this.loadUserPreferences();
+        
+        // Setup comprehensive realtime subscriptions
+        this.setupEnhancedRealtimeSubscriptions();
+        
+        console.log('✅ ActivityPub store initialized successfully');
       } catch (error) {
         console.error('❌ Failed to initialize ActivityPub store:', error);
       }
+    },
+
+    /**
+     * Load follow counts for the current user
+     */
+    async loadFollowCounts() {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) return;
+
+        // Get following count
+        const { count: followingCount } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('follower_id', user.data.user.id)
+          .eq('status', 'accepted');
+
+        // Get followers count
+        const { count: followersCount } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', user.data.user.id)
+          .eq('status', 'accepted');
+
+        this.followingCount = followingCount || 0;
+        this.followersCount = followersCount || 0;
+
+        console.log(`📊 Follow counts loaded: ${this.followingCount} following, ${this.followersCount} followers`);
+      } catch (error) {
+        console.error('❌ Failed to load follow counts:', error);
+      }
+    },
+
+    /**
+     * Load user preferences for ActivityPub
+     */
+    async loadUserPreferences() {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) return;
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('activitypub_preferences')
+          .eq('id', user.data.user.id)
+          .single();
+
+        if (error) throw error;
+
+        // Store preferences in state if needed
+        console.log('⚙️ User preferences loaded');
+      } catch (error) {
+        console.error('❌ Failed to load user preferences:', error);
+      }
+    },
+
+    /**
+     * Setup enhanced realtime subscriptions for ActivityPub
+     */
+    setupEnhancedRealtimeSubscriptions() {
+      const user = supabase.auth.getUser();
+      if (!user) return;
+
+      // Clean up existing subscriptions
+      this.cleanupRealtimeSubscriptions();
+
+      // Subscribe to posts updates
+      const postsChannel = supabase
+        .channel('activitypub_posts_enhanced')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'posts' },
+          (payload) => this.handleRealtimePostCreate(payload.new)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'posts' },
+          (payload) => this.handleRealtimePostUpdate(payload.new)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'posts' },
+          (payload) => this.handleRealtimePostDelete(payload.old)
+        )
+        .subscribe();
+
+      // Subscribe to follow relationship updates
+      const followsChannel = supabase
+        .channel('activitypub_follows_enhanced')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'follows' },
+          (payload) => this.handleRealtimeFollowCreate(payload.new)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'follows' },
+          (payload) => this.handleRealtimeFollowUpdate(payload.new)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'follows' },
+          (payload) => this.handleRealtimeFollowDelete(payload.old)
+        )
+        .subscribe();
+
+      // Subscribe to post interactions
+      const interactionsChannel = supabase
+        .channel('activitypub_interactions_enhanced')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'post_interactions' },
+          (payload) => this.handleRealtimeInteractionChange(payload)
+        )
+        .subscribe();
+
+      // Store subscriptions for cleanup
+      this.realtimeSubscriptions.set('posts', postsChannel);
+      this.realtimeSubscriptions.set('follows', followsChannel);
+      this.realtimeSubscriptions.set('interactions', interactionsChannel);
+
+      console.log('🔔 Enhanced realtime subscriptions established');
+    },
+
+    /**
+     * Handle realtime post creation
+     */
+    handleRealtimePostCreate(post: any) {
+      console.log('📝 New post received:', post);
+      
+      const timelinePost = this.transformDatabasePostToTimelinePost(post);
+      
+      // Add to public feed if public
+      if (post.visibility === 'public') {
+        this.publicFeed.posts.unshift(timelinePost);
+        // Limit feed size
+        if (this.publicFeed.posts.length > 100) {
+          this.publicFeed.posts = this.publicFeed.posts.slice(0, 100);
+        }
+      }
+      
+      // Add to local feed if local
+      if (post.is_local && post.visibility === 'public') {
+        this.localFeed.posts.unshift(timelinePost);
+        if (this.localFeed.posts.length > 100) {
+          this.localFeed.posts = this.localFeed.posts.slice(0, 100);
+        }
+      }
+      
+      // Add to home feed if following the author
+      if (this.followedUsers.has(post.author_id)) {
+        this.homeFeed.posts.unshift(timelinePost);
+        if (this.homeFeed.posts.length > 100) {
+          this.homeFeed.posts = this.homeFeed.posts.slice(0, 100);
+        }
+      }
+    },
+
+    /**
+     * Handle realtime post updates
+     */
+    handleRealtimePostUpdate(post: any) {
+      console.log('📝 Post updated:', post);
+      
+      const timelinePost = this.transformDatabasePostToTimelinePost(post);
+      this.updatePostInAllFeeds(timelinePost);
+    },
+
+    /**
+     * Handle realtime post deletion
+     */
+    handleRealtimePostDelete(post: any) {
+      console.log('🗑️ Post deleted:', post);
+      
+      this.removePostFromAllFeeds(post.id);
+    },
+
+    /**
+     * Handle realtime follow creation
+     */
+    async handleRealtimeFollowCreate(follow: any) {
+      console.log('👥 New follow relationship:', follow);
+      
+      const currentUser = await supabase.auth.getUser();
+      if (!currentUser.data.user) return;
+
+      // Update counts based on relationship
+      if (follow.follower_id === currentUser.data.user.id) {
+        // Current user started following someone
+        this.followingCount++;
+        this.followedUsers.add(follow.following_id);
+      } else if (follow.following_id === currentUser.data.user.id) {
+        // Someone started following current user
+        this.followersCount++;
+        
+        // Create notification for new follower
+        this.createFollowNotification(follow);
+      }
+    },
+
+    /**
+     * Handle realtime follow updates (status changes)
+     */
+    async handleRealtimeFollowUpdate(follow: any) {
+      console.log('👥 Follow relationship updated:', follow);
+      
+      const currentUser = await supabase.auth.getUser();
+      if (!currentUser.data.user) return;
+
+      // Handle status changes (accepted/rejected)
+      if (follow.status === 'accepted') {
+        if (follow.follower_id === currentUser.data.user.id) {
+          this.followedUsers.add(follow.following_id);
+        }
+      } else if (follow.status === 'rejected') {
+        if (follow.follower_id === currentUser.data.user.id) {
+          this.followedUsers.delete(follow.following_id);
+        }
+      }
+    },
+
+    /**
+     * Handle realtime follow deletion
+     */
+    async handleRealtimeFollowDelete(follow: any) {
+      console.log('👥 Follow relationship deleted:', follow);
+      
+      const currentUser = await supabase.auth.getUser();
+      if (!currentUser.data.user) return;
+
+      // Update counts based on relationship
+      if (follow.follower_id === currentUser.data.user.id) {
+        // Current user unfollowed someone
+        this.followingCount--;
+        this.followedUsers.delete(follow.following_id);
+      } else if (follow.following_id === currentUser.data.user.id) {
+        // Someone unfollowed current user
+        this.followersCount--;
+      }
+    },
+
+    /**
+     * Handle realtime interaction changes
+     */
+    handleRealtimeInteractionChange(payload: any) {
+      console.log('💫 Interaction changed:', payload);
+      
+      const interaction = payload.new || payload.old;
+      if (!interaction) return;
+
+      // Update interaction counts in posts
+      this.updatePostInteractionCounts(interaction.post_id, interaction.type, payload.eventType);
+    },
+
+    /**
+     * Create notification for new follower
+     */
+    async createFollowNotification(follow: any) {
+      try {
+        // Get follower profile
+        const { data: follower } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', follow.follower_id)
+          .single();
+
+        if (!follower) return;
+
+        // Create notification
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: follow.following_id,
+            type: 'activitypub_follow',
+            title: 'New Follower',
+            message: `${follower.display_name || follower.username} started following you`,
+            data: {
+              follower_id: follow.follower_id,
+              follower_username: follower.username,
+              follower_display_name: follower.display_name,
+              follower_avatar_url: follower.avatar_url,
+              follow_id: follow.id,
+              timestamp: new Date().toISOString()
+            },
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+          });
+
+        console.log('🔔 Follow notification created');
+      } catch (error) {
+        console.error('❌ Failed to create follow notification:', error);
+      }
+    },
+
+    /**
+     * Update post interaction counts
+     */
+    updatePostInteractionCounts(postId: string, interactionType: string, eventType: string) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
+          
+          switch (interactionType) {
+            case 'favorite':
+              post.favorites_count = Math.max(0, post.favorites_count + delta);
+              break;
+            case 'reblog':
+              post.reblogs_count = Math.max(0, post.reblogs_count + delta);
+              break;
+            case 'reply':
+              post.replies_count = Math.max(0, post.replies_count + delta);
+              break;
+          }
+        }
+      });
+    },
+
+    /**
+     * Update post in all feeds
+     */
+    updatePostInAllFeeds(post: TimelinePost) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const index = feed.posts.findIndex(p => p.id === post.id);
+        if (index !== -1) {
+          feed.posts[index] = post;
+        }
+      });
+      
+      // Update in user feeds
+      this.userFeeds.forEach(feed => {
+        const index = feed.posts.findIndex(p => p.id === post.id);
+        if (index !== -1) {
+          feed.posts[index] = post;
+        }
+      });
+    },
+
+    /**
+     * Remove post from all feeds
+     */
+    removePostFromAllFeeds(postId: string) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        feed.posts = feed.posts.filter(p => p.id !== postId);
+      });
+      
+      // Remove from user feeds
+      this.userFeeds.forEach(feed => {
+        feed.posts = feed.posts.filter(p => p.id !== postId);
+      });
+    },
+
+    /**
+     * Clean up realtime subscriptions
+     */
+    cleanupRealtimeSubscriptions() {
+      this.realtimeSubscriptions.forEach((channel, key) => {
+        supabase.removeChannel(channel);
+      });
+      this.realtimeSubscriptions.clear();
+      
+      console.log('🧹 Realtime subscriptions cleaned up');
     },
 
     /**
@@ -434,48 +841,6 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Transform database post to timeline post
-     */
-    transformDatabasePostToTimelinePost(dbPost: any): TimelinePost {
-      return {
-        id: dbPost.id,
-        created_at: dbPost.created_at,
-        updated_at: dbPost.updated_at,
-        content: dbPost.content,
-        content_warning: dbPost.content_warning,
-        language: dbPost.language,
-        author_id: dbPost.author_id,
-        ap_id: dbPost.ap_id,
-        ap_type: dbPost.ap_type,
-        url: dbPost.url,
-        in_reply_to: dbPost.in_reply_to,
-        conversation_id: dbPost.conversation_id,
-        visibility: dbPost.visibility,
-        is_local: dbPost.is_local,
-        is_federated: dbPost.is_federated,
-        replies_count: dbPost.replies_count,
-        reblogs_count: dbPost.reblogs_count,
-        favorites_count: dbPost.favorites_count,
-        media_attachments: dbPost.media_attachments,
-        metadata: dbPost.metadata,
-        is_sensitive: dbPost.is_sensitive,
-        is_deleted: dbPost.is_deleted,
-        deleted_at: dbPost.deleted_at,
-        author: {
-          id: dbPost.author.id,
-          username: dbPost.author.username,
-          display_name: dbPost.author.display_name,
-          avatar_url: dbPost.author.avatar_url,
-          domain: dbPost.author.domain,
-          handle: `@${dbPost.author.username}${dbPost.author.domain !== 'har.mony.lol' ? '@' + dbPost.author.domain : ''}`
-        },
-        is_favorited: false,
-        is_reblogged: false,
-        is_bookmarked: false
-      };
-    },
-
-    /**
      * Transform RPC timeline result to TimelinePost
      */
     transformTimelineResultToTimelinePost(result: any): TimelinePost {
@@ -520,126 +885,313 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Load users that the current user follows
+     * Transform database post to TimelinePost
      */
-    async loadFollowedUsers() {
-      try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) return;
-
-        const { data, error } = await supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', user.data.user.id)
-          .eq('status', 'accepted');
-
-        if (error) throw error;
-
-        this.followedUsers = new Set(data.map(f => f.following_id));
-      } catch (error) {
-        console.error('Failed to load followed users:', error);
-      }
+    transformDatabasePostToTimelinePost(post: any): TimelinePost {
+      return {
+        id: post.id,
+        created_at: post.created_at,
+        updated_at: post.updated_at,
+        content: post.content,
+        content_warning: post.content_warning,
+        language: post.language || 'en',
+        author_id: post.author_id,
+        ap_id: post.ap_id,
+        ap_type: post.ap_type,
+        url: post.url,
+        in_reply_to: post.in_reply_to,
+        conversation_id: post.conversation_id,
+        visibility: post.visibility,
+        is_local: post.is_local,
+        is_federated: post.is_federated,
+        replies_count: post.replies_count || 0,
+        reblogs_count: post.reblogs_count || 0,
+        favorites_count: post.favorites_count || 0,
+        media_attachments: post.media_attachments || [],
+        metadata: post.metadata || {},
+        is_sensitive: post.is_sensitive,
+        is_deleted: post.is_deleted,
+        deleted_at: post.deleted_at,
+        author: post.author || {
+          id: post.author_id,
+          username: 'Unknown',
+          display_name: 'Unknown User',
+          avatar_url: '/default_avatar.png',
+          domain: 'local',
+          handle: '@unknown'
+        },
+        interactions: {
+          is_favorited: false,
+          is_reblogged: false,
+          is_bookmarked: false
+        }
+      };
     },
 
     /**
-     * Follow a user
+     * Update post interaction in local state
      */
-    async followUser(userId: string) {
-      try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
-
-        const { data, error } = await supabase
-          .from('follows')
-          .insert({
-            follower_id: user.data.user.id,
-            following_id: userId,
-            status: 'accepted',
-            is_local: true
-          })
-          .select()
-          .single();
-
-        if (error) {
-          if (error.code === '23505') {
-            throw new Error('Already following this user');
+    updatePostInteraction(postId: string, type: 'favorite' | 'reblog' | 'bookmark', isActive: boolean) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          if (type === 'favorite') {
+            post.interactions.is_favorited = isActive;
+            post.favorites_count += isActive ? 1 : -1;
+          } else if (type === 'reblog') {
+            post.interactions.is_reblogged = isActive;
+            post.reblogs_count += isActive ? 1 : -1;
+          } else if (type === 'bookmark') {
+            post.interactions.is_bookmarked = isActive;
           }
+        }
+      });
+    },
+
+    /**
+     * Open composer
+     */
+    openComposer(options: Partial<PostComposerState> = {}) {
+      this.composerState = { ...this.composerState, ...options };
+      this.isComposerOpen = true;
+    },
+
+    /**
+     * Close composer
+     */
+         closeComposer() {
+       this.isComposerOpen = false;
+       this.composerState = {
+         content: '',
+         visibility: 'public',
+         contentWarning: undefined,
+         sensitive: false,
+         language: 'en',
+         replyTo: undefined,
+         mediaAttachments: []
+       };
+     },
+
+    /**
+     * Update composer state
+     */
+    updateComposer(updates: Partial<PostComposerState>) {
+      this.composerState = { ...this.composerState, ...updates };
+    },
+
+    /**
+     * Subscribe to real-time updates
+     */
+    subscribeToRealtimeUpdates() {
+      // Subscribe to new posts
+      supabase
+        .channel('activitypub_posts')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'posts' },
+          (payload) => {
+            console.log('New post received:', payload.new);
+            // TODO: Add to appropriate timelines based on visibility and following
+          }
+        )
+        .subscribe();
+
+      // Subscribe to post interactions
+      supabase
+        .channel('activitypub_interactions')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'post_interactions' },
+          (payload) => {
+            console.log('Post interaction update:', payload);
+            // TODO: Update post interaction counts
+          }
+        )
+        .subscribe();
+
+      // Subscribe to follow relationships
+      supabase
+        .channel('activitypub_follows')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'follows' },
+          (payload) => {
+            console.log('Follow relationship update:', payload);
+            // TODO: Update follow state
+          }
+        )
+        .subscribe();
+    },
+
+    /**
+     * Resolve a user handle to a user object
+     */
+    async resolveUserByHandle(handle: string): Promise<FederatedUser | null> {
+      try {
+        // Remove @ prefix if present
+        const cleanHandle = handle.startsWith('@') ? handle.substring(1) : handle;
+        
+        // Parse handle - can be "username" or "username@domain"
+        const parts = cleanHandle.split('@');
+        const username = parts[0];
+        const domain = parts[1] || 'har.mony.lol';
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('username', username)
+          .eq('domain', domain)
+          .single();
+        
+        if (error) {
+          if (error.code === 'PGRST116') return null; // Not found
           throw error;
         }
-
-        this.followedUsers.add(userId);
-
-        // TODO: Send ActivityPub Follow activity for remote users
+        
+        return {
+          id: data.id,
+          username: data.username,
+          display_name: data.display_name,
+          domain: data.domain,
+          avatar_url: data.avatar_url,
+          handle: domain === 'har.mony.lol' 
+            ? `@${username}`
+            : `@${username}@${domain}`,
+          is_local: data.is_local,
+          bio: data.about,
+          verified: false,
+          followers_count: 0,
+          following_count: 0,
+          posts_count: 0,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          about: data.about,
+          federated_id: data.federated_id,
+          public_key: data.public_key,
+          inbox_url: data.inbox_url,
+          outbox_url: data.outbox_url,
+          followers_url: data.followers_url,
+          following_url: data.following_url,
+          featured_url: data.featured_url,
+          last_synced_at: data.last_synced_at
+        } as FederatedUser;
       } catch (error) {
-        console.error('Failed to follow user:', error);
+        console.error('Failed to resolve user by handle:', error);
+        return null;
+      }
+    },
+
+    /**
+     * Get user by ID (for navigation from UUIDs)
+     */
+    async getUserById(userId: string): Promise<FederatedUser | null> {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (error) {
+          if (error.code === 'PGRST116') return null;
+          throw error;
+        }
+        
+        return {
+          id: data.id,
+          username: data.username,
+          display_name: data.display_name,
+          domain: data.domain,
+          avatar_url: data.avatar_url,
+          handle: data.domain === 'har.mony.lol' 
+            ? `@${data.username}`
+            : `@${data.username}@${data.domain}`,
+          is_local: data.is_local,
+          bio: data.about,
+          verified: false,
+          followers_count: 0,
+          following_count: 0,
+          posts_count: 0,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          about: data.about,
+          federated_id: data.federated_id,
+          public_key: data.public_key,
+          inbox_url: data.inbox_url,
+          outbox_url: data.outbox_url,
+          followers_url: data.followers_url,
+          following_url: data.following_url,
+          featured_url: data.featured_url,
+          last_synced_at: data.last_synced_at
+        } as FederatedUser;
+      } catch (error) {
+        console.error('Failed to get user by ID:', error);
+        return null;
+      }
+    },
+
+    /**
+     * Mute a user
+     */
+    async muteUser(userId: string) {
+      try {
+        // TODO: Implement mute API call
+        console.log('Muting user:', userId);
+        this.mutedUsers.add(userId);
+      } catch (error) {
+        console.error('Failed to mute user:', error);
         throw error;
       }
     },
 
     /**
-     * Unfollow a user
+     * Unmute a user
      */
-    async unfollowUser(userId: string) {
+    async unmuteUser(userId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
-
-        const { error } = await supabase
-          .from('follows')
-          .delete()
-          .eq('follower_id', user.data.user.id)
-          .eq('following_id', userId);
-
-        if (error) throw error;
-
-        this.followedUsers.delete(userId);
-
-        // TODO: Send ActivityPub Undo Follow activity for remote users
+        // TODO: Implement unmute API call
+        console.log('Unmuting user:', userId);
+        this.mutedUsers.delete(userId);
       } catch (error) {
-        console.error('Failed to unfollow user:', error);
+        console.error('Failed to unmute user:', error);
         throw error;
       }
     },
 
     /**
-     * Get followers count for a user
+     * Block a user
      */
-    async getFollowersCount(userId: string): Promise<number> {
+    async blockUser(userId: string) {
       try {
-        const { count, error } = await supabase
-          .from('follows')
-          .select('*', { count: 'exact', head: true })
-          .eq('following_id', userId)
-          .eq('status', 'accepted');
-
-        if (error) throw error;
-        return count || 0;
+        // TODO: Implement block API call
+        console.log('Blocking user:', userId);
+        this.blockedUsers.add(userId);
+        
+        // Also unfollow if following
+        if (this.followedUsers.has(userId)) {
+          await this.unfollowUser(userId);
+        }
       } catch (error) {
-        console.error('Failed to get followers count:', error);
-        return 0;
+        console.error('Failed to block user:', error);
+        throw error;
       }
     },
 
     /**
-     * Get following count for a user
+     * Unblock a user
      */
-    async getFollowingCount(userId: string): Promise<number> {
+    async unblockUser(userId: string) {
       try {
-        const { count, error } = await supabase
-          .from('follows')
-          .select('*', { count: 'exact', head: true })
-          .eq('follower_id', userId)
-          .eq('status', 'accepted');
-
-        if (error) throw error;
-        return count || 0;
+        // TODO: Implement unblock API call
+        console.log('Unblocking user:', userId);
+        this.blockedUsers.delete(userId);
       } catch (error) {
-        console.error('Failed to get following count:', error);
-        return 0;
+        console.error('Failed to unblock user:', error);
+        throw error;
       }
     },
-
-
 
     /**
      * Toggle post favorite (like)
@@ -883,281 +1435,134 @@ export const useActivityPubStore = defineStore('activitypub', {
       });
     },
 
-    /**
-     * Update post interaction in local state
-     */
-    updatePostInteraction(postId: string, type: 'favorite' | 'reblog' | 'bookmark', isActive: boolean) {
-      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
-      
-              feeds.forEach(feed => {
-          const post = feed.posts.find(p => p.id === postId);
-          if (post) {
-            if (type === 'favorite') {
-              post.is_favorited = isActive;
-              post.favorites_count += isActive ? 1 : -1;
-            } else if (type === 'reblog') {
-              post.is_reblogged = isActive;
-              post.reblogs_count += isActive ? 1 : -1;
-            } else if (type === 'bookmark') {
-              post.is_bookmarked = isActive;
-            }
-          }
-        });
-    },
+         /**
+      * Load users that the current user follows
+      */
+     async loadFollowedUsers() {
+       try {
+         const user = await supabase.auth.getUser();
+         if (!user.data.user) return;
 
-    /**
-     * Open the post composer
-     */
-    openComposer(options?: {
-      in_reply_to?: string;
-      content?: string;
-      visibility?: Post['visibility'];
-    }) {
-      this.isComposerOpen = true;
-      this.composerState = {
-        content: options?.content || '',
-        visibility: options?.visibility || 'public',
-        content_warning: '',
-        in_reply_to: options?.in_reply_to,
-        media_attachments: [],
-        is_sensitive: false,
-        language: 'en'
-      };
-    },
+         const { data, error } = await supabase
+           .from('follows')
+           .select('following_id')
+           .eq('follower_id', user.data.user.id)
+           .eq('status', 'accepted');
 
-    /**
-     * Close the post composer
-     */
-    closeComposer() {
-      this.isComposerOpen = false;
-      this.composerState = {
-        content: '',
-        visibility: 'public',
-        content_warning: '',
-        in_reply_to: undefined,
-        media_attachments: [],
-        is_sensitive: false,
-        language: 'en'
-      };
-    },
+         if (error) throw error;
 
-    /**
-     * Update composer state
-     */
-    updateComposer(updates: Partial<PostComposerState>) {
-      this.composerState = { ...this.composerState, ...updates };
-    },
+         this.followedUsers = new Set(data.map(f => f.following_id));
+       } catch (error) {
+         console.error('Failed to load followed users:', error);
+       }
+     },
 
-    /**
-     * Subscribe to real-time updates
-     */
-    subscribeToRealtimeUpdates() {
-      // Subscribe to new posts
-      supabase
-        .channel('activitypub_posts')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'posts' },
-          (payload) => {
-            console.log('New post received:', payload.new);
-            // TODO: Add to appropriate timelines based on visibility and following
-          }
-        )
-        .subscribe();
+     /**
+      * Follow a user
+      */
+     async followUser(userId: string) {
+       try {
+         const user = await supabase.auth.getUser();
+         if (!user.data.user) throw new Error('User not authenticated');
 
-      // Subscribe to post interactions
-      supabase
-        .channel('activitypub_interactions')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'post_interactions' },
-          (payload) => {
-            console.log('Post interaction update:', payload);
-            // TODO: Update post interaction counts
-          }
-        )
-        .subscribe();
+         const { data, error } = await supabase
+           .from('follows')
+           .insert({
+             follower_id: user.data.user.id,
+             following_id: userId,
+             status: 'accepted',
+             is_local: true
+           })
+           .select()
+           .single();
 
-      // Subscribe to follow relationships
-      supabase
-        .channel('activitypub_follows')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'follows' },
-          (payload) => {
-            console.log('Follow relationship update:', payload);
-            // TODO: Update follow state
-          }
-        )
-        .subscribe();
-    },
+         if (error) {
+           if (error.code === '23505') {
+             throw new Error('Already following this user');
+           }
+           throw error;
+         }
 
-    /**
-     * Resolve a user handle to a user object
-     */
-    async resolveUserByHandle(handle: string): Promise<FederatedUser | null> {
-      try {
-        // Remove @ prefix if present
-        const cleanHandle = handle.startsWith('@') ? handle.substring(1) : handle;
-        
-        // Parse handle - can be "username" or "username@domain"
-        const parts = cleanHandle.split('@');
-        const username = parts[0];
-        const domain = parts[1] || 'har.mony.lol';
-        
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('username', username)
-          .eq('domain', domain)
-          .single();
-        
-        if (error) {
-          if (error.code === 'PGRST116') return null; // Not found
-          throw error;
-        }
-        
-        return {
-          id: data.id,
-          username: data.username,
-          display_name: data.display_name,
-          domain: data.domain,
-          avatar_url: data.avatar_url,
-          handle: domain === 'har.mony.lol' 
-            ? `@${username}`
-            : `@${username}@${domain}`,
-          is_local: data.is_local,
-          bio: data.about,
-          verified: false,
-          followers_count: 0,
-          following_count: 0,
-          posts_count: 0,
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-          about: data.about,
-          federated_id: data.federated_id,
-          public_key: data.public_key,
-          inbox_url: data.inbox_url,
-          outbox_url: data.outbox_url,
-          followers_url: data.followers_url,
-          following_url: data.following_url,
-          featured_url: data.featured_url,
-          last_synced_at: data.last_synced_at
-        } as FederatedUser;
-      } catch (error) {
-        console.error('Failed to resolve user by handle:', error);
-        return null;
-      }
-    },
+         this.followedUsers.add(userId);
+         this.followingCount++;
 
-    /**
-     * Get user by ID (for navigation from UUIDs)
-     */
-    async getUserById(userId: string): Promise<FederatedUser | null> {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
-        
-        if (error) {
-          if (error.code === 'PGRST116') return null;
-          throw error;
-        }
-        
-        return {
-          id: data.id,
-          username: data.username,
-          display_name: data.display_name,
-          domain: data.domain,
-          avatar_url: data.avatar_url,
-          handle: data.domain === 'har.mony.lol' 
-            ? `@${data.username}`
-            : `@${data.username}@${data.domain}`,
-          is_local: data.is_local,
-          bio: data.about,
-          verified: false,
-          followers_count: 0,
-          following_count: 0,
-          posts_count: 0,
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-          about: data.about,
-          federated_id: data.federated_id,
-          public_key: data.public_key,
-          inbox_url: data.inbox_url,
-          outbox_url: data.outbox_url,
-          followers_url: data.followers_url,
-          following_url: data.following_url,
-          featured_url: data.featured_url,
-          last_synced_at: data.last_synced_at
-        } as FederatedUser;
-      } catch (error) {
-        console.error('Failed to get user by ID:', error);
-        return null;
-      }
-    },
+         // TODO: Send ActivityPub Follow activity for remote users
+       } catch (error) {
+         console.error('Failed to follow user:', error);
+         throw error;
+       }
+     },
 
-    /**
-     * Mute a user
-     */
-    async muteUser(userId: string) {
-      try {
-        // TODO: Implement mute API call
-        console.log('Muting user:', userId);
-        this.mutedUsers.add(userId);
-      } catch (error) {
-        console.error('Failed to mute user:', error);
-        throw error;
-      }
-    },
+     /**
+      * Unfollow a user
+      */
+     async unfollowUser(userId: string) {
+       try {
+         const user = await supabase.auth.getUser();
+         if (!user.data.user) throw new Error('User not authenticated');
 
-    /**
-     * Unmute a user
-     */
-    async unmuteUser(userId: string) {
-      try {
-        // TODO: Implement unmute API call
-        console.log('Unmuting user:', userId);
-        this.mutedUsers.delete(userId);
-      } catch (error) {
-        console.error('Failed to unmute user:', error);
-        throw error;
-      }
-    },
+         const { error } = await supabase
+           .from('follows')
+           .delete()
+           .eq('follower_id', user.data.user.id)
+           .eq('following_id', userId);
 
-    /**
-     * Block a user
-     */
-    async blockUser(userId: string) {
-      try {
-        // TODO: Implement block API call
-        console.log('Blocking user:', userId);
-        this.blockedUsers.add(userId);
-        
-        // Also unfollow if following
-        if (this.followedUsers.has(userId)) {
-          await this.unfollowUser(userId);
-        }
-      } catch (error) {
-        console.error('Failed to block user:', error);
-        throw error;
-      }
-    },
+         if (error) throw error;
 
-    /**
-     * Unblock a user
-     */
-    async unblockUser(userId: string) {
-      try {
-        // TODO: Implement unblock API call
-        console.log('Unblocking user:', userId);
-        this.blockedUsers.delete(userId);
-      } catch (error) {
-        console.error('Failed to unblock user:', error);
-        throw error;
-      }
-    }
-  }
-});
+         this.followedUsers.delete(userId);
+         this.followingCount--;
+
+         // TODO: Send ActivityPub Undo Follow activity for remote users
+       } catch (error) {
+         console.error('Failed to unfollow user:', error);
+         throw error;
+       }
+     },
+
+     /**
+      * Get followers count for a user
+      */
+     async getFollowersCount(userId: string): Promise<number> {
+       try {
+         const { count, error } = await supabase
+           .from('follows')
+           .select('*', { count: 'exact', head: true })
+           .eq('following_id', userId)
+           .eq('status', 'accepted');
+
+         if (error) throw error;
+         return count || 0;
+       } catch (error) {
+         console.error('Failed to get followers count:', error);
+         return 0;
+       }
+     },
+
+     /**
+      * Get following count for a user
+      */
+     async getFollowingCount(userId: string): Promise<number> {
+       try {
+         const { count, error } = await supabase
+           .from('follows')
+           .select('*', { count: 'exact', head: true })
+           .eq('follower_id', userId)
+           .eq('status', 'accepted');
+
+         if (error) throw error;
+         return count || 0;
+       } catch (error) {
+         console.error('Failed to get following count:', error);
+         return 0;
+       }
+     },
+
+     /**
+      * Cleanup store
+      */
+     cleanup() {
+       this.cleanupRealtimeSubscriptions();
+       console.log('🧹 ActivityPub store cleaned up');
+     }
+   }
+ });

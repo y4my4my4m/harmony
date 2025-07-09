@@ -37,7 +37,13 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   server_invite: 'server_invite',
   friend_request: 'friend_request',
   server_update: 'server_update',
-  emoji_added: 'emoji_added'
+  emoji_added: 'emoji_added',
+  activitypub_follow: 'friend_request',
+  activitypub_favorite: 'reaction',
+  activitypub_reblog: 'reaction',
+  activitypub_mention: 'mention',
+  activitypub_reply: 'reply',
+  activitypub_follow_request: 'friend_request'
 }
 
 // Default notification preferences
@@ -61,7 +67,32 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   email_digest_frequency: 'weekly' as const,
   dnd_enabled: false,
   dnd_start_time: '22:00:00',
-  dnd_end_time: '08:00:00'
+  dnd_end_time: '08:00:00',
+  
+  // ActivityPub notifications
+  activitypub_notifications: true,
+  activitypub_follows: true,
+  activitypub_favorites: true,
+  activitypub_reblogs: true,
+  activitypub_mentions: true,
+  activitypub_replies: true,
+  activitypub_follow_requests: true,
+  
+  // ActivityPub desktop notifications
+  activitypub_desktop_notifications: true,
+  activitypub_desktop_follows: true,
+  activitypub_desktop_favorites: false,
+  activitypub_desktop_reblogs: false,
+  activitypub_desktop_mentions: true,
+  activitypub_desktop_replies: true,
+  
+  // ActivityPub sound notifications
+  activitypub_sound_notifications: true,
+  activitypub_sound_follows: true,
+  activitypub_sound_favorites: false,
+  activitypub_sound_reblogs: false,
+  activitypub_sound_mentions: true,
+  activitypub_sound_replies: true
 }
 
 export const useNotificationStore = defineStore('notification', {
@@ -102,11 +133,15 @@ export const useNotificationStore = defineStore('notification', {
           case 'unread':
             return !notification.is_read
           case 'mentions':
-            return notification.type === 'mention'
+            return notification.type === 'mention' || notification.type === 'activitypub_mention'
           case 'dms':
             return notification.type === 'dm'
           case 'reactions':
             return notification.type === 'reaction'
+          case 'social':
+            return notification.type.startsWith('activitypub_')
+          case 'follows':
+            return notification.type === 'activitypub_follow' || notification.type === 'activitypub_follow_request'
           default:
             return true
         }
@@ -142,6 +177,21 @@ export const useNotificationStore = defineStore('notification', {
             return state.preferences.desktop_reactions
           case 'reply':
             return state.preferences.desktop_replies
+          
+          // ActivityPub desktop notifications
+          case 'activitypub_follow':
+            return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_follows
+          case 'activitypub_favorite':
+            return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_favorites
+          case 'activitypub_reblog':
+            return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_reblogs
+          case 'activitypub_mention':
+            return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_mentions
+          case 'activitypub_reply':
+            return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_replies
+          case 'activitypub_follow_request':
+            return state.preferences.activitypub_desktop_notifications && state.preferences.activitypub_desktop_follows
+          
           default:
             return true
         }
@@ -162,6 +212,21 @@ export const useNotificationStore = defineStore('notification', {
             return state.preferences.sound_reactions
           case 'voice_channel_activity':
             return state.preferences.sound_voice_activity
+          
+          // ActivityPub sound notifications
+          case 'activitypub_follow':
+            return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_follows
+          case 'activitypub_favorite':
+            return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_favorites
+          case 'activitypub_reblog':
+            return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_reblogs
+          case 'activitypub_mention':
+            return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_mentions
+          case 'activitypub_reply':
+            return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_replies
+          case 'activitypub_follow_request':
+            return state.preferences.activitypub_sound_notifications && state.preferences.activitypub_sound_follows
+          
           default:
             return true
         }
@@ -186,13 +251,25 @@ export const useNotificationStore = defineStore('notification', {
           key: 'mentions',
           label: 'Mentions',
           icon: '@',
-          count: state.notifications.filter(n => n.type === 'mention').length
+          count: state.notifications.filter(n => n.type === 'mention' || n.type === 'activitypub_mention').length
         },
         {
           key: 'dms',
           label: 'Messages',
           icon: '💬',
           count: state.notifications.filter(n => n.type === 'dm').length
+        },
+        {
+          key: 'social',
+          label: 'Social',
+          icon: '🌐',
+          count: state.notifications.filter(n => n.type.startsWith('activitypub_')).length
+        },
+        {
+          key: 'follows',
+          label: 'Follows',
+          icon: '👥',
+          count: state.notifications.filter(n => n.type === 'activitypub_follow' || n.type === 'activitypub_follow_request').length
         }
       ]
     }
