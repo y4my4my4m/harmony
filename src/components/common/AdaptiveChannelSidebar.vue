@@ -12,7 +12,8 @@
         </div>
         
         <ChannelSidebar
-          :currentServer="currentServer || undefined"
+          v-if="currentServer"
+          :currentServer="currentServer"
           :channels="channels"
           :currentChannelId="currentChannelId"
           :categories="categories"
@@ -186,14 +187,35 @@ const currentUser = computed(() => profileStore.profile);
 
 const currentUserHandle = computed(() => {
   if (!currentUser.value) return '';
+  
+  // Handle case where domain might not be set yet
   const domain = currentUser.value.domain || 'har.mony.lol';
+  const username = currentUser.value.username;
+  
+  if (!username) return '';
+  
   return domain === 'har.mony.lol' 
-    ? `@${currentUser.value.username}`
-    : `@${currentUser.value.username}@${domain}`;
+    ? `@${username}`
+    : `@${username}@${domain}`;
 });
 
+const getUserProfilePath = () => {
+  if (!currentUser.value?.username) return '/social/home';
+  
+  const domain = currentUser.value.domain || 'har.mony.lol';
+  const username = currentUser.value.username;
+  
+  // Generate clean handle without @ symbol for URL
+  const handle = domain === 'har.mony.lol' 
+    ? username 
+    : `${username}@${domain}`;
+    
+  return `/u/${handle}`;
+};
+
 const navigationItems = computed(() => [
-  { id: 'profile', label: 'Profile', path: '/u/' + authStore.session?.user?.id, icon: 'user' },
+  { id: 'feed', label: 'Feed', path: '/social/home', icon: 'mony-mascot' },
+  { id: 'profile', label: 'Profile', path: getUserProfilePath(), icon: 'user' },
   { id: 'notifications', label: 'Notifications', path: '/social/notifications', icon: 'bell' },
   { id: 'bookmarks', label: 'Bookmarks', path: '/social/bookmarks', icon: 'bookmark' },
   { id: 'lists', label: 'Lists', path: '/social/lists', icon: 'list' },

@@ -155,6 +155,14 @@
     
     <!-- Heart -->
     <path v-if="name === 'heart'" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+
+    <!-- Heart Filled -->
+    <path
+      v-if="name === 'heart-filled'"
+      d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+      fill="currentColor"
+      stroke="none"
+    ></path>
     
     <!-- Mouse Pointer -->
     <path v-if="name === 'mouse-pointer'" d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
@@ -426,7 +434,19 @@
 
     <!-- Play -->
     <polygon v-if="name === 'play'" points="6 4 20 12 6 20 6 4"></polygon>
+
+    <!-- Share -->
+    <circle v-if="name === 'share'" cx="18" cy="5" r="3"></circle>
+    <circle v-if="name === 'share'" cx="6" cy="12" r="3"></circle>
+    <circle v-if="name === 'share'" cx="18" cy="19" r="3"></circle>
+    <line v-if="name === 'share'" x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+    <line v-if="name === 'share'" x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
     
+    <!-- User Check -->
+    <path v-if="name === 'user-check'" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+    <circle v-if="name === 'user-check'" cx="9" cy="7" r="4"></circle>
+    <path v-if="name === 'user-check'" d="M22 21l-5-5m5 5l-5-5m5 5l-5-5"></path>
+
     <!-- Mony Mascot (Custom ActivityPub/Fediverse icon) -->
     <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="10"></circle>
     <path v-if="name === 'mony-mascot'" d="M8 12c0-2.21 1.79-4 4-4s4 1.79 4 4"></path>

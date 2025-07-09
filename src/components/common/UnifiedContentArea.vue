@@ -14,7 +14,96 @@
     
     <!-- ActivityPub Mode Content -->
     <div v-else-if="mode === 'activitypub'" class="content-section activitypub-content">
-      <div class="mony-content">
+      <!-- Profile View -->
+      <ProfileDisplay 
+        v-if="viewType === 'profile'"
+        :user="profileUser"
+        :posts="[]"
+        :loading="false"
+        @follow="$emit('follow-user', $event)"
+        @unfollow="$emit('unfollow-user', $event)"
+        @reply-to-post="$emit('reply-to-post', $event)"
+        @favorite-post="$emit('favorite-post', $event)"
+        @reblog-post="$emit('reblog-post', $event)"
+        @delete-post="$emit('delete-post', $event)"
+        @show-user-profile="$emit('show-user-profile', $event)"
+        @load-more-posts="$emit('load-more-posts')"
+      />
+      
+      <!-- Special Views (Bookmarks, Lists, etc.) -->
+      <div v-else-if="viewType !== 'timeline'" class="special-view-content">
+        <div class="special-view-header">
+          <div class="header-content">
+            <h1 class="page-title">
+              <Icon :name="getViewIcon(viewType)" />
+              {{ getViewTitle(viewType) }}
+            </h1>
+            <p class="page-subtitle">{{ getViewSubtitle(viewType) }}</p>
+          </div>
+          
+          <!-- Clear All Button (for bookmarks) -->
+          <button 
+            v-if="viewType === 'bookmarks' && specialViewData && specialViewData.length > 0"
+            @click="$emit('clear-all-bookmarks')"
+            class="clear-all-btn"
+          >
+            <Icon name="trash" />
+            Clear All
+          </button>
+        </div>
+
+        <div class="timeline-feed">
+          <!-- Loading State -->
+          <div v-if="isLoadingFeed && (!specialViewData || specialViewData.length === 0)" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>Loading your {{ viewType }}...</p>
+          </div>
+
+          <!-- Empty State -->
+          <div v-else-if="!isLoadingFeed && (!specialViewData || specialViewData.length === 0)" class="empty-state">
+            <Icon :name="getViewIcon(viewType)" :size="48" />
+            <h3>{{ getEmptyStateTitle(viewType) }}</h3>
+            <p>{{ getSpecialViewEmptyMessage(viewType) }}</p>
+            <button 
+              v-if="viewType === 'bookmarks'"
+              @click="$emit('switch-feed', 'home')" 
+              class="explore-btn"
+            >
+              Browse Timeline
+            </button>
+          </div>
+
+          <!-- Posts -->
+          <div v-else class="posts-container">
+            <MonyPost
+              v-for="post in specialViewData"
+              :key="post.id"
+              :post="post"
+              @reply="$emit('reply-to-post', $event)"
+              @favorite="$emit('favorite-post', $event)"
+              @reblog="$emit('reblog-post', $event)"
+              @bookmark="$emit('bookmark-post', $event)"
+              @delete="$emit('delete-post', $event)"
+              @user-click="$emit('show-user-profile', $event)"
+            />
+
+            <!-- Load More -->
+            <div v-if="hasMoreSpecialData" class="load-more-container">
+              <button
+                @click="$emit('load-more-special-data')"
+                :disabled="isLoadingFeed"
+                class="load-more-btn"
+              >
+                <Icon v-if="isLoadingFeed" name="loader" class="spinning" />
+                <span>{{ isLoadingFeed ? 'Loading...' : 'Load More' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Timeline View -->
+      <div v-else class="mony-content">
         <!-- New Post Composer (Inline) -->
         <div v-if="currentFeed === 'home'" class="inline-composer">
           <MonyComposerInline @post-created="$emit('post-created', $event)" />
@@ -78,8 +167,9 @@ import { computed } from 'vue';
 import ChatComponent from '@/components/ChatComponent.vue';
 import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
+import ProfileDisplay from './ProfileDisplay.vue';
 import Icon from '@/components/common/Icon.vue';
-import type { Message, TimelinePost } from '@/types';
+import type { Message, TimelinePost, FederatedUser } from '@/types';
 
 interface Props {
   mode: 'chat' | 'activitypub';
@@ -90,20 +180,32 @@ interface Props {
   isDM?: boolean;
   
   // ActivityPub mode props
+  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications';
   currentFeed?: 'home' | 'local' | 'public';
   posts?: TimelinePost[];
   isLoadingFeed?: boolean;
   hasMorePosts?: boolean;
+  
+  // Special view props (profile, bookmarks, etc.)
+  profileUser?: FederatedUser | null;
+  profileHandle?: string;
+  specialViewData?: TimelinePost[]; // Generic data for bookmarks, lists, etc.
+  hasMoreSpecialData?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   chatMessages: () => [],
   isLoading: false,
   isDM: false,
+  viewType: 'timeline',
   currentFeed: 'home',
   posts: () => [],
   isLoadingFeed: false,
-  hasMorePosts: false
+  hasMorePosts: false,
+  profileUser: null,
+  profileHandle: undefined,
+  specialViewData: () => [],
+  hasMoreSpecialData: false
 });
 
 defineEmits<{
@@ -119,9 +221,18 @@ defineEmits<{
   'reply-to-post': [post: TimelinePost];
   'favorite-post': [postId: string];
   'reblog-post': [postId: string];
+  'bookmark-post': [postId: string];
   'delete-post': [postId: string];
   'show-user-profile': [user: any];
   'load-more-posts': [];
+  
+  // Profile mode events
+  'follow-user': [userId: string];
+  'unfollow-user': [userId: string];
+  
+  // Special view events
+  'clear-all-bookmarks': [];
+  'load-more-special-data': [];
 }>();
 
 const feedTabs = [
@@ -145,6 +256,78 @@ const getEmptyStateMessage = () => {
       return 'No local posts yet from this instance.';
     default:
       return 'No posts found.';
+  }
+};
+
+// Helper functions for special views
+const getViewIcon = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'bookmark';
+    case 'lists':
+      return 'list';
+    case 'notifications':
+      return 'bell';
+    case 'profile':
+      return 'user';
+    default:
+      return 'home';
+  }
+};
+
+const getViewTitle = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'Bookmarks';
+    case 'lists':
+      return 'Lists';
+    case 'notifications':
+      return 'Notifications';
+    case 'profile':
+      return 'Profile';
+    default:
+      return 'Timeline';
+  }
+};
+
+const getViewSubtitle = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'Posts you\'ve saved for later';
+    case 'lists':
+      return 'Curated lists of users and topics';
+    case 'notifications':
+      return 'Stay updated with your activity';
+    case 'profile':
+      return 'Your profile and posts';
+    default:
+      return 'Your timeline';
+  }
+};
+
+const getEmptyStateTitle = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'No bookmarks yet';
+    case 'lists':
+      return 'No lists yet';
+    case 'notifications':
+      return 'No notifications yet';
+    default:
+      return 'Nothing here yet';
+  }
+};
+
+const getSpecialViewEmptyMessage = (viewType: string) => {
+  switch (viewType) {
+    case 'bookmarks':
+      return 'Posts you bookmark will appear here for easy access later.';
+    case 'lists':
+      return 'Create lists to organize users and topics you follow.';
+    case 'notifications':
+      return 'When someone interacts with your posts, you\'ll see it here.';
+    default:
+      return 'Content will appear here when available.';
   }
 };
 </script>
@@ -186,6 +369,251 @@ const getEmptyStateMessage = () => {
   flex-direction: column;
   height: 100%;
 }
+
+/* =============================================================================
+   SPECIAL VIEW COMPONENTS (Bookmarks, Lists, Notifications, etc.)
+   ============================================================================= */
+
+.special-view-content {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--background-primary);
+}
+
+.special-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-primary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-content {
+  flex: 1;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: var(--text-primary);
+}
+
+.page-subtitle {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.clear-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-all-btn:hover {
+  background: var(--background-hover);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+/* =============================================================================
+   PROFILE COMPONENTS
+   ============================================================================= */
+
+.profile-content {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--background-primary);
+}
+
+.profile-display {
+  height: 100%;
+}
+
+.profile-header {
+  position: relative;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.profile-banner {
+  height: 200px;
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary, #4752c4));
+  position: relative;
+}
+
+.profile-info {
+  padding: 0 24px 24px 24px;
+  position: relative;
+}
+
+.profile-avatar-section {
+  position: absolute;
+  top: -50px;
+  left: 24px;
+}
+
+.profile-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 4px solid var(--background-primary);
+  object-fit: cover;
+  background: var(--background-secondary);
+}
+
+.profile-details {
+  margin-top: 60px;
+}
+
+.profile-name {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: var(--text-primary);
+}
+
+.profile-handle {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin: 0 0 16px 0;
+}
+
+.profile-bio {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+}
+
+.profile-stats {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.profile-actions {
+  margin-top: 16px;
+}
+
+.follow-btn, .unfollow-btn {
+  padding: 8px 24px;
+  border-radius: 20px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.follow-btn {
+  background: var(--brand-primary);
+  color: white;
+}
+
+.follow-btn:hover {
+  background: var(--brand-primary-hover, #4752c4);
+}
+
+.unfollow-btn {
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.unfollow-btn:hover {
+  background: var(--background-hover);
+}
+
+.profile-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-primary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.tab {
+  padding: 16px 24px;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+  background: var(--background-hover);
+}
+
+.tab.active {
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
+}
+
+.profile-posts {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.empty-posts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--text-secondary);
+  gap: 16px;
+  text-align: center;
+}
+
+.empty-posts h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+
 
 /* =============================================================================
    TIMELINE COMPONENTS

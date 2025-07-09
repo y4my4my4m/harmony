@@ -50,7 +50,7 @@ import { getAvatarUrl } from '@/utils/avatarUtils'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 // Types
-type AvatarSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+type AvatarSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline'
 
 // Props
@@ -195,6 +195,11 @@ const handleImageLoad = () => {
 .avatar-xl {
   width: 80px;
   height: 80px;
+}
+
+.avatar-2xl {
+  width: 128px;
+  height: 128px;
 }
 
 /* Loading state */

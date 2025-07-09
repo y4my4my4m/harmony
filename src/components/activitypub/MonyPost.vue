@@ -2,25 +2,13 @@
 <!-- Professional, engaging UI for ActivityPub posts -->
 <template>
   <article class="mony-post" :class="{ 'is-reply': post.in_reply_to }">
-    <!-- Reblog Header (if this is a reblog) -->
-    <div v-if="post.reblog" class="reblog-header">
-      <Icon name="reblog" class="reblog-icon" />
-      <router-link 
-        :to="`/u/${post.reblog_author?.handle}`" 
-        class="reblog-author"
-      >
-        {{ post.reblog_author?.display_name || post.reblog_author?.username }}
-      </router-link>
-      <span class="reblog-text">reblogged</span>
-    </div>
-
     <!-- Main Post Content -->
     <div class="post-content">
       <!-- Author Info -->
       <div class="post-header">
-        <router-link 
-          :to="`/u/${author.handle}`" 
+        <div 
           class="author-info"
+          @click="handleAuthorClick"
         >
           <Avatar 
             :src="author.avatar_url"
@@ -33,10 +21,10 @@
               {{ author.display_name || author.username }}
             </div>
             <div class="author-handle">
-              {{ author.handle }}
+              {{ authorHandle }}
             </div>
           </div>
-        </router-link>
+        </div>
         
         <div class="post-meta">
           <time 
@@ -53,7 +41,7 @@
           </div>
           
           <!-- Instance Badge (for federated posts) -->
-          <div v-if="!author.is_local" class="instance-badge" :title="`From ${author.domain}`">
+          <div v-if="!isAuthorLocal" class="instance-badge" :title="`From ${author.domain}`">
             <Icon name="federation" />
           </div>
         </div>
@@ -93,15 +81,40 @@
       >
         <!-- Text Content -->
         <div class="post-text">
-          <MonyContent :content="post.content" />
+          <MonyContent 
+            :content="contentText" 
+            @user-mention-click="handleMentionClick"
+            @hashtag-click="handleHashtagClick"
+          />
         </div>
 
         <!-- Media Attachments -->
-        <MonyMediaGallery 
+        <div 
           v-if="post.media_attachments?.length > 0"
-          :attachments="post.media_attachments"
-          :sensitive="post.is_sensitive"
-        />
+          class="media-gallery"
+        >
+          <!-- Simple media display for now -->
+          <div 
+            v-for="media in post.media_attachments" 
+            :key="media.id"
+            class="media-item"
+          >
+            <img 
+              v-if="media.type === 'image'" 
+              :src="media.url" 
+              :alt="media.description || 'Media attachment'"
+              class="media-image"
+            />
+            <video 
+              v-else-if="media.type === 'video'" 
+              :src="media.url" 
+              controls
+              class="media-video"
+            >
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
       </div>
 
       <!-- Interaction Stats -->
@@ -151,13 +164,14 @@
           <span v-if="post.favorites_count > 0">{{ formatCount(post.favorites_count) }}</span>
         </button>
 
+        <!-- TODO: implement bookmarking -->
         <button 
           class="action-button bookmark-button"
-          :class="{ active: post.is_bookmarked }"
+          :class="{ active: post.interactions?.is_bookmarked }"
           @click="onBookmark"
-          :title="post.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
+          :title="post.interactions?.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
         >
-          <Icon :name="post.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
+          <Icon :name="post.interactions?.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
 
         <div class="action-menu">
@@ -206,7 +220,6 @@ import type { TimelinePost } from '@/types';
 
 // Components
 import MonyContent from './MonyContent.vue';
-import MonyMediaGallery from './MonyMediaGallery.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 
@@ -226,6 +239,10 @@ const emit = defineEmits<{
   delete: [postId: string];
   edit: [postId: string];
   click: [post: TimelinePost];
+  'user-mention-click': [handle: string];
+  'hashtag-click': [tag: string];
+  'user-click': [user: any]; // For when clicking on the author
+  'show-conversation': [postId: string]; // New emit for showing conversation
 }>();
 
 // Store
@@ -235,25 +252,55 @@ const authStore = useAuthStore();
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
 
+// Extend HTMLElement type for click outside handler
+declare global {
+  interface HTMLElement {
+    _clickOutsideHandler?: (event: Event) => void;
+  }
+}
+
 // Computed
 const author = computed(() => {
-  return props.post.reblog?.author || props.post.author;
+  return props.post.author;
 });
 
-const actualPost = computed(() => {
-  return props.post.reblog || props.post;
+const authorHandle = computed(() => {
+  const { username, domain } = props.post.author;
+  return domain === 'har.mony.lol' || domain === 'harmony.com' 
+    ? `@${username}` 
+    : `@${username}@${domain}`;
+});
+
+const isAuthorLocal = computed(() => {
+  const { domain } = props.post.author;
+  return domain === 'har.mony.lol' || domain === 'harmony.com';
+});
+
+const contentText = computed(() => {
+  // Convert MessagePart[] to string for display
+  if (Array.isArray(props.post.content)) {
+    return props.post.content
+      .map(part => {
+        if (part.type === 'text') return part.text;
+        if (part.type === 'mention') return part.mention;
+        if (part.type === 'url') return part.url;
+        return '';
+      })
+      .join('');
+  }
+  return typeof props.post.content === 'string' ? props.post.content : '';
 });
 
 const canEdit = computed(() => {
-  return authStore.session?.user?.id === actualPost.value.author_id;
+  return authStore.session?.user?.id === props.post.author_id;
 });
 
 const canDelete = computed(() => {
-  return authStore.session?.user?.id === actualPost.value.author_id;
+  return authStore.session?.user?.id === props.post.author_id;
 });
 
 const visibilityIcon = computed(() => {
-  switch (actualPost.value.visibility) {
+  switch (props.post.visibility) {
     case 'public': return 'globe';
     case 'unlisted': return 'unlock';
     case 'followers': return 'users';
@@ -263,7 +310,7 @@ const visibilityIcon = computed(() => {
 });
 
 const visibilityTitle = computed(() => {
-  switch (actualPost.value.visibility) {
+  switch (props.post.visibility) {
     case 'public': return 'Public - visible to everyone';
     case 'unlisted': return 'Unlisted - not shown in public timelines';
     case 'followers': return 'Followers only';
@@ -301,35 +348,37 @@ const onReply = () => {
 };
 
 const onReblog = () => {
-  emit('reblog', actualPost.value.id);
+  emit('reblog', props.post.id);
 };
 
 const onFavorite = () => {
-  emit('favorite', actualPost.value.id);
+  emit('favorite', props.post.id);
 };
 
 const onBookmark = () => {
-  emit('bookmark', actualPost.value.id);
+  emit('bookmark', props.post.id);
 };
 
 const onEdit = () => {
-  emit('edit', actualPost.value.id);
+  emit('edit', props.post.id);
   closeMenu();
 };
 
 const onDelete = () => {
-  emit('delete', actualPost.value.id);
+  emit('delete', props.post.id);
   closeMenu();
 };
 
 const showReplyTarget = () => {
-  // Navigate to the reply target or show context
-  // This could open a thread view or highlight the parent post
+  if (props.post.in_reply_to) {
+    // Navigate to the parent post or conversation thread
+    emit('show-conversation', props.post.in_reply_to);
+  }
 };
 
 const copyLink = async () => {
   try {
-    const url = actualPost.value.url || `${window.location.origin}/posts/${actualPost.value.id}`;
+    const url = props.post.url || `${window.location.origin}/posts/${props.post.id}`;
     await navigator.clipboard.writeText(url);
     // You could show a toast here
   } catch (error) {
@@ -353,8 +402,24 @@ const vClickOutside = {
     document.addEventListener('click', el._clickOutsideHandler);
   },
   unmounted(el: HTMLElement) {
-    document.removeEventListener('click', el._clickOutsideHandler);
+    if (el._clickOutsideHandler) {
+      document.removeEventListener('click', el._clickOutsideHandler);
+    }
   }
+};
+
+const handleAuthorClick = (event: Event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  emit('user-click', author.value);
+};
+
+const handleMentionClick = (handle: string) => {
+  emit('user-mention-click', handle);
+};
+
+const handleHashtagClick = (tag: string) => {
+  emit('hashtag-click', tag);
 };
 </script>
 

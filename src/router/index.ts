@@ -48,6 +48,61 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/social/bookmarks',
+      name: 'Bookmarks',
+      component: UnifiedView,
+      props: { 
+        mode: 'activitypub',
+        viewType: 'bookmarks'
+      },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/social/notifications',
+      name: 'Notifications',
+      component: UnifiedView,
+      props: { 
+        mode: 'activitypub',
+        viewType: 'notifications'
+      },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/social/lists',
+      name: 'Lists',
+      component: UnifiedView,
+      props: { 
+        mode: 'activitypub',
+        viewType: 'lists'
+      },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/u/:handle',
+      name: 'UserProfile',
+      component: UnifiedView,
+      props: route => ({
+        mode: 'activitypub',
+        viewType: 'profile',
+        profileHandle: route.params.handle
+      }),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/social/followers',
+      name: 'Followers',
+      component: () => import('@/views/FollowersView.vue'),
+      props: { viewType: 'followers' },
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/social/following',
+      name: 'Following',
+      component: () => import('@/views/FollowersView.vue'),
+      props: { viewType: 'following' },
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/social/:timeline?',
       name: 'Social',
       component: UnifiedView,
@@ -75,13 +130,6 @@ const router = createRouter({
         name: 'Social',
         params: { timeline: route.params.timeline || 'home' }
       }),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/u/:handle',
-      name: 'UserProfile',
-      component: () => import('@/views/UserProfileView.vue'),
-      props: true,
       meta: { requiresAuth: true },
     },
     {

@@ -9,7 +9,8 @@ import type {
   Post, 
   TimelinePost, 
   PostComposerState, 
-  MonyFeed
+  MonyFeed,
+  FederatedUser
 } from '@/types';
 
 interface ActivityPubState {
@@ -468,11 +469,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           domain: dbPost.author.domain,
           handle: `@${dbPost.author.username}${dbPost.author.domain !== 'har.mony.lol' ? '@' + dbPost.author.domain : ''}`
         },
-        interactions: {
-          is_favorited: false,
-          is_reblogged: false,
-          is_bookmarked: false
-        }
+        is_favorited: false,
+        is_reblogged: false,
+        is_bookmarked: false
       };
     },
 
@@ -550,15 +549,23 @@ export const useActivityPubStore = defineStore('activitypub', {
         const user = await supabase.auth.getUser();
         if (!user.data.user) throw new Error('User not authenticated');
 
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('follows')
           .insert({
             follower_id: user.data.user.id,
             following_id: userId,
-            status: 'pending' // Will be 'accepted' for local users
-          });
+            status: 'accepted',
+            is_local: true
+          })
+          .select()
+          .single();
 
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23505') {
+            throw new Error('Already following this user');
+          }
+          throw error;
+        }
 
         this.followedUsers.add(userId);
 
@@ -593,6 +600,46 @@ export const useActivityPubStore = defineStore('activitypub', {
         throw error;
       }
     },
+
+    /**
+     * Get followers count for a user
+     */
+    async getFollowersCount(userId: string): Promise<number> {
+      try {
+        const { count, error } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', userId)
+          .eq('status', 'accepted');
+
+        if (error) throw error;
+        return count || 0;
+      } catch (error) {
+        console.error('Failed to get followers count:', error);
+        return 0;
+      }
+    },
+
+    /**
+     * Get following count for a user
+     */
+    async getFollowingCount(userId: string): Promise<number> {
+      try {
+        const { count, error } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('follower_id', userId)
+          .eq('status', 'accepted');
+
+        if (error) throw error;
+        return count || 0;
+      } catch (error) {
+        console.error('Failed to get following count:', error);
+        return 0;
+      }
+    },
+
+
 
     /**
      * Toggle post favorite (like)
@@ -638,23 +685,224 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
+     * Toggle post bookmark
+     */
+    async toggleBookmark(postId: string) {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        // Check if already bookmarked
+        const { data: existing } = await supabase
+          .from('post_interactions')
+          .select('id')
+          .eq('user_id', user.data.user.id)
+          .eq('post_id', postId)
+          .eq('interaction_type', 'bookmark')
+          .single();
+
+        if (existing) {
+          // Remove bookmark
+          await supabase
+            .from('post_interactions')
+            .delete()
+            .eq('id', existing.id);
+        } else {
+          // Add bookmark
+          await supabase
+            .from('post_interactions')
+            .insert({
+              user_id: user.data.user.id,
+              post_id: postId,
+              interaction_type: 'bookmark'
+            });
+        }
+
+        // Update local state
+        this.updatePostInteraction(postId, 'bookmark', !existing);
+
+      } catch (error) {
+        console.error('Failed to toggle bookmark:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Get bookmarked posts
+     */
+    async getBookmarks(options: { limit?: number; cursor?: string | null } = {}) {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        const limit = options.limit || 20;
+        
+        let query = supabase
+          .from('post_interactions')
+          .select(`
+            created_at,
+            post:posts(
+              *,
+              author:profiles(*)
+            )
+          `)
+          .eq('user_id', user.data.user.id)
+          .eq('interaction_type', 'bookmark')
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (options.cursor) {
+          query = query.lt('created_at', options.cursor);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const posts = data ? data.map(item => this.transformDatabasePostToTimelinePost(item.post)).filter(Boolean) : [];
+        
+        return {
+          posts,
+          cursor: posts.length > 0 ? data[data.length - 1].created_at : null,
+          hasMore: posts.length === limit
+        };
+      } catch (error) {
+        console.error('Failed to get bookmarks:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Clear all bookmarks
+     */
+    async clearAllBookmarks() {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        const { error } = await supabase
+          .from('post_interactions')
+          .delete()
+          .eq('user_id', user.data.user.id)
+          .eq('interaction_type', 'bookmark');
+
+        if (error) throw error;
+      } catch (error) {
+        console.error('Failed to clear bookmarks:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Toggle post reblog
+     */
+    async toggleReblog(postId: string) {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        // Check if already reblogged
+        const { data: existing } = await supabase
+          .from('post_interactions')
+          .select('id')
+          .eq('user_id', user.data.user.id)
+          .eq('post_id', postId)
+          .eq('interaction_type', 'reblog')
+          .single();
+
+        if (existing) {
+          // Remove reblog
+          await supabase
+            .from('post_interactions')
+            .delete()
+            .eq('id', existing.id);
+        } else {
+          // Add reblog
+          await supabase
+            .from('post_interactions')
+            .insert({
+              user_id: user.data.user.id,
+              post_id: postId,
+              interaction_type: 'reblog'
+            });
+        }
+
+        // Update local state
+        this.updatePostInteraction(postId, 'reblog', !existing);
+
+      } catch (error) {
+        console.error('Failed to toggle reblog:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Delete a post
+     */
+    async deletePost(postId: string) {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        // Mark post as deleted
+        const { error } = await supabase
+          .from('posts')
+          .update({ 
+            is_deleted: true, 
+            deleted_at: new Date().toISOString() 
+          })
+          .eq('id', postId)
+          .eq('author_id', user.data.user.id);
+
+        if (error) throw error;
+
+        // Remove from local feeds
+        this.removePostFromFeeds(postId);
+
+      } catch (error) {
+        console.error('Failed to delete post:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Remove post from all feeds
+     */
+    removePostFromFeeds(postId: string) {
+      // Remove from home feed
+      this.homeFeed.posts = this.homeFeed.posts.filter(p => p.id !== postId);
+      
+      // Remove from public feed
+      this.publicFeed.posts = this.publicFeed.posts.filter(p => p.id !== postId);
+      
+      // Remove from local feed
+      this.localFeed.posts = this.localFeed.posts.filter(p => p.id !== postId);
+      
+      // Remove from user feeds
+      this.userFeeds.forEach(feed => {
+        feed.posts = feed.posts.filter(p => p.id !== postId);
+      });
+    },
+
+    /**
      * Update post interaction in local state
      */
-    updatePostInteraction(postId: string, type: 'favorite' | 'reblog', isActive: boolean) {
+    updatePostInteraction(postId: string, type: 'favorite' | 'reblog' | 'bookmark', isActive: boolean) {
       const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
       
-      feeds.forEach(feed => {
-        const post = feed.posts.find(p => p.id === postId);
-        if (post) {
-          if (type === 'favorite') {
-            post.interactions.is_favorited = isActive;
-            post.favorites_count += isActive ? 1 : -1;
-          } else if (type === 'reblog') {
-            post.interactions.is_reblogged = isActive;
-            post.reblogs_count += isActive ? 1 : -1;
+              feeds.forEach(feed => {
+          const post = feed.posts.find(p => p.id === postId);
+          if (post) {
+            if (type === 'favorite') {
+              post.is_favorited = isActive;
+              post.favorites_count += isActive ? 1 : -1;
+            } else if (type === 'reblog') {
+              post.is_reblogged = isActive;
+              post.reblogs_count += isActive ? 1 : -1;
+            } else if (type === 'bookmark') {
+              post.is_bookmarked = isActive;
+            }
           }
-        }
-      });
+        });
     },
 
     /**
@@ -742,6 +990,113 @@ export const useActivityPubStore = defineStore('activitypub', {
           }
         )
         .subscribe();
+    },
+
+    /**
+     * Resolve a user handle to a user object
+     */
+    async resolveUserByHandle(handle: string): Promise<FederatedUser | null> {
+      try {
+        // Remove @ prefix if present
+        const cleanHandle = handle.startsWith('@') ? handle.substring(1) : handle;
+        
+        // Parse handle - can be "username" or "username@domain"
+        const parts = cleanHandle.split('@');
+        const username = parts[0];
+        const domain = parts[1] || 'har.mony.lol';
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('username', username)
+          .eq('domain', domain)
+          .single();
+        
+        if (error) {
+          if (error.code === 'PGRST116') return null; // Not found
+          throw error;
+        }
+        
+        return {
+          id: data.id,
+          username: data.username,
+          display_name: data.display_name,
+          domain: data.domain,
+          avatar_url: data.avatar_url,
+          handle: domain === 'har.mony.lol' 
+            ? `@${username}`
+            : `@${username}@${domain}`,
+          is_local: data.is_local,
+          bio: data.about,
+          verified: false,
+          followers_count: 0,
+          following_count: 0,
+          posts_count: 0,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          about: data.about,
+          federated_id: data.federated_id,
+          public_key: data.public_key,
+          inbox_url: data.inbox_url,
+          outbox_url: data.outbox_url,
+          followers_url: data.followers_url,
+          following_url: data.following_url,
+          featured_url: data.featured_url,
+          last_synced_at: data.last_synced_at
+        } as FederatedUser;
+      } catch (error) {
+        console.error('Failed to resolve user by handle:', error);
+        return null;
+      }
+    },
+
+    /**
+     * Get user by ID (for navigation from UUIDs)
+     */
+    async getUserById(userId: string): Promise<FederatedUser | null> {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (error) {
+          if (error.code === 'PGRST116') return null;
+          throw error;
+        }
+        
+        return {
+          id: data.id,
+          username: data.username,
+          display_name: data.display_name,
+          domain: data.domain,
+          avatar_url: data.avatar_url,
+          handle: data.domain === 'har.mony.lol' 
+            ? `@${data.username}`
+            : `@${data.username}@${data.domain}`,
+          is_local: data.is_local,
+          bio: data.about,
+          verified: false,
+          followers_count: 0,
+          following_count: 0,
+          posts_count: 0,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          about: data.about,
+          federated_id: data.federated_id,
+          public_key: data.public_key,
+          inbox_url: data.inbox_url,
+          outbox_url: data.outbox_url,
+          followers_url: data.followers_url,
+          following_url: data.following_url,
+          featured_url: data.featured_url,
+          last_synced_at: data.last_synced_at
+        } as FederatedUser;
+      } catch (error) {
+        console.error('Failed to get user by ID:', error);
+        return null;
+      }
     },
 
     /**

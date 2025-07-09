@@ -495,13 +495,13 @@ const vClickOutside = {
 }
 
 .composer-modal {
-  background-color: #1f2937;
+  background-color: var(--bg-primary);
   border-radius: 1rem;
   max-width: 600px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  border: 1px solid #374151;
+  border: 1px solid var(--border-primary);
 }
 
 .composer-modal.is-reply {
@@ -513,7 +513,7 @@ const vClickOutside = {
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem 1.5rem 0;
-  border-bottom: 1px solid #374151;
+  border-bottom: 1px solid var(--border-primary);
   padding-bottom: 1rem;
 }
 
@@ -535,13 +535,13 @@ const vClickOutside = {
 }
 
 .close-button:hover {
-  background-color: #374151;
+  background-color: var(--bg-tertiary);
   color: white;
 }
 
 .reply-context {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #374151;
+  border-bottom: 1px solid var(--border-primary);
   position: relative;
 }
 
@@ -551,7 +551,7 @@ const vClickOutside = {
   top: 4rem;
   bottom: 0;
   width: 2px;
-  background-color: #374151;
+  background-color: var(--border-primary);
 }
 
 .reply-to-post {
@@ -624,8 +624,8 @@ const vClickOutside = {
 .cw-input {
   width: 100%;
   padding: 0.75rem;
-  background-color: #374151;
-  border: 1px solid #4b5563;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
   border-radius: 0.5rem;
   color: white;
   font-size: 0.875rem;
@@ -637,7 +637,7 @@ const vClickOutside = {
 
 .cw-input:focus {
   outline: none;
-  border-color: #2563eb;
+  border-color: var(--harmony-primary);
 }
 
 .text-input-container {
@@ -650,7 +650,7 @@ const vClickOutside = {
   min-height: 120px;
   padding: 1rem;
   background-color: transparent;
-  border: 1px solid #374151;
+  border: 1px solid var(--border-primary);
   border-radius: 0.5rem;
   color: white;
   font-size: 1rem;
@@ -665,7 +665,7 @@ const vClickOutside = {
 
 .text-input:focus {
   outline: none;
-  border-color: #2563eb;
+  border-color: var(--harmony-primary);
 }
 
 .character-counter {
@@ -802,7 +802,7 @@ const vClickOutside = {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
-  border-top: 1px solid #374151;
+  border-top: 1px solid var(--border-primary);
 }
 
 .footer-info {
@@ -844,7 +844,7 @@ const vClickOutside = {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1.5rem;
-  background-color: #2563eb;
+  background-color: var(--harmony-primary);
   border: none;
   border-radius: 0.5rem;
   color: white;
@@ -854,7 +854,7 @@ const vClickOutside = {
 }
 
 .post-button:hover:not(:disabled) {
-  background-color: #1d4ed8;
+  background-color: var(--harmony-primary-hover);
 }
 
 .post-button:disabled {

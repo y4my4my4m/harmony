@@ -714,3 +714,12 @@ export interface MonyFeed {
   loading?: boolean;
   error?: string;
 }
+
+export interface TimelineOptions {
+  limit?: number;
+  max_id?: string;
+  since_id?: string;
+  min_id?: string;
+}
+
+export type Follow = ActivityPubFollow;

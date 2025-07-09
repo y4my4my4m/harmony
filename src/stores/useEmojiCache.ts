@@ -507,6 +507,7 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
     performCleanup() {
       const now = new Date();
       let cleanedServers = 0;
+      // TODO: track how many emojis are removed
       let cleanedEmojis = 0;
 
       // Remove expired server caches
