@@ -134,6 +134,24 @@
               />
             </label>
 
+            <!-- GIF Picker -->
+            <button
+              @click="showGiphyPicker = !showGiphyPicker"
+              :class="['action-btn', 'gif-btn', { active: showGiphyPicker }]"
+              title="Add GIF"
+            >
+              <GifIcon />
+            </button>
+
+            <!-- Emoji Picker -->
+            <button
+              @click="showEmojiPicker = !showEmojiPicker"
+              :class="['action-btn', 'emoji-btn', { active: showEmojiPicker }]"
+              title="Add emoji"
+            >
+              <EmojiUI />
+            </button>
+
             <!-- Content Warning Toggle -->
             <button
               @click="showContentWarning = !showContentWarning"
@@ -183,6 +201,20 @@
         </div>
       </div>
     </div>
+
+    <!-- Emoji Picker -->
+    <EmojiPopup
+      v-if="showEmojiPicker"
+      @sendEmoji="insertEmoji"
+      :closeEmojiList="() => showEmojiPicker = false"
+    />
+
+    <!-- GIF Picker -->
+    <GifComponent
+      v-if="showGiphyPicker"
+      @sendGif="insertGif"
+      :closeGiphy="() => showGiphyPicker = false"
+    />
   </div>
 </template>
 
@@ -195,6 +227,10 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+import EmojiPopup from '@/components/EmojiPopup.vue';
+import GifComponent from '@/components/GifComponent.vue';
+import GifIcon from '@/components/icons/Gif.vue';
+import EmojiUI from '@/components/EmojiUI.vue';
 
 // Composables
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
@@ -239,6 +275,8 @@ const visibility = ref<Post['visibility']>('public');
 const mediaAttachments = ref<MediaAttachment[]>([]);
 const showContentWarning = ref(false);
 const showVisibilityMenu = ref(false);
+const showEmojiPicker = ref(false);
+const showGiphyPicker = ref(false);
 const isPosting = ref(false);
 
 // Configuration
@@ -354,6 +392,38 @@ const handleMentionInsertion = (mention: SuggestionItem) => {
     
     content.value = newText;
   }
+};
+
+// Handle emoji insertion
+const insertEmoji = (emoji: any) => {
+  const emojiText = `:${emoji.name}:`;
+  const currentContent = content.value;
+  content.value = currentContent + emojiText;
+  
+  showEmojiPicker.value = false;
+  
+  nextTick(() => {
+    const richEditor = richEditorRef.value;
+    if (richEditor && richEditor.focus) {
+      richEditor.focus();
+    }
+  });
+};
+
+// Handle GIF insertion
+const insertGif = (gif: any) => {
+  const gifUrl = gif.media_formats.gif.url;
+  const currentContent = content.value;
+  content.value = currentContent + (currentContent ? '\n' : '') + gifUrl;
+  
+  showGiphyPicker.value = false;
+  
+  nextTick(() => {
+    const richEditor = richEditorRef.value;
+    if (richEditor && richEditor.focus) {
+      richEditor.focus();
+    }
+  });
 };
 
 const handleKeydown = (event: KeyboardEvent) => {

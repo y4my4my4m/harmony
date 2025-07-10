@@ -149,13 +149,22 @@
                   <Icon name="image" />
                 </button>
 
+                <!-- GIF Picker -->
+                <button
+                  class="option-button"
+                  @click="showGiphyPicker = !showGiphyPicker"
+                  title="Add GIF"
+                >
+                  <GifIcon />
+                </button>
+
                 <!-- Emoji Picker -->
                 <button
                   class="option-button"
                   @click="showEmojiPicker = !showEmojiPicker"
                   title="Add emoji"
                 >
-                  <Icon name="smile" />
+                  <EmojiUI />
                 </button>
 
                 <!-- Content Warning -->
@@ -247,6 +256,13 @@
           @sendEmoji="insertEmoji"
           :closeEmojiList="() => showEmojiPicker = false"
         />
+
+        <!-- GIF Picker -->
+        <GifComponent
+          v-if="showGiphyPicker"
+          @sendGif="insertGif"
+          :closeGiphy="() => showGiphyPicker = false"
+        />
       </div>
     </div>
   </Teleport>
@@ -261,6 +277,9 @@ import type { PostComposerState, Post } from '@/types';
 import MonyContent from './MonyContent.vue';
 import MonyMediaUpload from './MonyMediaUpload.vue';
 import EmojiPopup from '@/components/EmojiPopup.vue';
+import GifComponent from '@/components/GifComponent.vue';
+import GifIcon from '@/components/icons/Gif.vue';
+import EmojiUI from '@/components/EmojiUI.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -323,6 +342,7 @@ const mediaAttachments = ref<File[]>([]);
 const isSensitive = ref(false);
 const showContentWarning = ref(false);
 const showEmojiPicker = ref(false);
+const showGiphyPicker = ref(false);
 const showVisibilityMenu = ref(false);
 const isDraft = ref(false);
 
@@ -512,6 +532,31 @@ const insertEmoji = (emoji: any) => {
   });
   
   showEmojiPicker.value = false;
+};
+
+const insertGif = (gif: any) => {
+  const gifUrl = gif.media_formats.gif.url;
+  
+  // Add GIF as media attachment - reuse the media upload logic
+  const gifAttachment = {
+    url: gifUrl,
+    type: 'image',
+    description: gif.title || 'GIF'
+  };
+  
+  // For now, add it to content as a link
+  const currentContent = content.value;
+  content.value = currentContent + (currentContent ? '\n' : '') + gifUrl;
+  
+  showGiphyPicker.value = false;
+  
+  nextTick(() => {
+    const richEditor = richEditorRef.value;
+    if (richEditor) {
+      richEditor.focus();
+      handleInput();
+    }
+  });
 };
 
 const toggleContentWarning = () => {
