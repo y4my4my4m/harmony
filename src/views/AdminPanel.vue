@@ -159,18 +159,27 @@
               <Avatar 
                 :src="user.avatar_url" 
                 :alt="user.display_name || user.username"
-                :size="md"
+                size="md"
               />
               <div class="user-info">
                 <div class="user-name">{{ user.display_name || user.username }}</div>
                 <div class="user-meta">
-                  @{{ user.username }}{{ user.domain ? '@' + user.domain : '' }}
+                  {{ user.handle }}
                   <span class="user-joined">Joined {{ formatDate(user.created_at) }}</span>
                 </div>
               </div>
               <div class="user-stats">
-                <span>{{ user.post_count }} posts</span>
-                <span>{{ user.server_count }} servers</span>
+                <button @click="navigateToUserPosts(user)" class="user-stat clickable">
+                  {{ user.postCount }} posts
+                </button>
+                <button 
+                  v-if="!user.domain" 
+                  @click="navigateToUserServers(user)" 
+                  class="user-stat clickable"
+                >
+                  {{ user.serverCount }} servers
+                </button>
+                <span v-else class="user-stat">federated</span>
               </div>
               <div class="user-actions">
                 <button @click="moderateUser(user, 'suspend')" class="mod-btn suspend-btn">
@@ -326,10 +335,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { supabase } from '@/supabase'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
-import type { User } from '@/types'
+import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance } from '@/services/AdminService'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -341,14 +349,10 @@ onMounted(async () => {
     return
   }
 
-  // Check if user is admin (you can modify this logic as needed)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', authStore.session.user.id)
-    .single()
-
-  if (!profile?.is_admin) {
+  // Check if user is admin using AdminService
+  const isAdmin = await adminService.checkAdminPermissions(authStore.session.user.id)
+  
+  if (!isAdmin) {
     router.push('/')
     return
   }
@@ -412,35 +416,13 @@ const config = ref({
 })
 
 // Users data
-const users = ref<User[]>([])
+const users = ref<AdminUser[]>([])
 const blockedInstances = ref([
   { domain: 'bad-instance.com', reason: 'Spam and harassment' },
   { domain: 'another-bad.net', reason: 'Policy violations' }
 ])
 
-const recentActivity = ref([
-  {
-    id: 1,
-    type: 'federation',
-    message: 'Successfully federated with mastodon.social',
-    timestamp: new Date(Date.now() - 300000),
-    source: 'Federation Service'
-  },
-  {
-    id: 2,
-    type: 'security',
-    message: 'Failed login attempt from 192.168.1.100',
-    timestamp: new Date(Date.now() - 600000),
-    source: 'Auth Service'
-  },
-  {
-    id: 3,
-    type: 'moderation',
-    message: 'User @spammer was suspended by admin',
-    timestamp: new Date(Date.now() - 900000),
-    source: 'Moderation'
-  }
-])
+const recentActivity = ref<any[]>([])
 
 // Computed properties
 const systemStatus = computed(() => {
@@ -523,7 +505,8 @@ const loadInitialData = async () => {
       loadSystemStats(),
       loadUsers(),
       loadSystemHealth(),
-      loadInstanceConfig()
+      loadInstanceConfig(),
+      loadRecentActivity()
     ])
   } catch (error) {
     console.error('Failed to load admin data:', error)
@@ -532,50 +515,77 @@ const loadInitialData = async () => {
   }
 }
 
+const loadRecentActivity = async () => {
+  try {
+    const activity = await adminService.getRecentActivity(20)
+    
+    recentActivity.value = activity.map((event: AdminActivity) => ({
+      id: event.id,
+      type: event.action_type,
+      message: event.details,
+      timestamp: new Date(event.created_at),
+      source: `Admin: ${event.admin_username}`,
+      admin_id: event.admin_id
+    }))
+  } catch (error) {
+    console.error('Failed to load recent activity:', error)
+    recentActivity.value = []
+  }
+}
+
 const loadSystemStats = async () => {
-  // Load from database - this is mock data for now
-  const { data: userCount } = await supabase
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
-
-  const { data: serverCount } = await supabase
-    .from('servers')
-    .select('id', { count: 'exact', head: true })
-
-  const { data: postCount } = await supabase
-    .from('posts')
-    .select('id', { count: 'exact', head: true })
-
-  systemStats.value = {
-    uptime: Date.now() - (7 * 24 * 60 * 60 * 1000), // 7 days ago
-    totalUsers: userCount?.length || 0,
-    newUsersToday: 5,
-    totalServers: serverCount?.length || 0,
-    activeServers: Math.floor((serverCount?.length || 0) * 0.8),
-    federatedInstances: 25,
-    federationHealth: 95,
-    totalPosts: postCount?.length || 0,
-    postsToday: 42
+  try {
+    const stats = await adminService.getSystemStats()
+    
+    systemStats.value = {
+      uptime: stats.uptime || Date.now() - (7 * 24 * 60 * 60 * 1000),
+      totalUsers: stats.total_users,
+      newUsersToday: stats.newUsersToday || 0,
+      totalServers: stats.total_servers,
+      activeServers: stats.active_servers,
+      federatedInstances: stats.federated_instances,
+      federationHealth: 95, // Mock for now
+      totalPosts: stats.total_posts,
+      postsToday: stats.postsToday || 0
+    }
+  } catch (error) {
+    console.error('Failed to load system stats:', error)
+    // Set defaults on error
+    systemStats.value = {
+      uptime: Date.now() - (7 * 24 * 60 * 60 * 1000),
+      totalUsers: 0,
+      newUsersToday: 0,
+      totalServers: 0,
+      activeServers: 0,
+      federatedInstances: 0,
+      federationHealth: 0,
+      totalPosts: 0,
+      postsToday: 0
+    }
   }
 }
 
 const loadUsers = async () => {
-  const { data } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(100)
-
-  users.value = data || []
+  try {
+    users.value = await adminService.getUsers(100)
+  } catch (error) {
+    console.error('Failed to load users:', error)
+    users.value = []
+  }
 }
 
 const loadSystemHealth = async () => {
-  // Mock data - in real implementation, get from monitoring service
-  systemHealth.value = {
-    database: { responseTime: 12, connections: 25 },
-    federation: { pending: 5, status: 'healthy' },
-    storage: { used: 45, total: '100GB' },
-    memory: { used: 72, total: '16GB' }
+  try {
+    systemHealth.value = await adminService.getSystemHealth()
+  } catch (error) {
+    console.error('Failed to load system health:', error)
+    // Set defaults
+    systemHealth.value = {
+      database: { responseTime: 0, connections: 0 },
+      federation: { pending: 0, status: 'error' },
+      storage: { used: 0, total: '100GB' },
+      memory: { used: 0, total: '16GB' }
+    }
   }
 }
 
@@ -593,27 +603,109 @@ const exportLogs = () => {
   console.log('Exporting logs...')
 }
 
-const blockInstance = () => {
+const blockInstance = async () => {
   if (newBlockDomain.value && newBlockReason.value) {
-    blockedInstances.value.push({
-      domain: newBlockDomain.value,
-      reason: newBlockReason.value
-    })
-    newBlockDomain.value = ''
-    newBlockReason.value = ''
+    try {
+      await adminService.moderateInstance(
+        newBlockDomain.value,
+        'block',
+        newBlockReason.value,
+        authStore.session?.user?.id || ''
+      )
+
+      blockedInstances.value.push({
+        domain: newBlockDomain.value,
+        reason: newBlockReason.value
+      })
+      
+      newBlockDomain.value = ''
+      newBlockReason.value = ''
+      
+      // Refresh activity log
+      await loadRecentActivity()
+    } catch (error) {
+      console.error('Failed to block instance:', error)
+      alert('Failed to block instance. Check console for details.')
+    }
   }
 }
 
-const unblockInstance = (domain: string) => {
-  const index = blockedInstances.value.findIndex(i => i.domain === domain)
-  if (index !== -1) {
-    blockedInstances.value.splice(index, 1)
+const unblockInstance = async (domain: string) => {
+  try {
+    await adminService.moderateInstance(
+      domain,
+      'unblock',
+      'Admin unblock',
+      authStore.session?.user?.id || ''
+    )
+
+    const index = blockedInstances.value.findIndex(i => i.domain === domain)
+    if (index !== -1) {
+      blockedInstances.value.splice(index, 1)
+    }
+    
+    // Refresh activity log
+    await loadRecentActivity()
+  } catch (error) {
+    console.error('Failed to unblock instance:', error)
+    alert('Failed to unblock instance. Check console for details.')
   }
 }
 
-const moderateUser = (user: User, action: string) => {
-  console.log(`Moderating user ${user.username} with action: ${action}`)
-  // Implement moderation actions
+const moderateUser = async (user: any, action: string) => {
+  try {
+    if (action === 'suspend') {
+      const reason = prompt('Suspension reason:')
+      if (!reason) return
+
+      await adminService.moderateUser(
+        user.id,
+        'suspend',
+        reason,
+        authStore.session?.user?.id || ''
+      )
+      
+      // Refresh user list
+      await loadUsers()
+      console.log(`User ${user.username} suspended`)
+    } else if (action === 'delete') {
+      if (!confirm(`Are you sure you want to delete user ${user.username}? This cannot be undone.`)) {
+        return
+      }
+
+      await adminService.moderateUser(
+        user.id,
+        'delete',
+        'Admin deletion',
+        authStore.session?.user?.id || ''
+      )
+      
+      // Refresh user list
+      await loadUsers()
+      console.log(`User ${user.username} deleted`)
+    }
+  } catch (error) {
+    console.error('Failed to moderate user:', error)
+    alert('Failed to moderate user. Check console for details.')
+  }
+}
+
+const navigateToUserPosts = (user: any) => {
+  // Navigate to user's profile/posts
+  if (user.domain) {
+    // Federated user - navigate to profile view
+    router.push(`/u/${user.username}@${user.domain}`)
+  } else {
+    // Local user
+    router.push(`/u/${user.username}`)
+  }
+}
+
+const navigateToUserServers = (user: any) => {
+  // For local users, could show a modal with their servers
+  // For now, just log it
+  console.log(`Viewing servers for user ${user.username}`)
+  // TODO: Implement server list modal
 }
 
 const saveConfig = async () => {
@@ -634,7 +726,8 @@ const formatUptime = (timestamp: number) => {
   return `${days}d ${hours}h`
 }
 
-const formatNumber = (num: number) => {
+const formatNumber = (num: number | undefined) => {
+  if (num === undefined || num === null) return '0'
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
   return num.toString()
@@ -1114,6 +1207,23 @@ const getActivityIcon = (type: string) => {
   gap: 16px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.user-stat {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.user-stat.clickable:hover {
+  background: rgba(0, 212, 255, 0.1);
+  color: #00d4ff;
+  transform: translateY(-1px);
 }
 
 .user-actions {
