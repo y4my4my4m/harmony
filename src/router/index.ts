@@ -181,6 +181,12 @@ const router = createRouter({
       component: () => import('@/components/demo/AudioThemeShowcase.vue'),
       meta: { requiresAuth: false }
     },
+    {
+      path: '/admin',
+      name: 'AdminPanel',
+      component: () => import('@/views/AdminPanel.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
   ],
 });
 
