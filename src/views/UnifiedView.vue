@@ -81,7 +81,6 @@
           @channel-selected="handleChannelSelected"
           @create-channel="handleCreateChannel"
           @conversation-selected="handleDMConversationSelected"
-          @switch-mode="handleSwitchMode"
         />
       </div>
 
@@ -553,6 +552,14 @@ const handleChannelSelected = async (channelId: string) => {
 
 const handleDMConversationSelected = async (conversationId: string) => {
   if (props.isDM) {
+    console.log('🔄 DM conversation selected:', conversationId);
+    
+    // Ensure DM environment is initialized
+    const userId = authStore.session?.user?.id;
+    if (userId) {
+      await dmStore.initializeDMEnvironmentForDirectAccess(userId, conversationId);
+    }
+    
     viewContextTracker.updateContext({
       server_id: undefined,
       channel_id: undefined,
@@ -561,7 +568,6 @@ const handleDMConversationSelected = async (conversationId: string) => {
     });
     
     const isCached = dmStore.isCacheValid(conversationId);
-    dmStore.setCurrentConversation(conversationId);
     
     if (isCached) {
       dmStore.loadCachedMessages(conversationId);
@@ -595,10 +601,42 @@ const handleChannelCreated = async (channel: Channel) => {
   await handleChannelSelected(channel.id);
 };
 
-const handleSendMessage = async (message: any) => {
-  // Handle message sending based on current mode
-  if (currentMode.value === 'chat') {
-    // Existing chat message logic
+const handleSendMessage = async (content: MessagePart[], replyTo?: string) => {
+  try {
+    // Handle message sending based on current mode
+    if (currentMode.value === ViewMode.CHAT) {
+      // For DMs, we need conversation ID and user ID
+      if (isDM.value && dmStore.currentConversationId && authStore.session?.user) {
+        console.log('🔄 Sending DM message via UnifiedView:', {
+          conversationId: dmStore.currentConversationId,
+          userId: authStore.session.user.id,
+          content,
+          replyTo
+        });
+        
+        const success = await dmStore.sendDMMessage(
+          dmStore.currentConversationId,
+          authStore.session.user.id,
+          content,
+          replyTo
+        );
+        
+        if (!success) {
+          console.error('❌ Failed to send DM message');
+          toast.error('Failed to send message');
+        } else {
+          console.log('✅ DM message sent successfully');
+        }
+      } else {
+        console.warn('❌ Cannot send DM: missing conversation ID or user session');
+        toast.error('Cannot send message: no conversation selected');
+      }
+    }
+    // For ActivityPub mode, handle differently if needed
+    // TODO: Implement ActivityPub message handling if required
+  } catch (error) {
+    console.error('❌ Error in handleSendMessage:', error);
+    toast.error('Failed to send message');
   }
 };
 
@@ -719,7 +757,11 @@ const handleFavoritePost = async (postId: string) => {
 };
 
 const handleReblogPost = async (postId: string) => {
-  console.log('Reblog post:', postId);
+  try {
+    await activityPubStore.toggleReblog(postId);
+  } catch (error) {
+    console.error('Failed to reblog post:', error);
+  }
 };
 
 const handleDeletePost = async (postId: string) => {
@@ -902,20 +944,37 @@ const loadServerAndChannel = async () => {
     if (props.isDM || isDM.value) {
       // DM mode handling
       if (props.conversationId) {
-        // Set current conversation first to establish subscription
-        dmStore.setCurrentConversation(props.conversationId);
+        console.log('🔄 Loading DM conversation directly:', props.conversationId);
+        
+        // Use the specialized method for direct DM access to ensure conversation is loaded
+        const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(
+          authStore.session?.user?.id || '', 
+          props.conversationId
+        );
+        
+        if (!conversation) {
+          console.error('❌ Failed to load conversation for direct access:', props.conversationId);
+          toast.error('Failed to load conversation');
+          return;
+        }
+        
+        console.log('✅ Conversation loaded for direct access:', conversation.id);
         
         // Check cache first for instant loading
         const isCached = dmStore.isCacheValid(props.conversationId);
         
         if (isCached) {
+          console.log('📂 Loading cached messages for direct access');
           dmStore.loadCachedMessages(props.conversationId);
           scrollToBottom();
         } else {
+          console.log('🔄 Fetching fresh messages for direct access');
           dmStore.clearDMMessages();
           await dmStore.fetchConversationMessages(props.conversationId);
           scrollToBottom();
         }
+      } else {
+        console.warn('⚠️ DM mode but no conversation ID provided');
       }
     } else {
       // Regular chat mode
@@ -1181,6 +1240,9 @@ onMounted(async () => {
 
     // Initialize the user environment which includes server loading
     await serverChannelStore.initializeUserEnvironment(userId);
+    
+    // DM environment will be initialized as needed by initializeDMEnvironmentForDirectAccess
+    // when accessing DMs directly, or by user navigation
     
     // Mark both initialization flags as complete
     isAppInitialized.value = true;

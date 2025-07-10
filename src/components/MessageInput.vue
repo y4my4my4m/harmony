@@ -107,7 +107,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 interface Emits {
   (e: 'update:modelValue', value: string): void;
-  (e: 'sendMessage', content: string, files: FilePreviewData[]): void;
+  (e: 'sendMessage', content: string, files: FilePreviewData[], replyMessageId?: string): void;
   (e: 'toggleGiphy'): void;
   (e: 'toggleEmojiList', value?: boolean): void;
   (e: 'update:replyMessageId', value: string): void;
@@ -253,7 +253,8 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
         const content = props.modelValue || '';
-        emit('sendMessage', content, attachedFiles.value);
+        // Pass reply message ID as third parameter
+        emit('sendMessage', content, attachedFiles.value, props.replyMessageId || undefined);
         emit('update:modelValue', '');
         
         // Clear the rich text editor

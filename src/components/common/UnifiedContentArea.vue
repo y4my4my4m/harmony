@@ -8,7 +8,7 @@
         :isDM="isDM"
         @loadMoreMessages="$emit('load-more-messages')" 
         @update:isAtBottom="$emit('update:is-at-bottom', $event)" 
-        @sendMessage="$emit('send-message', $event)"
+        @sendMessage="(messageParts, replyId) => $emit('send-message', messageParts, replyId)"
       />
     </div>
     
@@ -254,7 +254,7 @@ defineEmits<{
   // Chat mode events
   'load-more-messages': [];
   'update:is-at-bottom': [value: boolean];
-  'send-message': [message: any];
+  'send-message': [messageParts: any, replyId?: string];
   
   // ActivityPub mode events
   'refresh-timeline': [];

@@ -321,7 +321,7 @@
       };
 
       // Updated handleSendMessage to support both DMs and server channels
-      const handleSendMessage = async (content: string, files: FilePreviewData[] = []) => {
+      const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
         if (!authStore.session?.user) {
           return;
         }
@@ -380,7 +380,8 @@
           if (messageParts.length > 0) {
             if (props.isDM) {
               // Emit event for DM messages to be handled by parent component
-              emit('sendMessage', messageParts, replyToMessageId.value || undefined);
+              // Use the replyMessageId parameter passed from MessageInput
+              emit('sendMessage', messageParts, replyMessageId || undefined);
             } else {
               // Handle server channel messages directly
               if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId) {
@@ -389,7 +390,7 @@
                   serverChannelStore.currentChannelId,
                   authStore.session.user.id,
                   messageParts,
-                  replyToMessageId.value || ''
+                  replyMessageId || ''
                 );
               }
             }
