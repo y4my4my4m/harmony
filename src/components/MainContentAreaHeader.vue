@@ -1,5 +1,5 @@
 <template>
-  <div v-if="mode === 'chat'" class="chat-header">
+  <div v-if="mode === ViewMode.CHAT" class="chat-header">
     <div class="channel-header"><HashTagIcon class="channel-icon" /><span>{{ currentChannel?.name || 'Channel' }}</span></div>
   </div>
   <div v-else class="mony-header">
@@ -11,60 +11,43 @@
         v-for="tab in mainFeedTabs"
         :key="tab.id"
         @click="$emit('switch-feed', tab.id)"
-        :class="['feed-tab', { active: currentFeed === tab.id && viewType === 'timeline' }]"
+        :class="['feed-tab', { active: currentView === tab.id }]"
         :title="tab.label"
       >
         <Icon :name="tab.icon" />
         <span v-if="!isMobile">{{ tab.label }}</span>
       </button>
-      
-      <!-- Explore tabs (only visible in explore view) -->
-      <template v-if="viewType === 'explore'">
-        <button
-          v-for="tab in exploreTabs"
-          :key="tab.id"
-          @click="$emit('switch-explore-tab', tab.id)"
-          :class="['feed-tab', { active: currentExploreTab === tab.id }]"
-          :title="tab.label"
-        >
-          <Icon :name="tab.icon" />
-          <span v-if="!isMobile">{{ tab.label }}</span>
-        </button>
-      </template>
     </div>
     <div></div>
     <div></div>
   </div>
 </template>
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import HashTagIcon from '@/components/icons/HashTag.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Channel } from '@/types';
+import { ViewMode, ViewType, CurrentView, VIEW_CONFIGS } from '@/types/viewTypes';
 
+// Professional tab configuration using the centralized type system
 const mainFeedTabs = [
-  { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'local', label: 'Local', icon: 'users' },
-  { id: 'public', label: 'Federated', icon: 'globe' }
-];
-
-const exploreTabs = [
-  { id: 'trending', label: 'Trending', icon: 'trending-up' },
-  { id: 'instances', label: 'Instances', icon: 'server' }
+  { id: CurrentView.HOME, label: 'Home', icon: 'home' },
+  { id: CurrentView.LOCAL, label: 'Local', icon: 'users' },
+  { id: CurrentView.PUBLIC, label: 'Federated', icon: 'globe' },
+  { id: CurrentView.TRENDING, label: 'Trending', icon: 'trending-up' },
+  { id: CurrentView.INSTANCES, label: 'Instances', icon: 'server' }
 ];
 
 const props = defineProps<{
-  mode: 'chat' | 'activitypub';
-  currentFeed: string;
+  mode: ViewMode;
+  currentView: string;
   isMobile: boolean;
   currentChannel?: Channel;
-  viewType?: string;
-  currentExploreTab?: string;
+  viewType?: ViewType;
 }>();
 
 defineEmits<{
   'switch-feed': [feedType: string];
-  'switch-explore-tab': [tabType: string];
 }>();
 </script>
 

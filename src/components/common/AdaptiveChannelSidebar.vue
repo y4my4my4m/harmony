@@ -85,15 +85,15 @@
         <nav class="social-nav">
           <div class="nav-section">
             <h4 class="nav-section-title">Navigation</h4>
-            <router-link 
+            <button 
               v-for="navItem in navigationItems"
               :key="navItem.id"
-              :to="navItem.path"
-              :class="['nav-item', { active: $route.path === navItem.path }]"
+              :class="['nav-item', { active: isNavItemActive(navItem) }]"
+              @click="navigateToRoute(navItem.path)"
             >
               <Icon :name="navItem.icon" />
               <span>{{ navItem.label }}</span>
-            </router-link>
+            </button>
           </div>
         </nav>
 
@@ -198,7 +198,7 @@ const props = withDefaults(defineProps<Props>(), {
   instancePostCount: 0
 });
 
-defineEmits<{
+const emit = defineEmits<{
   // Chat mode events
   'channel-selected': [channelId: string];
   'create-channel': [categoryId: string];
@@ -275,6 +275,28 @@ const navigationItems = computed(() => [
   { id: 'settings', label: 'Settings', path: '/settings', icon: 'settings' }
 ]);
 
+// Determine if a navigation item should be active
+const isNavItemActive = (navItem: { id: string; path: string }) => {
+  const currentPath = route.path;
+  
+  if (navItem.id === 'feed') {
+    // Feed is active for home, local, and public timelines
+    return currentPath === '/social/home' || 
+           currentPath === '/social/local' || 
+           currentPath === '/social/public';
+  }
+  
+  if (navItem.id === 'explore') {
+    // Explore is active for explore, trending, and instances
+    return currentPath === '/explore' || 
+           currentPath === '/social/trending' || 
+           currentPath === '/social/instances';
+  }
+  
+  // Default to exact path matching for other items
+  return currentPath === navItem.path;
+};
+
 const refreshStats = () => {
   // TODO: Implement refresh stats
   //activityPubStore.refreshStats();
@@ -299,6 +321,10 @@ const navigateToProfile = () => {
   if (currentUserHandle.value) {
     router.push(`/profile/${currentUserHandle.value.replace('@', '')}`);
   }
+};
+
+const navigateToRoute = (path: string) => {
+  router.push(path);
 };
 
 // Format numbers for display (e.g., 1000 -> 1K)
@@ -547,24 +573,29 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px;
-  text-decoration: none;
-  color: var(--text-secondary);
+  padding: 8px 16px;
   border-radius: 6px;
+  color: var(--text-secondary);
+  text-decoration: none;
   transition: all 0.15s ease;
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 2px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
 }
 
 .nav-item:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .nav-item.active {
-  background: var(--brand-primary);
-  color: white;
+  background: var(--background-modifier-selected);
+  color: var(--brand-primary);
 }
 
 .quick-stats {

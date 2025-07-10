@@ -39,7 +39,7 @@
         :current-server="currentServer"
         :current-channel="currentChannel"
         :is-d-m="isDM"
-        :current-feed="currentFeed"
+        :current-view="currentView"
         :instance-domain="instanceDomain"
         @toggle-left-sidebar="toggleLeftSidebar"
         @toggle-right-sidebar="toggleRightSidebar"
@@ -58,6 +58,8 @@
         <ServerSidebar
           :servers="servers"
           @showPublicServers="handleShowPublicServers"
+          @switch-to-activitypub="handleSwitchToActivityPub"
+          @switch-to-chat="handleSwitchToChat"
         />
       </div>
       
@@ -93,13 +95,11 @@
     <div class="main-content-area">
       <MainContentAreaHeader 
         :mode="currentMode" 
-        :current-feed="currentFeed" 
+        :current-view="currentView" 
         :is-mobile="isMobile" 
         :current-channel="currentChannel"
         :view-type="currentViewType"
-        :current-explore-tab="currentExploreTab"
         @switch-feed="handleSwitchFeed"
-        @switch-explore-tab="handleSwitchExploreTab" 
       />
       <div class="main-content-area-content">
         <UnifiedContentArea
@@ -108,8 +108,7 @@
           :is-loading="isLoading"
           :is-d-m="isDM"
           :view-type="currentViewType"
-          :current-feed="currentFeed"
-          :current-explore-tab="currentExploreTab"
+          :current-view="currentView"
           :posts="posts"
           :is-loading-feed="isLoadingFeed"
           :has-more-posts="hasMorePosts"
@@ -281,26 +280,38 @@ import { statePersistence } from '@/services/StatePersistence';
 import { viewContextTracker } from '@/services/ViewContextTracker';
 
 import type { Channel, FederatedUser, TimelinePost, Post } from "@/types";
+import { 
+  ViewMode, 
+  ViewType, 
+  CurrentView, 
+  type RouterViewProps,
+  type ViewState,
+  createTimelineView,
+  createExploreView,
+  createProfileView,
+  createPostView,
+  createChatView,
+  createDMView,
+  isTimelineView,
+  isExploreView,
+  isChatMode,
+  isActivityPubMode,
+  getViewPath,
+  isActivityPubRoute
+} from '@/types/viewTypes';
 
-interface Props {
-  // Route params that determine initial state
-  serverId?: string;
-  channelId?: string;
-  isDM?: boolean;
-  conversationId?: string;
-  mode?: 'chat' | 'activitypub';
-  timeline?: 'home' | 'local' | 'public';
-  profileHandle?: string;
-  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post' | 'explore';
-  postId?: string;
+interface Props extends RouterViewProps {
+  // Additional legacy props for backward compatibility
+  timeline?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isDM: false,
-  mode: 'chat',
+  mode: ViewMode.CHAT,
+  viewType: ViewType.TIMELINE,
+  currentView: CurrentView.HOME,
   timeline: 'home',
-  profileHandle: undefined,
-  viewType: 'timeline'
+  profileHandle: undefined
 });
 
 // Stores
@@ -316,13 +327,26 @@ const toast = useToast();
 const route = useRoute();
 const router = useRouter();
 
-// State Management
-const currentMode = ref<'chat' | 'activitypub'>(props.mode);
-const currentFeed = ref<'home' | 'local' | 'public'>(props.timeline);
-const currentViewType = ref<'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post' | 'explore'>(
-  props.viewType || (props.profileHandle ? 'profile' : 'timeline')
-);
-const currentExploreTab = ref<'trending' | 'instances'>('trending');
+// State Management - Professional type-safe view state
+const currentViewState = ref<ViewState>({
+  mode: props.mode || ViewMode.CHAT,
+  viewType: props.viewType || ViewType.TIMELINE,
+  currentView: props.currentView || 
+    (props.timeline === 'local' ? CurrentView.LOCAL :
+     props.timeline === 'public' ? CurrentView.PUBLIC :
+     CurrentView.HOME),
+  serverId: props.serverId,
+  channelId: props.channelId,
+  conversationId: props.conversationId,
+  profileHandle: props.profileHandle,
+  postId: props.postId,
+  isDM: props.isDM
+});
+
+// Computed accessors for backward compatibility
+const currentMode = computed(() => currentViewState.value.mode);
+const currentView = computed(() => currentViewState.value.currentView);
+const currentViewType = computed(() => currentViewState.value.viewType);
 const profileUser = ref<FederatedUser | null>(null);
 const specialViewData = ref<TimelinePost[]>([]);
 const hasMoreSpecialData = ref(false);
@@ -404,10 +428,10 @@ const chatMessages = computed(() => {
 });
 
 // ActivityPub computed properties
-const posts = computed(() => activityPubStore.getTimelinePosts(currentFeed.value));
+const posts = computed(() => activityPubStore.getTimelinePosts(currentView.value));
 const isLoadingFeed = computed(() => activityPubStore.isLoadingFeed);
 const hasMorePosts = computed(() => {
-  switch (currentFeed.value) {
+  switch (currentView.value) {
     case 'home':
       return activityPubStore.homeFeed.has_more;
     case 'public':
@@ -439,37 +463,34 @@ const handleResize = () => {
   checkMobileDevice();
 };
 
-// Mode switching
-const handleSwitchMode = async (mode: 'chat' | 'activitypub') => {
-  currentMode.value = mode;
+// Professional mode switching with proper view state management  
+const handleSwitchMode = async (mode: ViewMode) => {
+  let newViewState: ViewState;
   
-  if (mode === 'chat') {
-    // Navigate to chat route
+  if (mode === ViewMode.CHAT) {
+    // Create chat view state
     if (currentServer.value?.id && currentChannelId.value) {
-      await router.push({ 
-        name: 'Chat', 
-        params: { 
-          serverId: currentServer.value.id, 
-          channelId: currentChannelId.value 
-        } 
-      });
+      newViewState = createChatView(currentServer.value.id, currentChannelId.value);
     } else {
-      await router.push({ name: 'Chat' });
+      newViewState = createChatView();
     }
-  } else {
-    // Only navigate to default Social route if we're not already on an ActivityPub route
-    const currentRoute = route.name;
-    const isActivityPubRoute = ['Social', 'Monyverse', 'UserProfile', 'Bookmarks', 'Notifications', 'Lists'].includes(currentRoute as string);
     
-    if (!isActivityPubRoute) {
-      // Navigate to default ActivityPub route (home timeline)
-      await router.push({ 
-        name: 'Social', 
-        params: { timeline: currentFeed.value } 
-      });
-      await loadTimeline();
+    // Update state and navigate
+    currentViewState.value = newViewState;
+    await router.push({ name: 'Chat' });
+  } else {
+    // ActivityPub mode - preserve current view if already in ActivityPub mode
+    if (isActivityPubMode(currentViewState.value)) {
+      // Already in ActivityPub mode, no navigation needed
+      return;
     }
-    // If already on an ActivityPub route, just update the mode without navigation
+    
+    // Switch to default ActivityPub view (home timeline)
+    newViewState = createTimelineView(CurrentView.HOME);
+    currentViewState.value = newViewState;
+    
+    await router.push({ name: 'Social', params: { timeline: 'home' } });
+    await loadTimeline();
   }
 };
 
@@ -598,21 +619,70 @@ const handleClosePublicServers = () => {
   shouldForceRefreshPublicServers.value = false;
 };
 
-// ActivityPub event handlers
-const handleSwitchFeed = async (feedType: 'home' | 'local' | 'public') => {
-  currentFeed.value = feedType;
-  await router.push(`/social/${feedType}`);
-  await loadTimeline();
+// Professional handlers for mode switching from ServerSidebar
+const handleSwitchToActivityPub = async () => {
+  await handleSwitchMode(ViewMode.ACTIVITYPUB);
 };
 
-const handleSwitchExploreTab = (tabType: 'trending' | 'instances') => {
-  currentExploreTab.value = tabType;
-  // The ExploreContent component will listen to this state change
-  // and update its display accordingly
+const handleSwitchToChat = async () => {
+  await handleSwitchMode(ViewMode.CHAT);
+};
+
+// Watch route changes to update view state for direct URL navigation
+watch(() => route.name, (newRouteName) => {
+  if (newRouteName) {
+    const activityPubRoutes = ['Social', 'SocialTrending', 'SocialInstances', 'Explore', 'UserProfile', 'PostDetail', 'Bookmarks', 'Notifications', 'Lists'];
+    const chatRoutes = ['Chat', 'DM', 'DMHome'];
+    
+    if (activityPubRoutes.includes(newRouteName as string) && currentMode.value === ViewMode.CHAT) {
+      currentViewState.value.mode = ViewMode.ACTIVITYPUB;
+    } else if (chatRoutes.includes(newRouteName as string) && currentMode.value === ViewMode.ACTIVITYPUB) {
+      currentViewState.value.mode = ViewMode.CHAT;
+    }
+  }
+}, { immediate: true });
+
+// ActivityPub event handlers
+// Professional type-safe feed switching with proper view state management
+const handleSwitchFeed = async (feedType: string) => {
+  let newViewState: ViewState;
+  
+  // Create appropriate view state based on feed type
+  switch (feedType) {
+    case 'home':
+      newViewState = createTimelineView(CurrentView.HOME);
+      break;
+    case 'local':
+      newViewState = createTimelineView(CurrentView.LOCAL);
+      break;
+    case 'public':
+      newViewState = createTimelineView(CurrentView.PUBLIC);
+      break;
+    case 'trending':
+      newViewState = createExploreView(CurrentView.TRENDING);
+      break;
+    case 'instances':
+      newViewState = createExploreView(CurrentView.INSTANCES);
+      break;
+    default:
+      newViewState = createTimelineView(CurrentView.HOME);
+  }
+  
+  // Update view state
+  currentViewState.value = { ...currentViewState.value, ...newViewState };
+  
+  // Navigate to appropriate route
+  const path = getViewPath(newViewState);
+  await router.push(path);
+  
+  // Load content if needed
+  if (isTimelineView(newViewState)) {
+    // await loadTimeline();
+  }
 };
 
 const loadTimeline = async () => {
-  switch (currentFeed.value) {
+  switch (currentView.value) {
     case 'home':
       await activityPubStore.loadHomeFeed();
       break;
@@ -717,7 +787,7 @@ const handleLoadMorePosts = async () => {
   const currentPosts = posts.value;
   const lastPost = currentPosts[currentPosts.length - 1];
   
-  switch (currentFeed.value) {
+  switch (currentView.value) {
     case 'home':
       await activityPubStore.loadHomeFeed(lastPost?.id);
       break;
@@ -797,7 +867,7 @@ const closeSearch = () => {
 
 const handleBackToTimeline = () => {
   // Navigate back to timeline from post detail
-  router.push({ name: 'Social', params: { timeline: currentFeed.value } });
+  router.push({ name: 'Social', params: { timeline: currentView.value } });
 };
 
 const scrollToBottom = () => {
@@ -965,47 +1035,72 @@ const loadProfileUser = async () => {
 // Watch route changes to update mode and load data
 watch(route, async () => {
   if (isAppInitialized.value) {
-    // Update mode based on route
-    const activityPubRoutes = ['Social', 'Monyverse', 'UserProfile', 'Bookmarks', 'Notifications', 'Lists', 'Explore'];
-    if (activityPubRoutes.includes(route.name as string)) {
-      currentMode.value = 'activitypub';
+    // Update mode based on route using our professional ViewMode system
+    if (isActivityPubRoute(route.name as string)) {
+      // Update the underlying view state instead of computed properties
+      currentViewState.value = {
+        ...currentViewState.value,
+        mode: ViewMode.ACTIVITYPUB
+      };
       
-      // Update viewType and feed based on route
+      // Update viewType and currentView based on route
       if (route.name === 'UserProfile') {
-        currentViewType.value = 'profile';
+        currentViewState.value.viewType = ViewType.PROFILE;
+        currentViewState.value.currentView = CurrentView.PROFILE;
       } else if (route.name === 'Bookmarks') {
-        currentViewType.value = 'bookmarks';
+        currentViewState.value.viewType = ViewType.BOOKMARKS;
+        currentViewState.value.currentView = CurrentView.BOOKMARKS;
       } else if (route.name === 'Notifications') {
-        currentViewType.value = 'notifications';
+        currentViewState.value.viewType = ViewType.NOTIFICATIONS;
+        currentViewState.value.currentView = CurrentView.NOTIFICATIONS;
       } else if (route.name === 'Lists') {
-        currentViewType.value = 'lists';
+        currentViewState.value.viewType = ViewType.LISTS;
+        currentViewState.value.currentView = CurrentView.LISTS;
       } else if (route.name === 'Explore') {
-        currentViewType.value = 'explore';
+        currentViewState.value.viewType = ViewType.EXPLORE;
+        currentViewState.value.currentView = CurrentView.TRENDING; // Default to trending
+      } else if (route.name === 'SocialTrending') {
+        currentViewState.value.viewType = ViewType.EXPLORE;
+        currentViewState.value.currentView = CurrentView.TRENDING;
+      } else if (route.name === 'SocialInstances') {
+        currentViewState.value.viewType = ViewType.EXPLORE;
+        currentViewState.value.currentView = CurrentView.INSTANCES;
+      } else if (route.name === 'PostDetail') {
+        currentViewState.value.viewType = ViewType.POST;
+        currentViewState.value.currentView = CurrentView.POST;
       } else {
-        currentViewType.value = 'timeline';
+        currentViewState.value.viewType = ViewType.TIMELINE;
         if (route.params.timeline) {
-          currentFeed.value = route.params.timeline as 'home' | 'local' | 'public';
+          const timeline = route.params.timeline as string;
+          currentViewState.value.currentView = timeline === 'home' ? CurrentView.HOME :
+            timeline === 'local' ? CurrentView.LOCAL :
+            timeline === 'public' ? CurrentView.PUBLIC :
+            CurrentView.HOME;
         }
       }
       
       // Load appropriate data based on viewType
-      if (currentViewType.value === 'timeline') {
+      if (currentViewState.value.viewType === ViewType.TIMELINE) {
         await loadTimeline();
-      } else if (currentViewType.value === 'profile') {
+      } else if (currentViewState.value.viewType === ViewType.PROFILE) {
         await loadProfileUser();
-      } else if (currentViewType.value === 'explore') {
+      } else if (currentViewState.value.viewType === ViewType.EXPLORE) {
         // Explore content will handle its own data loading
         console.log('Switched to explore view');
       } else {
         await loadSpecialViewData();
       }
     } else {
-      currentMode.value = 'chat';
-      currentViewType.value = 'timeline';
+      // Update to chat mode
+      currentViewState.value = {
+        ...currentViewState.value,
+        mode: ViewMode.CHAT,
+        viewType: ViewType.TIMELINE
+      };
     }
     
     // Load server/channel data for chat routes only
-    if (currentMode.value === 'chat') {
+    if (currentViewState.value.mode === ViewMode.CHAT) {
       await loadServerAndChannel();
     }
   }
@@ -1013,18 +1108,34 @@ watch(route, async () => {
 
 // Watch for mode changes from props (when component is created with specific mode)
 watch(() => props.mode, (newMode) => {
-  currentMode.value = newMode;
+  currentViewState.value = {
+    ...currentViewState.value,
+    mode: newMode
+  };
 }, { immediate: true });
 
 // Watch for timeline changes from props
 watch(() => props.timeline, (newTimeline) => {
-  currentFeed.value = newTimeline;
+  if (newTimeline) {
+    const currentView = newTimeline === 'home' ? CurrentView.HOME :
+      newTimeline === 'local' ? CurrentView.LOCAL :
+      newTimeline === 'public' ? CurrentView.PUBLIC :
+      CurrentView.HOME;
+    
+    currentViewState.value = {
+      ...currentViewState.value,
+      currentView
+    };
+  }
 }, { immediate: true });
 
 // Watch for viewType changes from props
 watch(() => props.viewType, (newViewType) => {
   if (newViewType) {
-    currentViewType.value = newViewType;
+    currentViewState.value = {
+      ...currentViewState.value,
+      viewType: newViewType
+    };
   }
 }, { immediate: true });
 
@@ -1139,11 +1250,6 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-}
-
-.loading-spinner {
-  text-align: center;
-  color: var(--text-secondary);
 }
 
 .spinner {

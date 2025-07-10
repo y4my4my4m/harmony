@@ -1,7 +1,7 @@
 <template>
   <div class="unified-content-area">
     <!-- Chat Mode Content -->
-    <div v-if="mode === 'chat'" class="content-section chat-content">
+    <div v-if="mode === ViewMode.CHAT" class="content-section chat-content">
       <ChatComponent
         :messages="chatMessages"
         :isLoading="isLoading"
@@ -13,10 +13,10 @@
     </div>
     
     <!-- ActivityPub Mode Content -->
-    <div v-else-if="mode === 'activitypub'" class="content-section activitypub-content">
+    <div v-else-if="mode === ViewMode.ACTIVITYPUB" class="content-section activitypub-content">
       <!-- Profile View -->
       <ProfileDisplay 
-        v-if="viewType === 'profile'"
+        v-if="viewType === ViewType.PROFILE"
         :user="profileUser"
         :posts="[]"
         :loading="false"
@@ -31,7 +31,7 @@
       />
       
       <!-- Post Detail View -->
-      <div v-else-if="viewType === 'post'" class="post-detail-content">
+      <div v-else-if="viewType === ViewType.POST" class="post-detail-content">
         <PostDetailDisplay
           :post-id="postId || ''"
           @reply="$emit('reply-to-post', $event)"
@@ -45,9 +45,9 @@
       </div>
       
       <!-- Explore View -->
-      <div v-else-if="viewType === 'explore'" class="explore-view-content">
+      <div v-else-if="viewType === ViewType.EXPLORE" class="explore-view-content">
         <ExploreContent
-          :current-explore-tab="currentExploreTab"
+          :current-view="currentView"
           @switch-feed="$emit('switch-feed', $event)"
           @refresh-timeline="$emit('refresh-timeline')"
           @show-user-profile="$emit('show-user-profile', $event)"
@@ -62,7 +62,7 @@
       </div>
       
       <!-- Special Views (Bookmarks, Lists, etc.) -->
-      <div v-else-if="viewType !== 'timeline'" class="special-view-content">
+      <div v-else-if="viewType !== ViewType.TIMELINE" class="special-view-content">
         <div class="special-view-header">
           <div class="header-content">
             <h1 class="page-title">
@@ -74,7 +74,7 @@
           
           <!-- Clear All Button (for bookmarks) -->
           <button 
-            v-if="viewType === 'bookmarks' && specialViewData && specialViewData.length > 0"
+            v-if="viewType === ViewType.BOOKMARKS && specialViewData && specialViewData.length > 0"
             @click="$emit('clear-all-bookmarks')"
             class="clear-all-btn"
           >
@@ -96,7 +96,7 @@
             <h3>{{ getEmptyStateTitle(viewType) }}</h3>
             <p>{{ getSpecialViewEmptyMessage(viewType) }}</p>
             <button 
-              v-if="viewType === 'bookmarks'"
+              v-if="viewType === ViewType.BOOKMARKS"
               @click="$emit('switch-feed', 'home')" 
               class="explore-btn"
             >
@@ -136,7 +136,7 @@
       <!-- Timeline View -->
       <div v-else class="mony-content">
         <!-- New Post Composer (Inline) -->
-        <div v-if="currentFeed === 'home'" class="inline-composer">
+        <div v-if="currentView === 'home'" class="inline-composer">
           <MonyComposerInline @post-created="$emit('post-created', $event)" />
         </div>
 
@@ -156,7 +156,7 @@
             <h3>Welcome to Social!</h3>
             <p>{{ getEmptyStateMessage() }}</p>
             <button 
-              v-if="currentFeed === 'home'" 
+              v-if="currentView === 'home'" 
               @click="$emit('switch-feed', 'public')" 
               class="explore-btn"
             >
@@ -205,12 +205,13 @@ import ProfileDisplay from './ProfileDisplay.vue';
 import PostDetailDisplay from './PostDetailDisplay.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Message, TimelinePost, FederatedUser } from '@/types';
+import { ViewMode, ViewType } from '@/types/viewTypes';
 import { ref } from 'vue';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import activityPubService from '@/services/activityPubService';
 
 interface Props {
-  mode: 'chat' | 'activitypub';
+  mode: ViewMode;
   
   // Chat mode props
   chatMessages?: Message[];
@@ -218,9 +219,8 @@ interface Props {
   isDM?: boolean;
   
   // ActivityPub mode props
-  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post' | 'explore';
-  currentFeed?: 'home' | 'local' | 'public';
-  currentExploreTab?: 'trending' | 'instances';
+  viewType?: ViewType;
+  currentView?: string; // Can be timeline feeds or explore views
   posts?: TimelinePost[];
   isLoadingFeed?: boolean;
   hasMorePosts?: boolean;
@@ -239,9 +239,8 @@ const props = withDefaults(defineProps<Props>(), {
   chatMessages: () => [],
   isLoading: false,
   isDM: false,
-  viewType: 'timeline',
-  currentFeed: 'home',
-  currentExploreTab: 'trending',
+  viewType: ViewType.TIMELINE,
+  currentView: 'home',
   posts: () => [],
   isLoadingFeed: false,
   hasMorePosts: false,
@@ -288,12 +287,12 @@ const feedTabs = [
 ];
 
 const currentTimelineTitle = computed(() => {
-  const tab = feedTabs.find(t => t.id === props.currentFeed);
+  const tab = feedTabs.find(t => t.id === props.currentView);
   return tab ? `${tab.label} Timeline` : 'Timeline';
 });
 
 const getEmptyStateMessage = () => {
-  switch (props.currentFeed) {
+  switch (props.currentView) {
     case 'home':
       return 'Follow some users to see their posts in your timeline.';
     case 'public':
@@ -306,81 +305,81 @@ const getEmptyStateMessage = () => {
 };
 
 // Helper functions for special views
-const getViewIcon = (viewType: string) => {
+const getViewIcon = (viewType: ViewType) => {
   switch (viewType) {
-    case 'explore':
+    case ViewType.EXPLORE:
       return 'compass';
-    case 'bookmarks':
+    case ViewType.BOOKMARKS:
       return 'bookmark';
-    case 'lists':
+    case ViewType.LISTS:
       return 'list';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'bell';
-    case 'profile':
+    case ViewType.PROFILE:
       return 'user';
     default:
       return 'home';
   }
 };
 
-const getViewTitle = (viewType: string) => {
+const getViewTitle = (viewType: ViewType) => {
   switch (viewType) {
-    case 'explore':
+    case ViewType.EXPLORE:
       return 'Explore';
-    case 'bookmarks':
+    case ViewType.BOOKMARKS:
       return 'Bookmarks';
-    case 'lists':
+    case ViewType.LISTS:
       return 'Lists';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'Notifications';
-    case 'profile':
+    case ViewType.PROFILE:
       return 'Profile';
     default:
       return 'Timeline';
   }
 };
 
-const getViewSubtitle = (viewType: string) => {
+const getViewSubtitle = (viewType: ViewType) => {
   switch (viewType) {
-    case 'explore':
+    case ViewType.EXPLORE:
       return 'Discover trending content and new instances';
-    case 'bookmarks':
+    case ViewType.BOOKMARKS:
       return 'Posts you\'ve saved for later';
-    case 'lists':
+    case ViewType.LISTS:
       return 'Curated lists of users and topics';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'Stay updated with your activity';
-    case 'profile':
+    case ViewType.PROFILE:
       return 'Your profile and posts';
     default:
       return 'Your timeline';
   }
 };
 
-const getEmptyStateTitle = (viewType: string) => {
+const getEmptyStateTitle = (viewType: ViewType) => {
   switch (viewType) {
-    case 'explore':
+    case ViewType.EXPLORE:
       return 'Nothing to explore yet';
-    case 'bookmarks':
+    case ViewType.BOOKMARKS:
       return 'No bookmarks yet';
-    case 'lists':
+    case ViewType.LISTS:
       return 'No lists yet';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'No notifications yet';
     default:
       return 'Nothing here yet';
   }
 };
 
-const getSpecialViewEmptyMessage = (viewType: string) => {
+const getSpecialViewEmptyMessage = (viewType: ViewType) => {
   switch (viewType) {
-    case 'explore':
+    case ViewType.EXPLORE:
       return 'Check back later for trending content and discover new instances.';
-    case 'bookmarks':
+    case ViewType.BOOKMARKS:
       return 'Posts you bookmark will appear here for easy access later.';
-    case 'lists':
+    case ViewType.LISTS:
       return 'Create lists to organize users and topics you follow.';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'When someone interacts with your posts, you\'ll see it here.';
     default:
       return 'Content will appear here when available.';

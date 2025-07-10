@@ -43,11 +43,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch, computed } from 'vue';
-import type { Server } from '@/types';
+import { defineComponent, computed, ref, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useActivityPubStore } from '@/stores/useActivityPub';
-import { useRouter, useRoute } from 'vue-router';
+import { ViewMode, isActivityPubRoute } from '@/types/viewTypes';
+import type { Server } from '@/types';
 
 export default defineComponent({
   props: {
@@ -56,6 +57,7 @@ export default defineComponent({
       required: true
     }
   },
+  emits: ['show-public-servers', 'switch-to-activitypub', 'switch-to-chat'],
   setup(props, { emit }) {
     const showPublicServers = ref(false);
     const serverChannelStore = useServerChannelStore();
@@ -70,8 +72,7 @@ export default defineComponent({
 
     // Check if we're currently in Monyverse/Social (ActivityPub)
     const isMonyverseSelected = computed(() => {
-      // TODO: this is a hack to check if we're in the monyverse/social view
-      return route.name === 'Monyverse' || route.name === 'Social' || route.name === 'UserProfile' || route.name === 'Followers' || route.name === 'Following' || route.name === 'Lists' || route.name === 'Notifications' || route.name === 'Bookmarks';
+      return isActivityPubRoute(route.name as string);
     });
 
     // Get unread count from ActivityPub store
@@ -90,15 +91,18 @@ export default defineComponent({
     });
 
     const selectServer = (serverId: string) => {
+      emit('switch-to-chat');
       router.push({ name: 'Chat', params: { serverId: serverId } });
     };
 
     const goToDMs = () => {
+      emit('switch-to-chat');
       router.push({ name: 'DMHome' });
     };
 
     const goToMonyverse = () => {
       activityPubStore.clearUnreadCount();
+      emit('switch-to-activitypub');
       router.push({ name: 'Monyverse' });
     };
 

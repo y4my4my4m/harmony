@@ -10,7 +10,7 @@
           <option value="users">Users</option>
         </select>
         
-        <select v-if="currentExploreTab === 'instances'" v-model="selectedInstance" class="filter-select">
+        <select v-if="currentView === 'instances'" v-model="selectedInstance" class="filter-select">
           <option value="all">All Instances</option>
           <option v-for="instance in knownInstances" :key="instance.domain" :value="instance.domain">
             {{ instance.domain }}
@@ -32,7 +32,7 @@
       </div>
 
       <!-- Instance Search (only visible on instances tab) -->
-      <div v-if="currentExploreTab === 'instances'" class="search-group">
+      <div v-if="currentView === 'instances'" class="search-group">
         <input 
           v-model="instanceSearchTerm" 
           @input="searchInstances(instanceSearchTerm)"
@@ -53,7 +53,7 @@
       </div>
 
       <!-- Trending Content -->
-      <div v-else-if="currentExploreTab === 'trending'" class="trending-content">
+      <div v-else-if="currentView === 'trending'" class="trending-content">
         <!-- Trending Hashtags -->
         <div class="section trending-hashtags">
           <h3 class="section-title">
@@ -145,7 +145,7 @@
       </div>
 
       <!-- Instance Browser -->
-      <div v-else-if="currentExploreTab === 'instances'" class="instances-content">
+      <div v-else-if="currentView === 'instances'" class="instances-content">
         <div class="section instances-browser">
           <h3 class="section-title">
             <Icon name="server" />
@@ -241,7 +241,7 @@ import type { TimelinePost, FederatedUser } from '@/types';
 
 // Props
 interface Props {
-  currentExploreTab: 'trending' | 'instances';
+  currentView: 'trending' | 'instances';
 }
 
 const props = defineProps<Props>();
@@ -298,7 +298,7 @@ const filteredInstances = computed(() => {
 });
 
 const currentTabData = computed(() => {
-  switch (props.currentExploreTab) {
+  switch (props.currentView) {
     case 'trending':
       return {
         posts: trendingPosts.value,
@@ -474,7 +474,7 @@ const loadMore = async () => {
   try {
     isLoadingMore.value = true;
     
-    if (props.currentExploreTab === 'trending') {
+    if (props.currentView === 'trending') {
       // Load more trending posts
       const morePosts = await activityPubService.getTrendingPosts({
         limit: 10,
@@ -495,15 +495,15 @@ const loadMore = async () => {
 const refreshContent = async () => {
   currentCursor.value = null;
   
-  if (props.currentExploreTab === 'trending') {
+  if (props.currentView === 'trending') {
     await loadTrendingContent();
-  } else if (props.currentExploreTab === 'instances') {
+  } else if (props.currentView === 'instances') {
     await loadInstances();
   }
 };
 
 // Watch for tab changes
-watch(() => props.currentExploreTab, async (newTab) => {
+watch(() => props.currentView, async (newTab) => {
   if (newTab === 'trending' && trendingHashtags.value.length === 0) {
     await loadTrendingContent();
   } else if (newTab === 'instances' && knownInstances.value.length === 0) {
@@ -518,7 +518,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 
 // Load initial content
 onMounted(async () => {
-  if (props.currentExploreTab === 'trending') {
+  if (props.currentView === 'trending') {
     await loadTrendingContent();
   } else {
     await loadInstances();
