@@ -188,8 +188,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Setup comprehensive realtime subscriptions
         this.setupEnhancedRealtimeSubscriptions();
         
-        // Expose debug methods in development
-        this.exposeDebugMethods();
+        // Debug methods removed - no longer needed
+        // getTimelineStats, createTestFederatedPost, and exposeDebugMethods removed
         
         console.log('✅ ActivityPub store initialized successfully');
       } catch (error) {
@@ -1320,47 +1320,6 @@ export const useActivityPubStore = defineStore('activitypub', {
        console.log('🧹 ActivityPub store cleaned up');
      },
 
-    /**
-     * Debug: Get timeline stats
-     */
-    async getTimelineStats() {
-      try {
-        const stats = await activityPubService.getTimelineStats();
-        console.log('📊 Timeline Stats:', stats);
-        return stats;
-      } catch (error) {
-        console.error('Failed to get timeline stats:', error);
-        return null;
-      }
-    },
 
-    /**
-     * Debug: Create test federated post
-     */
-    async createTestFederatedPost() {
-      try {
-        await activityPubService.createTestFederatedPost();
-        // Refresh public feed to show the new post
-        await this.loadPublicFeed();
-        console.log('✅ Test federated post created and feed refreshed');
-      } catch (error) {
-        console.error('Failed to create test federated post:', error);
-      }
-    },
-
-    /**
-     * Expose debug methods to global scope for console access
-     */
-    exposeDebugMethods() {
-      if (import.meta.env.DEV) {
-        window.harmonyDebug = {
-          checkStats: () => this.getTimelineStats(),
-          createTestPost: () => this.createTestFederatedPost(),
-          refreshPublic: () => this.loadPublicFeed(),
-          store: this
-        };
-        console.log('🔧 Debug methods available: window.harmonyDebug');
-      }
-    }
    }
  });

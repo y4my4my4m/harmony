@@ -72,6 +72,7 @@ const handleContentClick = (event: Event) => {
   line-height: 1.5;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  user-select: text;
 }
 
 .mony-content :deep(.mention) {

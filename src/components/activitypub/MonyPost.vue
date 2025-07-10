@@ -27,22 +27,23 @@
         </div>
         
         <div class="post-meta">
-          <time 
-            :datetime="post.created_at" 
-            :title="formatFullDate(post.created_at)"
-            class="post-time"
-          >
-            {{ formatRelativeTime(post.created_at) }}
-          </time>
-          
-          <!-- Visibility Indicator -->
-          <div class="visibility-indicator" :title="visibilityTitle">
-            <Icon :name="visibilityIcon" />
-          </div>
-          
-          <!-- Instance Badge (for federated posts) -->
-          <div v-if="!isAuthorLocal" class="instance-badge" :title="`From ${author.domain}`">
-            <Icon name="federation" />
+          <span class="instance-domain" :class="{ 'is-local': isLocalPost }">
+            {{ instanceDomain }}
+          </span>
+          <div>
+            <time 
+              :datetime="post.created_at" 
+              :title="formatFullDate(post.created_at)"
+              class="post-time"
+            >
+              {{ formatRelativeTime(post.created_at) }}
+            </time>
+            
+            <!-- Visibility Indicator -->
+            <div class="visibility-indicator" :title="visibilityTitle">
+              <Icon :name="visibilityIcon" />
+            </div>
+            
           </div>
         </div>
       </div>
@@ -255,6 +256,11 @@ const authorHandle = computed(() => {
     : `@${username}@${domain}`;
 });
 
+const instanceDomain = computed(() => {
+  const { domain } = props.post.author;
+  return domain || 'har.mony.lol';
+});
+
 const isAuthorLocal = computed(() => {
   const { domain } = props.post.author;
   return domain === 'har.mony.lol' || domain === 'harmony.com';
@@ -392,6 +398,10 @@ const vClickOutside = {
   }
 };
 
+const isLocalPost = computed(() => {
+  return props.post.is_local || instanceDomain.value === 'har.mony.lol';
+});
+
 const handleAuthorClick = (event: Event) => {
   event.preventDefault();
   event.stopPropagation();
@@ -412,7 +422,6 @@ const handleHashtagClick = (tag: string) => {
   background-color: var(--background-quinary);
   border-bottom: 1px solid var(--border-color);
   transition: background-color 0.2s;
-  cursor: pointer;
   border-radius: 12px;
 }
 
@@ -498,7 +507,9 @@ const handleHashtagClick = (tag: string) => {
 
 .post-meta {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
   gap: 0.5rem;
   color: #9ca3af;
   font-size: 0.875rem;
@@ -512,12 +523,12 @@ const handleHashtagClick = (tag: string) => {
 .visibility-indicator {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
 }
 
-.instance-badge {
+.instance-domain {
   display: flex;
   align-items: center;
-  color: #10b981;
 }
 
 .reply-context {
@@ -575,6 +586,10 @@ const handleHashtagClick = (tag: string) => {
 .post-body.is-sensitive {
   filter: blur(10px);
   transition: filter 0.2s;
+}
+
+.post-body.is-sensitive:hover {
+  filter: blur(0px);
 }
 
 .post-text {
