@@ -2,7 +2,7 @@
   <div class="admin-panel">
     <div class="admin-header">
       <div class="admin-title">
-        <Icon name="admin-terminal" size="24" />
+        <Icon name="admin-terminal" :size="24" />
         <h1>Instance Control Panel</h1>
         <div class="system-status" :class="systemStatus.class">
           <div class="status-indicator"></div>
@@ -11,11 +11,11 @@
       </div>
       <div class="admin-actions">
         <button @click="refreshData" class="action-btn refresh-btn" :disabled="loading">
-          <Icon name="refresh" size="16" />
+          <Icon name="refresh" :size="16" />
           Refresh
         </button>
         <button @click="exportLogs" class="action-btn export-btn">
-          <Icon name="download" size="16" />
+          <Icon name="download" :size="16" />
           Export Logs
         </button>
       </div>
@@ -25,14 +25,14 @@
       <!-- System Overview -->
       <div class="admin-module overview-module">
         <div class="module-header">
-          <Icon name="dashboard" size="20" />
+          <Icon name="dashboard" :size="20" />
           <h2>System Overview</h2>
           <div class="uptime">{{ formatUptime(systemStats.uptime) }}</div>
         </div>
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon">
-              <Icon name="users" size="24" />
+              <Icon name="users" :size="24" />
             </div>
             <div class="stat-content">
               <div class="stat-value">{{ systemStats.totalUsers }}</div>
@@ -42,7 +42,7 @@
           </div>
           <div class="stat-card">
             <div class="stat-icon">
-              <Icon name="server" size="24" />
+              <Icon name="server" :size="24" />
             </div>
             <div class="stat-content">
               <div class="stat-value">{{ systemStats.totalServers }}</div>
@@ -52,7 +52,7 @@
           </div>
           <div class="stat-card">
             <div class="stat-icon">
-              <Icon name="federation" size="24" />
+              <Icon name="federation" :size="24" />
             </div>
             <div class="stat-content">
               <div class="stat-value">{{ systemStats.federatedInstances }}</div>
@@ -62,7 +62,7 @@
           </div>
           <div class="stat-card">
             <div class="stat-icon">
-              <Icon name="message" size="24" />
+              <Icon name="message" :size="24" />
             </div>
             <div class="stat-content">
               <div class="stat-value">{{ formatNumber(systemStats.totalPosts) }}</div>
@@ -76,7 +76,7 @@
       <!-- Federation Management -->
       <div class="admin-module federation-module">
         <div class="module-header">
-          <Icon name="federation" size="20" />
+          <Icon name="federation" :size="20" />
           <h2>Federation Control</h2>
           <div class="federation-status" :class="federationStatus.class">
             {{ federationStatus.text }}
@@ -120,7 +120,7 @@
                   <span class="reason">{{ instance.reason }}</span>
                 </div>
                 <button @click="unblockInstance(instance.domain)" class="unblock-btn">
-                  <Icon name="unblock" size="16" />
+                  <Icon name="unblock" :size="16" />
                 </button>
               </div>
               <div class="add-block">
@@ -136,10 +136,10 @@
       <!-- User Management -->
       <div class="admin-module users-module">
         <div class="module-header">
-          <Icon name="users" size="20" />
+          <Icon name="users" :size="20" />
           <h2>User Management</h2>
           <div class="search-bar">
-            <Icon name="search" size="16" />
+            <Icon name="search" :size="16" />
             <input v-model="userSearch" placeholder="Search users..." class="cyber-input" />
           </div>
         </div>
@@ -156,7 +156,11 @@
           </div>
           <div class="users-list">
             <div v-for="user in filteredUsers" :key="user.id" class="user-item">
-              <Avatar :user="user" size="32" />
+              <Avatar 
+                :src="user.avatar_url" 
+                :alt="user.display_name || user.username"
+                :size="md"
+              />
               <div class="user-info">
                 <div class="user-name">{{ user.display_name || user.username }}</div>
                 <div class="user-meta">
@@ -170,10 +174,10 @@
               </div>
               <div class="user-actions">
                 <button @click="moderateUser(user, 'suspend')" class="mod-btn suspend-btn">
-                  <Icon name="suspend" size="16" />
+                  <Icon name="suspend" :size="16" />
                 </button>
                 <button @click="moderateUser(user, 'delete')" class="mod-btn delete-btn">
-                  <Icon name="delete" size="16" />
+                  <Icon name="delete" :size="16" />
                 </button>
               </div>
             </div>
@@ -184,7 +188,7 @@
       <!-- System Health -->
       <div class="admin-module health-module">
         <div class="module-header">
-          <Icon name="health" size="20" />
+          <Icon name="health" :size="20" />
           <h2>System Health</h2>
           <div class="health-indicator" :class="healthStatus.class">
             {{ healthStatus.text }}
@@ -229,7 +233,7 @@
       <!-- Recent Activity -->
       <div class="admin-module activity-module">
         <div class="module-header">
-          <Icon name="activity" size="20" />
+          <Icon name="activity" :size="20" />
           <h2>Recent Activity</h2>
           <select v-model="activityFilter" class="cyber-select">
             <option value="all">All Events</option>
@@ -241,7 +245,7 @@
         <div class="activity-feed">
           <div v-for="event in recentActivity" :key="event.id" class="activity-item">
             <div class="activity-icon" :class="event.type">
-              <Icon :name="getActivityIcon(event.type)" size="16" />
+              <Icon :name="getActivityIcon(event.type)" :size="16" />
             </div>
             <div class="activity-content">
               <div class="activity-message">{{ event.message }}</div>
@@ -257,10 +261,10 @@
       <!-- Configuration -->
       <div class="admin-module config-module">
         <div class="module-header">
-          <Icon name="settings" size="20" />
+          <Icon name="settings" :size="20" />
           <h2>Configuration</h2>
           <button @click="saveConfig" class="save-btn" :disabled="!configChanged">
-            <Icon name="save" size="16" />
+            <Icon name="save" :size="16" />
             Save Changes
           </button>
         </div>
@@ -765,7 +769,7 @@ const getActivityIcon = (type: string) => {
 
 .admin-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
   gap: 24px;
 }
 
