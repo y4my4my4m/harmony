@@ -525,23 +525,6 @@ onMounted(() => {
   flex: 1;
 }
 
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.08);
-  border-top: 3px solid var(--h-brand, #5865f2);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-.loading-spinner.small {
-  width: 20px;
-  height: 20px;
-  border-width: 2px;
-  margin-bottom: 0;
-}
-
 .error-state h3 {
   color: white;
   margin: 1rem 0 0.5rem;

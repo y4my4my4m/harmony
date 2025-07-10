@@ -97,3 +97,15 @@
 - [ ] crypto transfers
 - [x] remote db
 - [x] remote storage
+
+
+--- DB Functions
+
+-- Check current system health
+SELECT get_trending_maintenance_stats();
+
+-- Run full maintenance manually
+SELECT run_trending_maintenance();
+
+-- Just clean up hashtags
+SELECT cleanup_inactive_hashtags();

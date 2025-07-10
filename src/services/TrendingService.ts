@@ -1,0 +1,675 @@
+/**
+ * TrendingService - Handles trending content, hashtags, and explore functionality
+ * Provides methods for discovering trending posts, hashtags, users, and instances
+ */
+
+import { supabase } from '@/supabase';
+import type { TimelinePost, FederatedUser } from '@/types';
+
+// ============================================================================
+// INTERFACES
+// ============================================================================
+
+export interface TrendingHashtag {
+  tag: string;
+  daily_uses: number;
+  weekly_uses: number;
+  trending_score: number;
+  trending_rank: number;
+  change_percent: number;
+  trend: 'up' | 'down' | 'stable';
+}
+
+export interface TrendingPost {
+  post: TimelinePost;
+  trending_score: number;
+  engagement_score: number;
+  trending_rank: number;
+  engagement_velocity: number;
+}
+
+export interface TrendingUser {
+  user: FederatedUser;
+  trending_score: number;
+  followers_growth: number;
+  engagement_rate: number;
+  trending_rank: number;
+  new_followers: number;
+  posts_count: number;
+}
+
+export interface HashtagStats {
+  tag: string;
+  total_uses: number;
+  daily_uses: number;
+  weekly_uses: number;
+  first_used_at: string;
+  last_used_at: string;
+  peak_daily_uses: number;
+  peak_daily_date: string;
+}
+
+export interface TrendingOptions {
+  limit?: number;
+  timeframe?: 'hourly' | 'daily' | 'weekly';
+  includeLocal?: boolean;
+  includeFederated?: boolean;
+  minEngagement?: number;
+}
+
+export interface ExploreFilters {
+  contentType?: 'all' | 'posts' | 'media' | 'users';
+  timeRange?: '1h' | '6h' | '24h' | '7d' | '30d';
+  instance?: string;
+  language?: string;
+  minScore?: number;
+}
+
+// ============================================================================
+// TRENDING SERVICE CLASS
+// ============================================================================
+
+class TrendingService {
+  
+  // ==========================================================================
+  // HASHTAG TRENDING METHODS
+  // ==========================================================================
+
+  /**
+   * Get trending hashtags
+   */
+  async getTrendingHashtags(options: TrendingOptions = {}): Promise<TrendingHashtag[]> {
+    try {
+      const { limit = 20 } = options;
+
+      const { data, error } = await supabase.rpc('get_trending_hashtags', {
+        limit_count: limit
+      });
+
+      if (error) throw error;
+
+      return (data || []).map((row: any) => ({
+        tag: row.tag,
+        daily_uses: row.daily_uses || 0,
+        weekly_uses: 0, // Will be populated from separate query if needed
+        trending_score: parseFloat(row.trending_score) || 0,
+        trending_rank: row.trending_rank || 0,
+        change_percent: parseFloat(row.change_percent) || 0,
+        trend: this.calculateTrend(parseFloat(row.change_percent) || 0)
+      }));
+    } catch (error) {
+      console.error('Failed to get trending hashtags:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get hashtag statistics
+   */
+  async getHashtagStats(tag: string): Promise<HashtagStats | null> {
+    try {
+      const { data, error } = await supabase
+        .from('hashtags')
+        .select('*')
+        .eq('normalized_tag', tag.toLowerCase().replace(/^#/, ''))
+        .single();
+
+      if (error || !data) return null;
+
+      return {
+        tag: data.tag,
+        total_uses: data.total_uses || 0,
+        daily_uses: data.daily_uses || 0,
+        weekly_uses: data.weekly_uses || 0,
+        first_used_at: data.first_used_at,
+        last_used_at: data.last_used_at,
+        peak_daily_uses: data.peak_daily_uses || 0,
+        peak_daily_date: data.peak_daily_date
+      };
+    } catch (error) {
+      console.error('Failed to get hashtag stats:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Search hashtags
+   */
+  async searchHashtags(query: string, limit: number = 20): Promise<TrendingHashtag[]> {
+    try {
+      const normalizedQuery = query.toLowerCase().replace(/^#/, '');
+      
+      const { data, error } = await supabase
+        .from('hashtags')
+        .select('*')
+        .ilike('normalized_tag', `%${normalizedQuery}%`)
+        .order('trending_score', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      return (data || []).map(row => ({
+        tag: row.tag,
+        daily_uses: row.daily_uses || 0,
+        weekly_uses: row.weekly_uses || 0,
+        trending_score: parseFloat(row.trending_score) || 0,
+        trending_rank: row.trending_rank || 999,
+        change_percent: 0, // Would need additional calculation
+        trend: 'stable' as const
+      }));
+    } catch (error) {
+      console.error('Failed to search hashtags:', error);
+      return [];
+    }
+  }
+
+  // ==========================================================================
+  // TRENDING POSTS METHODS
+  // ==========================================================================
+
+  /**
+   * Get trending posts
+   */
+  async getTrendingPosts(options: TrendingOptions = {}): Promise<TrendingPost[]> {
+    try {
+      const { 
+        limit = 20, 
+        timeframe = 'daily',
+        includeLocal = true,
+        includeFederated = true,
+        minEngagement = 1
+      } = options;
+
+      // Build the query
+      let query = supabase
+        .from('trending_posts')
+        .select(`
+          *,
+          post:posts!inner(
+            *,
+            author:profiles!inner(*)
+          )
+        `)
+        .eq('period_type', timeframe)
+        .gte('total_engagement', minEngagement)
+        .order('trending_score', { ascending: false })
+        .limit(limit);
+
+      // Apply local/federated filtering
+      if (!includeLocal || !includeFederated) {
+        query = query.eq('post.is_local', includeLocal);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return (data || []).map((row: any) => {
+        const post = this.transformDatabasePostToTimelinePost(row.post);
+        return {
+          post,
+          trending_score: parseFloat(row.trending_score) || 0,
+          engagement_score: parseFloat(row.engagement_score) || 0,
+          trending_rank: row.trending_rank || 999,
+          engagement_velocity: this.calculateEngagementVelocity(row)
+        };
+      });
+    } catch (error) {
+      console.error('Failed to get trending posts:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get posts by hashtag
+   */
+  async getPostsByHashtag(
+    hashtag: string, 
+    options: { limit?: number; cursor?: string } = {}
+  ): Promise<{ posts: TimelinePost[]; hasMore: boolean; cursor: string | null }> {
+    try {
+      const { limit = 20, cursor } = options;
+      const normalizedTag = hashtag.toLowerCase().replace(/^#/, '');
+
+      let query = supabase
+        .from('post_hashtags')
+        .select(`
+          post_id,
+          created_at,
+          post:posts!inner(
+            *,
+            author:profiles!inner(*)
+          ),
+          hashtag:hashtags!inner(normalized_tag)
+        `)
+        .eq('hashtag.normalized_tag', normalizedTag)
+        .eq('post.is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(limit + 1); // +1 to check if there are more
+
+      if (cursor) {
+        query = query.lt('created_at', cursor);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const posts = (data || []).slice(0, limit).map((row: any) => 
+        this.transformDatabasePostToTimelinePost(row.post)
+      );
+
+      const hasMore = (data || []).length > limit;
+      const nextCursor = hasMore ? data![data!.length - 2].created_at : null;
+
+      return { posts, hasMore, cursor: nextCursor };
+    } catch (error) {
+      console.error('Failed to get posts by hashtag:', error);
+      return { posts: [], hasMore: false, cursor: null };
+    }
+  }
+
+  // ==========================================================================
+  // TRENDING USERS METHODS
+  // ==========================================================================
+
+  /**
+   * Get trending users (suggested follows)
+   */
+  async getTrendingUsers(options: TrendingOptions = {}): Promise<TrendingUser[]> {
+    try {
+      const { limit = 10, timeframe = 'daily' } = options;
+
+      // For now, get users with recent activity and good engagement
+      // TODO: Implement proper trending_users table usage when that's populated
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          *,
+          follower_count:follows!following_id(count),
+          post_count:posts!author_id(count)
+        `)
+        .eq('domain', 'har.mony.lol') // Local users for now
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      return (data || []).map((row: any) => {
+        const user: FederatedUser = {
+          id: row.id,
+          username: row.username,
+          domain: row.domain || 'har.mony.lol',
+          handle: `@${row.username}${row.domain && row.domain !== 'har.mony.lol' ? '@' + row.domain : ''}`,
+          display_name: row.display_name || row.username,
+          avatar_url: row.avatar_url || '/default_avatar.png',
+          bio: row.bio || '',
+          is_local: row.domain === 'har.mony.lol' || !row.domain,
+          verified: row.verified || false,
+          followers_count: row.follower_count?.[0]?.count || 0,
+          following_count: 0, // Would need separate query
+          posts_count: row.post_count?.[0]?.count || 0,
+          created_at: row.created_at,
+          updated_at: row.updated_at || row.created_at
+        };
+
+        return {
+          user,
+          trending_score: Math.random() * 100, // TODO: Implement real calculation
+          followers_growth: Math.random() * 50,
+          engagement_rate: Math.random() * 10,
+          trending_rank: 0,
+          new_followers: Math.floor(Math.random() * 20),
+          posts_count: user.posts_count
+        };
+      });
+    } catch (error) {
+      console.error('Failed to get trending users:', error);
+      return [];
+    }
+  }
+
+  // ==========================================================================
+  // INSTANCE DISCOVERY METHODS
+  // ==========================================================================
+
+  /**
+   * Get federated instances for exploration
+   */
+  async getFederatedInstances(options: {
+    limit?: number;
+    filter?: 'all' | 'active' | 'blocked' | 'trusted';
+    search?: string;
+  } = {}): Promise<any[]> {
+    try {
+      const { limit = 20, filter = 'active', search } = options;
+
+      let query = supabase
+        .from('federated_instances')
+        .select('*')
+        .order('last_seen_at', { ascending: false })
+        .limit(limit);
+
+      // Apply filters
+      switch (filter) {
+        case 'active':
+          query = query.eq('is_blocked', false)
+                      .gte('last_seen_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+          break;
+        case 'blocked':
+          query = query.eq('is_blocked', true);
+          break;
+        case 'trusted':
+          query = query.eq('is_trusted', true);
+          break;
+        // 'all' - no additional filters
+      }
+
+      if (search) {
+        query = query.or(`domain.ilike.%${search}%,description.ilike.%${search}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return (data || []).map(instance => ({
+        id: instance.id,
+        domain: instance.domain,
+        software: instance.software || 'Unknown',
+        version: instance.version || 'Unknown',
+        description: instance.description || 'No description available',
+        admin_contact: instance.admin_contact,
+        is_blocked: instance.is_blocked,
+        is_trusted: instance.is_trusted,
+        last_seen_at: instance.last_seen_at,
+        user_count: instance.user_count || 0,
+        status_count: instance.status_count || 0,
+        connection_count: instance.connection_count || 0,
+        metadata: instance.metadata || {},
+        status: this.getInstanceStatus(instance)
+      }));
+    } catch (error) {
+      console.error('Failed to get federated instances:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get instance statistics
+   */
+  async getInstanceStats(domain: string): Promise<any | null> {
+    try {
+      const { data, error } = await supabase
+        .from('federated_instances')
+        .select('*')
+        .eq('domain', domain)
+        .single();
+
+      if (error || !data) return null;
+
+      // Get additional stats
+      const [postsCount, usersCount] = await Promise.all([
+        this.getInstancePostCount(domain),
+        this.getInstanceUserCount(domain)
+      ]);
+
+      return {
+        ...data,
+        posts_count: postsCount,
+        local_users_count: usersCount,
+        status: this.getInstanceStatus(data),
+        last_activity: data.last_seen_at
+      };
+    } catch (error) {
+      console.error('Failed to get instance stats:', error);
+      return null;
+    }
+  }
+
+  // ==========================================================================
+  // EXPLORE CONTENT METHODS
+  // ==========================================================================
+
+  /**
+   * Get explore content based on filters
+   */
+  async getExploreContent(filters: ExploreFilters = {}): Promise<{
+    posts: TimelinePost[];
+    hashtags: TrendingHashtag[];
+    users: TrendingUser[];
+    instances: any[];
+  }> {
+    try {
+      const [posts, hashtags, users, instances] = await Promise.all([
+        this.getExplorePosts(filters),
+        this.getTrendingHashtags({ limit: 10 }),
+        this.getTrendingUsers({ limit: 6 }),
+        this.getFederatedInstances({ limit: 8, filter: 'active' })
+      ]);
+
+      return { posts, hashtags, users, instances };
+    } catch (error) {
+      console.error('Failed to get explore content:', error);
+      return { posts: [], hashtags: [], users: [], instances: [] };
+    }
+  }
+
+  /**
+   * Get posts for explore feed
+   */
+  async getExplorePosts(filters: ExploreFilters = {}): Promise<TimelinePost[]> {
+    try {
+      const { 
+        contentType = 'all',
+        timeRange = '24h',
+        instance,
+        minScore = 0
+      } = filters;
+
+      // Calculate time threshold
+      const timeThreshold = this.getTimeThreshold(timeRange);
+
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!inner(*)
+        `)
+        .eq('visibility', 'public')
+        .eq('is_deleted', false)
+        .gte('created_at', timeThreshold)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      // Apply content type filter
+      if (contentType === 'media') {
+        query = query.not('media_attachments', 'eq', '[]');
+      }
+
+      // Apply instance filter
+      if (instance && instance !== 'all') {
+        query = query.eq('author.domain', instance);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return (data || []).map(row => this.transformDatabasePostToTimelinePost(row));
+    } catch (error) {
+      console.error('Failed to get explore posts:', error);
+      return [];
+    }
+  }
+
+  // ==========================================================================
+  // MAINTENANCE METHODS
+  // ==========================================================================
+
+  /**
+   * Update trending scores (should be called periodically)
+   */
+  async updateTrendingScores(): Promise<void> {
+    try {
+      await Promise.all([
+        supabase.rpc('update_hashtag_trending_scores'),
+        supabase.rpc('update_trending_posts')
+      ]);
+    } catch (error) {
+      console.error('Failed to update trending scores:', error);
+    }
+  }
+
+  /**
+   * Reset daily counters (should be called daily)
+   */
+  async resetDailyCounters(): Promise<void> {
+    try {
+      await supabase.rpc('reset_daily_hashtag_counters');
+    } catch (error) {
+      console.error('Failed to reset daily counters:', error);
+    }
+  }
+
+  // ==========================================================================
+  // PRIVATE HELPER METHODS
+  // ==========================================================================
+
+  private calculateTrend(changePercent: number): 'up' | 'down' | 'stable' {
+    if (changePercent > 5) return 'up';
+    if (changePercent < -5) return 'down';
+    return 'stable';
+  }
+
+  private calculateEngagementVelocity(trendingData: any): number {
+    const totalEngagement = (trendingData.likes_count || 0) + 
+                           (trendingData.reblogs_count || 0) + 
+                           (trendingData.replies_count || 0);
+    const hours = Math.max(1, Math.floor((Date.now() - new Date(trendingData.period_start).getTime()) / (1000 * 60 * 60)));
+    return totalEngagement / hours;
+  }
+
+  private getInstanceStatus(instance: any): 'online' | 'slow' | 'offline' {
+    const lastSeen = new Date(instance.last_seen_at);
+    const hoursSince = (Date.now() - lastSeen.getTime()) / (1000 * 60 * 60);
+    
+    if (hoursSince < 1) return 'online';
+    if (hoursSince < 24) return 'slow';
+    return 'offline';
+  }
+
+  private async getInstancePostCount(domain: string): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('author.domain', domain);
+      
+      return count || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private async getInstanceUserCount(domain: string): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('domain', domain);
+      
+      return count || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private getTimeThreshold(timeRange: string): string {
+    const now = new Date();
+    switch (timeRange) {
+      case '1h':
+        return new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+      case '6h':
+        return new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
+      case '24h':
+        return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+      case '7d':
+        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      case '30d':
+        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      default:
+        return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    }
+  }
+
+  private transformDatabasePostToTimelinePost(post: any): TimelinePost {
+    // Convert database post format to TimelinePost format
+    // This matches the logic from the ActivityPub store
+    let processedContent = post.content;
+    
+    if (typeof post.content === 'string') {
+      processedContent = [{ type: 'text', text: post.content }];
+    } else if (!Array.isArray(post.content)) {
+      processedContent = [{ type: 'text', text: '' }];
+    }
+
+    return {
+      id: post.id,
+      created_at: post.created_at,
+      updated_at: post.updated_at,
+      content: processedContent,
+      content_warning: post.content_warning,
+      language: post.language || 'en',
+      author_id: post.author_id,
+      ap_id: post.ap_id,
+      ap_type: post.ap_type,
+      url: post.url,
+      in_reply_to: post.in_reply_to,
+      conversation_id: post.conversation_id,
+      visibility: post.visibility,
+      is_local: post.is_local,
+      is_federated: post.is_federated,
+      replies_count: post.replies_count || 0,
+      reblogs_count: post.reblogs_count || 0,
+      favorites_count: post.favorites_count || 0,
+      media_attachments: post.media_attachments || [],
+      metadata: post.metadata || {},
+      is_sensitive: post.is_sensitive,
+      is_deleted: post.is_deleted,
+      deleted_at: post.deleted_at,
+      author: post.author ? {
+        id: post.author.id,
+        username: post.author.username,
+        domain: post.author.domain || 'har.mony.lol',
+        handle: `@${post.author.username}${post.author.domain && post.author.domain !== 'har.mony.lol' ? '@' + post.author.domain : ''}`,
+        display_name: post.author.display_name || post.author.username,
+        avatar_url: post.author.avatar_url || '/default_avatar.png',
+        bio: post.author.bio || '',
+        is_local: !post.author.domain || post.author.domain === 'har.mony.lol',
+        verified: post.author.verified || false,
+        followers_count: 0, // Would need separate query
+        following_count: 0, // Would need separate query  
+        posts_count: 0, // Would need separate query
+        created_at: post.author.created_at,
+        updated_at: post.author.updated_at || post.author.created_at
+      } : {
+        id: post.author_id,
+        username: 'Unknown',
+        domain: 'har.mony.lol',
+        handle: '@Unknown',
+        display_name: 'Unknown User',
+        avatar_url: '/default_avatar.png',
+        bio: '',
+        is_local: true,
+        verified: false,
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
+        created_at: post.created_at,
+        updated_at: post.created_at
+      },
+      is_favorited: false, // Would need user context
+      is_reblogged: false  // Would need user context
+    };
+  }
+}
+
+// Export singleton instance
+export const trendingService = new TrendingService(); 

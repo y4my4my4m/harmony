@@ -2,6 +2,7 @@
 // Professional, scalable, and DRY implementation
 import { supabase } from '@/supabase';
 import { federationService } from './FederationService';
+import { trendingService } from './TrendingService';
 import type { 
   Post, 
   Follow, 
@@ -215,6 +216,180 @@ export class ActivityPubService {
     if (error) throw error;
 
     return data as TimelinePost[];
+  }
+
+  // =============================================
+  // EXPLORE AND DISCOVERY METHODS
+  // =============================================
+
+  /**
+   * Get trending hashtags
+   */
+  async getTrendingHashtags(limit: number = 20): Promise<any[]> {
+    return await trendingService.getTrendingHashtags({ limit });
+  }
+
+  /**
+   * Get trending posts
+   */
+  async getTrendingPosts(options: {
+    limit?: number;
+    timeframe?: 'hourly' | 'daily' | 'weekly';
+    includeLocal?: boolean;
+    includeFederated?: boolean;
+  } = {}): Promise<any[]> {
+    return await trendingService.getTrendingPosts(options);
+  }
+
+  /**
+   * Get suggested users to follow
+   */
+  async getSuggestedUsers(limit: number = 10): Promise<any[]> {
+    return await trendingService.getTrendingUsers({ limit });
+  }
+
+  /**
+   * Get federated instances for discovery
+   */
+  async getDiscoverableInstances(options: {
+    limit?: number;
+    filter?: 'all' | 'active' | 'trusted';
+    search?: string;
+  } = {}): Promise<any[]> {
+    return await trendingService.getFederatedInstances(options);
+  }
+
+  /**
+   * Get posts by hashtag
+   */
+  async getPostsByHashtag(
+    hashtag: string, 
+    options: { limit?: number; cursor?: string } = {}
+  ): Promise<{ posts: TimelinePost[]; hasMore: boolean; cursor: string | null }> {
+    return await trendingService.getPostsByHashtag(hashtag, options);
+  }
+
+  /**
+   * Get comprehensive explore content
+   */
+  async getExploreContent(filters: {
+    contentType?: 'all' | 'posts' | 'media' | 'users';
+    timeRange?: '1h' | '6h' | '24h' | '7d' | '30d';
+    instance?: string;
+    language?: string;
+  } = {}): Promise<{
+    posts: TimelinePost[];
+    hashtags: any[];
+    users: any[];
+    instances: any[];
+  }> {
+    return await trendingService.getExploreContent(filters);
+  }
+
+  /**
+   * Search content across the fediverse
+   */
+  async searchContent(
+    query: string, 
+    type: 'posts' | 'users' | 'hashtags' = 'posts',
+    options: { limit?: number; cursor?: string } = {}
+  ): Promise<any[]> {
+    const { limit = 20 } = options;
+
+    switch (type) {
+      case 'posts':
+        return await this.searchPosts(query, limit);
+      case 'users':
+        return await this.searchFederatedUsers(query, limit);
+      case 'hashtags':
+        return await trendingService.searchHashtags(query, limit);
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Search posts by content
+   */
+  async searchPosts(query: string, limit: number = 20): Promise<TimelinePost[]> {
+    try {
+      // Simple text search in post content
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey (
+            id, username, display_name, domain, avatar_url, is_local
+          )
+        `)
+        .textSearch('content', query)
+        .eq('visibility', 'public')
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data as TimelinePost[];
+    } catch (error) {
+      console.error('Failed to search posts:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get instance statistics
+   */
+  async getInstanceStats(domain: string): Promise<any | null> {
+    return await trendingService.getInstanceStats(domain);
+  }
+
+  /**
+   * Get recent activity from an instance
+   */
+  async getInstanceActivity(
+    domain: string, 
+    options: { limit?: number; cursor?: string } = {}
+  ): Promise<{ posts: TimelinePost[]; hasMore: boolean; cursor: string | null }> {
+    try {
+      const { limit = 20, cursor } = options;
+
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey (
+            id, username, display_name, domain, avatar_url, is_local
+          )
+        `)
+        .eq('author.domain', domain)
+        .eq('visibility', 'public')
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(limit + 1);
+
+      if (cursor) {
+        query = query.lt('created_at', cursor);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const posts = (data || []).slice(0, limit) as TimelinePost[];
+      const hasMore = (data || []).length > limit;
+      const nextCursor = hasMore ? data![data!.length - 2].created_at : null;
+
+      return { posts, hasMore, cursor: nextCursor };
+    } catch (error) {
+      console.error('Failed to get instance activity:', error);
+      return { posts: [], hasMore: false, cursor: null };
+    }
+  }
+
+  /**
+   * Update trending scores (maintenance method)
+   */
+  async updateTrendingScores(): Promise<void> {
+    await trendingService.updateTrendingScores();
   }
 
   /**

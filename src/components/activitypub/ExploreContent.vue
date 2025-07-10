@@ -10,176 +10,230 @@
           <option value="users">Users</option>
         </select>
         
-        <select v-if="currentExploreTab === 'federated'" v-model="selectedInstance" class="filter-select">
+        <select v-if="currentExploreTab === 'instances'" v-model="selectedInstance" class="filter-select">
           <option value="all">All Instances</option>
           <option v-for="instance in knownInstances" :key="instance.domain" :value="instance.domain">
             {{ instance.domain }}
           </option>
         </select>
+        
+        <select v-model="selectedTimeRange" class="filter-select">
+          <option value="1h">Last Hour</option>
+          <option value="6h">Last 6 Hours</option>
+          <option value="24h">Last 24 Hours</option>
+          <option value="7d">Last Week</option>
+          <option value="30d">Last Month</option>
+        </select>
+        
+        <button @click="refreshContent" class="refresh-btn" :disabled="isLoading">
+          <Icon name="refresh" :class="{ spinning: isLoading }" />
+          Refresh
+        </button>
       </div>
 
-      <button @click="refreshContent" :disabled="isLoading" class="refresh-btn">
-        <Icon :name="isLoading ? 'loader' : 'refresh'" :class="{ spinning: isLoading }" />
-        Refresh
-      </button>
+      <!-- Instance Search (only visible on instances tab) -->
+      <div v-if="currentExploreTab === 'instances'" class="search-group">
+        <input 
+          v-model="instanceSearchTerm" 
+          @input="searchInstances(instanceSearchTerm)"
+          type="text" 
+          placeholder="Search instances..." 
+          class="search-input"
+        />
+        <Icon name="search" class="search-icon" />
+      </div>
     </div>
 
-    <!-- Content Area -->
+    <!-- Content Display -->
     <div class="explore-content-area">
+      <!-- Loading State -->
+      <div v-if="isLoading" class="loading-state">
+        <Icon name="loader" class="spinning" />
+        <p>Loading explore content...</p>
+      </div>
+
       <!-- Trending Content -->
-      <div v-if="currentExploreTab === 'trending'" class="trending-content">
-        <div class="trending-sections">
-          <!-- Trending Hashtags -->
-          <div class="trending-section">
-            <h3 class="section-title">
-              <Icon name="hash" />
-              Trending Hashtags
-            </h3>
-            <div class="trending-hashtags">
-              <div
-                v-for="hashtag in trendingHashtags"
-                :key="hashtag.tag"
-                class="hashtag-item"
-              >
-                <div class="hashtag-info">
-                  <span class="hashtag-name">#{{ hashtag.tag }}</span>
-                  <span class="hashtag-count">{{ hashtag.posts }} posts</span>
-                  <div class="hashtag-trend">
-                    <Icon 
-                      :name="hashtag.trend === 'up' ? 'trending-up' : hashtag.trend === 'down' ? 'trending-down' : 'minus'" 
-                      :class="`trend-${hashtag.trend}`"
-                    />
-                    <span>{{ hashtag.change }}%</span>
-                  </div>
-                </div>
+      <div v-else-if="currentExploreTab === 'trending'" class="trending-content">
+        <!-- Trending Hashtags -->
+        <div class="section trending-hashtags">
+          <h3 class="section-title">
+            <Icon name="hash" />
+            Trending Hashtags
+          </h3>
+          <div v-if="trendingHashtags.length > 0" class="hashtag-grid">
+            <div 
+              v-for="hashtag in trendingHashtags" 
+              :key="hashtag.tag"
+              @click="loadHashtagPosts(hashtag.tag)"
+              class="hashtag-item"
+            >
+              <div class="hashtag-info">
+                <span class="hashtag-name">#{{ hashtag.tag }}</span>
+                <span class="hashtag-count">{{ formatNumber(hashtag.daily_uses) }} posts</span>
+              </div>
+              <div class="hashtag-trend">
+                <Icon :name="getTrendIcon(hashtag.trend)" :class="`trend-${hashtag.trend}`" />
+                <span class="trend-change">{{ hashtag.change_percent > 0 ? '+' : '' }}{{ hashtag.change_percent }}%</span>
               </div>
             </div>
           </div>
+          <div v-else class="empty-state">
+            <Icon name="hash" />
+            <p>No trending hashtags available</p>
+          </div>
+        </div>
 
-          <!-- Trending Posts -->
-          <div class="trending-section">
-            <h3 class="section-title">
-              <Icon name="fire" />
-              Trending Posts
-            </h3>
-            <div class="posts-list">
-              <MonyPost
-                v-for="post in trendingPosts"
-                :key="post.id"
-                :post="post"
-                @reply="$emit('reply-to-post', $event)"
-                @favorite="$emit('favorite-post', $event)"
-                @reblog="$emit('reblog-post', $event)"
-                @bookmark="$emit('bookmark-post', $event)"
-                @delete="$emit('delete-post', $event)"
-                @user-click="$emit('show-user-profile', $event)"
-              />
+        <!-- Trending Posts -->
+        <div class="section trending-posts">
+          <h3 class="section-title">
+            <Icon name="trending-up" />
+            Trending Posts
+          </h3>
+          <div v-if="trendingPosts.length > 0" class="posts-list">
+            <MonyPost
+              v-for="trendingPost in trendingPosts"
+              :key="trendingPost.post?.id || trendingPost.id"
+              :post="trendingPost.post || trendingPost"
+              @reply="$emit('reply-to-post', $event)"
+              @favorite="$emit('favorite-post', $event)"
+              @reblog="$emit('reblog-post', $event)"
+              @bookmark="$emit('bookmark-post', $event)"
+              @delete="$emit('delete-post', $event)"
+              @show-user-profile="$emit('show-user-profile', $event)"
+            />
+          </div>
+          <div v-else class="empty-state">
+            <Icon name="trending-up" />
+            <p>No trending posts available</p>
+          </div>
+        </div>
+
+        <!-- Suggested Users -->
+        <div class="section suggested-users">
+          <h3 class="section-title">
+            <Icon name="user-plus" />
+            Suggested Users
+          </h3>
+          <div v-if="suggestedUsers.length > 0" class="users-grid">
+            <div 
+              v-for="user in suggestedUsers" 
+              :key="user.user?.id || user.id"
+              @click="$emit('show-user-profile', user.user || user)"
+              class="user-card"
+            >
+              <img :src="(user.user || user).avatar_url" :alt="(user.user || user).display_name" class="user-avatar" />
+              <div class="user-info">
+                <div class="user-name">{{ (user.user || user).display_name }}</div>
+                <div class="user-handle">{{ (user.user || user).handle }}</div>
+                <div class="user-bio">{{ (user.user || user).bio || 'No bio available' }}</div>
+                <div class="user-stats">
+                  <span>{{ formatNumber((user.user || user).followers_count) }} followers</span>
+                  <span>{{ formatNumber((user.user || user).posts_count) }} posts</span>
+                </div>
+              </div>
+              <button @click.stop="$emit('follow-user', (user.user || user).id)" class="follow-btn">
+                <Icon name="user-plus" />
+                Follow
+              </button>
             </div>
           </div>
-
-          <!-- Suggested Users -->
-          <div class="trending-section">
-            <h3 class="section-title">
-              <Icon name="user-plus" />
-              Suggested Users
-            </h3>
-            <div class="suggested-users">
-              <div
-                v-for="user in suggestedUsers"
-                :key="user.id"
-                class="user-suggestion"
-              >
-                <img
-                  :src="user.avatar_url || '/default_avatar.png'"
-                  :alt="user.display_name"
-                  class="user-avatar"
-                />
-                <div class="user-info">
-                  <div class="user-name">{{ user.display_name }}</div>
-                  <div class="user-handle">{{ user.handle }}</div>
-                  <div class="user-stats">
-                    {{ user.followers_count }} followers
-                  </div>
-                </div>
-                <button
-                  @click="$emit('follow-user', user.id)"
-                  class="follow-btn"
-                >
-                  Follow
-                </button>
-              </div>
-            </div>
+          <div v-else class="empty-state">
+            <Icon name="users" />
+            <p>No suggested users available</p>
           </div>
         </div>
       </div>
 
       <!-- Instance Browser -->
-      <div v-else-if="currentExploreTab === 'instances'" class="instance-browser">
-        <div class="instance-controls">
-          <input
-            v-model="instanceSearchQuery"
-            placeholder="Search instances..."
-            class="search-input"
-          />
-          <select v-model="instanceFilter" class="filter-select">
-            <option value="all">All Instances</option>
-            <option value="trusted">Trusted</option>
-            <option value="blocked">Blocked</option>
-          </select>
-        </div>
-
-        <div class="instances-grid">
-          <div
-            v-for="instance in filteredInstances"
-            :key="instance.domain"
-            class="instance-card"
-            @click="selectedInstance = instance; showInstanceModal = true"
-          >
-            <div class="instance-header">
-              <div class="instance-info">
-                <h4 class="instance-domain">{{ instance.domain }}</h4>
-                <span class="instance-software">{{ instance.software_name }}</span>
+      <div v-else-if="currentExploreTab === 'instances'" class="instances-content">
+        <div class="section instances-browser">
+          <h3 class="section-title">
+            <Icon name="server" />
+            Federated Instances
+          </h3>
+          <div v-if="filteredInstances.length > 0" class="instances-grid">
+            <div 
+              v-for="instance in filteredInstances" 
+              :key="instance.domain"
+              @click="showInstanceDetails(instance)"
+              class="instance-card"
+            >
+              <div class="instance-header">
+                <div class="instance-info">
+                  <h4 class="instance-domain">{{ instance.domain }}</h4>
+                  <p class="instance-software">{{ instance.software || 'Unknown' }} {{ instance.version || '' }}</p>
+                </div>
+                <div :class="getInstanceStatusClass(instance)">
+                  {{ getInstanceStatusText(instance) }}
+                </div>
               </div>
-              <div class="instance-status">
-                <div :class="`status-indicator ${instance.status}`"></div>
+              
+              <p class="instance-description">
+                {{ instance.description || 'No description available' }}
+              </p>
+              
+              <div class="instance-stats">
+                <div class="stat">
+                  <Icon name="users" />
+                  <span>{{ formatNumber(instance.user_count || 0) }} users</span>
+                </div>
+                <div class="stat">
+                  <Icon name="message-circle" />
+                  <span>{{ formatNumber(instance.status_count || 0) }} posts</span>
+                </div>
+                <div class="stat">
+                  <Icon name="globe" />
+                  <span>{{ formatNumber(instance.connection_count || 0) }} connections</span>
+                </div>
+              </div>
+              
+              <div class="instance-footer">
+                <span class="last-seen">Last seen {{ getTimeAgo(instance.last_seen_at) }}</span>
+                <div class="instance-actions">
+                  <button @click.stop class="action-btn">
+                    <Icon name="external-link" />
+                    Visit
+                  </button>
+                  <button @click.stop class="action-btn">
+                    <Icon name="eye" />
+                    View Posts
+                  </button>
+                </div>
               </div>
             </div>
-            
-            <div class="instance-stats">
-              <div class="stat">
-                <Icon name="users" />
-                <span>{{ formatNumber(instance.user_count) }} users</span>
-              </div>
-              <div class="stat">
-                <Icon name="message-circle" />
-                <span>{{ formatNumber(instance.post_count) }} posts</span>
-              </div>
-              <div class="stat">
-                <Icon name="clock" />
-                <span>{{ formatLastSeen(instance.last_seen_at) }}</span>
-              </div>
-            </div>
-
-            <p class="instance-description">
-              {{ instance.description || 'No description available' }}
-            </p>
+          </div>
+          <div v-else class="empty-state">
+            <Icon name="server" />
+            <p>No instances found</p>
           </div>
         </div>
       </div>
     </div>
 
+    <!-- Load More Button -->
+    <div v-if="hasMoreContent && !isLoading" class="load-more-section">
+      <button @click="loadMore" :disabled="isLoadingMore" class="load-more-btn">
+        <Icon v-if="isLoadingMore" name="loader" class="spinning" />
+        <Icon v-else name="chevron-down" />
+        {{ isLoadingMore ? 'Loading...' : 'Load More' }}
+      </button>
+    </div>
+
     <!-- Instance Detail Modal -->
     <InstanceDetailModal
-      v-if="showInstanceModal && selectedInstance"
-      :instance="selectedInstance"
-      @close="showInstanceModal = false; selectedInstance = null"
+      v-if="showInstanceModal"
+      :instance="selectedInstanceDetails"
+      @close="showInstanceModal = false"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { activityPubService } from '@/services/activityPubService';
+import { trendingService } from '@/services/TrendingService';
+import { adminService } from '@/services/AdminService';
 import MonyPost from './MonyPost.vue';
 import InstanceDetailModal from './InstanceDetailModal.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -187,12 +241,10 @@ import type { TimelinePost, FederatedUser } from '@/types';
 
 // Props
 interface Props {
-  currentExploreTab?: 'trending' | 'instances';
+  currentExploreTab: 'trending' | 'instances';
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  currentExploreTab: 'trending'
-});
+const props = defineProps<Props>();
 
 // Define emits
 defineEmits<{
@@ -210,156 +262,180 @@ defineEmits<{
 
 const activityPubStore = useActivityPubStore();
 
-// State
+// Loading states
+const isLoading = ref(false);
+const isLoadingMore = ref(false);
+
+// Filter states
 const selectedContentType = ref('all');
 const selectedInstance = ref('all');
-const instanceSearchQuery = ref('');
-const instanceFilter = ref('all');
-const isLoading = ref(false);
+const selectedTimeRange = ref('24h');
+const instanceSearchTerm = ref('');
+
+// Data states
+const trendingHashtags = ref<any[]>([]);
+const trendingPosts = ref<any[]>([]);
+const suggestedUsers = ref<any[]>([]);
+const knownInstances = ref<any[]>([]);
+const selectedInstanceDetails = ref<any | null>(null);
 const showInstanceModal = ref(false);
 
-// Tab configuration
-const tabs = [
-  { id: 'federated', label: 'Federated', icon: 'globe' },
-  { id: 'local', label: 'Local', icon: 'users' },
-  { id: 'trending', label: 'Trending', icon: 'trending-up' },
-  { id: 'instances', label: 'Instances', icon: 'server' }
-];
-
-// Mock data (replace with real data from stores/APIs)
-const federatedPosts = ref<TimelinePost[]>([]);
-const localPosts = ref<TimelinePost[]>([]);
-const trendingPosts = ref<TimelinePost[]>([]);
-const knownInstances = ref([
-  { domain: 'mastodon.social', user_count: 850000, post_count: 125000000 },
-  { domain: 'hachyderm.io', user_count: 12000, post_count: 2500000 },
-  { domain: 'fosstodon.org', user_count: 25000, post_count: 5200000 }
-]);
-
-const trendingHashtags = ref([
-  { tag: 'harmony', posts: 1234, trend: 'up', change: 15 },
-  { tag: 'social', posts: 567, trend: 'up', change: 8 },
-  { tag: 'federation', posts: 234, trend: 'down', change: -3 },
-  { tag: 'privacy', posts: 189, trend: 'up', change: 12 },
-  { tag: 'opensource', posts: 156, trend: 'neutral', change: 0 }
-]);
-
-const suggestedUsers = ref<FederatedUser[]>([
-  {
-    id: 'user1',
-    username: 'alice',
-    domain: 'mastodon.social',
-    handle: '@alice@mastodon.social',
-    display_name: 'Alice Johnson',
-    avatar_url: '/default_avatar.png',
-    bio: 'ActivityPub enthusiast',
-    is_local: false,
-    verified: false,
-    followers_count: 142,
-    following_count: 89,
-    posts_count: 234,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
-]);
-
-const instanceData = ref([
-  {
-    domain: 'mastodon.social',
-    software_name: 'Mastodon',
-    user_count: 850000,
-    post_count: 125000000,
-    status: 'connected',
-    last_seen_at: new Date().toISOString(),
-    description: 'The original server operated by the Mastodon gGmbH non-profit'
-  },
-  {
-    domain: 'hachyderm.io',
-    software_name: 'Mastodon',
-    user_count: 12000,
-    post_count: 2500000,
-    status: 'connected',
-    last_seen_at: new Date(Date.now() - 3600000).toISOString(),
-    description: 'Community for professionals in technology'
-  },
-  {
-    domain: 'fosstodon.org',
-    software_name: 'Mastodon',
-    user_count: 25000,
-    post_count: 5200000,
-    status: 'connected',
-    last_seen_at: new Date(Date.now() - 1800000).toISOString(),
-    description: 'Dedicated to Free and Open Source Software'
-  }
-]);
+// Pagination
+const hasMoreContent = ref(false);
+const currentCursor = ref<string | null>(null);
 
 // Computed properties
-const filteredFederatedPosts = computed(() => {
-  let posts = federatedPosts.value;
-  
-  if (selectedContentType.value === 'media') {
-    posts = posts.filter(p => p.media_attachments && p.media_attachments.length > 0);
-  } else if (selectedContentType.value === 'posts') {
-    posts = posts.filter(p => !p.media_attachments || p.media_attachments.length === 0);
-  }
-  
-  if (selectedInstance.value !== 'all') {
-    posts = posts.filter(p => p.author.domain === selectedInstance.value);
-  }
-  
-  return posts;
-});
-
-const filteredLocalPosts = computed(() => {
-  let posts = localPosts.value;
-  
-  if (selectedContentType.value === 'media') {
-    posts = posts.filter(p => p.media_attachments && p.media_attachments.length > 0);
-  } else if (selectedContentType.value === 'posts') {
-    posts = posts.filter(p => !p.media_attachments || p.media_attachments.length === 0);
-  }
-  
-  return posts;
-});
-
 const filteredInstances = computed(() => {
-  let instances = instanceData.value;
+  if (!knownInstances.value) return [];
   
-  if (instanceSearchQuery.value) {
-    const query = instanceSearchQuery.value.toLowerCase();
-    instances = instances.filter(i => 
-      i.domain.toLowerCase().includes(query) ||
-      i.description.toLowerCase().includes(query)
-    );
+  let filtered = knownInstances.value;
+  
+  if (selectedContentType.value !== 'all') {
+    // Apply content type filtering if needed
   }
   
-  if (instanceFilter.value !== 'all') {
-    // Filter by status when we have proper instance status
-    instances = instances.filter(i => i.status === instanceFilter.value);
+  return filtered;
+});
+
+const currentTabData = computed(() => {
+  switch (props.currentExploreTab) {
+    case 'trending':
+      return {
+        posts: trendingPosts.value,
+        hashtags: trendingHashtags.value,
+        users: suggestedUsers.value
+      };
+    case 'instances':
+      return {
+        instances: filteredInstances.value
+      };
+    default:
+      return {};
   }
-  
-  return instances;
 });
 
 // Methods
-const refreshContent = async () => {
-  isLoading.value = true;
+const loadTrendingContent = async () => {
   try {
-    // Load content based on active tab
-    if (props.currentExploreTab === 'federated') {
-      // Load federated timeline
-      await activityPubStore.loadPublicFeed();
-      federatedPosts.value = activityPubStore.publicFeed.posts;
-    } else if (props.currentExploreTab === 'local') {
-      // Load local timeline
-      await activityPubStore.loadLocalFeed();
-      localPosts.value = activityPubStore.localFeed.posts;
-    }
-    // Trending and instances would load their respective data
+    isLoading.value = true;
+    
+    const [hashtags, posts, users] = await Promise.all([
+      activityPubService.getTrendingHashtags(20),
+      activityPubService.getTrendingPosts({ 
+        limit: 20, 
+        timeframe: 'daily',
+        includeLocal: true,
+        includeFederated: true 
+      }),
+      activityPubService.getSuggestedUsers(6)
+    ]);
+
+    trendingHashtags.value = hashtags;
+    trendingPosts.value = posts;
+    suggestedUsers.value = users;
   } catch (error) {
-    console.error('Failed to refresh content:', error);
+    console.error('Failed to load trending content:', error);
   } finally {
     isLoading.value = false;
+  }
+};
+
+const loadInstances = async () => {
+  try {
+    isLoading.value = true;
+    
+    const instances = await activityPubService.getDiscoverableInstances({
+      limit: 50,
+      filter: 'active'
+    });
+    
+    knownInstances.value = instances;
+  } catch (error) {
+    console.error('Failed to load instances:', error);
+    // Fallback to AdminService
+    try {
+      const adminInstances = await adminService.getFederatedInstances({
+        limit: 50,
+        filter: 'all'
+      });
+      knownInstances.value = adminInstances.instances || [];
+    } catch (adminError) {
+      console.error('Failed to load instances from admin service:', adminError);
+    }
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const loadHashtagPosts = async (hashtag: string) => {
+  try {
+    const result = await activityPubService.getPostsByHashtag(hashtag, {
+      limit: 20
+    });
+    
+    // For now, just show the hashtag was clicked
+    console.log(`Loading posts for hashtag: #${hashtag}`, result);
+    // TODO: Navigate to hashtag view or update posts display
+  } catch (error) {
+    console.error('Failed to load hashtag posts:', error);
+  }
+};
+
+const showInstanceDetails = async (instance: any) => {
+  try {
+    selectedInstanceDetails.value = instance;
+    
+    // Load additional instance stats
+    const stats = await activityPubService.getInstanceStats(instance.domain);
+    if (stats) {
+      selectedInstanceDetails.value = { ...instance, ...stats };
+    }
+    
+    showInstanceModal.value = true;
+  } catch (error) {
+    console.error('Failed to load instance details:', error);
+    selectedInstanceDetails.value = instance;
+    showInstanceModal.value = true;
+  }
+};
+
+const searchInstances = async (searchTerm: string) => {
+  if (!searchTerm.trim()) {
+    await loadInstances();
+    return;
+  }
+  
+  try {
+    const instances = await activityPubService.getDiscoverableInstances({
+      limit: 20,
+      filter: 'active',
+      search: searchTerm.trim()
+    });
+    
+    knownInstances.value = instances;
+  } catch (error) {
+    console.error('Failed to search instances:', error);
+  }
+};
+
+const getInstanceStatusClass = (instance: any) => {
+  const status = instance.status || 'offline';
+  return {
+    'instance-status': true,
+    [`status-${status}`]: true
+  };
+};
+
+const getInstanceStatusText = (instance: any) => {
+  switch (instance.status) {
+    case 'online':
+      return 'Online';
+    case 'slow':
+      return 'Slow';
+    case 'offline':
+      return 'Offline';
+    default:
+      return 'Unknown';
   }
 };
 
@@ -369,22 +445,84 @@ const formatNumber = (num: number): string => {
   return num.toString();
 };
 
-const formatLastSeen = (dateString: string): string => {
-  const date = new Date(dateString);
+const getTimeAgo = (dateString: string): string => {
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${diffDays}d ago`;
+  const date = new Date(dateString);
+  const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+  
+  if (diffInHours < 1) return 'Just now';
+  if (diffInHours < 24) return `${diffInHours}h ago`;
+  
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 30) return `${diffInDays}d ago`;
+  
+  const diffInMonths = Math.floor(diffInDays / 30);
+  return `${diffInMonths}mo ago`;
 };
 
-// Lifecycle
-onMounted(() => {
-  refreshContent();
+const getTrendIcon = (trend: string) => {
+  switch (trend) {
+    case 'up': return 'trending-up';
+    case 'down': return 'trending-down';
+    default: return 'minus';
+  }
+};
+
+const loadMore = async () => {
+  if (isLoadingMore.value || !hasMoreContent.value) return;
+  
+  try {
+    isLoadingMore.value = true;
+    
+    if (props.currentExploreTab === 'trending') {
+      // Load more trending posts
+      const morePosts = await activityPubService.getTrendingPosts({
+        limit: 10,
+        timeframe: 'daily'
+      });
+      
+      trendingPosts.value.push(...morePosts);
+    }
+    // Add more loading logic for other tabs if needed
+    
+  } catch (error) {
+    console.error('Failed to load more content:', error);
+  } finally {
+    isLoadingMore.value = false;
+  }
+};
+
+const refreshContent = async () => {
+  currentCursor.value = null;
+  
+  if (props.currentExploreTab === 'trending') {
+    await loadTrendingContent();
+  } else if (props.currentExploreTab === 'instances') {
+    await loadInstances();
+  }
+};
+
+// Watch for tab changes
+watch(() => props.currentExploreTab, async (newTab) => {
+  if (newTab === 'trending' && trendingHashtags.value.length === 0) {
+    await loadTrendingContent();
+  } else if (newTab === 'instances' && knownInstances.value.length === 0) {
+    await loadInstances();
+  }
+}, { immediate: true });
+
+// Watch for filter changes
+watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
+  await refreshContent();
+});
+
+// Load initial content
+onMounted(async () => {
+  if (props.currentExploreTab === 'trending') {
+    await loadTrendingContent();
+  } else {
+    await loadInstances();
+  }
 });
 </script>
 

@@ -275,6 +275,17 @@ const navigationItems = computed(() => [
   { id: 'settings', label: 'Settings', path: '/settings', icon: 'settings' }
 ]);
 
+const refreshStats = () => {
+  // TODO: Implement refresh stats
+  //activityPubStore.refreshStats();
+  return
+};
+
+const isRefreshing = computed(() => {
+  // TODO: Implement refresh stats
+  //return activityPubStore.isRefreshing;
+  return false
+});
 
 const navigateToFollowing = () => {
   router.push('/social/following');
