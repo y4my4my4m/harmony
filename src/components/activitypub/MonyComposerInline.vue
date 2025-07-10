@@ -14,21 +14,64 @@
       <div class="composer-form">
         <!-- Text Input -->
         <div class="text-input-container">
-          <textarea
-            v-model="content"
-            ref="textareaRef"
+          <RichTextEditor
+            ref="richEditorRef"
+            :model-value="content"
             :placeholder="placeholder"
-            class="text-input"
-            rows="3"
-            maxlength="500"
-            @input="adjustTextareaHeight"
+            :max-height="150"
+            :min-height="60"
+            @update:model-value="handleContentUpdate"
+            @input="handleInput"
             @keydown="handleKeydown"
+            @cursor-position-changed="handleCursorPositionChanged"
           />
           
           <!-- Character Counter -->
           <div class="character-counter" :class="{ 'warning': content.length > 450 }">
             {{ content.length }}/500
           </div>
+          
+          <!-- Auto-suggest dropdown for mentions -->
+          <AutoSuggest
+            :isVisible="autoSuggest.state.value.isActive"
+            :suggestions="autoSuggest.suggestions.value"
+            :position="autoSuggest.state.value.position"
+            :selectedIndex="autoSuggest.state.value.selectedIndex"
+            :headerText="autoSuggest.headerText.value"
+            @select="handleSuggestionSelect"
+            @update:selectedIndex="(index) => autoSuggest.state.value.selectedIndex = index"
+          >
+            <template #default="{ suggestion }">
+              <!-- Emoji Suggestion -->
+              <div v-if="suggestion.url && suggestion.emoji" class="suggest-item-content">
+                <img 
+                  :src="suggestion.url" 
+                  :alt="suggestion.name"
+                  class="suggest-icon emoji-icon"
+                />
+                <div class="suggest-text">
+                  <span class="suggest-name">:{{ suggestion.name }}:</span>
+                  <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
+                </div>
+              </div>
+              
+              <!-- User Suggestion -->
+              <div v-else class="suggest-item-content">
+                <Avatar 
+                  v-if="suggestion.avatar || suggestion.avatar_url" 
+                  :src="suggestion.avatar || suggestion.avatar_url" 
+                  :alt="suggestion.display_name || suggestion.username"
+                  class="suggest-icon"
+                  size="sm"
+                />
+                <div class="suggest-text">
+                  <span class="suggest-name">{{ suggestion.display_name || suggestion.username }}</span>
+                  <span v-if="suggestion.username && suggestion.display_name !== suggestion.username" class="suggest-username">@{{ suggestion.username }}</span>
+                  <span v-if="suggestion.handle && suggestion.handle.includes('@')" class="suggest-domain">{{ suggestion.handle }}</span>
+                </div>
+              </div>
+            </template>
+          </AutoSuggest>
         </div>
 
         <!-- Content Warning Input -->
@@ -150,6 +193,14 @@ import { useProfileStore } from '@/stores/useProfile';
 import type { Post, MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
+import AutoSuggest from '@/components/AutoSuggest.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
+
+// Composables
+import { useAutoSuggest } from '@/composables/useAutoSuggest';
+import type { SuggestionItem } from '@/components/AutoSuggest.vue';
+import { activityPubService } from '@/services/activityPubService';
+
 
 // Emit events
 const emit = defineEmits<{
@@ -161,8 +212,25 @@ const activityPubStore = useActivityPubStore();
 const profileStore = useProfileStore();
 
 // Refs
-const textareaRef = ref<HTMLTextAreaElement>();
+const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const fileInputRef = ref<HTMLInputElement>();
+
+// AutoSuggest setup
+const getCurrentText = () => content.value || '';
+const updateText = (newText: string) => {
+  content.value = newText;
+};
+const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
+  mode: 'activitypub',
+  enableEmojis: true,
+  enableMentions: true,
+  maxSuggestions: 10
+});
+
+// Remove all the duplicate user search and suggestion combining logic
+// The enhanced composable now handles ActivityPub user search internally
+
+// Watch for mention queries is now handled internally by the composable
 
 // State
 const content = ref('');
@@ -208,15 +276,91 @@ const canSubmit = computed(() => {
 });
 
 // Methods
-const adjustTextareaHeight = async () => {
-  await nextTick();
-  if (textareaRef.value) {
-    textareaRef.value.style.height = 'auto';
-    textareaRef.value.style.height = `${textareaRef.value.scrollHeight}px`;
+const handleContentUpdate = (newContent: string) => {
+  content.value = newContent;
+};
+
+const handleInput = () => {
+  // Input is handled by handleContentUpdate
+};
+
+const handleCursorPositionChanged = (position: number) => {
+  // Handle auto-suggest based on cursor position and current text
+  if (richEditorRef.value) {
+    autoSuggest.handleInput(content.value, position);
+  }
+};
+
+const handleSuggestionSelect = (suggestion: SuggestionItem) => {
+  // Use the autoSuggest system's built-in selection method
+  autoSuggest.selectSuggestion(suggestion);
+};
+
+// Handle emoji insertion like the chat system
+const insertEmojiAtCursor = (emoji: any) => {
+  if (!richEditorRef.value?.insertTextAtCursor) return;
+  
+  const currentText = content.value;
+  const cursorPosition = richEditorRef.value.getCursorPosition?.() || 0;
+  
+  // Check if there's an emoji trigger pattern before cursor
+  const textBeforeCursor = currentText.substring(0, cursorPosition);
+  const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]*)$/);
+  
+  let newText;
+  
+  if (emojiMatch) {
+    // Remove the trigger text and insert emoji
+    const triggerLength = emojiMatch[0].length;
+    newText = currentText.substring(0, cursorPosition - triggerLength) + 
+             `:${emoji.name}:` + 
+             currentText.substring(cursorPosition);
+  } else {
+    // No trigger pattern, just insert emoji at cursor
+    newText = currentText.substring(0, cursorPosition) + 
+             `:${emoji.name}:` + 
+             currentText.substring(cursorPosition);
+  }
+  
+  // Update content
+  content.value = newText;
+};
+
+// Handle mention insertion like the chat system
+const handleMentionInsertion = (mention: SuggestionItem) => {
+  if (!richEditorRef.value) return;
+  
+  const currentText = content.value;
+  const cursorPosition = richEditorRef.value.getCursorPosition?.() || 0;
+  
+  // Find the @ trigger
+  const textBeforeCursor = currentText.substring(0, cursorPosition);
+  const mentionMatch = textBeforeCursor.match(/@([a-zA-Z0-9_]*)$/);
+  
+  if (mentionMatch) {
+    const triggerLength = mentionMatch[0].length;
+    let mentionText = '';
+    
+    // For federated users, use full handle, for local users use just @username
+    if (mention.domain && mention.domain !== 'har.mony.lol') {
+      mentionText = `@${mention.username}@${mention.domain}`;
+    } else {
+      mentionText = `@${mention.username}`;
+    }
+    
+    const newText = currentText.substring(0, cursorPosition - triggerLength) + 
+                   mentionText + ' ' + 
+                   currentText.substring(cursorPosition);
+    
+    content.value = newText;
   }
 };
 
 const handleKeydown = (event: KeyboardEvent) => {
+  // Handle autoSuggest navigation
+  const handled = autoSuggest.handleKeyDown(event);
+  if (handled) return;
+  
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
     handleSubmit();
@@ -302,9 +446,7 @@ const handleSubmit = async () => {
     // Emit success event
     emit('post-created', { id: 'new-post' });
     
-    // Reset textarea height
-    await nextTick();
-    adjustTextareaHeight();
+    // RichTextEditor handles its own height
   } catch (error) {
     console.error('Failed to create post:', error);
     alert('Failed to create post. Please try again.');
@@ -313,10 +455,7 @@ const handleSubmit = async () => {
   }
 };
 
-// Watch content changes to adjust textarea height
-watch(content, () => {
-  adjustTextareaHeight();
-});
+// RichTextEditor automatically handles height changes
 
 // Close visibility menu when clicking outside
 const handleClickOutside = (event: Event) => {
@@ -607,6 +746,52 @@ document.addEventListener('click', handleClickOutside);
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* AutoSuggest styles for mentions */
+.suggest-item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.suggest-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.suggest-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.suggest-name {
+  font-weight: 600;
+  color: white;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.suggest-username {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.suggest-domain {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 /* Mobile responsiveness */

@@ -167,27 +167,9 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     };
 
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
-      if (!richEditorRef.value) return;
-      
-      // Handle different suggestion types
-      if (suggestion.type === 'emoji' || suggestion.url) {
-        // For emoji, insert it directly
-        insertEmojiAtCursor(suggestion);
-      } else {
-        // For other suggestions (users, etc.)
-        const insertText = autoSuggest.selectSuggestion(suggestion);
-        if (insertText && suggestion.type !== 'emoji') {
-          // Handle mention insertion
-          handleMentionInsertion(suggestion);
-        }
-      }
-      
-      // Focus back to the editor after insertion
-      nextTick(() => {
-        if (richEditorRef.value?.focus) {
-          richEditorRef.value.focus();
-        }
-      });
+      // Use the autoSuggest system's built-in selection method
+      // This handles both emojis and mentions correctly, including the @ symbol for mentions
+      autoSuggest.selectSuggestion(suggestion);
     };
 
     // Handle emoji insertion

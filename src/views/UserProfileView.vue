@@ -459,8 +459,11 @@ const handleFavorite = async (postId: string) => {
 };
 
 const handleReblog = async (postId: string) => {
-  // TODO: Implement reblog
-  console.log('Reblog post:', postId);
+  try {
+    await activityPubStore.toggleReblog(postId);
+  } catch (error) {
+    console.error('Failed to toggle reblog:', error);
+  }
 };
 
 // Watch route changes

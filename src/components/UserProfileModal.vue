@@ -519,12 +519,19 @@ const openInviteModal = () => {
   showActionsMenu.value = false
 }
 
-const blockUser = () => {
+const blockUser = async () => {
   if (!props.user) return
   
-  // Implement block user functionality
-  console.log('Block user:', props.user.id)
-  showActionsMenu.value = false
+  try {
+    await activityPubStore.blockUser(props.user.id)
+    console.log('User blocked successfully:', props.user.id)
+    // Show success toast
+    showActionsMenu.value = false
+    emit('close')
+  } catch (error) {
+    console.error('Failed to block user:', error)
+    // Show error toast
+  }
 }
 
 const debouncedSaveNote = (() => {
