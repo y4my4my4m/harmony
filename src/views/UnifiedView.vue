@@ -1128,6 +1128,7 @@ watch(route, async () => {
         currentViewState.value.viewType = ViewType.POST;
         currentViewState.value.currentView = CurrentView.POST;
       } else {
+        // Default to timeline view for Social routes
         currentViewState.value.viewType = ViewType.TIMELINE;
         if (route.params.timeline) {
           const timeline = route.params.timeline as string;
@@ -1175,7 +1176,8 @@ watch(() => props.mode, (newMode) => {
 
 // Watch for timeline changes from props
 watch(() => props.timeline, (newTimeline) => {
-  if (newTimeline) {
+  // Only apply timeline changes if we're actually in a timeline view, not explore views
+  if (newTimeline && currentViewState.value.viewType === ViewType.TIMELINE) {
     const currentView = newTimeline === 'home' ? CurrentView.HOME :
       newTimeline === 'local' ? CurrentView.LOCAL :
       newTimeline === 'public' ? CurrentView.PUBLIC :

@@ -504,9 +504,9 @@ const refreshContent = async () => {
 
 // Watch for tab changes
 watch(() => props.currentView, async (newTab) => {
-  if (newTab === 'trending' && trendingHashtags.value.length === 0) {
+  if (newTab === 'trending') {
     await loadTrendingContent();
-  } else if (newTab === 'instances' && knownInstances.value.length === 0) {
+  } else if (newTab === 'instances') {
     await loadInstances();
   }
 }, { immediate: true });
@@ -514,15 +514,6 @@ watch(() => props.currentView, async (newTab) => {
 // Watch for filter changes
 watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   await refreshContent();
-});
-
-// Load initial content
-onMounted(async () => {
-  if (props.currentView === 'trending') {
-    await loadTrendingContent();
-  } else {
-    await loadInstances();
-  }
 });
 </script>
 
