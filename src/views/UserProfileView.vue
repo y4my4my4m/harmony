@@ -439,7 +439,7 @@ const handleReport = () => {
 };
 
 const showUserProfile = (clickedUser: FederatedUser) => {
-  router.push(`/u/${clickedUser.handle}`);
+  router.push(`/profile/${clickedUser.handle}`);
 };
 
 const replyToPost = (post: TimelinePost) => {

@@ -48,7 +48,7 @@
     </div>
 
     <!-- ActivityPub Mode: Social/Federated Sidebar -->
-    <div v-else-if="mode === 'activitypub'" class="social-sidebar">
+    <div v-if="mode === 'activitypub'" class="social-sidebar">
       <!-- Header -->
       <div class="social-header">
         <div class="social-title">
@@ -251,7 +251,11 @@ const getUserProfilePath = () => {
     ? username 
     : `${username}@${domain}`;
     
-  return `/u/${handle}`;
+  return `/profile/${handle}`;
+};
+
+const getProfileUrl = (handle: string) => {
+  return `/profile/${handle}`;
 };
 
 
@@ -262,6 +266,7 @@ const postsCount = computed(() => {
 });
 
 const navigationItems = computed(() => [
+  { id: 'explore', label: 'Explore', path: '/explore', icon: 'compass' },
   { id: 'feed', label: 'Feed', path: '/social/home', icon: 'mony-mascot' },
   { id: 'profile', label: 'Profile', path: getUserProfilePath(), icon: 'user' },
   { id: 'notifications', label: 'Notifications', path: '/social/notifications', icon: 'bell' },
@@ -280,9 +285,17 @@ const navigateToFollowers = () => {
 };
 
 const navigateToProfile = () => {
-  router.push(`/u/${currentUserHandle.value.replace('@', '')}`);
+  if (currentUserHandle.value) {
+    router.push(`/profile/${currentUserHandle.value.replace('@', '')}`);
+  }
 };
 
+// Format numbers for display (e.g., 1000 -> 1K)
+const formatNumber = (num: number): string => {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+};
 
 // Watch for changes in follow counts to show delta indicators
 watch(() => activityPubStore.followingCount, (newCount) => {

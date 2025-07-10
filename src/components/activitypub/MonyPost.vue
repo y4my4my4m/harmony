@@ -117,22 +117,6 @@
         </div>
       </div>
 
-      <!-- Interaction Stats -->
-      <div class="interaction-stats">
-        <div class="stat-item" v-if="post.replies_count > 0">
-          <Icon name="message-circle" />
-          <span>{{ formatCount(post.replies_count) }}</span>
-        </div>
-        <div class="stat-item" v-if="post.reblogs_count > 0">
-          <Icon name="reblog" />
-          <span>{{ formatCount(post.reblogs_count) }}</span>
-        </div>
-        <div class="stat-item" v-if="post.favorites_count > 0">
-          <Icon name="heart" />
-          <span>{{ formatCount(post.favorites_count) }}</span>
-        </div>
-      </div>
-
       <!-- Action Buttons -->
       <div class="post-actions">
         <button 

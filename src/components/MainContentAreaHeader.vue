@@ -6,16 +6,31 @@
     <div></div>
     <!-- Feed Type Switcher -->
     <div class="feed-switcher">
+      <!-- Main feed tabs (always visible) -->
       <button
-        v-for="tab in feedTabs"
+        v-for="tab in mainFeedTabs"
         :key="tab.id"
         @click="$emit('switch-feed', tab.id)"
-        :class="['feed-tab', { active: currentFeed === tab.id }]"
+        :class="['feed-tab', { active: currentFeed === tab.id && viewType === 'timeline' }]"
         :title="tab.label"
       >
         <Icon :name="tab.icon" />
         <span v-if="!isMobile">{{ tab.label }}</span>
       </button>
+      
+      <!-- Explore tabs (only visible in explore view) -->
+      <template v-if="viewType === 'explore'">
+        <button
+          v-for="tab in exploreTabs"
+          :key="tab.id"
+          @click="$emit('switch-explore-tab', tab.id)"
+          :class="['feed-tab', { active: currentExploreTab === tab.id }]"
+          :title="tab.label"
+        >
+          <Icon :name="tab.icon" />
+          <span v-if="!isMobile">{{ tab.label }}</span>
+        </button>
+      </template>
     </div>
     <div></div>
     <div></div>
@@ -27,10 +42,15 @@ import HashTagIcon from '@/components/icons/HashTag.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Channel } from '@/types';
 
-const feedTabs = [
+const mainFeedTabs = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'local', label: 'Local', icon: 'users' },
   { id: 'public', label: 'Federated', icon: 'globe' }
+];
+
+const exploreTabs = [
+  { id: 'trending', label: 'Trending', icon: 'trending-up' },
+  { id: 'instances', label: 'Instances', icon: 'server' }
 ];
 
 const props = defineProps<{
@@ -38,6 +58,13 @@ const props = defineProps<{
   currentFeed: string;
   isMobile: boolean;
   currentChannel?: Channel;
+  viewType?: string;
+  currentExploreTab?: string;
+}>();
+
+defineEmits<{
+  'switch-feed': [feedType: string];
+  'switch-explore-tab': [tabType: string];
 }>();
 </script>
 

@@ -44,6 +44,23 @@
         />
       </div>
       
+      <!-- Explore View -->
+      <div v-else-if="viewType === 'explore'" class="explore-view-content">
+        <ExploreContent
+          :current-explore-tab="currentExploreTab"
+          @switch-feed="$emit('switch-feed', $event)"
+          @refresh-timeline="$emit('refresh-timeline')"
+          @show-user-profile="$emit('show-user-profile', $event)"
+          @follow-user="$emit('follow-user', $event)"
+          @unfollow-user="$emit('unfollow-user', $event)"
+          @reply-to-post="$emit('reply-to-post', $event)"
+          @favorite-post="$emit('favorite-post', $event)"
+          @reblog-post="$emit('reblog-post', $event)"
+          @bookmark-post="$emit('bookmark-post', $event)"
+          @delete-post="$emit('delete-post', $event)"
+        />
+      </div>
+      
       <!-- Special Views (Bookmarks, Lists, etc.) -->
       <div v-else-if="viewType !== 'timeline'" class="special-view-content">
         <div class="special-view-header">
@@ -181,6 +198,7 @@ import { computed } from 'vue';
 import ChatComponent from '@/components/ChatComponent.vue';
 import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
+import ExploreContent from '@/components/activitypub/ExploreContent.vue';
 import ProfileDisplay from './ProfileDisplay.vue';
 import PostDetailDisplay from './PostDetailDisplay.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -195,8 +213,9 @@ interface Props {
   isDM?: boolean;
   
   // ActivityPub mode props
-  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post';
+  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post' | 'explore';
   currentFeed?: 'home' | 'local' | 'public';
+  currentExploreTab?: 'trending' | 'instances';
   posts?: TimelinePost[];
   isLoadingFeed?: boolean;
   hasMorePosts?: boolean;
@@ -217,6 +236,7 @@ const props = withDefaults(defineProps<Props>(), {
   isDM: false,
   viewType: 'timeline',
   currentFeed: 'home',
+  currentExploreTab: 'trending',
   posts: () => [],
   isLoadingFeed: false,
   hasMorePosts: false,
@@ -283,6 +303,8 @@ const getEmptyStateMessage = () => {
 // Helper functions for special views
 const getViewIcon = (viewType: string) => {
   switch (viewType) {
+    case 'explore':
+      return 'compass';
     case 'bookmarks':
       return 'bookmark';
     case 'lists':
@@ -298,6 +320,8 @@ const getViewIcon = (viewType: string) => {
 
 const getViewTitle = (viewType: string) => {
   switch (viewType) {
+    case 'explore':
+      return 'Explore';
     case 'bookmarks':
       return 'Bookmarks';
     case 'lists':
@@ -313,6 +337,8 @@ const getViewTitle = (viewType: string) => {
 
 const getViewSubtitle = (viewType: string) => {
   switch (viewType) {
+    case 'explore':
+      return 'Discover trending content and new instances';
     case 'bookmarks':
       return 'Posts you\'ve saved for later';
     case 'lists':
@@ -328,6 +354,8 @@ const getViewSubtitle = (viewType: string) => {
 
 const getEmptyStateTitle = (viewType: string) => {
   switch (viewType) {
+    case 'explore':
+      return 'Nothing to explore yet';
     case 'bookmarks':
       return 'No bookmarks yet';
     case 'lists':
@@ -341,6 +369,8 @@ const getEmptyStateTitle = (viewType: string) => {
 
 const getSpecialViewEmptyMessage = (viewType: string) => {
   switch (viewType) {
+    case 'explore':
+      return 'Check back later for trending content and discover new instances.';
     case 'bookmarks':
       return 'Posts you bookmark will appear here for easy access later.';
     case 'lists':

@@ -531,6 +531,22 @@
     <path v-if="name === 'repeat'" d="M3 11V9a4 4 0 0 1 4-4h14"></path>
     <polyline v-if="name === 'repeat'" points="7 23 3 19 7 15"></polyline>
     <path v-if="name === 'repeat'" d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+
+    <!-- Trending Up -->
+    <path v-if="name === 'trending-up'" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+
+    <!-- Trending Down -->
+    <path v-if="name === 'trending-down'" d="M21 17H13m8 0V9m0 8l-8-8-4 4-6-6"></path>
+
+    <!-- Compass -->
+    <path v-if="name === 'compass'" d="M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z"></path>
+    <path v-if="name === 'compass'" d="M12 15l-4-4h8l-4 4z"></path>
+
+    <!-- List -->
+    <path v-if="name === 'list'" d="M3 12h18M3 6h18M3 18h18"></path>
+
+    <!-- Grid -->
+    <path v-if="name === 'grid'" d="M3 3v18h18M3 3h18M3 3l18 18"></path>
   </svg>
 </template>
 

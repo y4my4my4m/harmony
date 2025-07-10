@@ -78,17 +78,6 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/u/:handle',
-      name: 'UserProfile',
-      component: UnifiedView,
-      props: route => ({
-        mode: 'activitypub',
-        viewType: 'profile',
-        profileHandle: route.params.handle
-      }),
-      meta: { requiresAuth: true },
-    },
-    {
       path: '/social/followers',
       name: 'Followers',
       component: () => import('@/views/FollowersView.vue'),
@@ -100,36 +89,6 @@ const router = createRouter({
       name: 'Following',
       component: () => import('@/views/FollowersView.vue'),
       props: { viewType: 'following' },
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/social/:timeline?',
-      name: 'Social',
-      component: UnifiedView,
-      props: route => ({ 
-        mode: 'activitypub',
-        timeline: route.params.timeline || 'home'
-      }),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/login',
-      name: 'Login',
-      component: LoginView,
-    },
-    {
-      path: '/register',
-      name: 'Register',
-      component: RegisterView
-    },
-    // Legacy route redirects for backward compatibility
-    {
-      path: '/monyverse/:timeline?',
-      name: 'Monyverse',
-      redirect: route => ({
-        name: 'Social',
-        params: { timeline: route.params.timeline || 'home' }
-      }),
       meta: { requiresAuth: true },
     },
     {
@@ -186,6 +145,56 @@ const router = createRouter({
       name: 'AdminPanel',
       component: () => import('@/views/AdminPanel.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    // ActivityPub / Social Routes
+    {
+      path: '/social/:timeline?',
+      name: 'Social',
+      component: () => import('@/views/UnifiedView.vue'),
+      props: (route) => ({
+        mode: 'activitypub',
+        timeline: route.params.timeline || 'home',
+        viewType: 'timeline'
+      })
+    },
+    {
+      path: '/explore',
+      name: 'Explore',
+      component: () => import('@/views/UnifiedView.vue'),
+      props: {
+        mode: 'activitypub',
+        viewType: 'explore'
+      }
+    },
+    {
+      path: '/profile/:handle',
+      name: 'UserProfile',
+      component: () => import('@/views/UnifiedView.vue'),
+      props: (route) => ({
+        mode: 'activitypub',
+        viewType: 'profile',
+        profileHandle: route.params.handle
+      })
+    },
+    {
+      path: '/login',
+      name: 'Login',
+      component: LoginView,
+    },
+    {
+      path: '/register',
+      name: 'Register',
+      component: RegisterView
+    },
+    // Legacy route redirects for backward compatibility
+    {
+      path: '/monyverse/:timeline?',
+      name: 'Monyverse',
+      redirect: route => ({
+        name: 'Social',
+        params: { timeline: route.params.timeline || 'home' }
+      }),
+      meta: { requiresAuth: true },
     },
   ],
 });

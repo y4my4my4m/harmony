@@ -91,7 +91,16 @@
 
     <!-- Main Content Area -->
     <div class="main-content-area">
-      <MainContentAreaHeader :mode="currentMode" :current-feed="currentFeed" :is-mobile="isMobile" :current-channel="currentChannel" @switch-feed="handleSwitchFeed" />
+      <MainContentAreaHeader 
+        :mode="currentMode" 
+        :current-feed="currentFeed" 
+        :is-mobile="isMobile" 
+        :current-channel="currentChannel"
+        :view-type="currentViewType"
+        :current-explore-tab="currentExploreTab"
+        @switch-feed="handleSwitchFeed"
+        @switch-explore-tab="handleSwitchExploreTab" 
+      />
       <div class="main-content-area-content">
         <UnifiedContentArea
           :mode="currentMode"
@@ -100,6 +109,7 @@
           :is-d-m="isDM"
           :view-type="currentViewType"
           :current-feed="currentFeed"
+          :current-explore-tab="currentExploreTab"
           :posts="posts"
           :is-loading-feed="isLoadingFeed"
           :has-more-posts="hasMorePosts"
@@ -281,7 +291,7 @@ interface Props {
   mode?: 'chat' | 'activitypub';
   timeline?: 'home' | 'local' | 'public';
   profileHandle?: string;
-  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post';
+  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post' | 'explore';
   postId?: string;
 }
 
@@ -309,9 +319,10 @@ const router = useRouter();
 // State Management
 const currentMode = ref<'chat' | 'activitypub'>(props.mode);
 const currentFeed = ref<'home' | 'local' | 'public'>(props.timeline);
-const currentViewType = ref<'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications'>(
+const currentViewType = ref<'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post' | 'explore'>(
   props.viewType || (props.profileHandle ? 'profile' : 'timeline')
 );
+const currentExploreTab = ref<'trending' | 'instances'>('trending');
 const profileUser = ref<FederatedUser | null>(null);
 const specialViewData = ref<TimelinePost[]>([]);
 const hasMoreSpecialData = ref(false);
@@ -592,6 +603,12 @@ const handleSwitchFeed = async (feedType: 'home' | 'local' | 'public') => {
   currentFeed.value = feedType;
   await router.push(`/social/${feedType}`);
   await loadTimeline();
+};
+
+const handleSwitchExploreTab = (tabType: 'trending' | 'instances') => {
+  currentExploreTab.value = tabType;
+  // The ExploreContent component will listen to this state change
+  // and update its display accordingly
 };
 
 const loadTimeline = async () => {
@@ -949,7 +966,7 @@ const loadProfileUser = async () => {
 watch(route, async () => {
   if (isAppInitialized.value) {
     // Update mode based on route
-    const activityPubRoutes = ['Social', 'Monyverse', 'UserProfile', 'Bookmarks', 'Notifications', 'Lists'];
+    const activityPubRoutes = ['Social', 'Monyverse', 'UserProfile', 'Bookmarks', 'Notifications', 'Lists', 'Explore'];
     if (activityPubRoutes.includes(route.name as string)) {
       currentMode.value = 'activitypub';
       
@@ -962,6 +979,8 @@ watch(route, async () => {
         currentViewType.value = 'notifications';
       } else if (route.name === 'Lists') {
         currentViewType.value = 'lists';
+      } else if (route.name === 'Explore') {
+        currentViewType.value = 'explore';
       } else {
         currentViewType.value = 'timeline';
         if (route.params.timeline) {
@@ -974,6 +993,9 @@ watch(route, async () => {
         await loadTimeline();
       } else if (currentViewType.value === 'profile') {
         await loadProfileUser();
+      } else if (currentViewType.value === 'explore') {
+        // Explore content will handle its own data loading
+        console.log('Switched to explore view');
       } else {
         await loadSpecialViewData();
       }

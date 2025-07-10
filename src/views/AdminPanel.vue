@@ -956,12 +956,10 @@ const moderateUser = async (user: any, action: string) => {
 
 const navigateToUserPosts = (user: any) => {
   // Navigate to user's profile/posts
-  if (user.domain) {
-    // Federated user - navigate to profile view
-    router.push(`/u/${user.username}@${user.domain}`)
+  if (user.domain && user.domain !== 'har.mony.lol') {
+    router.push(`/profile/${user.username}@${user.domain}`)
   } else {
-    // Local user
-    router.push(`/u/${user.username}`)
+    router.push(`/profile/${user.username}`)
   }
 }
 
