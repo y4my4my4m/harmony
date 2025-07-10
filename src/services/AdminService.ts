@@ -82,6 +82,44 @@ export interface BlockedInstance {
   blocked_by?: string;
 }
 
+export interface FederatedInstance {
+  id: string;
+  domain: string;
+  software?: string;
+  version?: string;
+  description?: string;
+  admin_contact?: string;
+  is_blocked: boolean;
+  is_trusted: boolean;
+  last_seen_at: string;
+  user_count: number;
+  status_count: number;
+  connection_count: number;
+  metadata: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InstanceSearchResult {
+  domain: string;
+  software?: string;
+  version?: string;
+  description?: string;
+  user_count?: number;
+  status_count?: number;
+  admin_contact?: string;
+  api_available: boolean;
+  federation_enabled: boolean;
+}
+
+export interface InstanceStats {
+  total_instances: number;
+  blocked_instances: number;
+  trusted_instances: number;
+  active_instances: number;
+  recently_discovered: number;
+}
+
 class AdminService {
   /**
    * Get comprehensive system statistics
@@ -554,6 +592,539 @@ class AdminService {
       return new Blob([csvContent], { type: 'text/csv' });
     } catch (error) {
       console.error('Failed to export logs:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update instance trust status
+   */
+  async updateInstanceTrust(instanceId: string, trusted: boolean, adminId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('federated_instances')
+        .update({ 
+          is_trusted: trusted,
+          metadata: {
+            trust_updated_by: adminId,
+            trust_updated_at: new Date().toISOString()
+          }
+        })
+        .eq('id', instanceId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to update instance trust:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update instance block status
+   */
+  async updateInstanceBlock(instanceId: string, blocked: boolean, reason: string, adminId: string): Promise<void> {
+    try {
+      const metadata = blocked ? {
+        blocked_reason: reason,
+        blocked_by: adminId,
+        blocked_at: new Date().toISOString()
+      } : {
+        unblocked_reason: reason,
+        unblocked_by: adminId,
+        unblocked_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('federated_instances')
+        .update({ 
+          is_blocked: blocked,
+          metadata
+        })
+        .eq('id', instanceId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to update instance block status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete instance
+   */
+  async deleteInstance(instanceId: string, adminId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('federated_instances')
+        .delete()
+        .eq('id', instanceId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to delete instance:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add instance from domain
+   */
+  async addInstanceFromDomain(domain: string, trusted: boolean, adminId: string): Promise<void> {
+    try {
+      // First try to discover instance info
+      const instanceInfo = await this.fetchInstanceInfo(domain);
+      
+      const { error } = await supabase
+        .from('federated_instances')
+        .upsert({
+          domain,
+          software: instanceInfo?.software,
+          version: instanceInfo?.version,
+          description: instanceInfo?.description,
+          admin_contact: instanceInfo?.admin_contact,
+          user_count: instanceInfo?.user_count || 0,
+          status_count: instanceInfo?.status_count || 0,
+          is_trusted: trusted,
+          is_blocked: false,
+          last_seen_at: new Date().toISOString(),
+          metadata: {
+            added_by: adminId,
+            added_at: new Date().toISOString(),
+            api_available: instanceInfo?.api_available || false,
+            federation_enabled: instanceInfo?.federation_enabled || false
+          }
+        }, { onConflict: 'domain' });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to add instance from domain:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all federated instances with optional filtering
+   */
+  async getFederatedInstances(options: {
+    limit?: number;
+    offset?: number;
+    filter?: 'all' | 'blocked' | 'trusted' | 'active';
+    search?: string;
+  } = {}): Promise<{ instances: FederatedInstance[]; total: number }> {
+    try {
+      const { limit = 50, offset = 0, filter = 'all', search } = options;
+      
+      let query = supabase
+        .from('federated_instances')
+        .select('*', { count: 'exact' })
+        .order('last_seen_at', { ascending: false });
+
+      // Apply filters
+      switch (filter) {
+        case 'blocked':
+          query = query.eq('is_blocked', true);
+          break;
+        case 'trusted':
+          query = query.eq('is_trusted', true);
+          break;
+        case 'active':
+          query = query.gte('last_seen_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+          break;
+      }
+
+      // Apply search
+      if (search) {
+        query = query.or(`domain.ilike.%${search}%,description.ilike.%${search}%,software.ilike.%${search}%`);
+      }
+
+      // Apply pagination
+      query = query.range(offset, offset + limit - 1);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+
+      return {
+        instances: data || [],
+        total: count || 0
+      };
+    } catch (error) {
+      console.error('Failed to get federated instances:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get federated instance statistics
+   */
+  async getInstanceStats(): Promise<InstanceStats> {
+    try {
+      const [totalResult, blockedResult, trustedResult, activeResult, recentResult] = await Promise.all([
+        supabase.from('federated_instances').select('*', { count: 'exact', head: true }),
+        supabase.from('federated_instances').select('*', { count: 'exact', head: true }).eq('is_blocked', true),
+        supabase.from('federated_instances').select('*', { count: 'exact', head: true }).eq('is_trusted', true),
+        supabase.from('federated_instances').select('*', { count: 'exact', head: true })
+          .gte('last_seen_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+        supabase.from('federated_instances').select('*', { count: 'exact', head: true })
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      ]);
+
+      return {
+        total_instances: totalResult.count || 0,
+        blocked_instances: blockedResult.count || 0,
+        trusted_instances: trustedResult.count || 0,
+        active_instances: activeResult.count || 0,
+        recently_discovered: recentResult.count || 0
+      };
+    } catch (error) {
+      console.error('Failed to get instance stats:', error);
+      return {
+        total_instances: 0,
+        blocked_instances: 0,
+        trusted_instances: 0,
+        active_instances: 0,
+        recently_discovered: 0
+      };
+    }
+  }
+
+  /**
+   * Discover ActivityPub instance by domain
+   */
+  async discoverInstance(domain: string): Promise<InstanceSearchResult | null> {
+    try {
+      // Clean up the domain
+      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+      
+      // Try to fetch nodeinfo or instance information
+      const instanceInfo = await this.fetchInstanceInfo(cleanDomain);
+      
+      return instanceInfo;
+    } catch (error) {
+      console.error(`Failed to discover instance ${domain}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch instance information via nodeinfo or mastodon API
+   */
+  private async fetchInstanceInfo(domain: string): Promise<InstanceSearchResult | null> {
+    try {
+      // Try nodeinfo 2.0 first (standard)
+      const nodeinfoResponse = await fetch(`https://${domain}/.well-known/nodeinfo`);
+      if (nodeinfoResponse.ok) {
+        const nodeinfo = await nodeinfoResponse.json();
+        const links = nodeinfo.links || [];
+        
+        // Find nodeinfo 2.0 or 2.1 link
+        const nodeinfoLink = links.find((link: any) => 
+          link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.0' ||
+          link.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.1'
+        );
+        
+        if (nodeinfoLink) {
+          const infoResponse = await fetch(nodeinfoLink.href);
+          if (infoResponse.ok) {
+            const info = await infoResponse.json();
+            return {
+              domain,
+              software: info.software?.name,
+              version: info.software?.version,
+              description: info.metadata?.description || info.metadata?.shortDescription,
+              user_count: info.usage?.users?.total || 0,
+              status_count: info.usage?.localPosts || 0,
+              admin_contact: info.metadata?.admin?.email,
+              api_available: true,
+              federation_enabled: true
+            };
+          }
+        }
+      }
+
+      // Fallback: Try Mastodon API
+      const mastodonResponse = await fetch(`https://${domain}/api/v1/instance`);
+      if (mastodonResponse.ok) {
+        const instance = await mastodonResponse.json();
+        return {
+          domain,
+          software: 'mastodon',
+          version: instance.version,
+          description: instance.description,
+          user_count: instance.stats?.user_count || 0,
+          status_count: instance.stats?.status_count || 0,
+          admin_contact: instance.contact_account?.acct,
+          api_available: true,
+          federation_enabled: true
+        };
+      }
+
+      // Basic ActivityPub check
+      const actorResponse = await fetch(`https://${domain}/actor`, {
+        headers: { 'Accept': 'application/activity+json' }
+      });
+      
+      if (actorResponse.ok) {
+        return {
+          domain,
+          software: 'unknown',
+          api_available: true,
+          federation_enabled: true
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`Failed to fetch instance info for ${domain}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Add a new federated instance manually
+   */
+  async addFederatedInstance(
+    domain: string, 
+    adminId: string,
+    options: {
+      trusted?: boolean;
+      forceAdd?: boolean;
+    } = {}
+  ): Promise<FederatedInstance> {
+    try {
+      const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+      
+      // Check if instance already exists
+      const { data: existing } = await supabase
+        .from('federated_instances')
+        .select('*')
+        .eq('domain', cleanDomain)
+        .single();
+
+      if (existing && !options.forceAdd) {
+        throw new Error('Instance already exists');
+      }
+
+      // Discover instance info
+      const instanceInfo = await this.discoverInstance(cleanDomain);
+      
+      if (!instanceInfo && !options.forceAdd) {
+        throw new Error('Could not discover instance information');
+      }
+
+      // Insert or update the instance
+      const instanceData = {
+        domain: cleanDomain,
+        software: instanceInfo?.software || 'unknown',
+        version: instanceInfo?.version,
+        description: instanceInfo?.description,
+        admin_contact: instanceInfo?.admin_contact,
+        is_blocked: false,
+        is_trusted: options.trusted || false,
+        user_count: instanceInfo?.user_count || 0,
+        status_count: instanceInfo?.status_count || 0,
+        connection_count: 0,
+        metadata: {
+          added_by: adminId,
+          discovery_method: instanceInfo ? 'api' : 'manual',
+          federation_enabled: instanceInfo?.federation_enabled || false
+        }
+      };
+
+      const { data, error } = existing
+        ? await supabase
+            .from('federated_instances')
+            .update(instanceData)
+            .eq('id', existing.id)
+            .select()
+            .single()
+        : await supabase
+            .from('federated_instances')
+            .insert(instanceData)
+            .select()
+            .single();
+
+      if (error) throw error;
+
+      // Log admin activity
+      console.log(`Instance ${cleanDomain} ${existing ? 'updated' : 'added'} by admin ${adminId}`);
+
+      return data;
+    } catch (error) {
+      console.error('Failed to add federated instance:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update federated instance settings
+   */
+  async updateFederatedInstance(
+    instanceId: string,
+    updates: {
+      is_blocked?: boolean;
+      is_trusted?: boolean;
+      admin_contact?: string;
+      description?: string;
+    },
+    adminId: string
+  ): Promise<FederatedInstance> {
+    try {
+      const { data, error } = await supabase
+        .from('federated_instances')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', instanceId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log admin activity
+      console.log(`Instance ${data.domain} updated by admin ${adminId}:`, updates);
+
+      return data;
+    } catch (error) {
+      console.error('Failed to update federated instance:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete/remove a federated instance
+   */
+  async deleteFederatedInstance(instanceId: string, adminId: string): Promise<void> {
+    try {
+      // Get instance info first for logging
+      const { data: instance } = await supabase
+        .from('federated_instances')
+        .select('domain')
+        .eq('id', instanceId)
+        .single();
+
+      const { error } = await supabase
+        .from('federated_instances')
+        .delete()
+        .eq('id', instanceId);
+
+      if (error) throw error;
+
+      // Log admin activity
+      console.log(`Instance ${instance?.domain} deleted by admin ${adminId}`);
+    } catch (error) {
+      console.error('Failed to delete federated instance:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search for ActivityPub instances online
+   */
+  async searchActivityPubInstances(query: string): Promise<InstanceSearchResult[]> {
+    try {
+      // This would integrate with instance discovery services
+      // For now, return empty array as this requires external APIs
+      
+      // TODO: Integrate with:
+      // - instances.social API
+      // - fediverse.info API
+      // - Manual domain validation
+      
+      console.log(`Searching for instances matching: ${query}`);
+      return [];
+    } catch (error) {
+      console.error('Failed to search ActivityPub instances:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get instances from user interactions (follows, posts, etc.)
+   */
+  async getDiscoveredInstances(limit: number = 20): Promise<{ domain: string; user_count: number; interaction_count: number }[]> {
+    try {
+      // Get instances that users have interacted with
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('domain')
+        .not('domain', 'is', null)
+        .neq('domain', 'har.mony.lol') // Exclude local domain
+        
+      if (error) throw error;
+
+      // Count instances and interactions
+      const instanceCounts = new Map<string, number>();
+      
+      data?.forEach(profile => {
+        if (profile.domain) {
+          instanceCounts.set(profile.domain, (instanceCounts.get(profile.domain) || 0) + 1);
+        }
+      });
+
+      // Convert to array and sort by interaction count
+      const discovered = Array.from(instanceCounts.entries())
+        .map(([domain, count]) => ({
+          domain,
+          user_count: 0, // Would need to fetch from instance
+          interaction_count: count
+        }))
+        .sort((a, b) => b.interaction_count - a.interaction_count)
+        .slice(0, limit);
+
+      return discovered;
+    } catch (error) {
+      console.error('Failed to get discovered instances:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Refresh instance information
+   */
+  async refreshInstanceInfo(instanceId: string): Promise<FederatedInstance> {
+    try {
+      // Get current instance
+      const { data: instance, error: fetchError } = await supabase
+        .from('federated_instances')
+        .select('*')
+        .eq('id', instanceId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Fetch updated info
+      const updatedInfo = await this.fetchInstanceInfo(instance.domain);
+      
+      if (updatedInfo) {
+        // Update the instance
+        const { data, error } = await supabase
+          .from('federated_instances')
+          .update({
+            software: updatedInfo.software || instance.software,
+            version: updatedInfo.version || instance.version,
+            description: updatedInfo.description || instance.description,
+            admin_contact: updatedInfo.admin_contact || instance.admin_contact,
+            user_count: updatedInfo.user_count || instance.user_count,
+            status_count: updatedInfo.status_count || instance.status_count,
+            last_seen_at: new Date().toISOString(),
+            metadata: {
+              ...instance.metadata,
+              last_refresh: new Date().toISOString(),
+              api_available: updatedInfo.api_available
+            }
+          })
+          .eq('id', instanceId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+
+      return instance;
+    } catch (error) {
+      console.error('Failed to refresh instance info:', error);
       throw error;
     }
   }
