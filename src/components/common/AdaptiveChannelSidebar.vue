@@ -165,6 +165,8 @@ import { useProfileStore } from '@/stores/useProfile';
 import type { Server, Channel, Category, User } from '@/types';
 import Avatar from '@/components/common/Avatar.vue';
 import Icon from '@/components/common/Icon.vue';
+import ChannelSidebar from '@/components/ChannelSidebar.vue';
+import DMSidebar from '@/components/DMSidebar.vue';
 
 // Props
 interface Props {
