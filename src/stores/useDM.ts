@@ -250,12 +250,15 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Actions
-  const initializeDMEnvironment = async (userId: string) => {
+  const initializeDMEnvironment = async (userId: string, forceRefresh = false) => {
     try {
       // Clean up any existing subscriptions first
       cleanupRealtimeSubscriptions()
       
-      await fetchUserConversations(userId)
+      // Only fetch conversations if we don't have them or force refresh is requested
+      if (forceRefresh || conversations.value.length === 0) {
+        await fetchUserConversations(userId)
+      }
       await setupRealtimeSubscriptions(userId)
     } catch (error) {
       console.error('Failed to initialize DM environment:', error)
@@ -351,12 +354,22 @@ export const useDMStore = defineStore('dm', () => {
   // Enhanced initialization for direct DM access
   const initializeDMEnvironmentForDirectAccess = async (userId: string, conversationId?: string) => {
     try {
-      // Always initialize basic DM environment
-      await initializeDMEnvironment(userId)
+      // Initialize basic DM environment (only fetch conversations if not already loaded)
+      await initializeDMEnvironment(userId, false)
       
       // If we have a specific conversation ID, ensure it's loaded
       if (conversationId) {
-        const conversation = await fetchConversationDetails(conversationId, userId)
+        // Check if conversation already exists in our list
+        let conversation = conversations.value.find(c => c.id === conversationId)
+        
+        // Only fetch conversation details if not found in existing conversations
+        if (!conversation) {
+          const fetchedConversation = await fetchConversationDetails(conversationId, userId)
+          if (fetchedConversation) {
+            conversation = fetchedConversation
+          }
+        }
+        
         if (conversation) {
           setCurrentConversation(conversationId)
         }
@@ -758,6 +771,23 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  // Smart conversation switching that loads cached messages instantly when available
+  const switchToConversation = async (conversationId: string) => {
+    // Set the current conversation first (this sets up subscriptions)
+    setCurrentConversation(conversationId)
+    
+    // Check if we have cached messages for instant loading
+    if (isCacheValid(conversationId)) {
+      console.log('📂 Loading cached messages instantly for conversation:', conversationId)
+      loadCachedMessages(conversationId)
+      return true // Indicates instant loading from cache
+    } else {
+      console.log('🔄 No valid cache, will need to fetch messages for conversation:', conversationId)
+      clearDMMessages()
+      return false // Indicates need to fetch from server
+    }
+  }
+
   const clearDMMessages = () => {
     currentDMMessages.value = []
     allMessagesLoaded.value = false
@@ -1006,6 +1036,7 @@ export const useDMStore = defineStore('dm', () => {
     createOrGetConversation,
     sendDMMessage,
     setCurrentConversation,
+    switchToConversation,
     clearDMMessages,
     setupConversationSubscription,
     cleanupRealtimeSubscriptions,

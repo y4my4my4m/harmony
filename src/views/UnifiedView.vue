@@ -104,7 +104,7 @@
         <UnifiedContentArea
           :mode="currentMode"
           :chat-messages="chatMessages"
-          :is-loading="isLoading"
+          :is-loading="isDM ? dmStore.loadingMessages : isLoading"
           :is-d-m="isDM"
           :view-type="currentViewType"
           :current-view="currentView"
@@ -554,7 +554,7 @@ const handleDMConversationSelected = async (conversationId: string) => {
   if (props.isDM) {
     console.log('🔄 DM conversation selected:', conversationId);
     
-    // Ensure DM environment is initialized
+    // Ensure DM environment is initialized (smart - won't refetch if already loaded)
     const userId = authStore.session?.user?.id;
     if (userId) {
       await dmStore.initializeDMEnvironmentForDirectAccess(userId, conversationId);
@@ -567,15 +567,16 @@ const handleDMConversationSelected = async (conversationId: string) => {
       view_type: 'dm'
     });
     
-    const isCached = dmStore.isCacheValid(conversationId);
+    // Use smart conversation switching
+    const loadedFromCache = await dmStore.switchToConversation(conversationId);
     
-    if (isCached) {
-      dmStore.loadCachedMessages(conversationId);
+    if (loadedFromCache) {
+      // Messages loaded instantly from cache
       scrollToBottom();
     } else {
+      // Need to fetch from server - show loading only in message area
       isLoading.value = true;
       try {
-        dmStore.clearDMMessages();
         await dmStore.fetchConversationMessages(conversationId);
         scrollToBottom();
       } catch (error) {
@@ -960,16 +961,15 @@ const loadServerAndChannel = async () => {
         
         console.log('✅ Conversation loaded for direct access:', conversation.id);
         
-        // Check cache first for instant loading
-        const isCached = dmStore.isCacheValid(props.conversationId);
+        // Use smart conversation switching for optimal loading
+        const loadedFromCache = await dmStore.switchToConversation(props.conversationId);
         
-        if (isCached) {
-          console.log('📂 Loading cached messages for direct access');
-          dmStore.loadCachedMessages(props.conversationId);
+        if (loadedFromCache) {
+          console.log('📂 Messages loaded instantly from cache for direct access');
           scrollToBottom();
         } else {
           console.log('🔄 Fetching fresh messages for direct access');
-          dmStore.clearDMMessages();
+          // Note: isLoading.value is already managed by fetchConversationMessages
           await dmStore.fetchConversationMessages(props.conversationId);
           scrollToBottom();
         }
