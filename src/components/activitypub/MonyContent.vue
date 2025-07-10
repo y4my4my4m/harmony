@@ -1,6 +1,6 @@
 <!-- MonyContent - Render ActivityPub post content with rich formatting -->
 <template>
-  <div class="mony-content" @click="handleContentClick" v-html="formattedContent"></div>
+  <div class="mony-content" v-html="formattedContent"></div>
 </template>
 
 <script setup lang="ts">
@@ -17,78 +17,33 @@ const emit = defineEmits<{
   'hashtag-click': [tag: string];
 }>();
 
-// Basic content formatting
 const formattedContent = computed(() => {
   let formatted = props.content;
   
-  // Convert newlines to <br> tags
+  // Format hashtags
+  formatted = formatted.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
+  
+  // Format mentions
+  formatted = formatted.replace(/@(\w+)(?:@([^\s]+))?/g, '<span class="mention" data-handle="@$1$2">@$1$2</span>');
+  
+  // Format line breaks
   formatted = formatted.replace(/\n/g, '<br>');
   
-  // Convert mentions (@username@domain or @username)
-  formatted = formatted.replace(
-    /@([a-zA-Z0-9_.-]+)(?:@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))?/g,
-    '<a href="#" class="mention" data-mention="@$1$2">@$1$2</a>'
-  );
-  
-  // Convert hashtags
-  formatted = formatted.replace(
-    /#([a-zA-Z0-9_-]+)/g,
-    '<a href="#" class="hashtag" data-hashtag="$1">#$1</a>'
-  );
-  
-  // Convert URLs
-  formatted = formatted.replace(
-    /(https?:\/\/[^\s<>"']+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer" class="link">$1</a>'
-  );
+  // Format URLs
+  formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="url-link">$1</a>');
   
   return formatted;
 });
-
-// Handle clicks on mentions and hashtags within this component's content
-const handleContentClick = (event: Event) => {
-  const target = event.target as HTMLElement;
-  
-  if (target.classList.contains('mention')) {
-    event.preventDefault();
-    event.stopPropagation();
-    const handle = target.getAttribute('data-mention');
-    if (handle) {
-      emit('user-mention-click', handle);
-    }
-  } else if (target.classList.contains('hashtag')) {
-    event.preventDefault();
-    event.stopPropagation();
-    const tag = target.getAttribute('data-hashtag');
-    if (tag) {
-      emit('hashtag-click', tag);
-    }
-  }
-};
 </script>
 
 <style scoped>
 .mony-content {
-  line-height: 1.5;
+  line-height: 1.6;
   word-wrap: break-word;
-  overflow-wrap: break-word;
-  user-select: text;
-}
-
-.mony-content :deep(.mention) {
-  color: var(--h-brand, #5865f2);
-  text-decoration: none;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.mony-content :deep(.mention:hover) {
-  text-decoration: underline;
 }
 
 .mony-content :deep(.hashtag) {
-  color: #1d9bf0;
-  text-decoration: none;
+  color: #3b82f6;
   font-weight: 500;
   cursor: pointer;
 }
@@ -97,16 +52,22 @@ const handleContentClick = (event: Event) => {
   text-decoration: underline;
 }
 
-.mony-content :deep(.link) {
-  color: #00b4d8;
-  text-decoration: none;
+.mony-content :deep(.mention) {
+  color: #10b981;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-.mony-content :deep(.link:hover) {
+.mony-content :deep(.mention:hover) {
   text-decoration: underline;
 }
 
-.mony-content :deep(br) {
-  margin: 0.25rem 0;
+.mony-content :deep(.url-link) {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.mony-content :deep(.url-link:hover) {
+  color: #2563eb;
 }
 </style>

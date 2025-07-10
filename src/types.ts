@@ -40,26 +40,27 @@ export interface User {
   last_seen?: string;
 }
 
+// Update interface to use bio instead of about
 export interface Profile {
   id: string;
   username: string;
-  display_name: string;
-  domain: string; // NEW: Split from username@domain format
+  display_name?: string;
+  bio?: string; // Include bio field
   avatar_url?: string;
+  domain?: string;
   status?: UserStatus;
-  // roles: Role[];
   color?: string;
-  bio?: string;
   // ActivityPub fields
   federated_id?: string;
-  public_key?: string;
-  inbox_url?: string;
-  outbox_url?: string;
-  followers_url?: string;
-  following_url?: string;
-  featured_url?: string;
+  ap_id?: string;
+  followers_count?: number;
+  following_count?: number;
+  posts_count?: number;
   is_local?: boolean;
-  last_synced_at?: string;
+  verified?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  handle?: string;
 }
 
 export enum UserStatus {

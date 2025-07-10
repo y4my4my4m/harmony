@@ -265,7 +265,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       // Use activityPubService for realtime subscriptions
       const postsChannel = activityPubService.subscribeToPostUpdates(
-        (post) => this.handleRealtimePostCreate(post),
+        (post) => this.handleRealtimePostCreate(post), // This is now async but that's okay
         (post) => this.handleRealtimePostUpdate(post),
         (post) => this.handleRealtimePostDelete(post)
       );
@@ -292,34 +292,66 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Handle realtime post creation
      */
-    handleRealtimePostCreate(post: any) {
-      console.log('📝 New post received:', post);
+    async handleRealtimePostCreate(post: any) {
+      console.log('📝 New post received via realtime:', post);
       
-      const timelinePost = this.transformDatabasePostToTimelinePost(post);
-      
-      // Add to public feed if public
-      if (post.visibility === 'public') {
-        this.publicFeed.posts.unshift(timelinePost);
-        // Limit feed size
-        if (this.publicFeed.posts.length > 100) {
-          this.publicFeed.posts = this.publicFeed.posts.slice(0, 100);
+      try {
+        // Realtime data NEVER has author joins, always fetch complete data
+        console.log('🔄 Fetching complete post data with author information...');
+        const completePost = await activityPubService.loadPostWithAuthor(post.id);
+        
+        if (!completePost) {
+          console.warn('❌ Could not load complete post data for:', post.id);
+          return;
         }
-      }
-      
-      // Add to local feed if local
-      if (post.is_local && post.visibility === 'public') {
-        this.localFeed.posts.unshift(timelinePost);
-        if (this.localFeed.posts.length > 100) {
-          this.localFeed.posts = this.localFeed.posts.slice(0, 100);
+        
+        console.log('📝 Complete post data:', {
+          id: completePost.id,
+          author: completePost.author?.username,
+          display_name: completePost.author?.display_name,
+          domain: completePost.author?.domain,
+          is_local: completePost.is_local
+        });
+        
+        // Add to public feed if public
+        if (completePost.visibility === 'public') {
+          this.publicFeed.posts.unshift(completePost);
+          // Limit feed size
+          if (this.publicFeed.posts.length > 100) {
+            this.publicFeed.posts = this.publicFeed.posts.slice(0, 100);
+          }
         }
-      }
-      
-      // Add to home feed if following the author and increment unread count
-      if (this.followedUsers.has(post.author_id)) {
-        this.homeFeed.posts.unshift(timelinePost);
-        this.unreadCount++;
-        if (this.homeFeed.posts.length > 100) {
-          this.homeFeed.posts = this.homeFeed.posts.slice(0, 100);
+        
+        // Add to local feed if local
+        if (completePost.is_local && completePost.visibility === 'public') {
+          this.localFeed.posts.unshift(completePost);
+          if (this.localFeed.posts.length > 100) {
+            this.localFeed.posts = this.localFeed.posts.slice(0, 100);
+          }
+        }
+        
+        // Add to home feed if following the author and increment unread count
+        if (this.followedUsers.has(completePost.author_id)) {
+          this.homeFeed.posts.unshift(completePost);
+          this.unreadCount++;
+          if (this.homeFeed.posts.length > 100) {
+            this.homeFeed.posts = this.homeFeed.posts.slice(0, 100);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Failed to handle realtime post creation:', error);
+        // Fallback: create a minimal post with fallback author data
+        const timelinePost = this.transformDatabasePostToTimelinePost(post);
+        
+        if (post.visibility === 'public') {
+          this.publicFeed.posts.unshift(timelinePost);
+        }
+        if (post.is_local && post.visibility === 'public') {
+          this.localFeed.posts.unshift(timelinePost);
+        }
+        if (this.followedUsers.has(post.author_id)) {
+          this.homeFeed.posts.unshift(timelinePost);
+          this.unreadCount++;
         }
       }
     },
@@ -854,13 +886,19 @@ export const useActivityPubStore = defineStore('activitypub', {
         is_sensitive: post.is_sensitive,
         is_deleted: post.is_deleted,
         deleted_at: post.deleted_at,
-        author: post.author || {
-          id: post.author_id,
-          username: 'Unknown',
-          display_name: 'Unknown User',
-          avatar_url: '/default_avatar.png',
-          domain: 'local'
-        },
+              author: post.author ? {
+        id: post.author.id,
+        username: post.author.username,
+        display_name: post.author.display_name || post.author.username,
+        avatar_url: post.author.avatar_url || '/default_avatar.png',
+        domain: post.author.domain || (post.is_local ? 'har.mony.lol' : 'unknown')
+      } : {
+        id: post.author_id,
+        username: 'Unknown',
+        display_name: 'Unknown User',
+        avatar_url: '/default_avatar.png',
+        domain: post.is_local ? 'har.mony.lol' : 'unknown'
+      },
         is_favorited: false,
         is_reblogged: false
       };

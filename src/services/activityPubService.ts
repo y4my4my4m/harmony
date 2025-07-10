@@ -109,15 +109,21 @@ export class ActivityPubService {
     if (fetchError) throw fetchError;
 
     // 🌐 FEDERATION: Queue post for federation to remote instances
-    if (completePost.is_local && completePost.visibility === 'public') {
-      try {
-        const activityId = await federationService.federatePost(completePost, completePost.author);
-        console.log(`🚀 Post ${completePost.id} queued for federation: ${activityId}`);
-      } catch (federationError) {
-        console.error('❌ Federation failed for post:', federationError);
-        // Don't fail the entire post creation if federation fails
+      if (completePost.is_local && completePost.visibility === 'public') {
+        try {
+          // Ensure we pass the user UUID, not username
+          const authorForFederation = {
+            ...completePost.author,
+            id: user.id // Ensure we use the UUID from auth, not username
+          };
+          
+          const activityId = await federationService.federatePost(completePost, authorForFederation);
+          console.log(`🚀 Post ${completePost.id} queued for federation: ${activityId}`);
+        } catch (federationError) {
+          console.error('❌ Federation failed for post:', federationError);
+          // Continue - federation failure shouldn't prevent local post creation
+        }
       }
-    }
 
     return completePost as Post;
   }
@@ -1961,6 +1967,75 @@ export class ActivityPubService {
       is_favorited: false, // Would need user context
       is_reblogged: false  // Would need user context
     };
+  }
+
+  /**
+   * Load post with complete author information
+   */
+  async loadPostWithAuthor(postId: string): Promise<TimelinePost | null> {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles(*)
+        `)
+        .eq('id', postId)
+        .single();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      // Transform to TimelinePost format
+      return {
+        id: data.id,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        content: data.content,
+        content_warning: data.content_warning,
+        language: data.language || 'en',
+        author_id: data.author_id,
+        ap_id: data.ap_id,
+        ap_type: data.ap_type,
+        url: data.url,
+        in_reply_to: data.in_reply_to,
+        conversation_id: data.conversation_id,
+        visibility: data.visibility,
+        is_local: data.is_local,
+        is_federated: data.is_federated,
+        replies_count: data.replies_count || 0,
+        reblogs_count: data.reblogs_count || 0,
+        favorites_count: data.favorites_count || 0,
+        media_attachments: data.media_attachments || [],
+        metadata: data.metadata || {},
+        is_sensitive: data.is_sensitive,
+        is_deleted: data.is_deleted,
+        deleted_at: data.deleted_at,
+        author: {
+          id: data.author.id,
+          username: data.author.username,
+          display_name: data.author.display_name || data.author.username,
+          avatar_url: data.author.avatar_url || '/default_avatar.png',
+          domain: data.author.domain || 'har.mony.lol',
+          bio: data.author.bio || '',
+          is_local: !data.author.domain || data.author.domain === 'har.mony.lol',
+          verified: data.author.verified || false,
+          followers_count: 0,
+          following_count: 0,
+          posts_count: 0,
+          created_at: data.author.created_at,
+          updated_at: data.author.updated_at,
+          handle: data.author.domain && data.author.domain !== 'har.mony.lol' 
+            ? `@${data.author.username}@${data.author.domain}` 
+            : `@${data.author.username}`
+        },
+        is_favorited: false,
+        is_reblogged: false
+      };
+    } catch (error) {
+      console.error('Failed to load post with author:', error);
+      return null;
+    }
   }
 }
 

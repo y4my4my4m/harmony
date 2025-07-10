@@ -6,6 +6,7 @@
 import { supabase } from '@/supabase';
 import type { 
   ActivityPubActivity, 
+  ActivityPubActivityObject,
   ActivityPubActivityType, 
   ActivityPubObjectType,
   Post,
@@ -58,7 +59,7 @@ export class FederationService {
       const activityUrl = `${this.config.instanceUrl}/activities/${activityId}`;
 
       // Build full ActivityPub activity
-      const fullActivity: ActivityPubActivity = {
+      const fullActivity: ActivityPubActivityObject = {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: activityUrl,
         type: activity.type,
@@ -76,7 +77,8 @@ export class FederationService {
           id: activityId,
           ap_id: activityUrl,
           ap_type: activity.type,
-          actor_id: this.extractUserIdFromActor(activity.actor),
+          actor_id: await this.extractUserIdFromActor(activity.actor),
+          actor_ap_id: activity.actor, // ActivityPub URL of the actor
           activity_data: fullActivity,
           target_id: activity.target,
           target_type: this.inferTargetType(activity),
@@ -110,7 +112,7 @@ export class FederationService {
    */
   private async queueDeliveries(
     activityId: string, 
-    activity: ActivityPubActivity, 
+    activity: ActivityPubActivityObject, 
     targets: DeliveryTarget[]
   ): Promise<void> {
     const deliveries = targets.map(target => ({
@@ -141,7 +143,7 @@ export class FederationService {
     try {
       // For Create/Update/Delete activities, target followers
       if (['Create', 'Update', 'Delete'].includes(activity.type)) {
-        const actorId = this.extractUserIdFromActor(activity.actor);
+        const actorId = await this.extractUserIdFromActor(activity.actor);
         const followerTargets = await this.getFollowerInboxes(actorId);
         targets.push(...followerTargets);
       }
@@ -461,13 +463,28 @@ export class FederationService {
   /**
    * Extract user ID from ActivityPub actor URL
    */
-  private extractUserIdFromActor(actorUrl: string): string {
+  private async extractUserIdFromActor(actorUrl: string): Promise<string> {
     // For local actors: https://har.mony.lol/users/username -> resolve to UUID
     if (actorUrl.startsWith(this.config.instanceUrl)) {
       const username = actorUrl.split('/').pop();
-      // This would need to be resolved from the database
-      return username || '';
+      if (!username) return '';
+      
+      // Resolve username to UUID from database
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', username)
+        .eq('is_local', true)
+        .single();
+      
+      if (error || !data) {
+        console.error(`❌ Failed to resolve local username '${username}' to UUID:`, error);
+        return '';
+      }
+      
+      return data.id;
     }
+    
     // For remote actors, we'd store them in a different way
     return actorUrl;
   }
