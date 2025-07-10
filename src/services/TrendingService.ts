@@ -83,7 +83,7 @@ class TrendingService {
       const { limit = 20 } = options;
 
       const { data, error } = await supabase.rpc('get_trending_hashtags', {
-        limit_count: limit
+        p_limit_count: limit
       });
 
       if (error) throw error;
