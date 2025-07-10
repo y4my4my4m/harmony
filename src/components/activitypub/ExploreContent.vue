@@ -689,6 +689,10 @@ onMounted(async () => {
   padding: 20px;
 }
 
+.trending-posts {
+  margin-top: 16px;
+}
+
 .section-title {
   display: flex;
   align-items: center;
