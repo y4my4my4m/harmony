@@ -7,7 +7,9 @@ import type {
   PostInteraction, 
   FederatedUser, 
   TimelineOptions,
-  TimelinePost
+  TimelinePost,
+  ActivityPubActivityType,
+  ActivityPubObjectType
 } from '@/types';
 
 /**
@@ -17,9 +19,11 @@ import type {
 export class ActivityPubService {
   private static instance: ActivityPubService;
   private currentDomain: string;
+  private instanceUrl: string;
 
   constructor() {
     this.currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+    this.instanceUrl = `https://${this.currentDomain}`;
   }
 
   static getInstance(): ActivityPubService {
@@ -262,16 +266,50 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get original post to verify ownership
+    const { data: originalPost, error: fetchError } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', postId)
+      .eq('author_id', user.id)
+      .single();
+
+    if (fetchError || !originalPost) {
+      throw new Error('Post not found or not owned by user');
+    }
+
+    // Soft delete the post
     const { error } = await supabase
       .from('posts')
-      .update({ 
-        is_deleted: true, 
-        deleted_at: new Date().toISOString() 
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        content: [{ type: 'text', text: '[Deleted]' }]
       })
-      .eq('id', postId)
-      .eq('author_id', user.id);
+      .eq('id', postId);
 
     if (error) throw error;
+
+    // Create Delete activity for federation
+    await this.createActivity({
+      type: 'Delete',
+      actor_id: user.id,
+      target_id: postId,
+      target_type: 'Note',
+      activity_data: {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        type: 'Delete',
+        actor: await this.getUserActivityPubId(user.id),
+        object: {
+          type: 'Tombstone',
+          id: originalPost.ap_id || `${this.instanceUrl}/posts/${postId}`,
+          formerType: 'Note'
+        },
+        published: new Date().toISOString(),
+        to: this.getPostAudience(originalPost.visibility),
+        cc: []
+      }
+    });
   }
 
   // =============================================
@@ -1042,6 +1080,515 @@ export class ActivityPubService {
     });
 
     return state;
+  }
+
+  // =============================================
+  // ENHANCED ACTIVITY HANDLING
+  // =============================================
+
+  /**
+   * Update (edit) a post
+   */
+  async updatePost(postId: string, updates: {
+    content?: string;
+    content_warning?: string;
+    is_sensitive?: boolean;
+    media_attachments?: any[];
+  }): Promise<Post> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Get original post to verify ownership
+    const { data: originalPost, error: fetchError } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', postId)
+      .eq('author_id', user.id)
+      .single();
+
+    if (fetchError || !originalPost) {
+      throw new Error('Post not found or not owned by user');
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (updates.content !== undefined) {
+      updateData.content = this.formatPostContent(updates.content);
+    }
+    if (updates.content_warning !== undefined) {
+      updateData.content_warning = updates.content_warning;
+    }
+    if (updates.is_sensitive !== undefined) {
+      updateData.is_sensitive = updates.is_sensitive;
+    }
+    if (updates.media_attachments !== undefined) {
+      updateData.media_attachments = updates.media_attachments;
+    }
+
+    // Update post in database
+    const { data: updatedPost, error } = await supabase
+      .from('posts')
+      .update(updateData)
+      .eq('id', postId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Create Update activity for federation
+    await this.createActivity({
+      type: 'Update',
+      actor_id: user.id,
+      target_id: postId,
+      target_type: 'Note',
+      activity_data: {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        type: 'Update',
+        actor: await this.getUserActivityPubId(user.id),
+        object: await this.postToActivityPubObject(updatedPost),
+        published: new Date().toISOString(),
+        to: this.getPostAudience(updatedPost.visibility),
+        cc: []
+      }
+    });
+
+    return updatedPost;
+  }
+
+  /**
+   * Accept a follow request
+   */
+  async acceptFollowRequest(followId: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Update follow status
+    const { data: follow, error } = await supabase
+      .from('follows')
+      .update({
+        status: 'accepted',
+        accepted_at: new Date().toISOString()
+      })
+      .eq('id', followId)
+      .eq('following_id', user.id)
+      .eq('status', 'pending')
+      .select()
+      .single();
+
+    if (error || !follow) {
+      throw new Error('Follow request not found or already processed');
+    }
+
+    // Create Accept activity for federation
+    await this.createActivity({
+      type: 'Accept',
+      actor_id: user.id,
+      target_id: follow.follower_id,
+      target_type: 'Person',
+      activity_data: {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        type: 'Accept',
+        actor: await this.getUserActivityPubId(user.id),
+        object: {
+          type: 'Follow',
+          id: follow.ap_id,
+          actor: await this.getUserActivityPubId(follow.follower_id),
+          object: await this.getUserActivityPubId(user.id)
+        },
+        published: new Date().toISOString()
+      }
+    });
+  }
+
+  /**
+   * Reject a follow request
+   */
+  async rejectFollowRequest(followId: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Update follow status
+    const { data: follow, error } = await supabase
+      .from('follows')
+      .update({ status: 'rejected' })
+      .eq('id', followId)
+      .eq('following_id', user.id)
+      .eq('status', 'pending')
+      .select()
+      .single();
+
+    if (error || !follow) {
+      throw new Error('Follow request not found or already processed');
+    }
+
+    // Create Reject activity for federation
+    await this.createActivity({
+      type: 'Reject',
+      actor_id: user.id,
+      target_id: follow.follower_id,
+      target_type: 'Person',
+      activity_data: {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        type: 'Reject',
+        actor: await this.getUserActivityPubId(user.id),
+        object: {
+          type: 'Follow',
+          id: follow.ap_id,
+          actor: await this.getUserActivityPubId(follow.follower_id),
+          object: await this.getUserActivityPubId(user.id)
+        },
+        published: new Date().toISOString()
+      }
+    });
+  }
+
+  /**
+   * Undo an action (unfollow, unfavorite, etc.)
+   */
+  async undoActivity(originalActivityId: string, undoType: 'Follow' | 'Like' | 'Announce'): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Get the original activity
+    const { data: originalActivity, error } = await supabase
+      .from('ap_activities')
+      .select('*')
+      .eq('id', originalActivityId)
+      .eq('actor_id', user.id)
+      .single();
+
+    if (error || !originalActivity) {
+      throw new Error('Original activity not found');
+    }
+
+    // Create Undo activity for federation
+    await this.createActivity({
+      type: 'Undo',
+      actor_id: user.id,
+      target_id: originalActivity.target_id,
+      target_type: originalActivity.target_type,
+      activity_data: {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        type: 'Undo',
+        actor: await this.getUserActivityPubId(user.id),
+        object: originalActivity.activity_data,
+        published: new Date().toISOString()
+      }
+    });
+  }
+
+  // =============================================
+  // VOICE CHAT FEDERATION (Harmony Extensions)
+  // =============================================
+
+  /**
+   * Join a voice channel (federated)
+   */
+  async joinVoiceChannel(serverId: string, channelId: string, voiceState?: {
+    muted?: boolean;
+    deafened?: boolean;
+    video_enabled?: boolean;
+  }): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Get server and channel info
+    const { data: server } = await supabase
+      .from('servers')
+      .select('name, domain')
+      .eq('id', serverId)
+      .single();
+
+    const { data: channel } = await supabase
+      .from('channels')
+      .select('name')
+      .eq('id', channelId)
+      .single();
+
+    if (!server || !channel) {
+      throw new Error('Server or channel not found');
+    }
+
+    // Create VoiceJoin activity for federation
+    await this.createActivity({
+      type: 'VoiceJoin',
+      actor_id: user.id,
+      target_id: channelId,
+      target_type: 'VoiceChannel',
+      activity_data: {
+        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
+        type: 'VoiceJoin',
+        actor: await this.getUserActivityPubId(user.id),
+        object: {
+          type: 'VoiceChannel',
+          id: `${this.instanceUrl}/servers/${serverId}/channels/${channelId}`,
+          name: channel.name,
+          server: {
+            id: `${this.instanceUrl}/servers/${serverId}`,
+            name: server.name,
+            domain: server.domain || 'har.mony.lol'
+          }
+        },
+        voiceState: voiceState || {},
+        published: new Date().toISOString()
+      }
+    });
+  }
+
+  /**
+   * Leave a voice channel (federated)
+   */
+  async leaveVoiceChannel(serverId: string, channelId: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Similar to joinVoiceChannel but with VoiceLeave type
+    await this.createActivity({
+      type: 'VoiceLeave',
+      actor_id: user.id,
+      target_id: channelId,
+      target_type: 'VoiceChannel',
+      activity_data: {
+        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
+        type: 'VoiceLeave',
+        actor: await this.getUserActivityPubId(user.id),
+        object: {
+          type: 'VoiceChannel',
+          id: `${this.instanceUrl}/servers/${serverId}/channels/${channelId}`
+        },
+        published: new Date().toISOString()
+      }
+    });
+  }
+
+  /**
+   * Update voice state (mute, deafen, video, etc.)
+   */
+  async updateVoiceState(serverId: string, channelId: string, voiceState: {
+    muted?: boolean;
+    deafened?: boolean;
+    video_enabled?: boolean;
+    screen_sharing?: boolean;
+    speaking?: boolean;
+  }): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    await this.createActivity({
+      type: 'VoiceUpdate',
+      actor_id: user.id,
+      target_id: channelId,
+      target_type: 'VoiceChannel',
+      activity_data: {
+        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
+        type: 'VoiceUpdate',
+        actor: await this.getUserActivityPubId(user.id),
+        object: {
+          type: 'VoiceChannel',
+          id: `${this.instanceUrl}/servers/${serverId}/channels/${channelId}`
+        },
+        voiceState,
+        published: new Date().toISOString()
+      }
+    });
+  }
+
+  // =============================================
+  // SERVER FEDERATION (Harmony Extensions)
+  // =============================================
+
+  /**
+   * Join a federated server
+   */
+  async joinFederatedServer(serverDomain: string, inviteCode?: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Create Join activity for federation
+    await this.createActivity({
+      type: 'Join',
+      actor_id: user.id,
+      target_type: 'ChatServer',
+      activity_data: {
+        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
+        type: 'Join',
+        actor: await this.getUserActivityPubId(user.id),
+        object: {
+          type: 'ChatServer',
+          id: `https://${serverDomain}`,
+          domain: serverDomain
+        },
+        invite: inviteCode ? {
+          type: 'Invite',
+          code: inviteCode
+        } : undefined,
+        published: new Date().toISOString()
+      }
+    });
+  }
+
+  /**
+   * Leave a federated server
+   */
+  async leaveFederatedServer(serverDomain: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    await this.createActivity({
+      type: 'Leave',
+      actor_id: user.id,
+      target_type: 'ChatServer',
+      activity_data: {
+        '@context': ['https://www.w3.org/ns/activitystreams', 'https://har.mony.lol/ns/harmony'],
+        type: 'Leave',
+        actor: await this.getUserActivityPubId(user.id),
+        object: {
+          type: 'ChatServer',
+          id: `https://${serverDomain}`,
+          domain: serverDomain
+        },
+        published: new Date().toISOString()
+      }
+    });
+  }
+
+  // =============================================
+  // ACTIVITY CREATION HELPER
+  // =============================================
+
+  /**
+   * Create and queue an ActivityPub activity
+   */
+  private async createActivity(activity: {
+    type: ActivityPubActivityType;
+    actor_id: string;
+    target_id?: string;
+    target_type?: ActivityPubObjectType;
+    activity_data: any;
+  }): Promise<void> {
+    const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
+    
+    // Store activity in database
+    const { error } = await supabase
+      .from('ap_activities')
+      .insert({
+        ap_id,
+        ap_type: activity.type,
+        actor_id: activity.actor_id,
+        target_id: activity.target_id,
+        target_type: activity.target_type,
+        activity_data: {
+          ...activity.activity_data,
+          id: ap_id
+        },
+        status: 'pending',
+        is_local: true,
+        retry_count: 0
+      });
+
+    if (error) {
+      console.error('Failed to create activity:', error);
+      throw error;
+    }
+
+    // Queue for delivery to federated instances
+    // This would be handled by a background job in production
+    console.log(`📤 Queued ${activity.type} activity for federation:`, ap_id);
+  }
+
+  /**
+   * Helper: Get user's ActivityPub ID
+   */
+  private async getUserActivityPubId(userId: string): Promise<string> {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username, domain')
+      .eq('id', userId)
+      .single();
+
+    if (!profile) throw new Error('User profile not found');
+
+    const domain = profile.domain === 'har.mony.lol' ? this.instanceUrl.replace('https://', '') : profile.domain;
+    return `https://${domain}/users/${profile.username}`;
+  }
+
+  /**
+   * Helper: Convert post to ActivityPub object
+   */
+  private async postToActivityPubObject(post: any): Promise<any> {
+    const author = await this.getUserActivityPubId(post.author_id);
+    
+    return {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      type: post.ap_type || 'Note',
+      id: post.ap_id || `${this.instanceUrl}/posts/${post.id}`,
+      attributedTo: author,
+      content: this.contentToHtml(post.content),
+      published: post.created_at,
+      updated: post.updated_at !== post.created_at ? post.updated_at : undefined,
+      to: this.getPostAudience(post.visibility),
+      cc: [],
+      sensitive: post.is_sensitive,
+      summary: post.content_warning,
+      attachment: post.media_attachments || [],
+      inReplyTo: post.in_reply_to ? `${this.instanceUrl}/posts/${post.in_reply_to}` : undefined
+    };
+  }
+
+  /**
+   * Helper: Get post audience based on visibility
+   */
+  private getPostAudience(visibility: string): string[] {
+    switch (visibility) {
+      case 'public':
+        return ['https://www.w3.org/ns/activitystreams#Public'];
+      case 'unlisted':
+        return [];
+      case 'followers':
+        return [`${this.instanceUrl}/users/followers`];
+      case 'direct':
+        return []; // Would include specific users
+      default:
+        return ['https://www.w3.org/ns/activitystreams#Public'];
+    }
+  }
+
+  /**
+   * Format post content for storage
+   */
+  private formatPostContent(content: string): any {
+    // Format content as JSONB structure similar to messages
+    // This matches the expected database schema
+    return [
+      {
+        type: 'text',
+        text: content
+      }
+    ];
+  }
+
+  /**
+   * Helper: Convert MessagePart[] content to HTML
+   */
+  private contentToHtml(content: any): string {
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return '';
+    
+    return content.map(part => {
+      switch (part.type) {
+        case 'text':
+          return part.text;
+        case 'mention':
+          return `<a href="${this.instanceUrl}/users/${part.mention}" class="mention">@${part.mention}</a>`;
+        case 'url':
+          return `<a href="${part.url}" target="_blank" rel="noopener">${part.url}</a>`;
+        default:
+          return '';
+      }
+    }).join('');
   }
 }
 

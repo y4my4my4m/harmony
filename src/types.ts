@@ -595,17 +595,22 @@ export interface ActivityPubActivity {
   id: string;
   created_at: string;
   ap_id: string;
-  ap_type: string; // 'Create', 'Update', 'Delete', 'Follow', 'Accept', 'Reject', etc.
+  ap_type: ActivityPubActivityType;
   actor_id?: string;
+  actor_ap_id?: string;     // ActivityPub actor ID
   target_id?: string;
-  target_type?: string;
-  activity_data: Record<string, any>;
+  target_ap_id?: string;    // ActivityPub target ID  
+  target_type?: ActivityPubObjectType;
+  activity_data: any;       // Full ActivityPub JSON
   status: 'pending' | 'processing' | 'completed' | 'failed';
   processed_at?: string;
   error_message?: string;
   retry_count: number;
   is_local: boolean;
   origin_domain?: string;
+  // Delivery tracking (for outgoing activities)
+  delivered_to?: string[];     // Domains delivered to
+  failed_deliveries?: string[]; // Failed delivery domains
   metadata: Record<string, any>;
 }
 
@@ -613,14 +618,17 @@ export interface DeliveryQueueItem {
   id: string;
   created_at: string;
   activity_id: string;
+  activity_data: any;
   target_domain: string;
-  target_inbox_url: string;
-  status: 'pending' | 'processing' | 'delivered' | 'failed';
-  attempt_count: number;
-  next_attempt_at: string;
+  target_inbox: string;
+  status: 'pending' | 'delivering' | 'delivered' | 'failed';
+  attempts: number;
+  max_attempts: number;
+  next_attempt_at?: string;
   last_attempt_at?: string;
   delivered_at?: string;
-  error_message?: string;
+  last_error?: string;
+  http_status?: number;
   metadata: Record<string, any>;
 }
 
@@ -780,3 +788,168 @@ export interface TimelineOptions {
 }
 
 export type Follow = ActivityPubFollow;
+
+// =============================================
+// ACTIVITYPUB FEDERATION TYPES
+// =============================================
+
+/**
+ * Complete ActivityPub Activity Types
+ */
+export type ActivityPubActivityType = 
+  // Core object activities
+  | 'Create'      // Creating posts, messages
+  | 'Update'      // Editing posts, profiles
+  | 'Delete'      // Deleting posts, accounts
+  
+  // Social activities  
+  | 'Follow'      // Following users
+  | 'Accept'      // Accepting follows, join requests
+  | 'Reject'      // Rejecting follows, join requests
+  | 'Undo'        // Undoing previous activities (unfollow, unfavorite)
+  
+  // Interaction activities
+  | 'Like'        // Favoriting posts (maps to 'favorite')
+  | 'Announce'    // Reblogging/sharing posts (maps to 'reblog')
+  | 'Add'         // Adding to collections (bookmarks, lists)
+  | 'Remove'      // Removing from collections
+  
+  // Communication activities
+  | 'Invite'      // Server invitations
+  | 'Join'        // Joining servers/channels
+  | 'Leave'       // Leaving servers/channels
+  
+  // Voice/Real-time activities (Harmony extensions)
+  | 'VoiceJoin'   // Joining voice channels
+  | 'VoiceLeave'  // Leaving voice channels
+  | 'VoiceUpdate' // Voice state updates (mute, deafen)
+  
+  // Moderation activities
+  | 'Block'       // Blocking users/instances
+  | 'Flag'        // Reporting content
+  | 'Move'        // Account migration
+  
+  // System activities
+  | 'Tombstone'; // Deleted object placeholder
+
+/**
+ * ActivityPub Object Types
+ */
+export type ActivityPubObjectType =
+  | 'Note'         // Standard posts/messages
+  | 'Article'      // Long-form content
+  | 'Person'       // User profiles
+  | 'Group'        // Servers/communities
+  | 'Service'      // Bot accounts
+  | 'Application'  // App-to-app communication
+  | 'ChatServer'   // Harmony extension: Chat servers
+  | 'ChatChannel'  // Harmony extension: Chat channels
+  | 'ChatMessage'  // Harmony extension: Chat messages
+  | 'VoiceChannel' // Harmony extension: Voice channels
+  | 'VoiceSession' // Harmony extension: Voice sessions
+  | 'Collection'   // Lists, bookmarks
+  | 'OrderedCollection' // Ordered lists
+  | 'Tombstone';   // Deleted objects
+
+/**
+ * Voice Channel Federation (Harmony Extension)
+ */
+export interface VoiceChannelActivity {
+  id: string;
+  ap_id: string;
+  type: 'VoiceJoin' | 'VoiceLeave' | 'VoiceUpdate';
+  actor: FederatedUser;
+  object: {
+    type: 'VoiceChannel';
+    id: string;
+    name: string;
+    server_id: string;
+    server_name: string;
+    server_domain: string;
+  };
+  // Voice state data
+  voice_state?: {
+    muted?: boolean;
+    deafened?: boolean;
+    video_enabled?: boolean;
+    screen_sharing?: boolean;
+    speaking?: boolean;
+  };
+  timestamp: string;
+}
+
+/**
+ * Server Federation Activity (Harmony Extension)
+ */
+export interface ServerFederationActivity {
+  id: string;
+  ap_id: string;
+  type: 'Join' | 'Leave' | 'Invite' | 'Accept' | 'Reject';
+  actor: FederatedUser;
+  object: {
+    type: 'ChatServer';
+    id: string;
+    name: string;
+    domain: string;
+    description?: string;
+    icon_url?: string;
+    member_count?: number;
+    channel_count?: number;
+  };
+  // Additional context
+  invite_code?: string;
+  permissions?: string[];
+  timestamp: string;
+}
+
+/**
+ * Enhanced Post with federation metadata
+ */
+export interface FederatedPost extends TimelinePost {
+  // Federation tracking
+  federated_to?: string[];     // Domains this was federated to
+  federation_status?: 'pending' | 'completed' | 'failed';
+  last_federated_at?: string;
+  
+  // Update tracking
+  edit_history?: {
+    content: any;
+    edited_at: string;
+    reason?: string;
+  }[];
+  
+  // Voice attachments (for voice messages)
+  voice_attachments?: {
+    duration: number;
+    waveform?: number[];
+    transcript?: string;
+  }[];
+}
+
+/**
+ * Instance Federation Status
+ */
+export interface FederatedInstanceStatus {
+  domain: string;
+  software: string;
+  version: string;
+  
+  // Connection status
+  is_reachable: boolean;
+  last_successful_delivery?: string;
+  last_failed_delivery?: string;
+  consecutive_failures: number;
+  
+  // Capabilities
+  supports_voice_federation?: boolean;
+  supports_chat_federation?: boolean;
+  supported_activities: ActivityPubActivityType[];
+  
+  // Statistics
+  delivery_success_rate: number;
+  average_response_time: number;
+  
+  // Rate limiting
+  rate_limit_remaining?: number;
+  rate_limit_reset?: string;
+}
