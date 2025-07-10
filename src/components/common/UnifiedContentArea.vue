@@ -697,15 +697,6 @@ const getSpecialViewEmptyMessage = (viewType: ViewType) => {
   min-height: 400px;
 }
 
-.loading-spinner {
-  width: var(--space-8);
-  height: var(--space-8);
-  border: 2px solid var(--border-color);
-  border-top: 2px solid var(--brand-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: var(--space-4);
-}
 
 .empty-state h3 {
   font-size: var(--font-size-xl);
