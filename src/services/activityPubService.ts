@@ -1,6 +1,7 @@
 // ActivityPub Service - Core federation functionality
 // Professional, scalable, and DRY implementation
 import { supabase } from '@/supabase';
+import { federationService } from './FederationService';
 import type { 
   Post, 
   Follow, 
@@ -105,6 +106,17 @@ export class ActivityPubService {
       .single();
 
     if (fetchError) throw fetchError;
+
+    // 🌐 FEDERATION: Queue post for federation to remote instances
+    if (completePost.is_local && completePost.visibility === 'public') {
+      try {
+        const activityId = await federationService.federatePost(completePost, completePost.author);
+        console.log(`🚀 Post ${completePost.id} queued for federation: ${activityId}`);
+      } catch (federationError) {
+        console.error('❌ Federation failed for post:', federationError);
+        // Don't fail the entire post creation if federation fails
+      }
+    }
 
     return completePost as Post;
   }
@@ -266,10 +278,13 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    // Get original post to verify ownership
+    // Get original post to verify ownership and get author info
     const { data: originalPost, error: fetchError } = await supabase
       .from('posts')
-      .select('*')
+      .select(`
+        *,
+        author:profiles(username, domain, is_local)
+      `)
       .eq('id', postId)
       .eq('author_id', user.id)
       .single();
@@ -290,26 +305,15 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // Create Delete activity for federation
-    await this.createActivity({
-      type: 'Delete',
-      actor_id: user.id,
-      target_id: postId,
-      target_type: 'Note',
-      activity_data: {
-        '@context': 'https://www.w3.org/ns/activitystreams',
-        type: 'Delete',
-        actor: await this.getUserActivityPubId(user.id),
-        object: {
-          type: 'Tombstone',
-          id: originalPost.ap_id || `${this.instanceUrl}/posts/${postId}`,
-          formerType: 'Note'
-        },
-        published: new Date().toISOString(),
-        to: this.getPostAudience(originalPost.visibility),
-        cc: []
+    // 🌐 FEDERATION: Queue delete activity for federation using new FederationService
+    if (originalPost.is_local && originalPost.visibility === 'public') {
+      try {
+        const activityId = await federationService.federatePostDelete(postId, originalPost.author);
+        console.log(`🗑️ Post deletion ${postId} queued for federation: ${activityId}`);
+      } catch (federationError) {
+        console.error('❌ Federation failed for post deletion:', federationError);
       }
-    });
+    }
   }
 
   // =============================================
@@ -356,6 +360,13 @@ export class ActivityPubService {
       throw error;
     }
 
+    // 🌐 FEDERATION: Queue follow activity
+    try {
+      await federationService.federateFollow(user.id, targetUserId, true);
+    } catch (federationError) {
+      console.error('❌ Federation failed for follow:', federationError);
+    }
+
     return data as Follow;
   }
 
@@ -373,6 +384,13 @@ export class ActivityPubService {
       .eq('following_id', targetUserId);
 
     if (error) throw error;
+
+    // 🌐 FEDERATION: Queue unfollow activity
+    try {
+      await federationService.federateFollow(user.id, targetUserId, false);
+    } catch (federationError) {
+      console.error('❌ Federation failed for unfollow:', federationError);
+    }
   }
 
   /**
@@ -469,10 +487,26 @@ export class ActivityPubService {
     if (existing) {
       // Remove favorite
       await this.unfavoritePost(postId);
+      
+      // 🌐 FEDERATION: Queue unlike activity
+      try {
+        await federationService.federateLike(postId, user.id, false);
+      } catch (federationError) {
+        console.error('❌ Federation failed for unlike:', federationError);
+      }
+      
       return { favorited: false };
     } else {
       // Add favorite
       const interaction = await this.favoritePost(postId);
+      
+      // 🌐 FEDERATION: Queue like activity
+      try {
+        await federationService.federateLike(postId, user.id, true);
+      } catch (federationError) {
+        console.error('❌ Federation failed for like:', federationError);
+      }
+      
       return { favorited: true, interaction };
     }
   }
