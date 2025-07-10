@@ -519,12 +519,18 @@
     <circle v-if="name === 'user-check'" cx="9" cy="7" r="4"></circle>
     <path v-if="name === 'user-check'" d="M22 21l-5-5m5 5l-5-5m5 5l-5-5"></path>
 
-    <!-- Mony Mascot (Custom ActivityPub/Fediverse icon) -->
-    <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="10"></circle>
-    <path v-if="name === 'mony-mascot'" d="M8 12c0-2.21 1.79-4 4-4s4 1.79 4 4"></path>
-    <circle v-if="name === 'mony-mascot'" cx="9" cy="10" r="1"></circle>
-    <circle v-if="name === 'mony-mascot'" cx="15" cy="10" r="1"></circle>
-    <path v-if="name === 'mony-mascot'" d="M8 16c.5 1 1.5 2 4 2s3.5-1 4-2"></path>
+    <!-- Cute O with a four-pointed star in the middle -->
+    <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2" fill="none"/>
+    <g v-if="name === 'mony-mascot'">
+      <!-- Elongated, empty four-pointed star (diamond shape, vertical and horizontal points) -->
+      <polygon 
+        points="12,6.5 18,12 12,17.5 6.5,12" 
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        opacity="0.85"
+      />
+    </g>
 
     <!-- Repeat (Repost/Retweet) -->
     <polyline v-if="name === 'repeat'" points="17 1 21 5 17 9"></polyline>
