@@ -27,6 +27,7 @@
         @reblog-post="$emit('reblog-post', $event)"
         @delete-post="$emit('delete-post', $event)"
         @show-user-profile="$emit('show-user-profile', $event)"
+        @profile-click="$emit('show-user-profile', $event)"
         @load-more-posts="$emit('load-more-posts')"
       />
       

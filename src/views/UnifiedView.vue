@@ -168,6 +168,7 @@
                   :show-follow-btn="true"
                   @follow="handleFollow"
                   @unfollow="handleUnfollow"
+                  @click="handleUserCardClick"
                 />
               </div>
             </div>
@@ -888,8 +889,20 @@ const handleUnfollow = async (userId: string) => {
   }
 };
 
-const handleShowUserProfile = (user: FederatedUser) => {
+// Add a method to handle opening user profiles from any context
+const handleShowUserProfile = (user: any) => {
   selectedUser.value = user;
+};
+
+// Add handlers for profile interactions from different contexts
+const handleProfileClick = (user: any) => {
+  // Instead of navigating to a profile route, open the modal
+  handleShowUserProfile(user);
+};
+
+const handleUserCardClick = (user: any) => {
+  // Handle clicks from UserCard components
+  handleShowUserProfile(user);
 };
 
 const closeUserProfile = () => {

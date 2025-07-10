@@ -11,11 +11,12 @@
               :alt="user.display_name"
               class="profile-avatar"
               size="2xl"
+              @click="$emit('profile-click', user)"
             />
           </div>
           <div class="profile-details">
-            <h1 class="profile-name">{{ user.display_name || user.username }}</h1>
-            <p class="profile-handle">{{ user.handle }}</p>
+            <h1 class="profile-name" @click="$emit('profile-click', user)">{{ user.display_name || user.username }}</h1>
+            <p class="profile-handle" @click="$emit('profile-click', user)">{{ user.handle }}</p>
             <p v-if="user.bio" class="profile-bio">{{ user.bio }}</p>
             
             <div class="profile-stats">
@@ -146,6 +147,7 @@ defineEmits<{
   'delete-post': [postId: string];
   'show-user-profile': [user: any];
   'load-more-posts': [];
+  'profile-click': [user: FederatedUser];
 }>();
 
 const activeTab = ref('posts');
@@ -200,20 +202,37 @@ const setActiveTab = (tabId: string) => {
   border: 4px solid var(--background-primary);
   border-radius: 50%;
   background: var(--background-secondary);
+  cursor: pointer;
+  transition: transform 0.2s ease;
 }
 
+.profile-avatar:hover {
+  transform: scale(1.05);
+}
 
 .profile-name {
   font-size: 24px;
   font-weight: 700;
   margin: 0 0 4px 0;
   color: var(--text-primary);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.profile-name:hover {
+  color: var(--brand-primary);
 }
 
 .profile-handle {
   font-size: 16px;
   color: var(--text-secondary);
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.profile-handle:hover {
+  color: var(--brand-primary);
 }
 
 .profile-bio {

@@ -16,14 +16,10 @@
             class="action-button"
             :class="{ active: showActionsMenu }"
           >
-            <svg viewBox="0 0 24 24" class="action-icon">
-              <path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" fill="currentColor"/>
-            </svg>
+            <Icon name="dots-vertical" class="action-icon" />
           </button>
           <button @click="$emit('close')" class="close-button">
-            <svg viewBox="0 0 24 24" class="close-icon">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="currentColor"/>
-            </svg>
+            <Icon name="x" class="close-icon" />
           </button>
         </div>
       </div>
@@ -31,22 +27,16 @@
       <!-- Actions Dropdown -->
       <div v-if="showActionsMenu" class="actions-dropdown" @click.stop>
         <div class="action-item" @click="copyUserId">
-          <svg viewBox="0 0 24 24" class="action-item-icon">
-            <path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z" fill="currentColor"/>
-          </svg>
+          <Icon name="copy" class="action-item-icon" />
           Copy User ID
         </div>
         <div class="action-item" @click="openInviteModal">
-          <svg viewBox="0 0 24 24" class="action-item-icon">
-            <path d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.6 20.92,19A2.84,2.84 0 0,0 18,16.08Z" fill="currentColor"/>
-          </svg>
+          <Icon name="share" class="action-item-icon" />
           Send Server Invite
         </div>
         <div class="action-divider"></div>
         <div class="action-item danger" @click="blockUser">
-          <svg viewBox="0 0 24 24" class="action-item-icon">
-            <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12C4,13.85 4.63,15.55 5.68,16.91L16.91,5.68C15.55,4.63 13.85,4 12,4M12,20A8,8 0 0,0 20,12C20,10.15 19.37,8.45 18.32,7.09L7.09,18.32C8.45,19.37 10.15,20 12,20Z" fill="currentColor"/>
-          </svg>
+          <Icon name="ban" class="action-item-icon" />
           Block User
         </div>
       </div>
@@ -72,9 +62,7 @@
               <h1 class="display-name" :style="{ color: user?.color || '#ffffff' }">
                 {{ user?.display_name || 'Unknown User' }}
                 <span v-if="user?.verified" class="verified-badge">
-                  <svg viewBox="0 0 24 24" class="verified-icon">
-                    <path d="M12,2L15.09,8.26L22,9L17,14.14L18.18,21.02L12,17.77L5.82,21.02L7,14.14L2,9L8.91,8.26L12,2Z" fill="currentColor"/>
-                  </svg>
+                  <Icon name="check-circle" class="verified-icon" />
                 </span>
               </h1>
               <p class="username">{{ displayHandle }}</p>
@@ -133,9 +121,7 @@
         <!-- Federation Info (for federated users) -->
         <div v-if="isFederatedUser(user) && !user.is_local" class="federation-section">
           <h3 class="section-title">
-            <svg viewBox="0 0 24 24" class="section-icon">
-              <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z" fill="currentColor"/>
-            </svg>
+            <Icon name="link" class="section-icon" />
             Federation Info
           </h3>
           <div class="federation-info">
@@ -178,9 +164,7 @@
               <div class="field-name">{{ field.name }}</div>
               <div class="field-value" v-html="formatFieldValue(field.value)"></div>
               <div v-if="field.verified_at" class="field-verified" title="Verified">
-                <svg viewBox="0 0 24 24" class="verified-icon">
-                  <path d="M12,2L15.09,8.26L22,9L17,14.14L18.18,21.02L12,17.77L5.82,21.02L7,14.14L2,9L8.91,8.26L12,2Z" fill="currentColor"/>
-                </svg>
+                <Icon name="check-circle" class="verified-icon" />
               </div>
             </div>
           </div>
@@ -194,9 +178,7 @@
             <template v-if="!isFederatedUser(user)">
               <div class="activity-card">
                 <div class="activity-icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4C22,2.89 21.1,2 20,2Z" fill="currentColor"/>
-                  </svg>
+                  <Icon name="message" class="activity-icon-svg" />
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Messages</span>
@@ -206,9 +188,7 @@
               
               <div class="activity-card">
                 <div class="activity-icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z" fill="currentColor"/>
-                  </svg>
+                  <Icon name="microphone" class="activity-icon-svg" />
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Voice Time</span>
@@ -221,9 +201,7 @@
             <template v-else>
               <div class="activity-card">
                 <div class="activity-icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M17,12V3A1,1 0 0,0 16,2H3A1,1 0 0,0 2,3V17L6,13H16A1,1 0 0,0 17,12M21,6H19V15H6V17A1,1 0 0,0 7,18H18L22,22V7A1,1 0 0,0 21,6Z" fill="currentColor"/>
-                  </svg>
+                  <Icon name="post" class="activity-icon-svg" />
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Posts</span>
@@ -233,9 +211,7 @@
               
               <div class="activity-card">
                 <div class="activity-icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,6A2,2 0 0,0 10,8A2,2 0 0,0 12,10A2,2 0 0,0 14,8A2,2 0 0,0 12,6M12,13C14.67,13 20,14.33 20,17V20H4V17C4,14.33 9.33,13 12,13M12,14.9C9.03,14.9 5.9,16.36 5.9,17V18.1H18.1V17C18.1,16.36 14.97,14.9 12,14.9Z" fill="currentColor"/>
-                  </svg>
+                  <Icon name="interaction" class="activity-icon-svg" />
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Interactions</span>
@@ -271,9 +247,7 @@
               @click="sendDirectMessage"
               class="primary-action-btn"
             >
-              <svg viewBox="0 0 24 24" class="btn-icon">
-                <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4C22,2.89 21.1,2 20,2Z" fill="currentColor"/>
-              </svg>
+              <Icon name="message" class="btn-icon" />
               Send Message
             </button>
             
@@ -282,9 +256,7 @@
               @click="openSettings"
               class="primary-action-btn"
             >
-              <svg viewBox="0 0 24 24" class="btn-icon">
-                <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" fill="currentColor"/>
-              </svg>
+              <Icon name="pencil" class="btn-icon" />
               Edit Profile
             </button>
           </template>
@@ -296,10 +268,7 @@
               class="primary-action-btn"
               :class="{ 'following': user.is_following }"
             >
-              <svg viewBox="0 0 24 24" class="btn-icon">
-                <path v-if="!user.is_following" d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
-                <path v-else d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
-              </svg>
+              <Icon name="follow" class="btn-icon" />
               {{ user.is_following ? 'Unfollow' : 'Follow' }}
             </button>
             
@@ -307,9 +276,7 @@
               @click="mentionUser"
               class="secondary-action-btn"
             >
-              <svg viewBox="0 0 24 24" class="btn-icon">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.54 0 3-.36 4.31-1.01L21 22l-1.01-4.69C20.64 15 21 13.54 21 12c0-5.52-4.48-10-10-10zm0 2c4.41 0 8 3.59 8 8 0 1.18-.26 2.29-.74 3.3L18.43 17l-1.7-.83C15.71 16.74 14.18 17 12 17c-4.41 0-8-3.59-8-8s3.59-8 8-8z" fill="currentColor"/>
-              </svg>
+              <Icon name="mention" class="btn-icon" />
               Mention
             </button>
           </template>
@@ -319,9 +286,7 @@
             @click="openInviteModal"
             class="secondary-action-btn"
           >
-            <svg viewBox="0 0 24 24" class="btn-icon">
-              <path d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.92,20.6 20.92,19A2.84,2.84 0 0,0 18,16.08Z" fill="currentColor"/>
-            </svg>
+            <Icon name="share" class="btn-icon" />
             Share Invite
           </button>
         </div>
@@ -336,6 +301,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import BaseModal from '@/components/common/BaseModal.vue'
+import Icon from '@/components/common/Icon.vue'
 import type { User, FederatedUser } from '@/types'
 import Avatar from './common/Avatar.vue'
 
@@ -969,7 +935,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.activity-icon svg {
+.activity-icon-svg {
   width: 16px;
   height: 16px;
 }

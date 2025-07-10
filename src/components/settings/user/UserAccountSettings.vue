@@ -205,7 +205,7 @@ const syncLocalProfile = () => {
     localProfile.value = {
       display_name: props.profile.display_name || '',
       username: props.profile.username || '',
-      about: props.profile.bio || '',
+      bio: props.profile.bio || '',
       color: props.profile.color || '#5865f2'
     }
   }
