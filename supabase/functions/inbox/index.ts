@@ -277,7 +277,7 @@ async function getOrCreateRemoteProfile(supabase: any, actorUrl: string) {
         display_name: actor.name || actor.preferredUsername,
         domain,
         avatar_url: actor.icon?.url,
-        about: actor.summary || '',
+        bio: actor.summary || '',
         federated_id: actorUrl,
         inbox_url: actor.inbox,
         outbox_url: actor.outbox,

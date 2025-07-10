@@ -114,7 +114,7 @@ serve(async (req: Request) => {
       type: 'Person',
       preferredUsername: user.username,
       name: user.display_name || user.username,
-      summary: user.about || '',
+      summary: user.bio || '',
       icon: user.avatar_url ? {
         type: 'Image',
         mediaType: 'image/jpeg',

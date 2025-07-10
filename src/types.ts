@@ -49,7 +49,7 @@ export interface Profile {
   status?: UserStatus;
   // roles: Role[];
   color?: string;
-  about?: string;
+  bio?: string;
   // ActivityPub fields
   federated_id?: string;
   public_key?: string;

@@ -62,7 +62,7 @@ export class ActivityPubFederationService {
       type: 'Person',
       preferredUsername: profile.username,
       name: profile.display_name,
-      summary: profile.about || '',
+      summary: profile.bio || '',
       icon: profile.avatar_url ? {
         type: 'Image',
         mediaType: 'image/jpeg',
@@ -214,7 +214,7 @@ export class ActivityPubFederationService {
       display_name: actor.name || actor.preferredUsername,
       domain,
       avatar_url: actor.icon?.url,
-      about: actor.summary,
+      bio: actor.summary,
       federated_id: actor.id,
       public_key: actor.publicKey?.publicKeyPem,
       inbox_url: actor.inbox,

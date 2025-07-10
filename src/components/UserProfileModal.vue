@@ -390,10 +390,10 @@ const displayAbout = computed(() => {
   if (!props.user) return null
   
   if (isFederatedUser(props.user)) {
-    return props.user.bio || props.user.about
+    return props.user.bio || props.user.bio
   }
   
-  return props.user.about
+  return props.user.bio
 })
 
 const socialStats = computed(() => {
@@ -856,18 +856,18 @@ onMounted(() => {
   color: #5865f2;
 }
 
-.about-section {
+.bio-section {
   margin-bottom: 24px;
 }
 
-.about-content {
+.bio-content {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 8px;
   padding: 12px;
 }
 
-.about-text {
+.bio-text {
   color: #b5bac1;
   margin: 0;
   line-height: 1.5;

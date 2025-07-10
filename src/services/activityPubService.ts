@@ -185,6 +185,101 @@ export class ActivityPubService {
     const { data, error } = await query;
     if (error) throw error;
 
+    // Debug: Log the breakdown of local vs federated posts
+    if (data && data.length > 0) {
+      const localPosts = data.filter(p => p.is_local).length;
+      const federatedPosts = data.filter(p => !p.is_local).length;
+      console.log(`📊 Public timeline loaded: ${localPosts} local, ${federatedPosts} federated (${data.length} total)`);
+      
+      // Log some details about federated posts if any exist
+      const federated = data.filter(p => !p.is_local);
+      if (federated.length > 0) {
+        console.log('🌐 Federated posts found:', federated.map(p => ({
+          id: p.id,
+          author_domain: p.author?.domain,
+          is_local: p.is_local,
+          is_federated: p.is_federated,
+          ap_id: p.ap_id
+        })));
+      }
+    } else {
+      console.log('📊 Public timeline: No posts found');
+    }
+
+    return data as TimelinePost[];
+  }
+
+  /**
+   * Get public timeline with enhanced federation support
+   */
+  async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
+    const limit = options.limit || 20;
+    
+    try {
+      // First, get a mixed feed of both local and federated posts
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey (
+            id, username, display_name, domain, avatar_url, is_local, bio
+          )
+        `)
+        .eq('visibility', 'public')
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (options.max_id) {
+        query = query.lt('created_at', new Date(options.max_id).toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Transform and return the posts
+      const posts = (data || []).map(post => this.transformDatabasePostToTimelinePost(post));
+      
+      // Log statistics
+      const localCount = posts.filter(p => p.is_local).length;
+      const federatedCount = posts.filter(p => !p.is_local).length;
+      console.log(`🌐 Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
+      
+      return posts;
+    } catch (error) {
+      console.error('Failed to load enhanced public timeline:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get federated timeline (remote posts only)
+   */
+  async getFederatedTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
+    const limit = options.limit || 20;
+    
+    let query = supabase
+      .from('posts')
+      .select(`
+        *,
+        author:profiles!posts_author_id_fkey (
+          id, username, display_name, domain, avatar_url, is_local
+        )
+      `)
+      .eq('visibility', 'public')
+      .eq('is_deleted', false)
+      .eq('is_local', false)  // Only federated posts
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (options.max_id) {
+      query = query.lt('created_at', new Date(options.max_id).toISOString());
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    console.log(`🌐 Federated timeline loaded: ${data?.length || 0} posts from remote instances`);
     return data as TimelinePost[];
   }
 
@@ -966,14 +1061,13 @@ export class ActivityPubService {
           ? `@${username}`
           : `@${username}@${domain}`,
         is_local: data.is_local,
-        bio: data.about,
+        bio: data.bio,
         verified: false,
         followers_count: 0,
         following_count: 0,
         posts_count: 0,
         created_at: data.created_at,
         updated_at: data.updated_at,
-        about: data.about,
         federated_id: data.federated_id,
         public_key: data.public_key,
         inbox_url: data.inbox_url,
@@ -1015,14 +1109,13 @@ export class ActivityPubService {
           ? `@${data.username}`
           : `@${data.username}@${data.domain}`,
         is_local: data.is_local,
-        bio: data.about,
+        bio: data.bio,
         verified: false,
         followers_count: 0,
         following_count: 0,
         posts_count: 0,
         created_at: data.created_at,
         updated_at: data.updated_at,
-        about: data.about,
         federated_id: data.federated_id,
         public_key: data.public_key,
         inbox_url: data.inbox_url,
@@ -1798,6 +1891,182 @@ export class ActivityPubService {
           return '';
       }
     }).join('');
+  }
+
+  /**
+   * Transform a database post object to a TimelinePost object
+   */
+  private transformDatabasePostToTimelinePost(post: any): TimelinePost {
+    // Keep content in proper format
+    let processedContent = post.content;
+    if (typeof post.content === 'string') {
+      processedContent = [{ type: 'text', text: post.content }];
+    } else if (!Array.isArray(post.content)) {
+      processedContent = [{ type: 'text', text: '' }];
+    }
+
+    return {
+      id: post.id,
+      created_at: post.created_at,
+      updated_at: post.updated_at,
+      content: processedContent,
+      content_warning: post.content_warning,
+      language: post.language || 'en',
+      author_id: post.author_id,
+      ap_id: post.ap_id,
+      ap_type: post.ap_type,
+      url: post.url,
+      in_reply_to: post.in_reply_to,
+      conversation_id: post.conversation_id,
+      visibility: post.visibility,
+      is_local: post.is_local,
+      is_federated: post.is_federated,
+      replies_count: post.replies_count || 0,
+      reblogs_count: post.reblogs_count || 0,
+      favorites_count: post.favorites_count || 0,
+      media_attachments: post.media_attachments || [],
+      metadata: post.metadata || {},
+      is_sensitive: post.is_sensitive,
+      is_deleted: post.is_deleted,
+      deleted_at: post.deleted_at,
+      author: post.author ? {
+        id: post.author.id,
+        username: post.author.username,
+        display_name: post.author.display_name || post.author.username,
+        avatar_url: post.author.avatar_url || '/default_avatar.png',
+        domain: post.author.domain || 'har.mony.lol',
+        bio: post.author.bio || '',
+        is_local: post.author.is_local !== false,
+        verified: post.author.verified || false,
+        followers_count: 0, // Would need separate query
+        following_count: 0, // Would need separate query
+        posts_count: 0, // Would need separate query
+        created_at: post.author.created_at,
+        updated_at: post.author.updated_at || post.author.created_at
+      } : {
+        id: post.author_id,
+        username: 'Unknown',
+        display_name: 'Unknown User',
+        avatar_url: '/default_avatar.png',
+        domain: 'har.mony.lol',
+        bio: '',
+        is_local: true,
+        verified: false,
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
+        created_at: post.created_at,
+        updated_at: post.created_at
+      },
+      is_favorited: false, // Would need user context
+      is_reblogged: false  // Would need user context
+    };
+  }
+
+  /**
+   * Get database stats for debugging federated content
+   */
+  async getTimelineStats(): Promise<{ 
+    totalPosts: number, 
+    localPosts: number, 
+    federatedPosts: number,
+    publicPosts: number 
+  }> {
+    try {
+      // Get total posts
+      const { count: totalPosts } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_deleted', false);
+
+      // Get local posts
+      const { count: localPosts } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_deleted', false)
+        .eq('is_local', true);
+
+      // Get federated posts
+      const { count: federatedPosts } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_deleted', false)
+        .eq('is_local', false);
+
+      // Get public posts
+      const { count: publicPosts } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_deleted', false)
+        .eq('visibility', 'public');
+
+      console.log('📊 Database Timeline Stats:', {
+        totalPosts: totalPosts || 0,
+        localPosts: localPosts || 0,
+        federatedPosts: federatedPosts || 0,
+        publicPosts: publicPosts || 0
+      });
+
+      return {
+        totalPosts: totalPosts || 0,
+        localPosts: localPosts || 0,
+        federatedPosts: federatedPosts || 0,
+        publicPosts: publicPosts || 0
+      };
+    } catch (error) {
+      console.error('Failed to get timeline stats:', error);
+      return { totalPosts: 0, localPosts: 0, federatedPosts: 0, publicPosts: 0 };
+    }
+  }
+
+  /**
+   * Debug: Create a test federated post (simulates a post from another instance)
+   */
+  async createTestFederatedPost(): Promise<void> {
+    try {
+      const user = await supabase.auth.getUser();
+      if (!user.data.user) throw new Error('User not authenticated');
+
+      // Instead of creating a new federated user (which violates RLS),
+      // create a post by the current user but mark it as federated for testing
+      const testPost = {
+        id: crypto.randomUUID(),
+        content: [
+          {
+            type: 'text',
+            text: `🌐 Test federated post from ${user.data.user.email} - simulating content from mastodon.social at ${new Date().toLocaleTimeString()}`
+          }
+        ],
+        author_id: user.data.user.id, // Use current user
+        visibility: 'public' as const,
+        language: 'en',
+        is_local: false, // Mark as federated for testing
+        is_federated: true,
+        ap_id: `https://mastodon.social/users/testuser/statuses/${crypto.randomUUID()}`,
+        ap_type: 'Note',
+        url: `https://mastodon.social/@testuser/${crypto.randomUUID()}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: {
+          test: true,
+          simulated_federation: true,
+          original_instance: 'mastodon.social'
+        }
+      };
+
+      const { error } = await supabase
+        .from('posts')
+        .insert(testPost);
+
+      if (error) throw error;
+
+      console.log('✅ Test federated post created successfully:', testPost.id);
+      console.log('📊 Post marked as federated (is_local: false, is_federated: true)');
+      
+    } catch (error) {
+      console.error('❌ Failed to create test federated post:', error);
+      throw error;
+    }
   }
 }
 

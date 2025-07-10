@@ -11,7 +11,7 @@
       </div>
       <hr/>
       <div class="about-title">About:</div>
-      <textarea class="about" :value="user.about" readonly>
+      <textarea class="about" :value="user.bio" readonly>
       </textarea>
     </div>
     <!-- Additional profile details -->
@@ -64,11 +64,11 @@ export default defineComponent({
   /* Styles for the user profile component */
   color: white;
 }
-.user-preview-details .about-title {
+.user-preview-details .bio-title {
   margin-top:1.25em;
   margin-bottom:.25em;
 }
-.user-preview-details .about {
+.user-preview-details .bio {
   border-radius: 4px;
   background-color: #292b2e; 
   padding: 10px 10px 120px 10px;

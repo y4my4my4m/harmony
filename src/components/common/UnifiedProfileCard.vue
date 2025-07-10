@@ -228,9 +228,9 @@ const displayHandle = computed(() => {
 
 const displayBio = computed(() => {
   if (isFederatedUser(props.user)) {
-    return props.user.bio || props.user.about
+    return props.user.bio || props.user.bio
   }
-  return props.user.about
+  return props.user.bio
 })
 
 const truncatedBio = computed(() => {

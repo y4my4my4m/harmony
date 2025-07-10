@@ -140,6 +140,49 @@
           <MonyComposerInline @post-created="$emit('post-created', $event)" />
         </div>
 
+        <!-- Debug Panel (Development Only) -->
+        <div v-if="showDebugPanel" class="debug-panel">
+          <h4>🔍 Federation Debug Panel</h4>
+          <div class="debug-buttons">
+            <button @click="checkTimelineStats" class="debug-btn">
+              📊 Check Timeline Stats
+            </button>
+            <button @click="createTestFederatedPost" class="debug-btn">
+              🌐 Create Test Federated Post
+            </button>
+            <button @click="refreshPublicFeed" class="debug-btn">
+              🔄 Refresh Public Feed
+            </button>
+          </div>
+          <div v-if="debugStats" class="debug-stats">
+            <p><strong>Total Posts:</strong> {{ debugStats.totalPosts }}</p>
+            <p><strong>Local Posts:</strong> {{ debugStats.localPosts }}</p>
+            <p><strong>Federated Posts:</strong> {{ debugStats.federatedPosts }}</p>
+            <p><strong>Public Posts:</strong> {{ debugStats.publicPosts }}</p>
+          </div>
+        </div>
+
+        <!-- Filter and Search Controls -->
+        <div class="timeline-controls">
+          <button 
+            @click="$emit('refresh-timeline')" 
+            :disabled="isLoadingFeed"
+            class="refresh-btn"
+          >
+            <Icon name="refresh" :class="{ spinning: isLoadingFeed }" />
+            Refresh
+          </button>
+          
+          <button 
+            v-if="viewType === 'bookmarks'"
+            @click="$emit('clear-all-bookmarks')" 
+            class="clear-btn"
+          >
+            <Icon name="trash" />
+            Clear All
+          </button>
+        </div>
+
         <!-- Timeline Feed -->
         <div class="timeline-feed">
           <!-- Loading State -->
@@ -203,6 +246,16 @@ import ProfileDisplay from './ProfileDisplay.vue';
 import PostDetailDisplay from './PostDetailDisplay.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Message, TimelinePost, FederatedUser } from '@/types';
+import { ref } from 'vue';
+import { useActivityPubStore } from '@/stores/useActivityPub';
+import activityPubService from '@/services/activityPubService';
+
+// Debug state
+const debugStats = ref<any>(null);
+const showDebugPanel = ref(import.meta.env.DEV); // Only show in development
+
+// Get store for debugging
+const activityPubStore = useActivityPubStore();
 
 interface Props {
   mode: 'chat' | 'activitypub';
