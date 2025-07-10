@@ -163,7 +163,7 @@
         >
           <span v-if="!isCreating">Create Server</span>
           <span v-else class="loading">
-            <svg class="spinner" viewBox="0 0 24 24">
+            <svg class="loading-spinner" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="31.416" stroke-dashoffset="31.416">
                 <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
                 <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>

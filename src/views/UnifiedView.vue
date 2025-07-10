@@ -1,8 +1,8 @@
 <template>
   <!-- Loading Screen -->
   <div v-if="!isAppReady" class="loading-overlay">
-    <div class="loading-spinner">
-      <div class="spinner"></div>
+    <div class="loading">
+      <div class="loading-spinner"></div>
       <p>Loading Harmony...</p>
     </div>
   </div>

@@ -551,6 +551,51 @@
     <!-- Hash -->
     <path v-if="name === 'hash'" fill="currentColor" fill-rule="evenodd" d="M10.99 3.16A1 1 0 1 0 9 2.84L8.15 8H4a1 1 0 0 0 0 2h3.82l-.67 4H3a1 1 0 1 0 0 2h3.82l-.8 4.84a1 1 0 0 0 1.97.32L8.85 16h4.97l-.8 4.84a1 1 0 0 0 1.97.32l.86-5.16H20a1 1 0 1 0 0-2h-3.82l.67-4H21a1 1 0 1 0 0-2h-3.82l.8-4.84a1 1 0 1 0-1.97-.32L15.15 8h-4.97l.8-4.84ZM14.15 14l.67-4H9.85l-.67 4h4.97Z" clip-rule="evenodd"></path>
 
+    <!-- Follow (Arrow with Plus) -->
+    <path v-if="name === 'follow'" d="M5 12h9"></path>
+    <polyline v-if="name === 'follow'" points="12 9 15 12 12 15"></polyline>
+    <circle v-if="name === 'follow'" cx="19" cy="12" r="2"></circle>
+    <line v-if="name === 'follow'" x1="19" y1="10.5" x2="19" y2="13.5"></line>
+    <line v-if="name === 'follow'" x1="17.5" y1="12" x2="20.5" y2="12"></line>
+
+    <!-- Followed (Arrow with Check) -->
+    <path v-if="name === 'followed'" d="M5 12h9"></path>
+    <polyline v-if="name === 'followed'" points="12 9 15 12 12 15"></polyline>
+    <circle v-if="name === 'followed'" cx="19" cy="12" r="2"></circle>
+    <polyline v-if="name === 'followed'" points="18.2 12.8 19 13.6 20.2 11.8"></polyline>
+
+    <!-- Unfollow (Arrow with Minus) -->
+    <path v-if="name === 'unfollow'" d="M19 12H10"></path>
+    <polyline v-if="name === 'unfollow'" points="13 9 10 12 13 15"></polyline>
+    <circle v-if="name === 'unfollow'" cx="5" cy="12" r="2"></circle>
+    <line v-if="name === 'unfollow'" x1="3.5" y1="12" x2="6.5" y2="12"></line>
+
+    <!-- Microphone -->
+    <path v-if="name === 'microphone'" d="M12 1a3 3 0 0 0-3 3v10a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"></path>
+    <path v-if="name === 'microphone'" d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+    <line v-if="name === 'microphone'" x1="12" y1="19" x2="12" y2="23"></line>
+    <line v-if="name === 'microphone'" x1="8" y1="23" x2="16" y2="23"></line>
+
+    <!-- Dots Vertical -->
+    <path v-if="name === 'dots-vertical'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'dots-vertical'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'dots-vertical'" d="M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+
+    <!-- Dots Horizontal -->
+    <path v-if="name === 'dots-horizontal'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'dots-horizontal'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'dots-horizontal'" d="M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+
+    <!-- Mention -->
+    <path v-if="name === 'mention'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'mention'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'mention'" d="M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+
+    <!-- Mentioned -->
+    <path v-if="name === 'mentioned'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'mentioned'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+
+
 </svg>
 </template>
 

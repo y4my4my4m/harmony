@@ -7,11 +7,11 @@
   >
     <div class="profile-modal-content">
       <!-- Cover Banner -->
-      <div class="profile-banner" :style="{ background: user?.color || '#5865f2' }">
+      <div class="profile-banner" :style="{ background: getUserColor(user) || '#5865f2' }">
         <div class="banner-gradient"></div>
         <div class="banner-actions">
           <button 
-            v-if="canManageUser" 
+            v-if="!isCurrentUser" 
             @click="showActionsMenu = !showActionsMenu"
             class="action-button"
             :class="{ active: showActionsMenu }"
@@ -59,9 +59,9 @@
           
           <div class="profile-info">
             <div class="name-section">
-              <h1 class="display-name" :style="{ color: user?.color || '#ffffff' }">
+              <h1 class="display-name" :style="{ color: getUserColor(user) || '#ffffff' }">
                 {{ user?.display_name || 'Unknown User' }}
-                <span v-if="user?.verified" class="verified-badge">
+                <span v-if="getUserVerified(user)" class="verified-badge">
                   <Icon name="check-circle" class="verified-icon" />
                 </span>
               </h1>
@@ -69,9 +69,9 @@
             </div>
 
             <div class="user-badges">
-              <div v-if="user?.roles?.length" class="roles-container">
+              <div v-if="getUserRoles(user).length" class="roles-container">
                 <div 
-                  v-for="role in user.roles" 
+                  v-for="role in getUserRoles(user)" 
                   :key="role.id"
                   class="role-badge"
                   :style="{ 
@@ -113,13 +113,13 @@
           
           <!-- Chat User Stats -->
           <div v-else class="stat-item">
-            <span class="stat-value">{{ user?.roles?.length || 0 }}</span>
+            <span class="stat-value">{{ getUserRoles(user).length || 0 }}</span>
             <span class="stat-label">Roles</span>
           </div>
         </div>
 
-        <!-- Federation Info (for federated users) -->
-        <div v-if="isFederatedUser(user) && !user.is_local" class="federation-section">
+        <!-- Federation Info (for remote users) -->
+        <div v-if="isFederatedUser(user) && !user?.is_local" class="federation-section">
           <h3 class="section-title">
             <Icon name="link" class="section-icon" />
             Federation Info
@@ -182,7 +182,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Messages</span>
-                  <span class="activity-value">{{ user?.message_count || 0 }}</span>
+                  <span class="activity-value">{{ getUserMessageCount(user) }}</span>
                 </div>
               </div>
               
@@ -192,7 +192,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Voice Time</span>
-                  <span class="activity-value">{{ formatVoiceTime(user?.voice_time) }}</span>
+                  <span class="activity-value">{{ formatVoiceTime(getUserVoiceTime(user)) }}</span>
                 </div>
               </div>
             </template>
@@ -240,55 +240,57 @@
 
         <!-- Action Buttons -->
         <div class="profile-actions">
-          <!-- Chat user actions -->
-          <template v-if="!isFederatedUser(user)">
+          <!-- Current User Actions -->
+          <template v-if="isCurrentUser">
             <button 
-              v-if="!isCurrentUser" 
-              @click="sendDirectMessage"
-              class="primary-action-btn"
-            >
-              <Icon name="message" class="btn-icon" />
-              Send Message
-            </button>
-            
-            <button 
-              v-if="isCurrentUser" 
               @click="openSettings"
               class="primary-action-btn"
             >
-              <Icon name="pencil" class="btn-icon" />
+              <Icon name="pencil" :size="16" />
               Edit Profile
             </button>
           </template>
 
-          <!-- Federated user actions -->
-          <template v-else-if="!isCurrentUser">
+          <!-- Other User Actions -->
+          <template v-else>
+            <!-- Local Users: Send DM (local users can DM each other) -->
+            <button 
+              v-if="getUserIsLocal(user)"
+              @click="sendDirectMessage"
+              class="primary-action-btn"
+            >
+              <Icon name="message" :size="16" />
+              Send Message
+            </button>
+            
+            <!-- All Users: Follow/Unfollow (both local and remote) -->
             <button 
               @click="handleFollowToggle"
               class="primary-action-btn"
-              :class="{ 'following': user.is_following }"
+              :class="{ 'following': getUserIsFollowing(user) }"
             >
-              <Icon name="follow" class="btn-icon" />
-              {{ user.is_following ? 'Unfollow' : 'Follow' }}
+              <Icon :name="getUserIsFollowing(user) ? 'unfollow' : 'follow'" :size="16" />
+              {{ getUserIsFollowing(user) ? 'Unfollow' : 'Follow' }}
             </button>
             
+            <!-- All Users: Mention -->
             <button 
               @click="mentionUser"
               class="secondary-action-btn"
             >
-              <Icon name="mention" class="btn-icon" />
+              <Icon name="mention" :size="16"/>
               Mention
             </button>
-          </template>
 
-          <button 
-            v-if="!isCurrentUser && canManageUser" 
-            @click="openInviteModal"
-            class="secondary-action-btn"
-          >
-            <Icon name="share" class="btn-icon" />
-            Share Invite
-          </button>
+            <!-- Share Invite (always available for non-current users) -->
+            <button 
+              @click="openInviteModal"
+              class="secondary-action-btn"
+            >
+              <Icon name="share" :size="16" />
+              Share Invite
+            </button>
+          </template>
         </div>
       </div>
     </div>
@@ -298,11 +300,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { useActivityPubStore } from '@/stores/useActivityPub'
-import BaseModal from '@/components/common/BaseModal.vue'
-import Icon from '@/components/common/Icon.vue'
-import type { User, FederatedUser } from '@/types'
+import { useAuthStore } from '../stores/auth'
+import { useActivityPubStore } from '../stores/useActivityPub'  
+import BaseModal from './common/BaseModal.vue'
+import Icon from './common/Icon.vue'
+import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
 
 interface Props {
@@ -311,12 +313,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits<{
-  close: []
-  invite: []
-  follow?: [userId: string]
-  unfollow?: [userId: string]
-}>()
+const emit = defineEmits(['close', 'invite', 'follow', 'unfollow'])
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -325,6 +322,7 @@ const activityPubStore = useActivityPubStore()
 // Reactive state
 const showActionsMenu = ref(false)
 const userNote = ref('')
+const instanceInfo = ref<{ status: string; software?: string } | null>(null)
 
 // Type guards
 const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUser => {
@@ -337,8 +335,8 @@ const isCurrentUser = computed(() => {
 })
 
 const canManageUser = computed(() => {
-  // Add logic based on user permissions/roles
-  return !isCurrentUser.value
+  // Show management options for all non-current users
+  return !isCurrentUser.value && props.user !== null
 })
 
 const displayHandle = computed(() => {
@@ -355,11 +353,7 @@ const displayHandle = computed(() => {
 const displayAbout = computed(() => {
   if (!props.user) return null
   
-  if (isFederatedUser(props.user)) {
-    return props.user.bio || props.user.bio
-  }
-  
-  return props.user.bio
+  return getUserBio(props.user)
 })
 
 const socialStats = computed(() => {
@@ -501,7 +495,7 @@ const blockUser = async () => {
 }
 
 const debouncedSaveNote = (() => {
-  let timeout: number
+  let timeout: any
   return () => {
     clearTimeout(timeout)
     timeout = setTimeout(() => {
@@ -509,6 +503,39 @@ const debouncedSaveNote = (() => {
     }, 1000)
   }
 })()
+
+// Helper methods for safe property access
+const getUserColor = (user: any) => {
+  return user?.color || user?.profile?.color
+}
+
+const getUserVerified = (user: any) => {
+  return user?.verified || user?.profile?.verified
+}
+
+const getUserRoles = (user: any) => {
+  return user?.roles || user?.profile?.roles || []
+}
+
+const getUserBio = (user: any) => {
+  return user?.bio || user?.profile?.bio || user?.about
+}
+
+const getUserMessageCount = (user: any) => {
+  return user?.message_count || user?.profile?.message_count || 0
+}
+
+const getUserVoiceTime = (user: any) => {
+  return user?.voice_time || user?.profile?.voice_time || 0
+}
+
+const getUserIsLocal = (user: any) => {
+  return user?.is_local ?? true // Default to local if not specified
+}
+
+const getUserIsFollowing = (user: any) => {
+  return user?.is_following || false
+}
 
 const saveUserNote = () => {
   if (!props.user) return
@@ -1083,7 +1110,8 @@ onMounted(() => {
 }
 
 .profile-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -1105,11 +1133,20 @@ onMounted(() => {
   min-width: 0;
 }
 
+.primary-action-btn svg {
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+  padding: 0;
+  margin:0;
+}
+
 .primary-action-btn {
   background: linear-gradient(135deg, #5865f2, #4752c4);
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
 }
+
 
 .primary-action-btn.following {
   background: linear-gradient(135deg, #43b581, #369970);
