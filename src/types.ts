@@ -523,7 +523,7 @@ export interface ActivityPubPost {
   ap_id?: string; // ActivityPub object ID
   ap_type: string; // 'Note', 'Article', etc.
   url?: string;
-  in_reply_to?: string;
+  reply_context?: ReplyContext; // Rich reply context instead of simple UUID
   conversation_id?: string;
   visibility: 'public' | 'unlisted' | 'followers' | 'direct';
   is_local: boolean;
@@ -633,6 +633,21 @@ export interface DeliveryQueueItem {
   metadata: Record<string, any>;
 }
 
+// Reply context for conversation threading
+export interface ReplyContext {
+  id: string;
+  content_preview: string;
+  author: {
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url?: string;
+    domain: string;
+  };
+  created_at: string;
+  visibility: 'public' | 'unlisted' | 'followers' | 'direct';
+}
+
 // Enhanced Post type with author info for timeline display
 export interface EnhancedActivityPubPost extends ActivityPubPost {
   author: {
@@ -641,9 +656,19 @@ export interface EnhancedActivityPubPost extends ActivityPubPost {
     display_name: string;
     avatar_url?: string;
     domain: string;
+    bio?: string;
+    is_local?: boolean;
+    verified?: boolean;
+    followers_count?: number;
+    following_count?: number;
+    posts_count?: number;
+    created_at?: string;
+    updated_at?: string;
+    handle?: string;
   };
   is_favorited: boolean;
   is_reblogged: boolean;
+  is_bookmarked?: boolean;
 }
 
 // Federation timeline types
@@ -754,6 +779,21 @@ export type Post = ActivityPubPost;
 
 // Enhanced post type for timeline display
 export type TimelinePost = EnhancedActivityPubPost;
+
+// Conversation thread types
+export interface ConversationThread {
+  id: string;
+  posts: TimelinePost[];
+  root_post: TimelinePost;
+  reply_count: number;
+  participant_count: number;
+  last_updated: string;
+}
+
+export interface ConversationContext {
+  ancestors: TimelinePost[]; // Posts this is replying to (going up the chain)
+  descendants: TimelinePost[]; // Replies to this post (going down the chain)
+}
 
 // Post composer state
 export interface PostComposerState {

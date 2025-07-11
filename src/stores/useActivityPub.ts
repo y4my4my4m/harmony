@@ -6,13 +6,18 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
+import router from '@/router';
+// InteractionService removed - using direct database operations
 import type { 
   Post, 
   TimelinePost, 
   PostComposerState, 
   MonyFeed,
   FederatedUser,
-  Notification
+  Notification,
+  ConversationThread,
+  ConversationContext,
+  ReplyContext
 } from '@/types';
 
 interface ActivityPubState {
@@ -21,6 +26,10 @@ interface ActivityPubState {
   publicFeed: MonyFeed;
   localFeed: MonyFeed;
   userFeeds: Map<string, MonyFeed>;
+  
+  // Conversation state
+  conversations: Map<string, ConversationThread>;
+  conversationContexts: Map<string, ConversationContext>;
   
   // User state
   followedUsers: Set<string>;
@@ -45,6 +54,7 @@ interface ActivityPubState {
   isLoadingPost: boolean;
   isLoadingProfile: boolean;
   isPosting: boolean;
+  isLoadingConversation: boolean;
   
   // Realtime subscriptions
   realtimeSubscriptions: Map<string, any>;
@@ -73,6 +83,10 @@ export const useActivityPubStore = defineStore('activitypub', {
       cursor: undefined
     },
     userFeeds: new Map(),
+    
+    // Conversation state
+    conversations: new Map(),
+    conversationContexts: new Map(),
     
     // User state
     followedUsers: new Set(),
@@ -105,6 +119,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     isLoadingPost: false,
     isLoadingProfile: false,
     isPosting: false,
+    isLoadingConversation: false,
     
     // Realtime subscriptions
     realtimeSubscriptions: new Map(),
@@ -186,7 +201,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         await this.loadUserPreferences();
         
         // Setup comprehensive realtime subscriptions
-        this.setupEnhancedRealtimeSubscriptions();
+              this.setupEnhancedRealtimeSubscriptions();
         
         // Debug methods removed - no longer needed
         // getTimelineStats, createTestFederatedPost, and exposeDebugMethods removed
@@ -289,6 +304,8 @@ export const useActivityPubStore = defineStore('activitypub', {
       console.log('🔔 Enhanced realtime subscriptions established using ActivityPub service');
     },
 
+
+
     /**
      * Handle realtime post creation
      */
@@ -340,30 +357,40 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       } catch (error) {
         console.error('❌ Failed to handle realtime post creation:', error);
-        // Fallback: create a minimal post with fallback author data
-        const timelinePost = this.transformDatabasePostToTimelinePost(post);
-        
+        // Fallback: use post data directly (now in timeline format)
         if (post.visibility === 'public') {
-          this.publicFeed.posts.unshift(timelinePost);
+          this.publicFeed.posts.unshift(post);
         }
         if (post.is_local && post.visibility === 'public') {
-          this.localFeed.posts.unshift(timelinePost);
+          this.localFeed.posts.unshift(post);
         }
         if (this.followedUsers.has(post.author_id)) {
-          this.homeFeed.posts.unshift(timelinePost);
+          this.homeFeed.posts.unshift(post);
           this.unreadCount++;
         }
       }
     },
 
     /**
-     * Handle realtime post updates
+     * Handle realtime post updates (ignore count-only updates to prevent loops)
      */
     handleRealtimePostUpdate(post: any) {
       console.log('📝 Post updated:', post);
       
-      const timelinePost = this.transformDatabasePostToTimelinePost(post);
-      this.updatePostInAllFeeds(timelinePost);
+      // Ignore updates that are likely just count changes from interaction triggers
+      // These updates have updated_at very close to now and no content changes
+      const now = new Date();
+      const updatedAt = new Date(post.updated_at);
+      const timeDiff = now.getTime() - updatedAt.getTime();
+      
+      // If updated less than 3 seconds ago, likely a trigger update - ignore it
+      if (timeDiff < 3000) {
+        console.log('🚫 Ignoring likely count-only post update');
+        return;
+      }
+      
+      // Post is already in timeline format
+      this.updatePostInAllFeeds(post);
     },
 
     /**
@@ -440,7 +467,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Handle realtime interaction changes
+     * Handle realtime interaction changes - clean and direct
      */
     handleRealtimeInteractionChange(payload: any) {
       console.log('💫 Interaction changed:', payload);
@@ -448,11 +475,13 @@ export const useActivityPubStore = defineStore('activitypub', {
       const interaction = payload.new || payload.old;
       if (!interaction) return;
 
-      // Update interaction counts in posts
+      const eventType = payload.event || payload.eventType;
+      
+      // Simply update the counts in the UI - clean and straightforward
       this.updatePostInteractionCounts(
-        interaction.post_id, 
-        interaction.interaction_type, 
-        payload.event || payload.eventType
+        interaction.post_id,
+        interaction.interaction_type,
+        eventType
       );
     },
 
@@ -496,7 +525,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Update post interaction counts
+     * Update post interaction counts - clean and professional
      */
     updatePostInteractionCounts(postId: string, interactionType: string, eventType: string) {
       const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
@@ -519,6 +548,37 @@ export const useActivityPubStore = defineStore('activitypub', {
           }
         }
       });
+
+      // Update timeline cache in background
+      this.updateTimelineCache();
+    },
+
+    /**
+     * Update timeline cache when data changes
+     */
+    async updateTimelineCache() {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) return;
+
+        // Update all timeline caches for this user in background
+        const timelineTypes = ['home', 'local', 'public'];
+        
+        await Promise.all(timelineTypes.map(async (type) => {
+          try {
+            await supabase.rpc('update_timeline_cache', {
+              p_user_id: user.data.user!.id,
+              p_timeline_type: type,
+              p_action: 'rebuild'
+            });
+          } catch (error) {
+            console.error(`Failed to update ${type} cache:`, error);
+          }
+        }));
+
+      } catch (error) {
+        console.error('Failed to update timeline cache:', error);
+      }
     },
 
     /**
@@ -714,12 +774,12 @@ export const useActivityPubStore = defineStore('activitypub', {
         this.closeComposer();
 
         // Add to local feeds immediately for better UX (realtime will handle this too)
-        const timelinePost = this.transformDatabasePostToTimelinePost(post);
-        this.homeFeed.posts.unshift(timelinePost);
+        // Post is already in timeline format from service
+        this.homeFeed.posts.unshift(post);
         if (visibility === 'public') {
-          this.publicFeed.posts.unshift(timelinePost);
+          this.publicFeed.posts.unshift(post);
           if (post.is_local) {
-            this.localFeed.posts.unshift(timelinePost);
+            this.localFeed.posts.unshift(post);
           }
         }
 
@@ -786,123 +846,32 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Load post with author information
+     * Load post with author information - clean and professional
      */
     async loadPostWithAuthor(postId: string): Promise<TimelinePost | null> {
       try {
-        const { data, error } = await supabase
-          .from('posts')
-          .select(`
-            *,
-            author:profiles(*)
-          `)
-          .eq('id', postId)
-          .single();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not authenticated');
+
+        const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
+          p_user_id: user.id,
+          p_timeline_type: 'public',
+          p_limit: 1,
+          p_max_id: null
+        });
 
         if (error) throw error;
 
-        return this.transformDatabasePostToTimelinePost(data);
+        return data?.find((post: any) => post.id === postId) || null;
       } catch (error) {
         console.error('Failed to load post with author:', error);
         return null;
       }
     },
 
-    /**
-     * Transform RPC timeline result to TimelinePost
-     */
-    transformTimelineResultToTimelinePost(result: any): TimelinePost {
-      return {
-        id: result.post_id,
-        created_at: result.created_at,
-        updated_at: result.created_at, // RPC doesn't return updated_at
-        content: result.content,
-        content_warning: undefined, // Not returned by RPC
-        language: 'en', // Default
-        author_id: result.author_id,
-        ap_id: undefined, // Not returned by RPC
-        ap_type: 'Note', // Default
-        url: undefined, // Not returned by RPC
-        in_reply_to: result.in_reply_to,
-        conversation_id: undefined, // Not returned by RPC
-        visibility: result.visibility,
-        is_local: true, // Default for now
-        is_federated: true, // Default for now
-        replies_count: result.replies_count,
-        reblogs_count: result.reblogs_count,
-        favorites_count: result.favorites_count,
-        media_attachments: result.media_attachments || [],
-        metadata: {}, // Default
-        is_sensitive: false, // Default
-        is_deleted: false, // Default
-        deleted_at: undefined,
-        author: {
-          id: result.author_id,
-          username: result.author_username,
-          display_name: result.author_display_name,
-          avatar_url: result.author_avatar_url,
-          domain: result.author_domain
-        },
-        is_favorited: result.is_favorited,
-        is_reblogged: result.is_reblogged
-      };
-    },
 
-    /**
-     * Transform database post to TimelinePost
-     */
-    transformDatabasePostToTimelinePost(post: any): TimelinePost {
-      // Keep content in JSONB format for consistency with message structure
-      let processedContent = post.content;
-      
-      // Ensure content is in the correct array format
-      if (typeof post.content === 'string') {
-        processedContent = [{ type: 'text', text: post.content }];
-      } else if (!Array.isArray(post.content)) {
-        processedContent = [{ type: 'text', text: '' }];
-      }
 
-      return {
-        id: post.id,
-        created_at: post.created_at,
-        updated_at: post.updated_at,
-        content: processedContent,
-        content_warning: post.content_warning,
-        language: post.language || 'en',
-        author_id: post.author_id,
-        ap_id: post.ap_id,
-        ap_type: post.ap_type,
-        url: post.url,
-        in_reply_to: post.in_reply_to,
-        conversation_id: post.conversation_id,
-        visibility: post.visibility,
-        is_local: post.is_local,
-        is_federated: post.is_federated,
-        replies_count: post.replies_count || 0,
-        reblogs_count: post.reblogs_count || 0,
-        favorites_count: post.favorites_count || 0,
-        media_attachments: post.media_attachments || [],
-        metadata: post.metadata || {},
-        is_sensitive: post.is_sensitive,
-        is_deleted: post.is_deleted,
-        deleted_at: post.deleted_at,
-              author: post.author ? {
-        id: post.author.id,
-        username: post.author.username,
-        display_name: post.author.display_name || post.author.username,
-        avatar_url: post.author.avatar_url || '/default_avatar.png',
-        domain: post.author.domain || (post.is_local ? 'har.mony.lol' : 'unknown')
-      } : {
-        id: post.author_id,
-        username: 'Unknown',
-        display_name: 'Unknown User',
-        avatar_url: '/default_avatar.png',
-        domain: post.is_local ? 'har.mony.lol' : 'unknown'
-      },
-        is_favorited: false,
-        is_reblogged: false
-      };
-    },
+
 
     /**
      * Update post interaction in local state
@@ -1092,15 +1061,42 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post favorite (like)
+     * Toggle post favorite (like) with optimistic updates
      */
     async toggleFavorite(postId: string) {
       try {
-        const result = await activityPubService.toggleFavorite(postId);
-        
-        // Update local state
-        this.updatePostInteraction(postId, 'favorite', result.favorited);
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
 
+        // Check current state
+        const { data: existing } = await supabase
+          .from('post_interactions')
+          .select('id')
+          .eq('user_id', user.data.user.id)
+          .eq('post_id', postId)
+          .eq('interaction_type', 'favorite')
+          .single();
+
+        if (existing) {
+          // Remove favorite
+          await supabase
+            .from('post_interactions')
+            .delete()
+            .eq('id', existing.id);
+        } else {
+          // Add favorite
+          await supabase
+            .from('post_interactions')
+            .insert({
+              user_id: user.data.user.id,
+              post_id: postId,
+              interaction_type: 'favorite',
+              is_local: true,
+              metadata: {}
+            });
+        }
+
+        // Realtime will handle UI updates automatically
       } catch (error) {
         console.error('Failed to toggle favorite:', error);
         throw error;
@@ -1108,15 +1104,42 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post bookmark
+     * Toggle post bookmark - clean and professional
      */
     async toggleBookmark(postId: string) {
       try {
-        const result = await activityPubService.toggleBookmark(postId);
-        
-        // Update local state
-        this.updatePostInteraction(postId, 'bookmark', result.bookmarked);
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
 
+        // Check current state
+        const { data: existing } = await supabase
+          .from('post_interactions')
+          .select('id')
+          .eq('user_id', user.data.user.id)
+          .eq('post_id', postId)
+          .eq('interaction_type', 'bookmark')
+          .single();
+
+        if (existing) {
+          // Remove bookmark
+          await supabase
+            .from('post_interactions')
+            .delete()
+            .eq('id', existing.id);
+        } else {
+          // Add bookmark
+          await supabase
+            .from('post_interactions')
+            .insert({
+              user_id: user.data.user.id,
+              post_id: postId,
+              interaction_type: 'bookmark',
+              is_local: true,
+              metadata: {}
+            });
+        }
+
+        // Realtime will handle UI updates automatically
       } catch (error) {
         console.error('Failed to toggle bookmark:', error);
         throw error;
@@ -1189,15 +1212,42 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post reblog
+     * Toggle post reblog - clean and professional
      */
     async toggleReblog(postId: string) {
       try {
-        const result = await activityPubService.toggleReblog(postId);
-        
-        // Update local state
-        this.updatePostInteraction(postId, 'reblog', result.reblogged);
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
 
+        // Check current state
+        const { data: existing } = await supabase
+          .from('post_interactions')
+          .select('id')
+          .eq('user_id', user.data.user.id)
+          .eq('post_id', postId)
+          .eq('interaction_type', 'reblog')
+          .single();
+
+        if (existing) {
+          // Remove reblog
+          await supabase
+            .from('post_interactions')
+            .delete()
+            .eq('id', existing.id);
+        } else {
+          // Add reblog
+          await supabase
+            .from('post_interactions')
+            .insert({
+              user_id: user.data.user.id,
+              post_id: postId,
+              interaction_type: 'reblog',
+              is_local: true,
+              metadata: {}
+            });
+        }
+
+        // Realtime will handle UI updates automatically
       } catch (error) {
         console.error('Failed to toggle reblog:', error);
         throw error;
@@ -1350,10 +1400,143 @@ export const useActivityPubStore = defineStore('activitypub', {
      },
 
      /**
-      * Cleanup store
+      * Cleanup store - clean and simple
       */
+     // =============================================
+     // CONVERSATION MANAGEMENT
+     // =============================================
+
+     /**
+      * Get conversation context for a post
+      */
+     async getConversationContext(postId: string): Promise<ConversationContext | null> {
+       try {
+         this.isLoadingConversation = true;
+         
+         // Check cache first
+         if (this.conversationContexts.has(postId)) {
+           return this.conversationContexts.get(postId)!;
+         }
+
+         const context = await activityPubService.getConversationContext(postId);
+         this.conversationContexts.set(postId, context);
+         
+         return context;
+       } catch (error) {
+         console.error('Failed to get conversation context:', error);
+         return null;
+       } finally {
+         this.isLoadingConversation = false;
+       }
+     },
+
+     /**
+      * Get full conversation thread
+      */
+     async getConversationThread(conversationId: string): Promise<ConversationThread | null> {
+       try {
+         this.isLoadingConversation = true;
+         
+         // Check cache first
+         if (this.conversations.has(conversationId)) {
+           return this.conversations.get(conversationId)!;
+         }
+
+         const thread = await activityPubService.getConversationThread(conversationId);
+         this.conversations.set(conversationId, thread);
+         
+         return thread;
+       } catch (error) {
+         console.error('Failed to get conversation thread:', error);
+         return null;
+       } finally {
+         this.isLoadingConversation = false;
+       }
+     },
+
+     /**
+      * Get replies to a specific post
+      */
+     async getPostReplies(postId: string, options: { limit?: number; max_id?: string } = {}) {
+       try {
+         return await activityPubService.getPostReplies(postId, options);
+       } catch (error) {
+         console.error('Failed to get post replies:', error);
+         return [];
+       }
+     },
+
+     /**
+      * Reply to a post
+      */
+     async replyToPost(postId: string, content: string, options: {
+       visibility?: 'public' | 'unlisted' | 'followers' | 'direct';
+       content_warning?: string;
+       is_sensitive?: boolean;
+     } = {}) {
+       try {
+         const replyData = {
+           content: this.formatPostContent(content),
+           visibility: options.visibility || 'public',
+           content_warning: options.content_warning,
+           in_reply_to: postId, // This will be converted to reply_context by service
+           is_sensitive: options.is_sensitive || false,
+           language: 'en'
+         };
+
+         const reply = await activityPubService.createPost(replyData);
+         
+         // Clear conversation cache to force refresh
+         this.conversationContexts.clear();
+         this.conversations.clear();
+         
+         return reply;
+       } catch (error) {
+         console.error('Failed to reply to post:', error);
+         throw error;
+       }
+     },
+
+     /**
+      * Navigate to conversation view
+      */
+     showConversation(postId: string) {
+       console.log(`🏪 Store showConversation called with postId: ${postId}`);
+       
+       try {
+         // Navigate to post detail view
+         console.log(`🧭 Attempting to navigate to PostDetail route`);
+         router.push({
+           name: 'PostDetail',
+           params: { postId }
+         });
+         console.log(`✅ Navigation initiated successfully`);
+       } catch (error) {
+         console.error(`❌ Navigation failed:`, error);
+         // Fallback: try using window.location
+         console.log(`🔄 Trying fallback navigation method`);
+         window.location.href = `/social/post/${postId}`;
+       }
+     },
+
+     /**
+      * Get all posts from all feeds (helper method)
+      */
+     getAllPosts(): TimelinePost[] {
+       return [
+         ...this.homeFeed.posts,
+         ...this.publicFeed.posts,
+         ...this.localFeed.posts,
+         ...Array.from(this.userFeeds.values()).flatMap(feed => feed.posts)
+       ].filter((post, index, array) => 
+         array.findIndex(p => p.id === post.id) === index // Remove duplicates
+       );
+     },
+
      cleanup() {
        this.cleanupRealtimeSubscriptions();
+       this.conversations.clear();
+       this.conversationContexts.clear();
        this.unreadCount = 0;
        console.log('🧹 ActivityPub store cleaned up');
      },

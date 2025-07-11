@@ -531,6 +531,12 @@
         opacity="0.85"
       />
     </g>
+    <!-- Pencil -->
+    <g v-if="name === 'pencil'">
+      <path d="M14.7 3.29a1 1 0 0 1 1.41 0l.6.6a1 1 0 0 1 0 1.41l-8.48 8.48-2.12.71.71-2.12 8.48-8.48z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M13.99 4.01l2 2" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M3.5 16.5h13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    </g>
 
     <!-- Repeat (Repost/Retweet) -->
     <polyline v-if="name === 'repeat'" points="17 1 21 5 17 9"></polyline>
