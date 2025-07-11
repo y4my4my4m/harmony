@@ -13,7 +13,10 @@ import type {
   PostComposerState, 
   MonyFeed,
   FederatedUser,
-  Notification
+  Notification,
+  ConversationThread,
+  ConversationContext,
+  ReplyContext
 } from '@/types';
 
 interface ActivityPubState {
@@ -22,6 +25,10 @@ interface ActivityPubState {
   publicFeed: MonyFeed;
   localFeed: MonyFeed;
   userFeeds: Map<string, MonyFeed>;
+  
+  // Conversation state
+  conversations: Map<string, ConversationThread>;
+  conversationContexts: Map<string, ConversationContext>;
   
   // User state
   followedUsers: Set<string>;
@@ -46,6 +53,7 @@ interface ActivityPubState {
   isLoadingPost: boolean;
   isLoadingProfile: boolean;
   isPosting: boolean;
+  isLoadingConversation: boolean;
   
   // Realtime subscriptions
   realtimeSubscriptions: Map<string, any>;
@@ -74,6 +82,10 @@ export const useActivityPubStore = defineStore('activitypub', {
       cursor: undefined
     },
     userFeeds: new Map(),
+    
+    // Conversation state
+    conversations: new Map(),
+    conversationContexts: new Map(),
     
     // User state
     followedUsers: new Set(),
@@ -106,6 +118,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     isLoadingPost: false,
     isLoadingProfile: false,
     isPosting: false,
+    isLoadingConversation: false,
     
     // Realtime subscriptions
     realtimeSubscriptions: new Map(),
@@ -1388,8 +1401,128 @@ export const useActivityPubStore = defineStore('activitypub', {
      /**
       * Cleanup store - clean and simple
       */
+     // =============================================
+     // CONVERSATION MANAGEMENT
+     // =============================================
+
+     /**
+      * Get conversation context for a post
+      */
+     async getConversationContext(postId: string): Promise<ConversationContext | null> {
+       try {
+         this.isLoadingConversation = true;
+         
+         // Check cache first
+         if (this.conversationContexts.has(postId)) {
+           return this.conversationContexts.get(postId)!;
+         }
+
+         const context = await activityPubService.getConversationContext(postId);
+         this.conversationContexts.set(postId, context);
+         
+         return context;
+       } catch (error) {
+         console.error('Failed to get conversation context:', error);
+         return null;
+       } finally {
+         this.isLoadingConversation = false;
+       }
+     },
+
+     /**
+      * Get full conversation thread
+      */
+     async getConversationThread(conversationId: string): Promise<ConversationThread | null> {
+       try {
+         this.isLoadingConversation = true;
+         
+         // Check cache first
+         if (this.conversations.has(conversationId)) {
+           return this.conversations.get(conversationId)!;
+         }
+
+         const thread = await activityPubService.getConversationThread(conversationId);
+         this.conversations.set(conversationId, thread);
+         
+         return thread;
+       } catch (error) {
+         console.error('Failed to get conversation thread:', error);
+         return null;
+       } finally {
+         this.isLoadingConversation = false;
+       }
+     },
+
+     /**
+      * Get replies to a specific post
+      */
+     async getPostReplies(postId: string, options: { limit?: number; max_id?: string } = {}) {
+       try {
+         return await activityPubService.getPostReplies(postId, options);
+       } catch (error) {
+         console.error('Failed to get post replies:', error);
+         return [];
+       }
+     },
+
+     /**
+      * Reply to a post
+      */
+     async replyToPost(postId: string, content: string, options: {
+       visibility?: 'public' | 'unlisted' | 'followers' | 'direct';
+       content_warning?: string;
+       is_sensitive?: boolean;
+     } = {}) {
+       try {
+         const replyData = {
+           content: this.formatPostContent(content),
+           visibility: options.visibility || 'public',
+           content_warning: options.content_warning,
+           in_reply_to: postId, // This will be converted to reply_context by service
+           is_sensitive: options.is_sensitive || false,
+           language: 'en'
+         };
+
+         const reply = await activityPubService.createPost(replyData);
+         
+         // Clear conversation cache to force refresh
+         this.conversationContexts.clear();
+         this.conversations.clear();
+         
+         return reply;
+       } catch (error) {
+         console.error('Failed to reply to post:', error);
+         throw error;
+       }
+     },
+
+     /**
+      * Navigate to conversation view
+      */
+     showConversation(postId: string) {
+       // This would typically navigate to a conversation route
+       console.log(`📱 Showing conversation for post: ${postId}`);
+       this.selectedPost = this.getAllPosts().find(p => p.id === postId);
+     },
+
+     /**
+      * Get all posts from all feeds (helper method)
+      */
+     getAllPosts(): TimelinePost[] {
+       return [
+         ...this.homeFeed.posts,
+         ...this.publicFeed.posts,
+         ...this.localFeed.posts,
+         ...Array.from(this.userFeeds.values()).flatMap(feed => feed.posts)
+       ].filter((post, index, array) => 
+         array.findIndex(p => p.id === post.id) === index // Remove duplicates
+       );
+     },
+
      cleanup() {
        this.cleanupRealtimeSubscriptions();
+       this.conversations.clear();
+       this.conversationContexts.clear();
        this.unreadCount = 0;
        console.log('🧹 ActivityPub store cleaned up');
      },

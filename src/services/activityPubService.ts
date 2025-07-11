@@ -11,7 +11,10 @@ import type {
   TimelineOptions,
   TimelinePost,
   ActivityPubActivityType,
-  ActivityPubObjectType
+  ActivityPubObjectType,
+  ConversationContext,
+  ConversationThread,
+  ReplyContext
 } from '@/types';
 
 /**
@@ -314,6 +317,89 @@ export class ActivityPubService {
 
     console.log(`📊 Local timeline loaded: ${data?.length || 0} posts`);
     return data || [];
+  }
+
+  // =============================================
+  // CONVERSATION AND THREAD METHODS  
+  // =============================================
+
+  /**
+   * Get conversation context for a post (ancestors and descendants)
+   */
+  async getConversationContext(postId: string): Promise<ConversationContext> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      const { data, error } = await supabase.rpc('get_conversation_context', {
+        p_post_id: postId,
+        p_user_id: user.id
+      });
+
+      if (error) throw error;
+
+      return {
+        ancestors: data?.ancestors || [],
+        descendants: data?.descendants || []
+      };
+    } catch (error) {
+      console.error('Failed to get conversation context:', error);
+      return { ancestors: [], descendants: [] };
+    }
+  }
+
+  /**
+   * Get full conversation thread for a post
+   */
+  async getConversationThread(conversationId: string): Promise<ConversationThread> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      const { data, error } = await supabase.rpc('get_conversation_thread', {
+        p_conversation_id: conversationId,
+        p_user_id: user.id
+      });
+
+      if (error) throw error;
+
+      return {
+        id: conversationId,
+        posts: data?.posts || [],
+        root_post: data?.root_post,
+        reply_count: data?.reply_count || 0,
+        participant_count: data?.participant_count || 0,
+        last_updated: data?.last_updated || new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Failed to get conversation thread:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get replies to a specific post
+   */
+  async getPostReplies(postId: string, options: TimelineOptions = {}): Promise<TimelinePost[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const limit = options.limit || 20;
+
+    try {
+      const { data, error } = await supabase.rpc('get_post_replies', {
+        p_post_id: postId,
+        p_user_id: user.id,
+        p_limit: limit,
+        p_max_id: options.max_id || null
+      });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Failed to get post replies:', error);
+      return [];
+    }
   }
 
   // =============================================
@@ -1903,7 +1989,7 @@ export class ActivityPubService {
       ap_id: post.ap_id,
       ap_type: post.ap_type,
       url: post.url,
-      in_reply_to: post.in_reply_to,
+      reply_context: post.reply_context,
       conversation_id: post.conversation_id,
       visibility: post.visibility,
       is_local: post.is_local,
@@ -1979,7 +2065,7 @@ export class ActivityPubService {
         ap_id: data.ap_id,
         ap_type: data.ap_type,
         url: data.url,
-        in_reply_to: data.in_reply_to,
+        reply_context: data.reply_context,
         conversation_id: data.conversation_id,
         visibility: data.visibility,
         is_local: data.is_local,

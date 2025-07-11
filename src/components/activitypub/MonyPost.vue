@@ -1,7 +1,7 @@
 <!-- MonyPost Component - Individual post display -->
 <!-- Professional, engaging UI for ActivityPub posts -->
 <template>
-  <article class="mony-post" :class="{ 'is-reply': post.in_reply_to }">
+  <article class="mony-post" :class="{ 'is-reply': post.reply_context }">
     <!-- Main Post Content -->
     <div class="post-content">
       <!-- Author Info -->
@@ -49,14 +49,25 @@
       </div>
 
       <!-- Reply Context (if this is a reply) -->
-      <div v-if="post.in_reply_to" class="reply-context">
+      <div v-if="post.reply_context" class="reply-context">
         <Icon name="reply" />
         <span>Replying to</span>
+        <div class="reply-preview">
+          <Avatar 
+            :src="post.reply_context.author.avatar_url"
+            :alt="post.reply_context.author.display_name"
+            size="sm"
+          />
+          <div class="reply-info">
+            <span class="reply-author">{{ post.reply_context.author.display_name || post.reply_context.author.username }}</span>
+            <span class="reply-content">{{ post.reply_context.content_preview }}</span>
+          </div>
+        </div>
         <button 
           class="reply-target"
           @click="showReplyTarget"
         >
-          conversation
+          Show conversation
         </button>
       </div>
 
@@ -395,9 +406,9 @@ const onDelete = () => {
 };
 
 const showReplyTarget = () => {
-  if (props.post.in_reply_to) {
+  if (props.post.reply_context) {
     // Navigate to the parent post or conversation thread
-    emit('show-conversation', props.post.in_reply_to);
+    emit('show-conversation', props.post.reply_context.id);
   }
 };
 
