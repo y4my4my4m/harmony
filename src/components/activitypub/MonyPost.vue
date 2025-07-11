@@ -501,7 +501,6 @@ const handleHashtagClick = (tag: string) => {
   border-bottom: 1px solid var(--border-color);
   transition: background-color 0.2s;
   border-radius: 12px;
-  width: 600px;
 }
 
 .mony-post:hover {

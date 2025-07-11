@@ -94,6 +94,7 @@ defineEmits<{
   flex-direction: column;
   margin: 0 auto;
   gap: var(--space-4);
+  width: 600px;
 }
 
 .loading-state,
