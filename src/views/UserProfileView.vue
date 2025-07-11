@@ -216,7 +216,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
@@ -467,11 +467,21 @@ const handleReblog = async (postId: string) => {
 };
 
 // Watch route changes
-watch(() => route.params.handle, (newHandle) => {
+watch(() => route.params.handle, (newHandle, oldHandle) => {
+  console.log(`👤 Profile route changed from ${oldHandle} to ${newHandle}`);
   if (newHandle && typeof newHandle === 'string') {
     loadUserProfile(newHandle);
   }
 }, { immediate: true });
+
+// Ensure profile loads on mount
+onMounted(() => {
+  const handle = route.params.handle;
+  console.log(`🔄 UserProfileView mounted with handle: ${handle}`);
+  if (handle && typeof handle === 'string') {
+    loadUserProfile(handle);
+  }
+});
 
 // Close actions menu when clicking outside
 const handleClickOutside = (event: Event) => {

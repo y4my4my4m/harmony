@@ -38,8 +38,8 @@
         />
       </div>
 
-      <!-- Main Content Area -->
-      <div class="main-content-area">        
+      <!-- Main + Right Sidebar Container -->
+      <div class="main-and-right-container">
         <!-- Social Content (RouterView for nested social views) -->
         <div class="social-content-area">
           <RouterView 
@@ -69,51 +69,51 @@
             @back-to-timeline="handleBackToTimeline"
           />
         </div>
-      </div>
 
-      <!-- Right Sidebar (Trending & Suggestions) -->
-      <div class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
-        <div class="activitypub-right-sidebar">
-        <!-- Trending Section -->
-        <div class="sidebar-section">
-          <h3 class="section-title">Trending</h3>
-          <div class="trending-list">
-            <div 
-              v-for="trend in trendingTopics"
-              :key="trend.tag"
-              class="trending-item"
-            >
-              <span class="trending-tag">#{{ trend.tag }}</span>
-              <span class="trending-count">{{ formatNumber(trend.count) }} posts</span>
+        <!-- Right Sidebar (Trending & Suggestions) -->
+        <div class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
+          <div class="activitypub-right-sidebar">
+          <!-- Trending Section -->
+          <div class="sidebar-section">
+            <h3 class="section-title">Trending</h3>
+            <div class="trending-list">
+              <div 
+                v-for="trend in trendingTopics"
+                :key="trend.tag"
+                class="trending-item"
+              >
+                <span class="trending-tag">#{{ trend.tag }}</span>
+                <span class="trending-count">{{ formatNumber(trend.count) }} posts</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Suggested Users -->
-        <div class="sidebar-section">
-          <h3 class="section-title">Suggested Follows</h3>
-          <div class="suggested-users">
-            <UserCard
-              v-for="user in suggestedUsers"
-              :key="user.id"
-              :user="user"
-              :show-follow-btn="true"
-              @follow="handleFollow"
-              @unfollow="handleUnfollow"
-              @click="handleUserCardClick"
-            />
+          <!-- Suggested Users -->
+          <div class="sidebar-section">
+            <h3 class="section-title">Suggested Follows</h3>
+            <div class="suggested-users">
+              <UserCard
+                v-for="user in suggestedUsers"
+                :key="user.id"
+                :user="user"
+                :show-follow-btn="true"
+                @follow="handleFollow"
+                @unfollow="handleUnfollow"
+                @click="handleUserCardClick"
+              />
+            </div>
           </div>
-        </div>
 
-        <!-- Instance Info -->
-        <div class="sidebar-section">
-          <h3 class="section-title">Instance Info</h3>
-          <div class="instance-info">
-            <p class="instance-domain">{{ instanceDomain }}</p>
-            <p class="instance-users">{{ instanceUserCount }} users</p>
-            <p class="instance-posts">{{ instancePostCount }} posts</p>
+          <!-- Instance Info -->
+          <div class="sidebar-section">
+            <h3 class="section-title">Instance Info</h3>
+            <div class="instance-info">
+              <p class="instance-domain">{{ instanceDomain }}</p>
+              <p class="instance-users">{{ instanceUserCount }} users</p>
+              <p class="instance-posts">{{ instancePostCount }} posts</p>
+            </div>
           </div>
-        </div>
+          </div>
         </div>
       </div>
     </div>
@@ -314,6 +314,12 @@ const handleSwitchFeed = async (feed: string) => {
     case 'public':
       await router.push({ name: 'SocialPublic' })
       break
+    case 'trending':
+      await router.push({ name: 'SocialTrending' })
+      break
+    case 'instances':
+      await router.push({ name: 'SocialInstances' })
+      break
     default:
       await router.push({ name: 'SocialHome' })
       break
@@ -330,6 +336,14 @@ const handleSwitchFeed = async (feed: string) => {
         break
       case 'public':
         await activityPubStore.loadPublicFeed()
+        break
+      case 'trending':
+        // Trending data would be loaded by ExploreView
+        console.log('🔥 Navigating to trending view')
+        break
+      case 'instances':
+        // Instance data would be loaded by ExploreView  
+        console.log('🌐 Navigating to instances view')
         break
     }
   } catch (error) {
@@ -528,10 +542,10 @@ const formatNumber = (num: number): string => {
   z-index: 40;
 }
 
-.main-content-area {
+.main-and-right-container {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   overflow: hidden;
 }
 

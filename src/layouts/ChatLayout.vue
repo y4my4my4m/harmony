@@ -44,27 +44,59 @@
         />
       </div>
 
-      <!-- Main Content Area -->
-      <div class="main-content-area">        
-        <!-- Chat Content (RouterView for nested chat views) -->
-        <div class="chat-content-area">
-          <RouterView 
-            :current-server="currentServer"
-            :current-channel="currentChannel"
-            :is-d-m="isDM"
-            :server-id="serverId"
-            :channel-id="channelId"
-            :conversation-id="conversationId"
-            @send-message="handleSendMessage"
+      <!-- Main + Right Sidebar Container -->
+      <div class="main-and-right-container">
+        <!-- Chat Header (spans across main + right sidebar) -->
+        <div class="chat-header-container">
+          <ChatHeader
+            v-if="currentChannel"
+            :channel="currentChannel"
+            :server="currentServer"
+            :is-mobile="isMobile"
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
             @toggle-voice-panel="$emit('toggleVoicePanel')"
           />
+          <div v-else class="chat-placeholder-header">
+            <div class="header-content">
+              <button 
+                v-if="isMobile"
+                class="mobile-menu-btn"
+                @click="$emit('toggleLeftSidebar')"
+              >
+                <svg viewBox="0 0 24 24" class="menu-icon">
+                  <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" fill="currentColor"/>
+                </svg>
+              </button>
+              <h2>{{ currentServer?.name || 'Chat' }}</h2>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- Right Sidebar (User List) -->
-      <div v-if="!isDM" class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
-        <UserSidebar />
+        <!-- Content Row (Main Content + Right Sidebar) -->
+        <div class="content-row">
+          <!-- Main Content Area -->
+          <div class="main-content-area">        
+            <!-- Chat Content (RouterView for nested chat views) -->
+            <div class="chat-content-area">
+              <RouterView 
+                :current-server="currentServer"
+                :current-channel="currentChannel"
+                :is-d-m="isDM"
+                :server-id="serverId"
+                :channel-id="channelId"
+                :conversation-id="conversationId"
+                @send-message="handleSendMessage"
+                @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+                @toggle-voice-panel="$emit('toggleVoicePanel')"
+              />
+            </div>
+          </div>
+
+          <!-- Right Sidebar (User List) -->
+          <div v-if="!isDM" class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
+            <UserSidebar />
+          </div>
+        </div>
       </div>
     </div>
     
@@ -293,6 +325,70 @@ onMounted(() => {
   border-right: 1px solid var(--border-color);
   position: relative;
   z-index: 40;
+}
+
+.main-and-right-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-header-container {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-primary);
+  z-index: 60;
+}
+
+.chat-placeholder-header {
+  height: 48px;
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.mobile-menu-btn:hover {
+  background: var(--background-secondary);
+}
+
+.menu-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.chat-placeholder-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.content-row {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
 }
 
 .main-content-area {

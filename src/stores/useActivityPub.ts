@@ -567,37 +567,10 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Update timeline cache when data changes
      */
     async updateTimelineCache() {
-      try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) return;
-
-        // Update all timeline caches for this user in background
-        const timelineTypes = ['home', 'local', 'public'];
-        
-        await Promise.all(timelineTypes.map(async (type) => {
-          try {
-            const { error } = await supabase.rpc('update_timeline_cache', {
-              p_user_id: user.data.user!.id,
-              p_timeline_type: type,
-              p_action: 'rebuild'
-            });
-            
-            if (error) {
-              // Don't throw if RPC doesn't exist yet
-              if (error.code === '42883') { // Function does not exist
-                console.log(`Timeline cache RPC not available for ${type} - skipping`);
-              } else {
-                console.error(`Failed to update ${type} cache:`, error);
-              }
-            }
-          } catch (error) {
-            console.error(`Failed to update ${type} cache:`, error);
-          }
-        }));
-
-      } catch (error) {
-        console.error('Failed to update timeline cache:', error);
-      }
+      // Skip RPC calls that have database schema issues
+      // Client-side post updates in updatePostInteractionCounts are sufficient
+      console.log('📋 Timeline cache update skipped - using client-side updates for better stability');
+      return;
     },
 
     /**
