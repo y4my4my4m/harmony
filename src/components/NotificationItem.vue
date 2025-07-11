@@ -687,6 +687,11 @@ const typeIcon = computed(() => {
 .reaction-text {
   color: #b9bbbe;
   font-weight: 500;
+  display: flex;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px;
+  align-items: center;
 }
 
 /* Quick actions */

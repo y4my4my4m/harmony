@@ -19,7 +19,7 @@
             <Icon name="dots-vertical" class="action-icon" />
           </button>
           <button @click="$emit('close')" class="close-button">
-            <Icon name="x" class="close-icon" />
+            <Icon name="close" class="close-icon" />
           </button>
         </div>
       </div>

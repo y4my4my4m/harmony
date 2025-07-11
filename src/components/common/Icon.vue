@@ -77,9 +77,9 @@
     <line v-if="name === 'expand'" x1="3" y1="21" x2="10" y2="14"></line>
     
     <!-- X (Close) -->
-    <line v-if="name === 'x'" x1="18" y1="6" x2="6" y2="18"></line>
-    <line v-if="name === 'x'" x1="6" y1="6" x2="18" y2="18"></line>
-    
+    <line v-if="name === 'x' || name === 'close'" x1="18" y1="6" x2="6" y2="18"></line>
+    <line v-if="name === 'x' || name === 'close'" x1="6" y1="6" x2="18" y2="18"></line>
+
     <!-- Grid -->
     <rect v-if="name === 'grid'" x="3" y="3" width="7" height="7"></rect>
     <rect v-if="name === 'grid'" x="14" y="3" width="7" height="7"></rect>
@@ -480,11 +480,7 @@
     <!-- Trash -->
     <polyline v-if="name === 'trash'" points="3 6 5 6 21 6"></polyline>
     <path v-if="name === 'trash'" d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-    
-    <!-- Close (same as X) -->
-    <line v-if="name === 'close'" x1="18" y1="6" x2="6" y2="18"></line>
-    <line v-if="name === 'close'" x1="6" y1="6" x2="18" y2="18"></line>
-    
+
     <!-- File -->
     <path v-if="name === 'file'" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
     <polyline v-if="name === 'file'" points="14 2 14 8 20 8"></polyline>
@@ -541,7 +537,7 @@
     <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2" fill="none"/>
     <g v-if="name === 'mony-mascot'">
       <!-- Elongated, empty four-pointed star (diamond shape, vertical and horizontal points) -->
-      <polygon 
+      <polygon
         points="12,6.5 18,12 12,17.5 6.5,12" 
         fill="none"
         stroke="currentColor"
@@ -550,7 +546,8 @@
       />
     </g>
     <!-- Pencil -->
-    <path v-if="name === 'pencil'" d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>
+    <path v-if="name === 'pencil'" d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>
+    <path v-if="name === 'pencil'" d="m15 5 4 4"/>
 
     <!-- Repeat (Repost/Retweet) -->
     <polyline v-if="name === 'repeat'" points="17 1 21 5 17 9"></polyline>
