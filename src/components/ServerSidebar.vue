@@ -47,7 +47,7 @@ import { defineComponent, computed, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useActivityPubStore } from '@/stores/useActivityPub';
-import { ViewMode, isActivityPubRoute } from '@/types/viewTypes';
+import { isActivityPubRoute } from '@/types/viewTypes';
 import type { Server } from '@/types';
 
 export default defineComponent({
@@ -90,9 +90,31 @@ export default defineComponent({
       }
     });
 
-    const selectServer = (serverId: string) => {
+    const selectServer = async (serverId: string) => {
       emit('switch-to-chat');
-      router.push({ name: 'Chat', params: { serverId: serverId } });
+      
+      // Set the current server first
+      serverChannelStore.setCurrentServer(serverId);
+      
+      // Fetch channels for this server
+      await serverChannelStore.fetchCategoriesAndChannels(serverId);
+      
+      // Get the default channel for this server
+      const defaultChannelId = serverChannelStore.getDefaultChannel();
+      
+      if (defaultChannelId) {
+        // Navigate to the specific server and channel
+        router.push({ 
+          name: 'ChatChannel', 
+          params: { 
+            serverId: serverId, 
+            channelId: defaultChannelId 
+          } 
+        });
+      } else {
+        // Fallback to base chat route if no channels available
+        router.push({ name: 'Chat' });
+      }
     };
 
     const goToDMs = () => {
