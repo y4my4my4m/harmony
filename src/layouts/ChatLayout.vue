@@ -25,47 +25,47 @@
         @toggle-search="handleToggleSearch"
       />
     </div>
-    
-    <!-- Channel Sidebar -->
-    <div class="channel-sidebar-container" :class="{ 'mobile-open': leftSidebarOpen }">
-      <AdaptiveChannelSidebar
-        mode="chat"
-        :current-server="currentServer"
-        :channels="channels"
-        :current-channel-id="currentChannelId"
-        :categories="categories"
-        :category-channels="categoryChannels"
-        :is-d-m="isDM"
-        @channel-selected="handleChannelSelected"
-        @create-channel="handleCreateChannel"
-        @conversation-selected="handleDMConversationSelected"
-      />
-    </div>
 
-    <!-- Main Content Area -->
-    <div class="main-content-area">
-      <MainContentAreaHeader 
-        mode="chat" 
-        :current-view="currentView" 
-        :is-mobile="isMobile" 
-        :current-channel="currentChannel"
-        :view-type="viewType"
-      />
-      
-      <!-- Chat Content (RouterView for nested chat views) -->
-      <div class="chat-content-area">
-        <RouterView 
+    <!-- Chat Layout Content (Flex Row) -->
+    <div class="chat-layout-content">
+      <!-- Channel Sidebar -->
+      <div class="channel-sidebar-container" :class="{ 'mobile-open': leftSidebarOpen }">
+        <AdaptiveChannelSidebar
+          mode="chat"
           :current-server="currentServer"
-          :current-channel="currentChannel"
+          :channels="channels"
+          :current-channel-id="currentChannelId"
+          :categories="categories"
+          :category-channels="categoryChannels"
           :is-d-m="isDM"
-          @send-message="handleSendMessage"
+          @channel-selected="handleChannelSelected"
+          @create-channel="handleCreateChannel"
+          @conversation-selected="handleDMConversationSelected"
         />
       </div>
-    </div>
 
-    <!-- Right Sidebar (User List) -->
-    <div class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
-      <UserSidebar />
+      <!-- Main Content Area -->
+      <div class="main-content-area">        
+        <!-- Chat Content (RouterView for nested chat views) -->
+        <div class="chat-content-area">
+          <RouterView 
+            :current-server="currentServer"
+            :current-channel="currentChannel"
+            :is-d-m="isDM"
+            :server-id="serverId"
+            :channel-id="channelId"
+            :conversation-id="conversationId"
+            @send-message="handleSendMessage"
+            @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+            @toggle-voice-panel="$emit('toggleVoicePanel')"
+          />
+        </div>
+      </div>
+
+      <!-- Right Sidebar (User List) -->
+      <div v-if="!isDM" class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
+        <UserSidebar />
+      </div>
     </div>
     
     <!-- Chat Modals -->
@@ -142,6 +142,11 @@ const currentChannel = computed(() => {
   return channels.value.find(c => c.id === currentChannelId.value)
 })
 
+// Props computed for router-view
+const serverId = computed(() => props.serverId || currentServer.value?.id)
+const channelId = computed(() => props.channelId || currentChannelId.value)
+const conversationId = computed(() => props.conversationId)
+
 const shouldShowNoServersSplash = computed(() => {
   return !props.isDM && servers.value.length === 0
 })
@@ -152,7 +157,10 @@ const handleToggleSearch = () => {
 }
 
 const handleChannelSelected = (channelId: string) => {
-  router.push(`/chat/${props.serverId}/${channelId}`)
+  const currentServerId = serverId.value || currentServer.value?.id
+  if (currentServerId) {
+    router.push(`/chat/${currentServerId}/${channelId}`)
+  }
 }
 
 const handleCreateChannel = (categoryId: string) => {
@@ -192,6 +200,13 @@ const handleSendMessage = (message: any) => {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-color);
   z-index: 50;
+}
+
+.chat-layout-content {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
 }
 
 .channel-sidebar-container {

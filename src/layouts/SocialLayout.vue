@@ -20,63 +20,57 @@
         @open-composer="handleOpenComposer"
       />
     </div>
-    
-    <!-- Social Sidebar -->
-    <div class="social-sidebar-container" :class="{ 'mobile-open': leftSidebarOpen }">
-      <AdaptiveChannelSidebar
-        mode="activitypub"
-        :following-count="followingCount"
-        :followers-count="followersCount"
-        :instance-domain="instanceDomain"
-        :instance-user-count="instanceUserCount"
-        :instance-post-count="instancePostCount"
-      />
-    </div>
 
-    <!-- Main Content Area -->
-    <div class="main-content-area">
-      <MainContentAreaHeader 
-        mode="activitypub" 
-        :current-view="currentView" 
-        :is-mobile="isMobile" 
-        :view-type="viewType"
-        @switch-feed="handleSwitchFeed"
-      />
-      
-      <!-- Social Content (RouterView for nested social views) -->
-      <div class="social-content-area">
-        <RouterView 
-          :current-view="currentView"
-          :posts="posts"
-          :is-loading-feed="isLoadingFeed"
-          :has-more-posts="hasMorePosts"
-          :profile-user="profileUser"
-          :profile-handle="profileHandle"
-          :special-view-data="specialViewData"
-          :has-more-special-data="hasMoreSpecialData"
-          :post-id="postId"
-          @refresh-timeline="$emit('refreshTimeline')"
-          @post-created="handlePostCreated"
-          @switch-feed="handleSwitchFeed"
-          @reply-to-post="handleReplyToPost"
-          @favorite-post="handleFavoritePost"
-          @reblog-post="handleReblogPost"
-          @bookmark-post="handleBookmarkPost"
-          @delete-post="handleDeletePost"
-          @show-user-profile="handleShowUserProfile"
-          @load-more-posts="handleLoadMorePosts"
-          @follow-user="handleFollow"
-          @unfollow-user="handleUnfollow"
-          @clear-all-bookmarks="handleClearAllBookmarks"
-          @load-more-special-data="handleLoadMoreSpecialData"
-          @back-to-timeline="handleBackToTimeline"
+    <!-- Social Layout Content (Flex Row) -->
+    <div class="social-layout-content">
+      <!-- Social Sidebar -->
+      <div class="social-sidebar-container" :class="{ 'mobile-open': leftSidebarOpen }">
+        <AdaptiveChannelSidebar
+          mode="activitypub"
+          :following-count="followingCount"
+          :followers-count="followersCount"
+          :instance-domain="instanceDomain"
+          :instance-user-count="instanceUserCount"
+          :instance-post-count="instancePostCount"
         />
       </div>
-    </div>
 
-    <!-- Right Sidebar (Trending & Suggestions) -->
-    <div class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
-      <div class="activitypub-right-sidebar">
+      <!-- Main Content Area -->
+      <div class="main-content-area">        
+        <!-- Social Content (RouterView for nested social views) -->
+        <div class="social-content-area">
+          <RouterView 
+            :current-view="currentView"
+            :posts="posts"
+            :is-loading-feed="isLoadingFeed"
+            :has-more-posts="hasMorePosts"
+            :profile-user="profileUser"
+            :profile-handle="profileHandle"
+            :special-view-data="specialViewData"
+            :has-more-special-data="hasMoreSpecialData"
+            :post-id="postId"
+            @refresh-timeline="$emit('refreshTimeline')"
+            @post-created="handlePostCreated"
+            @switch-feed="handleSwitchFeed"
+            @reply-to-post="handleReplyToPost"
+            @favorite-post="handleFavoritePost"
+            @reblog-post="handleReblogPost"
+            @bookmark-post="handleBookmarkPost"
+            @delete-post="handleDeletePost"
+            @show-user-profile="handleShowUserProfile"
+            @load-more-posts="handleLoadMorePosts"
+            @follow-user="handleFollow"
+            @unfollow-user="handleUnfollow"
+            @clear-all-bookmarks="handleClearAllBookmarks"
+            @load-more-special-data="handleLoadMoreSpecialData"
+            @back-to-timeline="handleBackToTimeline"
+          />
+        </div>
+      </div>
+
+      <!-- Right Sidebar (Trending & Suggestions) -->
+      <div class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
+        <div class="activitypub-right-sidebar">
         <!-- Trending Section -->
         <div class="sidebar-section">
           <h3 class="section-title">Trending</h3>
@@ -152,7 +146,6 @@
 import { computed, ref } from 'vue'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
-import MainContentAreaHeader from '@/components/MainContentAreaHeader.vue'
 import MonyComposer from '@/components/activitypub/MonyComposer.vue'
 import UserCard from '@/components/activitypub/UserCard.vue'
 import UserSearchModal from '@/components/activitypub/UserSearchModal.vue'
@@ -333,6 +326,13 @@ const formatNumber = (num: number): string => {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-color);
   z-index: 50;
+}
+
+.social-layout-content {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
 }
 
 .social-sidebar-container {
