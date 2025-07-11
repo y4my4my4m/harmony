@@ -190,7 +190,7 @@ async function processFollowActivity(supabase: any, activity: ActivityPubActivit
       accepted_at: new Date().toISOString(),
       is_local: false
     }, {
-      onConflict: 'follower_id,following_id'
+      onConflict: ['follower_id', 'following_id']
     })
 
   if (error) {
