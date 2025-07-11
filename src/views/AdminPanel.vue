@@ -402,7 +402,7 @@
                   {{ user.postCount }} posts
                 </button>
                 <button 
-                  v-if="!user.domain" 
+                  v-if="!user.is_local" 
                   @click="navigateToUserServers(user)" 
                   class="user-stat clickable"
                 >
@@ -718,8 +718,8 @@ const healthStatus = computed(() => {
 
 const userFilters = computed(() => [
   { key: 'all', label: 'All Users', count: users.value.length },
-  { key: 'local', label: 'Local', count: users.value.filter(u => !u.domain).length },
-  { key: 'federated', label: 'Federated', count: users.value.filter(u => u.domain).length },
+  { key: 'local', label: 'Local', count: users.value.filter(u => u.is_local).length },
+  { key: 'federated', label: 'Federated', count: users.value.filter(u => !u.is_local).length },
   { key: 'suspended', label: 'Suspended', count: users.value.filter(u => u.is_suspended).length }
 ])
 
@@ -730,10 +730,10 @@ const filteredUsers = computed(() => {
   if (activeUserFilter.value !== 'all') {
     switch (activeUserFilter.value) {
       case 'local':
-        filtered = filtered.filter(u => !u.domain)
+        filtered = filtered.filter(u => u.is_local)
         break
       case 'federated':
-        filtered = filtered.filter(u => u.domain)
+        filtered = filtered.filter(u => !u.is_local)
         break
       case 'suspended':
         filtered = filtered.filter(u => u.is_suspended)

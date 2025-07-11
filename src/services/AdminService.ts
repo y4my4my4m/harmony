@@ -31,6 +31,7 @@ export interface AdminUser {
   created_at: string;
   updated_at?: string;
   domain?: string;
+  is_local?: boolean; // Indicates if the user is local or remote
   is_admin: boolean;
   is_suspended: boolean;
   suspended_at?: string;
@@ -254,6 +255,7 @@ class AdminService {
           created_at,
           updated_at,
           domain,
+          is_local,
           is_admin,
           is_suspended,
           suspended_at,
@@ -276,7 +278,7 @@ class AdminService {
 
           // Get user's server count (for local users)
           let serverCount = 0;
-          if (!user.domain || user.domain === 'har.mony.lol') {
+          if (user.is_local) {
             const { count } = await supabase
               .from('user_servers')
               .select('*', { count: 'exact', head: true })
@@ -289,7 +291,7 @@ class AdminService {
             ap_actor_id: undefined, // Not available in current schema
             postCount: postCount || 0,
             serverCount,
-            handle: user.domain && user.domain !== 'har.mony.lol' 
+            handle: !user.is_local
               ? `@${user.username}@${user.domain}` 
               : `@${user.username}`
           };
