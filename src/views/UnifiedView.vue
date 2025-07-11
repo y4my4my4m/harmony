@@ -276,6 +276,7 @@ import { useMobileGestures } from '@/composables/useMobileGestures';
 // Services
 import { statePersistence } from '@/services/StatePersistence';
 import { viewContextTracker } from '@/services/ViewContextTracker';
+import { unifiedAppService } from '@/services/unifiedAppService';
 
 import type { Channel, FederatedUser, TimelinePost, Post } from "@/types";
 import { 
@@ -524,12 +525,27 @@ const { getDefaultChannel } = useChannelSelection();
 const handleChannelSelected = async (channelId: string) => {
   serverChannelStore.setCurrentChannel(channelId);
   
+  // Update both view context and presence context
+  const contextInfo = {
+    type: 'server' as const,
+    serverId: currentServer.value?.id,
+    channelId: channelId,
+    conversationId: undefined
+  };
+  
   viewContextTracker.updateContext({
     server_id: currentServer.value?.id,
     channel_id: channelId,
     conversation_id: undefined,
     view_type: 'server_channel'
   });
+  
+  try {
+    const { presenceContextManager } = await import('@/services/presenceContextManager');
+    await presenceContextManager.updateContext(contextInfo);
+  } catch (error) {
+    console.error('Failed to update presence context:', error);
+  }
   
   const isCached = chatStore.isMessageCached(channelId);
   
@@ -1261,20 +1277,65 @@ onMounted(async () => {
     isAppInitialized.value = true;
     hasServersLoaded.value = true;
     
-    // Initialize presence for current user
-    const userProfile = serverUsersStore.userProfiles[userId];
-    if (userProfile && currentServer.value?.id) {
-      serverUsersStore.initializePresence(
-        currentServer.value.id, 
-        userId, 
-        userProfile.display_name || userProfile.username || 'Unknown User', 
-        userProfile.avatar_url
-      );
-    }
-    serverUsersStore.subscribeToUserStatuses();
+    // Initialize global user status system
+    const userProfile = profileStore.profile || serverUsersStore.userProfiles[userId];
+    const username = userProfile?.display_name || userProfile?.username || 
+                    authStore.session?.user?.user_metadata?.username || 'Unknown User';
+    const avatar = userProfile?.avatar_url;
     
-    // Subscribe to offline broadcast notifications
-    serverUsersStore.subscribeToOfflineBroadcasts();
+    // Initialize the global presence system
+    try {
+      const { initializeUserStatus } = await import('@/composables/useUserStatus');
+      await initializeUserStatus(userId, username, avatar);
+      console.log('✅ Global user status system initialized');
+      
+      // Initialize unified app presence management
+      await unifiedAppService.initializePresence(userId, username, avatar);
+      
+      // Initialize view context integration for presence
+      const contextInfo = {
+        type: currentServer.value?.id ? 'server' as const : 'unknown' as const,
+        serverId: currentServer.value?.id,
+        channelId: undefined,
+        conversationId: undefined
+      };
+      
+      const { presenceContextManager } = await import('@/services/presenceContextManager');
+      await presenceContextManager.updateContext(contextInfo);
+      
+      viewContextTracker.updateContext({
+        server_id: currentServer.value?.id,
+        channel_id: undefined,
+        conversation_id: undefined,
+        view_type: currentServer.value?.id ? 'server_channel' : 'home'
+      });
+      
+      console.log('✅ Global presence system fully initialized, skipping old system');
+      
+    } catch (error) {
+      console.error('Failed to initialize user status system:', error);
+      console.log('🔄 Falling back to old server-specific presence system...');
+      
+      // COMPLETELY DISABLE GLOBAL SYSTEM ON FALLBACK
+      try {
+        const { cleanupUserStatus } = await import('@/composables/useUserStatus');
+        await cleanupUserStatus();
+      } catch (cleanupError) {
+        console.error('Failed to cleanup global system:', cleanupError);
+      }
+      
+      // Fallback to old system if global system fails
+      if (userProfile && currentServer.value?.id) {
+        serverUsersStore.initializePresence(
+          currentServer.value.id, 
+          userId, 
+          username, 
+          avatar
+        );
+      }
+      serverUsersStore.subscribeToUserStatuses();
+      serverUsersStore.subscribeToOfflineBroadcasts();
+    }
     
     // Load initial server and channel state
     await loadServerAndChannel();

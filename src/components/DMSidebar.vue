@@ -55,7 +55,7 @@
             :src="getUserAvatarUrl(user)"
             :alt="user.display_name || user.username"
             size="sm"
-            :status="user.is_online ? 'online' : 'offline'"
+            :status="getUserStatus(user.id)"
             class="user-avatar"
           />
           <div class="user-info">
@@ -98,7 +98,7 @@
             :src="getUserAvatarUrl(conversation.other_user)"
             :alt="conversation.other_user?.display_name || conversation.other_user?.username"
             size="sm"
-            :status="conversation.other_user?.is_online ? 'online' : 'offline'"
+            :status="getConversationUserStatus(conversation)"
             class="conversation-avatar"
           />
           
@@ -134,6 +134,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
+import { useUserStatus } from '@/composables/useUserStatus'
 import type { Message, MessagePart } from '@/types'
 import { getUserAvatarUrl } from '@/utils/avatarUtils'
 import Avatar from '@/components/common/Avatar.vue'
@@ -150,6 +151,9 @@ const emit = defineEmits<{
 const dmStore = useDMStore()
 const authStore = useAuthStore()
 
+// Use global status system
+const { getUserStatusForAvatar } = useUserStatus()
+
 // State
 const showUserSearch = ref(false)
 const searchQuery = ref('')
@@ -157,6 +161,27 @@ const searchTimeout = ref<NodeJS.Timeout | null>(null)
 
 // Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
+
+// Get user status for avatar display
+const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
+  try {
+    const status = getUserStatusForAvatar(userId).value;
+    console.log('DMSidebar - Status for user', userId, ':', status);
+    return status;
+  } catch (error) {
+    console.error('DMSidebar - Error getting status for user', userId, ':', error);
+    return 'offline';
+  }
+}
+
+// Get conversation user status
+const getConversationUserStatus = (conversation: DMConversation): 'online' | 'away' | 'busy' | 'offline' => {
+  if (!conversation.other_user?.id) {
+    console.log('DMSidebar - No other_user.id for conversation:', conversation.id);
+    return 'offline';
+  }
+  return getUserStatus(conversation.other_user.id);
+}
 
 // Methods
 const handleSearch = () => {

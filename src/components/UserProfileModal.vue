@@ -93,7 +93,7 @@
             <span class="stat-label">Member Since</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">{{ userStatus === 'online' ? 'Active' : 'Offline' }}</span>
+            <span class="stat-value">{{ getUserStatusText(userStatus) }}</span>
             <span class="stat-label">Status</span>
           </div>
           
@@ -302,6 +302,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'  
+import { useUserStatus } from '@/composables/useUserStatus'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import type { User, FederatedUser } from '../types'
@@ -318,6 +319,9 @@ const emit = defineEmits(['close', 'invite', 'follow', 'unfollow'])
 const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
+
+// Use global status system
+const { getUserStatusForAvatar, getUserStatusText } = useUserStatus()
 
 // Reactive state
 const showActionsMenu = ref(false)
@@ -367,8 +371,10 @@ const socialStats = computed(() => {
 })
 
 const userStatus = computed(() => {
-  // This would typically come from a real-time presence system
-  return 'online' // 'online', 'idle', 'dnd', 'offline'
+  if (!props.user) return 'offline'
+  // Use global status system
+  const status = getUserStatusForAvatar(props.user.id).value
+  return status || 'offline'
 })
 
 // Methods

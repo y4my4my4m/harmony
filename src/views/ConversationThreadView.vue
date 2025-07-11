@@ -44,6 +44,7 @@
       <!-- Conversation thread -->
       <div v-else-if="conversationThread" class="conversation-container">
         <!-- Root post (highlighted) -->
+         
         <article 
           class="root-post"
           :class="{ 'highlighted-post': isHighlighted(conversationThread.root_post.id) }"
@@ -134,6 +135,7 @@ import ThreadedPost from '@/components/activitypub/ThreadedPost.vue';
 import InlineReplyComposer from '@/components/activitypub/InlineReplyComposer.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import Icon from '@/components/common/Icon.vue';
+import { useAuthStore } from '@/stores/auth';
 
 // Props
 interface Props {
@@ -159,6 +161,7 @@ const showReplyComposer = ref(false);
 const replyingToPostId = ref<string | null>(null);
 const error = ref<string | null>(null);
 const threadContainer = ref<HTMLElement>();
+const authStore = useAuthStore();
 
 // Post refs for scrolling
 const postRefs = ref<Map<string, HTMLElement>>(new Map());
@@ -189,16 +192,23 @@ const loadConversation = async () => {
   error.value = null;
 
   try {
-    console.log(`🔍 Loading conversation thread for post: ${props.postId}`);
+    // Try to get postId from props, fallback to route params
+    const postId = props.postId || route.params.postId;
+    if (!postId) {
+      throw new Error('Post ID is required to load conversation');
+    }
+    console.log(`🔍 Loading conversation thread for post: ${postId} for ${ authStore.session?.user.id}`);
     
     // Load the conversation thread and context
     const [thread, context] = await Promise.all([
-      ConversationService.getConversationThread(props.postId),
-      supabase.rpc('get_conversation_context', { post_id: props.postId })
+      ConversationService.getConversationThread(postId as string),
+      supabase.rpc('get_activitypub_conversation_context', { in_post_id: postId })
     ]);
     
     conversationThread.value = thread;
+    console.log(`✅ Loaded conversation thread with ${JSON.stringify(thread)} posts`);
     conversationContext.value = context.data?.[0] || null;
+    console.log(`✅ Loaded conversation context:`, conversationContext.value);
     
     console.log(`✅ Loaded conversation with ${thread.posts.length} posts`);
     

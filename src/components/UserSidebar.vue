@@ -87,7 +87,7 @@
               :src="user.avatar_url"
               :alt="user.display_name || 'Unknown User'"
               size="sm"
-              :status="getStatusForAvatar(user.status)"
+              :status="getStatusForAvatar(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
@@ -120,7 +120,7 @@
               :src="user.avatar_url"
               :alt="user.display_name || 'Unknown User'"
               size="sm"
-              :status="getStatusForAvatar(user.status)"
+              :status="getStatusForAvatar(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
@@ -153,7 +153,7 @@
               :src="user.avatar_url"
               :alt="user.display_name || 'Unknown User'"
               size="sm"
-              :status="getStatusForAvatar(user.status)"
+              :status="getStatusForAvatar(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
@@ -186,7 +186,7 @@
               :src="user.avatar_url"
               :alt="user.display_name || 'Unknown User'"
               size="sm"
-              :status="getStatusForAvatar(user.status)"
+              :status="getStatusForAvatar(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
@@ -225,9 +225,13 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
+import { useUserStatus } from '@/composables/useUserStatus';
 
 const serverChannelStore = useServerChannelStore();
 const serverUsersStore = useServerUsersStore();
+
+// Use the regular useUserStatus instead of context-aware for now
+const { getUserStatusEnum, getUserStatusForAvatar } = useUserStatus();
 
 // Component state
 const selectedUser = ref<User | null>(null);
@@ -250,9 +254,12 @@ const collapsedGroups = ref({
 // Make users reactive to store changes
 const users = computed(() => {
   const serverId = serverChannelStore.currentServerId;
+  console.log('UserSidebar - Current server ID:', serverId);
   if (!serverId) return [];
   
-  return Object.values(serverUsersStore.userProfiles).filter(user => user && user.id);
+  const profiles = Object.values(serverUsersStore.userProfiles);
+  console.log('UserSidebar - User profiles:', profiles.length, profiles);
+  return profiles.filter(user => user && user.id);
 });
 
 // Filter users based on search query
@@ -268,7 +275,7 @@ const filteredUsers = computed(() => {
   );
 });
 
-// Group users by status
+// Group users by status using global status system
 const groupedUsers = computed(() => {
   const groups = {
     online: [] as User[],
@@ -278,20 +285,50 @@ const groupedUsers = computed(() => {
   };
   
   filteredUsers.value.forEach(user => {
-    switch (user.status) {
-      case UserStatus.Online:
-        groups.online.push(user);
-        break;
-      case UserStatus.Away:
-        groups.away.push(user);
-        break;
-      case UserStatus.Busy:
-        groups.busy.push(user);
-        break;
-      case UserStatus.Offline:
-      default:
+    try {
+      // Use global status system instead of server-specific status
+      const globalStatus = getUserStatusEnum(user.id).value;
+      console.log('UserSidebar - User', user.display_name, 'global status:', globalStatus);
+      
+      switch (globalStatus) {
+        case UserStatus.Online:
+          groups.online.push(user);
+          break;
+        case UserStatus.Away:
+          groups.away.push(user);
+          break;
+        case UserStatus.Busy:
+          groups.busy.push(user);
+          break;
+        default:
+          groups.offline.push(user);
+          break;
+      }
+    } catch (error) {
+      console.error('UserSidebar - Error getting global status for user', user.id, ':', error);
+      // Fallback to local status or offline
+      const localStatus = user.status;
+      console.log('UserSidebar - User', user.display_name, 'fallback to local status:', localStatus);
+      
+      if (localStatus !== undefined) {
+        switch (localStatus) {
+          case UserStatus.Online:
+            groups.online.push(user);
+            break;
+          case UserStatus.Away:
+            groups.away.push(user);
+            break;
+          case UserStatus.Busy:
+            groups.busy.push(user);
+            break;
+          default:
+            groups.offline.push(user);
+            break;
+        }
+      } else {
+        // No status available, default to offline
         groups.offline.push(user);
-        break;
+      }
     }
   });
   
@@ -300,6 +337,7 @@ const groupedUsers = computed(() => {
     group.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
   });
   
+  console.log('UserSidebar - Grouped users:', groups);
   return groups;
 });
 
@@ -362,17 +400,30 @@ const showUserProfile = (user: User) => {
   showProfileModal.value = true;
 };
 
-const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'offline' => {
-  switch (status) {
-    case UserStatus.Online:
-      return 'online';
-    case UserStatus.Away:
-      return 'away';
-    case UserStatus.Busy:
-      return 'busy';
-    case UserStatus.Offline:
-    default:
-      return 'offline';
+const getStatusForAvatar = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
+  try {
+    // First try global status system
+    const status = getUserStatusForAvatar(userId).value;
+    console.log('UserSidebar - Global status for user', userId, ':', status);
+    return status;
+  } catch (error) {
+    console.error('UserSidebar - Error getting global status for user', userId, ':', error);
+    
+    // Fallback to local user status
+    const user = serverUsersStore.userProfiles[userId];
+    if (user?.status !== undefined) {
+      switch (user.status) {
+        case UserStatus.Online:
+          return 'online';
+        case UserStatus.Away:
+          return 'away';
+        case UserStatus.Busy:
+          return 'busy';
+        default:
+          return 'offline';
+      }
+    }
+    return 'offline';
   }
 };
 
@@ -390,11 +441,10 @@ const closeInviteModal = () => {
   showInviteModal.value = false;
 };
 
-// Initialize on mount and ensure status subscription is active
+// Initialize on mount
 onMounted(() => {
   fetchAndSetUsers(serverChannelStore.currentServerId);
-  // Make sure status subscription is active
-  serverUsersStore.subscribeToUserStatuses();
+  // Global status subscription is now handled by useContextUserStatus
 });
 </script>
 

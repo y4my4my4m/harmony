@@ -222,7 +222,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostInteractions } from '@/composables/usePostInteractions';
@@ -415,25 +414,30 @@ const showReplyTarget = async () => {
   
   if (props.post.reply_context) {
     try {
-      // Use ConversationService for professional conversation navigation
-      const router = useRouter();
-      await ConversationService.navigateToConversation(props.post.id, router, {
+      // Get conversation navigation data from service
+      const navigationData = await ConversationService.getConversationNavigationData(props.post.id, {
         highlightPost: props.post.id
       });
       
-      console.log('✅ Successfully navigated to conversation thread');
+      if (navigationData.success && navigationData.route) {
+        console.log('✅ Got conversation navigation data:', navigationData);
+        
+        // Handle navigation in the component
+        await router.push(navigationData.route);
+        console.log('✅ Successfully navigated to conversation thread');
+      } else {
+        console.error('❌ Failed to get conversation navigation data:', navigationData.error);
+        
+        // Use fallback route
+        await router.push(navigationData.fallbackRoute);
+      }
+      
     } catch (error) {
       console.error('❌ Failed to navigate to conversation:', error);
       
       // Fallback: emit the event as before
-      console.log('📤 Using fallback event emission');
+      console.log('� Using fallback event emission');
       emit('show-conversation', props.post.id);
-      
-      // Last resort fallback: direct navigation
-      setTimeout(() => {
-        console.log('🚀 Using last resort navigation fallback');
-        window.location.href = `/social/conversation/${props.post.id}?highlight=${props.post.id}`;
-      }, 100);
     }
   } else {
     console.warn('⚠️ No reply context found for post:', props.post.id);

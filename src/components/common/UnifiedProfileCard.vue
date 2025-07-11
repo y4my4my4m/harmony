@@ -157,6 +157,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useUserStatus } from '@/composables/useUserStatus'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
 import type { User, FederatedUser } from '@/types'
@@ -200,6 +201,9 @@ const emit = defineEmits<{
 const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
+
+// Global status system
+const { getUserStatusForAvatar, isUserOnline } = useUserStatus()
 
 // State
 const isFollowLoading = ref(false)
@@ -256,8 +260,8 @@ const specialBadgeIcon = computed(() => {
 
 const chatUserStatus = computed(() => {
   if (isFederatedUser(props.user)) return undefined
-  // Add logic to get user online status for chat users
-  return 'online' // 'online', 'idle', 'dnd', 'offline'
+  // Use global status system for chat users
+  return getUserStatusForAvatar(props.user.id).value
 })
 
 const isFollowing = computed(() => {

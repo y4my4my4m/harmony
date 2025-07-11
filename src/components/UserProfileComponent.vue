@@ -5,13 +5,13 @@
     <Avatar 
       :src="profile?.avatar_url"
       size="md"
-      :status="getStatusForAvatar(currentStatus)"
+      :status="getUserStatusForAvatar(authStore.session?.user?.id || '').value"
     />
     <div class="user-info">
       <p class="user-name">{{ profile?.display_name }}</p>
       <div class="user-status-container" @click="toggleStatusDropdown">
-        <div class="status-dot" :class="getUserStatusClass(currentStatus)"></div>
-        <span class="status-text">{{ getUserStatusText(currentStatus) }}</span>
+        <div class="status-dot" :class="currentStatusDisplay.class"></div>
+        <span class="status-text">{{ currentStatusDisplay.text }}</span>
         <svg class="dropdown-arrow" :class="{ rotated: showStatusDropdown }" width="12" height="8" viewBox="0 0 12 8" fill="currentColor">
           <path d="M6 6L10.5 1.5L9 0L6 3L3 0L1.5 1.5L6 6Z"/>
         </svg>
@@ -65,14 +65,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useServerUsersStore } from '@/stores/useServerUsers'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useThemeStore } from '@/stores/useTheme'
 import { getProfileWithAvatarUrl } from '@/services/profileService'
+import { updateUserStatus } from '@/services/profileService'
 import { useRouter } from 'vue-router'
 import type { User } from '@/types'
-import { updateUserStatus } from '@/services/profileService'
 import { UserStatus } from '@/types'
+import { useUserStatus } from '@/composables/useUserStatus'
 import MicIcon from '@/components/icons/Mic.vue'
 import MicMutedIcon from '@/components/icons/MicMuted.vue'
 import HeadphonesIcon from '@/components/icons/Headphones.vue'
@@ -81,7 +81,6 @@ import Avatar from '@/components/common/Avatar.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 
 const authStore = useAuthStore()
-const serverUsersStore = useServerUsersStore()
 const voiceChannelStore = useUnifiedVoiceChannelStore()
 const themeStore = useThemeStore()
 const router = useRouter()
@@ -90,10 +89,39 @@ const showStatusDropdown = ref(false)
 const selectedStatus = ref(UserStatus.Offline)
 const targetRef = ref<HTMLElement | null>(null)
 
-// Make status reactive to store changes
+// Use global status system
+const { 
+  getCurrentUserStatus, 
+  setCurrentUserStatus, 
+  getUserStatusForAvatar 
+} = useUserStatus()
+
+// Make status reactive to global status system
 const currentStatus = computed(() => {
-  if (!authStore.session?.user?.id) return UserStatus.Offline
-  return serverUsersStore.userProfiles[authStore.session.user.id]?.status ?? UserStatus.Offline
+  try {
+    const status = getCurrentUserStatus().value
+    console.log('UserProfileComponent - Current status from global service:', UserStatus[status])
+    return status || UserStatus.Offline
+  } catch (error) {
+    console.error('Error getting current user status:', error)
+    return selectedStatus.value || UserStatus.Offline
+  }
+})
+
+// Helper to get status display
+const currentStatusDisplay = computed(() => {
+  const status = currentStatus.value
+  switch (status) {
+    case UserStatus.Online:
+      return { class: 'status-online', text: 'Online' }
+    case UserStatus.Away:
+      return { class: 'status-away', text: 'Away' }
+    case UserStatus.Busy:
+      return { class: 'status-busy', text: 'Do Not Disturb' }
+    case UserStatus.Offline:
+    default:
+      return { class: 'status-offline', text: 'Offline' }
+  }
 })
 
 const statusOptions = [
@@ -153,52 +181,52 @@ const toggleStatusDropdown = () => {
 }
 
 const selectStatus = async (status: UserStatus) => {
-  selectedStatus.value = status
-  await updateStatus()
-  showStatusDropdown.value = false
+  console.log('🔄 Attempting to change status to:', UserStatus[status])
+  console.log('🔄 Current status before change:', UserStatus[currentStatus.value])
+  
+  try {
+    // Update the selected status first
+    selectedStatus.value = status
+    
+    // Try to update via global presence service
+    await setCurrentUserStatus(status)
+    
+    // Update the profile status locally if successful
+    if (profile.value) {
+      profile.value.status = status
+    }
+    
+    // Check if the status was actually updated
+    const newStatus = getCurrentUserStatus().value
+    console.log('✅ Status successfully changed to:', UserStatus[status])
+    console.log('✅ Verified new status from global service:', UserStatus[newStatus])
+    
+  } catch (error) {
+    console.error('❌ Failed to change status:', error)
+    
+    // Try fallback to legacy system
+    try {
+      console.log('🔄 Attempting fallback to legacy status update...')
+      if (authStore.session?.user) {
+        await updateUserStatus(authStore.session.user.id, status)
+        if (profile.value) {
+          profile.value.status = status
+        }
+        console.log('✅ Status updated via legacy system:', UserStatus[status])
+      }
+    } catch (fallbackError) {
+      console.error('❌ Legacy status update also failed:', fallbackError)
+      // Revert selectedStatus on failure
+      selectedStatus.value = currentStatus.value
+    }
+  } finally {
+    showStatusDropdown.value = false
+  }
 }
 
 const onClickOutside = (event: any) => {
   if (targetRef.value && !targetRef.value.contains(event.target)) {
     showStatusDropdown.value = false
-  }
-}
-
-const updateStatus = async () => {
-  if (authStore.session?.user) {
-    await updateUserStatus(authStore.session.user.id, selectedStatus.value)
-    // Update the profile status locally
-    if (profile.value)
-      profile.value.status = selectedStatus.value
-  }
-}
-
-// refactor those into helper functions that can be used globally or something
-const getUserStatusClass = (status: UserStatus) => {
-  switch (status) {
-    case UserStatus.Online:
-      return 'status-online'
-    case UserStatus.Away:
-      return 'status-away'
-    case UserStatus.Busy:
-      return 'status-busy'
-    case UserStatus.Offline:
-    default:
-      return 'status-offline'
-  }
-}
-
-const getUserStatusText = (status: UserStatus) => {
-  switch (status) {
-    case UserStatus.Online:
-      return 'Online'
-    case UserStatus.Away:
-      return 'Away'
-    case UserStatus.Busy:
-      return 'Do Not Disturb'
-    case UserStatus.Offline:
-    default:
-      return 'Invisible'
   }
 }
 
@@ -217,20 +245,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', onClickOutside)
 })
-
-const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'offline' => {
-  switch (status) {
-    case UserStatus.Online:
-      return 'online'
-    case UserStatus.Away:
-      return 'away'
-    case UserStatus.Busy:
-      return 'busy'
-    case UserStatus.Offline:
-    default:
-      return 'offline'
-  }
-}
 </script>
 
 <style scoped>
@@ -363,8 +377,11 @@ const getStatusForAvatar = (status: UserStatus): 'online' | 'away' | 'busy' | 'o
 .status-dropdown {
   position: absolute;
   bottom: calc(100% + 8px);
-  left: 10px;
-  right: 10px;
+  display: flex;
+  flex-direction: column;
+  left: 0px;
+  width: 165px;
+  gap: 4px;
   background: #18191c;
   border-radius: 8px;
   padding: 6px;

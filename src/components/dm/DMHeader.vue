@@ -17,7 +17,7 @@
             :src="conversation.other_user?.avatar_url"
             :alt="conversation.other_user?.display_name || conversation.other_user?.username"
             size="sm"
-            :status="conversation.other_user?.is_online ? 'online' : 'offline'"
+            :status="otherUserStatus"
           />
         </div>
         <div class="conversation-details">
@@ -25,7 +25,7 @@
             {{ conversation.other_user?.display_name || conversation.other_user?.username }}
           </h2>
           <div class="conversation-status">
-            <span v-if="conversation.other_user?.is_online" class="status online">
+            <span v-if="isOtherUserOnline" class="status online">
               Online
             </span>
             <span v-else class="status offline">
@@ -71,8 +71,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
+import { useUserStatus } from '@/composables/useUserStatus'
 import type { DMConversation } from '@/stores/useDM'
 
 // Props
@@ -89,9 +90,23 @@ const emit = defineEmits<{
   'toggle-voice-panel': []
 }>()
 
+// Use global status system
+const { isUserOnline, getUserStatusForAvatar } = useUserStatus()
+
 // State
 const showSearchModal = ref(false)
 const showOptionsMenu = ref(false)
+
+// Computed
+const isOtherUserOnline = computed(() => {
+  if (!props.conversation.other_user?.id) return false
+  return isUserOnline(props.conversation.other_user.id).value
+})
+
+const otherUserStatus = computed(() => {
+  if (!props.conversation.other_user?.id) return 'offline'
+  return getUserStatusForAvatar(props.conversation.other_user.id).value
+})
 
 // Methods
 const formatLastSeen = (lastSeen?: string): string => {

@@ -338,58 +338,135 @@ class UnifiedAppService {
     })
   }
   
-  // ===== COMPUTED PROPERTIES =====
+  // ===== PRESENCE INTEGRATION =====
   
-  get isInChatMode(): boolean {
-    return this.state.currentMode === 'chat'
-  }
-  
-  get isInActivityPubMode(): boolean {
-    return this.state.currentMode === 'activitypub'
-  }
-  
-  get isInServerMode(): boolean {
-    return this.isInChatMode && this.state.chatMode === 'server'
-  }
-  
-  get isInDMMode(): boolean {
-    return this.isInChatMode && this.state.chatMode === 'dm'
-  }
-  
-  get hasActiveContext(): boolean {
-    return !!(
-      this.state.currentServerId ||
-      this.state.currentConversationId ||
-      this.isInActivityPubMode
-    )
-  }
-  
-  get currentContextInfo(): any {
-    if (this.isInServerMode && this.state.currentServerId) {
-      return {
-        type: 'server',
-        serverId: this.state.currentServerId,
-        channelId: this.state.currentChannelId
-      }
+  /**
+   * Initialize presence management for the current user
+   */
+  async initializePresence(userId: string, username: string, avatar?: string): Promise<void> {
+    try {
+      const { globalPresenceService } = await import('./globalPresenceService')
+      const { presenceContextManager, DefaultContextUserProvider } = await import('./presenceContextManager')
+      
+      // Initialize global presence service
+      await globalPresenceService.initialize(userId, username, avatar)
+      
+      // Initialize context manager
+      presenceContextManager.initialize(this, new DefaultContextUserProvider())
+      
+      // Set up context change listeners
+      this.addEventListener('stateChange', () => {
+        this.updatePresenceContext()
+      })
+      
+      // Initial context setup
+      await this.updatePresenceContext()
+      
+      console.log('✅ Presence management initialized for unified app service')
+    } catch (error) {
+      console.error('Failed to initialize presence management:', error)
     }
-    
-    if (this.isInDMMode && this.state.currentConversationId) {
-      return {
-        type: 'dm',
-        conversationId: this.state.currentConversationId
-      }
-    }
-    
-    if (this.isInActivityPubMode) {
-      return {
-        type: 'activitypub',
-        timeline: this.state.currentTimeline
-      }
-    }
-    
-    return null
   }
   
+  /**
+   * Update presence context based on current app state
+   */
+  private async updatePresenceContext(): Promise<void> {
+    try {
+      const { presenceContextManager } = await import('./presenceContextManager')
+      const contextInfo = this.currentContextInfo
+      
+      if (contextInfo) {
+        await presenceContextManager.updateContext(contextInfo)
+      } else {
+        // Clear context if no active context
+        presenceContextManager.clearContext()
+      }
+    } catch (error) {
+      console.error('Failed to update presence context:', error)
+    }
+  }
+  
+  /**
+   * Set current user status
+   */
+  async setUserStatus(status: number): Promise<void> {
+    try {
+      const { globalPresenceService } = await import('./globalPresenceService')
+      await globalPresenceService.setUserStatus(status)
+    } catch (error) {
+      console.error('Failed to set user status:', error)
+    }
+  }
+  
+  /**
+   * Get user presence status
+   */
+  async getUserPresence(userId: string): Promise<any> {
+    try {
+      const { globalPresenceService } = await import('./globalPresenceService')
+      return globalPresenceService.getUserPresence(userId)
+    } catch (error) {
+      console.error('Failed to get user presence:', error)
+      return null
+    }
+  }
+  
+  /**
+   * Check if user is online
+   */
+  async isUserOnline(userId: string): Promise<boolean> {
+    try {
+      const { globalPresenceService } = await import('./globalPresenceService')
+      return globalPresenceService.isUserOnline(userId)
+    } catch (error) {
+      console.error('Failed to check user online status:', error)
+      return false
+    }
+  }
+  
+  /**
+   * Add users to current presence context (useful for DM participants, etc.)
+   */
+  async addUsersToPresenceContext(userIds: string[]): Promise<void> {
+    try {
+      const { presenceContextManager } = await import('./presenceContextManager')
+      presenceContextManager.addUsersToCurrentContext(userIds)
+    } catch (error) {
+      console.error('Failed to add users to presence context:', error)
+    }
+  }
+  
+  /**
+   * Get global user profile with presence data
+   */
+  async getUserProfile(userId: string): Promise<any> {
+    try {
+      const { globalUserProfileService } = await import('./globalUserProfileService')
+      return await globalUserProfileService.fetchUserProfile(userId)
+    } catch (error) {
+      console.error('Failed to get user profile:', error)
+      return null
+    }
+  }
+  
+  /**
+   * Cleanup presence management
+   */
+  async cleanupPresence(): Promise<void> {
+    try {
+      const { globalPresenceService } = await import('./globalPresenceService')
+      const { presenceContextManager } = await import('./presenceContextManager')
+      
+      presenceContextManager.clearContext()
+      await globalPresenceService.cleanup()
+      
+      console.log('✅ Presence management cleaned up')
+    } catch (error) {
+      console.error('Failed to cleanup presence management:', error)
+    }
+  }
+
   // ===== CLEANUP =====
   
   destroy(): void {

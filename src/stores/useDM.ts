@@ -73,10 +73,17 @@ export const useDMStore = defineStore('dm', () => {
     })
   })
 
-  // Check if user is online (mock for now, can be enhanced with presence)
-  const isUserOnline = (userId: string): boolean => {
-    const user = searchResults.value.find(u => u.id === userId)
-    return user?.is_online || false
+  // Check if user is online using global status system
+  const isUserOnline = async (userId: string): Promise<boolean> => {
+    try {
+      const { globalPresenceService } = await import('@/services/globalPresenceService')
+      return globalPresenceService.isUserOnline(userId)
+    } catch (error) {
+      console.error('Failed to check user online status:', error)
+      // Fallback to searching in cached user data
+      const user = searchResults.value.find(u => u.id === userId)
+      return user?.is_online || false
+    }
   }
 
   // Cache management methods (following useChat pattern)
@@ -335,7 +342,7 @@ export const useDMStore = defineStore('dm', () => {
           username: profileData.username,
           display_name: profileData.display_name,
           avatar_url: profileData.avatar_url,
-          is_online: false
+          is_online: false // Will be updated by global presence system in UI
         }
       }
 
@@ -468,7 +475,7 @@ export const useDMStore = defineStore('dm', () => {
             username: profileData.username,
             display_name: profileData.display_name,
             avatar_url: profileData.avatar_url,
-            is_online: false // TODO: Implement presence
+            is_online: false // Will be updated by global presence system in UI
           }
         }
 
@@ -634,7 +641,7 @@ export const useDMStore = defineStore('dm', () => {
         username: user.username,
         display_name: user.display_name,
         avatar_url: user.avatar_url,
-        is_online: false // TODO: Implement presence
+        is_online: false // Will be updated by global presence system in UI
       }))
       
     } catch (error) {

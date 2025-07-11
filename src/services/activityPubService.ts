@@ -323,8 +323,8 @@ export class ActivityPubService {
 
     try {
       const { data, error } = await supabase.rpc('get_conversation_context', {
-        p_post_id: postId,
-        p_user_id: user.id
+        in_post_id: postId,
+        in_user_id: user.id
       });
 
       if (error) throw error;
@@ -348,8 +348,8 @@ export class ActivityPubService {
 
     try {
       const { data, error } = await supabase.rpc('get_conversation_thread', {
-        p_conversation_id: conversationId,
-        p_user_id: user.id
+        in_conversation_id: conversationId,
+        in_user_id: user.id
       });
 
       if (error) throw error;

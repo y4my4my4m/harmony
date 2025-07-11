@@ -288,32 +288,20 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
     },
 
+    // DEPRECATED: This method is replaced by the global presence system
+    // Kept for backward compatibility but should not be used
     subscribeToUserStatuses() {
+      console.warn('subscribeToUserStatuses is deprecated. Use global presence system instead.');
+      return; // No-op to avoid conflicts with global presence
+      
+      // Legacy implementation (disabled):
       // Only unsubscribe from the specific user-status channel if it exists
       // DO NOT use removeAllChannels() as it destroys ALL subscriptions including notifications!
-      const existingChannel = supabase.getChannels().find(ch => ch.topic === 'user-statuses');
-      if (existingChannel) {
-        supabase.removeChannel(existingChannel);
-      }
-      
-      supabase.channel('user-statuses')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'profiles' },
-        (payload) => {
-          const updatedUserId = payload.new.id;
-          console.log('User status updated:', updatedUserId, payload.new.status);
-          if (this.userProfiles[updatedUserId]) {
-            this.userProfiles[updatedUserId] = {
-              ...this.userProfiles[updatedUserId],
-              status: convertToStatusEnum(payload.new.status as unknown as number)
-            };
-          }
-        }
-      )
-      .subscribe((status: string) => {
-        console.log('User status subscription status:', status);
-      });
+      // const existingChannel = supabase.getChannels().find(ch => ch.topic === 'user-statuses');
+      // if (existingChannel) {
+      //   supabase.removeChannel(existingChannel);
+      // }
+      // ... rest of legacy implementation
     },
 
     // Professional approach: Use Supabase Presence with proper TypeScript

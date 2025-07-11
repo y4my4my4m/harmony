@@ -1,6 +1,5 @@
 import { supabase } from '@/supabase';
 import type { ActivityPubPost, ConversationThread } from '@/types';
-
 /**
  * ConversationService - Professional ActivityPub conversation threading system
  * 
@@ -48,7 +47,7 @@ export class ConversationService {
     try {
       // O(log n) lookup using indexed conversation_root_id
       const { data, error } = await supabase.rpc('get_activitypub_conversation_thread', {
-        conversation_root_id: conversationRootId
+        in_conversation_root_id: conversationRootId
       });
       
       if (error) {
@@ -168,22 +167,40 @@ export class ConversationService {
   }
   
   /**
-   * Navigate to ActivityPub conversation thread with context
-   * Professional navigation using conversation_root_id system
+   * Get ActivityPub conversation navigation data
+   * Returns the data needed for navigation without handling routing
    */
-  static async navigateToConversation(
-    postId: string, 
-    router: any,
+  static async getConversationNavigationData(
+    postId: string,
     options: {
       highlightPost?: string;
       scrollToPost?: string;
     } = {}
-  ) {
-    console.log(`🧭 Navigating to ActivityPub conversation for post: ${postId} (professional routing)`);
+  ): Promise<{
+    success: boolean;
+    conversationRootId?: string;
+    route?: {
+      name: string;
+      params: { postId: string };
+      query: {
+        highlight: string;
+        from: string;
+        t: string;
+      };
+    };
+    fallbackRoute: {
+      name: string;
+      params: { postId: string };
+    };
+    error?: any;
+  }> {
+    console.log(`🧭 Getting conversation navigation data for post: ${postId}`);
     
     try {
       // O(1) lookup to get conversation_root_id
       const conversationRootId = await this.findConversationRoot(postId);
+
+      console.log(`🔗 Conversation root ID: ${conversationRootId}`);
       
       // Create navigation context
       const context = this.createNavigationContext(
@@ -192,29 +209,37 @@ export class ConversationService {
         options.highlightPost || postId
       );
       
-      // Navigate to conversation route with the conversation root ID
-      await router.push({
-        name: 'ConversationThread',
-        params: { 
-          postId: conversationRootId  // Use conversation root ID
+      return {
+        success: true,
+        conversationRootId,
+        route: {
+          name: 'ConversationThread',
+          params: { 
+            postId: conversationRootId
+          },
+          query: {
+            highlight: context.highlightPostId || postId,
+            from: context.clickedPostId,
+            t: context.timestamp.toString()
+          }
         },
-        query: {
-          highlight: context.highlightPostId,
-          from: context.clickedPostId,
-          t: context.timestamp.toString()
+        fallbackRoute: {
+          name: 'PostDetail',
+          params: { postId }
         }
-      });
-      
-      console.log(`✅ Navigated to ActivityPub conversation: ${conversationRootId} (O(1) lookup)`);
+      };
       
     } catch (error) {
-      console.error('❌ Failed to navigate to ActivityPub conversation:', error);
+      console.error('❌ Failed to get conversation navigation data:', error);
       
-      // Fallback: navigate to individual post
-      await router.push({
-        name: 'PostDetail',
-        params: { postId }
-      });
+      return {
+        success: false,
+        error: error,
+        fallbackRoute: {
+          name: 'PostDetail',
+          params: { postId }
+        }
+      };
     }
   }
   
