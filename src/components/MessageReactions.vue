@@ -67,7 +67,9 @@ const reactions = computed(() =>
 
 // Check if reactions are loading
 const isLoadingReactions = computed(() => 
-  reactionsStore.isLoadingReactions(props.message.id)
+  false
+  // this is making the app have some weird reaction like flashing in/out 
+  // reactionsStore.isLoadingReactions(props.message.id)
 );
 
 // Get current user ID
