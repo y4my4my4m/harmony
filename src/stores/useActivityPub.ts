@@ -566,11 +566,20 @@ export const useActivityPubStore = defineStore('activitypub', {
         
         await Promise.all(timelineTypes.map(async (type) => {
           try {
-            await supabase.rpc('update_timeline_cache', {
+            const { error } = await supabase.rpc('update_timeline_cache', {
               p_user_id: user.data.user!.id,
               p_timeline_type: type,
               p_action: 'rebuild'
             });
+            
+            if (error) {
+              // Don't throw if RPC doesn't exist yet
+              if (error.code === '42883') { // Function does not exist
+                console.log(`Timeline cache RPC not available for ${type} - skipping`);
+              } else {
+                console.error(`Failed to update ${type} cache:`, error);
+              }
+            }
           } catch (error) {
             console.error(`Failed to update ${type} cache:`, error);
           }
@@ -1069,13 +1078,17 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (!user.data.user) throw new Error('User not authenticated');
 
         // Check current state
-        const { data: existing } = await supabase
+        const { data: existing, error: existingError } = await supabase
           .from('post_interactions')
           .select('id')
           .eq('user_id', user.data.user.id)
           .eq('post_id', postId)
           .eq('interaction_type', 'favorite')
-          .single();
+          .maybeSingle();
+
+        if (existingError && existingError.code !== 'PGRST116') {
+          throw existingError;
+        }
 
         if (existing) {
           // Remove favorite
@@ -1112,13 +1125,17 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (!user.data.user) throw new Error('User not authenticated');
 
         // Check current state
-        const { data: existing } = await supabase
+        const { data: existing, error: existingError } = await supabase
           .from('post_interactions')
           .select('id')
           .eq('user_id', user.data.user.id)
           .eq('post_id', postId)
           .eq('interaction_type', 'bookmark')
-          .single();
+          .maybeSingle();
+
+        if (existingError && existingError.code !== 'PGRST116') {
+          throw existingError;
+        }
 
         if (existing) {
           // Remove bookmark
@@ -1220,13 +1237,17 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (!user.data.user) throw new Error('User not authenticated');
 
         // Check current state
-        const { data: existing } = await supabase
+        const { data: existing, error: existingError } = await supabase
           .from('post_interactions')
           .select('id')
           .eq('user_id', user.data.user.id)
           .eq('post_id', postId)
           .eq('interaction_type', 'reblog')
-          .single();
+          .maybeSingle();
+
+        if (existingError && existingError.code !== 'PGRST116') {
+          throw existingError;
+        }
 
         if (existing) {
           // Remove reblog

@@ -319,7 +319,11 @@ const navigateToFollowers = () => {
 
 const navigateToProfile = () => {
   if (currentUserHandle.value) {
-    router.push(`/profile/${currentUserHandle.value.replace('@', '')}`);
+    const handle = currentUserHandle.value.replace('@', '');
+    router.push({ 
+      name: 'UserProfile', 
+      params: { handle } 
+    });
   }
 };
 

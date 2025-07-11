@@ -1,28 +1,44 @@
 <template>
   <div class="explore-view">
-    <ExploreContent
-      :current-view="currentView"
-      :trending-posts="trendingPosts"
-      :trending-tags="trendingTags"
-      :suggested-users="suggestedUsers"
-      :instances="instances"
-      :is-loading="isLoading"
-      @load-more="handleLoadMore"
-      @refresh="handleRefresh"
-      @follow-user="handleFollow"
-      @unfollow-user="handleUnfollow"
-      @favorite-post="handleFavoritePost"
-      @reblog-post="handleReblogPost"
-      @bookmark-post="handleBookmarkPost"
-      @show-user-profile="handleShowUserProfile"
-    />
+    <!-- Mony Header -->
+    <div class="mony-header-container">
+      <MonyHeader
+        :current-view="currentView"
+        :is-mobile="false"
+        @switch-feed="handleSwitchFeed"
+        @refresh-timeline="handleRefresh"
+        @open-composer="handleOpenComposer"
+        @open-search="handleOpenSearch"
+      />
+    </div>
+
+    <!-- Explore Content -->
+    <div class="explore-content">
+      <ExploreContent
+        :current-view="currentView"
+        :trending-posts="trendingPosts"
+        :trending-tags="trendingTags"
+        :suggested-users="suggestedUsers"
+        :instances="instances"
+        :is-loading="isLoading"
+        @load-more="handleLoadMore"
+        @refresh="handleRefresh"
+        @follow-user="handleFollow"
+        @unfollow-user="handleUnfollow"
+        @favorite-post="handleFavoritePost"
+        @reblog-post="handleReblogPost"
+        @bookmark-post="handleBookmarkPost"
+        @show-user-profile="handleShowUserProfile"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
+import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import type { TimelinePost, FederatedUser } from '@/types'
 
@@ -46,6 +62,7 @@ const emit = defineEmits<{
 // Store
 const activityPubStore = useActivityPubStore()
 const route = useRoute()
+const router = useRouter()
 
 // State
 const isLoading = ref(false)
@@ -192,6 +209,20 @@ const handleShowUserProfile = (user: FederatedUser) => {
   emit('showUserProfile', user)
 }
 
+// MonyHeader event handlers
+const handleSwitchFeed = (feed: string) => {
+  router.push({ name: 'Social', params: { timeline: feed } })
+}
+
+const handleOpenComposer = () => {
+  activityPubStore.openComposer()
+}
+
+const handleOpenSearch = () => {
+  // TODO: Implement search functionality
+  console.log('Open search')
+}
+
 // Watch for route changes
 watch(() => props.currentView, loadExploreData)
 
@@ -205,6 +236,16 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.mony-header-container {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.explore-content {
+  flex: 1;
   overflow: hidden;
 }
 </style>

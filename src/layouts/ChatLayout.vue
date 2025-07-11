@@ -81,8 +81,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
 import MainContentAreaHeader from '@/components/MainContentAreaHeader.vue'
@@ -128,6 +128,7 @@ const chatStore = useChatStore()
 const dmStore = useDMStore()
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 // State
 const showCreateChannelForm = ref(false)
@@ -203,6 +204,63 @@ const handleSendMessage = async (content: any, replyTo?: string) => {
     }
   }
 }
+
+// Auto-navigation to default server/channel
+const navigateToDefaultIfNeeded = async () => {
+  // Only auto-navigate if we're on the bare /chat route with no params
+  if (!props.isDM && route.name === 'Chat' && !route.params.serverId && !route.params.channelId) {
+    console.log('🔄 Auto-navigating to default server/channel')
+    
+    // Wait for servers to be loaded
+    if (serverChannelStore.servers.length === 0) {
+      // Wait a bit for servers to load
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    
+    if (serverChannelStore.servers.length > 0) {
+      // Check if we have a current server/channel from persistence
+      let targetServerId = serverChannelStore.currentServerId
+      let targetChannelId = serverChannelStore.currentChannelId
+      
+      // If no current server, use the first server
+      if (!targetServerId) {
+        targetServerId = serverChannelStore.servers[0].id
+        serverChannelStore.setCurrentServer(targetServerId)
+        
+        // Fetch channels for this server
+        await serverChannelStore.fetchCategoriesAndChannels(targetServerId)
+      }
+      
+      // If no current channel, get default channel
+      if (!targetChannelId && serverChannelStore.channels.length > 0) {
+        targetChannelId = serverChannelStore.getDefaultChannel()
+        if (targetChannelId) {
+          serverChannelStore.setCurrentChannel(targetChannelId)
+        }
+      }
+      
+      // Navigate to the server/channel
+      if (targetServerId && targetChannelId) {
+        console.log('🎯 Navigating to:', { serverId: targetServerId, channelId: targetChannelId })
+        router.replace({ 
+          name: 'ChatChannel', 
+          params: { 
+            serverId: targetServerId, 
+            channelId: targetChannelId 
+          } 
+        })
+      }
+    }
+  }
+}
+
+// Watch for route changes and servers loading
+watch(() => [route.name, route.params, serverChannelStore.servers.length], navigateToDefaultIfNeeded, { immediate: false })
+
+// Initialize on mount
+onMounted(() => {
+  navigateToDefaultIfNeeded()
+})
 </script>
 
 <style scoped>
