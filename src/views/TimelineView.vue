@@ -40,7 +40,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
@@ -82,19 +81,13 @@ const emit = defineEmits<{
 
 // Store
 const activityPubStore = useActivityPubStore()
-const route = useRoute()
-const router = useRouter()
 
 // Layout state
 const { isMobile } = useLayoutState()
 
 // Computed
 const posts = computed(() => {
-  return activityPubStore.getTimelinePosts(props.currentView)
-})
-
-const isLoadingFeed = computed(() => {
-  return activityPubStore.isLoadingFeed
+  return activityPubStore.getTimelinePosts(props.currentView as 'home' | 'public' | 'local')
 })
 
 const hasMorePosts = computed(() => {
@@ -252,24 +245,21 @@ const handleOpenSearch = () => {
   console.log('Open search')
 }
 
-// Watch for route changes and currentView prop changes
+// Single source of truth for timeline loading - only watch currentView prop changes
 watch(() => props.currentView, (newView, oldView) => {
   if (newView && newView !== oldView) {
     console.log(`🔄 Timeline view changed from ${oldView} to ${newView}, loading content`)
     loadTimeline()
   }
-}, { immediate: false })
+}, { immediate: true }) // Load on initial mount via currentView prop
 
-// Also watch route changes for direct navigation
-watch(() => route.path, (newPath, oldPath) => {
-  if (newPath !== oldPath && newPath.includes('/social/')) {
-    console.log(`🔄 Route changed to ${newPath}, reloading timeline`)
+// Load timeline on mount for direct navigation only if no currentView prop
+onMounted(() => {
+  // Only load if currentView is not provided (legacy support)
+  if (!props.currentView) {
+    console.log(`🔄 Timeline mounted without currentView prop, loading default timeline`)
     loadTimeline()
   }
-}, { immediate: false })
-
-onMounted(() => {
-  loadTimeline()
 })
 </script>
 

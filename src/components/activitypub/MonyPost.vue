@@ -1,5 +1,4 @@
 <!-- MonyPost Component - Individual post display -->
-<!-- Professional, engaging UI for ActivityPub posts -->
 <template>
   <article class="mony-post" 
   v-if="author" :class="{ 'is-reply': post.reply_context }">
@@ -22,31 +21,26 @@
               {{ author.display_name || author.username }}
             </div>
             <div class="author-handle">
-              {{ authorHandle }}
+              <span>{{ authorHandle }}</span>
+              <span class="instance-domain" :class="{ 'is-local': isLocalPost }">
+                @{{ instanceDomain }}
+              </span>
             </div>
           </div>
         </div>
         
         <div class="post-meta">
-          <span class="instance-domain" :class="{ 'is-local': isLocalPost }">
-            {{ instanceDomain }}
-          </span>
-          <div>
-            <time 
-              :datetime="post.created_at" 
-              :title="formatFullDate(post.created_at)"
-              class="post-time"
-              @click="handleTimeClick"
-            >
-              {{ formatRelativeTime(post.created_at) }}
-            </time>
-            
-            <!-- Visibility Indicator -->
-            <div class="visibility-indicator" :title="visibilityTitle">
-              <Icon :name="visibilityIcon" />
-            </div>
-            
+          <div class="visibility-indicator" :title="visibilityTitle">
+            <Icon :name="visibilityIcon" />
           </div>
+          <time 
+            :datetime="post.created_at" 
+            :title="formatFullDate(post.created_at)"
+            class="post-time"
+            @click="handleTimeClick"
+          >
+            {{ formatRelativeTime(post.created_at) }}
+          </time>
         </div>
       </div>
 
@@ -503,6 +497,7 @@ const handleHashtagClick = (tag: string) => {
   border-bottom: 1px solid var(--border-color);
   transition: background-color 0.2s;
   border-radius: 12px;
+  width: 600px;
 }
 
 .mony-post:hover {
@@ -582,6 +577,9 @@ const handleHashtagClick = (tag: string) => {
   font-size: 0.875rem;
   text-overflow: ellipsis;
   overflow: hidden;
+  display:flex;
+  flex-direction: row;
+  gap: 4px;
   white-space: nowrap;
 }
 
@@ -614,6 +612,12 @@ const handleHashtagClick = (tag: string) => {
   padding: 1px 5px;
   cursor: pointer;
   user-select: text;
+  opacity: 0.4;
+  transition: all 0.2s ease-in-out;
+}
+.instance-domain:hover {
+  opacity: 1;
+  background: var(--background-primary);
 }
 
 .reply-context {

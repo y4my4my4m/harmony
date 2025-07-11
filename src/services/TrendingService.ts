@@ -676,8 +676,10 @@ class TrendingService {
         created_at: post.created_at,
         updated_at: post.created_at
       },
-      is_favorited: false, // Would need user context
-      is_reblogged: false  // Would need user context
+      // Use provided interaction states if available (from RPC functions), otherwise false
+      is_favorited: post.is_favorited || false,
+      is_reblogged: post.is_reblogged || false,
+      is_bookmarked: post.is_bookmarked || false
     };
   }
 }

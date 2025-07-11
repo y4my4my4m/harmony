@@ -325,17 +325,28 @@ const handleSwitchFeed = async (feed: string) => {
       break
   }
   
-  // Load the feed data immediately for better UX
+  // Only load feed data if not already loaded or loading
+  if (activityPubStore.isLoadingFeed) {
+    console.log(`⏳ Feed is already loading, skipping duplicate load`)
+    return
+  }
+
   try {
     switch (feed) {
       case 'home':
-        await activityPubStore.loadHomeFeed()
+        if (activityPubStore.homeFeed.posts.length === 0) {
+          await activityPubStore.loadHomeFeed()
+        }
         break
       case 'local':
-        await activityPubStore.loadLocalFeed()
+        if (activityPubStore.localFeed.posts.length === 0) {
+          await activityPubStore.loadLocalFeed()
+        }
         break
       case 'public':
-        await activityPubStore.loadPublicFeed()
+        if (activityPubStore.publicFeed.posts.length === 0) {
+          await activityPubStore.loadPublicFeed()
+        }
         break
       case 'trending':
         // Trending data would be loaded by ExploreView

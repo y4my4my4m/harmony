@@ -192,24 +192,8 @@ const emptyStateMessage = computed(() => {
 const switchFeed = async (feedType: 'home' | 'public' | 'local') => {
   activityPubStore.switchView(feedType);
   
-  // Load feed if not already loaded
-  switch (feedType) {
-    case 'home':
-      if (activityPubStore.homeFeed.posts.length === 0) {
-        await activityPubStore.loadHomeFeed();
-      }
-      break;
-    case 'public':
-      if (activityPubStore.publicFeed.posts.length === 0) {
-        await activityPubStore.loadPublicFeed();
-      }
-      break;
-    case 'local':
-      if (activityPubStore.localFeed.posts.length === 0) {
-        await activityPubStore.loadLocalFeed();
-      }
-      break;
-  }
+  // Note: Feed loading is now handled by parent components via route changes
+  // This prevents redundant API calls from multiple sources
 };
 
 const loadMore = () => {
@@ -310,8 +294,8 @@ onMounted(async () => {
   // Initialize real-time subscriptions
   await activityPubStore.initializeRealtime();
   
-  // Load initial home feed
-  await activityPubStore.loadHomeFeed();
+  // Note: Feed loading is now handled by parent components (TimelineView/SocialLayout)
+  // This prevents redundant API calls
 });
 
 onUnmounted(() => {
@@ -319,10 +303,27 @@ onUnmounted(() => {
   activityPubStore.cleanupRealtime();
 });
 
-// Auto-refresh on focus
+// Auto-refresh on focus - only refresh current view if it has data
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && currentView.value === 'home') {
-    activityPubStore.loadHomeFeed();
+  if (!document.hidden && !activityPubStore.isLoadingFeed) {
+    const currentFeed = currentView.value === 'home' ? activityPubStore.homeFeed :
+                       currentView.value === 'local' ? activityPubStore.localFeed :
+                       activityPubStore.publicFeed;
+    
+    // Only refresh if feed has data (not empty)
+    if (currentFeed.posts.length > 0) {
+      switch (currentView.value) {
+        case 'home':
+          activityPubStore.loadHomeFeed();
+          break;
+        case 'local':
+          activityPubStore.loadLocalFeed();
+          break;
+        case 'public':
+          activityPubStore.loadPublicFeed();
+          break;
+      }
+    }
   }
 });
 </script>
@@ -418,10 +419,6 @@ document.addEventListener('visibilitychange', () => {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-
-.posts-container {
-  border-top: 1px solid #374151;
 }
 
 .posts-container > * + * {

@@ -594,6 +594,50 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
+     * Update post interaction state across all feeds
+     */
+    updatePostInteractionState(postId: string, interactionType: 'favorite' | 'reblog' | 'bookmark', state: boolean) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          switch (interactionType) {
+            case 'favorite':
+              post.is_favorited = state;
+              break;
+            case 'reblog':
+              post.is_reblogged = state;
+              break;
+            case 'bookmark':
+              post.is_bookmarked = state;
+              break;
+          }
+        }
+      });
+      
+      // Update in user feeds
+      this.userFeeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          switch (interactionType) {
+            case 'favorite':
+              post.is_favorited = state;
+              break;
+            case 'reblog':
+              post.is_reblogged = state;
+              break;
+            case 'bookmark':
+              post.is_bookmarked = state;
+              break;
+          }
+        }
+      });
+
+      console.log(`📍 Updated ${interactionType} state to ${state} for post ${postId} across all feeds`);
+    },
+
+    /**
      * Remove post from all feeds
      */
     removePostFromAllFeeds(postId: string) {
@@ -1071,6 +1115,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           throw existingError;
         }
 
+        const isFavorited = !!existing;
+        const newFavoriteState = !isFavorited;
+
         if (existing) {
           // Remove favorite
           await supabase
@@ -1090,7 +1137,9 @@ export const useActivityPubStore = defineStore('activitypub', {
             });
         }
 
-        // Realtime will handle UI updates automatically
+        // Update post state in all feeds immediately for better UX
+        this.updatePostInteractionState(postId, 'favorite', newFavoriteState);
+
       } catch (error) {
         console.error('Failed to toggle favorite:', error);
         throw error;
@@ -1118,6 +1167,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           throw existingError;
         }
 
+        const isBookmarked = !!existing;
+        const newBookmarkState = !isBookmarked;
+
         if (existing) {
           // Remove bookmark
           await supabase
@@ -1137,7 +1189,9 @@ export const useActivityPubStore = defineStore('activitypub', {
             });
         }
 
-        // Realtime will handle UI updates automatically
+        // Update post state in all feeds immediately for better UX
+        this.updatePostInteractionState(postId, 'bookmark', newBookmarkState);
+
       } catch (error) {
         console.error('Failed to toggle bookmark:', error);
         throw error;
@@ -1273,6 +1327,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           throw existingError;
         }
 
+        const isReblogged = !!existing;
+        const newReblogState = !isReblogged;
+
         if (existing) {
           // Remove reblog
           await supabase
@@ -1292,7 +1349,9 @@ export const useActivityPubStore = defineStore('activitypub', {
             });
         }
 
-        // Realtime will handle UI updates automatically
+        // Update post state in all feeds immediately for better UX
+        this.updatePostInteractionState(postId, 'reblog', newReblogState);
+
       } catch (error) {
         console.error('Failed to toggle reblog:', error);
         throw error;

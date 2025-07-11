@@ -345,6 +345,14 @@
     <path v-if="name === 'bookmark'" d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
     <polyline v-if="name === 'bookmark'" points="17 21 12 16 7 21"></polyline>
 
+    <!-- Bookmark Filled -->
+    <path
+      v-if="name === 'bookmark-filled'"
+      d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+      fill="currentColor"
+      stroke="none"
+    ></path>
+
     <!-- Bell -->
     <path v-if="name === 'bell'" d="M18 8A6 6 0 0 0 6 8v5a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2V8a6 6 0 0 0-6-6 6 6 0 0 0-6 6"></path>
     <path v-if="name === 'bell'" d="M15 21a3 3 0 0 1-6 0"></path>

@@ -200,42 +200,33 @@ export class ActivityPubService {
   }
 
   /**
-   * Get public timeline with enhanced federation support
+   * Get public timeline with enhanced federation support and user interaction states
    */
   async getEnhancedPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
     const limit = options.limit || 20;
     
     try {
-      // First, get a mixed feed of both local and federated posts
-      let query = supabase
-        .from('posts')
-        .select(`
-          *,
-          author:profiles!posts_author_id_fkey (
-            id, username, display_name, domain, avatar_url, is_local, bio
-          )
-        `)
-        .eq('visibility', 'public')
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+      // Use the same RPC function as local timeline to get proper user interaction states
+      const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
+        p_user_id: user.id,
+        p_timeline_type: 'public', 
+        p_limit: limit,
+        p_max_id: options.max_id || null
+      });
 
-      if (options.max_id) {
-        query = query.lt('created_at', new Date(options.max_id).toISOString());
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
 
-      // Transform and return the posts
-      const posts = (data || []).map(post => this.transformDatabasePostToTimelinePost(post));
+      const posts = data || [];
       
       // Log statistics
-      const localCount = posts.filter(p => p.is_local).length;
-      const federatedCount = posts.filter(p => !p.is_local).length;
+      const localCount = posts.filter((p: any) => p.is_local).length;
+      const federatedCount = posts.filter((p: any) => !p.is_local).length;
       console.log(`🌐 Enhanced public timeline: ${localCount} local + ${federatedCount} federated = ${posts.length} total posts`);
       
-      return posts;
+      return posts as TimelinePost[];
     } catch (error) {
       console.error('Failed to load enhanced public timeline:', error);
       return [];
@@ -243,34 +234,34 @@ export class ActivityPubService {
   }
 
   /**
-   * Get federated timeline (remote posts only)
+   * Get federated timeline (remote posts only) with user interaction states
    */
   async getFederatedTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
     const limit = options.limit || 20;
     
-    let query = supabase
-      .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local
-        )
-      `)
-      .eq('visibility', 'public')
-      .eq('is_deleted', false)
-      .eq('is_local', false)  // Only federated posts
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    try {
+      // Get all public posts first, then filter for federated only
+      const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
+        p_user_id: user.id,
+        p_timeline_type: 'public', 
+        p_limit: limit * 2, // Get more to ensure we have enough federated posts
+        p_max_id: options.max_id || null
+      });
 
-    if (options.max_id) {
-      query = query.lt('created_at', new Date(options.max_id).toISOString());
+      if (error) throw error;
+
+      // Filter for federated posts only and limit
+      const federatedPosts = (data || []).filter((post: any) => !post.is_local).slice(0, limit);
+
+      console.log(`🌐 Federated timeline loaded: ${federatedPosts.length} posts from remote instances`);
+      return federatedPosts as TimelinePost[];
+    } catch (error) {
+      console.error('Failed to load federated timeline:', error);
+      return [];
     }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    console.log(`🌐 Federated timeline loaded: ${data?.length || 0} posts from remote instances`);
-    return data as TimelinePost[];
   }
 
   /**
@@ -2031,8 +2022,10 @@ export class ActivityPubService {
         created_at: post.created_at,
         updated_at: post.created_at
       },
-      is_favorited: false, // Would need user context
-      is_reblogged: false  // Would need user context
+      // Use provided interaction states if available (from RPC functions), otherwise false
+      is_favorited: post.is_favorited || false,
+      is_reblogged: post.is_reblogged || false,
+      is_bookmarked: post.is_bookmarked || false
     };
   }
 

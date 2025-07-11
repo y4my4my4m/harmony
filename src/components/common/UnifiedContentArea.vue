@@ -241,12 +241,12 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding-top: 20px;
 }
 
 .composer-section {
   padding: var(--space-4);
   background: var(--background-primary);
+  position: relative;
 }
 
 .special-view {
