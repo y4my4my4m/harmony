@@ -38,6 +38,19 @@ const findEmojiByName = (name: string) => {
   return undefined;
 };
 
+// Check if content is a single emoji
+const isSingleEmoji = computed(() => {
+  const trimmedContent = props.content.trim();
+  // Check if content matches the pattern of a single emoji (e.g., ":smile:")
+  const singleEmojiMatch = trimmedContent.match(/^:([a-zA-Z0-9_+-]+):$/);
+  if (singleEmojiMatch) {
+    const emojiName = singleEmojiMatch[1];
+    const emoji = findEmojiByName(emojiName);
+    return !!emoji; // Return true if emoji exists
+  }
+  return false;
+});
+
 const formattedContent = computed(() => {
   let formatted = props.content;
   
@@ -60,7 +73,9 @@ const formattedContent = computed(() => {
   formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
     const emoji = findEmojiByName(emojiName);
     if (emoji && emoji.url) {
-      return `<img src="${emoji.url}" alt=":${emojiName}:" class="custom-emoji" title=":${emojiName}:" draggable="false" />`;
+      // Add 'single' class if this is a single emoji message
+      const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
+      return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
     }
     // Fallback to styled shortcode if emoji not found
     return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
@@ -150,6 +165,12 @@ onUnmounted(() => {
   vertical-align: middle;
   margin: 0 1px;
   object-fit: contain;
+}
+
+.mony-content :deep(.custom-emoji.single) {
+  width: 48px;
+  height: 48px;
+  margin: 0 2px;
 }
 
 .mony-content :deep(.emoji-shortcode) {
