@@ -1,7 +1,7 @@
 <!-- MonyPost Component - Individual post display -->
 <!-- Professional, engaging UI for ActivityPub posts -->
 <template>
-  <article class="mony-post" :class="{ 'is-reply': post.in_reply_to }">
+  <article class="mony-post" :class="{ 'is-reply': post.reply_context }">
     <!-- Main Post Content -->
     <div class="post-content">
       <!-- Author Info -->
@@ -49,15 +49,32 @@
       </div>
 
       <!-- Reply Context (if this is a reply) -->
-      <div v-if="post.in_reply_to" class="reply-context">
-        <Icon name="reply" />
-        <span>Replying to</span>
-        <button 
-          class="reply-target"
-          @click="showReplyTarget"
-        >
-          conversation
-        </button>
+      <div v-if="post.reply_context" class="reply-context">
+        <div class="reply-header">
+          <div class="reply-indicator">
+            <Icon name="reply" class="reply-icon" />
+            <span class="reply-text">Replying to</span>
+          </div>
+          <button 
+            class="show-conversation-btn"
+            @click="showReplyTarget"
+            title="View full conversation"
+          >
+            <Icon name="message-square" class="btn-icon" />
+            <span>Show thread</span>
+          </button>
+        </div>
+        <div class="reply-preview-card">
+          <Avatar 
+            :src="post.reply_context.author.avatar_url"
+            :alt="post.reply_context.author.display_name"
+            size="xs"
+          />
+          <div class="reply-details">
+            <span class="reply-author">@{{ post.reply_context.author.username }}</span>
+            <span class="reply-content-preview">{{ post.reply_context.content_preview }}</span>
+          </div>
+        </div>
       </div>
 
       <!-- Content Warning -->
@@ -131,9 +148,10 @@
 
         <button 
           class="action-button reblog-button"
-          :class="{ active: post.is_reblogged }"
+          :class="{ active: post.is_reblogged, loading: isToggling.reblog }"
           @click="onReblog"
           :title="post.is_reblogged ? 'Undo reblog' : 'Reblog'"
+          :disabled="isToggling.reblog"
         >
           <Icon name="reblog" />
           <span v-if="post.reblogs_count > 0">{{ formatCount(post.reblogs_count) }}</span>
@@ -141,22 +159,23 @@
 
         <button 
           class="action-button favorite-button"
-          :class="{ active: post.is_favorited }"
+          :class="{ active: post.is_favorited, loading: isToggling.favorite }"
           @click="onFavorite"
           :title="post.is_favorited ? 'Unfavorite' : 'Favorite'"
+          :disabled="isToggling.favorite"
         >
           <Icon :name="post.is_favorited ? 'heart-filled' : 'heart'" />
           <span v-if="post.favorites_count > 0">{{ formatCount(post.favorites_count) }}</span>
         </button>
 
-        <!-- TODO: implement bookmarking -->
         <button 
           class="action-button bookmark-button"
-          :class="{ active: post.interactions?.is_bookmarked }"
+          :class="{ active: post.is_bookmarked, loading: isToggling.bookmark }"
           @click="onBookmark"
-          :title="post.interactions?.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
+          :title="post.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
+          :disabled="isToggling.bookmark"
         >
-          <Icon :name="post.interactions?.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
+          <Icon :name="post.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
 
         <div class="action-menu">
@@ -194,12 +213,24 @@
         </div>
       </div>
     </div>
+
+    <!-- Inline Reply Composer -->
+    <InlineReplyComposer 
+      v-if="showInlineReply"
+      :reply-to-post="post"
+      :is-visible="showInlineReply"
+      @reply-sent="handleReplySent"
+      @close="showInlineReply = false"
+    />
   </article>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useActivityPubStore } from '@/stores/useActivityPub';
+import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
 import type { TimelinePost } from '@/types';
 
@@ -207,6 +238,7 @@ import type { TimelinePost } from '@/types';
 import MonyContent from './MonyContent.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
+import InlineReplyComposer from './InlineReplyComposer.vue';
 
 // Props
 interface Props {
@@ -217,9 +249,6 @@ const props = defineProps<Props>();
 
 // Emits
 const emit = defineEmits<{
-  favorite: [postId: string];
-  reblog: [postId: string];
-  bookmark: [postId: string];
   reply: [post: TimelinePost];
   delete: [postId: string];
   edit: [postId: string];
@@ -230,12 +259,21 @@ const emit = defineEmits<{
   'show-conversation': [postId: string]; // New emit for showing conversation
 }>();
 
-// Store
+// Stores
 const authStore = useAuthStore();
+const activityPubStore = useActivityPubStore();
+
+// Interaction state - now clean and direct
+const isToggling = ref({
+  favorite: false,
+  reblog: false,
+  bookmark: false
+});
 
 // Local state
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
+const showInlineReply = ref(false);
 
 // Extend HTMLElement type for click outside handler
 declare global {
@@ -334,19 +372,54 @@ const formatCount = (count: number) => {
 };
 
 const onReply = () => {
+  showInlineReply.value = !showInlineReply.value;
+  // Also emit for parent components that might want to handle it differently
   emit('reply', props.post);
 };
 
-const onReblog = () => {
-  emit('reblog', props.post.id);
+const handleReplySent = (reply: any) => {
+  console.log('Reply sent:', reply);
+  showInlineReply.value = false;
+  // Could emit a success event or update local state here
 };
 
-const onFavorite = () => {
-  emit('favorite', props.post.id);
+const onReblog = async () => {
+  if (isToggling.value.reblog) return;
+  
+  try {
+    isToggling.value.reblog = true;
+    await activityPubStore.toggleReblog(props.post.id);
+  } catch (error) {
+    console.error('Failed to toggle reblog:', error);
+  } finally {
+    isToggling.value.reblog = false;
+  }
 };
 
-const onBookmark = () => {
-  emit('bookmark', props.post.id);
+const onFavorite = async () => {
+  if (isToggling.value.favorite) return;
+  
+  try {
+    isToggling.value.favorite = true;
+    await activityPubStore.toggleFavorite(props.post.id);
+  } catch (error) {
+    console.error('Failed to toggle favorite:', error);
+  } finally {
+    isToggling.value.favorite = false;
+  }
+};
+
+const onBookmark = async () => {
+  if (isToggling.value.bookmark) return;
+  
+  try {
+    isToggling.value.bookmark = true;
+    await activityPubStore.toggleBookmark(props.post.id);
+  } catch (error) {
+    console.error('Failed to toggle bookmark:', error);
+  } finally {
+    isToggling.value.bookmark = false;
+  }
 };
 
 const onEdit = () => {
@@ -359,10 +432,34 @@ const onDelete = () => {
   closeMenu();
 };
 
-const showReplyTarget = () => {
-  if (props.post.in_reply_to) {
-    // Navigate to the parent post or conversation thread
-    emit('show-conversation', props.post.in_reply_to);
+const showReplyTarget = async () => {
+  console.log('🔗 Show thread clicked for post:', props.post.id);
+  console.log('📝 Reply context:', props.post.reply_context);
+  
+  if (props.post.reply_context) {
+    try {
+      // Use ConversationService for professional conversation navigation
+      const router = useRouter();
+      await ConversationService.navigateToConversation(props.post.id, router, {
+        highlightPost: props.post.id
+      });
+      
+      console.log('✅ Successfully navigated to conversation thread');
+    } catch (error) {
+      console.error('❌ Failed to navigate to conversation:', error);
+      
+      // Fallback: emit the event as before
+      console.log('📤 Using fallback event emission');
+      emit('show-conversation', props.post.id);
+      
+      // Last resort fallback: direct navigation
+      setTimeout(() => {
+        console.log('🚀 Using last resort navigation fallback');
+        window.location.href = `/social/conversation/${props.post.id}?highlight=${props.post.id}`;
+      }, 100);
+    }
+  } else {
+    console.warn('⚠️ No reply context found for post:', props.post.id);
   }
 };
 
@@ -510,7 +607,6 @@ const handleHashtagClick = (tag: string) => {
   flex-direction: column;
   align-items: flex-end;
   justify-content: flex-end;
-  gap: 0.5rem;
   color: #9ca3af;
   font-size: 0.875rem;
   flex-shrink: 0;
@@ -529,24 +625,106 @@ const handleHashtagClick = (tag: string) => {
 .instance-domain {
   display: flex;
   align-items: center;
+  background: var(--background-secondary);
+  border-radius: 5px;
+  padding: 1px 5px;
+  cursor: pointer;
+  user-select: text;
 }
 
 .reply-context {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background-color: rgba(59, 130, 246, 0.05);
+  border-radius: 0.5rem;
+  border-left: 3px solid #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.reply-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.reply-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   color: #9ca3af;
   font-size: 0.875rem;
 }
 
-.reply-target {
+.reply-icon {
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+.reply-text {
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+.reply-preview-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #374151;
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.reply-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.reply-author {
+  color: #3b82f6;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.reply-author:hover {
+  text-decoration: underline;
+}
+
+.reply-content-preview {
+  color: white;
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.show-conversation-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   color: #3b82f6;
   background: none;
   border: none;
-  text-decoration: underline;
   cursor: pointer;
-  font-size: inherit;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.show-conversation-btn:hover {
+  color: #10b981;
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.btn-icon {
+  color: #3b82f6;
+  font-size: 1rem;
 }
 
 .content-warning {
@@ -637,6 +815,15 @@ const handleHashtagClick = (tag: string) => {
 .action-button:hover {
   background-color: #374151;
   color: white;
+}
+
+.action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-button.loading {
+  opacity: 0.7;
 }
 
 .reply-button:hover {

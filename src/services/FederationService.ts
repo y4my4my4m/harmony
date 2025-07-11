@@ -359,6 +359,56 @@ export class FederationService {
     }
   }
 
+  /**
+   * Federate an Announce (reblog/boost) activity
+   */
+  async federateAnnounce(postId: string, userId: string, isAnnounce: boolean): Promise<string | null> {
+    try {
+      const userProfile = await this.getUserProfile(userId);
+      const post = await this.getPost(postId);
+      
+      if (!userProfile || !post) {
+        throw new Error('User profile or post not found');
+      }
+
+      // Only federate if the post is federated
+      if (!post.is_federated) {
+        console.log('Post is not federated, skipping announce federation');
+        return null;
+      }
+
+      const actor = `${this.config.instanceUrl}/users/${userProfile.username}`;
+      const objectUrl = post.ap_id || `${this.config.instanceUrl}/posts/${postId}`;
+
+      if (isAnnounce) {
+        // Create Announce activity
+        return await this.queueActivity({
+          type: 'Announce',
+          actor,
+          object: objectUrl,
+          target: postId
+        });
+      } else {
+        // Create Undo Announce activity
+        const announceId = `${this.config.instanceUrl}/activities/${crypto.randomUUID()}`;
+        return await this.queueActivity({
+          type: 'Undo',
+          actor,
+          object: {
+            id: announceId,
+            type: 'Announce',
+            actor,
+            object: objectUrl
+          },
+          target: postId
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to federate announce:', error);
+      return null;
+    }
+  }
+
   // =============================================================================
   // INBOX PROCESSING
   // =============================================================================
@@ -597,7 +647,45 @@ export class FederationService {
   private resolveReplyTarget(replyToId: string): Promise<string> { return Promise.resolve(''); }
   private verifyActivitySignature(activity: ActivityPubActivity, signature?: string): Promise<boolean> { return Promise.resolve(true); }
   private resolveActor(actorUrl: string): Promise<any> { return Promise.resolve(null); }
-  private parseActivityPubContent(content: string): any[] { return [{ type: 'text', text: content }]; }
+  private parseActivityPubContent(content: any): any[] { 
+    // Robust ActivityPub content parsing that always returns proper JSONB array format
+    try {
+      if (Array.isArray(content)) {
+        // Already in array format, validate structure
+        return content.map(item => {
+          if (typeof item === 'string') {
+            return { type: 'text', text: item };
+          } else if (item && typeof item === 'object' && item.type) {
+            return item;
+          } else {
+            return { type: 'text', text: String(item || '') };
+          }
+        });
+      } else if (typeof content === 'string') {
+        // Try to parse JSON string
+        try {
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed)) {
+            return this.parseActivityPubContent(parsed); // Recursive call to validate array
+          } else {
+            return [{ type: 'text', text: String(parsed) }];
+          }
+        } catch {
+          // Plain text content
+          return [{ type: 'text', text: content }];
+        }
+      } else if (content && typeof content === 'object') {
+        // Single object, wrap in array
+        return [{ type: 'text', text: String(content) }];
+      } else {
+        // Fallback for null, undefined, etc.
+        return [{ type: 'text', text: String(content || '') }];
+      }
+    } catch (error) {
+      console.error('❌ Failed to parse ActivityPub content:', error);
+      return [{ type: 'text', text: String(content || '') }];
+    }
+  }
   private parseVisibility(to: string[], cc: string[]): string { return 'public'; }
   private resolveReplyId(replyTo: string): Promise<string | null> { return Promise.resolve(null); }
   private parseMediaAttachments(attachments: any[]): any[] { return []; }
