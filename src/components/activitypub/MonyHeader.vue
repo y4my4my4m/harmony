@@ -1,0 +1,335 @@
+<template>
+  <div class="mony-header">
+    <div class="header-left">
+      <button 
+        v-if="isMobile"
+        class="mobile-menu-btn"
+        @click="$emit('toggle-left-sidebar')"
+      >
+        <svg viewBox="0 0 24 24" class="menu-icon">
+          <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="header-center">
+      <!-- Feed Type Switcher -->
+      <div class="feed-switcher">
+        <button
+          v-for="tab in feedTabs"
+          :key="tab.id"
+          @click="$emit('switch-feed', tab.id)"
+          :class="['feed-tab', { active: currentView === tab.id }]"
+          :title="tab.label"
+        >
+          <svg viewBox="0 0 24 24" class="tab-icon">
+            <path :d="getIconPath(tab.icon)" fill="currentColor"/>
+          </svg>
+          <span v-if="!isMobile || tab.showLabelOnMobile" class="tab-label">{{ tab.label }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button 
+        class="action-btn search-btn"
+        @click="$emit('open-search')"
+        title="Search"
+      >
+        <svg viewBox="0 0 24 24" class="search-icon">
+          <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" fill="currentColor"/>
+        </svg>
+      </button>
+      
+      <button 
+        class="action-btn composer-btn"
+        @click="$emit('open-composer')"
+        title="Create new post"
+      >
+        <svg viewBox="0 0 24 24" class="composer-icon">
+          <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
+        </svg>
+      </button>
+      
+      <button 
+        class="action-btn refresh-btn"
+        @click="$emit('refresh-timeline')"
+        title="Refresh timeline"
+      >
+        <svg viewBox="0 0 24 24" class="refresh-icon">
+          <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+// Props
+interface Props {
+  currentView?: string
+  isMobile?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  currentView: 'home',
+  isMobile: false
+})
+
+// Emits
+const emit = defineEmits<{
+  'switch-feed': [feedType: string]
+  'refresh-timeline': []
+  'open-composer': []
+  'open-search': []
+  'toggle-left-sidebar': []
+}>()
+
+// Feed tabs configuration
+const feedTabs = [
+  { 
+    id: 'home', 
+    label: 'Home', 
+    icon: 'home',
+    showLabelOnMobile: true
+  },
+  { 
+    id: 'local', 
+    label: 'Local', 
+    icon: 'users',
+    showLabelOnMobile: false
+  },
+  { 
+    id: 'public', 
+    label: 'Federated', 
+    icon: 'globe',
+    showLabelOnMobile: false
+  },
+  { 
+    id: 'trending', 
+    label: 'Trending', 
+    icon: 'trending-up',
+    showLabelOnMobile: false
+  },
+  { 
+    id: 'instances', 
+    label: 'Instances', 
+    icon: 'server',
+    showLabelOnMobile: false
+  }
+]
+
+// Icon paths
+const getIconPath = (iconName: string): string => {
+  const icons: Record<string, string> = {
+    home: 'M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z',
+    users: 'M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z',
+    globe: 'M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.78 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z',
+    'trending-up': 'M16,6L18.29,8.29L13.41,13.17L9.41,9.17L2,16.59L3.41,18L9.41,12L13.41,16L19.71,9.71L22,12V6H16Z',
+    server: 'M4,1H20A1,1 0 0,1 21,2V6A1,1 0 0,1 20,7H4A1,1 0 0,1 3,6V2A1,1 0 0,1 4,1M4,9H20A1,1 0 0,1 21,10V14A1,1 0 0,1 20,15H4A1,1 0 0,1 3,14V10A1,1 0 0,1 4,9M4,17H20A1,1 0 0,1 21,18V22A1,1 0 0,1 20,23H4A1,1 0 0,1 3,22V18A1,1 0 0,1 4,17M5,2V6H19V2H5M5,10V14H19V10H5M5,18V22H19V18H5M7,4H9V4.75H7V4M7,12H9V12.75H7V12M7,20H9V20.75H7V20Z'
+  }
+  return icons[iconName] || icons.home
+}
+</script>
+
+<style scoped>
+.mony-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--border-color);
+  height: 48px;
+  min-height: 48px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  width: 100px; /* Fixed width for balance */
+}
+
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.mobile-menu-btn:hover {
+  background: var(--background-secondary);
+}
+
+.menu-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.feed-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  padding: 4px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.feed-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.feed-tab:hover {
+  color: var(--text-primary);
+  background: var(--background-tertiary);
+}
+
+.feed-tab.active {
+  color: var(--brand-primary, #5865f2);
+  background: var(--brand-primary-alpha, rgba(88, 101, 242, 0.1));
+}
+
+.tab-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100px; /* Fixed width for balance */
+  justify-content: flex-end;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  color: var(--text-primary);
+  background: var(--background-secondary);
+}
+
+.composer-btn {
+  background: var(--brand-primary, #5865f2);
+  color: white;
+}
+
+.composer-btn:hover {
+  background: var(--brand-primary-hover, #4752c4);
+  color: white;
+}
+
+.search-icon,
+.composer-icon,
+.refresh-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
+  
+  .header-left,
+  .header-actions {
+    width: auto;
+  }
+  
+  .feed-switcher {
+    gap: 2px;
+    padding: 2px;
+  }
+  
+  .feed-tab {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  
+  .tab-label {
+    display: none;
+  }
+  
+  .feed-tab .tab-label[data-show-on-mobile="true"] {
+    display: block;
+  }
+  
+  .action-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .search-icon,
+  .composer-icon,
+  .refresh-icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Extra small mobile */
+@media (max-width: 480px) {
+  .mony-header {
+    padding: 8px 12px;
+  }
+  
+  .feed-switcher {
+    gap: 1px;
+  }
+  
+  .feed-tab {
+    padding: 4px 6px;
+  }
+  
+  .tab-icon {
+    width: 14px;
+    height: 14px;
+  }
+}
+</style>

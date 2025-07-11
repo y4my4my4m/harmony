@@ -216,11 +216,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
+import { useProfileStore } from '@/stores/useProfile';
 import { federationService } from '@/services/activitypub/federationService';
+import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';
 
@@ -233,6 +235,7 @@ import Icon from '@/components/common/Icon.vue';
 // Stores
 const activityPubStore = useActivityPubStore();
 const authStore = useAuthStore();
+const profileStore = useProfileStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -309,46 +312,95 @@ const formatJoinDate = (dateString: string): string => {
 };
 
 const loadUserProfile = async (handle: string) => {
+  console.log(`🔄 Loading profile for handle: ${handle}`);
   isLoading.value = true;
   error.value = null;
+  user.value = null; // Clear previous user data
   
   try {
-    // Try to resolve the user by handle
+    // Clean the handle
     if (handle.startsWith('@')) {
       handle = handle.substring(1);
     }
     
-    // Check if it's a federated handle
+    console.log(`🔍 Processing handle: ${handle}`);
+    
+    // Check if it's a federated handle (contains @)
     if (handle.includes('@')) {
+      console.log('🌐 Resolving federated user...');
       user.value = await federationService.resolveRemoteUser(handle);
     } else {
-      // Local user - TODO: implement local user lookup
-      // For now, create a mock local user
-      user.value = {
-        id: handle,
-        username: handle,
-        domain: 'har.mony.lol',
-        handle: `@${handle}@har.mony.lol`,
-        display_name: handle,
-        avatar_url: '/default_avatar.png',
-        bio: 'Local user profile',
-        is_local: true,
-        verified: false,
-        followers_count: 0,
-        following_count: 0,
-        posts_count: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+      console.log('👤 Looking up local user...');
+      
+             // For local users, try to get from activity pub service first
+       try {
+         user.value = await activityPubService.getUserByHandle(`@${handle}`);
+       } catch (localError) {
+        console.log('⚠️ ActivityPub lookup failed, trying profile service...');
+        
+        // Fallback: check if this is the current user
+        const currentUser = authStore.session?.user;
+        const currentUsername = currentUser?.user_metadata?.username || currentUser?.email?.split('@')[0];
+        
+        if (currentUser && currentUsername === handle) {
+          console.log('✅ Loading current user profile...');
+          
+          // Load current user's profile
+          await profileStore.fetchProfile(currentUser.id);
+          const profile = profileStore.profile;
+          
+          if (profile) {
+            user.value = {
+              id: currentUser.id,
+              username: profile.username || currentUsername,
+              domain: 'har.mony.lol',
+              handle: `@${profile.username || currentUsername}@har.mony.lol`,
+              display_name: profile.display_name || profile.username || currentUsername,
+              avatar_url: profile.avatar_url || currentUser.user_metadata?.avatar_url || '/default_avatar.png',
+              bio: profile.bio || 'Monyverse user',
+              is_local: true,
+              verified: false,
+              followers_count: activityPubStore.followersCount || 0,
+              following_count: activityPubStore.followingCount || 0,
+              posts_count: activityPubStore.homeFeed.posts.filter(p => p.author_id === currentUser.id).length,
+              created_at: profile.created_at || currentUser.created_at || new Date().toISOString(),
+              updated_at: profile.updated_at || new Date().toISOString()
+            };
+          }
+        } else {
+          // Try to find user by username in the system
+          console.log('🔎 Searching for user in system...');
+          
+          // Create a basic user object for display
+          user.value = {
+            id: handle,
+            username: handle,
+            domain: 'har.mony.lol',
+            handle: `@${handle}@har.mony.lol`,
+            display_name: handle,
+            avatar_url: '/default_avatar.png',
+            bio: 'Monyverse user',
+            is_local: true,
+            verified: false,
+            followers_count: 0,
+            following_count: 0,
+            posts_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        }
+      }
     }
     
     if (user.value) {
+      console.log('✅ User profile loaded:', user.value.display_name);
       await loadUserPosts();
     } else {
+      console.log('❌ User not found');
       error.value = 'User not found';
     }
   } catch (err) {
-    console.error('Failed to load user profile:', err);
+    console.error('❌ Failed to load user profile:', err);
     error.value = 'Failed to load profile. The user might not exist or be unavailable.';
   } finally {
     isLoading.value = false;
@@ -467,11 +519,21 @@ const handleReblog = async (postId: string) => {
 };
 
 // Watch route changes
-watch(() => route.params.handle, (newHandle) => {
+watch(() => route.params.handle, (newHandle, oldHandle) => {
+  console.log(`👤 Profile route changed from ${oldHandle} to ${newHandle}`);
   if (newHandle && typeof newHandle === 'string') {
     loadUserProfile(newHandle);
   }
 }, { immediate: true });
+
+// Ensure profile loads on mount
+onMounted(() => {
+  const handle = route.params.handle;
+  console.log(`🔄 UserProfileView mounted with handle: ${handle}`);
+  if (handle && typeof handle === 'string') {
+    loadUserProfile(handle);
+  }
+});
 
 // Close actions menu when clicking outside
 const handleClickOutside = (event: Event) => {

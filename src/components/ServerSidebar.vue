@@ -67,7 +67,7 @@ export default defineComponent({
 
     // Check if we're currently in DM mode
     const isDMSelected = computed(() => {
-      return route.name === 'DM' || route.name === 'DMHome';
+      return route.name === 'DM' || route.name === 'DMHome' || route.name === 'DMConversation';
     });
 
     // Check if we're currently in Monyverse/Social (ActivityPub)

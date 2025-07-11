@@ -89,7 +89,7 @@
               v-for="navItem in navigationItems"
               :key="navItem.id"
               :class="['nav-item', { active: isNavItemActive(navItem) }]"
-              @click="navigateToRoute(navItem.path)"
+              @click="handleNavItemClick(navItem)"
             >
               <Icon :name="navItem.icon" />
               <span>{{ navItem.label }}</span>
@@ -162,6 +162,7 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useProfileStore } from '@/stores/useProfile';
+import { useAuthStore } from '@/stores/auth';
 import type { Server, Channel, Category, User } from '@/types';
 import Avatar from '@/components/common/Avatar.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -216,6 +217,7 @@ const route = useRoute();
 const router = useRouter();
 const activityPubStore = useActivityPubStore();
 const profileStore = useProfileStore();
+const authStore = useAuthStore();
 
 // State
 const followingChange = ref(0);
@@ -224,7 +226,27 @@ const previousFollowingCount = ref(0);
 const previousFollowersCount = ref(0);
 
 // Computed properties
-const currentUser = computed(() => profileStore.profile);
+const currentUser = computed(() => {
+  // Try profile store first, fallback to auth store user data
+  if (profileStore.profile) {
+    return profileStore.profile
+  }
+  
+  // Fallback to basic user info from auth if profile isn't loaded yet
+  const authUser = authStore.session?.user
+  if (authUser) {
+    return {
+      id: authUser.id,
+      username: authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'User',
+      display_name: authUser.user_metadata?.display_name || authUser.user_metadata?.username || 'User',
+      avatar_url: authUser.user_metadata?.avatar_url || null,
+      status: 0, // Default to offline
+      domain: 'har.mony.lol'
+    }
+  }
+  
+  return null
+});
 
 const currentUserHandle = computed(() => {
   if (!currentUser.value) return '';
@@ -319,12 +341,37 @@ const navigateToFollowers = () => {
 
 const navigateToProfile = () => {
   if (currentUserHandle.value) {
-    router.push(`/profile/${currentUserHandle.value.replace('@', '')}`);
+    // Remove all @ symbols and use just the username part for local users
+    let handle = currentUserHandle.value.replace(/^@/, ''); // Remove leading @
+    
+    // For local users, remove domain part if present
+    if (!handle.includes('@')) {
+      // Already clean handle for local user
+    } else if (handle.endsWith('@har.mony.lol')) {
+      // Remove local domain for clean local handle
+      handle = handle.replace('@har.mony.lol', '');
+    }
+    
+    console.log(`🔗 Navigating to profile with handle: ${handle}`);
+    router.push({ 
+      name: 'UserProfile', 
+      params: { handle } 
+    });
   }
 };
 
 const navigateToRoute = (path: string) => {
   router.push(path);
+};
+
+const handleNavItemClick = (navItem: { id: string; path: string }) => {
+  // Special handling for profile navigation
+  if (navItem.id === 'profile') {
+    navigateToProfile();
+  } else {
+    // Use regular path navigation for other items
+    navigateToRoute(navItem.path);
+  }
 };
 
 // Format numbers for display (e.g., 1000 -> 1K)

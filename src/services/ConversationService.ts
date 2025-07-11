@@ -222,7 +222,7 @@ export class ConversationService {
    * Get ActivityPub conversation context from route query parameters
    * Extracts navigation context for highlighting and scrolling
    */
-  static getConversationContext(route: any) {
+  static getRouteContext(route: any) {
     return {
       highlightPostId: route.query.highlight as string || null,
       fromPostId: route.query.from as string || null,

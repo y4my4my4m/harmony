@@ -553,7 +553,22 @@ const toggleCategory = async (categoryId: string) => {
 };
 
 const toggleDropdown = () => isDropdownOpen.value = !isDropdownOpen.value;
-const selectChannel = (channelId: string) => router.push({ name: 'Chat', params: { serverId: props.currentServer.id, channelId } });
+const selectChannel = (channelId: string) => {
+  // Professional navigation with proper route structure
+  const serverId = props.currentServer.id;
+  if (!serverId) {
+    console.warn('Cannot navigate to channel: No server ID available');
+    return;
+  }
+  
+  router.push({ 
+    name: 'ChatChannel', 
+    params: { 
+      serverId, 
+      channelId 
+    } 
+  });
+};
 const emitCreateChannel = (categoryId?: string) => emit('createChannel', categoryId);
 const showCategoryCreator = () => isCategoryCreatorOpen.value = !isCategoryCreatorOpen.value;
 const openInviteModal = () => showInviteModal.value = true;
