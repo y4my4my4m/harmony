@@ -54,7 +54,7 @@ BEGIN
   END IF;
   
   -- Return empty if no cache
-  RETURN jsonb_build_object('posts', '[]'::jsonb, 'cached', false);
+  RETURN jsonb_build_object('posts', '[]'::jsonb, 'cached', false, 'count', 0);
 END;
 $$ LANGUAGE plpgsql;
 
