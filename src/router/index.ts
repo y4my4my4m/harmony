@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import UnifiedView from '@/views/UnifiedView.vue';
 import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
@@ -7,13 +6,7 @@ import { useAuthStore } from '@/stores/auth';
 import { 
   ViewMode, 
   ViewType, 
-  CurrentView, 
-  createTimelineView,
-  createExploreView,
-  createProfileView,
-  createPostView,
-  createChatView,
-  createDMView
+  CurrentView 
 } from '@/types/viewTypes';
 
 const router = createRouter({
@@ -22,144 +15,23 @@ const router = createRouter({
     {
       path: '/',
       name: 'Home',
+      redirect: '/chat'
+    },
+    {
+      path: '/login',
+      name: 'Login',
       component: LoginView,
-      meta: { requiresAuth: true }
     },
     {
-      path: '/chat/:serverId?/:channelId?',
-      name: 'Chat',
-      component: UnifiedView,
-      props: route => ({
-        mode: ViewMode.CHAT,
-        viewType: ViewType.CHAT,
-        currentView: CurrentView.CHAT,
-        serverId: route.params.serverId as string,
-        channelId: route.params.channelId as string,
-        isDM: false
-      }),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/dm/:conversationId?',
-      name: 'DM',
-      component: UnifiedView,
-      props: route => ({ 
-        mode: ViewMode.CHAT,
-        viewType: ViewType.DM,
-        currentView: CurrentView.DM,
-        isDM: true, 
-        conversationId: route.params.conversationId as string
-      }),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/dm',
-      name: 'DMHome',
-      component: UnifiedView,
-      props: { 
-        mode: ViewMode.CHAT,
-        viewType: ViewType.DM,
-        currentView: CurrentView.DM,
-        isDM: true 
-      },
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/social/bookmarks',
-      name: 'Bookmarks',
-      component: UnifiedView,
-      props: { 
-        mode: ViewMode.ACTIVITYPUB,
-        viewType: ViewType.BOOKMARKS,
-        currentView: CurrentView.BOOKMARKS
-      },
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/social/notifications',
-      name: 'Notifications',
-      component: UnifiedView,
-      props: { 
-        mode: ViewMode.ACTIVITYPUB,
-        viewType: ViewType.NOTIFICATIONS,
-        currentView: CurrentView.NOTIFICATIONS
-      },
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/social/lists',
-      name: 'Lists',
-      component: UnifiedView,
-      props: { 
-        mode: ViewMode.ACTIVITYPUB,
-        viewType: ViewType.LISTS,
-        currentView: CurrentView.LISTS
-      },
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/social/followers',
-      name: 'Followers',
-      component: () => import('@/views/FollowersView.vue'),
-      props: { viewType: 'followers' },
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/social/following',
-      name: 'Following',
-      component: () => import('@/views/FollowersView.vue'),
-      props: { viewType: 'following' },
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/social/post/:postId',
-      name: 'PostDetail',
-      component: UnifiedView,
-      props: route => ({
-        mode: ViewMode.ACTIVITYPUB,
-        viewType: ViewType.POST,
-        currentView: CurrentView.POST,
-        postId: route.params.postId as string
-      }),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/social/conversation/:postId',
-      name: 'ConversationThread',
-      component: () => import('@/views/ConversationThreadView.vue'),
-      props: route => ({
-        postId: route.params.postId as string,
-        highlightPostId: route.query.highlight as string,
-        fromPostId: route.query.from as string,
-        contextTimestamp: route.query.t ? parseInt(route.query.t as string) : null
-      }),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/new-profile',
-      name: 'NewProfile',
-      component: () => import('@/views/NewProfile.vue'),
-      meta: { requiresAuth: true },
+      path: '/register',
+      name: 'Register',
+      component: RegisterView
     },
     {
       path: '/invite/:code',
       name: 'InviteAccept',
       component: InviteAccept,
       meta: { requiresAuth: true }
-    },
-    {
-      path: '/server/:serverId',
-      name: 'ServerSettings',
-      component: () => import('@/views/ServerSettings.vue'),
-      meta: { requiresAuth: true },
-      props: true
-    },
-    {
-      path: '/settings/:section?',
-      name: 'UserSettings',
-      component: () => import('@/views/UserSettings.vue'),
-      meta: { requiresAuth: true },
-      props: true
     },
     {
       path: '/demo',
@@ -173,91 +45,242 @@ const router = createRouter({
       component: () => import('@/components/demo/AudioThemeShowcase.vue'),
       meta: { requiresAuth: false }
     },
+    // Chat Layout Routes
+    {
+      path: '/chat',
+      component: () => import('@/layouts/ChatLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'Chat',
+          component: () => import('@/views/ChatView.vue'),
+          props: route => ({
+            isDM: false,
+            serverId: route.params.serverId as string,
+            channelId: route.params.channelId as string
+          })
+        },
+        {
+          path: ':serverId/:channelId',
+          name: 'ChatChannel',
+          component: () => import('@/views/ChatView.vue'),
+          props: route => ({
+            isDM: false,
+            serverId: route.params.serverId as string,
+            channelId: route.params.channelId as string
+          })
+        }
+      ]
+    },
+    {
+      path: '/dm',
+      component: () => import('@/layouts/ChatLayout.vue'),
+      meta: { requiresAuth: true },
+      props: { isDM: true },
+      children: [
+        {
+          path: '',
+          name: 'DM',
+          component: () => import('@/views/ChatView.vue'),
+          props: { isDM: true }
+        },
+        {
+          path: ':conversationId',
+          name: 'DMConversation',
+          component: () => import('@/views/ChatView.vue'),
+          props: route => ({
+            isDM: true,
+            conversationId: route.params.conversationId as string
+          })
+        }
+      ]
+    },
+    // Social Layout Routes
+    {
+      path: '/social',
+      component: () => import('@/layouts/SocialLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          redirect: '/social/home'
+        },
+        {
+          path: 'home',
+          name: 'SocialHome',
+          component: () => import('@/views/TimelineView.vue'),
+          props: {
+            currentView: CurrentView.HOME,
+            viewType: ViewType.TIMELINE
+          }
+        },
+        {
+          path: 'local',
+          name: 'SocialLocal',
+          component: () => import('@/views/TimelineView.vue'),
+          props: {
+            currentView: CurrentView.LOCAL,
+            viewType: ViewType.TIMELINE
+          }
+        },
+        {
+          path: 'public',
+          name: 'SocialPublic',
+          component: () => import('@/views/TimelineView.vue'),
+          props: {
+            currentView: CurrentView.PUBLIC,
+            viewType: ViewType.TIMELINE
+          }
+        },
+        {
+          path: 'notifications',
+          name: 'Notifications',
+          component: () => import('@/views/NotificationsView.vue'),
+          props: {
+            currentView: CurrentView.NOTIFICATIONS,
+            viewType: ViewType.NOTIFICATIONS
+          }
+        },
+        {
+          path: 'bookmarks',
+          name: 'Bookmarks',
+          component: () => import('@/views/BookmarksView.vue'),
+          props: {
+            currentView: CurrentView.BOOKMARKS,
+            viewType: ViewType.BOOKMARKS
+          }
+        },
+        {
+          path: 'lists',
+          name: 'Lists',
+          component: () => import('@/views/ListsView.vue'),
+          props: {
+            currentView: CurrentView.LISTS,
+            viewType: ViewType.LISTS
+          }
+        },
+        {
+          path: 'followers',
+          name: 'Followers',
+          component: () => import('@/views/FollowersView.vue'),
+          props: { viewType: 'followers' }
+        },
+        {
+          path: 'following',
+          name: 'Following',
+          component: () => import('@/views/FollowersView.vue'),
+          props: { viewType: 'following' }
+        },
+        {
+          path: 'trending',
+          name: 'SocialTrending',
+          component: () => import('@/views/ExploreView.vue'),
+          props: {
+            currentView: CurrentView.TRENDING,
+            viewType: ViewType.EXPLORE
+          }
+        },
+        {
+          path: 'instances',
+          name: 'SocialInstances',
+          component: () => import('@/views/ExploreView.vue'),
+          props: {
+            currentView: CurrentView.INSTANCES,
+            viewType: ViewType.EXPLORE
+          }
+        },
+        {
+          path: 'post/:postId',
+          name: 'PostDetail',
+          component: () => import('@/views/PostDetailView.vue'),
+          props: route => ({
+            postId: route.params.postId as string,
+            currentView: CurrentView.POST,
+            viewType: ViewType.POST
+          })
+        },
+        {
+          path: 'conversation/:postId',
+          name: 'ConversationThread',
+          component: () => import('@/views/ConversationThreadView.vue'),
+          props: route => ({
+            postId: route.params.postId as string,
+            highlightPostId: route.query.highlight as string,
+            fromPostId: route.query.from as string,
+            contextTimestamp: route.query.t ? parseInt(route.query.t as string) : null
+          })
+        }
+      ]
+    },
+    // Legacy route redirects
+    {
+      path: '/social/:timeline',
+      name: 'Social',
+      redirect: route => {
+        const timeline = route.params.timeline as string || 'home';
+        return `/social/${timeline}`;
+      }
+    },
+    {
+      path: '/explore',
+      name: 'Explore',
+      redirect: '/social/trending'
+    },
+    {
+      path: '/profile/:handle',
+      name: 'UserProfile',
+      component: () => import('@/layouts/SocialLayout.vue'),
+      props: route => ({
+        currentView: CurrentView.PROFILE,
+        viewType: ViewType.PROFILE,
+        profileHandle: route.params.handle as string
+      }),
+      children: [
+        {
+          path: '',
+          component: () => import('@/views/UserProfileView.vue'),
+          props: route => ({
+            profileHandle: route.params.handle as string,
+            currentView: CurrentView.PROFILE,
+            viewType: ViewType.PROFILE
+          })
+        }
+      ]
+    },
+    // Settings and Admin (standalone routes)
+    {
+      path: '/settings/:section?',
+      name: 'UserSettings',
+      component: () => import('@/views/UserSettings.vue'),
+      meta: { requiresAuth: true },
+      props: true
+    },
+    {
+      path: '/server/:serverId',
+      name: 'ServerSettings',
+      component: () => import('@/views/ServerSettings.vue'),
+      meta: { requiresAuth: true },
+      props: true
+    },
     {
       path: '/admin',
       name: 'AdminPanel',
       component: () => import('@/views/AdminPanel.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }
     },
-    // ActivityPub / Social Routes (specific routes first!)
     {
-      path: '/social/trending',
-      name: 'SocialTrending',
-      component: () => import('@/views/UnifiedView.vue'),
-      props: {
-        mode: ViewMode.ACTIVITYPUB,
-        viewType: ViewType.EXPLORE,
-        currentView: CurrentView.TRENDING
-      },
+      path: '/new-profile',
+      name: 'NewProfile',
+      component: () => import('@/views/NewProfile.vue'),
       meta: { requiresAuth: true }
     },
-    {
-      path: '/social/instances',
-      name: 'SocialInstances',
-      component: () => import('@/views/UnifiedView.vue'),
-      props: {
-        mode: ViewMode.ACTIVITYPUB,
-        viewType: ViewType.EXPLORE,
-        currentView: CurrentView.INSTANCES
-      },
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/social/:timeline?',
-      name: 'Social',
-      component: () => import('@/views/UnifiedView.vue'),
-      props: (route) => {
-        const timeline = route.params.timeline as string || 'home';
-        const currentView = timeline === 'home' ? CurrentView.HOME 
-          : timeline === 'local' ? CurrentView.LOCAL 
-          : timeline === 'public' ? CurrentView.PUBLIC 
-          : CurrentView.HOME;
-        
-        return {
-          mode: ViewMode.ACTIVITYPUB,
-          viewType: ViewType.TIMELINE,
-          currentView,
-          timeline // Legacy support
-        };
-      }
-    },
-    {
-      path: '/explore',
-      name: 'Explore',
-      component: () => import('@/views/UnifiedView.vue'),
-      props: {
-        mode: ViewMode.ACTIVITYPUB,
-        viewType: ViewType.EXPLORE,
-        currentView: CurrentView.TRENDING // Default to trending in explore
-      }
-    },
-    {
-      path: '/profile/:handle',
-      name: 'UserProfile',
-      component: () => import('@/views/UnifiedView.vue'),
-      props: (route) => ({
-        mode: ViewMode.ACTIVITYPUB,
-        viewType: ViewType.PROFILE,
-        currentView: CurrentView.PROFILE,
-        profileHandle: route.params.handle as string
-      })
-    },
-    {
-      path: '/login',
-      name: 'Login',
-      component: LoginView,
-    },
-    {
-      path: '/register',
-      name: 'Register',
-      component: RegisterView
-    },
-    // Legacy route redirects for backward compatibility
+    // Legacy redirects for backward compatibility
     {
       path: '/monyverse/:timeline?',
       name: 'Monyverse',
       redirect: route => ({
-        name: 'Social',
+        name: 'SocialHome',
         params: { timeline: route.params.timeline || 'home' }
       }),
       meta: { requiresAuth: true },

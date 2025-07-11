@@ -1,5 +1,10 @@
 <template>
-  <RouterView />
+  <BaseLayout
+    @showPublicServers="handleShowPublicServers"
+    @switchToActivityPub="handleSwitchToActivityPub"
+    @switchToChat="handleSwitchToChat"
+  />
+  
   <NotificationToast />
   
   <!-- Persistent Voice Connection -->
@@ -8,15 +13,51 @@
   <!-- PWA Components -->
   <PWAInstallBanner />
   <PWAUpdateNotification />
+  
+  <!-- Global Modals -->
+  <PublicServers 
+    v-if="showPublicServers"
+    :force-refresh="shouldForceRefreshPublicServers"
+    @close="handleClosePublicServers"
+  />
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import BaseLayout from '@/layouts/BaseLayout.vue'
 import NotificationToast from '@/components/NotificationToast.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
+import PublicServers from '@/components/PublicServers.vue'
 import { onMounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
+
+const router = useRouter()
+
+// Global modal state
+const showPublicServers = ref(false)
+const shouldForceRefreshPublicServers = ref(false)
+
+// Event handlers
+const handleShowPublicServers = () => {
+  showPublicServers.value = true
+  shouldForceRefreshPublicServers.value = true
+}
+
+const handleClosePublicServers = () => {
+  showPublicServers.value = false
+  shouldForceRefreshPublicServers.value = false
+}
+
+const handleSwitchToActivityPub = () => {
+  router.push({ name: 'Social', params: { timeline: 'home' } })
+}
+
+const handleSwitchToChat = () => {
+  router.push({ name: 'Chat' })
+}
 
 // Initialize haptic feedback for the app
 onMounted(() => {

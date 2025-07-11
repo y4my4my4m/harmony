@@ -1,20 +1,18 @@
+<!-- 
+  DEPRECATED: This file has been refactored into a proper layout system.
+  
+  New architecture:
+  - BaseLayout.vue: Root app layout with server sidebar
+  - ChatLayout.vue: Chat-specific layout with channel sidebar  
+  - SocialLayout.vue: Social-specific layout with social sidebar
+  - Individual view components: ChatView, TimelineView, ExploreView, etc.
+  
+  See VIEW_REFACTORING_SUMMARY.md for full details.
+-->
 <template>
-  <!-- Loading Screen -->
-  <div v-if="!isAppReady" class="loading-overlay">
-    <div class="loading-spinner-container">
-      <div class="loading-spinner"></div>
-      <p>Loading Harmony...</p>
-    </div>
+  <div class="deprecated-unified-view">
+    <p>This component has been deprecated. Please use the new layout system.</p>
   </div>
-  
-  <!-- No Servers Splash - Only show if no servers and in chat mode -->
-  <NoServersSplash 
-    v-else-if="shouldShowNoServersSplash"
-    @showPublicServers="handleShowPublicServers"
-  />
-  
-  <!-- Main Unified Layout -->
-  <div v-else class="unified-layout" :class="{ 'sidebar-open': isSidebarsVisible, 'profile-open': isProfilesVisible }">
     <!-- Mobile Overlay Backdrop -->
     <div 
       v-if="isMobile && (isSidebarsVisible || isProfilesVisible)" 
