@@ -278,9 +278,14 @@ class TrendingService {
     try {
       const { limit = 10, timeframe = 'daily' } = options;
 
+      // Get current user id to exclude from trending users
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      const currentUserId = userData?.user?.id;
+
       // For now, get users with recent activity and good engagement
       // TODO: Implement proper trending_users table usage when that's populated
-      const { data, error } = await supabase
+      let query = supabase
         .from('profiles')
         .select(`
           *,
@@ -288,9 +293,15 @@ class TrendingService {
           post_count:posts!author_id(count)
         `)
         .eq('domain', 'har.mony.lol') // Local users for now
-        .order('created_at', { ascending: false })
-        .limit(limit);
+        .order('created_at', { ascending: false });
 
+      if (currentUserId) {
+        query = query.neq('id', currentUserId);
+      }
+
+      query = query.limit(limit);
+
+      const { data, error } = await query;
       if (error) throw error;
 
       return (data || []).map((row: any) => {

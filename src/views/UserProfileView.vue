@@ -28,11 +28,10 @@
         
         <div class="profile-info">
           <div class="avatar-section">
-            <img 
-              :src="user.avatar_url || '/default_avatar.png'" 
+            <Avatar 
+              :src="user.avatar_url" 
               :alt="user.display_name"
-              class="profile-avatar"
-            />
+              size="2xl" />
             <div v-if="!user.is_local" class="federation-badge" :title="`From ${user.domain}`">
               <Icon name="federation" />
               <span>{{ user.domain }}</span>
@@ -231,6 +230,7 @@ import MonyPost from '@/components/activitypub/MonyPost.vue';
 import MonyContent from '@/components/activitypub/MonyContent.vue';
 import UserCard from '@/components/activitypub/UserCard.vue';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '@/components/common/Avatar.vue';
 
 // Stores
 const activityPubStore = useActivityPubStore();

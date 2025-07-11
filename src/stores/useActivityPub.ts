@@ -1446,6 +1446,27 @@ export const useActivityPubStore = defineStore('activitypub', {
        this.unreadCount = 0;
      },
 
+     async loadNotifications() {
+      try {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('User not authenticated');
+
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.data.user.id)
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (error) throw error;
+
+        console.log('🔔 Notifications loaded:', data);
+        this.notifications = data;
+      } catch (error) {
+        console.error('Failed to load notifications:', error);
+        throw error;
+      }
+     },
      /**
       * Cleanup store - clean and simple
       */

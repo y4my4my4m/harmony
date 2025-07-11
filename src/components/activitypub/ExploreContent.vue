@@ -116,27 +116,15 @@
             Suggested Users
           </h3>
           <div v-if="suggestedUsers.length > 0" class="users-grid">
-            <div 
-              v-for="user in suggestedUsers" 
+            <UserCard 
+              v-for="user in suggestedUsers"
               :key="user.user?.id || user.id"
-              @click="$emit('show-user-profile', user.user || user)"
-              class="user-card"
-            >
-              <img :src="(user.user || user).avatar_url" :alt="(user.user || user).display_name" class="user-avatar" />
-              <div class="user-info">
-                <div class="user-name">{{ (user.user || user).display_name }}</div>
-                <div class="user-handle">{{ (user.user || user).handle }}</div>
-                <div class="user-bio">{{ (user.user || user).bio || 'No bio available' }}</div>
-                <div class="user-stats">
-                  <span>{{ formatNumber((user.user || user).followers_count) }} followers</span>
-                  <span>{{ formatNumber((user.user || user).posts_count) }} posts</span>
-                </div>
-              </div>
-              <button @click.stop="$emit('follow-user', (user.user || user).id)" class="follow-btn">
-                <Icon name="user-plus" />
-                Follow
-              </button>
-            </div>
+              :user="user.user || user"
+              :show-more-actions="true"
+              :is-compact="true"
+              @show-user-profile="$emit('show-user-profile', user.user || user)"
+              @follow="() => $emit('follow-user', (user.user || user).id)"
+            />
           </div>
           <div v-else class="empty-state">
             <Icon name="users" />
@@ -239,6 +227,8 @@ import MonyPost from './MonyPost.vue';
 import InstanceDetailModal from './InstanceDetailModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { TimelinePost, FederatedUser } from '@/types';
+import Avatar from '../common/Avatar.vue';
+import UserCard from './UserCard.vue';
 
 // Props
 interface Props {
@@ -623,6 +613,12 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   position: relative;
 }
 
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
 .instance-badge {
   position: absolute;
   top: 8px;
@@ -938,6 +934,14 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   .instance-stats {
     flex-wrap: wrap;
     gap: 8px;
+  }
+  
+  .users-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .tab-btn {
+    padding: 0.75rem 1rem;
   }
 }
 </style> 

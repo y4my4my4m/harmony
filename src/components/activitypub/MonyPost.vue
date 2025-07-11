@@ -1,7 +1,8 @@
 <!-- MonyPost Component - Individual post display -->
 <!-- Professional, engaging UI for ActivityPub posts -->
 <template>
-  <article class="mony-post" :class="{ 'is-reply': post.reply_context }">
+  <article class="mony-post" 
+  v-if="author" :class="{ 'is-reply': post.reply_context }">
     <!-- Main Post Content -->
     <div class="post-content">
       <!-- Author Info -->
@@ -10,7 +11,7 @@
           class="author-info"
           @click="handleAuthorClick"
         >
-          <Avatar 
+          <Avatar
             :src="author.avatar_url"
             :alt="author.display_name || author.username"
             size="md"

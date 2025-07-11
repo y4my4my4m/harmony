@@ -20,9 +20,8 @@
         <div v-if="!isCompact && user.bio" class="user-bio">
           {{ truncatedBio }}
         </div>
-        
         <!-- Stats (for non-compact view) -->
-        <div v-if="!isCompact" class="user-stats">
+        <div class="user-stats">
           <span class="stat">
             <strong>{{ formatNumber(user.followers_count || 0) }}</strong> followers
           </span>
@@ -34,6 +33,7 @@
           </span>
         </div>
       </div>
+        
     </div>
 
     <!-- Actions -->
@@ -109,8 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import type { FederatedUser } from '@/types';
@@ -151,7 +150,6 @@ const emit = defineEmits<{
 // Stores
 const activityPubStore = useActivityPubStore();
 const authStore = useAuthStore();
-const router = useRouter();
 
 // State
 const isFollowLoading = ref(false);
@@ -267,7 +265,14 @@ const handleClickOutside = (event: Event) => {
   }
 };
 
-document.addEventListener('click', handleClickOutside);
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
+
 </script>
 
 <style scoped>
@@ -355,6 +360,7 @@ document.addEventListener('click', handleClickOutside);
   gap: 1rem;
   font-size: 0.75rem;
   color: #80848e;
+  margin-bottom: 0.5rem;
 }
 
 .stat strong {
