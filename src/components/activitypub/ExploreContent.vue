@@ -873,6 +873,29 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   margin-bottom: 12px;
 }
 
+.instance-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.instance-actions .action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--background-tertiary);
+  border: none;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.instance-actions .action-btn:hover {
+  background: var(--background-quaternary);
+}
+
 .stat {
   display: flex;
   align-items: center;

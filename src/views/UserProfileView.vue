@@ -600,11 +600,6 @@ document.addEventListener('click', handleClickOutside);
   background: #4752c4;
 }
 
-.profile-content {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
 .profile-header {
   position: relative;
 }
@@ -625,11 +620,10 @@ document.addEventListener('click', handleClickOutside);
 
 .profile-info {
   background: var(--h-sidebar, #2b2d31);
-  border-radius: 12px 12px 0 0;
+  /* border-radius: 12px 12px 0 0; */
   margin-top: -60px;
   position: relative;
   padding: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .avatar-section {

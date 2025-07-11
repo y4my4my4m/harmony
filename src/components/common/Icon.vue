@@ -274,6 +274,9 @@
     <polyline v-if="name === 'rotate-ccw'" points="1 4 1 10 7 10"></polyline>
     <path v-if="name === 'rotate-ccw'" d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
     
+    <!-- external-link -->
+    <path v-if="name === 'external-link'" d="M10 14l7-7m-7 0h8a2 2 0 0 1 2 2v8m-10-6H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"></path>
+
     <!-- Eye -->
     <path v-if="name === 'eye'" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
     <circle v-if="name === 'eye'" cx="12" cy="12" r="3"></circle>

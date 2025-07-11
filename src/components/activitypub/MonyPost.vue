@@ -581,6 +581,7 @@ const handleHashtagClick = (tag: string) => {
   flex-direction: row;
   gap: 4px;
   white-space: nowrap;
+  align-items: center;
 }
 
 .post-meta {
@@ -669,7 +670,6 @@ const handleHashtagClick = (tag: string) => {
 .reply-details {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
 }
 
 .reply-author {
