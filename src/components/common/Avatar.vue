@@ -214,7 +214,7 @@ const handleImageLoad = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1;
+  z-index: 0;
 }
 
 /* Status indicator - following voice overlay pattern */
