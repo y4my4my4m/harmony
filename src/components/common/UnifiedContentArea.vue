@@ -1,7 +1,7 @@
 <template>
   <div class="unified-content-area">
     <!-- Chat Mode Content -->
-    <div v-if="mode === ViewMode.CHAT" class="content-section chat-content">
+    <div v-if="mode === ViewMode.CHAT" class="content-section">
       <ChatComponent
         :messages="chatMessages"
         :isLoading="isLoading"
@@ -392,6 +392,7 @@ const getSpecialViewEmptyMessage = (viewType: ViewType) => {
 .unified-content-area {
   display: flex;
   flex-direction: column;
+  flex: 1;
   height: 100%;
   background: var(--background-primary);
 }
@@ -407,11 +408,6 @@ const getSpecialViewEmptyMessage = (viewType: ViewType) => {
    Clean, consistent styling for both chat and ActivityPub modes
    ============================================================================= */
 
-/* Chat Mode */
-.chat-content {
-  height: 100%;
-  overflow: hidden;
-}
 
 /* ActivityPub Mode */
 .activitypub-content {

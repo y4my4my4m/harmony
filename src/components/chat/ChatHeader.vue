@@ -118,8 +118,8 @@ const handleMoreClick = () => {
   padding: 12px 16px;
   background: var(--background-primary);
   border-bottom: 1px solid var(--border-color);
-  height: 64px;
-  min-height: 64px;
+  height: 48px;
+  min-height: 48px;
 }
 
 .header-left {

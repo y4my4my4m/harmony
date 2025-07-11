@@ -261,8 +261,7 @@ onBeforeUnmount(() => {
 .server-sidebar-container {
   width: 72px;
   flex-shrink: 0;
-  background: var(--background-secondary);
-  border-right: 1px solid var(--border-color);
+  background: var(--background-tertiary);
   z-index: 100;
 }
 
@@ -275,8 +274,8 @@ onBeforeUnmount(() => {
 
 .user-profile-section {
   position: absolute;
-  bottom: 0;
-  left: 0;
+  left: 10px;
+  bottom: 10px;
   width: 72px;
   z-index: 101;
 }

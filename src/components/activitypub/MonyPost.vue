@@ -291,7 +291,7 @@ const author = computed(() => {
 
 const authorHandle = computed(() => {
   const { username, domain } = props.post.author;
-  return domain === 'har.mony.lol' || domain === 'harmony.com' 
+  return domain === 'har.mony.lol' || domain === 'har.mony.lol' 
     ? `@${username}` 
     : `@${username}@${domain}`;
 });
@@ -303,7 +303,7 @@ const instanceDomain = computed(() => {
 
 const isAuthorLocal = computed(() => {
   const { domain } = props.post.author;
-  return domain === 'har.mony.lol' || domain === 'harmony.com';
+  return domain === 'har.mony.lol' || domain === 'har.mony.lol'
 });
 
 // Helper to flatten MessagePart[] or JSON string to plain text

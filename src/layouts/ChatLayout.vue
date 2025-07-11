@@ -47,7 +47,7 @@
       <!-- Main + Right Sidebar Container -->
       <div class="main-and-right-container">
         <!-- Chat Header (spans across main + right sidebar) -->
-        <div class="chat-header-container">
+        <div v-if="!isDM" class="chat-header-container">
           <ChatHeader
             v-if="currentChannel"
             :channel="currentChannel"
@@ -77,19 +77,17 @@
           <!-- Main Content Area -->
           <div class="main-content-area">        
             <!-- Chat Content (RouterView for nested chat views) -->
-            <div class="chat-content-area">
-              <RouterView 
-                :current-server="currentServer"
-                :current-channel="currentChannel"
-                :is-d-m="isDM"
-                :server-id="serverId"
-                :channel-id="channelId"
-                :conversation-id="conversationId"
-                @send-message="handleSendMessage"
-                @toggle-left-sidebar="$emit('toggleLeftSidebar')"
-                @toggle-voice-panel="$emit('toggleVoicePanel')"
-              />
-            </div>
+            <RouterView 
+              :current-server="currentServer"
+              :current-channel="currentChannel"
+              :is-d-m="isDM"
+              :server-id="serverId"
+              :channel-id="channelId"
+              :conversation-id="conversationId"
+              @send-message="handleSendMessage"
+              @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+              @toggle-voice-panel="$emit('toggleVoicePanel')"
+            />
           </div>
 
           <!-- Right Sidebar (User List) -->
@@ -305,13 +303,6 @@ onMounted(() => {
   position: relative;
 }
 
-.context-bar-container {
-  height: 48px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
-  z-index: 50;
-}
-
 .chat-layout-content {
   flex: 1;
   display: flex;
@@ -323,7 +314,6 @@ onMounted(() => {
   width: 295px;
   flex-shrink: 0;
   background: var(--background-tertiary);
-  border-right: 1px solid var(--border-color);
   position: relative;
   z-index: 40;
 }
@@ -333,11 +323,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border-top: 1px solid var(--border-color);
 }
 
 .chat-header-container {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
   background: var(--background-primary);
   z-index: 60;
 }
@@ -408,7 +398,6 @@ onMounted(() => {
   width: 240px;
   flex-shrink: 0;
   background: var(--background-tertiary);
-  border-left: 1px solid var(--border-color);
   z-index: 40;
 }
 

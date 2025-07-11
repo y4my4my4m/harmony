@@ -1,20 +1,16 @@
 <template>
-  <div class="chat-view">
-    <!-- Chat Messages -->
-    <div class="chat-messages-container">
-      <UnifiedContentArea
-        mode="chat"
-        :chat-messages="chatMessages"
-        :is-loading="isLoading"
-        :is-d-m="isDM"
-        view-type="chat"
-        current-view="chat"
-        @load-more-messages="fetchMoreMessages"
-        @update:is-at-bottom="isAtBottom = $event"
-        @send-message="handleSendMessage"
-      />
-    </div>
-  </div>
+  <!-- Chat Messages -->
+  <UnifiedContentArea
+    mode="chat"
+    :chat-messages="chatMessages"
+    :is-loading="isLoading"
+    :is-d-m="isDM"
+    view-type="chat"
+    current-view="chat"
+    @load-more-messages="fetchMoreMessages"
+    @update:is-at-bottom="isAtBottom = $event"
+    @send-message="handleSendMessage"
+  />
 </template>
 
 <script setup lang="ts">
@@ -136,6 +132,7 @@ onMounted(() => {
 .chat-view {
   height: 100%;
   display: flex;
+  flex: 1;
   flex-direction: column;
   overflow: hidden;
 }

@@ -520,7 +520,7 @@ const formatNumber = (num: number): string => {
 }
 
 .context-bar-container {
-  height: 48px;
+  height: 36px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-color);
   z-index: 50;
@@ -547,6 +547,7 @@ const formatNumber = (num: number): string => {
   display: flex;
   flex-direction: row;
   overflow: hidden;
+  border-top: 1px solid var(--border-color);
 }
 
 .social-content-area {
