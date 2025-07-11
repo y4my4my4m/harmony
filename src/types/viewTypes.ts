@@ -194,11 +194,14 @@ export const getViewPath = (state: ViewState): string => {
 export const getViewModeFromRoute = (routeName: string | null | undefined): ViewMode => {
   if (!routeName) return ViewMode.CHAT;
   
-  // ActivityPub routes
+  // ActivityPub routes - updated to match actual router route names
   const activityPubRoutes = [
-    'Social', 'Monyverse', 'UserProfile', 'Followers', 'Following', 
-    'Lists', 'Notifications', 'Bookmarks', 'Explore', 
-    'SocialTrending', 'SocialInstances', 'PostDetail'
+    'Social', 'Monyverse', 'Explore', // Legacy routes
+    'SocialHome', 'SocialLocal', 'SocialPublic', // Timeline routes
+    'UserProfile', 'Followers', 'Following', // Profile routes
+    'Lists', 'Notifications', 'Bookmarks', // Social feature routes
+    'SocialTrending', 'SocialInstances', // Explore routes
+    'PostDetail', 'ConversationThread' // Post routes
   ];
   
   return activityPubRoutes.includes(routeName) ? ViewMode.ACTIVITYPUB : ViewMode.CHAT;

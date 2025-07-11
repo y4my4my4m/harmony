@@ -92,6 +92,7 @@ import CreateChannel from '@/components/CreateChannel.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
+import { useAuthStore } from '@/stores/auth'
 
 // Props
 interface Props {
@@ -125,6 +126,7 @@ const emit = defineEmits<{
 const serverChannelStore = useServerChannelStore()
 const chatStore = useChatStore()
 const dmStore = useDMStore()
+const authStore = useAuthStore()
 const router = useRouter()
 
 // State
@@ -159,7 +161,13 @@ const handleToggleSearch = () => {
 const handleChannelSelected = (channelId: string) => {
   const currentServerId = serverId.value || currentServer.value?.id
   if (currentServerId) {
-    router.push(`/chat/${currentServerId}/${channelId}`)
+    router.push({ 
+      name: 'ChatChannel', 
+      params: { 
+        serverId: currentServerId, 
+        channelId: channelId 
+      } 
+    })
   }
 }
 
@@ -177,11 +185,22 @@ const handleChannelCreated = () => {
   currentCategoryId.value = undefined
 }
 
-const handleSendMessage = (message: any) => {
+const handleSendMessage = async (content: any, replyTo?: string) => {
   if (props.isDM) {
-    dmStore.sendMessage(message)
+    const conversationId = props.conversationId
+    const userId = authStore.session?.user?.id
+    
+    if (conversationId && userId) {
+      await dmStore.sendDMMessage(conversationId, userId, content, replyTo)
+    }
   } else {
-    chatStore.sendMessage(message)
+    const currentServerId = serverId.value
+    const currentChannelId = channelId.value
+    const userId = authStore.session?.user?.id
+    
+    if (currentServerId && currentChannelId && userId) {
+      await chatStore.sendMessage(currentServerId, currentChannelId, userId, content, replyTo)
+    }
   }
 }
 </script>

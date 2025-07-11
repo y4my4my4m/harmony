@@ -111,6 +111,7 @@
             <p class="instance-posts">{{ instancePostCount }} posts</p>
           </div>
         </div>
+        </div>
       </div>
     </div>
     
@@ -144,6 +145,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
 import MonyComposer from '@/components/activitypub/MonyComposer.vue'
@@ -200,6 +202,17 @@ const emit = defineEmits<{
 
 // Store
 const activityPubStore = useActivityPubStore()
+const router = useRouter()
+
+// Computed
+const currentView = computed(() => props.currentView)
+const currentViewData = computed(() => {
+  if (props.viewType === 'timeline') {
+    return props.posts
+  }
+  return props.specialViewData
+})
+const specialViewData = computed(() => props.specialViewData)
 
 // State
 const showSearchModal = ref(false)
@@ -216,8 +229,9 @@ const handleToggleSearch = () => {
   showSearchModal.value = !showSearchModal.value
 }
 
-const handleSwitchFeed = (feed: string) => {
-  // Emit to parent or handle routing
+const handleSwitchFeed = async (feed: string) => {
+  // Update the route to switch feeds
+  router.push({ name: 'Social', params: { timeline: feed } })
 }
 
 const handleOpenSearch = () => {
@@ -228,68 +242,135 @@ const handleOpenComposer = () => {
   activityPubStore.openComposer()
 }
 
-const handlePostCreated = () => {
-  // Handle post creation
+const handlePostCreated = async () => {
+  // Refresh the current feed after creating a post
+  switch (currentView.value) {
+    case 'home':
+      await activityPubStore.loadHomeFeed()
+      break
+    case 'public':
+      await activityPubStore.loadPublicFeed()
+      break
+    case 'local':
+      await activityPubStore.loadLocalFeed()
+      break
+  }
 }
 
 const handleReplyToPost = (post: TimelinePost) => {
-  // Handle reply
+  activityPubStore.openComposer({ replyTo: post.id })
 }
 
-const handleFavoritePost = (post: TimelinePost) => {
-  // Handle favorite
+const handleFavoritePost = async (post: TimelinePost) => {
+  try {
+    await activityPubStore.favoritePost(post.id)
+  } catch (error) {
+    console.error('Failed to favorite post:', error)
+  }
 }
 
-const handleReblogPost = (post: TimelinePost) => {
-  // Handle reblog
+const handleReblogPost = async (post: TimelinePost) => {
+  try {
+    await activityPubStore.reblogPost(post.id)
+  } catch (error) {
+    console.error('Failed to reblog post:', error)
+  }
 }
 
-const handleBookmarkPost = (post: TimelinePost) => {
-  // Handle bookmark
+const handleBookmarkPost = async (post: TimelinePost) => {
+  try {
+    await activityPubStore.bookmarkPost(post.id)
+  } catch (error) {
+    console.error('Failed to bookmark post:', error)
+  }
 }
 
-const handleDeletePost = (post: TimelinePost) => {
-  // Handle delete
+const handleDeletePost = async (post: TimelinePost) => {
+  try {
+    await activityPubStore.deletePost(post.id)
+  } catch (error) {
+    console.error('Failed to delete post:', error)
+  }
 }
 
 const handleShowUserProfile = (user: FederatedUser) => {
   selectedUser.value = user
+  router.push({ name: 'UserProfile', params: { handle: user.handle.replace('@', '') } })
 }
 
-const handleLoadMorePosts = () => {
-  // Handle load more
+const handleLoadMorePosts = async () => {
+  try {
+    const currentPosts = currentViewData.value
+    const lastPost = currentPosts[currentPosts.length - 1]
+    
+    switch (currentView.value) {
+      case 'home':
+        await activityPubStore.loadHomeFeed(lastPost?.id)
+        break
+      case 'public':
+        await activityPubStore.loadPublicFeed(lastPost?.id)
+        break
+      case 'local':
+        await activityPubStore.loadLocalFeed(lastPost?.id)
+        break
+    }
+  } catch (error) {
+    console.error('Failed to load more posts:', error)
+  }
 }
 
-const handleFollow = (user: FederatedUser) => {
-  // Handle follow
+const handleFollow = async (user: FederatedUser) => {
+  try {
+    await activityPubStore.followUser(user.id)
+  } catch (error) {
+    console.error('Failed to follow user:', error)
+  }
 }
 
-const handleUnfollow = (user: FederatedUser) => {
-  // Handle unfollow
+const handleUnfollow = async (user: FederatedUser) => {
+  try {
+    await activityPubStore.unfollowUser(user.id)
+  } catch (error) {
+    console.error('Failed to unfollow user:', error)
+  }
 }
 
-const handleClearAllBookmarks = () => {
-  // Handle clear bookmarks
+const handleClearAllBookmarks = async () => {
+  try {
+    await activityPubStore.clearAllBookmarks()
+    console.log('All bookmarks cleared')
+    // TODO: Refresh bookmarks view if/when bookmark loading is implemented
+  } catch (error) {
+    console.error('Failed to clear bookmarks:', error)
+  }
 }
 
-const handleLoadMoreSpecialData = () => {
-  // Handle load more special data
+const handleLoadMoreSpecialData = async () => {
+  try {
+    console.log('Loading more special data for view:', currentView.value)
+    // TODO: Implement specific loading methods for bookmarks, notifications, etc.
+    // For now, just log the action
+  } catch (error) {
+    console.error('Failed to load more special data:', error)
+  }
 }
 
 const handleBackToTimeline = () => {
-  // Handle back to timeline
+  router.push({ name: 'Social', params: { timeline: 'home' } })
 }
 
-const handleComposerSubmit = () => {
-  // Handle composer submit
+const handleComposerSubmit = async () => {
+  // The composer submission is handled by the activity pub store
+  // Just close the composer after successful submission
+  activityPubStore.closeComposer()
 }
 
 const updateComposerContent = (content: string) => {
-  // Update composer content
+  activityPubStore.updateComposerContent(content)
 }
 
 const updateComposerVisibility = (visibility: string) => {
-  // Update composer visibility
+  activityPubStore.updateComposerVisibility(visibility)
 }
 
 const closeSearch = () => {

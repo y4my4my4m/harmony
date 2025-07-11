@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
@@ -101,23 +101,50 @@ const windowWidth = computed(() => typeof window !== 'undefined' ? window.innerW
 // Initialize app
 const initializeApp = async () => {
   try {
+    // Wait for auth to be ready if session is null
+    if (!authStore.session) {
+      console.log('⏳ Waiting for authentication to initialize...')
+      // Wait a bit for auth store to initialize
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
     const userId = authStore.session?.user?.id
     if (!userId) {
-      console.error('No user ID found')
+      console.log('👤 No user session found, app ready for login')
       isAppInitialized.value = true
+      hasServersLoaded.value = true // Set to true so we don't show loading indefinitely
       return
     }
+
+    console.log('🚀 Initializing app for user:', userId)
 
     // Initialize the user environment which includes server loading
     await serverChannelStore.initializeUserEnvironment(userId)
     
     hasServersLoaded.value = true
     isAppInitialized.value = true
+    console.log('✅ App initialization complete')
   } catch (error) {
     console.error('Failed to initialize app:', error)
     isAppInitialized.value = true // Still show the app even if servers fail to load
+    hasServersLoaded.value = true
   }
 }
+
+// Watch for auth changes to reinitialize
+watch(() => authStore.session, (newSession, oldSession) => {
+  // If user just logged in (had no session, now has one)
+  if (!oldSession && newSession) {
+    console.log('🔄 User logged in, reinitializing app')
+    initializeApp()
+  }
+  // If user logged out (had session, now doesn't)
+  else if (oldSession && !newSession) {
+    console.log('👋 User logged out, resetting app state')
+    isAppInitialized.value = false
+    hasServersLoaded.value = false
+  }
+})
 
 // Mobile touch handlers
 onMounted(() => {
