@@ -101,7 +101,16 @@ const windowWidth = computed(() => typeof window !== 'undefined' ? window.innerW
 // Initialize app
 const initializeApp = async () => {
   try {
-    await serverChannelStore.loadServers()
+    const userId = authStore.session?.user?.id
+    if (!userId) {
+      console.error('No user ID found')
+      isAppInitialized.value = true
+      return
+    }
+
+    // Initialize the user environment which includes server loading
+    await serverChannelStore.initializeUserEnvironment(userId)
+    
     hasServersLoaded.value = true
     isAppInitialized.value = true
   } catch (error) {

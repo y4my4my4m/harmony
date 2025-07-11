@@ -165,7 +165,7 @@ const postRefs = ref<Map<string, HTMLElement>>(new Map());
 
 // Computed
 const highlightPostId = computed(() => {
-  return props.highlightPostId || ConversationService.getConversationContext(route).highlightPostId;
+  return props.highlightPostId || ConversationService.getRouteContext(route).highlightPostId;
 });
 
 const threadReplies = computed(() => {

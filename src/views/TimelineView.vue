@@ -91,7 +91,20 @@ const hasMorePosts = computed(() => {
 // Load timeline data
 const loadTimeline = async () => {
   try {
-    await activityPubStore.loadTimeline(props.currentView)
+    switch (props.currentView) {
+      case 'home':
+        await activityPubStore.loadHomeFeed()
+        break
+      case 'public':
+        await activityPubStore.loadPublicFeed()
+        break
+      case 'local':
+        await activityPubStore.loadLocalFeed()
+        break
+      default:
+        await activityPubStore.loadHomeFeed()
+        break
+    }
   } catch (error) {
     console.error('Failed to load timeline:', error)
   }
@@ -158,7 +171,23 @@ const handleShowUserProfile = (user: FederatedUser) => {
 
 const handleLoadMorePosts = async () => {
   try {
-    await activityPubStore.loadMorePosts(props.currentView)
+    const currentPosts = posts.value
+    const lastPost = currentPosts[currentPosts.length - 1]
+    
+    switch (props.currentView) {
+      case 'home':
+        await activityPubStore.loadHomeFeed(lastPost?.id)
+        break
+      case 'public':
+        await activityPubStore.loadPublicFeed(lastPost?.id)
+        break
+      case 'local':
+        await activityPubStore.loadLocalFeed(lastPost?.id)
+        break
+      default:
+        await activityPubStore.loadHomeFeed(lastPost?.id)
+        break
+    }
     emit('loadMorePosts')
   } catch (error) {
     console.error('Failed to load more posts:', error)

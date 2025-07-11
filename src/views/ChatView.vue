@@ -24,6 +24,7 @@ import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useAuthStore } from '@/stores/auth'
 
 // Props
 interface Props {
@@ -45,6 +46,7 @@ const emit = defineEmits<{
 const chatStore = useChatStore()
 const dmStore = useDMStore()
 const serverChannelStore = useServerChannelStore()
+const authStore = useAuthStore()
 const route = useRoute()
 
 // State
@@ -63,7 +65,12 @@ const loadMessages = async () => {
     if (conversationId) {
       isLoading.value = true
       try {
-        await dmStore.loadConversation(conversationId)
+        // Initialize DM environment for direct access if needed
+        const userId = authStore.session?.user?.id
+        if (userId) {
+          await dmStore.initializeDMEnvironmentForDirectAccess(userId, conversationId)
+          await dmStore.fetchConversationMessages(conversationId)
+        }
       } finally {
         isLoading.value = false
       }
@@ -75,8 +82,8 @@ const loadMessages = async () => {
     if (serverId && channelId) {
       isLoading.value = true
       try {
-        await chatStore.loadMessages(channelId)
-        await serverChannelStore.setCurrentChannel(serverId, channelId)
+        await chatStore.fetchMessages(channelId)
+        serverChannelStore.setCurrentChannel(channelId)
       } finally {
         isLoading.value = false
       }
@@ -86,9 +93,17 @@ const loadMessages = async () => {
 
 const fetchMoreMessages = async () => {
   if (props.isDM) {
-    await dmStore.loadMoreMessages()
+    const conversationId = route.params.conversationId as string
+    if (conversationId && dmStore.currentDMMessages.length > 0) {
+      const oldestMessage = dmStore.currentDMMessages[0]
+      await dmStore.fetchConversationMessages(conversationId, oldestMessage.id)
+    }
   } else {
-    await chatStore.loadMoreMessages()
+    const channelId = route.params.channelId as string
+    if (channelId && chatStore.messages.length > 0) {
+      const oldestMessage = chatStore.messages[0]
+      await chatStore.fetchMessages(channelId, oldestMessage.id)
+    }
   }
 }
 
