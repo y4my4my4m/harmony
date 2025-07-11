@@ -1,33 +1,50 @@
 <template>
   <div class="timeline-view">
-    <UnifiedContentArea
-      mode="activitypub"
-      :posts="posts"
-      :is-loading-feed="isLoadingFeed"
-      :has-more-posts="hasMorePosts"
-      :view-type="viewType"
-      :current-view="currentView"
-      @refresh-timeline="handleRefreshTimeline"
-      @post-created="handlePostCreated"
-      @switch-feed="handleSwitchFeed"
-      @reply-to-post="handleReplyToPost"
-      @favorite-post="handleFavoritePost"
-      @reblog-post="handleReblogPost"
-      @bookmark-post="handleBookmarkPost"
-      @delete-post="handleDeletePost"
-      @show-user-profile="handleShowUserProfile"
-      @load-more-posts="handleLoadMorePosts"
-      @follow-user="handleFollow"
-      @unfollow-user="handleUnfollow"
-    />
+    <!-- Mony Header -->
+    <div class="mony-header-container">
+      <MonyHeader
+        :current-view="currentView"
+        :is-mobile="isMobile"
+        @switch-feed="handleSwitchFeed"
+        @refresh-timeline="handleRefreshTimeline"
+        @open-composer="handleOpenComposer"
+        @open-search="handleOpenSearch"
+      />
+    </div>
+
+    <!-- Timeline Content -->
+    <div class="timeline-content">
+      <UnifiedContentArea
+        mode="activitypub"
+        :posts="posts"
+        :is-loading-feed="isLoadingFeed"
+        :has-more-posts="hasMorePosts"
+        :view-type="viewType"
+        :current-view="currentView"
+        @refresh-timeline="handleRefreshTimeline"
+        @post-created="handlePostCreated"
+        @switch-feed="handleSwitchFeed"
+        @reply-to-post="handleReplyToPost"
+        @favorite-post="handleFavoritePost"
+        @reblog-post="handleReblogPost"
+        @bookmark-post="handleBookmarkPost"
+        @delete-post="handleDeletePost"
+        @show-user-profile="handleShowUserProfile"
+        @load-more-posts="handleLoadMorePosts"
+        @follow-user="handleFollow"
+        @unfollow-user="handleUnfollow"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
+import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useLayoutState } from '@/composables/useLayoutState'
 import type { TimelinePost, FederatedUser } from '@/types'
 
 // Props
@@ -65,6 +82,10 @@ const emit = defineEmits<{
 // Store
 const activityPubStore = useActivityPubStore()
 const route = useRoute()
+const router = useRouter()
+
+// Layout state
+const { isMobile } = useLayoutState()
 
 // Computed
 const posts = computed(() => {
@@ -212,6 +233,15 @@ const handleUnfollow = async (user: FederatedUser) => {
   }
 }
 
+const handleOpenComposer = () => {
+  activityPubStore.openComposer()
+}
+
+const handleOpenSearch = () => {
+  // TODO: Implement search functionality
+  console.log('Open search')
+}
+
 // Watch for route changes
 watch(() => route.params.timeline, (newTimeline) => {
   if (newTimeline && newTimeline !== props.currentView) {
@@ -229,6 +259,16 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.mony-header-container {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.timeline-content {
+  flex: 1;
   overflow: hidden;
 }
 </style>

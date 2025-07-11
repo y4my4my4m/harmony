@@ -77,17 +77,27 @@ const loadExploreData = async () => {
 }
 
 const loadTrending = async () => {
-  // Load trending posts and tags
+  // Load trending data (using public feed as proxy for now)
   try {
-    const [posts, tags, users] = await Promise.all([
-      activityPubStore.loadTrendingPosts(),
-      activityPubStore.loadTrendingTags(),
-      activityPubStore.loadSuggestedUsers()
-    ])
+    // Load public feed to get trending-like content
+    await activityPubStore.loadPublicFeed()
     
-    trendingPosts.value = posts || []
-    trendingTags.value = tags || []
-    suggestedUsers.value = users || []
+    // Use public feed posts as trending for now
+    trendingPosts.value = activityPubStore.publicFeed.posts.slice(0, 20)
+    
+    // TODO: Implement actual trending algorithms
+    // For now, use placeholder data
+    trendingTags.value = [
+      { tag: 'harmony', count: 42 },
+      { tag: 'fediverse', count: 38 },
+      { tag: 'activitypub', count: 29 },
+      { tag: 'opensource', count: 25 },
+      { tag: 'social', count: 21 }
+    ]
+    
+    suggestedUsers.value = []
+    
+    console.log('📈 Trending data loaded (using public feed as proxy)')
   } catch (error) {
     console.error('Failed to load trending data:', error)
   }
@@ -95,8 +105,17 @@ const loadTrending = async () => {
 
 const loadInstances = async () => {
   try {
-    const instanceData = await activityPubStore.loadFederatedInstances()
-    instances.value = instanceData || []
+    // TODO: Implement actual instance discovery
+    // For now, use placeholder data
+    instances.value = [
+      { domain: 'mastodon.social', users: 120000, posts: 8500000 },
+      { domain: 'pixelfed.social', users: 45000, posts: 2100000 },
+      { domain: 'lemmy.ml', users: 32000, posts: 1800000 },
+      { domain: 'matrix.org', users: 28000, posts: 950000 },
+      { domain: 'har.mony.lol', users: 1500, posts: 42000 }
+    ]
+    
+    console.log('🌐 Instance data loaded (placeholder)')
   } catch (error) {
     console.error('Failed to load instances:', error)
   }
@@ -105,7 +124,18 @@ const loadInstances = async () => {
 // Event handlers
 const handleLoadMore = async () => {
   try {
-    await activityPubStore.loadMoreExploreData(props.currentView)
+    if (props.currentView === 'trending') {
+      // Load more trending content (using public feed for now)
+      const lastPost = trendingPosts.value[trendingPosts.value.length - 1]
+      await activityPubStore.loadPublicFeed(lastPost?.id)
+      
+      // Add new posts to trending
+      const newPosts = activityPubStore.publicFeed.posts.filter(
+        p => !trendingPosts.value.some(tp => tp.id === p.id)
+      )
+      trendingPosts.value.push(...newPosts.slice(0, 10))
+    }
+    // Instances don't need pagination for now
   } catch (error) {
     console.error('Failed to load more explore data:', error)
   }

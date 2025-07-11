@@ -81,14 +81,14 @@ const router = createRouter({
       children: [
         {
           path: '',
-          name: 'DM',
-          component: () => import('@/views/ChatView.vue'),
+          name: 'DMHome',
+          component: () => import('@/views/DMView.vue'),
           props: { isDM: true }
         },
         {
           path: ':conversationId',
           name: 'DMConversation',
-          component: () => import('@/views/ChatView.vue'),
+          component: () => import('@/views/DMView.vue'),
           props: route => ({
             isDM: true,
             conversationId: route.params.conversationId as string
