@@ -62,6 +62,11 @@ interface ActivityPubState {
   // Notification integration
   lastNotificationCheck: Date | null;
   unreadCount: number;
+  
+  // Bookmarks state
+  bookmarks: TimelinePost[];
+  hasMoreBookmarks: boolean;
+  bookmarksCursor: string | null;
 }
 
 export const useActivityPubStore = defineStore('activitypub', {
@@ -126,7 +131,12 @@ export const useActivityPubStore = defineStore('activitypub', {
     
     // Notification integration
     lastNotificationCheck: null,
-    unreadCount: 0
+    unreadCount: 0,
+    
+    // Bookmarks state
+    bookmarks: [],
+    hasMoreBookmarks: true,
+    bookmarksCursor: null
   }),
 
   getters: {
@@ -1194,7 +1204,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         const { data, error } = await query;
         if (error) throw error;
 
-        const posts = data ? data.map(item => this.transformDatabasePostToTimelinePost(item.post)).filter(Boolean) : [];
+        const posts = data ? data.map(item => item.post).filter(Boolean) : [];
         
         return {
           posts,
@@ -1203,6 +1213,44 @@ export const useActivityPubStore = defineStore('activitypub', {
         };
       } catch (error) {
         console.error('Failed to get bookmarks:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Load bookmarks for the current user
+     */
+    async loadBookmarks() {
+      try {
+        const result = await this.getBookmarks({ limit: 20 });
+        this.bookmarks = result.posts as TimelinePost[];
+        this.bookmarksCursor = result.cursor;
+        this.hasMoreBookmarks = result.hasMore;
+        console.log('📚 Bookmarks loaded:', this.bookmarks.length);
+      } catch (error) {
+        console.error('Failed to load bookmarks:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Load more bookmarks
+     */
+    async loadMoreBookmarks() {
+      if (!this.hasMoreBookmarks) return;
+      
+      try {
+        const result = await this.getBookmarks({ 
+          limit: 20, 
+          cursor: this.bookmarksCursor 
+        });
+        
+        this.bookmarks.push(...(result.posts as TimelinePost[]));
+        this.bookmarksCursor = result.cursor;
+        this.hasMoreBookmarks = result.hasMore;
+        console.log('📚 More bookmarks loaded:', result.posts.length);
+      } catch (error) {
+        console.error('Failed to load more bookmarks:', error);
         throw error;
       }
     },
@@ -1222,6 +1270,11 @@ export const useActivityPubStore = defineStore('activitypub', {
           .eq('interaction_type', 'bookmark');
 
         if (error) throw error;
+        
+        // Clear local bookmarks state
+        this.bookmarks = [];
+        this.hasMoreBookmarks = true;
+        this.bookmarksCursor = null;
       } catch (error) {
         console.error('Failed to clear bookmarks:', error);
         throw error;

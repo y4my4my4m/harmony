@@ -62,12 +62,14 @@ import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useAuthStore } from '@/stores/auth'
+import { useProfileStore } from '@/stores/useProfile'
 import { useMobileGestures } from '@/composables/useMobileGestures'
 import { useLayoutState } from '@/composables/useLayoutState'
 
 // Stores
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
+const profileStore = useProfileStore()
 
 // Composables
 const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
@@ -120,6 +122,9 @@ const initializeApp = async () => {
 
     // Initialize the user environment which includes server loading
     await serverChannelStore.initializeUserEnvironment(userId)
+    
+    // Initialize the user profile 
+    await profileStore.fetchProfile(userId)
     
     hasServersLoaded.value = true
     isAppInitialized.value = true

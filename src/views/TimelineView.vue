@@ -242,12 +242,21 @@ const handleOpenSearch = () => {
   console.log('Open search')
 }
 
-// Watch for route changes
-watch(() => route.params.timeline, (newTimeline) => {
-  if (newTimeline && newTimeline !== props.currentView) {
+// Watch for route changes and currentView prop changes
+watch(() => props.currentView, (newView, oldView) => {
+  if (newView && newView !== oldView) {
+    console.log(`🔄 Timeline view changed from ${oldView} to ${newView}, loading content`)
     loadTimeline()
   }
-})
+}, { immediate: false })
+
+// Also watch route changes for direct navigation
+watch(() => route.path, (newPath, oldPath) => {
+  if (newPath !== oldPath && newPath.includes('/social/')) {
+    console.log(`🔄 Route changed to ${newPath}, reloading timeline`)
+    loadTimeline()
+  }
+}, { immediate: false })
 
 onMounted(() => {
   loadTimeline()

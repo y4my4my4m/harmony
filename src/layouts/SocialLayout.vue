@@ -27,6 +27,9 @@
       <div class="social-sidebar-container" :class="{ 'mobile-open': leftSidebarOpen }">
         <AdaptiveChannelSidebar
           mode="activitypub"
+          :channels="[]"
+          :categories="[]"
+          :category-channels="{}"
           :following-count="followingCount"
           :followers-count="followersCount"
           :instance-domain="instanceDomain"
@@ -298,8 +301,40 @@ const handleToggleSearch = () => {
 }
 
 const handleSwitchFeed = async (feed: string) => {
-  // Update the route to switch feeds
-  router.push({ name: 'Social', params: { timeline: feed } })
+  console.log(`🔄 Switching to ${feed} feed`)
+  
+  // Navigate to the appropriate route
+  switch (feed) {
+    case 'home':
+      await router.push({ name: 'SocialHome' })
+      break
+    case 'local':
+      await router.push({ name: 'SocialLocal' })
+      break
+    case 'public':
+      await router.push({ name: 'SocialPublic' })
+      break
+    default:
+      await router.push({ name: 'SocialHome' })
+      break
+  }
+  
+  // Load the feed data immediately for better UX
+  try {
+    switch (feed) {
+      case 'home':
+        await activityPubStore.loadHomeFeed()
+        break
+      case 'local':
+        await activityPubStore.loadLocalFeed()
+        break
+      case 'public':
+        await activityPubStore.loadPublicFeed()
+        break
+    }
+  } catch (error) {
+    console.error(`Failed to load ${feed} feed:`, error)
+  }
 }
 
 const handleOpenSearch = () => {
