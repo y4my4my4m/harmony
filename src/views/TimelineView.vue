@@ -45,6 +45,7 @@ import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useLayoutState } from '@/composables/useLayoutState'
+import { usePostInteractions } from '@/composables/usePostInteractions'
 import type { TimelinePost, FederatedUser } from '@/types'
 
 // Props
@@ -150,10 +151,15 @@ const handleReplyToPost = (post: TimelinePost) => {
   emit('replyToPost', post)
 }
 
+// Use the composable for consistent interaction handling
+const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
+
 const handleFavoritePost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.favoritePost(post.id)
-    emit('favoritePost', post)
+    const result = await toggleFavorite(post.id)
+    if (!result.error) {
+      emit('favoritePost', post)
+    }
   } catch (error) {
     console.error('Failed to favorite post:', error)
   }
@@ -161,8 +167,10 @@ const handleFavoritePost = async (post: TimelinePost) => {
 
 const handleReblogPost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.reblogPost(post.id)
-    emit('reblogPost', post)
+    const result = await toggleReblog(post.id)
+    if (!result.error) {
+      emit('reblogPost', post)
+    }
   } catch (error) {
     console.error('Failed to reblog post:', error)
   }
@@ -170,8 +178,10 @@ const handleReblogPost = async (post: TimelinePost) => {
 
 const handleBookmarkPost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.bookmarkPost(post.id)
-    emit('bookmarkPost', post)
+    const result = await toggleBookmark(post.id)
+    if (!result.error) {
+      emit('bookmarkPost', post)
+    }
   } catch (error) {
     console.error('Failed to bookmark post:', error)
   }

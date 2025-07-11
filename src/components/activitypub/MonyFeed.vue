@@ -123,6 +123,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { usePostInteractions } from '@/composables/usePostInteractions';
 import type { Post, TimelinePost } from '@/types';
 
 // Components (to be created)
@@ -243,18 +244,8 @@ const handleScroll = () => {
   }
 };
 
-// Post interactions
-const toggleFavorite = (postId: string) => {
-  activityPubStore.toggleFavorite(postId);
-};
-
-const toggleReblog = (postId: string) => {
-  activityPubStore.toggleReblog(postId);
-};
-
-const toggleBookmark = (postId: string) => {
-  activityPubStore.toggleBookmark(postId);
-};
+// Post interactions using composable for consistency
+const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
 
 const replyToPost = (post: TimelinePost) => {
   activityPubStore.openComposer(post.id);
