@@ -101,6 +101,11 @@ const router = createRouter({
       path: '/social',
       component: () => import('@/layouts/SocialLayout.vue'),
       meta: { requiresAuth: true },
+      props: route => {
+        // Extract props from child route for layout
+        const childRoute = route.matched[route.matched.length - 1];
+        return childRoute?.props?.default || {};
+      },
       children: [
         {
           path: '',

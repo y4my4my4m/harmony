@@ -145,7 +145,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
 import MonyComposer from '@/components/activitypub/MonyComposer.vue'
@@ -155,14 +155,14 @@ import UserProfileModal from '@/components/UserProfileModal.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import type { FederatedUser, TimelinePost } from '@/types'
 
-// Props
+// Props - Made view props optional since we extract from route
 interface Props {
   leftSidebarOpen: boolean
   rightSidebarOpen: boolean
   isMobile: boolean
   voicePanelOpen: boolean
-  currentView: string
-  viewType: string
+  currentView?: string // Optional - extracted from route if not provided
+  viewType?: string // Optional - extracted from route if not provided
   posts?: TimelinePost[]
   isLoadingFeed?: boolean
   hasMorePosts?: boolean
@@ -179,6 +179,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  currentView: undefined, // Will be extracted from route
+  viewType: undefined, // Will be extracted from route
   posts: () => [],
   isLoadingFeed: false,
   hasMorePosts: false,
@@ -203,11 +205,77 @@ const emit = defineEmits<{
 // Store
 const activityPubStore = useActivityPubStore()
 const router = useRouter()
+const route = useRoute()
 
-// Computed
-const currentView = computed(() => props.currentView)
+// Route-aware props extraction - Professional approach
+// Extract view information from current route with comprehensive mapping
+const routeBasedProps = computed(() => {
+  const routeName = route.name as string
+  const routePath = route.path
+  
+  // Comprehensive route to view mapping - covers all social routes
+  const routeViewMap: Record<string, { currentView: string; viewType: string }> = {
+    // Timeline routes
+    'SocialHome': { currentView: 'home', viewType: 'timeline' },
+    'SocialLocal': { currentView: 'local', viewType: 'timeline' },
+    'SocialPublic': { currentView: 'public', viewType: 'timeline' },
+    
+    // Special view routes
+    'Notifications': { currentView: 'notifications', viewType: 'notifications' },
+    'Bookmarks': { currentView: 'bookmarks', viewType: 'bookmarks' },
+    'Lists': { currentView: 'lists', viewType: 'lists' },
+    
+    // Profile routes
+    'UserProfile': { currentView: 'profile', viewType: 'profile' },
+    'Followers': { currentView: 'followers', viewType: 'profile' },
+    'Following': { currentView: 'following', viewType: 'profile' },
+    
+    // Explore routes
+    'SocialTrending': { currentView: 'trending', viewType: 'explore' },
+    'SocialInstances': { currentView: 'instances', viewType: 'explore' },
+    
+    // Post routes
+    'PostDetail': { currentView: 'post', viewType: 'post' },
+    'ConversationThread': { currentView: 'conversation', viewType: 'conversation' },
+    
+    // Legacy routes
+    'Social': { currentView: 'home', viewType: 'timeline' },
+    'Explore': { currentView: 'trending', viewType: 'explore' }
+  }
+  
+  // Check exact route name first, then try path-based detection
+  if (routeViewMap[routeName]) {
+    return routeViewMap[routeName]
+  }
+  
+  // Fallback: extract from path
+  if (routePath.includes('/social/home')) return { currentView: 'home', viewType: 'timeline' }
+  if (routePath.includes('/social/local')) return { currentView: 'local', viewType: 'timeline' }
+  if (routePath.includes('/social/public')) return { currentView: 'public', viewType: 'timeline' }
+  if (routePath.includes('/social/notifications')) return { currentView: 'notifications', viewType: 'notifications' }
+  if (routePath.includes('/social/bookmarks')) return { currentView: 'bookmarks', viewType: 'bookmarks' }
+  if (routePath.includes('/social/trending')) return { currentView: 'trending', viewType: 'explore' }
+  if (routePath.includes('/profile/')) return { currentView: 'profile', viewType: 'profile' }
+  
+  // Ultimate fallback
+  return { currentView: 'home', viewType: 'timeline' }
+})
+
+// Computed with intelligent fallback to route-based props
+const currentView = computed(() => {
+  // Priority: explicit props > route-based > default
+  if (props.currentView) return props.currentView
+  return routeBasedProps.value.currentView
+})
+
+const viewType = computed(() => {
+  // Priority: explicit props > route-based > default  
+  if (props.viewType) return props.viewType
+  return routeBasedProps.value.viewType
+})
+
 const currentViewData = computed(() => {
-  if (props.viewType === 'timeline') {
+  if (viewType.value === 'timeline') {
     return props.posts
   }
   return props.specialViewData
