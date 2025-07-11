@@ -151,6 +151,7 @@
 
                 <!-- GIF Picker -->
                 <button
+                  ref="gifTriggerRef"
                   class="option-button"
                   @click="showGiphyPicker = !showGiphyPicker"
                   title="Add GIF"
@@ -160,6 +161,7 @@
 
                 <!-- Emoji Picker -->
                 <button
+                  ref="emojiTriggerRef"
                   class="option-button"
                   @click="showEmojiPicker = !showEmojiPicker"
                   title="Add emoji"
@@ -251,18 +253,26 @@
         </div>
 
         <!-- Emoji Picker -->
-        <EmojiPopup
-          v-if="showEmojiPicker"
-          @sendEmoji="insertEmoji"
-          :closeEmojiList="() => showEmojiPicker = false"
-        />
+        <Teleport to="body">
+          <EmojiPopup
+            v-if="showEmojiPicker"
+            @sendEmoji="insertEmoji"
+            :closeEmojiList="() => showEmojiPicker = false"
+            :position="'above'"
+            :triggerElement="emojiTriggerRef || undefined"
+          />
+        </Teleport>
 
         <!-- GIF Picker -->
-        <GifComponent
-          v-if="showGiphyPicker"
-          @sendGif="insertGif"
-          :closeGiphy="() => showGiphyPicker = false"
-        />
+        <Teleport to="body">
+          <GifComponent
+            v-if="showGiphyPicker"
+            @sendGif="insertGif"
+            :closeGiphy="() => showGiphyPicker = false"
+            :position="'above'"
+            :triggerElement="gifTriggerRef || undefined"
+          />
+        </Teleport>
       </div>
     </div>
   </Teleport>
@@ -315,6 +325,8 @@ const authStore = useAuthStore();
 // Refs
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const fileInputRef = ref<HTMLInputElement>();
+const emojiTriggerRef = ref<HTMLElement | null>(null);
+const gifTriggerRef = ref<HTMLElement | null>(null);
 
 // AutoSuggest setup 
 const getCurrentText = () => content.value || '';

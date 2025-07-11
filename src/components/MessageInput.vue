@@ -39,8 +39,12 @@
         />
       </div>
       <div class="right-icons">
-        <GifIcon @click="toggleGiphy" />
-        <EmojiUI @click="toggleEmojiList" />
+        <button ref="gifTriggerRef" @click="toggleGiphy" class="icon-button">
+          <GifIcon />
+        </button>
+        <button ref="emojiTriggerRef" @click="toggleEmojiList" class="icon-button">
+          <EmojiUI />
+        </button>
       </div>
     </div>
     
@@ -73,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
@@ -85,6 +89,7 @@ import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
+import type { Message } from '@/types';
 import { backgroundUploadManager } from '@/services/fileService';
 import { useAuthStore } from '@/stores/auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -109,7 +114,7 @@ interface Emits {
   (e: 'update:modelValue', value: string): void;
   (e: 'sendMessage', content: string, files: FilePreviewData[], replyMessageId?: string): void;
   (e: 'toggleGiphy'): void;
-  (e: 'toggleEmojiList', value?: boolean): void;
+  (e: 'toggleEmojiList', isReaction: boolean, message?: Message): void;
   (e: 'update:replyMessageId', value: string): void;
   (e: 'files-attached', files: FilePreviewData[]): void;
   (e: 'upload-status-changed', uploading: boolean): void;
@@ -123,6 +128,8 @@ const attachedFiles = ref<FilePreviewData[]>([]);
 const isDragging = ref(false);
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const isEditorFocused = ref(false);
+const gifTriggerRef = ref<HTMLElement | null>(null);
+const emojiTriggerRef = ref<HTMLElement | null>(null);
 
 // Auto-suggest setup
 const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
@@ -170,63 +177,6 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       // Use the autoSuggest system's built-in selection method
       // This handles both emojis and mentions correctly, including the @ symbol for mentions
       autoSuggest.selectSuggestion(suggestion);
-    };
-
-    // Handle emoji insertion
-    const insertEmojiAtCursor = (emoji: any) => {
-      if (!richEditorRef.value?.insertTextAtCursor) return;
-      
-      // Get current text and cursor position
-      const currentText = props.modelValue;
-      const cursorPosition = richEditorRef.value.getCursorPosition?.() || 0;
-      
-      // Check if there's an emoji trigger pattern before cursor
-      const textBeforeCursor = currentText.substring(0, cursorPosition);
-      const emojiMatch = textBeforeCursor.match(/:([a-zA-Z0-9_]*)$/);
-      
-      let newText;
-      
-      if (emojiMatch) {
-        // Remove the trigger text and insert emoji
-        const triggerLength = emojiMatch[0].length;
-        newText = currentText.substring(0, cursorPosition - triggerLength) + 
-                 `:${emoji.name}:` + 
-                 currentText.substring(cursorPosition);
-      } else {
-        // No trigger pattern, just insert emoji at cursor
-        newText = currentText.substring(0, cursorPosition) + 
-                 `:${emoji.name}:` + 
-                 currentText.substring(cursorPosition);
-      }
-      
-      // Update model
-      emit('update:modelValue', newText);
-    };
-
-    // Handle mention insertion
-    const handleMentionInsertion = (mention: SuggestionItem) => {
-      if (!richEditorRef.value) return;
-      
-      const currentText = props.modelValue;
-      const cursorPosition = richEditorRef.value.getCursorPosition?.() || 0;
-      
-      // Find the @ trigger
-      const textBeforeCursor = currentText.substring(0, cursorPosition);
-      const mentionMatch = textBeforeCursor.match(/@([a-zA-Z0-9_]*)$/);
-      
-      if (mentionMatch) {
-        const triggerLength = mentionMatch[0].length;
-        const username = mention.username || mention.display_name;
-        const newText = currentText.substring(0, cursorPosition - triggerLength) + 
-                       `${username}` + 
-                       currentText.substring(cursorPosition);
-        //  TODO: this wont properly place the cursor after the mention
-        // Set the cursor position after the mention
-        // richEditorRef.value.insertTextAtCursor?.(username);
-        // richEditorRef.value.setCursorPosition?.(cursorPosition - triggerLength + username.length);
-        
-        emit('update:modelValue', newText);
-      }
     };
 
     const send = () => {
@@ -408,25 +358,6 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       }
     };
 
-    // Handle emoji insertion from popup
-    const insertEmoji = (emoji: any) => {
-      if (richEditorRef.value) {
-        if (!isEditorFocused.value && richEditorRef.value.focus) {
-          richEditorRef.value.focus();
-        }
-        
-        nextTick(() => {
-          insertEmojiAtCursor(emoji);
-          
-          nextTick(() => {
-            if (richEditorRef.value?.focus) {
-              richEditorRef.value.focus();
-            }
-          });
-        });
-      }
-    };
-
     onMounted(() => {
       document.addEventListener('external-file-drop', handleExternalFileDrop as EventListener);
     });
@@ -446,6 +377,12 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     watch(attachedFiles, (newFiles) => {
       emit('files-attached', newFiles);
     }, { deep: true });
+
+    // Expose refs for parent component
+    defineExpose({
+      gifTriggerRef,
+      emojiTriggerRef
+    });
 
 
 </script>
@@ -620,5 +557,23 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     .sprite {
       --scaleFactor: 1.25;
     }
+  }
+
+  .icon-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  .icon-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
   }
 </style>

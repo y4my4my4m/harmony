@@ -1,49 +1,90 @@
 <template>
-    <div class="giphy-search" ref="giphy">
-      <input type="text" v-model="searchQuery" placeholder="Search GIFs..." class="search-input">
-      <div class="giphy-results">
-        <masonry-wall :items="gifs" :column-width="150" :gap="10">
-            <template #default="{ item }">
-                <div :key="item.id" class="gif-item" 
-                    @mouseover="hoveredGif = item.id" 
-                    @mouseleave="hoveredGif = null"
-                    @click="selectGif(item)">
-                    <img :src="getImageSource(item)" :alt="item.title">
-                </div>
-            </template>
-        </masonry-wall>
-      </div>
+  <div class="gif-popup" ref="gifPopup" :style="positionStyle">
+    <div class="gif-search">
+      <input 
+        type="text" 
+        v-model="searchQuery" 
+        placeholder="Search GIFs..." 
+        class="search-input"
+        ref="searchInput"
+      >
     </div>
+    <div class="gif-results">
+      <masonry-wall :items="gifs" :column-width="150" :gap="10">
+        <template #default="{ item }">
+          <div :key="item.id" class="gif-item" 
+            @mouseover="hoveredGif = item.id" 
+            @mouseleave="hoveredGif = null"
+            @click="selectGif(item)">
+            <img :src="getImageSource(item)" :alt="item.title">
+          </div>
+        </template>
+      </masonry-wall>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, watch, onMounted, onUnmounted } from 'vue';
-  import type { Gif } from '@/types'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { usePopupPositioning, type PopupPosition } from '@/composables/usePopupPositioning';
+import type { Gif } from '@/types';
 
-  interface Props {
-    closeGiphy?: () => void;
-    gifIconClicked?: boolean;
+interface Props {
+  closeGiphy?: () => void;
+  gifIconClicked?: boolean;
+  // Positioning props
+  position?: PopupPosition;
+  triggerElement?: HTMLElement;
+  customPosition?: { x: number; y: number };
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  gifIconClicked: false,
+  position: 'above',
+});
+
+interface Emits {
+  (e: 'sendGif', gif: Gif): void;
+  (e: 'resetGifIconClicked'): void;
+}
+
+const emit = defineEmits<Emits>();
+
+const searchQuery = ref('');
+const gifs = ref<Gif[]>([]);
+const hoveredGif = ref<string | null>(null);
+const gifPopup = ref<HTMLElement | null>(null);
+const searchInput = ref<HTMLInputElement | null>(null);
+
+// Popup positioning
+const POPUP_DIMENSIONS = { width: 400, height: 500 };
+const triggerElementRef = ref<HTMLElement | null>(null);
+
+// Set trigger element from props
+watch(() => props.triggerElement, (newTrigger) => {
+  triggerElementRef.value = newTrigger || null;
+}, { immediate: true });
+
+const { positionStyle, updatePosition } = usePopupPositioning(
+  triggerElementRef,
+  POPUP_DIMENSIONS,
+  {
+    position: props.position,
+    offset: 8,
+    viewport: { padding: 10 }
   }
+);
 
-  const props = withDefaults(defineProps<Props>(), {
-    gifIconClicked: false,
+// Update position when triggerElement changes
+watch(() => props.triggerElement, () => {
+  nextTick(() => {
+    updatePosition();
   });
+});
 
-  interface Emits {
-    (e: 'sendGif', gif: Gif): void;
-    (e: 'resetGifIconClicked'): void;
-  }
-
-  const emit = defineEmits<Emits>();
-
-  const searchQuery = ref('');
-  const gifs = ref<Gif[]>([]);
-  const hoveredGif = ref<string | null>(null);
-  const giphy = ref<HTMLElement | null>(null);
-
-  const getImageSource = (gif: Gif) => {
-      return hoveredGif.value === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url;
-  };
+const getImageSource = (gif: Gif) => {
+  return hoveredGif.value === gif.id ? gif.media_formats.gif.url : gif.media_formats.gifpreview.url;
+};
 
         const fetchTrendingGifs = async () => {
             try {
@@ -76,34 +117,38 @@
             }
         };
 
-        const handleClickOutside = (event: MouseEvent) => {
-            if (giphy.value && !giphy.value.contains(event.target as Node)) {
-                if (props.gifIconClicked) {
-                    // Notify parent to reset the flag
-                    emit('resetGifIconClicked');
-                } else {
-                    props.closeGiphy?.();
-                }
-            }
-        };
+const handleClickOutside = (event: MouseEvent) => {
+  if (gifPopup.value && !gifPopup.value.contains(event.target as Node)) {
+    props.closeGiphy?.();
+  }
+};
 
-        // Handle escape key to close
-        const handleKeyDown = (event: KeyboardEvent) => {
-          if (event.key === 'Escape') {
-            props.closeGiphy?.();
-          }
-        };
+// Handle escape key to close
+const handleKeyDown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    props.closeGiphy?.();
+  }
+};
 
-        onMounted(() => {
-            document.addEventListener('click', handleClickOutside);
-            document.addEventListener('keydown', handleKeyDown);
-            fetchTrendingGifs();
-        });
+onMounted(() => {
+  // Add event listeners with a small delay to prevent immediate closure
+  setTimeout(() => {
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+  }, 100);
+  fetchTrendingGifs();
+  
+  // Focus search input and update position
+  nextTick(() => {
+    searchInput.value?.focus();
+    updatePosition();
+  });
+});
 
-        onUnmounted(() => {
-            document.removeEventListener('click', handleClickOutside);
-            document.removeEventListener('keydown', handleKeyDown);
-        });
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+  document.removeEventListener('keydown', handleKeyDown);
+});
         
         // Watcher on searchQuery with debounce for better performance
         watch(searchQuery, () => {
@@ -115,99 +160,95 @@
         };
 </script>
 <style scoped>
-    .giphy-search {
-        position: fixed;
-        width: 480px;
-        background-color: #2f3136;
-        border-radius: 8px;
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-        border: 1px solid #40444b;
-        z-index: 1000;
-        
-        /* Position above the GIF button - more to the left to center above GIF icon */
-        bottom: 70px;
-        right: 60px;
-        transform: translateX(-50%);
-    }
+.gif-popup {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 400px;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
 
-    .search-input {
-        width: calc(100% - 20px);
-        padding: 8px 12px;
-        border-radius: 8px;
-        border: 1px solid #52575e;
-        background-color: #40444b;
-        color: #dcddde;
-        font-size: 16px;
-        outline: none;
-        transition: border-color 0.15s ease;
-        box-sizing: border-box;
-        margin: 10px;
-    }
+.gif-search {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
 
-    .search-input:focus {
-        border: 1px solid #5865f2;
-    }
+.search-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  outline: none;
+}
 
-    .search-input::placeholder {
-        color: #72767d;
-    }
+.search-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
+}
 
-    .giphy-results {
-        height: 450px;
-        max-height: 450px;
-        overflow-y: auto;
-        overflow-x: hidden;
-        padding: 0 10px 10px 10px;
-    }
+.search-input::placeholder {
+  color: var(--color-text-secondary);
+}
 
-    .gif-item {
-        cursor: pointer;
-        border-radius: 4px;
-        transition: .2s;
-        transform: scale(1);
-        width: 100%;
-        height: auto;
-    }
+.gif-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
 
-    .gif-item:hover {
-        transform: scale(1.05);
-    }
-    
-    .gif-item:hover img {
-        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
-    }
-    
-    .gif-item img {
-        width: 100%;
-        height: auto;
-        border-radius: 4px;
-        object-fit: cover;
-    }
+.gif-item {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: transform 0.2s ease;
+  transform: scale(1);
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+}
 
-    /* Scrollbar styling */
-    .giphy-results::-webkit-scrollbar {
-        width: 8px;
-    }
+.gif-item:hover {
+  transform: scale(1.05);
+}
 
-    .giphy-results::-webkit-scrollbar-track {
-        background: transparent;
-    }
+.gif-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 4px;
+}
 
-    .giphy-results::-webkit-scrollbar-thumb {
-        background: #40444b;
-        border-radius: 4px;
-    }
+/* Scrollbar styling */
+.gif-results::-webkit-scrollbar {
+  width: 8px;
+}
 
-    .giphy-results::-webkit-scrollbar-thumb:hover {
-        background: #4f545c;
-    }
-    
-    @media (max-width: 768px) {
-        .giphy-search {
-            width: 90%;
-            right: 20px;
-            transform: translateX(0%);
-        }
-    }
+.gif-results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gif-results::-webkit-scrollbar-thumb {
+  background: var(--color-bg-tertiary);
+  border-radius: 4px;
+}
+
+.gif-results::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+@media (max-width: 768px) {
+  .gif-popup {
+    width: 90vw;
+    max-width: 400px;
+    max-height: 70vh;
+  }
+}
 </style>
 

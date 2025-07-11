@@ -29,11 +29,11 @@ withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  'update:replyMessageId': []
+  'update:replyMessageId': [value: string]
 }>()
 
 const dontReply = () => {
-  emit('update:replyMessageId')
+  emit('update:replyMessageId', '')
 }
 </script>
 
