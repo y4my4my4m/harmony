@@ -359,6 +359,56 @@ export class FederationService {
     }
   }
 
+  /**
+   * Federate an Announce (reblog/boost) activity
+   */
+  async federateAnnounce(postId: string, userId: string, isAnnounce: boolean): Promise<string | null> {
+    try {
+      const userProfile = await this.getUserProfile(userId);
+      const post = await this.getPost(postId);
+      
+      if (!userProfile || !post) {
+        throw new Error('User profile or post not found');
+      }
+
+      // Only federate if the post is federated
+      if (!post.is_federated) {
+        console.log('Post is not federated, skipping announce federation');
+        return null;
+      }
+
+      const actor = `${this.config.instanceUrl}/users/${userProfile.username}`;
+      const objectUrl = post.ap_id || `${this.config.instanceUrl}/posts/${postId}`;
+
+      if (isAnnounce) {
+        // Create Announce activity
+        return await this.queueActivity({
+          type: 'Announce',
+          actor,
+          object: objectUrl,
+          target: postId
+        });
+      } else {
+        // Create Undo Announce activity
+        const announceId = `${this.config.instanceUrl}/activities/${crypto.randomUUID()}`;
+        return await this.queueActivity({
+          type: 'Undo',
+          actor,
+          object: {
+            id: announceId,
+            type: 'Announce',
+            actor,
+            object: objectUrl
+          },
+          target: postId
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to federate announce:', error);
+      return null;
+    }
+  }
+
   // =============================================================================
   // INBOX PROCESSING
   // =============================================================================

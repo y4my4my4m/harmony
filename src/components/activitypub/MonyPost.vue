@@ -131,32 +131,34 @@
 
         <button 
           class="action-button reblog-button"
-          :class="{ active: post.is_reblogged }"
+          :class="{ active: interactionState.is_reblogged, loading: interactionState.loading.reblog }"
           @click="onReblog"
-          :title="post.is_reblogged ? 'Undo reblog' : 'Reblog'"
+          :title="interactionState.is_reblogged ? 'Undo reblog' : 'Reblog'"
+          :disabled="interactionState.loading.reblog"
         >
           <Icon name="reblog" />
-          <span v-if="post.reblogs_count > 0">{{ formatCount(post.reblogs_count) }}</span>
+          <span v-if="interactionState.reblogs_count > 0">{{ formatCount(interactionState.reblogs_count) }}</span>
         </button>
 
         <button 
           class="action-button favorite-button"
-          :class="{ active: post.is_favorited }"
+          :class="{ active: interactionState.is_favorited, loading: interactionState.loading.favorite }"
           @click="onFavorite"
-          :title="post.is_favorited ? 'Unfavorite' : 'Favorite'"
+          :title="interactionState.is_favorited ? 'Unfavorite' : 'Favorite'"
+          :disabled="interactionState.loading.favorite"
         >
-          <Icon :name="post.is_favorited ? 'heart-filled' : 'heart'" />
-          <span v-if="post.favorites_count > 0">{{ formatCount(post.favorites_count) }}</span>
+          <Icon :name="interactionState.is_favorited ? 'heart-filled' : 'heart'" />
+          <span v-if="interactionState.favorites_count > 0">{{ formatCount(interactionState.favorites_count) }}</span>
         </button>
 
-        <!-- TODO: implement bookmarking -->
         <button 
           class="action-button bookmark-button"
-          :class="{ active: post.interactions?.is_bookmarked }"
+          :class="{ active: interactionState.is_bookmarked, loading: interactionState.loading.bookmark }"
           @click="onBookmark"
-          :title="post.interactions?.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
+          :title="interactionState.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
+          :disabled="interactionState.loading.bookmark"
         >
-          <Icon :name="post.interactions?.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
+          <Icon :name="interactionState.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
 
         <div class="action-menu">
@@ -200,6 +202,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { usePostInteractions } from '@/composables/usePostInteractions';
 import { formatDistanceToNow, format } from 'date-fns';
 import type { TimelinePost } from '@/types';
 
@@ -217,9 +220,6 @@ const props = defineProps<Props>();
 
 // Emits
 const emit = defineEmits<{
-  favorite: [postId: string];
-  reblog: [postId: string];
-  bookmark: [postId: string];
   reply: [post: TimelinePost];
   delete: [postId: string];
   edit: [postId: string];
@@ -232,6 +232,9 @@ const emit = defineEmits<{
 
 // Store
 const authStore = useAuthStore();
+
+// Post interactions with optimistic updates
+const { state: interactionState, error: interactionError, toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions(props.post);
 
 // Local state
 const showSensitiveContent = ref(false);
@@ -337,16 +340,16 @@ const onReply = () => {
   emit('reply', props.post);
 };
 
-const onReblog = () => {
-  emit('reblog', props.post.id);
+const onReblog = async () => {
+  await toggleReblog();
 };
 
-const onFavorite = () => {
-  emit('favorite', props.post.id);
+const onFavorite = async () => {
+  await toggleFavorite();
 };
 
-const onBookmark = () => {
-  emit('bookmark', props.post.id);
+const onBookmark = async () => {
+  await toggleBookmark();
 };
 
 const onEdit = () => {
@@ -637,6 +640,15 @@ const handleHashtagClick = (tag: string) => {
 .action-button:hover {
   background-color: #374151;
   color: white;
+}
+
+.action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-button.loading {
+  opacity: 0.7;
 }
 
 .reply-button:hover {

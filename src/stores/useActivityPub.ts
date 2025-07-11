@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
+import { interactionService } from '@/services/InteractionService';
 import type { 
   Post, 
   TimelinePost, 
@@ -188,6 +189,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Setup comprehensive realtime subscriptions
         this.setupEnhancedRealtimeSubscriptions();
         
+        // Setup interaction service state synchronization
+        this.setupInteractionServiceSync();
+        
         // Debug methods removed - no longer needed
         // getTimelineStats, createTestFederatedPost, and exposeDebugMethods removed
         
@@ -287,6 +291,52 @@ export const useActivityPubStore = defineStore('activitypub', {
       this.realtimeSubscriptions.set('interactions', interactionsChannel);
 
       console.log('🔔 Enhanced realtime subscriptions established using ActivityPub service');
+    },
+
+    /**
+     * Setup synchronization with the InteractionService for optimistic updates
+     */
+    setupInteractionServiceSync() {
+      // Subscribe to interaction state changes from the service
+      const unsubscribe = interactionService.onInteractionChange((postId, state) => {
+        // Update the post in all feeds with the new interaction state
+        const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+        
+        feeds.forEach(feed => {
+          const post = feed.posts.find(p => p.id === postId);
+          if (post) {
+            post.is_favorited = state.is_favorited;
+            post.is_reblogged = state.is_reblogged;
+            post.favorites_count = state.favorites_count;
+            post.reblogs_count = state.reblogs_count;
+            
+            // Update bookmark state if it exists on the post
+            if ('is_bookmarked' in post) {
+              (post as any).is_bookmarked = state.is_bookmarked;
+            }
+          }
+        });
+        
+        // Update user feeds as well
+        this.userFeeds.forEach(feed => {
+          const post = feed.posts.find(p => p.id === postId);
+          if (post) {
+            post.is_favorited = state.is_favorited;
+            post.is_reblogged = state.is_reblogged;
+            post.favorites_count = state.favorites_count;
+            post.reblogs_count = state.reblogs_count;
+            
+            if ('is_bookmarked' in post) {
+              (post as any).is_bookmarked = state.is_bookmarked;
+            }
+          }
+        });
+      });
+      
+      // Store the unsubscribe function for cleanup
+      this.realtimeSubscriptions.set('interaction_service', unsubscribe);
+      
+      console.log('🔄 Interaction service synchronization setup complete');
     },
 
     /**
@@ -440,7 +490,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Handle realtime interaction changes
+     * Handle realtime interaction changes (deferred to InteractionService)
      */
     handleRealtimeInteractionChange(payload: any) {
       console.log('💫 Interaction changed:', payload);
@@ -448,11 +498,14 @@ export const useActivityPubStore = defineStore('activitypub', {
       const interaction = payload.new || payload.old;
       if (!interaction) return;
 
-      // Update interaction counts in posts
-      this.updatePostInteractionCounts(
-        interaction.post_id, 
-        interaction.interaction_type, 
-        payload.event || payload.eventType
+      // Use the InteractionService to handle realtime updates with race condition prevention
+      const eventType = payload.event || payload.eventType;
+      const delta = eventType === 'INSERT' ? 1 : -1;
+      
+      interactionService.updateFromRealtime(
+        interaction.post_id,
+        interaction.interaction_type,
+        delta
       );
     },
 
@@ -1092,14 +1145,16 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post favorite (like)
+     * Toggle post favorite (like) with optimistic updates
      */
     async toggleFavorite(postId: string) {
       try {
-        const result = await activityPubService.toggleFavorite(postId);
+        const result = await interactionService.toggleInteraction(postId, 'favorite');
         
-        // Update local state
-        this.updatePostInteraction(postId, 'favorite', result.favorited);
+        if (!result.success && result.error) {
+          console.error('Failed to toggle favorite:', result.error);
+          throw new Error(result.error);
+        }
 
       } catch (error) {
         console.error('Failed to toggle favorite:', error);
@@ -1108,14 +1163,16 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post bookmark
+     * Toggle post bookmark with optimistic updates
      */
     async toggleBookmark(postId: string) {
       try {
-        const result = await activityPubService.toggleBookmark(postId);
+        const result = await interactionService.toggleInteraction(postId, 'bookmark');
         
-        // Update local state
-        this.updatePostInteraction(postId, 'bookmark', result.bookmarked);
+        if (!result.success && result.error) {
+          console.error('Failed to toggle bookmark:', result.error);
+          throw new Error(result.error);
+        }
 
       } catch (error) {
         console.error('Failed to toggle bookmark:', error);
@@ -1189,14 +1246,16 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post reblog
+     * Toggle post reblog with optimistic updates
      */
     async toggleReblog(postId: string) {
       try {
-        const result = await activityPubService.toggleReblog(postId);
+        const result = await interactionService.toggleInteraction(postId, 'reblog');
         
-        // Update local state
-        this.updatePostInteraction(postId, 'reblog', result.reblogged);
+        if (!result.success && result.error) {
+          console.error('Failed to toggle reblog:', result.error);
+          throw new Error(result.error);
+        }
 
       } catch (error) {
         console.error('Failed to toggle reblog:', error);
@@ -1354,6 +1413,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      cleanup() {
        this.cleanupRealtimeSubscriptions();
+       interactionService.clearPendingInteractions();
        this.unreadCount = 0;
        console.log('🧹 ActivityPub store cleaned up');
      },
