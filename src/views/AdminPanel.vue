@@ -1226,6 +1226,7 @@ const handleAddInstance = () => {
   min-height: 100vh;
   color: var(--text-primary);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow-y: auto;
 }
 
 .admin-header {
