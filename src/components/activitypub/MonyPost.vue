@@ -50,25 +50,31 @@
 
       <!-- Reply Context (if this is a reply) -->
       <div v-if="post.reply_context" class="reply-context">
-        <Icon name="reply" />
-        <span>Replying to</span>
-        <div class="reply-preview">
+        <div class="reply-header">
+          <div class="reply-indicator">
+            <Icon name="reply" class="reply-icon" />
+            <span class="reply-text">Replying to</span>
+          </div>
+          <button 
+            class="show-conversation-btn"
+            @click="showReplyTarget"
+            title="View full conversation"
+          >
+            <Icon name="message-square" class="btn-icon" />
+            <span>Show thread</span>
+          </button>
+        </div>
+        <div class="reply-preview-card">
           <Avatar 
             :src="post.reply_context.author.avatar_url"
             :alt="post.reply_context.author.display_name"
-            size="sm"
+            size="xs"
           />
-          <div class="reply-info">
-            <span class="reply-author">{{ post.reply_context.author.display_name || post.reply_context.author.username }}</span>
-            <span class="reply-content">{{ post.reply_context.content_preview }}</span>
+          <div class="reply-details">
+            <span class="reply-author">@{{ post.reply_context.author.username }}</span>
+            <span class="reply-content-preview">{{ post.reply_context.content_preview }}</span>
           </div>
         </div>
-        <button 
-          class="reply-target"
-          @click="showReplyTarget"
-        >
-          Show conversation
-        </button>
       </div>
 
       <!-- Content Warning -->
@@ -207,13 +213,24 @@
         </div>
       </div>
     </div>
+
+    <!-- Inline Reply Composer -->
+    <InlineReplyComposer 
+      v-if="showInlineReply"
+      :reply-to-post="post"
+      :is-visible="showInlineReply"
+      @reply-sent="handleReplySent"
+      @close="showInlineReply = false"
+    />
   </article>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
 import type { TimelinePost } from '@/types';
 
@@ -221,6 +238,7 @@ import type { TimelinePost } from '@/types';
 import MonyContent from './MonyContent.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
+import InlineReplyComposer from './InlineReplyComposer.vue';
 
 // Props
 interface Props {
@@ -255,6 +273,7 @@ const isToggling = ref({
 // Local state
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
+const showInlineReply = ref(false);
 
 // Extend HTMLElement type for click outside handler
 declare global {
@@ -353,7 +372,15 @@ const formatCount = (count: number) => {
 };
 
 const onReply = () => {
+  showInlineReply.value = !showInlineReply.value;
+  // Also emit for parent components that might want to handle it differently
   emit('reply', props.post);
+};
+
+const handleReplySent = (reply: any) => {
+  console.log('Reply sent:', reply);
+  showInlineReply.value = false;
+  // Could emit a success event or update local state here
 };
 
 const onReblog = async () => {
@@ -405,10 +432,34 @@ const onDelete = () => {
   closeMenu();
 };
 
-const showReplyTarget = () => {
+const showReplyTarget = async () => {
+  console.log('🔗 Show thread clicked for post:', props.post.id);
+  console.log('📝 Reply context:', props.post.reply_context);
+  
   if (props.post.reply_context) {
-    // Navigate to the parent post or conversation thread
-    emit('show-conversation', props.post.reply_context.id);
+    try {
+      // Use ConversationService for professional conversation navigation
+      const router = useRouter();
+      await ConversationService.navigateToConversation(props.post.id, router, {
+        highlightPost: props.post.id
+      });
+      
+      console.log('✅ Successfully navigated to conversation thread');
+    } catch (error) {
+      console.error('❌ Failed to navigate to conversation:', error);
+      
+      // Fallback: emit the event as before
+      console.log('📤 Using fallback event emission');
+      emit('show-conversation', props.post.id);
+      
+      // Last resort fallback: direct navigation
+      setTimeout(() => {
+        console.log('🚀 Using last resort navigation fallback');
+        window.location.href = `/social/conversation/${props.post.id}?highlight=${props.post.id}`;
+      }, 100);
+    }
+  } else {
+    console.warn('⚠️ No reply context found for post:', props.post.id);
   }
 };
 
@@ -556,7 +607,6 @@ const handleHashtagClick = (tag: string) => {
   flex-direction: column;
   align-items: flex-end;
   justify-content: flex-end;
-  gap: 0.5rem;
   color: #9ca3af;
   font-size: 0.875rem;
   flex-shrink: 0;
@@ -575,24 +625,106 @@ const handleHashtagClick = (tag: string) => {
 .instance-domain {
   display: flex;
   align-items: center;
+  background: var(--background-secondary);
+  border-radius: 5px;
+  padding: 1px 5px;
+  cursor: pointer;
+  user-select: text;
 }
 
 .reply-context {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background-color: rgba(59, 130, 246, 0.05);
+  border-radius: 0.5rem;
+  border-left: 3px solid #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.reply-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.reply-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   color: #9ca3af;
   font-size: 0.875rem;
 }
 
-.reply-target {
+.reply-icon {
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+.reply-text {
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+.reply-preview-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #374151;
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.reply-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.reply-author {
+  color: #3b82f6;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.reply-author:hover {
+  text-decoration: underline;
+}
+
+.reply-content-preview {
+  color: white;
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.show-conversation-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   color: #3b82f6;
   background: none;
   border: none;
-  text-decoration: underline;
   cursor: pointer;
-  font-size: inherit;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.show-conversation-btn:hover {
+  color: #10b981;
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.btn-icon {
+  color: #3b82f6;
+  font-size: 1rem;
 }
 
 .content-warning {

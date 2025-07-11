@@ -124,6 +124,18 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/social/conversation/:postId',
+      name: 'ConversationThread',
+      component: () => import('@/views/ConversationThreadView.vue'),
+      props: route => ({
+        postId: route.params.postId as string,
+        highlightPostId: route.query.highlight as string,
+        fromPostId: route.query.from as string,
+        contextTimestamp: route.query.t ? parseInt(route.query.t as string) : null
+      }),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/new-profile',
       name: 'NewProfile',
       component: () => import('@/views/NewProfile.vue'),

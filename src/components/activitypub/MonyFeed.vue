@@ -47,6 +47,7 @@
             @reply="replyToPost"
             @delete="deletePost"
             @click="openPost"
+            @show-conversation="showConversation"
           />
         </TransitionGroup>
 
@@ -120,19 +121,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
+import { useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import type { Post, TimelinePost } from '@/types';
 
 // Components (to be created)
 import MonyPost from './MonyPost.vue';
 import MonyComposer from './MonyComposer.vue';
-import MonyPostDetail from './MonyPostDetail.vue';
-import PostSkeleton from './PostSkeleton.vue';
-import ErrorToast from './ErrorToast.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Store
 const activityPubStore = useActivityPubStore();
+const router = useRouter();
 
 // Refs
 const feedContainer = ref<HTMLElement>();
@@ -145,8 +145,7 @@ const {
   composerState,
   isPosting,
   selectedPost,
-  lastError,
-  currentView
+  lastError
 } = storeToRefs(activityPubStore);
 
 const feedTabs = computed(() => [
@@ -273,6 +272,20 @@ const openPost = (post: TimelinePost) => {
 
 const closePost = () => {
   activityPubStore.selectedPost = null;
+};
+
+const showConversation = (postId: string) => {
+  console.log(`🎯 MonyFeed showConversation called with ID: ${postId}`);
+  console.log(`🧭 Router available:`, !!router);
+  try {
+    router.push({ 
+      name: 'PostDetail', 
+      params: { postId } 
+    });
+    console.log(`✅ Navigation to PostDetail attempted`);
+  } catch (error) {
+    console.error(`❌ Navigation failed:`, error);
+  }
 };
 
 // Composer

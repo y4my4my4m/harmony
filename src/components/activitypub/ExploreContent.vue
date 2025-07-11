@@ -100,6 +100,7 @@
               @bookmark="$emit('bookmark-post', $event)"
               @delete="$emit('delete-post', $event)"
               @show-user-profile="$emit('show-user-profile', $event)"
+              @show-conversation="$emit('show-conversation', $event)"
             />
           </div>
           <div v-else class="empty-state">
@@ -258,6 +259,7 @@ defineEmits<{
   'reblog-post': [postId: string];
   'bookmark-post': [postId: string];
   'delete-post': [postId: string];
+  'show-conversation': [post: TimelinePost];
 }>();
 
 const activityPubStore = useActivityPubStore();

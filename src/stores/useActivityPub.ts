@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
+import router from '@/router';
 // InteractionService removed - using direct database operations
 import type { 
   Post, 
@@ -1500,9 +1501,22 @@ export const useActivityPubStore = defineStore('activitypub', {
       * Navigate to conversation view
       */
      showConversation(postId: string) {
-       // This would typically navigate to a conversation route
-       console.log(`📱 Showing conversation for post: ${postId}`);
-       this.selectedPost = this.getAllPosts().find(p => p.id === postId);
+       console.log(`🏪 Store showConversation called with postId: ${postId}`);
+       
+       try {
+         // Navigate to post detail view
+         console.log(`🧭 Attempting to navigate to PostDetail route`);
+         router.push({
+           name: 'PostDetail',
+           params: { postId }
+         });
+         console.log(`✅ Navigation initiated successfully`);
+       } catch (error) {
+         console.error(`❌ Navigation failed:`, error);
+         // Fallback: try using window.location
+         console.log(`🔄 Trying fallback navigation method`);
+         window.location.href = `/social/post/${postId}`;
+       }
      },
 
      /**
