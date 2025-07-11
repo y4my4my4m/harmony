@@ -67,7 +67,7 @@
       <div class="form-group">
         <label class="form-label">About Me</label>
         <textarea
-          v-model="localProfile.about"
+          v-model="localProfile.bio"
           class="form-textarea"
           placeholder="Tell others about yourself"
           maxlength="190"
@@ -75,7 +75,7 @@
           @input="onProfileChange"
         ></textarea>
         <div class="form-hint">
-          {{ (localProfile.about?.length || 0) }}/190 characters
+          {{ (localProfile.bio?.length || 0) }}/190 characters
         </div>
       </div>
 
@@ -194,7 +194,7 @@ const hasChanges = computed(() => {
   return (
     localProfile.value.display_name !== props.profile.display_name ||
     localProfile.value.username !== props.profile.username ||
-    localProfile.value.about !== props.profile.about ||
+    localProfile.value.bio !== props.profile.bio ||
     localProfile.value.color !== props.profile.color
   )
 })
@@ -205,7 +205,7 @@ const syncLocalProfile = () => {
     localProfile.value = {
       display_name: props.profile.display_name || '',
       username: props.profile.username || '',
-      about: props.profile.about || '',
+      bio: props.profile.bio || '',
       color: props.profile.color || '#5865f2'
     }
   }

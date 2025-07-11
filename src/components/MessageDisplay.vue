@@ -49,7 +49,7 @@
           
           <!-- Message actions for system messages (if hovered) -->
           <div class="message-actions" v-if="hoveredMessageId === message.id">
-            <div class="action-btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
+            <div class="action-btn" @click="openEmojiReactor(message, $event)"><ReactionIcon/></div>
             <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
             <div class="action-btn"><MoreIcon/></div>
           </div>
@@ -142,7 +142,7 @@
         
         <!-- Message actions -->
         <div class="message-actions" v-if="hoveredMessageId === message.id">
-          <div class="action-btn" @click="openEmojiReactor(message)"><ReactionIcon/></div>
+          <div ref="reactionBtn" class="action-btn" @click="openEmojiReactor(message, $event)"><ReactionIcon/></div>
           <div class="action-btn" @click="replyTo(message)"><ReplyIcon/></div>
           <div class="action-btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
           <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
@@ -596,9 +596,9 @@ export default defineComponent({
       return false;
     };
 
-    const openEmojiReactor = (message: Message) => {
+    const openEmojiReactor = (message: Message, event: MouseEvent) => {
       // set true if not an emoji for the input but a reaction
-      emit('toggleEmojiList', true, message);
+      emit('toggleEmojiList', true, message, event.target as HTMLElement);
     }
 
     const toggleReaction = (messageId: string, emoji: Emoji) => {

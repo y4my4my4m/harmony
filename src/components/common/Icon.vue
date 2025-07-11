@@ -197,6 +197,78 @@
     <path v-if="name === 'trash-2'" d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
     <line v-if="name === 'trash-2'" x1="10" y1="11" x2="10" y2="17"></line>
     <line v-if="name === 'trash-2'" x1="14" y1="11" x2="14" y2="17"></line>
+
+    <!-- Admin Terminal -->
+    <rect v-if="name === 'admin-terminal'" x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+    <polyline v-if="name === 'admin-terminal'" points="6 7 8 9 6 11"></polyline>
+    <line v-if="name === 'admin-terminal'" x1="10" y1="11" x2="14" y2="11"></line>
+
+    <!-- Dashboard -->
+    <rect v-if="name === 'dashboard'" x="3" y="3" width="7" height="9"></rect>
+    <rect v-if="name === 'dashboard'" x="13" y="3" width="8" height="5"></rect>
+    <rect v-if="name === 'dashboard'" x="13" y="12" width="8" height="9"></rect>
+    <rect v-if="name === 'dashboard'" x="3" y="16" width="7" height="5"></rect>
+
+    <!-- Users -->
+    <path v-if="name === 'users'" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle v-if="name === 'users'" cx="9" cy="7" r="4"></circle>
+    <path v-if="name === 'users'" d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+    <path v-if="name === 'users'" d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+
+    <!-- Server -->
+    <rect v-if="name === 'server'" x="2" y="3" width="20" height="3" rx="1" ry="1"></rect>
+    <rect v-if="name === 'server'" x="2" y="10" width="20" height="3" rx="1" ry="1"></rect>
+    <rect v-if="name === 'server'" x="2" y="17" width="20" height="3" rx="1" ry="1"></rect>
+    <circle v-if="name === 'server'" cx="7" cy="4.5" r="0.5"></circle>
+    <circle v-if="name === 'server'" cx="7" cy="11.5" r="0.5"></circle>
+    <circle v-if="name === 'server'" cx="7" cy="18.5" r="0.5"></circle>
+
+    <!-- Federation -->
+    <circle v-if="name === 'federation'" cx="9" cy="12" r="1"></circle>
+    <circle v-if="name === 'federation'" cx="15" cy="12" r="1"></circle>
+    <path v-if="name === 'federation'" d="M8 12h1m4 0h1m-3-5v2m0 6v2"></path>
+    <path v-if="name === 'federation'" d="M12 2a4 4 0 0 1 4 4v1.5h1.5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2H8V6a4 4 0 0 1 4-4z"></path>
+
+    <!-- Message -->
+    <path v-if="name === 'message'" d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+    <polyline v-if="name === 'message'" points="22 6 12 13 2 6"></polyline>
+
+    <!-- Health -->
+    <path v-if="name === 'health'" d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+
+    <!-- Activity -->
+    <polyline v-if="name === 'activity'" points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+
+    <!-- Search -->
+    <circle v-if="name === 'search'" cx="11" cy="11" r="8"></circle>
+    <path v-if="name === 'search'" d="M21 21l-4.35-4.35"></path>
+
+    <!-- Unblock -->
+    <circle v-if="name === 'unblock'" cx="12" cy="12" r="10"></circle>
+    <path v-if="name === 'unblock'" d="M8.5 8.5l7 7"></path>
+    <path v-if="name === 'unblock'" d="M15.5 8.5l-7 7"></path>
+
+    <!-- Suspend -->
+    <circle v-if="name === 'suspend'" cx="12" cy="12" r="10"></circle>
+    <line v-if="name === 'suspend'" x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+
+    <!-- Delete -->
+    <polyline v-if="name === 'delete'" points="3 6 5 6 21 6"></polyline>
+    <path v-if="name === 'delete'" d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+
+    <!-- Save -->
+    <path v-if="name === 'save'" d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+    <polyline v-if="name === 'save'" points="17 21 17 13 7 13 7 21"></polyline>
+    <polyline v-if="name === 'save'" points="7 3 7 8 15 8"></polyline>
+
+    <!-- Shield -->
+    <path v-if="name === 'shield'" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+
+    <!-- Gavel -->
+    <path v-if="name === 'gavel'" d="M6.2 5L3 1.8 4.8 0 8 3.2l1.4 1.4L6.2 8 5 9.2z"></path>
+    <path v-if="name === 'gavel'" d="M14.8 19L18 22.2 16.2 24 13 20.8l-1.4-1.4 3.2-3.2 1 -1.2z"></path>
+    <path v-if="name === 'gavel'" d="M9.5 14.5l5-5"></path>
+    <path v-if="name === 'gavel'" d="M2.5 21.5L6 18l3 3-3.5 3.5z"></path>
     
     <!-- Rotate CCW -->
     <polyline v-if="name === 'rotate-ccw'" points="1 4 1 10 7 10"></polyline>
@@ -447,13 +519,90 @@
     <circle v-if="name === 'user-check'" cx="9" cy="7" r="4"></circle>
     <path v-if="name === 'user-check'" d="M22 21l-5-5m5 5l-5-5m5 5l-5-5"></path>
 
-    <!-- Mony Mascot (Custom ActivityPub/Fediverse icon) -->
-    <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="10"></circle>
-    <path v-if="name === 'mony-mascot'" d="M8 12c0-2.21 1.79-4 4-4s4 1.79 4 4"></path>
-    <circle v-if="name === 'mony-mascot'" cx="9" cy="10" r="1"></circle>
-    <circle v-if="name === 'mony-mascot'" cx="15" cy="10" r="1"></circle>
-    <path v-if="name === 'mony-mascot'" d="M8 16c.5 1 1.5 2 4 2s3.5-1 4-2"></path>
-  </svg>
+    <!-- Cute O with a four-pointed star in the middle -->
+    <circle v-if="name === 'mony-mascot'" cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2" fill="none"/>
+    <g v-if="name === 'mony-mascot'">
+      <!-- Elongated, empty four-pointed star (diamond shape, vertical and horizontal points) -->
+      <polygon 
+        points="12,6.5 18,12 12,17.5 6.5,12" 
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        opacity="0.85"
+      />
+    </g>
+
+    <!-- Repeat (Repost/Retweet) -->
+    <polyline v-if="name === 'repeat'" points="17 1 21 5 17 9"></polyline>
+    <path v-if="name === 'repeat'" d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+    <polyline v-if="name === 'repeat'" points="7 23 3 19 7 15"></polyline>
+    <path v-if="name === 'repeat'" d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+
+    <!-- Trending Up -->
+    <path v-if="name === 'trending-up'" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+
+    <!-- Trending Down -->
+    <path v-if="name === 'trending-down'" d="M21 17H13m8 0V9m0 8l-8-8-4 4-6-6"></path>
+
+    <!-- Compass -->
+    <path v-if="name === 'compass'" d="M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z"></path>
+    <path v-if="name === 'compass'" d="M12 15l-4-4h8l-4 4z"></path>
+
+    <!-- List -->
+    <path v-if="name === 'list'" d="M3 12h18M3 6h18M3 18h18"></path>
+
+    <!-- Grid -->
+    <path v-if="name === 'grid'" d="M3 3v18h18M3 3h18M3 3l18 18"></path>
+
+    <!-- Hash -->
+    <path v-if="name === 'hash'" fill="currentColor" fill-rule="evenodd" d="M10.99 3.16A1 1 0 1 0 9 2.84L8.15 8H4a1 1 0 0 0 0 2h3.82l-.67 4H3a1 1 0 1 0 0 2h3.82l-.8 4.84a1 1 0 0 0 1.97.32L8.85 16h4.97l-.8 4.84a1 1 0 0 0 1.97.32l.86-5.16H20a1 1 0 1 0 0-2h-3.82l.67-4H21a1 1 0 1 0 0-2h-3.82l.8-4.84a1 1 0 1 0-1.97-.32L15.15 8h-4.97l.8-4.84ZM14.15 14l.67-4H9.85l-.67 4h4.97Z" clip-rule="evenodd"></path>
+
+    <!-- Follow (Arrow with Plus) -->
+    <path v-if="name === 'follow'" d="M5 12h9"></path>
+    <polyline v-if="name === 'follow'" points="12 9 15 12 12 15"></polyline>
+    <circle v-if="name === 'follow'" cx="19" cy="12" r="2"></circle>
+    <line v-if="name === 'follow'" x1="19" y1="10.5" x2="19" y2="13.5"></line>
+    <line v-if="name === 'follow'" x1="17.5" y1="12" x2="20.5" y2="12"></line>
+
+    <!-- Followed (Arrow with Check) -->
+    <path v-if="name === 'followed'" d="M5 12h9"></path>
+    <polyline v-if="name === 'followed'" points="12 9 15 12 12 15"></polyline>
+    <circle v-if="name === 'followed'" cx="19" cy="12" r="2"></circle>
+    <polyline v-if="name === 'followed'" points="18.2 12.8 19 13.6 20.2 11.8"></polyline>
+
+    <!-- Unfollow (Arrow with Minus) -->
+    <path v-if="name === 'unfollow'" d="M19 12H10"></path>
+    <polyline v-if="name === 'unfollow'" points="13 9 10 12 13 15"></polyline>
+    <circle v-if="name === 'unfollow'" cx="5" cy="12" r="2"></circle>
+    <line v-if="name === 'unfollow'" x1="3.5" y1="12" x2="6.5" y2="12"></line>
+
+    <!-- Microphone -->
+    <path v-if="name === 'microphone'" d="M12 1a3 3 0 0 0-3 3v10a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"></path>
+    <path v-if="name === 'microphone'" d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+    <line v-if="name === 'microphone'" x1="12" y1="19" x2="12" y2="23"></line>
+    <line v-if="name === 'microphone'" x1="8" y1="23" x2="16" y2="23"></line>
+
+    <!-- Dots Vertical -->
+    <path v-if="name === 'dots-vertical'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'dots-vertical'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'dots-vertical'" d="M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+
+    <!-- Dots Horizontal -->
+    <path v-if="name === 'dots-horizontal'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'dots-horizontal'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'dots-horizontal'" d="M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+
+    <!-- Mention -->
+    <path v-if="name === 'mention'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'mention'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'mention'" d="M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+
+    <!-- Mentioned -->
+    <path v-if="name === 'mentioned'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <path v-if="name === 'mentioned'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+
+
+</svg>
 </template>
 
 <script lang="ts">

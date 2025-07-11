@@ -21,6 +21,7 @@
       @replyingTo="replyingTo"
     />
     <MessageInput 
+      ref="messageInputRef"
       v-model="messageContent"
       :giphyOpen="giphyOpen"
       :emojiListOpen="emojiListOpen"
@@ -39,6 +40,8 @@
       @sendGif="handleSendGif"
       :closeGiphy="closeGiphy"
       :gifIconClicked="gifIconClicked"
+      :position="'above'"
+      :triggerElement="gifTriggerElement || undefined"
       @resetGifIconClicked="gifIconClicked = false"
     />
 
@@ -48,6 +51,8 @@
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeEmojiList"
       :emojiIconClicked="emojiIconClicked"
+      :position="isPopupForReaction ? 'left' : 'above'"
+      :triggerElement="(isPopupForReaction ? reactionTriggerElement : emojiTriggerElement) || undefined"
       @resetEmojiIconClicked="emojiIconClicked = false"
     />
   </div>
@@ -63,6 +68,7 @@
   import { useServerUsersStore } from '@/stores/useServerUsers'; 
   import { useDMStore } from '@/stores/useDM';
   import { useThemeStore } from '@/stores/useTheme';
+  import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { listen } from '@tauri-apps/api/event';
@@ -99,25 +105,37 @@
   const serverUsersStore = useServerUsersStore();
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
-      const showDragDropArea = ref(false);
-      const uploading = ref(false);
-      const emojiListOpen = ref(false);
-      const isPopupForReaction = ref(false);
-      const selectedMessageId = ref('');
-      const replyToMessageId = ref('');
-      const replyToUserDisplayName = ref('');
-      const giphyOpen = ref(false);
-      const messageContent = ref('');
-      
-      // Dynamic emoji list based on context (DM vs Server)
-      const resolvedEmojiList = computed(() => {
-        if (props.isDM) {
-          // For DMs, we might want to show emojis from all servers the user is in
-          // For now, return server emojis or a default set
-          return serverChannelStore.resolvedEmojiList;
-        }
-        return serverChannelStore.resolvedEmojiList;
-      });
+  const emojiCacheStore = useEmojiCacheStore();
+  
+  const showDragDropArea = ref(false);
+  const uploading = ref(false);
+  const emojiListOpen = ref(false);
+  const isPopupForReaction = ref(false);
+  const selectedMessageId = ref('');
+  const replyToMessageId = ref('');
+  const replyToUserDisplayName = ref('');
+  const giphyOpen = ref(false);
+  const messageContent = ref('');
+  
+  // Component refs
+  const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null);
+  
+  // Trigger element references for positioning
+  const reactionTriggerElement = ref<HTMLElement | null>(null);
+  
+  // Computed trigger refs from MessageInput
+  const gifTriggerElement = computed(() => messageInputRef.value?.gifTriggerRef || null);
+  const emojiTriggerElement = computed(() => messageInputRef.value?.emojiTriggerRef || null);
+  
+  // Dynamic emoji list based on context (DM vs Server)
+  const resolvedEmojiList = computed(() => {
+    if (props.isDM) {
+      // For DMs, we might want to show emojis from all servers the user is in
+      // For now, return server emojis or a default set
+      return emojiCacheStore.resolvedEmojis;
+    }
+    return emojiCacheStore.resolvedEmojis;
+  });
       
       const currentUserId = computed(() => authStore.session?.user?.id);
       const hasActiveUploads = ref(false);
@@ -168,10 +186,13 @@
         handleSendEmoji(emoji);
       };
 
-      const toggleEmojiList = (isReaction: boolean, message: Message) => {
+      const toggleEmojiList = (isReaction: boolean, message?: Message, triggerElement?: HTMLElement) => {
+        console.log('toggleEmojiList called:', { isReaction, message, triggerElement });
         if(message) selectedMessageId.value = message.id;
+        if(triggerElement) reactionTriggerElement.value = triggerElement;
         isPopupForReaction.value = isReaction;
         emojiListOpen.value = !emojiListOpen.value;
+        console.log('emojiListOpen is now:', emojiListOpen.value);
         if (emojiListOpen.value) {
           emojiIconClicked.value = true;
         }
@@ -180,15 +201,19 @@
       watch(emojiListOpen, () => {
           if (!emojiListOpen.value) {
             emojiIconClicked.value = false;
+            reactionTriggerElement.value = null;
           }
       });
 
       const closeEmojiList = () => {
         emojiListOpen.value = false;
+        reactionTriggerElement.value = null;
       };
 
       const toggleGiphy = () => {
+          console.log('toggleGiphy called');
           giphyOpen.value = !giphyOpen.value;
+          console.log('giphyOpen is now:', giphyOpen.value);
           if (giphyOpen.value) {
               gifIconClicked.value = true;
           }
@@ -321,7 +346,7 @@
       };
 
       // Updated handleSendMessage to support both DMs and server channels
-      const handleSendMessage = async (content: string, files: FilePreviewData[] = []) => {
+      const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
         if (!authStore.session?.user) {
           return;
         }
@@ -380,7 +405,8 @@
           if (messageParts.length > 0) {
             if (props.isDM) {
               // Emit event for DM messages to be handled by parent component
-              emit('sendMessage', messageParts, replyToMessageId.value || undefined);
+              // Use the replyMessageId parameter passed from MessageInput
+              emit('sendMessage', messageParts, replyMessageId || undefined);
             } else {
               // Handle server channel messages directly
               if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId) {
@@ -389,7 +415,7 @@
                   serverChannelStore.currentChannelId,
                   authStore.session.user.id,
                   messageParts,
-                  replyToMessageId.value || ''
+                  replyMessageId || ''
                 );
               }
             }

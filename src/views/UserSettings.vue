@@ -54,6 +54,19 @@
               </button>
             </div>
 
+            <div class="nav-section" v-if="adminSections.length > 0">
+              <h3 class="nav-section-title">Administration</h3>
+              <router-link
+                v-for="section in adminSections" 
+                :key="section.id"
+                :to="section.path"
+                class="nav-item admin-link"
+              >
+                <component :is="section.icon" class="nav-icon" />
+                {{ section.label }}
+              </router-link>
+            </div>
+
             <div class="nav-section">
               <button 
                 class="nav-item logout-btn"
@@ -248,6 +261,17 @@ const appSections = computed(() => [
   { id: 'language', label: 'Language', icon: GlobeIcon },
   { id: 'advanced', label: 'Advanced', icon: CogIcon },
 ])
+
+const adminSections = computed(() => {
+  // Check if user has admin permissions
+  if (!authStore.session?.user?.id) return []
+  
+  // You'll need to implement admin check logic here
+  // For now, we'll show to all users - you can modify this
+  return [
+    { id: 'admin', label: 'Instance Admin', icon: CogIcon, isExternal: true, path: '/admin' },
+  ]
+})
 
 // Valid sections
 const validSections = computed(() => [

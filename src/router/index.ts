@@ -4,6 +4,17 @@ import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
+import { 
+  ViewMode, 
+  ViewType, 
+  CurrentView, 
+  createTimelineView,
+  createExploreView,
+  createProfileView,
+  createPostView,
+  createChatView,
+  createDMView
+} from '@/types/viewTypes';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,9 +30,11 @@ const router = createRouter({
       name: 'Chat',
       component: UnifiedView,
       props: route => ({
-        mode: 'chat',
-        serverId: route.params.serverId,
-        channelId: route.params.channelId,
+        mode: ViewMode.CHAT,
+        viewType: ViewType.CHAT,
+        currentView: CurrentView.CHAT,
+        serverId: route.params.serverId as string,
+        channelId: route.params.channelId as string,
         isDM: false
       }),
       meta: { requiresAuth: true },
@@ -31,9 +44,11 @@ const router = createRouter({
       name: 'DM',
       component: UnifiedView,
       props: route => ({ 
-        mode: 'chat',
+        mode: ViewMode.CHAT,
+        viewType: ViewType.DM,
+        currentView: CurrentView.DM,
         isDM: true, 
-        conversationId: route.params.conversationId 
+        conversationId: route.params.conversationId as string
       }),
       meta: { requiresAuth: true },
     },
@@ -42,7 +57,9 @@ const router = createRouter({
       name: 'DMHome',
       component: UnifiedView,
       props: { 
-        mode: 'chat',
+        mode: ViewMode.CHAT,
+        viewType: ViewType.DM,
+        currentView: CurrentView.DM,
         isDM: true 
       },
       meta: { requiresAuth: true },
@@ -52,8 +69,9 @@ const router = createRouter({
       name: 'Bookmarks',
       component: UnifiedView,
       props: { 
-        mode: 'activitypub',
-        viewType: 'bookmarks'
+        mode: ViewMode.ACTIVITYPUB,
+        viewType: ViewType.BOOKMARKS,
+        currentView: CurrentView.BOOKMARKS
       },
       meta: { requiresAuth: true },
     },
@@ -62,8 +80,9 @@ const router = createRouter({
       name: 'Notifications',
       component: UnifiedView,
       props: { 
-        mode: 'activitypub',
-        viewType: 'notifications'
+        mode: ViewMode.ACTIVITYPUB,
+        viewType: ViewType.NOTIFICATIONS,
+        currentView: CurrentView.NOTIFICATIONS
       },
       meta: { requiresAuth: true },
     },
@@ -72,20 +91,10 @@ const router = createRouter({
       name: 'Lists',
       component: UnifiedView,
       props: { 
-        mode: 'activitypub',
-        viewType: 'lists'
+        mode: ViewMode.ACTIVITYPUB,
+        viewType: ViewType.LISTS,
+        currentView: CurrentView.LISTS
       },
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/u/:handle',
-      name: 'UserProfile',
-      component: UnifiedView,
-      props: route => ({
-        mode: 'activitypub',
-        viewType: 'profile',
-        profileHandle: route.params.handle
-      }),
       meta: { requiresAuth: true },
     },
     {
@@ -103,43 +112,14 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/social/:timeline?',
-      name: 'Social',
-      component: UnifiedView,
-      props: route => ({ 
-        mode: 'activitypub',
-        timeline: route.params.timeline || 'home'
-      }),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/login',
-      name: 'Login',
-      component: LoginView,
-    },
-    {
-      path: '/register',
-      name: 'Register',
-      component: RegisterView
-    },
-    // Legacy route redirects for backward compatibility
-    {
-      path: '/monyverse/:timeline?',
-      name: 'Monyverse',
-      redirect: route => ({
-        name: 'Social',
-        params: { timeline: route.params.timeline || 'home' }
-      }),
-      meta: { requiresAuth: true },
-    },
-    {
       path: '/social/post/:postId',
       name: 'PostDetail',
       component: UnifiedView,
       props: route => ({
-        mode: 'activitypub',
-        viewType: 'post',
-        postId: route.params.postId
+        mode: ViewMode.ACTIVITYPUB,
+        viewType: ViewType.POST,
+        currentView: CurrentView.POST,
+        postId: route.params.postId as string
       }),
       meta: { requiresAuth: true },
     },
@@ -180,6 +160,95 @@ const router = createRouter({
       name: 'AudioThemeDemo',
       component: () => import('@/components/demo/AudioThemeShowcase.vue'),
       meta: { requiresAuth: false }
+    },
+    {
+      path: '/admin',
+      name: 'AdminPanel',
+      component: () => import('@/views/AdminPanel.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    // ActivityPub / Social Routes (specific routes first!)
+    {
+      path: '/social/trending',
+      name: 'SocialTrending',
+      component: () => import('@/views/UnifiedView.vue'),
+      props: {
+        mode: ViewMode.ACTIVITYPUB,
+        viewType: ViewType.EXPLORE,
+        currentView: CurrentView.TRENDING
+      },
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/social/instances',
+      name: 'SocialInstances',
+      component: () => import('@/views/UnifiedView.vue'),
+      props: {
+        mode: ViewMode.ACTIVITYPUB,
+        viewType: ViewType.EXPLORE,
+        currentView: CurrentView.INSTANCES
+      },
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/social/:timeline?',
+      name: 'Social',
+      component: () => import('@/views/UnifiedView.vue'),
+      props: (route) => {
+        const timeline = route.params.timeline as string || 'home';
+        const currentView = timeline === 'home' ? CurrentView.HOME 
+          : timeline === 'local' ? CurrentView.LOCAL 
+          : timeline === 'public' ? CurrentView.PUBLIC 
+          : CurrentView.HOME;
+        
+        return {
+          mode: ViewMode.ACTIVITYPUB,
+          viewType: ViewType.TIMELINE,
+          currentView,
+          timeline // Legacy support
+        };
+      }
+    },
+    {
+      path: '/explore',
+      name: 'Explore',
+      component: () => import('@/views/UnifiedView.vue'),
+      props: {
+        mode: ViewMode.ACTIVITYPUB,
+        viewType: ViewType.EXPLORE,
+        currentView: CurrentView.TRENDING // Default to trending in explore
+      }
+    },
+    {
+      path: '/profile/:handle',
+      name: 'UserProfile',
+      component: () => import('@/views/UnifiedView.vue'),
+      props: (route) => ({
+        mode: ViewMode.ACTIVITYPUB,
+        viewType: ViewType.PROFILE,
+        currentView: CurrentView.PROFILE,
+        profileHandle: route.params.handle as string
+      })
+    },
+    {
+      path: '/login',
+      name: 'Login',
+      component: LoginView,
+    },
+    {
+      path: '/register',
+      name: 'Register',
+      component: RegisterView
+    },
+    // Legacy route redirects for backward compatibility
+    {
+      path: '/monyverse/:timeline?',
+      name: 'Monyverse',
+      redirect: route => ({
+        name: 'Social',
+        params: { timeline: route.params.timeline || 'home' }
+      }),
+      meta: { requiresAuth: true },
     },
   ],
 });

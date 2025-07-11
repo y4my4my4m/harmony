@@ -1,22 +1,22 @@
 <template>
   <div class="unified-content-area">
     <!-- Chat Mode Content -->
-    <div v-if="mode === 'chat'" class="content-section chat-content">
+    <div v-if="mode === ViewMode.CHAT" class="content-section chat-content">
       <ChatComponent
         :messages="chatMessages"
         :isLoading="isLoading"
         :isDM="isDM"
         @loadMoreMessages="$emit('load-more-messages')" 
         @update:isAtBottom="$emit('update:is-at-bottom', $event)" 
-        @sendMessage="$emit('send-message', $event)"
+        @sendMessage="(messageParts, replyId) => $emit('send-message', messageParts, replyId)"
       />
     </div>
     
     <!-- ActivityPub Mode Content -->
-    <div v-else-if="mode === 'activitypub'" class="content-section activitypub-content">
+    <div v-else-if="mode === ViewMode.ACTIVITYPUB" class="content-section activitypub-content">
       <!-- Profile View -->
       <ProfileDisplay 
-        v-if="viewType === 'profile'"
+        v-if="viewType === ViewType.PROFILE"
         :user="profileUser"
         :posts="[]"
         :loading="false"
@@ -27,11 +27,12 @@
         @reblog-post="$emit('reblog-post', $event)"
         @delete-post="$emit('delete-post', $event)"
         @show-user-profile="$emit('show-user-profile', $event)"
+        @profile-click="$emit('show-user-profile', $event)"
         @load-more-posts="$emit('load-more-posts')"
       />
       
       <!-- Post Detail View -->
-      <div v-else-if="viewType === 'post'" class="post-detail-content">
+      <div v-else-if="viewType === ViewType.POST" class="post-detail-content">
         <PostDetailDisplay
           :post-id="postId || ''"
           @reply="$emit('reply-to-post', $event)"
@@ -44,8 +45,25 @@
         />
       </div>
       
+      <!-- Explore View -->
+      <div v-else-if="viewType === ViewType.EXPLORE" class="explore-view-content">
+        <ExploreContent
+          :current-view="currentView"
+          @switch-feed="$emit('switch-feed', $event)"
+          @refresh-timeline="$emit('refresh-timeline')"
+          @show-user-profile="$emit('show-user-profile', $event)"
+          @follow-user="$emit('follow-user', $event)"
+          @unfollow-user="$emit('unfollow-user', $event)"
+          @reply-to-post="$emit('reply-to-post', $event)"
+          @favorite-post="$emit('favorite-post', $event)"
+          @reblog-post="$emit('reblog-post', $event)"
+          @bookmark-post="$emit('bookmark-post', $event)"
+          @delete-post="$emit('delete-post', $event)"
+        />
+      </div>
+      
       <!-- Special Views (Bookmarks, Lists, etc.) -->
-      <div v-else-if="viewType !== 'timeline'" class="special-view-content">
+      <div v-else-if="viewType !== ViewType.TIMELINE" class="special-view-content">
         <div class="special-view-header">
           <div class="header-content">
             <h1 class="page-title">
@@ -57,7 +75,7 @@
           
           <!-- Clear All Button (for bookmarks) -->
           <button 
-            v-if="viewType === 'bookmarks' && specialViewData && specialViewData.length > 0"
+            v-if="viewType === ViewType.BOOKMARKS && specialViewData && specialViewData.length > 0"
             @click="$emit('clear-all-bookmarks')"
             class="clear-all-btn"
           >
@@ -79,7 +97,7 @@
             <h3>{{ getEmptyStateTitle(viewType) }}</h3>
             <p>{{ getSpecialViewEmptyMessage(viewType) }}</p>
             <button 
-              v-if="viewType === 'bookmarks'"
+              v-if="viewType === ViewType.BOOKMARKS"
               @click="$emit('switch-feed', 'home')" 
               class="explore-btn"
             >
@@ -119,9 +137,11 @@
       <!-- Timeline View -->
       <div v-else class="mony-content">
         <!-- New Post Composer (Inline) -->
-        <div v-if="currentFeed === 'home'" class="inline-composer">
+        <div v-if="currentView === 'home'" class="inline-composer">
           <MonyComposerInline @post-created="$emit('post-created', $event)" />
         </div>
+
+
 
         <!-- Timeline Feed -->
         <div class="timeline-feed">
@@ -137,7 +157,7 @@
             <h3>Welcome to Social!</h3>
             <p>{{ getEmptyStateMessage() }}</p>
             <button 
-              v-if="currentFeed === 'home'" 
+              v-if="currentView === 'home'" 
               @click="$emit('switch-feed', 'public')" 
               class="explore-btn"
             >
@@ -181,13 +201,18 @@ import { computed } from 'vue';
 import ChatComponent from '@/components/ChatComponent.vue';
 import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
+import ExploreContent from '@/components/activitypub/ExploreContent.vue';
 import ProfileDisplay from './ProfileDisplay.vue';
 import PostDetailDisplay from './PostDetailDisplay.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Message, TimelinePost, FederatedUser } from '@/types';
+import { ViewMode, ViewType } from '@/types/viewTypes';
+import { ref } from 'vue';
+import { useActivityPubStore } from '@/stores/useActivityPub';
+import activityPubService from '@/services/activityPubService';
 
 interface Props {
-  mode: 'chat' | 'activitypub';
+  mode: ViewMode;
   
   // Chat mode props
   chatMessages?: Message[];
@@ -195,8 +220,8 @@ interface Props {
   isDM?: boolean;
   
   // ActivityPub mode props
-  viewType?: 'timeline' | 'profile' | 'bookmarks' | 'lists' | 'notifications' | 'post';
-  currentFeed?: 'home' | 'local' | 'public';
+  viewType?: ViewType;
+  currentView?: string; // Can be timeline feeds or explore views
   posts?: TimelinePost[];
   isLoadingFeed?: boolean;
   hasMorePosts?: boolean;
@@ -215,8 +240,8 @@ const props = withDefaults(defineProps<Props>(), {
   chatMessages: () => [],
   isLoading: false,
   isDM: false,
-  viewType: 'timeline',
-  currentFeed: 'home',
+  viewType: ViewType.TIMELINE,
+  currentView: 'home',
   posts: () => [],
   isLoadingFeed: false,
   hasMorePosts: false,
@@ -230,7 +255,7 @@ defineEmits<{
   // Chat mode events
   'load-more-messages': [];
   'update:is-at-bottom': [value: boolean];
-  'send-message': [message: any];
+  'send-message': [messageParts: any, replyId?: string];
   
   // ActivityPub mode events
   'refresh-timeline': [];
@@ -263,12 +288,12 @@ const feedTabs = [
 ];
 
 const currentTimelineTitle = computed(() => {
-  const tab = feedTabs.find(t => t.id === props.currentFeed);
+  const tab = feedTabs.find(t => t.id === props.currentView);
   return tab ? `${tab.label} Timeline` : 'Timeline';
 });
 
 const getEmptyStateMessage = () => {
-  switch (props.currentFeed) {
+  switch (props.currentView) {
     case 'home':
       return 'Follow some users to see their posts in your timeline.';
     case 'public':
@@ -281,71 +306,81 @@ const getEmptyStateMessage = () => {
 };
 
 // Helper functions for special views
-const getViewIcon = (viewType: string) => {
+const getViewIcon = (viewType: ViewType) => {
   switch (viewType) {
-    case 'bookmarks':
+    case ViewType.EXPLORE:
+      return 'compass';
+    case ViewType.BOOKMARKS:
       return 'bookmark';
-    case 'lists':
+    case ViewType.LISTS:
       return 'list';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'bell';
-    case 'profile':
+    case ViewType.PROFILE:
       return 'user';
     default:
       return 'home';
   }
 };
 
-const getViewTitle = (viewType: string) => {
+const getViewTitle = (viewType: ViewType) => {
   switch (viewType) {
-    case 'bookmarks':
+    case ViewType.EXPLORE:
+      return 'Explore';
+    case ViewType.BOOKMARKS:
       return 'Bookmarks';
-    case 'lists':
+    case ViewType.LISTS:
       return 'Lists';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'Notifications';
-    case 'profile':
+    case ViewType.PROFILE:
       return 'Profile';
     default:
       return 'Timeline';
   }
 };
 
-const getViewSubtitle = (viewType: string) => {
+const getViewSubtitle = (viewType: ViewType) => {
   switch (viewType) {
-    case 'bookmarks':
+    case ViewType.EXPLORE:
+      return 'Discover trending content and new instances';
+    case ViewType.BOOKMARKS:
       return 'Posts you\'ve saved for later';
-    case 'lists':
+    case ViewType.LISTS:
       return 'Curated lists of users and topics';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'Stay updated with your activity';
-    case 'profile':
+    case ViewType.PROFILE:
       return 'Your profile and posts';
     default:
       return 'Your timeline';
   }
 };
 
-const getEmptyStateTitle = (viewType: string) => {
+const getEmptyStateTitle = (viewType: ViewType) => {
   switch (viewType) {
-    case 'bookmarks':
+    case ViewType.EXPLORE:
+      return 'Nothing to explore yet';
+    case ViewType.BOOKMARKS:
       return 'No bookmarks yet';
-    case 'lists':
+    case ViewType.LISTS:
       return 'No lists yet';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'No notifications yet';
     default:
       return 'Nothing here yet';
   }
 };
 
-const getSpecialViewEmptyMessage = (viewType: string) => {
+const getSpecialViewEmptyMessage = (viewType: ViewType) => {
   switch (viewType) {
-    case 'bookmarks':
+    case ViewType.EXPLORE:
+      return 'Check back later for trending content and discover new instances.';
+    case ViewType.BOOKMARKS:
       return 'Posts you bookmark will appear here for easy access later.';
-    case 'lists':
+    case ViewType.LISTS:
       return 'Create lists to organize users and topics you follow.';
-    case 'notifications':
+    case ViewType.NOTIFICATIONS:
       return 'When someone interacts with your posts, you\'ll see it here.';
     default:
       return 'Content will appear here when available.';
@@ -663,15 +698,6 @@ const getSpecialViewEmptyMessage = (viewType: string) => {
   min-height: 400px;
 }
 
-.loading-spinner {
-  width: var(--space-8);
-  height: var(--space-8);
-  border: 2px solid var(--border-color);
-  border-top: 2px solid var(--brand-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: var(--space-4);
-}
 
 .empty-state h3 {
   font-size: var(--font-size-xl);

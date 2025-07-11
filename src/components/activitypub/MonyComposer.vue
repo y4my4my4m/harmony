@@ -61,21 +61,63 @@
 
             <!-- Main Text Input -->
             <div class="text-input-container">
-              <textarea
-                ref="textareaRef"
-                v-model="content"
+              <RichTextEditor
+                ref="richEditorRef"
+                :model-value="content"
                 :placeholder="placeholder"
-                class="text-input"
-                :maxlength="characterLimit"
+                :max-height="200"
+                :min-height="60"
+                @update:model-value="handleContentUpdate"
                 @input="handleInput"
                 @keydown="handleKeydown"
-                @paste="handlePaste"
-              ></textarea>
+                @cursor-position-changed="handleCursorPositionChanged"
+              />
               
               <!-- Character Counter -->
               <div class="character-counter" :class="characterCounterClass">
                 {{ remainingCharacters }}
               </div>
+              
+                        <!-- Auto-suggest dropdown for mentions -->
+          <AutoSuggest
+            :isVisible="autoSuggest.state.value.isActive"
+            :suggestions="autoSuggest.suggestions.value"
+            :position="autoSuggest.state.value.position"
+            :selectedIndex="autoSuggest.state.value.selectedIndex"
+            :headerText="autoSuggest.headerText.value"
+            @select="handleSuggestionSelect"
+          >
+            <template #default="{ suggestion }">
+              <!-- Emoji Suggestion -->
+              <div v-if="suggestion.url && suggestion.emoji" class="suggest-item-content">
+                <img 
+                  :src="suggestion.url" 
+                  :alt="suggestion.name"
+                  class="suggest-icon emoji-icon"
+                />
+                <div class="suggest-text">
+                  <span class="suggest-name">:{{ suggestion.name }}:</span>
+                  <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
+                </div>
+              </div>
+              
+              <!-- User Suggestion -->
+              <div v-else class="suggest-item-content">
+                <Avatar 
+                  v-if="suggestion.avatar || suggestion.avatar_url" 
+                  :src="suggestion.avatar || suggestion.avatar_url" 
+                  :alt="suggestion.display_name || suggestion.username"
+                  class="suggest-icon"
+                  size="sm"
+                />
+                <div class="suggest-text">
+                  <span class="suggest-name">{{ suggestion.display_name || suggestion.username }}</span>
+                  <span v-if="suggestion.username && suggestion.display_name !== suggestion.username" class="suggest-username">@{{ suggestion.username }}</span>
+                  <span v-if="suggestion.handle && suggestion.handle.includes('@')" class="suggest-domain">{{ suggestion.handle }}</span>
+                </div>
+              </div>
+            </template>
+          </AutoSuggest>
             </div>
 
             <!-- Media Attachments -->
@@ -107,13 +149,24 @@
                   <Icon name="image" />
                 </button>
 
+                <!-- GIF Picker -->
+                <button
+                  ref="gifTriggerRef"
+                  class="option-button"
+                  @click="showGiphyPicker = !showGiphyPicker"
+                  title="Add GIF"
+                >
+                  <GifIcon />
+                </button>
+
                 <!-- Emoji Picker -->
                 <button
+                  ref="emojiTriggerRef"
                   class="option-button"
                   @click="showEmojiPicker = !showEmojiPicker"
                   title="Add emoji"
                 >
-                  <Icon name="smile" />
+                  <EmojiUI />
                 </button>
 
                 <!-- Content Warning -->
@@ -200,11 +253,26 @@
         </div>
 
         <!-- Emoji Picker -->
-        <EmojiPopup
-          v-if="showEmojiPicker"
-          @sendEmoji="insertEmoji"
-          :closeEmojiList="() => showEmojiPicker = false"
-        />
+        <Teleport to="body">
+          <EmojiPopup
+            v-if="showEmojiPicker"
+            @sendEmoji="insertEmoji"
+            :closeEmojiList="() => showEmojiPicker = false"
+            :position="'above'"
+            :triggerElement="emojiTriggerRef || undefined"
+          />
+        </Teleport>
+
+        <!-- GIF Picker -->
+        <Teleport to="body">
+          <GifComponent
+            v-if="showGiphyPicker"
+            @sendGif="insertGif"
+            :closeGiphy="() => showGiphyPicker = false"
+            :position="'above'"
+            :triggerElement="gifTriggerRef || undefined"
+          />
+        </Teleport>
       </div>
     </div>
   </Teleport>
@@ -219,8 +287,19 @@ import type { PostComposerState, Post } from '@/types';
 import MonyContent from './MonyContent.vue';
 import MonyMediaUpload from './MonyMediaUpload.vue';
 import EmojiPopup from '@/components/EmojiPopup.vue';
+import GifComponent from '@/components/GifComponent.vue';
+import GifIcon from '@/components/icons/Gif.vue';
+import EmojiUI from '@/components/EmojiUI.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
+import AutoSuggest from '@/components/AutoSuggest.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
+
+// Composables  
+import { useAutoSuggest } from '@/composables/useAutoSuggest';
+import type { SuggestionItem } from '@/components/AutoSuggest.vue';
+import { activityPubService } from '@/services/activityPubService';
+
 
 // Props
 interface Props {
@@ -244,8 +323,28 @@ const emit = defineEmits<{
 const authStore = useAuthStore();
 
 // Refs
-const textareaRef = ref<HTMLTextAreaElement>();
+const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const fileInputRef = ref<HTMLInputElement>();
+const emojiTriggerRef = ref<HTMLElement | null>(null);
+const gifTriggerRef = ref<HTMLElement | null>(null);
+
+// AutoSuggest setup 
+const getCurrentText = () => content.value || '';
+const updateText = (newText: string) => {
+  content.value = newText;
+  emit('update-content', newText);
+};
+const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
+  mode: 'activitypub',
+  enableEmojis: true,
+  enableMentions: true,
+  maxSuggestions: 10
+});
+
+// Remove all the duplicate user search and suggestion combining logic
+// The enhanced composable now handles ActivityPub user search internally
+
+// Watch for mention queries is now handled internally by the composable
 
 // Local state
 const content = ref('');
@@ -255,6 +354,7 @@ const mediaAttachments = ref<File[]>([]);
 const isSensitive = ref(false);
 const showContentWarning = ref(false);
 const showEmojiPicker = ref(false);
+const showGiphyPicker = ref(false);
 const showVisibilityMenu = ref(false);
 const isDraft = ref(false);
 
@@ -337,12 +437,34 @@ watch(() => props.composerState.is_sensitive, (newSensitive) => {
 });
 
 // Methods
-const handleInput = () => {
-  emit('update-content', content.value);
-  autoResize();
+const handleContentUpdate = (newContent: string) => {
+  content.value = newContent;
+  emit('update-content', newContent);
 };
 
+const handleInput = () => {
+  // Input is handled by handleContentUpdate
+};
+
+const handleCursorPositionChanged = (position: number) => {
+  // Handle auto-suggest based on cursor position and current text
+  if (richEditorRef.value) {
+    autoSuggest.handleInput(content.value, position);
+  }
+};
+
+const handleSuggestionSelect = (suggestion: SuggestionItem) => {
+  // Use the autoSuggest system's built-in selection method
+  autoSuggest.selectSuggestion(suggestion);
+};
+
+
+
 const handleKeydown = (event: KeyboardEvent) => {
+  // Handle autoSuggest navigation
+  const handled = autoSuggest.handleKeyDown(event);
+  if (handled) return;
+  
   // Ctrl/Cmd + Enter to post
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
     if (canPost.value) {
@@ -371,9 +493,11 @@ const handlePaste = (event: ClipboardEvent) => {
 };
 
 const autoResize = () => {
-  if (textareaRef.value) {
-    textareaRef.value.style.height = 'auto';
-    textareaRef.value.style.height = textareaRef.value.scrollHeight + 'px';
+  // RichTextEditor handles its own resizing
+  // This function is kept for compatibility but may not be needed
+  if (richEditorRef.value) {
+    // RichTextEditor component should handle auto-resize internally
+    console.log('autoResize called on RichTextEditor');
   }
 };
 
@@ -404,22 +528,47 @@ const updateAttachmentDescription = () => {
 };
 
 const insertEmoji = (emoji: any) => {
-  const textarea = textareaRef.value;
-  if (!textarea) return;
+  const richEditor = richEditorRef.value;
+  if (!richEditor) return;
 
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
   const emojiText = `:${emoji.name}:`;
   
-  content.value = content.value.substring(0, start) + emojiText + content.value.substring(end);
+  // For RichTextEditor, we'll insert at the current cursor position
+  // or append to the end if no cursor position is available
+  const currentContent = content.value;
+  content.value = currentContent + emojiText;
   
   nextTick(() => {
-    textarea.setSelectionRange(start + emojiText.length, start + emojiText.length);
-    textarea.focus();
+    richEditor.focus();
     handleInput();
   });
   
   showEmojiPicker.value = false;
+};
+
+const insertGif = (gif: any) => {
+  const gifUrl = gif.media_formats.gif.url;
+  
+  // Add GIF as media attachment - reuse the media upload logic
+  const gifAttachment = {
+    url: gifUrl,
+    type: 'image',
+    description: gif.title || 'GIF'
+  };
+  
+  // For now, add it to content as a link
+  const currentContent = content.value;
+  content.value = currentContent + (currentContent ? '\n' : '') + gifUrl;
+  
+  showGiphyPicker.value = false;
+  
+  nextTick(() => {
+    const richEditor = richEditorRef.value;
+    if (richEditor) {
+      richEditor.focus();
+      handleInput();
+    }
+  });
 };
 
 const toggleContentWarning = () => {
@@ -458,7 +607,7 @@ const onSubmit = () => {
 // Lifecycle
 onMounted(() => {
   nextTick(() => {
-    textareaRef.value?.focus();
+    richEditorRef.value?.focus();
     autoResize();
   });
 });
@@ -900,5 +1049,56 @@ const vClickOutside = {
   .visibility-button span {
     display: none;
   }
+}
+
+/* AutoSuggest styles for mentions */
+.suggest-item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.suggest-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.emoji-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.suggest-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.suggest-name {
+  font-weight: 600;
+  color: white;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.suggest-username {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.suggest-domain {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 </style>

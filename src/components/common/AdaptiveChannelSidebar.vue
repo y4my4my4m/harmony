@@ -48,7 +48,7 @@
     </div>
 
     <!-- ActivityPub Mode: Social/Federated Sidebar -->
-    <div v-else-if="mode === 'activitypub'" class="social-sidebar">
+    <div v-if="mode === 'activitypub'" class="social-sidebar">
       <!-- Header -->
       <div class="social-header">
         <div class="social-title">
@@ -85,15 +85,15 @@
         <nav class="social-nav">
           <div class="nav-section">
             <h4 class="nav-section-title">Navigation</h4>
-            <router-link 
+            <button 
               v-for="navItem in navigationItems"
               :key="navItem.id"
-              :to="navItem.path"
-              :class="['nav-item', { active: $route.path === navItem.path }]"
+              :class="['nav-item', { active: isNavItemActive(navItem) }]"
+              @click="navigateToRoute(navItem.path)"
             >
               <Icon :name="navItem.icon" />
               <span>{{ navItem.label }}</span>
-            </router-link>
+            </button>
           </div>
         </nav>
 
@@ -165,6 +165,8 @@ import { useProfileStore } from '@/stores/useProfile';
 import type { Server, Channel, Category, User } from '@/types';
 import Avatar from '@/components/common/Avatar.vue';
 import Icon from '@/components/common/Icon.vue';
+import ChannelSidebar from '@/components/ChannelSidebar.vue';
+import DMSidebar from '@/components/DMSidebar.vue';
 
 // Props
 interface Props {
@@ -196,7 +198,7 @@ const props = withDefaults(defineProps<Props>(), {
   instancePostCount: 0
 });
 
-defineEmits<{
+const emit = defineEmits<{
   // Chat mode events
   'channel-selected': [channelId: string];
   'create-channel': [categoryId: string];
@@ -249,7 +251,11 @@ const getUserProfilePath = () => {
     ? username 
     : `${username}@${domain}`;
     
-  return `/u/${handle}`;
+  return `/profile/${handle}`;
+};
+
+const getProfileUrl = (handle: string) => {
+  return `/profile/${handle}`;
 };
 
 
@@ -260,6 +266,7 @@ const postsCount = computed(() => {
 });
 
 const navigationItems = computed(() => [
+  { id: 'explore', label: 'Explore', path: '/explore', icon: 'compass' },
   { id: 'feed', label: 'Feed', path: '/social/home', icon: 'mony-mascot' },
   { id: 'profile', label: 'Profile', path: getUserProfilePath(), icon: 'user' },
   { id: 'notifications', label: 'Notifications', path: '/social/notifications', icon: 'bell' },
@@ -268,6 +275,39 @@ const navigationItems = computed(() => [
   { id: 'settings', label: 'Settings', path: '/settings', icon: 'settings' }
 ]);
 
+// Determine if a navigation item should be active
+const isNavItemActive = (navItem: { id: string; path: string }) => {
+  const currentPath = route.path;
+  
+  if (navItem.id === 'feed') {
+    // Feed is active for home, local, and public timelines
+    return currentPath === '/social/home' || 
+           currentPath === '/social/local' || 
+           currentPath === '/social/public';
+  }
+  
+  if (navItem.id === 'explore') {
+    // Explore is active for explore, trending, and instances
+    return currentPath === '/explore' || 
+           currentPath === '/social/trending' || 
+           currentPath === '/social/instances';
+  }
+  
+  // Default to exact path matching for other items
+  return currentPath === navItem.path;
+};
+
+const refreshStats = () => {
+  // TODO: Implement refresh stats
+  //activityPubStore.refreshStats();
+  return
+};
+
+const isRefreshing = computed(() => {
+  // TODO: Implement refresh stats
+  //return activityPubStore.isRefreshing;
+  return false
+});
 
 const navigateToFollowing = () => {
   router.push('/social/following');
@@ -278,9 +318,21 @@ const navigateToFollowers = () => {
 };
 
 const navigateToProfile = () => {
-  router.push(`/u/${currentUserHandle.value.replace('@', '')}`);
+  if (currentUserHandle.value) {
+    router.push(`/profile/${currentUserHandle.value.replace('@', '')}`);
+  }
 };
 
+const navigateToRoute = (path: string) => {
+  router.push(path);
+};
+
+// Format numbers for display (e.g., 1000 -> 1K)
+const formatNumber = (num: number): string => {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+};
 
 // Watch for changes in follow counts to show delta indicators
 watch(() => activityPubStore.followingCount, (newCount) => {
@@ -521,24 +573,29 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px;
-  text-decoration: none;
-  color: var(--text-secondary);
+  padding: 8px 16px;
   border-radius: 6px;
+  color: var(--text-secondary);
+  text-decoration: none;
   transition: all 0.15s ease;
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 2px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
 }
 
 .nav-item:hover {
-  background: var(--background-hover);
+  background: var(--background-modifier-hover);
   color: var(--text-primary);
 }
 
 .nav-item.active {
-  background: var(--brand-primary);
-  color: white;
+  background: var(--background-modifier-selected);
+  color: var(--brand-primary);
 }
 
 .quick-stats {

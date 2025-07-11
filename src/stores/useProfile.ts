@@ -28,7 +28,7 @@ export const useProfileStore = defineStore('profile', {
               avatar_url: cachedProfile.avatar_url,
               status: cachedProfile.status,
               color: (cachedProfile as any).color,
-              about: (cachedProfile as any).about,
+              bio: (cachedProfile as any).bio,
             };
             return;
           }
@@ -58,7 +58,7 @@ export const useProfileStore = defineStore('profile', {
             avatar_url: this.profile.avatar_url,
             status: this.profile.status || 0, // Default to Offline if no status
             color: this.profile.color,
-            about: this.profile.about,
+            bio: this.profile.bio,
           };
           serverUsersStore.addToProfileCache(userForCache);
         }
@@ -99,7 +99,7 @@ export const useProfileStore = defineStore('profile', {
             avatar_url: data.avatar_url,
             status: data.status || 0, // Default to Offline if no status
             color: data.color,
-            about: data.about,
+            bio: data.bio,
           };
           serverUsersStore.addToProfileCache(userForCache);
         }
@@ -133,7 +133,7 @@ export const useProfileStore = defineStore('profile', {
             avatar_url: this.profile.avatar_url,
             status: this.profile.status || 0, // Default to Offline if no status
             color: this.profile.color,
-            about: this.profile.about,
+            bio: this.profile.bio,
           };
           serverUsersStore.addToProfileCache(userForCache);
         }

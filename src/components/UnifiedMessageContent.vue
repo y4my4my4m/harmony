@@ -453,6 +453,7 @@ export default defineComponent({
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
       if (!editTextarea.value) return;
       
+      // Use the autoSuggest system's built-in selection method
       const newValue = autoSuggest.selectSuggestion(suggestion);
       if (newValue !== localEditableContent.value) {
         localEditableContent.value = newValue;

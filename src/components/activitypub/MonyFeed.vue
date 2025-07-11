@@ -30,7 +30,7 @@
     <!-- Feed Content -->
     <div class="feed-content" ref="feedContainer" @scroll="handleScroll">
       <!-- Loading Skeleton -->
-      <div v-if="isLoadingAnyFeed && currentFeed.posts.length === 0" class="feed-loading">
+      <div v-if="isLoadingAnyFeed && currentView.posts.length === 0" class="feed-loading">
         <PostSkeleton v-for="i in 3" :key="i" />
       </div>
 
@@ -38,7 +38,7 @@
       <div v-else class="posts-container">
         <TransitionGroup name="post-list" tag="div">
           <MonyPost
-            v-for="post in currentFeed.posts"
+            v-for="post in currentView.posts"
             :key="post.id"
             :post="post"
             @favorite="toggleFavorite"
@@ -51,7 +51,7 @@
         </TransitionGroup>
 
         <!-- Load More Button -->
-        <div v-if="currentFeed.has_more" class="load-more-container">
+        <div v-if="currentView.has_more" class="load-more-container">
           <button 
             class="load-more-button"
             @click="loadMore"
@@ -64,7 +64,7 @@
         </div>
 
         <!-- End of Feed -->
-        <div v-else-if="currentFeed.posts.length > 0" class="end-of-feed">
+        <div v-else-if="currentView.posts.length > 0" class="end-of-feed">
           <Icon name="sparkles" />
           <span>You're all caught up in the Monyverse!</span>
         </div>
@@ -139,7 +139,7 @@ const feedContainer = ref<HTMLElement>();
 
 // Computed properties
 const {
-  currentFeed,
+  currentView,
   isLoadingAnyFeed,
   isComposerOpen,
   composerState,
@@ -239,7 +239,7 @@ const handleScroll = () => {
   const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
   
   // Auto-load when 80% scrolled
-  if (scrollPercentage > 0.8 && currentFeed.value.has_more && !isLoadingAnyFeed.value) {
+  if (scrollPercentage > 0.8 && currentView.value.has_more && !isLoadingAnyFeed.value) {
     loadMore();
   }
 };

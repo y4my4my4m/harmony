@@ -6,7 +6,7 @@
         <div class="info">
           <p><span class="label">Display Name:</span> <span :style="{ color: profile.color }">{{ profile.display_name }}</span></p>
           <p><span class="label">Username:</span> {{ profile.username }}</p>
-          <p><span class="label">About:</span> {{ profile.about }}</p>
+          <p><span class="label">About:</span> {{ profile.bio }}</p>
           <p class="profile-color">
             <span class="label">Profile Color:</span>
             <div 

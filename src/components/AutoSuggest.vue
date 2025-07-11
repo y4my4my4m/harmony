@@ -1,27 +1,27 @@
 <template>
   <div
-    v-if="isVisible && suggestions.length > 0"
+    v-if="props.isVisible && props.suggestions.length > 0"
     ref="suggestContainer"
     class="auto-suggest"
     :style="positionStyle"
   >
-    <div class="suggest-header" v-if="headerText">
-      {{ headerText }}
+    <div v-if="props.headerText" class="suggest-header">
+      {{ props.headerText }}
     </div>
     <div
-      v-for="(suggestion, index) in suggestions"
+      v-for="(suggestion, index) in props.suggestions"
       :key="getSuggestionKey(suggestion)"
       class="suggest-item"
-      :class="{ 'selected': index === selectedIndex }"
+      :class="{ 'selected': index === props.selectedIndex }"
       @click="selectSuggestion(suggestion)"
-      @mouseenter="$emit('update:selectedIndex', index)"
+      @mouseenter="emit('update:selectedIndex', index)"
     >
-      <slot :suggestion="suggestion" :selected="index === selectedIndex">
+      <slot :suggestion="suggestion" :selected="index === props.selectedIndex">
         <!-- Default fallback rendering -->
         <div class="suggest-item-default">
-          <img 
-            v-if="suggestion.avatar || suggestion.url" 
-            :src="suggestion.avatar || suggestion.url" 
+          <Avatar
+            v-if="suggestion.avatar || suggestion.url"
+            :src="suggestion.avatar || suggestion.url"
             :alt="suggestion.name || suggestion.display_name"
             class="suggest-icon"
           />
@@ -33,10 +33,12 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, ref, computed, watch, nextTick } from 'vue';
-import type { PropType } from 'vue';
+<script setup lang="ts">
+import { ref, computed, watch, nextTick } from 'vue';
+import Avatar from '@/components/common/Avatar.vue';
 
+// TYPE DEFINITIONS
+// These interfaces can be exported directly from <script setup>
 export interface SuggestionItem {
   id: string;
   name?: string;
@@ -52,73 +54,66 @@ export interface SuggestionPosition {
   y: number;
 }
 
-export default defineComponent({
-  name: 'AutoSuggest',
-  props: {
-    isVisible: {
-      type: Boolean,
-      default: false
-    },
-    suggestions: {
-      type: Array as PropType<SuggestionItem[]>,
-      default: () => []
-    },
-    position: {
-      type: Object as PropType<SuggestionPosition>,
-      default: () => ({ x: 0, y: 0 })
-    },
-    selectedIndex: {
-      type: Number,
-      default: 0
-    },
-    headerText: {
-      type: String,
-      default: ''
-    },
-    maxHeight: {
-      type: Number,
-      default: 200
+// PROPS
+// Using a dedicated interface for props improves type safety
+interface Props {
+  isVisible?: boolean;
+  suggestions?: SuggestionItem[];
+  position?: SuggestionPosition;
+  selectedIndex?: number;
+  headerText?: string;
+  maxHeight?: number;
+}
+
+// `withDefaults` is used to provide default values for the defined props.
+const props = withDefaults(defineProps<Props>(), {
+  isVisible: false,
+  suggestions: () => [],
+  position: () => ({ x: 0, y: 0 }),
+  selectedIndex: 0,
+  headerText: '',
+  maxHeight: 200,
+});
+
+// EMITS
+// `defineEmits` provides type-safe event emission.
+const emit = defineEmits<{
+  (e: 'select', suggestion: SuggestionItem): void;
+  (e: 'update:selectedIndex', index: number): void;
+}>();
+
+// REFS
+const suggestContainer = ref<HTMLElement | null>(null);
+
+// COMPUTED PROPERTIES
+const positionStyle = computed(() => ({
+  position: 'fixed' as const,
+  left: `${props.position.x}px`,
+  top: `${props.position.y}px`,
+  maxHeight: `${props.maxHeight}px`,
+  zIndex: 9999, // Much higher z-index to ensure visibility
+}));
+
+// METHODS
+const selectSuggestion = (suggestion: SuggestionItem) => {
+  emit('select', suggestion);
+};
+
+const getSuggestionKey = (suggestion: SuggestionItem): string => {
+  return suggestion.id || `${suggestion.name || suggestion.display_name}-${Math.random()}`;
+};
+
+// WATCHERS
+// Auto-scroll selected item into view
+watch(() => props.selectedIndex, (newIndex) => {
+  nextTick(() => {
+    if (suggestContainer.value && newIndex >= 0) {
+      const selectedItem = suggestContainer.value.children[newIndex + (props.headerText ? 1 : 0)] as HTMLElement;
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
     }
-  },
-  emits: ['select', 'update:selectedIndex'],
-  setup(props, { emit }) {
-    const suggestContainer = ref<HTMLElement | null>(null);
-
-    const positionStyle = computed(() => ({
-      position: 'fixed' as const,
-      left: `${props.position.x}px`,
-      top: `${props.position.y}px`,
-      maxHeight: `${props.maxHeight}px`,
-      zIndex: 9999 // Much higher z-index to ensure visibility
-    }));
-
-    const selectSuggestion = (suggestion: SuggestionItem) => {
-      emit('select', suggestion);
-    };
-
-    const getSuggestionKey = (suggestion: SuggestionItem): string => {
-      return suggestion.id || `${suggestion.name || suggestion.display_name}-${Math.random()}`;
-    };
-
-    // Auto-scroll selected item into view
-    watch(() => props.selectedIndex, (newIndex) => {
-      nextTick(() => {
-        if (suggestContainer.value && newIndex >= 0) {
-          const selectedItem = suggestContainer.value.children[newIndex + (props.headerText ? 1 : 0)] as HTMLElement;
-          if (selectedItem) {
-            selectedItem.scrollIntoView({ block: 'nearest' });
-          }
-        }
-      });
-    });
-
-    return {
-      suggestContainer,
-      positionStyle,
-      selectSuggestion,
-      getSuggestionKey
-    };
-  }
+  });
 });
 </script>
 
@@ -178,6 +173,12 @@ export default defineComponent({
   height: 24px;
   border-radius: 4px;
   flex-shrink: 0;
+}
+
+.emoji-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 .suggest-name {

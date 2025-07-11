@@ -228,9 +228,9 @@ const displayHandle = computed(() => {
 
 const displayBio = computed(() => {
   if (isFederatedUser(props.user)) {
-    return props.user.bio || props.user.about
+    return props.user.bio || props.user.bio
   }
-  return props.user.about
+  return props.user.bio
 })
 
 const truncatedBio = computed(() => {
@@ -371,7 +371,7 @@ const handleBlock = async () => {
 
 const handleViewProfile = () => {
   if (isFederatedUser(props.user)) {
-    router.push(`/u/${props.user.handle}`)
+    router.push(`/profile/${props.user.handle}`)
   } else {
     // Open profile modal for chat users
     emit('click', props.user)

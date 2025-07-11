@@ -92,7 +92,7 @@
           <div class="feed-info">
             <Icon name="globe" />
             <div class="feed-details">
-              <div class="feed-name"><span>{{ currentFeedTitle }}</span><span>|</span><span class="instance-name">{{ instanceDomain }}</span></div>
+              <div class="feed-name"><span>{{ currentViewTitle }}</span><span>|</span><span class="instance-name">{{ instanceDomain }}</span></div>
             </div>
           </div>
         </div>
@@ -101,7 +101,7 @@
       <div class="context-actions">
         
         <button 
-          v-if="currentFeed === 'home'"
+          v-if="currentView === 'home'"
           class="action-btn"
           @click="$emit('refresh-timeline')"
           title="Refresh Timeline"
@@ -156,7 +156,7 @@ interface Props {
   isDM?: boolean;
   
   // ActivityPub mode props
-  currentFeed?: 'home' | 'local' | 'public';
+  currentView?: 'home' | 'local' | 'public' | 'trending' | 'instances';
   instanceDomain?: string;
 }
 
@@ -166,8 +166,7 @@ const props = withDefaults(defineProps<Props>(), {
   rightSidebarOpen: false,
   voicePanelOpen: false,
   isDM: false,
-  currentFeed: 'home',
-  instanceDomain: 'har.mony.lol'
+  currentView: 'home',
 });
 
 defineEmits<{
@@ -175,7 +174,7 @@ defineEmits<{
   'toggle-right-sidebar': [];
   'toggle-voice-panel': [];
   'toggle-search': [];
-  'switch-feed': [feedType: 'home' | 'local' | 'public'];
+  'switch-feed': [feedType: 'home' | 'local' | 'public' | 'trending' | 'instances'];
   'refresh-timeline': [];
   'open-search': [];
   'open-composer': [];
@@ -184,12 +183,14 @@ defineEmits<{
 const feedTabs = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'local', label: 'Local', icon: 'users' },
-  { id: 'public', label: 'Federated', icon: 'globe' }
+  { id: 'public', label: 'Federated', icon: 'globe' },
+  { id: 'trending', label: 'Trending', icon: 'trending-up' },
+  { id: 'instances', label: 'Instances', icon: 'server' }
 ];
 
-const currentFeedTitle = computed(() => {
-  const tab = feedTabs.find(t => t.id === props.currentFeed);
-  return tab ? `${tab.label} Timeline` : 'Timeline';
+const currentViewTitle = computed(() => {
+  const tab = feedTabs.find(t => t.id === props.currentView);
+  return tab ? `${tab.label}` : 'Timeline';
 });
 </script>
 
