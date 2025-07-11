@@ -641,6 +641,15 @@ export interface EnhancedActivityPubPost extends ActivityPubPost {
     display_name: string;
     avatar_url?: string;
     domain: string;
+    bio?: string;
+    is_local?: boolean;
+    verified?: boolean;
+    followers_count?: number;
+    following_count?: number;
+    posts_count?: number;
+    created_at?: string;
+    updated_at?: string;
+    handle?: string;
   };
   is_favorited: boolean;
   is_reblogged: boolean;

@@ -131,34 +131,34 @@
 
         <button 
           class="action-button reblog-button"
-          :class="{ active: interactionState.is_reblogged, loading: interactionState.loading.reblog }"
+          :class="{ active: post.is_reblogged, loading: isToggling.reblog }"
           @click="onReblog"
-          :title="interactionState.is_reblogged ? 'Undo reblog' : 'Reblog'"
-          :disabled="interactionState.loading.reblog"
+          :title="post.is_reblogged ? 'Undo reblog' : 'Reblog'"
+          :disabled="isToggling.reblog"
         >
           <Icon name="reblog" />
-          <span v-if="interactionState.reblogs_count > 0">{{ formatCount(interactionState.reblogs_count) }}</span>
+          <span v-if="post.reblogs_count > 0">{{ formatCount(post.reblogs_count) }}</span>
         </button>
 
         <button 
           class="action-button favorite-button"
-          :class="{ active: interactionState.is_favorited, loading: interactionState.loading.favorite }"
+          :class="{ active: post.is_favorited, loading: isToggling.favorite }"
           @click="onFavorite"
-          :title="interactionState.is_favorited ? 'Unfavorite' : 'Favorite'"
-          :disabled="interactionState.loading.favorite"
+          :title="post.is_favorited ? 'Unfavorite' : 'Favorite'"
+          :disabled="isToggling.favorite"
         >
-          <Icon :name="interactionState.is_favorited ? 'heart-filled' : 'heart'" />
-          <span v-if="interactionState.favorites_count > 0">{{ formatCount(interactionState.favorites_count) }}</span>
+          <Icon :name="post.is_favorited ? 'heart-filled' : 'heart'" />
+          <span v-if="post.favorites_count > 0">{{ formatCount(post.favorites_count) }}</span>
         </button>
 
         <button 
           class="action-button bookmark-button"
-          :class="{ active: interactionState.is_bookmarked, loading: interactionState.loading.bookmark }"
+          :class="{ active: post.is_bookmarked, loading: isToggling.bookmark }"
           @click="onBookmark"
-          :title="interactionState.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
-          :disabled="interactionState.loading.bookmark"
+          :title="post.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
+          :disabled="isToggling.bookmark"
         >
-          <Icon :name="interactionState.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
+          <Icon :name="post.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
 
         <div class="action-menu">
@@ -202,7 +202,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import { usePostInteractions } from '@/composables/usePostInteractions';
+import { useActivityPubStore } from '@/stores/useActivityPub';
 import { formatDistanceToNow, format } from 'date-fns';
 import type { TimelinePost } from '@/types';
 
@@ -230,11 +230,16 @@ const emit = defineEmits<{
   'show-conversation': [postId: string]; // New emit for showing conversation
 }>();
 
-// Store
+// Stores
 const authStore = useAuthStore();
+const activityPubStore = useActivityPubStore();
 
-// Post interactions with optimistic updates
-const { state: interactionState, error: interactionError, toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions(props.post);
+// Interaction state - now clean and direct
+const isToggling = ref({
+  favorite: false,
+  reblog: false,
+  bookmark: false
+});
 
 // Local state
 const showSensitiveContent = ref(false);
@@ -341,15 +346,42 @@ const onReply = () => {
 };
 
 const onReblog = async () => {
-  await toggleReblog();
+  if (isToggling.value.reblog) return;
+  
+  try {
+    isToggling.value.reblog = true;
+    await activityPubStore.toggleReblog(props.post.id);
+  } catch (error) {
+    console.error('Failed to toggle reblog:', error);
+  } finally {
+    isToggling.value.reblog = false;
+  }
 };
 
 const onFavorite = async () => {
-  await toggleFavorite();
+  if (isToggling.value.favorite) return;
+  
+  try {
+    isToggling.value.favorite = true;
+    await activityPubStore.toggleFavorite(props.post.id);
+  } catch (error) {
+    console.error('Failed to toggle favorite:', error);
+  } finally {
+    isToggling.value.favorite = false;
+  }
 };
 
 const onBookmark = async () => {
-  await toggleBookmark();
+  if (isToggling.value.bookmark) return;
+  
+  try {
+    isToggling.value.bookmark = true;
+    await activityPubStore.toggleBookmark(props.post.id);
+  } catch (error) {
+    console.error('Failed to toggle bookmark:', error);
+  } finally {
+    isToggling.value.bookmark = false;
+  }
 };
 
 const onEdit = () => {

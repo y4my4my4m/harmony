@@ -347,7 +347,7 @@ const displayHandle = computed(() => {
   }
   
   // For chat users, show @username
-  return `@${props.user.username || 'unknown'}`
+  return `${props.user.username || 'unknown'}`
 })
 
 const displayAbout = computed(() => {

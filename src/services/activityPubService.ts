@@ -54,9 +54,16 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Validate and normalize content format
+    let normalizedContent = postData.content;
+    if (!Array.isArray(normalizedContent)) {
+      console.warn('⚠️ Content is not an array, normalizing:', typeof normalizedContent);
+      normalizedContent = [{ type: 'text', text: String(normalizedContent || '') }];
+    }
+
     const post = {
       author_id: user.id,
-      content: postData.content,
+      content: normalizedContent,
       visibility: postData.visibility,
       content_warning: postData.content_warning,
       in_reply_to: postData.in_reply_to,
@@ -166,53 +173,27 @@ export class ActivityPubService {
   }
 
   /**
-   * Get public timeline (for discovery)
+   * Get public timeline - clean and professional
    */
   async getPublicTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
     const limit = options.limit || 20;
-    
-    let query = supabase
-      .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local
-        )
-      `)
-      .eq('visibility', 'public')
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const max_id = options.max_id || null;
 
-    if (options.max_id) {
-      query = query.lt('created_at', new Date(options.max_id).toISOString());
-    }
+    const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
+      p_user_id: user.id,
+      p_timeline_type: 'public',
+      p_limit: limit,
+      p_max_id: max_id
+    });
 
-    const { data, error } = await query;
     if (error) throw error;
 
-    // Debug: Log the breakdown of local vs federated posts
-    if (data && data.length > 0) {
-      const localPosts = data.filter(p => p.is_local).length;
-      const federatedPosts = data.filter(p => !p.is_local).length;
-      console.log(`📊 Public timeline loaded: ${localPosts} local, ${federatedPosts} federated (${data.length} total)`);
-      
-      // Log some details about federated posts if any exist
-      const federated = data.filter(p => !p.is_local);
-      if (federated.length > 0) {
-        console.log('🌐 Federated posts found:', federated.map(p => ({
-          id: p.id,
-          author_domain: p.author?.domain,
-          is_local: p.is_local,
-          is_federated: p.is_federated,
-          ap_id: p.ap_id
-        })));
-      }
-    } else {
-      console.log('📊 Public timeline: No posts found');
-    }
-
-    return data as TimelinePost[];
+    console.log(`📊 Public timeline loaded: ${data?.length || 0} posts`);
+    
+    return data || [];
   }
 
   /**
@@ -290,33 +271,49 @@ export class ActivityPubService {
   }
 
   /**
-   * Get local timeline (this instance only)
+   * Get local timeline - Supabase-native caching
    */
   async getLocalTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
-    const limit = options.limit || 20;
-    
-    let query = supabase
-      .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local
-        )
-      `)
-      .eq('visibility', 'public')
-      .eq('is_deleted', false)
-      .eq('is_local', true)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
 
-    if (options.max_id) {
-      query = query.lt('created_at', new Date(options.max_id).toISOString());
+    const limit = options.limit || 20;
+
+    // Try cache first - super fast!
+    const { data: cached, error: cacheError } = await supabase
+      .rpc('get_cached_timeline', {
+        p_user_id: user.id,
+        p_timeline_type: 'local',
+        p_limit: limit
+      });
+
+    if (!cacheError && cached?.cached) {
+      console.log(`📦 Serving local timeline from cache: ${cached.count} posts`);
+      return cached.posts || [];
     }
 
-    const { data, error } = await query;
+    // Cache miss - fall back to database with caching
+    console.log('🔄 Cache miss - building local timeline');
+    const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
+      p_user_id: user.id,
+      p_timeline_type: 'local', 
+      p_limit: limit,
+      p_max_id: options.max_id || null
+    });
+
     if (error) throw error;
 
-    return data as TimelinePost[];
+    // Cache the results for next time
+    if (data && data.length > 0) {
+      await supabase.rpc('update_timeline_cache', {
+        p_user_id: user.id,
+        p_timeline_type: 'local',
+        p_action: 'rebuild'
+      });
+    }
+
+    console.log(`📊 Local timeline loaded: ${data?.length || 0} posts`);
+    return data || [];
   }
 
   // =============================================
@@ -1146,45 +1143,18 @@ export class ActivityPubService {
     options: TimelineOptions = {}
   ): Promise<TimelinePost[]> {
     const limit = options.limit || 20;
-    const maxId = options.max_id || null;
+    const max_id = options.max_id || null;
 
-    const { data, error } = await supabase
-      .rpc('get_user_timeline', {
-        p_user_id: userId,
-        p_timeline_type: timelineType,
-        p_limit: limit,
-        p_max_id: maxId
-      });
+    const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
+      p_user_id: userId,
+      p_timeline_type: timelineType,
+      p_limit: limit,
+      p_max_id: max_id
+    });
 
     if (error) throw error;
 
-    return data?.map((post: any) => ({
-      id: post.post_id,
-      content: post.content,
-      author_id: post.author_id,
-      created_at: post.created_at,
-      visibility: post.visibility,
-      replies_count: post.replies_count,
-      reblogs_count: post.reblogs_count,
-      favorites_count: post.favorites_count,
-      in_reply_to: post.in_reply_to,
-      media_attachments: post.media_attachments,
-      author: {
-        id: post.author_id,
-        username: post.author_username,
-        display_name: post.author_display_name,
-        avatar_url: post.author_avatar_url,
-        domain: post.author_domain,
-        handle: post.author_domain === 'har.mony.lol' 
-          ? `@${post.author_username}`
-          : `@${post.author_username}@${post.author_domain}`
-      },
-      interactions: {
-        is_favorited: post.is_favorited,
-        is_reblogged: post.is_reblogged,
-        is_bookmarked: false
-      }
-    })) || [];
+    return data || [];
   }
 
   /**
@@ -1906,7 +1876,18 @@ export class ActivityPubService {
     // Keep content in proper format
     let processedContent = post.content;
     if (typeof post.content === 'string') {
-      processedContent = [{ type: 'text', text: post.content }];
+      try {
+        // Try to parse as JSON first in case it's a JSON string
+        const parsed = JSON.parse(post.content);
+        if (Array.isArray(parsed)) {
+          processedContent = parsed;
+        } else {
+          processedContent = [{ type: 'text', text: post.content }];
+        }
+      } catch {
+        // Not valid JSON, treat as plain text
+        processedContent = [{ type: 'text', text: post.content }];
+      }
     } else if (!Array.isArray(post.content)) {
       processedContent = [{ type: 'text', text: '' }];
     }
