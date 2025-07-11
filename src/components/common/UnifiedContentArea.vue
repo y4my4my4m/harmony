@@ -245,7 +245,6 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
 
 .composer-section {
   padding: var(--space-4);
-  background: var(--background-primary);
   position: relative;
 }
 

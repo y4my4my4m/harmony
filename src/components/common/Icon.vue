@@ -273,7 +273,14 @@
     <!-- Rotate CCW -->
     <polyline v-if="name === 'rotate-ccw'" points="1 4 1 10 7 10"></polyline>
     <path v-if="name === 'rotate-ccw'" d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-    
+
+    <!-- corner-down-right -->
+    <path v-if="name === 'corner-down-right'" d="m15 10 5 5-5 5"/>
+    <path v-if="name === 'corner-down-right'" d="M4 4v7a4 4 0 0 0 4 4h12"/>
+
+    <!-- message-square -->
+    <path v-if="name === 'message-square'" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+
     <!-- external-link -->
     <path v-if="name === 'external-link'" d="M10 14l7-7m-7 0h8a2 2 0 0 1 2 2v8m-10-6H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"></path>
 

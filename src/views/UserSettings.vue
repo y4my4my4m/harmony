@@ -54,7 +54,7 @@
               </button>
             </div>
 
-            <div class="nav-section" v-if="adminSections.length > 0">
+            <div class="nav-section" v-if="adminSections.length > 0 && isAdmin">
               <h3 class="nav-section-title">Administration</h3>
               <router-link
                 v-for="section in adminSections" 
@@ -361,6 +361,11 @@ const handleAvatarUpload = async (file: File) => {
     loading.value = false
   }
 }
+
+const isAdmin = computed(() => {
+  // Implement your admin check logic here
+  return profile.value?.is_admin || false
+})
 
 const handlePrivacyUpdate = async (privacySettings: any) => {
   // Handle privacy settings update

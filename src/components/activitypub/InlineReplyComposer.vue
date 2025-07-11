@@ -102,6 +102,7 @@ import type { TimelinePost } from '@/types';
 // Components
 import Avatar from '@/components/common/Avatar.vue';
 import Icon from '@/components/common/Icon.vue';
+import { useProfileStore } from '@/stores/useProfile';
 
 // Props
 interface Props {
@@ -119,7 +120,7 @@ const emit = defineEmits<{
 }>();
 
 // Stores
-const authStore = useAuthStore();
+const profileStore = useProfileStore();
 const activityPubStore = useActivityPubStore();
 
 // Refs
@@ -134,7 +135,7 @@ const isSensitive = ref(false);
 const isSubmitting = ref(false);
 
 // Computed
-const currentUser = computed(() => authStore.user);
+const currentUser = computed(() => profileStore.profile);
 
 const characterCount = computed(() => content.value.length);
 

@@ -1,5 +1,9 @@
 <template>
+  <!-- Conditional Layout Rendering -->
+  <AuthLayout v-if="isAuthRoute" />
+  
   <BaseLayout
+    v-else
     @showPublicServers="handleShowPublicServers"
     @switchToActivityPub="handleSwitchToActivityPub"
     @switchToChat="handleSwitchToChat"
@@ -7,25 +11,26 @@
   
   <NotificationToast />
   
-  <!-- Persistent Voice Connection -->
-  <PersistentVoiceConnection />
+  <!-- Persistent Voice Connection (only when authenticated) -->
+  <PersistentVoiceConnection v-if="!isAuthRoute" />
   
   <!-- PWA Components -->
   <PWAInstallBanner />
   <PWAUpdateNotification />
   
-  <!-- Global Modals -->
+  <!-- Global Modals (only when authenticated) -->
   <PublicServers 
-    v-if="showPublicServers"
+    v-if="showPublicServers && !isAuthRoute"
     :force-refresh="shouldForceRefreshPublicServers"
     @close="handleClosePublicServers"
   />
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import BaseLayout from '@/layouts/BaseLayout.vue'
+import AuthLayout from '@/layouts/AuthLayout.vue'
 import NotificationToast from '@/components/NotificationToast.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
@@ -35,6 +40,13 @@ import { onMounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
 
 const router = useRouter()
+const route = useRoute()
+
+// Auth route detection
+const isAuthRoute = computed(() => {
+  const authRoutes = ['/login', '/register', '/new-profile']
+  return authRoutes.includes(route.path)
+})
 
 // Global modal state
 const showPublicServers = ref(false)

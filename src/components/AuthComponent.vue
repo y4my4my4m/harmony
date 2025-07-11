@@ -67,8 +67,8 @@
       </div>
 
       <!-- Right Panel - Auth Form -->
-      <div class="auth-panel" @mouseenter="onAuthPanelHover(true)" @mouseleave="onAuthPanelHover(false)">
-        <div class="auth-form-container" :class="{ 'hovered': isAuthPanelHovered }">
+      <div class="auth-panel">
+        <div class="auth-form-container"  @mouseenter="onAuthPanelHover(true)" @mouseleave="onAuthPanelHover(false)" :class="{ 'hovered': isAuthPanelHovered }">
           <!-- Form Header -->
           <div class="form-header">
             <h2 class="form-title">
@@ -454,8 +454,8 @@ onMounted(async () => {
   z-index: 10;
   min-height: 100vh;
   display: flex;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100vw;
+  margin: 0;
 }
 
 .auth-branding {
