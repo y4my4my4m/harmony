@@ -439,7 +439,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--h-chat, #313338);
+  background: var(--background-primary);
   color: white;
 }
 
@@ -744,9 +744,4 @@ onMounted(() => {
   }
 }
 
-@media (min-width: 1200px) {
-  .detail-content {
-    margin-right: 320px;
-  }
-}
 </style>

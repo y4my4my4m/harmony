@@ -42,10 +42,10 @@
       <button
         v-if="showFollowBtn && !isCurrentUser"
         @click="handleFollowToggle"
-        :disabled="isFollowLoading"
-        :class="['follow-btn', { following: isFollowing, loading: isFollowLoading }]"
+        :disabled="getLoadingState().follow"
+        :class="['follow-btn', { following: isFollowing, loading: getLoadingState().follow }]"
       >
-        <Icon v-if="isFollowLoading" name="loader" class="spinning" />
+        <Icon v-if="getLoadingState().follow" name="loader" class="spinning" />
         <Icon v-else-if="isFollowing" name="user-check" />
         <Icon v-else name="user-plus" />
         <span>{{ followButtonText }}</span>
@@ -112,6 +112,7 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
+import { usePostInteractions } from '@/composables/usePostInteractions';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
@@ -151,8 +152,10 @@ const emit = defineEmits<{
 const activityPubStore = useActivityPubStore();
 const authStore = useAuthStore();
 
+// Composables for clean interaction handling  
+const { toggleFollow, getLoadingState } = usePostInteractions();
+
 // State
-const isFollowLoading = ref(false);
 const showActionsMenu = ref(false);
 
 // Computed
@@ -173,7 +176,7 @@ const isBlocked = computed(() => {
 });
 
 const followButtonText = computed(() => {
-  if (isFollowLoading.value) return 'Loading...';
+  if (getLoadingState().follow) return 'Loading...';
   return isFollowing.value ? 'Following' : 'Follow';
 });
 
@@ -196,21 +199,18 @@ const handleUserClick = () => {
 };
 
 const handleFollowToggle = async () => {
-  if (isFollowLoading.value) return;
+  if (getLoadingState().follow) return;
   
-  isFollowLoading.value = true;
   try {
-    if (isFollowing.value) {
-      await activityPubStore.unfollowUser(props.user.id);
-      emit('unfollow', props.user.id);
-    } else {
-      await activityPubStore.followUser(props.user.id);
+    const result = await toggleFollow(props.user.id);
+    
+    if (result.following) {
       emit('follow', props.user.id);
+    } else {
+      emit('unfollow', props.user.id);
     }
   } catch (error) {
     console.error('Failed to toggle follow:', error);
-  } finally {
-    isFollowLoading.value = false;
   }
 };
 

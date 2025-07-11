@@ -36,6 +36,7 @@
               :datetime="post.created_at" 
               :title="formatFullDate(post.created_at)"
               class="post-time"
+              @click="handleTimeClick"
             >
               {{ formatRelativeTime(post.created_at) }}
             </time>
@@ -151,10 +152,9 @@
 
         <button 
           class="action-button reblog-button"
-          :class="{ active: post.is_reblogged, loading: isToggling.reblog }"
-          @click="onReblog"
+          :class="{ active: post.is_reblogged }"
+          @click="toggleReblog(post.id)"
           :title="post.is_reblogged ? 'Undo reblog' : 'Reblog'"
-          :disabled="isToggling.reblog"
         >
           <Icon name="reblog" />
           <span v-if="post.reblogs_count > 0">{{ formatCount(post.reblogs_count) }}</span>
@@ -162,10 +162,9 @@
 
         <button 
           class="action-button favorite-button"
-          :class="{ active: post.is_favorited, loading: isToggling.favorite }"
-          @click="onFavorite"
+          :class="{ active: post.is_favorited }"
+          @click="toggleFavorite(post.id)"
           :title="post.is_favorited ? 'Unfavorite' : 'Favorite'"
-          :disabled="isToggling.favorite"
         >
           <Icon :name="post.is_favorited ? 'heart-filled' : 'heart'" />
           <span v-if="post.favorites_count > 0">{{ formatCount(post.favorites_count) }}</span>
@@ -173,10 +172,9 @@
 
         <button 
           class="action-button bookmark-button"
-          :class="{ active: post.is_bookmarked, loading: isToggling.bookmark }"
-          @click="onBookmark"
+          :class="{ active: post.is_bookmarked }"
+          @click="toggleBookmark(post.id)"
           :title="post.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
-          :disabled="isToggling.bookmark"
         >
           <Icon :name="post.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
@@ -233,6 +231,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
 import type { TimelinePost } from '@/types';
@@ -242,6 +241,7 @@ import MonyContent from './MonyContent.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import InlineReplyComposer from './InlineReplyComposer.vue';
+import router from '@/router';
 
 // Props
 interface Props {
@@ -266,14 +266,10 @@ const emit = defineEmits<{
 const authStore = useAuthStore();
 const activityPubStore = useActivityPubStore();
 
-// Interaction state - now clean and direct
-const isToggling = ref({
-  favorite: false,
-  reblog: false,
-  bookmark: false
-});
+// Composables for clean interaction handling
+const { toggleFavorite, toggleReblog, toggleBookmark, follow, favorite, reblog, bookmark } = usePostInteractions();
 
-// Local state
+// Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
 const showInlineReply = ref(false);
@@ -284,6 +280,10 @@ declare global {
     _clickOutsideHandler?: (event: Event) => void;
   }
 }
+
+const handleTimeClick = () => {
+  router.push({ name: 'PostDetail', params: { postId: props.post.id } });
+};
 
 // Computed
 const author = computed(() => {
@@ -403,45 +403,6 @@ const handleReplySent = (reply: any) => {
   console.log('Reply sent:', reply);
   showInlineReply.value = false;
   // Could emit a success event or update local state here
-};
-
-const onReblog = async () => {
-  if (isToggling.value.reblog) return;
-  
-  try {
-    isToggling.value.reblog = true;
-    await activityPubStore.toggleReblog(props.post.id);
-  } catch (error) {
-    console.error('Failed to toggle reblog:', error);
-  } finally {
-    isToggling.value.reblog = false;
-  }
-};
-
-const onFavorite = async () => {
-  if (isToggling.value.favorite) return;
-  
-  try {
-    isToggling.value.favorite = true;
-    await activityPubStore.toggleFavorite(props.post.id);
-  } catch (error) {
-    console.error('Failed to toggle favorite:', error);
-  } finally {
-    isToggling.value.favorite = false;
-  }
-};
-
-const onBookmark = async () => {
-  if (isToggling.value.bookmark) return;
-  
-  try {
-    isToggling.value.bookmark = true;
-    await activityPubStore.toggleBookmark(props.post.id);
-  } catch (error) {
-    console.error('Failed to toggle bookmark:', error);
-  } finally {
-    isToggling.value.bookmark = false;
-  }
 };
 
 const onEdit = () => {
@@ -636,6 +597,7 @@ const handleHashtagClick = (tag: string) => {
 
 .post-time:hover {
   text-decoration: underline;
+  cursor: pointer;
 }
 
 .visibility-indicator {

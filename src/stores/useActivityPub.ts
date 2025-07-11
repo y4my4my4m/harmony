@@ -515,8 +515,6 @@ export const useActivityPubStore = defineStore('activitypub', {
           .insert({
             user_id: follow.following_id,
             type: 'activitypub_follow',
-            title: 'New Follower',
-            message: `${follower.display_name || follower.username} started following you`,
             data: {
               follower_id: follow.follower_id,
               follower_username: follower.username,
@@ -1376,12 +1374,22 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      async followUser(userId: string) {
        try {
+         // Check if already following to prevent duplicate requests
+         if (this.followedUsers.has(userId)) {
+           console.warn('Already following user:', userId);
+           return;
+         }
+
          await activityPubService.followUser(userId);
          
          this.followedUsers.add(userId);
          this.followingCount++;
        } catch (error) {
          console.error('Failed to follow user:', error);
+         // If "Already following" error, sync our state
+         if (error instanceof Error && error.message.includes('Already following')) {
+           this.followedUsers.add(userId);
+         }
          throw error;
        }
      },
@@ -1391,12 +1399,38 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      async unfollowUser(userId: string) {
        try {
+         // Check if actually following to prevent unnecessary requests
+         if (!this.followedUsers.has(userId)) {
+           console.warn('Not following user:', userId);
+           return;
+         }
+
          await activityPubService.unfollowUser(userId);
          
          this.followedUsers.delete(userId);
          this.followingCount--;
        } catch (error) {
          console.error('Failed to unfollow user:', error);
+         throw error;
+       }
+     },
+
+     /**
+      * Toggle follow status for a user (recommended method)
+      */
+     async toggleFollow(userId: string): Promise<{ following: boolean }> {
+       try {
+         const isCurrentlyFollowing = this.followedUsers.has(userId);
+         
+         if (isCurrentlyFollowing) {
+           await this.unfollowUser(userId);
+           return { following: false };
+         } else {
+           await this.followUser(userId);
+           return { following: true };
+         }
+       } catch (error) {
+         console.error('Failed to toggle follow:', error);
          throw error;
        }
      },

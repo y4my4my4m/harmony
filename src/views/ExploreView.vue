@@ -40,27 +40,29 @@ import { useRoute, useRouter } from 'vue-router'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { usePostInteractions } from '@/composables/usePostInteractions'
 import type { TimelinePost, FederatedUser } from '@/types'
 
 // Props
 interface Props {
-  currentView: string
+  currentView: 'trending' | 'instances'
 }
 
 const props = defineProps<Props>()
 
 // Emits
 const emit = defineEmits<{
-  followUser: [user: FederatedUser]
-  unfollowUser: [user: FederatedUser]
-  favoritePost: [post: TimelinePost]
-  reblogPost: [post: TimelinePost]
-  bookmarkPost: [post: TimelinePost]
+  followUser: [userId: string]
+  unfollowUser: [userId: string]
+  favoritePost: [postId: string]
+  reblogPost: [postId: string]
+  bookmarkPost: [postId: string]
   showUserProfile: [user: FederatedUser]
 }>()
 
-// Store
+// Store and composables
 const activityPubStore = useActivityPubStore()
+const { followUser, unfollowUser, toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 const route = useRoute()
 const router = useRouter()
 
@@ -136,7 +138,7 @@ const loadInstances = async () => {
   }
 }
 
-// Event handlers
+// Event handlers using composables - much cleaner!
 const handleLoadMore = async () => {
   try {
     if (props.currentView === 'trending') {
@@ -160,48 +162,39 @@ const handleRefresh = () => {
   loadExploreData()
 }
 
-const handleFollow = async (user: FederatedUser) => {
-  try {
-    await activityPubStore.followUser(user.id)
-    emit('followUser', user)
-  } catch (error) {
-    console.error('Failed to follow user:', error)
+// Clean composable-based handlers
+const handleFollow = async (userId: string) => {
+  const result = await followUser(userId)
+  if (result.success) {
+    emit('followUser', userId)
   }
 }
 
-const handleUnfollow = async (user: FederatedUser) => {
-  try {
-    await activityPubStore.unfollowUser(user.id)
-    emit('unfollowUser', user)
-  } catch (error) {
-    console.error('Failed to unfollow user:', error)
+const handleUnfollow = async (userId: string) => {
+  const result = await unfollowUser(userId)
+  if (result.success) {
+    emit('unfollowUser', userId)
   }
 }
 
-const handleFavoritePost = async (post: TimelinePost) => {
-  try {
-    await activityPubStore.favoritePost(post.id)
-    emit('favoritePost', post)
-  } catch (error) {
-    console.error('Failed to favorite post:', error)
+const handleFavoritePost = async (postId: string) => {
+  const result = await toggleFavorite(postId)
+  if (!result.error) {
+    emit('favoritePost', postId)
   }
 }
 
-const handleReblogPost = async (post: TimelinePost) => {
-  try {
-    await activityPubStore.reblogPost(post.id)
-    emit('reblogPost', post)
-  } catch (error) {
-    console.error('Failed to reblog post:', error)
+const handleReblogPost = async (postId: string) => {
+  const result = await toggleReblog(postId)
+  if (!result.error) {
+    emit('reblogPost', postId)
   }
 }
 
-const handleBookmarkPost = async (post: TimelinePost) => {
-  try {
-    await activityPubStore.bookmarkPost(post.id)
-    emit('bookmarkPost', post)
-  } catch (error) {
-    console.error('Failed to bookmark post:', error)
+const handleBookmarkPost = async (postId: string) => {
+  const result = await toggleBookmark(postId)
+  if (!result.error) {
+    emit('bookmarkPost', postId)
   }
 }
 

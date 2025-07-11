@@ -16,7 +16,6 @@ export default defineComponent({
     .gifIcon {
         width: 24px;
         height: 24px;
-        margin-right: 10px;
     }
     .gifIcon .gifIconPath {
         fill: #aaa;

@@ -280,16 +280,6 @@ const router = createRouter({
       component: () => import('@/views/NewProfile.vue'),
       meta: { requiresAuth: true }
     },
-    // Legacy redirects for backward compatibility
-    {
-      path: '/monyverse/:timeline?',
-      name: 'Monyverse',
-      redirect: route => ({
-        name: 'SocialHome',
-        params: { timeline: route.params.timeline || 'home' }
-      }),
-      meta: { requiresAuth: true },
-    },
   ],
 });
 

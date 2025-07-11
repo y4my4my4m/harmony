@@ -330,15 +330,6 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-.detail-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
 .loading-state,
 .error-state {
   display: flex;

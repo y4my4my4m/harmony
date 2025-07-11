@@ -281,6 +281,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { useProfileStore } from '@/stores/useProfile';
 import type { PostComposerState, Post } from '@/types';
 
 // Components
@@ -321,6 +322,7 @@ const emit = defineEmits<{
 
 // Store
 const authStore = useAuthStore();
+const profileStore = useProfileStore();
 
 // Refs
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
@@ -364,7 +366,7 @@ const maxMediaAttachments = 4;
 
 // Computed
 const currentUser = computed(() => {
-  return authStore.session?.user;
+  return profileStore.profile;
 });
 
 const placeholder = computed(() => {

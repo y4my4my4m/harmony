@@ -436,17 +436,35 @@ const handleLoadMorePosts = async () => {
   }
 }
 
-const handleFollow = async (user: FederatedUser) => {
+const handleFollow = async (user: FederatedUser | string) => {
   try {
-    await activityPubStore.followUser(user.id)
+    // Handle both userId string and FederatedUser object
+    const userId = typeof user === 'string' ? user : user?.id
+    
+    if (!userId) {
+      console.error('❌ handleFollow: Invalid user ID:', user)
+      return
+    }
+    
+    await activityPubStore.followUser(userId)
+    console.log(`✅ Successfully followed user: ${userId}`)
   } catch (error) {
     console.error('Failed to follow user:', error)
   }
 }
 
-const handleUnfollow = async (user: FederatedUser) => {
+const handleUnfollow = async (user: FederatedUser | string) => {
   try {
-    await activityPubStore.unfollowUser(user.id)
+    // Handle both userId string and FederatedUser object
+    const userId = typeof user === 'string' ? user : user?.id
+    
+    if (!userId) {
+      console.error('❌ handleUnfollow: Invalid user ID:', user)
+      return
+    }
+    
+    await activityPubStore.unfollowUser(userId)
+    console.log(`✅ Successfully unfollowed user: ${userId}`)
   } catch (error) {
     console.error('Failed to unfollow user:', error)
   }
