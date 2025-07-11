@@ -72,7 +72,9 @@
           />
           <div class="reply-details">
             <span class="reply-author">@{{ post.reply_context.author.username }}</span>
-            <span class="reply-content-preview">{{ post.reply_context.content_preview }}</span>
+            <span class="reply-content-preview">
+              <MonyContent :content="replyContentText" />
+            </span>
           </div>
         </div>
       </div>
@@ -304,10 +306,10 @@ const isAuthorLocal = computed(() => {
   return domain === 'har.mony.lol' || domain === 'harmony.com';
 });
 
-const contentText = computed(() => {
-  // Convert MessagePart[] to string for display
-  if (Array.isArray(props.post.content)) {
-    return props.post.content
+// Helper to flatten MessagePart[] or JSON string to plain text
+const flattenMessageParts = (content: any): string => {
+  if (Array.isArray(content)) {
+    return content
       .map(part => {
         if (part.type === 'text') return part.text;
         if (part.type === 'mention') return part.mention;
@@ -316,7 +318,26 @@ const contentText = computed(() => {
       })
       .join('');
   }
-  return typeof props.post.content === 'string' ? props.post.content : '';
+  if (typeof content === 'string') {
+    // Try to parse as JSON array if it looks like it
+    try {
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) {
+        return flattenMessageParts(parsed);
+      }
+    } catch {}
+    return content;
+  }
+  return '';
+};
+
+const contentText = computed(() => flattenMessageParts(props.post.content));
+
+const replyContentText = computed(() => {
+  if (props.post.reply_context && props.post.reply_context.content_preview !== undefined) {
+    return flattenMessageParts(props.post.reply_context.content_preview);
+  }
+  return '';
 });
 
 const canEdit = computed(() => {
