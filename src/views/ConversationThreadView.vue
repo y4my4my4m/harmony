@@ -42,16 +42,16 @@
       </div>
 
       <!-- Conversation thread -->
-      <div v-else-if="conversationThread" class="conversation-container">
+      <div v-else-if="conversationThread && transformedRootPost" class="conversation-container">
         <!-- Root post (highlighted) -->
          
         <article 
           class="root-post"
-          :class="{ 'highlighted-post': isHighlighted(conversationThread.root_post.id) }"
-          :ref="el => setPostRef(conversationThread.root_post.id, el)"
+          :class="{ 'highlighted-post': conversationThread && isHighlighted(conversationThread.root_post.id) }"
+          :ref="el => conversationThread && setPostRef(conversationThread.root_post.id, el)"
         >
           <MonyPost
-            :post="conversationThread.root_post"
+            :post="transformedRootPost"
             :is-detail-view="true"
             :is-root-post="true"
             @reply="handleReply"
@@ -70,9 +70,10 @@
         <!-- Reply composer (if replying to root) -->
         <div v-if="showReplyComposer && replyingToPostId === conversationThread.root_post.id" class="reply-composer">
           <InlineReplyComposer
-            :reply-to="conversationThread.root_post"
-            @post-created="handleReplyCreated"
-            @cancel="showReplyComposer = false"
+            :reply-to-post="transformedRootPost"
+            :is-visible="true"
+            @reply-sent="handleReplyCreated"
+            @close="showReplyComposer = false"
           />
         </div>
 
@@ -84,8 +85,8 @@
             :post="reply"
             :thread-depth="1"
             :max-depth="10"
-            :highlighted-post-id="highlightPostId"
-            :replying-to-post-id="replyingToPostId"
+            :highlighted-post-id="highlightPostId || undefined"
+            :replying-to-post-id="replyingToPostId || undefined"
             :show-reply-composer="showReplyComposer"
             @reply="handleReply"
             @favorite="handleFavorite"
@@ -103,7 +104,7 @@
         <div v-else-if="!isLoading" class="empty-replies">
           <Icon name="message-circle" :size="32" />
           <p>No replies yet. Be the first to reply!</p>
-          <button @click="() => handleReply(conversationThread.root_post)" class="reply-cta-btn">
+          <button @click="() => handleReply(transformedRootPost)" class="reply-cta-btn">
             Reply to this conversation
           </button>
         </div>
@@ -114,6 +115,7 @@
     <UserProfileModal
       v-if="selectedUser"
       :user="selectedUser"
+      :show="!!selectedUser"
       @close="selectedUser = null"
       @follow="handleFollow"
       @unfollow="handleUnfollow"
@@ -122,12 +124,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { supabase } from '@/supabase';
 import ConversationService from '@/services/ConversationService';
 import type { ActivityPubPost, ConversationThread, FederatedUser } from '@/types';
+import { getAvatarUrl } from '@/utils/avatarUtils';
 
 // Components
 import MonyPost from '@/components/activitypub/MonyPost.vue';
@@ -166,14 +169,95 @@ const authStore = useAuthStore();
 // Post refs for scrolling
 const postRefs = ref<Map<string, HTMLElement>>(new Map());
 
+// Cache for transformed posts to prevent avatar flashing
+const transformedPostsCache = ref<Map<string, any>>(new Map());
+
+// Transform raw ActivityPub post to TimelinePost format
+const transformActivityPubPost = (post: any): any => {
+  if (!post) return null;
+  
+  // Check cache first to prevent re-transformation
+  if (transformedPostsCache.value.has(post.id)) {
+    return transformedPostsCache.value.get(post.id);
+  }
+  
+  // Parse domain safely
+  let domain = 'har.mony.lol';
+  let isLocal = true;
+  
+  if (post.actor_uri) {
+    try {
+      const url = new URL(post.actor_uri);
+      domain = url.hostname;
+      isLocal = domain === 'har.mony.lol';
+    } catch (e) {
+      console.warn('Invalid actor_uri:', post.actor_uri);
+    }
+  }
+  
+  // Construct avatar URL properly based on user type
+  let avatarUrl = '/default_avatar.png';
+  
+  if (post.actor_icon && post.actor_icon !== 'default_avatar.png') {
+    if (isLocal) {
+      // For local users, use getAvatarUrl utility which handles Supabase storage paths
+      avatarUrl = getAvatarUrl(post.actor_icon);
+    } else {
+      // For remote users, the actor_icon should be a full URL already
+      avatarUrl = post.actor_icon.startsWith('http') ? post.actor_icon : `/storage/${post.actor_icon}`;
+    }
+  }
+  
+  const transformed = {
+    ...post,
+    author: {
+      id: post.author_id || post.actor_uri,
+      username: post.actor_preferred_username || post.actor_name,
+      display_name: post.actor_name || post.actor_preferred_username,
+      avatar_url: avatarUrl,
+      domain,
+      bio: '',
+      is_local: isLocal,
+      verified: false,
+      followers_count: 0,
+      following_count: 0,
+      posts_count: 0,
+      created_at: post.created_at,
+      updated_at: post.updated_at,
+      handle: isLocal 
+        ? `@${post.actor_preferred_username || post.actor_name}` 
+        : `@${post.actor_preferred_username || post.actor_name}@${domain}`
+    },
+    // Map ActivityPub fields to expected format
+    favorites_count: post.likes_count || 0,
+    reblogs_count: post.shares_count || 0,
+    replies_count: post.replies_count || 0,
+    is_favorited: false,
+    is_reblogged: false,
+    is_bookmarked: false
+  };
+  
+  // Cache the transformed post
+  transformedPostsCache.value.set(post.id, transformed);
+  
+  return transformed;
+};
+
 // Computed
 const highlightPostId = computed(() => {
   return props.highlightPostId || ConversationService.getRouteContext(route).highlightPostId;
 });
 
+const transformedRootPost = computed(() => {
+  if (!conversationThread.value?.root_post) return null;
+  return transformActivityPubPost(conversationThread.value.root_post);
+});
+
 const threadReplies = computed(() => {
   if (!conversationThread.value) return [];
-  return conversationThread.value.posts.filter(p => p.id !== conversationThread.value!.root_post.id);
+  return conversationThread.value.posts
+    .filter(p => p.id !== conversationThread.value!.root_post.id)
+    .map(post => transformActivityPubPost(post));
 });
 
 // Methods
@@ -190,6 +274,9 @@ const isHighlighted = (postId: string) => {
 const loadConversation = async () => {
   isLoading.value = true;
   error.value = null;
+  
+  // Clear cache for fresh data
+  transformedPostsCache.value.clear();
 
   try {
     // Try to get postId from props, fallback to route params
@@ -267,8 +354,10 @@ const shareConversation = async () => {
   if (navigator.share) {
     try {
       await navigator.share({
-        title: `Conversation started by ${conversationThread.value.root_post.author.display_name}`,
-        text: conversationThread.value.root_post.content,
+        title: `Conversation started by ${transformedRootPost.value?.author.display_name}`,
+        text: typeof conversationThread.value.root_post.content === 'string' 
+          ? conversationThread.value.root_post.content 
+          : JSON.stringify(conversationThread.value.root_post.content),
         url: url
       });
     } catch (err) {
@@ -292,9 +381,12 @@ const handleReply = (post: ActivityPubPost) => {
 };
 
 const handleReplyCreated = (newReply: ActivityPubPost) => {
-  // Add the new reply to the conversation
+  // Transform the new reply to match the expected format
+  const transformedReply = transformActivityPubPost(newReply);
+  
+  // Add the transformed reply to the conversation
   if (conversationThread.value) {
-    conversationThread.value.posts.push(newReply);
+    conversationThread.value.posts.push(transformedReply);
     conversationThread.value.reply_count++;
   }
   
@@ -306,12 +398,22 @@ const handleFavorite = async (postId: string) => {
   try {
     await activityPubStore.toggleFavorite(postId);
     
-    // Update local state
+    // Update local state - find the post in either root or replies
     if (conversationThread.value) {
-      const post = conversationThread.value.posts.find(p => p.id === postId);
-      if (post) {
-        post.is_favorited = !post.is_favorited;
-        post.favorites_count += post.is_favorited ? 1 : -1;
+      // Check if it's the root post
+      if (conversationThread.value.root_post.id === postId) {
+        const transformedRoot = transformedRootPost.value;
+        if (transformedRoot) {
+          transformedRoot.is_favorited = !transformedRoot.is_favorited;
+          transformedRoot.favorites_count += transformedRoot.is_favorited ? 1 : -1;
+        }
+      } else {
+        // Check in replies
+        const reply = conversationThread.value.posts.find(p => p.id === postId);
+        if (reply) {
+          reply.is_favorited = !reply.is_favorited;
+          reply.favorites_count += reply.is_favorited ? 1 : -1;
+        }
       }
     }
   } catch (error) {
@@ -323,12 +425,22 @@ const handleReblog = async (postId: string) => {
   try {
     await activityPubStore.toggleReblog(postId);
     
-    // Update local state
+    // Update local state - find the post in either root or replies
     if (conversationThread.value) {
-      const post = conversationThread.value.posts.find(p => p.id === postId);
-      if (post) {
-        post.is_reblogged = !post.is_reblogged;
-        post.reblogs_count += post.is_reblogged ? 1 : -1;
+      // Check if it's the root post
+      if (conversationThread.value.root_post.id === postId) {
+        const transformedRoot = transformedRootPost.value;
+        if (transformedRoot) {
+          transformedRoot.is_reblogged = !transformedRoot.is_reblogged;
+          transformedRoot.reblogs_count += transformedRoot.is_reblogged ? 1 : -1;
+        }
+      } else {
+        // Check in replies
+        const reply = conversationThread.value.posts.find(p => p.id === postId);
+        if (reply) {
+          reply.is_reblogged = !reply.is_reblogged;
+          reply.reblogs_count += reply.is_reblogged ? 1 : -1;
+        }
       }
     }
   } catch (error) {
@@ -340,11 +452,20 @@ const handleBookmark = async (postId: string) => {
   try {
     await activityPubStore.toggleBookmark(postId);
     
-    // Update local state
+    // Update local state - find the post in either root or replies
     if (conversationThread.value) {
-      const post = conversationThread.value.posts.find(p => p.id === postId);
-      if (post) {
-        post.is_bookmarked = !post.is_bookmarked;
+      // Check if it's the root post
+      if (conversationThread.value.root_post.id === postId) {
+        const transformedRoot = transformedRootPost.value;
+        if (transformedRoot) {
+          transformedRoot.is_bookmarked = !transformedRoot.is_bookmarked;
+        }
+      } else {
+        // Check in replies
+        const reply = conversationThread.value.posts.find(p => p.id === postId);
+        if (reply) {
+          reply.is_bookmarked = !reply.is_bookmarked;
+        }
       }
     }
   } catch (error) {
@@ -397,9 +518,9 @@ watch(() => props.postId, () => {
 }, { immediate: true });
 
 // Lifecycle
-onMounted(() => {
-  loadConversation();
-});
+// onMounted(() => {
+//   loadConversation();
+// });
 </script>
 
 <style scoped>
