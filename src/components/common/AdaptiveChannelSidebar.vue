@@ -341,7 +341,18 @@ const navigateToFollowers = () => {
 
 const navigateToProfile = () => {
   if (currentUserHandle.value) {
-    const handle = currentUserHandle.value.replace('@', '');
+    // Remove all @ symbols and use just the username part for local users
+    let handle = currentUserHandle.value.replace(/^@/, ''); // Remove leading @
+    
+    // For local users, remove domain part if present
+    if (!handle.includes('@')) {
+      // Already clean handle for local user
+    } else if (handle.endsWith('@har.mony.lol')) {
+      // Remove local domain for clean local handle
+      handle = handle.replace('@har.mony.lol', '');
+    }
+    
+    console.log(`🔗 Navigating to profile with handle: ${handle}`);
     router.push({ 
       name: 'UserProfile', 
       params: { handle } 
