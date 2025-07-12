@@ -103,17 +103,16 @@
 
 <script setup lang="ts">
 import CreateServerForm from './CreateServer.vue';
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 
 const emit = defineEmits<{
-  showPublicServers: [value: boolean]
+  showPublicServers: []
 }>();
 
-const showPublicServers = ref(false);
 const showCreateServerForm = ref(false);
 
 const togglePublicServers = () => {
-  showPublicServers.value = !showPublicServers.value;
+  emit('showPublicServers');
 };
 
 const getParticleStyle = (index: number) => {
@@ -126,12 +125,6 @@ const getParticleStyle = (index: number) => {
     top: `${(index * 15) % 100}%`
   };
 };
-
-watch(showPublicServers, (value) => {
-  if (value) {
-    emit('showPublicServers', value); 
-  }
-});
 </script>
 
 <style scoped>

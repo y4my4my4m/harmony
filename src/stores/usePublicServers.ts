@@ -90,7 +90,7 @@ export const usePublicServersStore = defineStore('publicServers', {
     
     isEmpty: (state) => state.hasLoaded && state.servers.length === 0,
     
-    isEmptySearch: (state) => state.searchQuery && state.searchResults.length === 0,
+    isEmptySearch: (state) => !!state.searchQuery && state.searchResults.length === 0,
 
     // Check if data is stale (older than 5 minutes)
     isDataStale: (state) => {
