@@ -157,7 +157,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
+import { useProfessionalPresence } from '@/composables/useProfessionalPresence'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
 import type { User, FederatedUser } from '@/types'
@@ -202,8 +202,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
-// Clean status system
-const { getStatusForAvatar, isUserOnline } = useCleanUserStatus()
+// Professional presence system
+const { getStatusForAvatar, isUserOnline } = useProfessionalPresence()
 
 // State
 const isFollowLoading = ref(false)

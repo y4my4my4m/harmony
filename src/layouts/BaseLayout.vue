@@ -127,9 +127,11 @@ const initializeApp = async () => {
     // Initialize the user profile 
     await profileStore.fetchProfile(userId)
     
-    // Initialize the global presence system first
+    // Initialize the professional presence system (replaces old fragmented system)
     try {
-      const { globalPresenceService } = await import('@/services/globalPresenceService')
+      const { useProfessionalPresence } = await import('@/composables/useProfessionalPresence')
+      const presence = useProfessionalPresence()
+      
       const userProfile = profileStore.profile || {
         id: userId,
         username: authStore.session?.user?.user_metadata?.username || 'Unknown',
@@ -138,39 +140,14 @@ const initializeApp = async () => {
         status: UserStatus.Online
       }
       
-      await globalPresenceService.initialize(
+      await presence.initialize(
         userId, 
-        userProfile.username,
+        userProfile.username || userProfile.display_name || 'Unknown',
         userProfile.avatar_url
       )
-      console.log('✅ Global presence service initialized')
+      console.log('✅ Professional presence system initialized')
     } catch (error) {
-      console.error('❌ Failed to initialize global presence service:', error)
-    }
-    
-    // Initialize the contextual user status system
-    try {
-      const { UserStatus } = await import('@/types')
-      const { useCleanUserStatus } = await import('@/composables/useCleanUserStatus')
-      const { initializeForUser } = useCleanUserStatus()
-      
-      // Get user profile for initialization (use current profile from store)
-      const userProfile = profileStore.profile || {
-        id: userId,
-        username: authStore.session?.user?.user_metadata?.username || 'Unknown',
-        display_name: authStore.session?.user?.user_metadata?.display_name,
-        avatar_url: authStore.session?.user?.user_metadata?.avatar_url,
-        status: UserStatus.Online
-      }
-      
-      await initializeForUser(
-        userId, 
-        userProfile.username,
-        userProfile.avatar_url
-      )
-      console.log('✅ Contextual user status system initialized')
-    } catch (error) {
-      console.error('❌ Failed to initialize contextual user status system:', error)
+      console.error('❌ Failed to initialize professional presence system:', error)
     }
     
     hasServersLoaded.value = true
@@ -194,21 +171,13 @@ watch(() => authStore.session, async (newSession, oldSession) => {
   else if (oldSession && !newSession) {
     console.log('👋 User logged out, cleaning up presence and resetting app state')
     
-    // Clean up global presence service
+    // Clean up professional presence service
     try {
-      const { globalPresenceService } = await import('@/services/globalPresenceService')
-      await globalPresenceService.cleanup()
+      const { useProfessionalPresence } = await import('@/composables/useProfessionalPresence')
+      const presence = useProfessionalPresence()
+      await presence.cleanup()
     } catch (error) {
-      console.error('Failed to cleanup global presence:', error)
-    }
-    
-    // Clean up contextual status store
-    try {
-      const { useContextualStatusStore } = await import('@/stores/contextualStatusStore')
-      const statusStore = useContextualStatusStore()
-      await statusStore.cleanup()
-    } catch (error) {
-      console.error('Failed to cleanup contextual status:', error)
+      console.error('Failed to cleanup professional presence:', error)
     }
     
     isAppInitialized.value = false

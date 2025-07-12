@@ -73,7 +73,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
+import { useProfessionalPresence } from '@/composables/useProfessionalPresence'
 import type { DMConversation } from '@/stores/useDM'
 
 // Props
@@ -91,7 +91,7 @@ const emit = defineEmits<{
 }>()
 
 // Use clean status system
-const { isUserOnline, getStatusForAvatar } = useCleanUserStatus()
+const { isUserOnline, getStatusForAvatar } = useProfessionalPresence()
 
 // State
 const showSearchModal = ref(false)

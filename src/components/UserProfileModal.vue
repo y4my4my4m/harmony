@@ -302,7 +302,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'  
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
+import { useProfessionalPresence } from '@/composables/useProfessionalPresence'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import type { User, FederatedUser } from '../types'
@@ -320,8 +320,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
-// Use clean status system
-const { getStatusForAvatar, getStatusText } = useCleanUserStatus()
+// Use professional presence system
+const { getStatusForAvatar, getStatusText } = useProfessionalPresence()
 
 // Reactive state
 const showActionsMenu = ref(false)

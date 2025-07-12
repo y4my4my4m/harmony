@@ -84,7 +84,7 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="getUserAvatar(user.id).value"
+              :src="getUserAvatarUrl(user.id).value"
               :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
@@ -122,7 +122,7 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="getUserAvatar(user.id).value"
+              :src="getUserAvatarUrl(user.id).value"
               :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
@@ -160,7 +160,7 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="getUserAvatar(user.id).value"
+              :src="getUserAvatarUrl(user.id).value"
               :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
@@ -198,7 +198,7 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="getUserAvatar(user.id).value"
+              :src="getUserAvatarUrl(user.id).value"
               :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
@@ -245,20 +245,20 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus';
+import { useProfessionalPresence } from '@/composables/useProfessionalPresence';
 
 const serverChannelStore = useServerChannelStore();
 const serverUsersStore = useServerUsersStore();
 
-// Use clean status system - contextual subscriptions, full profile data
+// Use professional presence system - contextual subscriptions, full profile data
 const { 
   getStatusForAvatar, 
-  getUserStatus, 
-  subscribeToServerUsers,
+  getUserPresence, 
+  subscribeToServer,
   getUserDisplayName,
-  getUserAvatar, 
+  getUserAvatarUrl, 
   getUserColor
-} = useCleanUserStatus();
+} = useProfessionalPresence();
 
 // Component state
 const selectedUser = ref<User | null>(null);
@@ -391,7 +391,7 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     await serverUsersStore.fetchUserProfiles(userIds);
     
     // Subscribe to real-time presence for server users  
-    await subscribeToServerUsers(serverId, userIds);
+    await subscribeToServer(serverId, userIds);
   }
 };
 
