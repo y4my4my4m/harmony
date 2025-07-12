@@ -149,15 +149,7 @@ const isInVoiceChannel = computed(() => {
 
 const toggleMic = async () => {
   try {
-    const wasMuted = voiceChannelStore.localState.isMuted
     await voiceChannelStore.toggleMute()
-    
-    // Play appropriate sound effect using theme system
-    if (wasMuted) {
-      themeStore.testAudio('ui_success') // Unmuted - positive sound
-    } else {
-      themeStore.testAudio('ui_click') // Muted - neutral sound
-    }
   } catch (error) {
     console.error('Failed to toggle mute:', error)
   }
