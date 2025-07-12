@@ -31,6 +31,7 @@ export interface UserData {
   lastHeartbeat: string
   
   // Cache metadata
+  isLocal: boolean // true if loaded from local cache, false if fetched from server
   lastUpdated: string
   source: 'database' | 'presence' | 'cache'
 }
@@ -106,7 +107,7 @@ class UserDataService extends EventTarget {
       // Try to load from database first - this is the primary source of truth
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, domain, updated_at')
+        .select('id, username, display_name, avatar_url, bio, color, status, domain, is_local, updated_at')
         .eq('id', userId)
         .single()
       
@@ -148,6 +149,7 @@ class UserDataService extends EventTarget {
           bio: profile.bio,
           color: profile.color,
           domain: profile.domain || 'har.mony.lol',
+          isLocal: profile.is_local || false,
           status: finalStatus,
           isOnline: true,
           lastSeen: new Date().toISOString(),
@@ -170,6 +172,7 @@ class UserDataService extends EventTarget {
           avatarUrl: avatarUrl,
           status: initialStatus,
           isOnline: true,
+          isLocal: true,
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
           lastUpdated: new Date().toISOString(),
@@ -238,6 +241,7 @@ class UserDataService extends EventTarget {
       bio: existing?.bio,
       color: existing?.color,
       domain: existing?.domain || 'har.mony.lol',
+      isLocal: existing?.isLocal || false,
       status: presence.status ?? existing?.status ?? UserStatus.Online,
       isOnline: true,
       lastSeen: presence.online_at || new Date().toISOString(),
@@ -592,6 +596,7 @@ class UserDataService extends EventTarget {
             bio: profile.bio,
             color: profile.color,
             domain: profile.domain || 'har.mony.lol',
+            isLocal: profile.is_local || false,
             status: profile.status ?? UserStatus.Offline,
             isOnline: false, // Will be updated by presence
             lastSeen: profile.updated_at || new Date().toISOString(),

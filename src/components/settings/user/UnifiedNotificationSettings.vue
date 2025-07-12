@@ -102,7 +102,7 @@
                   <div class="control-group">
                     <Icon name="monitor" class="control-icon" />
                     <ToggleSwitch 
-                      v-model="preferences[type.desktopKey]"
+                      v-model="(preferences as any)[type.desktopKey]"
                       @change="updatePreferences"
                       size="small"
                     />
@@ -110,14 +110,14 @@
                   <div class="control-group">
                     <Icon name="volume-2" class="control-icon" />
                     <ToggleSwitch 
-                      v-model="preferences[type.soundKey]"
+                      v-model="(preferences as any)[type.soundKey]"
                       @change="updatePreferences"
                       size="small"
                     />
                   </div>
                   <button 
                     class="test-btn" 
-                    @click="testNotification(type.testType)"
+                    @click="testNotification(type.testType as NotificationType)"
                     :disabled="isTestingType === type.testType"
                   >
                     <Icon v-if="isTestingType === type.testType" name="loader" class="spinning" />
@@ -157,7 +157,7 @@
                   <div class="control-group">
                     <Icon name="monitor" class="control-icon" />
                     <ToggleSwitch 
-                      v-model="preferences[type.desktopKey]"
+                      v-model="(preferences as any)[type.desktopKey]"
                       @change="updatePreferences"
                       size="small"
                     />
@@ -165,14 +165,14 @@
                   <div class="control-group">
                     <Icon name="volume-2" class="control-icon" />
                     <ToggleSwitch 
-                      v-model="preferences[type.soundKey]"
+                      v-model="(preferences as any)[type.soundKey]"
                       @change="updatePreferences"
                       size="small"
                     />
                   </div>
                   <button 
                     class="test-btn" 
-                    @click="testNotification(type.testType)"
+                    @click="testNotification(type.testType as NotificationType)"
                     :disabled="isTestingType === type.testType"
                   >
                     <Icon v-if="isTestingType === type.testType" name="loader" class="spinning" />
@@ -322,16 +322,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, reactive } from 'vue'
 import { useNotificationStore } from '@/stores/useNotification'
-import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import type { NotificationPreferences, NotificationType } from '@/types'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Icon from '@/components/common/Icon.vue'
+import { useUserData } from '@/composables/useUserData'
 
 // Stores
 const notificationStore = useNotificationStore()
-const authStore = useAuthStore()
 const toast = useToast()
+const userData = useUserData()
 
 // State
 const preferences = reactive<NotificationPreferences>({
@@ -556,8 +556,8 @@ const testNotification = async (type: NotificationType) => {
   try {
     isTestingType.value = type
     
-    // Create test notification using the unified notification store
-    const testData = notificationStore.createTestNotification(type)
+    // Create test notification data locally
+    const testData = createTestNotificationData(type)
     
     // Show toast using the unified system
     notificationStore.showToast(
@@ -565,7 +565,7 @@ const testNotification = async (type: NotificationType) => {
       testData.title,
       testData.message,
       3000,
-      testData.data.avatar_url
+      testData.avatar
     )
     
     // Play sound
@@ -575,12 +575,12 @@ const testNotification = async (type: NotificationType) => {
     if (hasNotificationPermission.value) {
       new Notification(testData.title, {
         body: testData.message,
-        icon: testData.data.avatar_url,
+        icon: testData.avatar || '/harmony_icon1.png',
         badge: '/harmony_icon1.png'
       })
     }
     
-    toast.success(`Test notification sent for ${type}`)
+    // toast.success(`Test notification sent for ${type}`)
   } catch (error) {
     console.error('Failed to test notification:', error)
     toast.error('Failed to test notification')
@@ -588,6 +588,93 @@ const testNotification = async (type: NotificationType) => {
     setTimeout(() => {
       isTestingType.value = null
     }, 1000)
+  }
+}
+
+// Helper function to create test notification data
+const createTestNotificationData = (type: NotificationType) => {
+  const testMessages = {
+    mention: {
+      title: 'Test Mention',
+      message: 'You were mentioned in a test message',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    dm: {
+      title: 'Test Direct Message',
+      message: 'This is a test direct message',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    reply: {
+      title: 'Test Reply',
+      message: 'Someone replied to your test message',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    reaction: {
+      title: 'Test Reaction',
+      message: 'Someone reacted to your test message',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    voice_channel_activity: {
+      title: 'Test Voice Activity',
+      message: 'Someone joined a voice channel',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    server_invite: {
+      title: 'Test Server Invite',
+      message: 'You were invited to join a server',
+      avatar: '/default_server_icon.png'
+    },
+    friend_request: {
+      title: 'Test Friend Request',
+      message: 'Someone sent you a friend request',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    server_update: {
+      title: 'Test Server Update',
+      message: 'A server has been updated',
+      avatar: '/default_server_icon.png'
+    },
+    emoji_added: {
+      title: 'Test Emoji Added',
+      message: 'A new emoji was added to the server',
+      avatar: '/default_server_icon.png'
+    },
+    activitypub_follow: {
+      title: 'Test ActivityPub Follow',
+      message: 'Someone followed you from the fediverse',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    activitypub_favorite: {
+      title: 'Test ActivityPub Favorite',
+      message: 'Someone favorited your post on the fediverse',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    activitypub_reblog: {
+      title: 'Test ActivityPub Reblog',
+      message: 'Someone reblogged your post on the fediverse',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    activitypub_mention: {
+      title: 'Test ActivityPub Mention',
+      message: 'You were mentioned in a fediverse post',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    activitypub_reply: {
+      title: 'Test ActivityPub Reply',
+      message: 'Someone replied to your fediverse post',
+      avatar: userData.getUserAvatarUrlCurrent
+    },
+    activitypub_follow_request: {
+      title: 'Test ActivityPub Follow Request',
+      message: 'Someone requested to follow you on the fediverse',
+      avatar: userData.getUserAvatarUrlCurrent
+    }
+  }
+  
+  return testMessages[type] || {
+    title: 'Test Notification',
+    message: 'This is a test notification',
+    avatar: userData.getUserAvatarUrlCurrent
   }
 }
 
@@ -600,7 +687,9 @@ const testAllNotifications = async () => {
     const allTypes = [...chatNotificationTypes, ...activityPubNotificationTypes]
     
     for (const type of allTypes) {
-      if (preferences[type.key]) {
+      // Type-safe access to preferences
+      const isEnabled = (preferences as any)[type.key]
+      if (isEnabled) {
         await testNotification(type.testType as NotificationType)
         await new Promise(resolve => setTimeout(resolve, 500)) // Delay between tests
       }
@@ -894,6 +983,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   justify-content: center;
   color: #ffffff;
   font-size: 18px;
+  padding: 8px;
 }
 
 .category-icon.chat {
@@ -958,6 +1048,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
   font-size: 14px;
+  padding: 6px;
 }
 
 .type-info {

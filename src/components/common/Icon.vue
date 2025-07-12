@@ -278,6 +278,10 @@
     <path v-if="name === 'corner-down-right'" d="m15 10 5 5-5 5"/>
     <path v-if="name === 'corner-down-right'" d="M4 4v7a4 4 0 0 0 4 4h12"/>
 
+    <!-- corner-down-left -->
+    <path v-if="name === 'corner-down-left'" d="M9 10l-5 5 5 5"/>
+    <path v-if="name === 'corner-down-left'" d="M20 4v7a4 4 0 0 1-4 4H4"/>
+
     <!-- message-square -->
     <path v-if="name === 'message-square'" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
 

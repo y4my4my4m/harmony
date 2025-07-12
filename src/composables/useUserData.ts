@@ -8,6 +8,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { userDataService, type UserData } from '@/services/userDataService'
 import { UserStatus } from '@/types'
+import { getAvatarUrl } from '@/utils/avatarUtils'
 
 export function useUserData() {
   const isInitialized = ref(false)
@@ -79,6 +80,19 @@ export function useUserData() {
     forceUpdate.value // Force reactivity
     const user = userDataService.getUser(userId)
     return user?.avatarUrl || '/default_avatar.png'
+  })
+
+  /**
+   * Get user avatar URL for current user
+   */
+  const getUserAvatarUrlCurrent = computed(() => {
+    forceUpdate.value // Force reactivity
+    const currentUser = userDataService.getCurrentUser()
+    if (currentUser?.isLocal) {
+      return getAvatarUrl(currentUser?.avatarUrl)
+    }
+    // Fallback for non-local users
+    return currentUser?.avatarUrl || '/default_avatar.png'
   })
   
   /**
@@ -301,6 +315,7 @@ export function useUserData() {
     // Utilities
     toLegacyUser,
     getStats,
+    getUserAvatarUrlCurrent,
     
     // State
     isInitialized
