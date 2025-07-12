@@ -43,13 +43,13 @@ export function useAudioThemeCommon() {
     try {
       const success = await themeStore.setAudioTheme(themeId)
       if (success) {
-        const theme = themes.value.find(t => t.id === themeId)
-        notificationStore.showToast(
-          'ui_success' as any,
-          'Audio Theme Changed',
-          `Switched to ${theme?.name || themeId}`,
-          2000
-        )
+        // const theme = themes.value.find(t => t.id === themeId)
+        // notificationStore.showToast(
+        //   'ui_success' as any,
+        //   'Audio Theme Changed',
+        //   `Switched to ${theme?.name || themeId}`,
+        //   2000
+        // )
         return true
       } else {
         notificationStore.showToast(

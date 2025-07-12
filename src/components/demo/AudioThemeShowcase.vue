@@ -195,11 +195,11 @@ const onThemeChanged = (themeId: string): void => {
 }
 
 const onVolumeChanged = (volume: number): void => {
-  showToast('info', `Volume set to ${Math.round(volume * 100)}%`)
+  // showToast('info', `Volume set to ${Math.round(volume * 100)}%`)
 }
 
 const onThemeTested = (themeId: string): void => {
-  showToast('info', `Tested ${themeId} theme`)
+  // showToast('info', `Tested ${themeId} theme`)
 }
 
 const exportSettings = (): void => {
