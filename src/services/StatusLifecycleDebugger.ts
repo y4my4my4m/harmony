@@ -122,14 +122,42 @@ export const statusDebugger = new StatusLifecycleDebugger()
 // Make it globally available for console testing
 if (typeof window !== 'undefined') {
   ;(window as any).statusDebugger = statusDebugger
-  ;(window as any).testStatus = (status: string) => {
+  ;(window as any).testStatus = async (status: string) => {
     const statusEnum = UserStatus[status as keyof typeof UserStatus]
     if (statusEnum !== undefined) {
-      statusDebugger.testManualStatusChange(statusEnum)
+      await statusDebugger.testManualStatusChange(statusEnum)
+      return `✅ Status changed to ${status}`
     } else {
-      console.log('Available statuses:', Object.keys(UserStatus).filter(k => isNaN(Number(k))))
+      const available = Object.keys(UserStatus).filter(k => isNaN(Number(k)))
+      console.log('Available statuses:', available)
+      return `❌ Invalid status. Available: ${available.join(', ')}`
     }
   }
   ;(window as any).showStatusDebug = () => statusDebugger.showDebugPanel()
-  ;(window as any).simulateInactivity = (minutes: number) => statusDebugger.simulateInactivity(minutes)
+  ;(window as any).simulateInactivity = (minutes: number = 6) => {
+    if (!minutes || isNaN(minutes)) {
+      console.log('❌ Please provide a number of minutes. Example: simulateInactivity(6)')
+      return
+    }
+    statusDebugger.simulateInactivity(minutes)
+    return `⏰ Simulated ${minutes} minutes of inactivity`
+  }
+  
+  // Additional helpful functions
+  ;(window as any).resetActivity = () => {
+    ;(activityTracker as any).lastActivity = Date.now()
+    activityTracker.resetStatusTracking()
+    return '🔄 Activity reset to now'
+  }
+  
+  ;(window as any).showHelp = () => {
+    console.group('🔍 Status Debug Commands')
+    console.log('showStatusDebug() - Show current status and activity info')
+    console.log('testStatus("Away") - Test manual status change')
+    console.log('simulateInactivity(6) - Simulate 6 minutes of inactivity')
+    console.log('resetActivity() - Reset activity tracker to now')
+    console.log('Available statuses: Online, Away, Busy, Offline')
+    console.groupEnd()
+    return 'Help displayed above ☝️'
+  }
 }
