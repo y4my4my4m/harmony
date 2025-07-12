@@ -29,19 +29,55 @@ export function useProfessionalPresence() {
 
   // Set up event listeners for reactivity
   const setupEventListeners = () => {
-    professionalPresenceService.addEventListener('status-changed', forceUpdate)
-    professionalPresenceService.addEventListener('user-join', forceUpdate)
-    professionalPresenceService.addEventListener('user-leave', forceUpdate)
-    professionalPresenceService.addEventListener('presence-sync', forceUpdate)
-    professionalPresenceService.addEventListener('profile-updated', forceUpdate)
+    const handleStatusChange = () => {
+      console.log('🔔 Professional presence: status-changed event received')
+      forceUpdate()
+    }
+    const handleUserJoin = () => {
+      console.log('🔔 Professional presence: user-join event received')
+      forceUpdate()
+    }
+    const handleUserLeave = () => {
+      console.log('🔔 Professional presence: user-leave event received')
+      forceUpdate()
+    }
+    const handlePresenceSync = () => {
+      console.log('🔔 Professional presence: presence-sync event received')
+      forceUpdate()
+    }
+    const handleProfileUpdate = () => {
+      console.log('🔔 Professional presence: profile-updated event received')
+      forceUpdate()
+    }
+    
+    professionalPresenceService.addEventListener('status-changed', handleStatusChange)
+    professionalPresenceService.addEventListener('user-join', handleUserJoin)
+    professionalPresenceService.addEventListener('user-leave', handleUserLeave)
+    professionalPresenceService.addEventListener('presence-sync', handlePresenceSync)
+    professionalPresenceService.addEventListener('profile-updated', handleProfileUpdate)
+    
+    // Store references for cleanup
+    return {
+      handleStatusChange,
+      handleUserJoin,
+      handleUserLeave,
+      handlePresenceSync,
+      handleProfileUpdate
+    }
   }
 
+  // Store event listener references
+  let eventListeners: any = null
+  
   const cleanupEventListeners = () => {
-    professionalPresenceService.removeEventListener('status-changed', forceUpdate)
-    professionalPresenceService.removeEventListener('user-join', forceUpdate)
-    professionalPresenceService.removeEventListener('user-leave', forceUpdate)
-    professionalPresenceService.removeEventListener('presence-sync', forceUpdate)
-    professionalPresenceService.removeEventListener('profile-updated', forceUpdate)
+    if (eventListeners) {
+      professionalPresenceService.removeEventListener('status-changed', eventListeners.handleStatusChange)
+      professionalPresenceService.removeEventListener('user-join', eventListeners.handleUserJoin)
+      professionalPresenceService.removeEventListener('user-leave', eventListeners.handleUserLeave)
+      professionalPresenceService.removeEventListener('presence-sync', eventListeners.handlePresenceSync)
+      professionalPresenceService.removeEventListener('profile-updated', eventListeners.handleProfileUpdate)
+      eventListeners = null
+    }
   }
 
   // ============================================================================
@@ -62,7 +98,7 @@ export function useProfessionalPresence() {
 
     try {
       await professionalPresenceService.initialize(userId, username, avatar)
-      setupEventListeners()
+      eventListeners = setupEventListeners()
       isInitialized.value = true
       console.log('✅ Professional presence composable initialized')
     } catch (error) {

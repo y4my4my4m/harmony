@@ -1257,6 +1257,40 @@ watch(() => props.profileHandle, async (newHandle) => {
   }
 }, { immediate: true });
 
+// Watch for server changes to handle presence subscriptions
+watch(() => currentServer.value?.id, async (newServerId, oldServerId) => {
+  if (!isAppInitialized.value) return;
+  
+  try {
+    const { useProfessionalPresence } = await import('@/composables/useProfessionalPresence');
+    const presence = useProfessionalPresence();
+    
+    // Unsubscribe from old server if exists
+    if (oldServerId) {
+      console.log(`🔄 Unsubscribing from old server presence: ${oldServerId}`);
+      await presence.unsubscribeFromContext(oldServerId);
+    }
+    
+    // Subscribe to new server if exists
+    if (newServerId) {
+      console.log(`🔄 Subscribing to new server presence: ${newServerId}`);
+      
+      const { getUserIdsForServer } = await import('@/services/usersService');
+      const memberIds = await getUserIdsForServer(newServerId);
+      
+      if (memberIds.length > 0) {
+        await presence.subscribeToServer(newServerId, memberIds);
+        console.log(`✅ Subscribed to server presence: ${currentServer.value?.name} (${memberIds.length} members)`);
+      } else {
+        console.log(`⚠️ No members found for server: ${newServerId}`);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Failed to handle server presence subscription:', error);
+  }
+}, { immediate: true });
+
 // Lifecycle hooks
 onMounted(async () => {
   const userId = authStore.session?.user?.id;
@@ -1283,45 +1317,8 @@ onMounted(async () => {
     isAppInitialized.value = true;
     hasServersLoaded.value = true;
     
-    // Initialize professional presence system and context subscriptions
-    const userProfile = profileStore.profile || serverUsersStore.userProfiles[userId];
-    const username = userProfile?.display_name || userProfile?.username || 
-                    authStore.session?.user?.user_metadata?.username || 'Unknown User';
-    const avatar = userProfile?.avatar_url;
-    
     // Professional presence system is already initialized in BaseLayout
-    // Now we need to set up context subscriptions
-    try {
-      const { useProfessionalPresence } = await import('@/composables/useProfessionalPresence');
-      const presence = useProfessionalPresence();
-      
-      // Subscribe to current server context if we have one
-      if (currentServer.value?.id) {
-        const { getUserIdsForServer } = await import('@/services/usersService');
-        const memberIds = await getUserIdsForServer(currentServer.value.id);
-        
-        await presence.subscribeToServer(currentServer.value.id, memberIds);
-        console.log(`✅ Subscribed to server presence: ${currentServer.value.name} (${memberIds.length} members)`);
-      }
-      
-      console.log('✅ Professional presence context subscriptions initialized');
-      
-    } catch (error) {
-      console.error('Failed to initialize presence context subscriptions:', error);
-      
-      // Fallback to old system if professional system fails
-      console.log('🔄 Falling back to old server-specific presence system...');
-      if (userProfile && currentServer.value?.id) {
-        serverUsersStore.initializePresence(
-          currentServer.value.id, 
-          userId, 
-          username, 
-          avatar
-        );
-      }
-      serverUsersStore.subscribeToUserStatuses();
-      serverUsersStore.subscribeToOfflineBroadcasts();
-    }
+    // Context subscriptions will be handled by watchers when servers are loaded
     
     // Load initial server and channel state
     await loadServerAndChannel();

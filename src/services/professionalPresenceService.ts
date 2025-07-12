@@ -380,8 +380,11 @@ class ProfessionalPresenceService {
     // Trigger presence sync on all contexts
     for (const context of this.activeContexts.values()) {
       if (context.channel) {
+        console.log(`🔄 Refreshing context: ${context.id}`)
+        
         // Force a presence sync by briefly leaving and rejoining
         await context.channel.untrack()
+        
         if (this.currentUserId) {
           const presence = this.presenceMap.get(this.currentUserId)
           if (presence) {
@@ -395,12 +398,21 @@ class ProfessionalPresenceService {
               context_id: context.id,
               context_type: context.type
             })
+            console.log(`✅ Re-tracked presence in context: ${context.id}`)
           }
         }
       }
     }
     
+    // Force a presence sync event
+    this.emitEvent('presence-sync', {
+      contextId: 'manual-refresh',
+      onlineUsers: this.getOnlineUsers().map(u => u.userId),
+      timestamp: new Date().toISOString()
+    })
+    
     this.updateStats()
+    console.log('✅ Presence refresh complete')
   }
 
   /**
@@ -721,25 +733,43 @@ class ProfessionalPresenceService {
     const onlineUserIds = new Set<string>()
     
     console.log(`📡 Presence sync for context ${contextId}:`, Object.keys(state).length, 'users')
+    console.log(`📡 Raw presence state:`, state)
     
     Object.entries(state).forEach(([userId, presences]) => {
       if (Array.isArray(presences) && presences.length > 0) {
         const latestPresence = presences[0] as any
         onlineUserIds.add(userId)
         
-        const existingPresence = this.presenceMap.get(userId)
-        if (existingPresence) {
-          const updatedPresence: UserPresence = {
-            ...existingPresence,
-            status: latestPresence.status || existingPresence.status,
-            isOnline: true,
-            lastSeen: latestPresence.online_at || new Date().toISOString(),
-            lastHeartbeat: latestPresence.online_at || new Date().toISOString()
+        let existingPresence = this.presenceMap.get(userId)
+        
+        // If user doesn't exist in presence map, create them
+        if (!existingPresence) {
+          console.log(`👤 Adding new user to presence map: ${userId}`)
+          existingPresence = {
+            userId,
+            status: latestPresence.status || UserStatus.Online,
+            isOnline: false, // Will be set to true below
+            lastSeen: new Date().toISOString(),
+            username: latestPresence.username || latestPresence.display_name || 'Unknown',
+            displayName: latestPresence.display_name || latestPresence.username || 'Unknown',
+            avatarUrl: latestPresence.avatar_url,
+            lastHeartbeat: new Date().toISOString()
           }
-          
-          this.presenceMap.set(userId, updatedPresence)
-          this.updateCache(userId, updatedPresence)
         }
+        
+        // Update presence with real-time data
+        const updatedPresence: UserPresence = {
+          ...existingPresence,
+          status: latestPresence.status || existingPresence.status,
+          isOnline: true,
+          lastSeen: latestPresence.online_at || new Date().toISOString(),
+          lastHeartbeat: latestPresence.online_at || new Date().toISOString()
+        }
+        
+        this.presenceMap.set(userId, updatedPresence)
+        this.updateCache(userId, updatedPresence)
+        
+        console.log(`✅ Updated presence for user: ${userId} (${updatedPresence.displayName}) - ${UserStatus[updatedPresence.status]}`)
       }
     })
     
@@ -757,16 +787,27 @@ class ProfessionalPresenceService {
             }
             this.presenceMap.set(userId, updatedPresence)
             this.updateCache(userId, updatedPresence)
+            console.log(`🔴 Marked user as offline: ${userId} (${presence.displayName})`)
           }
         }
       })
+      
+      // Add online users to context if they're not already there
+      onlineUserIds.forEach(userId => {
+        context.userIds.add(userId)
+      })
     }
+    
+    console.log(`📊 Presence sync complete - ${onlineUserIds.size} users online in context ${contextId}`)
     
     this.emitEvent('presence-sync', {
       contextId,
       onlineUsers: Array.from(onlineUserIds),
       timestamp: new Date().toISOString()
     })
+    
+    // Force reactivity update
+    this.updateStats()
   }
 
   private handleUserJoin(contextId: string, userId: string, presences: any[]): void {
@@ -774,20 +815,41 @@ class ProfessionalPresenceService {
     
     if (presences.length > 0) {
       const presenceData = presences[0] as any
-      const existingPresence = this.presenceMap.get(userId)
+      let existingPresence = this.presenceMap.get(userId)
       
-      if (existingPresence) {
-        const updatedPresence: UserPresence = {
-          ...existingPresence,
-          status: presenceData.status || existingPresence.status,
-          isOnline: true,
-          lastSeen: presenceData.online_at || new Date().toISOString(),
-          lastHeartbeat: presenceData.online_at || new Date().toISOString()
+      // If user doesn't exist in presence map, create them
+      if (!existingPresence) {
+        console.log(`👤 Creating presence for new user: ${userId}`)
+        existingPresence = {
+          userId,
+          status: presenceData.status || UserStatus.Online,
+          isOnline: false, // Will be set to true below
+          lastSeen: new Date().toISOString(),
+          username: presenceData.username || presenceData.display_name || 'Unknown',
+          displayName: presenceData.display_name || presenceData.username || 'Unknown',
+          avatarUrl: presenceData.avatar_url,
+          lastHeartbeat: new Date().toISOString()
         }
-        
-        this.presenceMap.set(userId, updatedPresence)
-        this.updateCache(userId, updatedPresence)
       }
+      
+      const updatedPresence: UserPresence = {
+        ...existingPresence,
+        status: presenceData.status || existingPresence.status,
+        isOnline: true,
+        lastSeen: presenceData.online_at || new Date().toISOString(),
+        lastHeartbeat: presenceData.online_at || new Date().toISOString()
+      }
+      
+      this.presenceMap.set(userId, updatedPresence)
+      this.updateCache(userId, updatedPresence)
+      
+      // Add user to context if not already there
+      const context = this.activeContexts.get(contextId)
+      if (context) {
+        context.userIds.add(userId)
+      }
+      
+      console.log(`✅ User ${userId} (${updatedPresence.displayName}) joined and marked online`)
     }
     
     this.emitEvent('user-join', {
@@ -795,6 +857,9 @@ class ProfessionalPresenceService {
       userId,
       timestamp: new Date().toISOString()
     })
+    
+    // Force reactivity update
+    this.updateStats()
   }
 
   private handleUserLeave(contextId: string, userId: string): void {
@@ -825,22 +890,40 @@ class ProfessionalPresenceService {
     Object.entries(state).forEach(([userId, presences]) => {
       if (Array.isArray(presences) && presences.length > 0) {
         const latestPresence = presences[0] as any
-        const existingPresence = this.presenceMap.get(userId)
+        let existingPresence = this.presenceMap.get(userId)
         
-        if (existingPresence) {
-          const updatedPresence: UserPresence = {
-            ...existingPresence,
-            status: latestPresence.status || existingPresence.status,
-            isOnline: true,
-            lastSeen: latestPresence.online_at || new Date().toISOString(),
-            lastHeartbeat: latestPresence.online_at || new Date().toISOString()
+        // If user doesn't exist in presence map, create them
+        if (!existingPresence) {
+          console.log(`👤 Creating global presence for user: ${userId}`)
+          existingPresence = {
+            userId,
+            status: latestPresence.status || UserStatus.Online,
+            isOnline: false, // Will be set to true below
+            lastSeen: new Date().toISOString(),
+            username: latestPresence.username || latestPresence.display_name || 'Unknown',
+            displayName: latestPresence.display_name || latestPresence.username || 'Unknown',
+            avatarUrl: latestPresence.avatar_url,
+            lastHeartbeat: new Date().toISOString()
           }
-          
-          this.presenceMap.set(userId, updatedPresence)
-          this.updateCache(userId, updatedPresence)
         }
+        
+        const updatedPresence: UserPresence = {
+          ...existingPresence,
+          status: latestPresence.status || existingPresence.status,
+          isOnline: true,
+          lastSeen: latestPresence.online_at || new Date().toISOString(),
+          lastHeartbeat: latestPresence.online_at || new Date().toISOString()
+        }
+        
+        this.presenceMap.set(userId, updatedPresence)
+        this.updateCache(userId, updatedPresence)
+        
+        console.log(`✅ Global sync updated user: ${userId} (${updatedPresence.displayName})`)
       }
     })
+    
+    // Force reactivity update
+    this.updateStats()
   }
 
   private handleGlobalUserJoin(userId: string, presences: any[]): void {
@@ -848,21 +931,39 @@ class ProfessionalPresenceService {
     
     if (presences.length > 0) {
       const presenceData = presences[0] as any
-      const existingPresence = this.presenceMap.get(userId)
+      let existingPresence = this.presenceMap.get(userId)
       
-      if (existingPresence) {
-        const updatedPresence: UserPresence = {
-          ...existingPresence,
-          status: presenceData.status || existingPresence.status,
-          isOnline: true,
-          lastSeen: presenceData.online_at || new Date().toISOString(),
-          lastHeartbeat: presenceData.online_at || new Date().toISOString()
+      // If user doesn't exist in presence map, create them
+      if (!existingPresence) {
+        console.log(`👤 Creating global presence for new user: ${userId}`)
+        existingPresence = {
+          userId,
+          status: presenceData.status || UserStatus.Online,
+          isOnline: false, // Will be set to true below
+          lastSeen: new Date().toISOString(),
+          username: presenceData.username || presenceData.display_name || 'Unknown',
+          displayName: presenceData.display_name || presenceData.username || 'Unknown',
+          avatarUrl: presenceData.avatar_url,
+          lastHeartbeat: new Date().toISOString()
         }
-        
-        this.presenceMap.set(userId, updatedPresence)
-        this.updateCache(userId, updatedPresence)
       }
+      
+      const updatedPresence: UserPresence = {
+        ...existingPresence,
+        status: presenceData.status || existingPresence.status,
+        isOnline: true,
+        lastSeen: presenceData.online_at || new Date().toISOString(),
+        lastHeartbeat: presenceData.online_at || new Date().toISOString()
+      }
+      
+      this.presenceMap.set(userId, updatedPresence)
+      this.updateCache(userId, updatedPresence)
+      
+      console.log(`✅ Global user ${userId} (${updatedPresence.displayName}) joined and marked online`)
     }
+    
+    // Force reactivity update
+    this.updateStats()
   }
 
   private handleGlobalUserLeave(userId: string): void {
