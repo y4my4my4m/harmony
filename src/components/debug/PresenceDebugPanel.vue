@@ -46,6 +46,14 @@
       <h4>Quick Actions</h4>
       <button @click="refreshPresence" class="debug-btn">Refresh All Presence</button>
       <button @click="testStatusChange" class="debug-btn">Test Status Change</button>
+      <button @click="testDatabaseConnection" class="debug-btn">Test Database</button>
+    </div>
+
+    <div v-if="dbTestResult" class="debug-section">
+      <h4>Database Test Result</h4>
+      <div class="debug-item">
+        <pre>{{ dbTestResult }}</pre>
+      </div>
     </div>
   </div>
 </template>
@@ -54,6 +62,7 @@
 import { computed, ref } from 'vue'
 import { UserStatus } from '@/types'
 import { useProfessionalPresence } from '@/composables/useProfessionalPresence'
+import { supabase } from '@/supabase'
 
 const presence = useProfessionalPresence()
 
@@ -68,6 +77,9 @@ const currentUserPresence = computed(() => {
 })
 const onlineUsers = computed(() => presence.getOnlineUsers.value)
 const stats = computed(() => presence.getStats.value)
+
+// Database test result
+const dbTestResult = ref<string | null>(null)
 
 // Test functions
 const refreshPresence = async () => {
@@ -101,6 +113,91 @@ const testStatusChange = async () => {
     console.log('✅ Status change test completed')
   } catch (error) {
     console.error('❌ Status change test failed:', error)
+  }
+}
+
+const testDatabaseConnection = async () => {
+  try {
+    console.log('🧪 Testing database connection...')
+    
+    // Test basic connection
+    const { data: healthCheck, error: healthError } = await supabase
+      .from('profiles')
+      .select('count')
+      .limit(1)
+    
+    let results = []
+    
+    if (healthError) {
+      results.push(`❌ Health check failed: ${healthError.message}`)
+      results.push(`   Details: ${healthError.details}`)
+      results.push(`   Hint: ${healthError.hint}`)
+      results.push(`   Code: ${healthError.code}`)
+    } else {
+      results.push('✅ Database connection successful')
+    }
+    
+    // Test profiles table structure
+    const { data: profileColumns, error: columnError } = await supabase
+      .from('profiles')
+      .select('*')
+      .limit(1)
+    
+    if (columnError) {
+      results.push(`❌ Profiles table test failed: ${columnError.message}`)
+    } else {
+      results.push('✅ Profiles table accessible')
+      if (profileColumns && profileColumns.length > 0) {
+        results.push(`   Sample columns: ${Object.keys(profileColumns[0]).join(', ')}`)
+      }
+    }
+    
+    // Test current user profile
+    if (currentUserId.value) {
+      const { data: userProfile, error: userError } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, status')
+        .eq('id', currentUserId.value)
+        .single()
+      
+      if (userError) {
+        results.push(`❌ Current user profile failed: ${userError.message}`)
+      } else {
+        results.push('✅ Current user profile found')
+        results.push(`   User: ${userProfile.username} (${userProfile.display_name})`)
+        results.push(`   Status: ${userProfile.status}`)
+      }
+    }
+    
+    // Test user_servers table
+    const { data: servers, error: serverError } = await supabase
+      .from('user_servers')
+      .select('*')
+      .limit(1)
+    
+    if (serverError) {
+      results.push(`❌ user_servers table test failed: ${serverError.message}`)
+    } else {
+      results.push('✅ user_servers table accessible')
+    }
+    
+    // Test conversations table
+    const { data: convs, error: convError } = await supabase
+      .from('conversations')
+      .select('*')
+      .limit(1)
+    
+    if (convError) {
+      results.push(`❌ conversations table test failed: ${convError.message}`)
+    } else {
+      results.push('✅ conversations table accessible')
+    }
+    
+    dbTestResult.value = results.join('\n')
+    
+  } catch (error) {
+    console.error('❌ Database test failed:', error)
+    dbTestResult.value = `❌ Database test failed: ${error}`
   }
 }
 </script>

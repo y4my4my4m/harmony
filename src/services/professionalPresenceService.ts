@@ -492,12 +492,32 @@ class ProfessionalPresenceService {
     console.log('🔄 Initializing current user presence in presence map')
     
     try {
-      // Get full profile data for current user
-      const { data: profile } = await supabase
+      // Get full profile data for current user with fallback selection
+      let profile: any = null
+      const { data: profileData, error } = await supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio, color, status, verified, updated_at')
         .eq('id', userId)
         .single()
+      
+      if (error) {
+        console.error('❌ Profile query failed:', error)
+        console.log('🔄 Trying fallback profile query...')
+        
+        // Try minimal profile query as fallback
+        const { data: basicProfile } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, status')
+          .eq('id', userId)
+          .single()
+        
+        if (basicProfile) {
+          console.log('✅ Fallback profile query succeeded')
+          profile = basicProfile
+        }
+      } else {
+        profile = profileData
+      }
 
       // Create comprehensive presence object for current user
       const currentUserPresence: UserPresence = {
@@ -593,16 +613,16 @@ class ProfessionalPresenceService {
     
     try {
       // Get users from servers this user is in
-      const { data: serverMembers } = await supabase
-        .from('server_members')
+      const { data: userServers } = await supabase
+        .from('user_servers')
         .select('user_id, server_id')
         .eq('user_id', userId)
       
-      if (serverMembers) {
-        const serverIds = serverMembers.map(m => m.server_id)
+      if (userServers) {
+        const serverIds = userServers.map(m => m.server_id)
         
         const { data: allServerMembers } = await supabase
-          .from('server_members')
+          .from('user_servers')
           .select('user_id')
           .in('server_id', serverIds)
         
@@ -610,32 +630,20 @@ class ProfessionalPresenceService {
       }
       
       // Get users from DM conversations
-      const { data: dmParticipants } = await supabase
-        .from('conversation_participants')
-        .select('user_id, conversation_id')
-        .eq('user_id', userId)
+      const { data: conversations } = await supabase
+        .from('conversations')
+        .select('user1, user2')
+        .or(`user1.eq.${userId},user2.eq.${userId}`)
       
-      if (dmParticipants) {
-        const conversationIds = dmParticipants.map(p => p.conversation_id)
-        
-        const { data: allParticipants } = await supabase
-          .from('conversation_participants')
-          .select('user_id')
-          .in('conversation_id', conversationIds)
-        
-        allParticipants?.forEach(participant => userIds.add(participant.user_id))
+      if (conversations) {
+        conversations.forEach(conv => {
+          userIds.add(conv.user1)
+          userIds.add(conv.user2)
+        })
       }
       
-      // Get ActivityPub follows/followers
-      const { data: follows } = await supabase
-        .from('activitypub_follows')
-        .select('follower_id, following_id')
-        .or(`follower_id.eq.${userId},following_id.eq.${userId}`)
-      
-      follows?.forEach(follow => {
-        userIds.add(follow.follower_id)
-        userIds.add(follow.following_id)
-      })
+      // ActivityPub follows are handled separately via ActivityPub service
+      // Skip for now as there's no activitypub_follows table
       
     } catch (error) {
       console.error('❌ Failed to get relevant users:', error)
