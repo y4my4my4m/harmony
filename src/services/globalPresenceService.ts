@@ -1,30 +1,57 @@
 /**
- * Global Presence Service - Centralized user status and presence management
+ * Global Presence Service - Professional Discord-style Implementation
  * 
- * This service provides a single source of truth for all user presence data,
- * similar to how Discord and other major apps handle user status.
+ * This service maintains the authoritative global presence state for all users,
+ * implementing industry-standard patterns used by Discord, Slack, and other
+ * professional chat applications.
  * 
- * Features:
- * - Global user status management (online/offline/away/dnd)
- * - Context-based subscriptions (only subscribe to relevant users)
- * - Event-driven updates with type-safe events
- * - Efficient Supabase presence and real-time integration
- * - Automatic cleanup and subscription management
+ * Architecture:
+ * - Single source of truth for user presence
+ * - Context-aware subscription management
+ * - Efficient bandwidth usage through smart filtering
+ * - Real-time profile synchronization
+ * - Scalable connection pooling
  */
 
 import { supabase } from '@/supabase'
 import { UserStatus } from '@/types'
+import type { FullUserPresence } from './contextualPresenceService'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { updateUserStatus } from '@/services/profileService'
+
+export interface PresenceScope {
+  // Server members that this user can see
+  serverMembers: Set<string>
+  
+  // DM participants that this user can see
+  dmParticipants: Set<string>
+  
+  // Friends that this user can see
+  friends: Set<string>
+  
+  // Additional tracked users (profile views, etc.)
+  additional: Set<string>
+}
+
+export interface GlobalPresenceState {
+  userId: string
+  presence: FullUserPresence
+  lastHeartbeat: number
+  connectionId: string
+}
 
 // Event types for presence updates
 export interface PresenceEvents {
   'user-status-changed': { userId: string; status: UserStatus; timestamp: string }
+  'user-profile-changed': { userId: string; profileData: Partial<FullUserPresence>; timestamp: string }
   'user-online': { userId: string; timestamp: string }
   'user-offline': { userId: string; timestamp: string }
   'presence-sync': { onlineUsers: Set<string>; timestamp: string }
+  'global-status-updated': { userId: string; status: UserStatus; customText?: string }
+  'global-profile-updated': { userId: string; updates: Partial<FullUserPresence> }
 }
 
+// Legacy interface for backwards compatibility
 export interface UserPresence {
   userId: string
   status: UserStatus
@@ -33,6 +60,8 @@ export interface UserPresence {
   username?: string
   displayName?: string
   avatarUrl?: string
+  bio?: string
+  color?: string
 }
 
 export interface ContextSubscription {
@@ -66,7 +95,7 @@ class GlobalPresenceService {
   private cleanupFunctions: Array<() => void> = []
 
   /**
-   * Initialize the global presence service
+   * Initialize the global presence service with immediate data loading
    */
   async initialize(userId: string, username: string, avatar?: string): Promise<void> {
     if (this.isInitialized && this.currentUserId === userId) {
@@ -81,7 +110,7 @@ class GlobalPresenceService {
     
     this.currentUserId = userId
     
-    // Load the user's actual status from the database instead of assuming Online
+    // Load the user's actual status from the database
     try {
       const { getProfile } = await import('./profileService')
       const userProfile = await getProfile(userId)
@@ -92,12 +121,15 @@ class GlobalPresenceService {
       this.currentUserStatus = UserStatus.Online
     }
     
-    // Initialize channels
+    // **CRITICAL**: Load all relevant users' data immediately from database
+    await this.loadRelevantUsersData(userId)
+    
+    // Initialize real-time channels
     await this.initializeGlobalPresence(userId, username, avatar)
     await this.initializeStatusUpdates()
     await this.initializeOfflineBroadcast()
     
-    // Update local presence with the loaded status
+    // Update current user's presence
     this.updateUserPresence(userId, {
       status: this.currentUserStatus,
       isOnline: (this.currentUserStatus as UserStatus) !== UserStatus.Offline,
@@ -111,7 +143,7 @@ class GlobalPresenceService {
     this.setupCleanupHandlers()
     
     this.isInitialized = true
-    console.log('✅ Global presence service initialized')
+    console.log('✅ Global presence service initialized with immediate data')
   }
 
   /**
@@ -186,6 +218,7 @@ class GlobalPresenceService {
 
   /**
    * Subscribe to presence updates for users in a specific context
+   * Enhanced with immediate data availability
    */
   subscribeToContext(
     contextId: string, 
@@ -207,8 +240,10 @@ class GlobalPresenceService {
     // Add these users to active subscriptions
     userIds.forEach(userId => this.activeUserSubscriptions.add(userId))
     
-    // Request presence data for these users
-    this.requestPresenceData(userIds)
+    // Ensure we have baseline data for these users
+    this.ensureUserData(userIds)
+    
+    console.log(`✅ Context subscription active: ${contextId}`)
   }
 
   /**
@@ -449,13 +484,17 @@ class GlobalPresenceService {
         const latestPresence = presences[0]
         onlineUserIds.add(userId)
         
+        // Update presence with real-time data, but preserve database info if missing
+        const existingPresence = this.globalPresence.get(userId)
         this.updateUserPresence(userId, {
           status: latestPresence.status || UserStatus.Online,
           isOnline: true,
           lastSeen: latestPresence.online_at || new Date().toISOString(),
-          username: latestPresence.username,
-          displayName: latestPresence.display_name,
-          avatarUrl: latestPresence.avatar_url
+          username: latestPresence.username || existingPresence?.username || 'Unknown',
+          displayName: latestPresence.display_name || existingPresence?.displayName || 'Unknown',
+          avatarUrl: latestPresence.avatar_url || existingPresence?.avatarUrl,
+          bio: latestPresence.bio || existingPresence?.bio,
+          color: latestPresence.color || existingPresence?.color
         })
         console.log('✅ Updated presence for user:', userId, 'status:', UserStatus[latestPresence.status || UserStatus.Online])
       }
@@ -463,7 +502,7 @@ class GlobalPresenceService {
 
     console.log('🔄 Online users after sync:', Array.from(onlineUserIds))
 
-    // Mark users not in presence as offline, but don't override current user's explicitly set status
+    // Mark users not in presence as offline, but preserve their profile data
     this.globalPresence.forEach((presence, userId) => {
       if (!onlineUserIds.has(userId) && presence.isOnline) {
         // Don't mark current user as offline if they just set an online status (within last 5 seconds)
@@ -475,12 +514,13 @@ class GlobalPresenceService {
           }
         }
         
+        // Update only connection status, preserve user's chosen status from database
         this.updateUserPresence(userId, {
           isOnline: false,
-          status: UserStatus.Offline,
           lastSeen: new Date().toISOString()
+          // Don't override status - user might be away/busy by choice, not just disconnected
         })
-        console.log('🔴 Marked user as offline:', userId)
+        console.log('🔴 Marked user as not connected:', userId)
       }
     })
 
@@ -636,6 +676,197 @@ class GlobalPresenceService {
     })
     
     console.log('✅ Current user presence force updated')
+  }
+
+  /**
+   * Update user profile data and broadcast to all relevant presence channels
+   */
+  async updateUserProfile(userId: string, profileData: Partial<FullUserPresence>): Promise<void> {
+    console.log(`🔄 Broadcasting profile update for user: ${userId}`, profileData)
+
+    // Update local presence with new profile data
+    const currentPresence = this.globalPresence.get(userId)
+    if (currentPresence) {
+      this.updateUserPresence(userId, {
+        username: profileData.username || currentPresence.username,
+        displayName: profileData.displayName || currentPresence.displayName,
+        avatarUrl: profileData.avatarUrl || currentPresence.avatarUrl,
+        bio: profileData.bio || currentPresence.bio,
+        color: profileData.userColor || currentPresence.color
+      })
+    }
+
+    // Update presence in real-time channels if user is online
+    if (this.globalPresenceChannel && this.isUserOnline(userId)) {
+      const updatedPresence = this.globalPresence.get(userId)
+      await this.globalPresenceChannel.track({
+        user_id: userId,
+        username: updatedPresence?.username,
+        display_name: updatedPresence?.displayName,
+        avatar_url: updatedPresence?.avatarUrl,
+        bio: updatedPresence?.bio,
+        color: profileData.userColor || updatedPresence?.color,
+        status: updatedPresence?.status || UserStatus.Online,
+        online_at: new Date().toISOString()
+      })
+    }
+
+    // Emit profile change event
+    this.emitEvent('user-profile-changed', {
+      userId,
+      profileData: profileData,
+      timestamp: new Date().toISOString()
+    })
+
+    console.log(`✅ Profile update broadcasted for user: ${userId}`)
+  }
+
+  /**
+   * Update current user's profile and broadcast changes
+   */
+  async updateCurrentUserProfile(profileData: Partial<UserPresence>): Promise<void> {
+    if (!this.currentUserId) {
+      console.error('Cannot update profile: no current user')
+      return
+    }
+
+    await this.updateUserProfile(this.currentUserId, profileData)
+  }
+
+  /**
+   * Load relevant users' data immediately from database (Discord-style)
+   * This ensures users always see data immediately, no "Loading..." states
+   */
+  private async loadRelevantUsersData(currentUserId: string): Promise<void> {
+    console.log('🔄 Loading relevant users data from database...')
+    
+    try {
+      // Get all users this person should track
+      const relevantUserIds = await this.calculateRelevantUsers(currentUserId)
+      console.log(`📊 Found ${relevantUserIds.length} relevant users to track`)
+      
+      if (relevantUserIds.length === 0) {
+        console.log('✅ No relevant users to load')
+        return
+      }
+      
+      // Batch load profiles from database
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url, bio, color, status, updated_at')
+        .in('id', relevantUserIds)
+      
+      if (error) {
+        console.error('Failed to load user profiles:', error)
+        return
+      }
+      
+      // Initialize presence data with database values
+      profiles?.forEach(profile => {
+        this.updateUserPresence(profile.id, {
+          status: profile.status || UserStatus.Offline,
+          isOnline: false, // Will be updated by real-time presence
+          lastSeen: profile.updated_at || new Date().toISOString(),
+          username: profile.username || 'Unknown',
+          displayName: profile.display_name || profile.username || 'Unknown',
+          avatarUrl: profile.avatar_url,
+          bio: profile.bio,
+          color: profile.color
+          // verified: profile.verified || false // TODO: Add when verified column exists
+        })
+      })
+      
+      console.log(`✅ Loaded ${profiles?.length || 0} user profiles from database`)
+      
+    } catch (error) {
+      console.error('Error loading relevant users data:', error)
+    }
+  }
+
+  /**
+   * Calculate all users this person should track (Discord-style relationship-based)
+   */
+  private async calculateRelevantUsers(currentUserId: string): Promise<string[]> {
+    const relevantUsers = new Set<string>()
+    
+    try {
+      // 1. Get users from servers this person is in
+      const { data: serverMembers } = await supabase
+        .rpc('get_server_members_for_user', { user_id: currentUserId })
+      
+      if (serverMembers) {
+        serverMembers.forEach((userId: string) => {
+          if (userId !== currentUserId) {
+            relevantUsers.add(userId)
+          }
+        })
+      }
+      
+      // 2. Get users from DM conversations  
+      const { data: dmParticipants } = await supabase
+        .rpc('get_dm_participants_for_user', { user_id: currentUserId })
+      
+      if (dmParticipants) {
+        dmParticipants.forEach((userId: string) => {
+          if (userId !== currentUserId) {
+            relevantUsers.add(userId)
+          }
+        })
+      }
+      
+      // 3. Add friends (if we have a friends system)
+      // TODO: Add friends query when friends system is implemented
+      
+      return Array.from(relevantUsers)
+      
+    } catch (error) {
+      console.error('Error calculating relevant users:', error)
+      return []
+    }
+  }
+
+  /**
+   * Ensure we have data for specific users (load from DB if not in cache)
+   */
+  private async ensureUserData(userIds: string[]): Promise<void> {
+    const missingUsers = userIds.filter(userId => !this.globalPresence.has(userId))
+    
+    if (missingUsers.length === 0) {
+      return // All users already have data
+    }
+    
+    console.log(`🔄 Loading missing user data for ${missingUsers.length} users`)
+    
+    try {
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url, bio, color, status, updated_at')
+        .in('id', missingUsers)
+      
+      if (error) {
+        console.error('Failed to load missing user profiles:', error)
+        return
+      }
+      
+      profiles?.forEach(profile => {
+        this.updateUserPresence(profile.id, {
+          status: profile.status || UserStatus.Offline,
+          isOnline: false, // Will be updated by real-time presence if they're online
+          lastSeen: profile.updated_at || new Date().toISOString(),
+          username: profile.username || 'Unknown',
+          displayName: profile.display_name || profile.username || 'Unknown',
+          avatarUrl: profile.avatar_url,
+          bio: profile.bio,
+          color: profile.color
+          // verified: profile.verified || false // TODO: Add when verified column exists
+        })
+      })
+      
+      console.log(`✅ Loaded ${profiles?.length || 0} missing user profiles`)
+      
+    } catch (error) {
+      console.error('Error loading missing user data:', error)
+    }
   }
 }
 

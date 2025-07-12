@@ -140,6 +140,9 @@ export const useUserStatusStore = defineStore('userStatus', () => {
       
       setCurrentUser(userId)
       
+      // Set up presence service event listeners once
+      await setupPresenceListeners()
+      
       // Get initial status from presence service
       const presence = globalPresenceService.getUserPresence(userId)
       if (presence) {
@@ -190,9 +193,6 @@ export const useUserStatusStore = defineStore('userStatus', () => {
         }
       }
 
-      // Set up event listeners for real-time updates
-      setupPresenceListeners()
-
       isInitialized.value = true
       console.log('✅ Status store initialized')
     } catch (error) {
@@ -202,42 +202,96 @@ export const useUserStatusStore = defineStore('userStatus', () => {
   }
 
   // Clean event listener setup
-  const setupPresenceListeners = (): void => {
+  const setupPresenceListeners = async (): Promise<void> => {
+    const { globalPresenceService } = await import('@/services/globalPresenceService')
+    
+    // Listen for status change events
     globalPresenceService.addEventListener('user-status-changed', (event: CustomEvent) => {
       const { userId, status } = event.detail
+      console.log('📊 Status store: Status update received:', userId, UserStatus[status])
       updateStatus(userId, status)
     })
 
+    // Listen for user online events
     globalPresenceService.addEventListener('user-online', (event: CustomEvent) => {
       const { userId } = event.detail
+      console.log('📊 Status store: User came online:', userId)
       setUserOnline(userId)
     })
 
+    // Listen for user offline events
     globalPresenceService.addEventListener('user-offline', (event: CustomEvent) => {
       const { userId } = event.detail
+      console.log('📊 Status store: User went offline:', userId)
       setUserOffline(userId)
     })
   }
 
   // Bulk initialization for server users
-  const initializeServerUsers = (userIds: string[]): void => {
-    userIds.forEach(userId => {
-      if (!statusMap.value.has(userId)) {
-        // Initialize with default offline status
-        setStatus(userId, {
-          userId,
-          status: UserStatus.Offline,
-          isOnline: false,
-          lastSeen: new Date().toISOString()
+  const initializeServerUsers = async (userIds: string[]): Promise<void> => {
+    console.log('🔄 Initializing server users statuses:', userIds.length)
+    
+    // Load statuses from backend for all users
+    try {
+      const { supabase } = await import('@/supabase')
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, status')
+        .in('id', userIds)
+      
+      if (profiles) {
+        profiles.forEach(profile => {
+          const status = profile.status as UserStatus ?? UserStatus.Offline
+          
+          // Check if user is online in presence service
+          const presence = globalPresenceService.getUserPresence(profile.id)
+          const isOnline = presence?.isOnline ?? false
+          
+          setStatus(profile.id, {
+            userId: profile.id,
+            status: isOnline ? status : UserStatus.Offline, // Show offline if not in presence
+            isOnline,
+            lastSeen: presence?.lastSeen ?? new Date().toISOString()
+          })
         })
-
-        // Try to get real status from presence service
-        const presence = globalPresenceService.getUserPresence(userId)
-        if (presence) {
-          setStatus(userId, presence)
-        }
+        
+        console.log(`✅ Loaded statuses for ${profiles.length} server users`)
       }
-    })
+      
+      // Initialize any missing users with default offline status
+      userIds.forEach(userId => {
+        if (!statusMap.value.has(userId)) {
+          setStatus(userId, {
+            userId,
+            status: UserStatus.Offline,
+            isOnline: false,
+            lastSeen: new Date().toISOString()
+          })
+        }
+      })
+      
+    } catch (error) {
+      console.error('❌ Failed to load server users statuses:', error)
+      
+      // Fallback: initialize with defaults and try to get from presence service
+      userIds.forEach(userId => {
+        if (!statusMap.value.has(userId)) {
+          // Initialize with default offline status
+          setStatus(userId, {
+            userId,
+            status: UserStatus.Offline,
+            isOnline: false,
+            lastSeen: new Date().toISOString()
+          })
+
+          // Try to get real status from presence service
+          const presence = globalPresenceService.getUserPresence(userId)
+          if (presence) {
+            setStatus(userId, presence)
+          }
+        }
+      })
+    }
   }
 
   return {

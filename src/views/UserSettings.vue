@@ -185,6 +185,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar } from '@/services/profileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
+import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
 import type { User } from '@/types'
 import { useToast } from 'vue-toastification'
 
@@ -228,6 +229,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 const settingsNav = createSettingsNavigator(router)
+const { broadcastProfileUpdate } = useCleanUserStatus()
 
 // Reactive state
 const loading = ref(false)
@@ -334,6 +336,17 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
     loading.value = true
     await updateProfile(authStore.session.user.id, updatedProfile)
     profile.value = { ...profile.value, ...updatedProfile } as User
+    
+    // Broadcast profile updates to all connected clients for real-time updates
+    await broadcastProfileUpdate({
+      displayName: updatedProfile.display_name,
+      avatarUrl: updatedProfile.avatar_url,
+      userColor: (updatedProfile as any).color,
+      bio: (updatedProfile as any).bio,
+      verified: (updatedProfile as any).verified,
+      // Add any other fields that need real-time sync
+    })
+    
     toast.success('Profile updated successfully')
   } catch (error) {
     console.error('Error updating profile:', error)
@@ -351,8 +364,14 @@ const handleAvatarUpload = async (file: File) => {
     const filePath = await uploadAvatar(authStore.session.user.id, file)
     // Ensure we normalize the avatar URL for storage
     const normalizedPath = normalizeAvatarForStorage(filePath)
-    await updateProfile(authStore.session.user.id, { avatar_url: normalizedPath })
+    await updateProfile(authStore.session.user.id, { avatar_url: normalizedPath || undefined })
     profile.value = { ...profile.value, avatar_url: normalizedPath } as User
+    
+    // Broadcast avatar update to all connected clients for real-time updates
+    await broadcastProfileUpdate({
+      avatarUrl: normalizedPath || undefined
+    })
+    
     toast.success('Avatar updated successfully')
   } catch (error) {
     console.error('Error uploading avatar:', error)

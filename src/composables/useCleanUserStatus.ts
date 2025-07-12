@@ -1,163 +1,232 @@
 /**
- * Clean User Status Composable
+ * Clean User Status Composable - Professional Global Implementation
  * 
- * Professional, scalable interface      // Update in backend/presence service
-      const { globalPresenceService } = await import('@/services/globalPresenceService')
-      await globalPresenceService.setUserStatus(statusStore.currentUserId, newStatus)
-      
-      // Also update in user profile through service layer
-      const { updateUserStatus } = await import('@/services/profileService')
-      await updateUserStatus(statusStore.currentUserId, newStatus)er status system.
- * Uses the clean status store with proper separation of concerns.
+ * Professional, scalable interface for the global user presence system.
+ * Includes full profile data tracking and context-based subscriptions.
  * 
  * Features:
- * - Clean reactive status access
- * - No side effects on user profiles
- * - Type-safe status helpers
- * - Proper Vue 3 composition patterns
+ * - Global presence with context-aware subscriptions
+ * - Full profile data (avatar, name, color, bio, status, etc.)
+ * - Smart subscription management
+ * - Real-time profile updates
+ * - Discord-style efficiency
  */
 
 import { computed } from 'vue'
 import { UserStatus } from '@/types'
-import { useUserStatusStore, type CleanUserStatus } from '@/stores/userStatusStore'
+import { useContextualStatusStore } from '@/stores/contextualStatusStore'
+import type { UserPresence } from '@/services/globalPresenceService'
 
 export function useCleanUserStatus() {
-  const statusStore = useUserStatusStore()
+  const statusStore = useContextualStatusStore()
 
-  // Status getters
-  const getUserStatus = (userId: string) => computed(() => statusStore.getStatus(userId))
+  // Status getters with full profile data
+  const getUserPresence = (userId: string) => computed(() => statusStore.getUserPresence(userId))
   
   const getCurrentUserStatus = computed(() => statusStore.getCurrentUserStatus)
   
-  const getOnlineUsers = computed(() => statusStore.getOnlineUsers)
+  const getCurrentUserId = computed(() => statusStore.getCurrentUserId)
   
-  const getUsersByStatus = computed(() => statusStore.getUsersByStatus)
+  const getOnlineUsers = computed(() => statusStore.getOnlineUsers)
 
-  // Status helpers for UI components
+  // UI helpers for components
   const getStatusForAvatar = (userId: string) => computed(() => {
-    const status = statusStore.getStatus(userId)
-    switch (status.status) {
-      case UserStatus.Online: return 'online'
-      case UserStatus.Away: return 'away'
-      case UserStatus.Busy: return 'busy'
-      default: return 'offline'
-    }
+    const presence = statusStore.getUserPresence(userId)
+    return presence?.status || UserStatus.Offline
   })
 
   const getStatusColor = (userId: string) => computed(() => {
-    const status = statusStore.getStatus(userId)
-    switch (status.status) {
-      case UserStatus.Online: return '#00ff00'
-      case UserStatus.Away: return '#ffff00'
-      case UserStatus.Busy: return '#ff0000'
-      default: return '#666666'
+    const presence = statusStore.getUserPresence(userId)
+    const status = presence?.status || UserStatus.Offline
+    
+    // Return appropriate color for each status
+    switch (status) {
+      case UserStatus.Online:
+        return '#23a55a' // Green
+      case UserStatus.Away:
+        return '#f0b232' // Yellow
+      case UserStatus.Busy:
+        return '#f23f43' // Red
+      case UserStatus.Offline:
+      default:
+        return '#80848e' // Gray
     }
   })
 
   const getStatusText = (userId: string) => computed(() => {
-    const status = statusStore.getStatus(userId)
-    switch (status.status) {
-      case UserStatus.Online: return 'Online'
-      case UserStatus.Away: return 'Away'
-      case UserStatus.Busy: return 'Busy'
-      default: return 'Offline'
+    const presence = statusStore.getUserPresence(userId)
+    const status = presence?.status || UserStatus.Offline
+    
+    // Return human-readable status text
+    switch (status) {
+      case UserStatus.Online:
+        return 'Online'
+      case UserStatus.Away:
+        return 'Away'
+      case UserStatus.Busy:
+        return 'Do Not Disturb'
+      case UserStatus.Offline:
+      default:
+        return 'Offline'
     }
   })
 
   const isUserOnline = (userId: string) => computed(() => {
-    return statusStore.getStatus(userId).isOnline
+    return statusStore.isUserOnline(userId)
   })
 
-  // Status actions
+  const getUserDisplayName = (userId: string) => computed(() => {
+    const presence = statusStore.getUserPresence(userId)
+    return presence?.displayName || presence?.username || 'Unknown User'
+  })
+
+  const getUserUsername = (userId: string) => computed(() => {
+    const presence = statusStore.getUserPresence(userId)
+    return presence?.username || 'unknown'
+  })
+
+  const getUserAvatarUrl = (userId: string) => computed(() => {
+    const presence = statusStore.getUserPresence(userId)
+    return presence?.avatarUrl
+  })
+
+  const getUserBio = (userId: string) => computed(() => {
+    const presence = statusStore.getUserPresence(userId)
+    return presence?.bio
+  })
+
+  const getUserColor = (userId: string) => computed(() => {
+    const presence = statusStore.getUserPresence(userId)
+    return presence?.color
+  })
+
+  const isUserVerified = (_userId: string) => computed(() => {
+    // Note: verified field removed from schema
+    return false
+  })
+
+  const getUserLastSeen = (userId: string) => computed(() => {
+    const presence = statusStore.getUserPresence(userId)
+    return presence?.lastSeen
+  })
+
+  // Get full user presence data
+  const getFullUserPresence = (userId: string) => computed(() => {
+    return statusStore.getUserPresence(userId)
+  })
+
+  // Context subscription methods
+  const subscribeToServerUsers = async (serverId: string, memberIds: string[]): Promise<void> => {
+    statusStore.subscribeToContext(serverId, 'server', memberIds)
+  }
+
+  const subscribeToDMUsers = async (conversationId: string, participantIds: string[]): Promise<void> => {
+    statusStore.subscribeToContext(conversationId, 'dm', participantIds)
+  }
+
+  const subscribeToUserPresence = async (userId: string): Promise<void> => {
+    statusStore.subscribeToContext(userId, 'global', [userId])
+  }
+
+  const unsubscribeFromContext = async (contextId: string): Promise<void> => {
+    statusStore.unsubscribeFromContext(contextId)
+  }
+
+  // Status management
   const updateCurrentUserStatus = async (newStatus: UserStatus): Promise<void> => {
-    if (!statusStore.currentUserId) {
-      console.error('Cannot update status: no current user set')
-      return
-    }
-
-    try {
-      // Update in store immediately for UI responsiveness
-      statusStore.updateStatus(statusStore.currentUserId, newStatus)
-      
-      // Update in backend/presence service
-      const { globalPresenceService } = await import('@/services/globalPresenceService')
-      await globalPresenceService.setUserStatus(newStatus)
-      
-      // Also update in user profile through service layer
-      const { updateUserStatus } = await import('@/services/profileService')
-      await updateUserStatus(statusStore.currentUserId, newStatus)
-      
-      console.log('✅ Updated user status to:', UserStatus[newStatus])
-    } catch (error) {
-      console.error('❌ Failed to update user status:', error)
-      // Revert the optimistic update
-      const currentStatus = statusStore.getStatus(statusStore.currentUserId).status
-      statusStore.updateStatus(statusStore.currentUserId, currentStatus)
-      throw error
-    }
+    await statusStore.setUserStatus(newStatus)
   }
 
-  const initializeStatus = async (userId: string): Promise<void> => {
-    await statusStore.initializeFromPresenceService(userId)
+  // Force an immediate update for the current user
+  const forceUpdateCurrentUser = (): void => {
+    statusStore.forceUpdateCurrentUserPresence()
   }
 
-  const initializeServerUsers = (userIds: string[]): void => {
-    statusStore.initializeServerUsers(userIds)
+  // Profile broadcasting (for real-time profile changes)
+  const broadcastProfileUpdate = async (_profileData: Partial<UserPresence>): Promise<void> => {
+    // Note: This would need to be implemented if the global service supports it
+    // For now, we just force an update
+    statusStore.forceUpdateCurrentUserPresence()
   }
 
-  // Utility functions
-  const groupUsersByStatus = (userIds: string[]): {
-    online: CleanUserStatus[]
-    away: CleanUserStatus[]
-    busy: CleanUserStatus[]
-    offline: CleanUserStatus[]
-  } => {
-    const groups = {
-      online: [] as CleanUserStatus[],
-      away: [] as CleanUserStatus[],
-      busy: [] as CleanUserStatus[],
-      offline: [] as CleanUserStatus[]
+  // Initialize the presence system
+  const initializePresence = async (userId: string, username: string, avatar?: string): Promise<void> => {
+    await statusStore.initialize(userId, username, avatar)
+  }
+
+  // Cleanup
+  const cleanup = async (): Promise<void> => {
+    await statusStore.cleanup()
+  }
+
+  // Legacy compatibility - bulk initialize server users
+  const initializeServerUsers = async (_userIds: string[]): Promise<void> => {
+    // This is now handled automatically by the global service
+    // when subscribing to contexts
+    console.log('initializeServerUsers called - now handled automatically by global service')
+  }
+
+  // Legacy aliases for backward compatibility
+  const getUserStatus = getUserPresence
+  const getUserAvatar = getUserAvatarUrl
+  const subscribeToUser = subscribeToUserPresence
+  const initializeForUser = initializePresence
+
+  // Debug helper
+  const getPresenceDebugInfo = () => {
+    return {
+      currentUserId: statusStore.getCurrentUserId,
+      currentStatus: statusStore.getCurrentUserStatus,
+      onlineUsers: statusStore.getOnlineUsers
     }
-
-    userIds.forEach(userId => {
-      const status = statusStore.getStatus(userId)
-      switch (status.status) {
-        case UserStatus.Online:
-          groups.online.push(status)
-          break
-        case UserStatus.Away:
-          groups.away.push(status)
-          break
-        case UserStatus.Busy:
-          groups.busy.push(status)
-          break
-        default:
-          groups.offline.push(status)
-      }
-    })
-
-    return groups
   }
 
   return {
-    // Getters
-    getUserStatus,
+    // Status getters
+    getUserPresence,
     getCurrentUserStatus,
+    getCurrentUserId,
     getOnlineUsers,
-    getUsersByStatus,
     
-    // UI Helpers
+    // UI helpers
     getStatusForAvatar,
     getStatusColor,
     getStatusText,
     isUserOnline,
     
-    // Actions
-    updateCurrentUserStatus,
-    initializeStatus,
-    initializeServerUsers,
+    // Profile getters
+    getUserDisplayName,
+    getUserUsername,
+    getUserAvatarUrl,
+    getUserBio,
+    getUserColor,
+    isUserVerified,
+    getUserLastSeen,
+    getFullUserPresence,
     
-    // Utilities
-    groupUsersByStatus
+    // Context subscriptions
+    subscribeToServerUsers,
+    subscribeToDMUsers,
+    subscribeToUserPresence,
+    unsubscribeFromContext,
+    
+    // Status management
+    updateCurrentUserStatus,
+    forceUpdateCurrentUser,
+    broadcastProfileUpdate,
+    
+    // Lifecycle
+    initializePresence,
+    cleanup,
+    initializeServerUsers, // Legacy compatibility
+    
+    // Legacy aliases for backward compatibility
+    getUserStatus,
+    getUserAvatar,
+    subscribeToUser,
+    initializeForUser,
+    
+    // Debug
+    getPresenceDebugInfo
   }
 }

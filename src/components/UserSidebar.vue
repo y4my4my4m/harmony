@@ -84,14 +84,19 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="user.avatar_url"
-              :alt="user.display_name || 'Unknown User'"
+              :src="getUserAvatar(user.id).value"
+              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
-              <span class="user-name">{{ user.display_name || 'Unknown User' }}</span>
+              <span 
+                class="user-name" 
+                :style="{ color: getUserColor(user.id).value || undefined }"
+              >
+                {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+              </span>
             </div>
           </div>
         </div>
@@ -117,14 +122,19 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="user.avatar_url"
-              :alt="user.display_name || 'Unknown User'"
+              :src="getUserAvatar(user.id).value"
+              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
-              <span class="user-name">{{ user.display_name || 'Unknown User' }}</span>
+              <span 
+                class="user-name" 
+                :style="{ color: getUserColor(user.id).value || undefined }"
+              >
+                {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+              </span>
             </div>
           </div>
         </div>
@@ -150,14 +160,19 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="user.avatar_url"
-              :alt="user.display_name || 'Unknown User'"
+              :src="getUserAvatar(user.id).value"
+              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
-              <span class="user-name">{{ user.display_name || 'Unknown User' }}</span>
+              <span 
+                class="user-name" 
+                :style="{ color: getUserColor(user.id).value || undefined }"
+              >
+                {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+              </span>
             </div>
           </div>
         </div>
@@ -183,14 +198,19 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="user.avatar_url"
-              :alt="user.display_name || 'Unknown User'"
+              :src="getUserAvatar(user.id).value"
+              :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
-              <span class="user-name">{{ user.display_name || 'Unknown User' }}</span>
+              <span 
+                class="user-name" 
+                :style="{ color: getUserColor(user.id).value || undefined }"
+              >
+                {{ getUserDisplayName(user.id).value || 'Unknown User' }}
+              </span>
             </div>
           </div>
         </div>
@@ -230,8 +250,15 @@ import { useCleanUserStatus } from '@/composables/useCleanUserStatus';
 const serverChannelStore = useServerChannelStore();
 const serverUsersStore = useServerUsersStore();
 
-// Use clean status system - no corruption, no watchers, no hacks
-const { getStatusForAvatar, getUserStatus, initializeServerUsers } = useCleanUserStatus();
+// Use clean status system - contextual subscriptions, full profile data
+const { 
+  getStatusForAvatar, 
+  getUserStatus, 
+  subscribeToServerUsers,
+  getUserDisplayName,
+  getUserAvatar, 
+  getUserColor
+} = useCleanUserStatus();
 
 // Component state
 const selectedUser = ref<User | null>(null);
@@ -266,10 +293,11 @@ const filteredUsers = computed(() => {
   }
   
   const query = searchQuery.value.toLowerCase();
-  return users.value.filter(user => 
-    (user.display_name?.toLowerCase().includes(query)) ||
-    (user.username?.toLowerCase().includes(query))
-  );
+  return users.value.filter(user => {
+    const displayName = getUserDisplayName(user.id).value?.toLowerCase() || '';
+    const username = user.username?.toLowerCase() || '';
+    return displayName.includes(query) || username.includes(query);
+  });
 });
 
 // Group users by status using clean status store
@@ -283,6 +311,12 @@ const groupedUsers = computed(() => {
   
   filteredUsers.value.forEach(user => {
     const status = getUserStatus(user.id).value;
+    
+    if (!status) {
+      // If no status available, treat as offline
+      groups.offline.push(user);
+      return;
+    }
     
     switch (status.status) {
       case UserStatus.Online:
@@ -300,9 +334,13 @@ const groupedUsers = computed(() => {
     }
   });
   
-  // Sort users within each group by display name
+  // Sort users within each group by display name using real-time data
   Object.values(groups).forEach(group => {
-    group.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
+    group.sort((a, b) => {
+      const nameA = getUserDisplayName(a.id).value || '';
+      const nameB = getUserDisplayName(b.id).value || '';
+      return nameA.localeCompare(nameB);
+    });
   });
   
   return groups;
@@ -352,8 +390,8 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     const userIds = await getUserIdsForServer(serverId);
     await serverUsersStore.fetchUserProfiles(userIds);
     
-    // Initialize status tracking for server users - clean, no side effects
-    initializeServerUsers(userIds);
+    // Subscribe to real-time presence for server users  
+    await subscribeToServerUsers(serverId, userIds);
   }
 };
 
@@ -370,7 +408,19 @@ const showUserProfile = (user: User) => {
 
 // Clean status getter for avatars - no side effects
 const getStatusForAvatarValue = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
-  return getStatusForAvatar(userId).value;
+  const status = getStatusForAvatar(userId).value;
+  
+  switch (status) {
+    case UserStatus.Online:
+      return 'online';
+    case UserStatus.Away:
+      return 'away';
+    case UserStatus.Busy:
+      return 'busy';
+    case UserStatus.Offline:
+    default:
+      return 'offline';
+  }
 };
 
 const closeProfile = () => {

@@ -58,6 +58,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { UserStatus } from '@/types'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -126,14 +127,50 @@ const initializeApp = async () => {
     // Initialize the user profile 
     await profileStore.fetchProfile(userId)
     
-    // Initialize the clean user status system
+    // Initialize the global presence system first
     try {
-      const { useCleanUserStatus } = await import('@/composables/useCleanUserStatus')
-      const { initializeStatus } = useCleanUserStatus()
-      await initializeStatus(userId)
-      console.log('✅ Clean user status system initialized')
+      const { globalPresenceService } = await import('@/services/globalPresenceService')
+      const userProfile = profileStore.profile || {
+        id: userId,
+        username: authStore.session?.user?.user_metadata?.username || 'Unknown',
+        display_name: authStore.session?.user?.user_metadata?.display_name,
+        avatar_url: authStore.session?.user?.user_metadata?.avatar_url,
+        status: UserStatus.Online
+      }
+      
+      await globalPresenceService.initialize(
+        userId, 
+        userProfile.username,
+        userProfile.avatar_url
+      )
+      console.log('✅ Global presence service initialized')
     } catch (error) {
-      console.error('❌ Failed to initialize clean user status system:', error)
+      console.error('❌ Failed to initialize global presence service:', error)
+    }
+    
+    // Initialize the contextual user status system
+    try {
+      const { UserStatus } = await import('@/types')
+      const { useCleanUserStatus } = await import('@/composables/useCleanUserStatus')
+      const { initializeForUser } = useCleanUserStatus()
+      
+      // Get user profile for initialization (use current profile from store)
+      const userProfile = profileStore.profile || {
+        id: userId,
+        username: authStore.session?.user?.user_metadata?.username || 'Unknown',
+        display_name: authStore.session?.user?.user_metadata?.display_name,
+        avatar_url: authStore.session?.user?.user_metadata?.avatar_url,
+        status: UserStatus.Online
+      }
+      
+      await initializeForUser(
+        userId, 
+        userProfile.username,
+        userProfile.avatar_url
+      )
+      console.log('✅ Contextual user status system initialized')
+    } catch (error) {
+      console.error('❌ Failed to initialize contextual user status system:', error)
     }
     
     hasServersLoaded.value = true
@@ -147,15 +184,33 @@ const initializeApp = async () => {
 }
 
 // Watch for auth changes to reinitialize
-watch(() => authStore.session, (newSession, oldSession) => {
+watch(() => authStore.session, async (newSession, oldSession) => {
   // If user just logged in (had no session, now has one)
   if (!oldSession && newSession) {
     console.log('🔄 User logged in, reinitializing app')
-    initializeApp()
+    await initializeApp()
   }
   // If user logged out (had session, now doesn't)
   else if (oldSession && !newSession) {
-    console.log('👋 User logged out, resetting app state')
+    console.log('👋 User logged out, cleaning up presence and resetting app state')
+    
+    // Clean up global presence service
+    try {
+      const { globalPresenceService } = await import('@/services/globalPresenceService')
+      await globalPresenceService.cleanup()
+    } catch (error) {
+      console.error('Failed to cleanup global presence:', error)
+    }
+    
+    // Clean up contextual status store
+    try {
+      const { useContextualStatusStore } = await import('@/stores/contextualStatusStore')
+      const statusStore = useContextualStatusStore()
+      await statusStore.cleanup()
+    } catch (error) {
+      console.error('Failed to cleanup contextual status:', error)
+    }
+    
     isAppInitialized.value = false
     hasServersLoaded.value = false
   }

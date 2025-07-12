@@ -37,6 +37,35 @@ const updateProfile = async (userId: string, updates: Partial<User>): Promise<Us
     .match({ id: userId });
 
   if (error) throw error;
+  
+  // If the update was successful, broadcast profile changes via presence service
+  if (data && data[0]) {
+    try {
+      // Import dynamically to avoid circular dependencies
+      const { globalPresenceService } = await import('./globalPresenceService')
+      
+      // Extract profile data that should be broadcast
+      const profileData: any = {}
+      if (updates.username !== undefined) profileData.username = updates.username
+      if (updates.display_name !== undefined) profileData.displayName = updates.display_name
+      if (updates.avatar_url !== undefined) profileData.avatarUrl = updates.avatar_url
+      
+      // Handle Profile-specific fields safely
+      const profileUpdates = updates as any
+      if (profileUpdates.bio !== undefined) profileData.bio = profileUpdates.bio
+      if (profileUpdates.color !== undefined) profileData.color = profileUpdates.color
+      if (profileUpdates.verified !== undefined) profileData.verified = profileUpdates.verified
+      
+      // Only broadcast if there are profile changes to broadcast
+      if (Object.keys(profileData).length > 0) {
+        await globalPresenceService.updateUserProfile(userId, profileData)
+      }
+    } catch (presenceError) {
+      // Don't fail the profile update if presence broadcast fails
+      console.error('Failed to broadcast profile changes:', presenceError)
+    }
+  }
+
   return data ? data[0] : undefined;
 };
 
