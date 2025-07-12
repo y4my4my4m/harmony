@@ -5,7 +5,7 @@
     <Avatar 
       :src="profile?.avatar_url"
       size="md"
-      :status="getStatusForAvatar(authStore.session?.user?.id || '').value"
+      :status="getUserStatusForAvatar(authStore.session?.user?.id || '').value"
     />
     <div class="user-info">
       <p class="user-name">{{ profile?.display_name }}</p>
