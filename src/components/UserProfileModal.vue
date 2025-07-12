@@ -7,7 +7,7 @@
   >
     <div class="profile-modal-content">
       <!-- Cover Banner -->
-      <div class="profile-banner" :style="{ background: getUserColor(user) || '#5865f2' }">
+      <div class="profile-banner" :style="{ background: userColor || '#5865f2' }">
         <div class="banner-gradient"></div>
         <div class="banner-actions">
           <button 
@@ -48,8 +48,8 @@
           <div class="avatar-container">
             <div class="avatar-wrapper">
               <Avatar 
-                :src="user?.avatar_url || '/default_avatar.png'" 
-                :alt="`${user?.display_name || 'User'}'s avatar`"
+                :src="avatarUrl" 
+                :alt="`${displayName}'s avatar`"
                 class="profile-avatar"
                 @error="handleAvatarError"
               />
@@ -59,8 +59,8 @@
           
           <div class="profile-info">
             <div class="name-section">
-              <h1 class="display-name" :style="{ color: getUserColor(user) || '#ffffff' }">
-                {{ user?.display_name || 'Unknown User' }}
+              <h1 class="display-name" :style="{ color: userColor }">
+                {{ displayName }}
                 <span v-if="getUserVerified(user)" class="verified-badge">
                   <Icon name="check-circle" class="verified-icon" />
                 </span>
@@ -321,7 +321,13 @@ const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
 // Use professional presence system
-const { getUserStatusForAvatar, getUserStatusText } = useUserData()
+const { 
+  getUserStatusForAvatar, 
+  getUserStatusText,
+  getUserDisplayName,
+  getUserAvatarUrl,
+  getUserColor
+} = useUserData()
 
 // Reactive state
 const showActionsMenu = ref(false)
@@ -380,6 +386,22 @@ const userStatus = computed(() => {
 const userStatusText = computed(() => {
   if (!props.user) return 'Offline'
   return getUserStatusText(props.user.id).value
+})
+
+// Reactive computed properties using useUserData
+const displayName = computed(() => {
+  if (!props.user) return 'Unknown User'
+  return getUserDisplayName(props.user.id).value || props.user.display_name || 'Unknown User'
+})
+
+const avatarUrl = computed(() => {
+  if (!props.user) return '/default_avatar.png'
+  return getUserAvatarUrl(props.user.id).value || props.user.avatar_url || '/default_avatar.png'
+})
+
+const userColor = computed(() => {
+  if (!props.user) return '#ffffff'
+  return getUserColor(props.user.id).value || '#ffffff'
 })
 
 // Methods
@@ -516,10 +538,6 @@ const debouncedSaveNote = (() => {
 })()
 
 // Helper methods for safe property access
-const getUserColor = (user: any) => {
-  return user?.color || user?.profile?.color
-}
-
 const getUserVerified = (user: any) => {
   return user?.verified || user?.profile?.verified
 }

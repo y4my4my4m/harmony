@@ -14,15 +14,15 @@
       <div class="conversation-info">
         <div class="conversation-avatar">
           <Avatar
-            :src="conversation.other_user?.avatar_url"
-            :alt="conversation.other_user?.display_name || conversation.other_user?.username"
+            :src="getUserAvatarUrl(conversation.other_user?.id || '').value"
+            :alt="getUserDisplayName(conversation.other_user?.id || '').value"
             size="sm"
             :status="otherUserStatus"
           />
         </div>
         <div class="conversation-details">
           <h2 class="conversation-name">
-            {{ conversation.other_user?.display_name || conversation.other_user?.username }}
+            {{ getUserDisplayName(conversation.other_user?.id || '').value }}
           </h2>
           <div class="conversation-status">
             <span v-if="isOtherUserOnline" class="status online">
@@ -91,7 +91,7 @@ const emit = defineEmits<{
 }>()
 
 // Use clean status system
-const { isUserOnline, getUserStatusForAvatar } = useUserData()
+const { isUserOnline, getUserStatusForAvatar, getUserDisplayName, getUserAvatarUrl } = useUserData()
 
 // State
 const showSearchModal = ref(false)
