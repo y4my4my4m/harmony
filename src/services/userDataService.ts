@@ -10,6 +10,7 @@
 
 import { supabase } from '@/supabase'
 import { UserStatus } from '@/types'
+import { activityTracker } from '@/services/ActivityTracker'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface UserData {
@@ -51,10 +52,17 @@ class UserDataService extends EventTarget {
   private globalChannel: RealtimeChannel | null = null
   private initialized = false
   
+  // Status management
+  private wasManuallySet = false
+  private manualStatus: UserStatus | null = null
+  private lastAutoStatus: UserStatus = UserStatus.Online
+  
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
   private readonly HEARTBEAT_INTERVAL = 30 * 1000 // 30 seconds
   private heartbeatTimer: NodeJS.Timeout | null = null
+  private heartbeatFailures = 0
+  private readonly MAX_HEARTBEAT_FAILURES = 3
 
   /**
    * Initialize the service for a user
@@ -72,6 +80,9 @@ class UserDataService extends EventTarget {
     
     // Setup global presence channel
     await this.setupGlobalPresence()
+    
+    // Start activity tracking and lifecycle management
+    this.setupActivityTracking()
     
     // Start heartbeat
     this.startHeartbeat()
@@ -98,7 +109,79 @@ class UserDataService extends EventTarget {
     }
     return null
   }
-
+  
+  /**
+   * Setup activity tracking and lifecycle management
+   */
+  private setupActivityTracking(): void {
+    // Start activity tracking
+    activityTracker.startTracking()
+    
+    // Listen for activity events
+    activityTracker.addEventListener('activity-resumed', () => {
+      this.handleActivityResumed()
+    })
+    
+    activityTracker.addEventListener('status-should-change', (event: any) => {
+      this.handleAutomaticStatusChange(event.detail)
+    })
+    
+    console.log('🎯 Activity tracking started')
+  }
+  
+  /**
+   * Handle user activity resumption
+   */
+  private async handleActivityResumed(): Promise<void> {
+    if (!this.currentUserId) return
+    
+    // If user was set to Away/Offline automatically, restore their preferred status
+    const userData = this.users.get(this.currentUserId)
+    if (!userData) return
+    
+    // If status was manually set (Away, Busy), respect that
+    if (this.wasManuallySet && this.manualStatus !== null) {
+      console.log('👋 User active again, restoring manual status:', UserStatus[this.manualStatus])
+      await this.updateCurrentUserStatus(this.manualStatus, false) // Don't mark as manual again
+    } else {
+      // Restore to Online if they were auto-set to Away/Offline
+      if (userData.status === UserStatus.Away || userData.status === UserStatus.Offline) {
+        console.log('👋 User active again, restoring to Online')
+        await this.updateCurrentUserStatus(UserStatus.Online, false)
+      }
+    }
+    
+    // Reset activity tracking
+    activityTracker.resetStatusTracking()
+  }
+  
+  /**
+   * Handle automatic status changes due to inactivity
+   */
+  private async handleAutomaticStatusChange(detail: { status: UserStatus, reason: string, inactiveTime: number }): Promise<void> {
+    if (!this.currentUserId) return
+    
+    const userData = this.users.get(this.currentUserId)
+    if (!userData) return
+    
+    // Only auto-change status if it's currently Online or if going to Offline
+    // Don't override manual Away/Busy settings
+    if (this.wasManuallySet && userData.status !== UserStatus.Online && detail.status !== UserStatus.Offline) {
+      console.log('⏭️ Skipping auto status change - user manually set to:', UserStatus[userData.status])
+      return
+    }
+    
+    console.log(`😴 Auto-changing status to ${UserStatus[detail.status]} due to ${detail.reason} (${Math.round(detail.inactiveTime / 60000)}min)`)
+    
+    // Store current status if it's manual
+    if (!this.wasManuallySet && userData.status !== UserStatus.Online) {
+      this.manualStatus = userData.status
+      this.wasManuallySet = true
+    }
+    
+    await this.updateCurrentUserStatus(detail.status, false) // Don't mark as manual
+  }
+  
   /**
    * Initialize current user data (Discord/Slack style)
    */
@@ -113,18 +196,40 @@ class UserDataService extends EventTarget {
       
       if (profile) {
         // Professional status handling: database is truth, localStorage is backup
-        let finalStatus = UserStatus.Online // default
+        // IMPORTANT: Active users should be Online by default, not Offline
+        let finalStatus = UserStatus.Online // Always default to Online for active users
         
-        // Primary: Use database status if it exists and is valid
+        // Primary: Use database status if it exists and is valid AND not offline
         if (profile.status !== null && profile.status !== undefined) {
-          finalStatus = profile.status
-          console.log('✅ Status loaded from database:', UserStatus[finalStatus])
+          // If user was explicitly set to Away/Busy, preserve that
+          if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy) {
+            finalStatus = profile.status
+            console.log('✅ Preserving user-set status from database:', UserStatus[finalStatus])
+          } else if (profile.status === UserStatus.Online) {
+            finalStatus = UserStatus.Online
+            console.log('✅ Status loaded from database:', UserStatus[finalStatus])
+          } else {
+            // User was offline in database, but they're actively using the app now
+            finalStatus = UserStatus.Online
+            console.log('🔄 User was offline in DB but is now active, setting to Online')
+            
+            // Update database to reflect they're now online
+            try {
+              await supabase
+                .from('profiles')
+                .update({ status: UserStatus.Online })
+                .eq('id', userId)
+              console.log('💾 Updated database to show user as Online')
+            } catch (syncError) {
+              console.warn('⚠️ Failed to update online status in database:', syncError)
+            }
+          }
         } else {
-          // Fallback: Try localStorage backup
+          // No status in database, try localStorage backup for Away/Busy only
           const backupStatus = this.getStatusFromLocalStorage()
-          if (backupStatus !== null) {
+          if (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy) {
             finalStatus = backupStatus
-            console.log('🔄 Using status from localStorage backup:', UserStatus[finalStatus])
+            console.log('🔄 Using Away/Busy status from localStorage backup:', UserStatus[finalStatus])
             
             // Sync backup to database for consistency
             try {
@@ -137,7 +242,8 @@ class UserDataService extends EventTarget {
               console.warn('⚠️ Failed to sync status to database:', syncError)
             }
           } else {
-            console.log('🆕 New user, defaulting to Online status')
+            // Default to Online - user is actively using the app
+            console.log('🆕 No valid status found, defaulting to Online (user is active)')
           }
         }
         
@@ -161,9 +267,13 @@ class UserDataService extends EventTarget {
         this.users.set(userId, userData)
         console.log('✅ Current user initialized:', userData.displayName, 'Final Status:', UserStatus[finalStatus])
       } else {
-        // No profile exists - check localStorage backup
+        // No profile exists - user is actively using the app, so they should be Online
         const backupStatus = this.getStatusFromLocalStorage()
-        const initialStatus = backupStatus ?? UserStatus.Online
+        // Only use backup status if it's Away or Busy (user preference states)
+        // Never use Offline from backup since user is actively using the app
+        const initialStatus = (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy) 
+          ? backupStatus 
+          : UserStatus.Online
         
         const userData: UserData = {
           id: userId,
@@ -264,11 +374,42 @@ class UserDataService extends EventTarget {
       if (this.currentUserId) {
         const userData = this.users.get(this.currentUserId)
         if (userData) {
-          userData.lastHeartbeat = new Date().toISOString()
-          await this.trackCurrentUser()
+          try {
+            userData.lastHeartbeat = new Date().toISOString()
+            await this.trackCurrentUser()
+            
+            // Reset failure count on successful heartbeat
+            this.heartbeatFailures = 0
+            
+          } catch (error) {
+            console.warn('💔 Heartbeat failed:', error)
+            this.heartbeatFailures++
+            
+            // If heartbeat fails repeatedly, set offline
+            if (this.heartbeatFailures >= this.MAX_HEARTBEAT_FAILURES) {
+              console.log('💀 Connection lost - setting offline after', this.heartbeatFailures, 'failures')
+              await this.handleConnectionLost()
+            }
+          }
         }
       }
     }, this.HEARTBEAT_INTERVAL)
+  }
+  
+  /**
+   * Handle connection loss - set offline status
+   */
+  private async handleConnectionLost(): Promise<void> {
+    if (!this.currentUserId) return
+    
+    console.log('📡 Connection lost - setting user offline')
+    
+    try {
+      // Set offline status (this will be automatic, not manual)
+      await this.updateCurrentUserStatus(UserStatus.Offline, false)
+    } catch (error) {
+      console.error('Failed to set offline status on connection loss:', error)
+    }
   }
   
   /**
@@ -637,13 +778,21 @@ class UserDataService extends EventTarget {
   /**
    * Update current user status (Discord/Slack style persistence)
    */
-  async updateCurrentUserStatus(status: UserStatus): Promise<void> {
+  async updateCurrentUserStatus(status: UserStatus, isManual: boolean = true): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
     
-    console.log('🔄 Updating current user status to:', UserStatus[status])
+    console.log('🔄 Updating current user status to:', UserStatus[status], isManual ? '(manual)' : '(automatic)')
     
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
+    
+    // Track manual status changes
+    if (isManual) {
+      this.wasManuallySet = (status === UserStatus.Away || status === UserStatus.Busy)
+      this.manualStatus = this.wasManuallySet ? status : null
+      activityTracker.resetStatusTracking()
+      console.log('📌 Status manually set:', this.wasManuallySet ? 'Yes' : 'No')
+    }
     
     // Update local data immediately for instant UI feedback
     userData.status = status
@@ -849,6 +998,9 @@ class UserDataService extends EventTarget {
    */
   async cleanup(): Promise<void> {
     console.log('🧹 Cleaning up User Data Service')
+    
+    // Stop activity tracking
+    activityTracker.stopTracking()
     
     // Stop heartbeat
     if (this.heartbeatTimer) {

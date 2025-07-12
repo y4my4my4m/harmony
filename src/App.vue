@@ -88,6 +88,14 @@ onMounted(() => {
   addHapticToElements('.interactive-element', 'light')
   addHapticToElements('a[href]', 'selection')
   addHapticToElements('.card-interactive', 'medium')
+  
+  // Initialize status lifecycle debugger in development
+  if (import.meta.env.DEV) {
+    import('@/services/StatusLifecycleDebugger').then(({ statusDebugger }) => {
+      statusDebugger.startDebugging()
+      console.log('🔍 Status lifecycle debugger started. Use statusDebugger, testStatus(), showStatusDebug(), or simulateInactivity() in console.')
+    })
+  }
 })
 </script>
 

@@ -1,0 +1,135 @@
+/**
+ * Status Lifecycle Debug Utility
+ * Test and monitor automatic status transitions
+ */
+
+import { userDataService } from '@/services/userDataService'
+import { activityTracker } from '@/services/ActivityTracker'
+import { UserStatus } from '@/types'
+
+class StatusLifecycleDebugger {
+  private isDebugging = false
+  private logHistory: string[] = []
+
+  /**
+   * Start debug monitoring
+   */
+  startDebugging(): void {
+    if (this.isDebugging) return
+    
+    console.log('🔍 Starting status lifecycle debugging')
+    this.isDebugging = true
+    this.logHistory = []
+    
+    // Monitor userDataService events
+    userDataService.addEventListener('status-changed', (event: any) => {
+      const log = `✅ Status changed: ${UserStatus[event.detail.status]} (User: ${event.detail.userId})`
+      console.log(log)
+      this.logHistory.push(`${new Date().toLocaleTimeString()} - ${log}`)
+    })
+    
+    // Monitor activity tracker events
+    activityTracker.addEventListener('activity-resumed', (event: any) => {
+      const log = `👋 Activity resumed at ${new Date(event.detail.timestamp).toLocaleTimeString()}`
+      console.log(log)
+      this.logHistory.push(`${new Date().toLocaleTimeString()} - ${log}`)
+    })
+    
+    activityTracker.addEventListener('status-should-change', (event: any) => {
+      const log = `😴 Auto status change suggested: ${UserStatus[event.detail.status]} (${event.detail.reason})`
+      console.log(log)
+      this.logHistory.push(`${new Date().toLocaleTimeString()} - ${log}`)
+    })
+  }
+
+  /**
+   * Stop debug monitoring
+   */
+  stopDebugging(): void {
+    console.log('⏹️ Stopping status lifecycle debugging')
+    this.isDebugging = false
+  }
+
+  /**
+   * Get current status information
+   */
+  getCurrentStatusInfo(): any {
+    const currentUser = userDataService.getCurrentUser()
+    const activityState = activityTracker.getActivityState()
+    
+    return {
+      user: currentUser ? {
+        id: currentUser.id,
+        username: currentUser.username,
+        status: UserStatus[currentUser.status],
+        lastHeartbeat: currentUser.lastHeartbeat,
+        isOnline: currentUser.isOnline
+      } : null,
+      activity: {
+        lastActivity: new Date(activityState.lastActivity).toLocaleTimeString(),
+        timeSinceLastActivity: `${Math.round(activityTracker.getTimeSinceLastActivity() / 1000)}s`,
+        isIdle: activityState.isIdle,
+        isAway: activityState.isAway
+      },
+      logHistory: this.logHistory.slice(-10) // Last 10 entries
+    }
+  }
+
+  /**
+   * Test manual status changes
+   */
+  async testManualStatusChange(status: UserStatus): Promise<void> {
+    console.log(`🧪 Testing manual status change to: ${UserStatus[status]}`)
+    try {
+      await userDataService.updateCurrentUserStatus(status)
+      console.log('✅ Manual status change successful')
+    } catch (error) {
+      console.error('❌ Manual status change failed:', error)
+    }
+  }
+
+  /**
+   * Simulate inactivity for testing
+   */
+  simulateInactivity(minutes: number): void {
+    console.log(`🕐 Simulating ${minutes} minutes of inactivity...`)
+    
+    // Hack the activity tracker's last activity time
+    const millisecondsAgo = minutes * 60 * 1000
+    ;(activityTracker as any).lastActivity = Date.now() - millisecondsAgo
+    
+    console.log(`⏰ Last activity set to ${minutes} minutes ago`)
+  }
+
+  /**
+   * Show debug panel in console
+   */
+  showDebugPanel(): void {
+    const info = this.getCurrentStatusInfo()
+    
+    console.group('🔍 Status Lifecycle Debug Panel')
+    console.log('Current User:', info.user)
+    console.log('Activity State:', info.activity)
+    console.log('Recent Log History:')
+    info.logHistory.forEach((entry: string) => console.log('  ' + entry))
+    console.groupEnd()
+  }
+}
+
+// Export singleton
+export const statusDebugger = new StatusLifecycleDebugger()
+
+// Make it globally available for console testing
+if (typeof window !== 'undefined') {
+  ;(window as any).statusDebugger = statusDebugger
+  ;(window as any).testStatus = (status: string) => {
+    const statusEnum = UserStatus[status as keyof typeof UserStatus]
+    if (statusEnum !== undefined) {
+      statusDebugger.testManualStatusChange(statusEnum)
+    } else {
+      console.log('Available statuses:', Object.keys(UserStatus).filter(k => isNaN(Number(k))))
+    }
+  }
+  ;(window as any).showStatusDebug = () => statusDebugger.showDebugPanel()
+  ;(window as any).simulateInactivity = (minutes: number) => statusDebugger.simulateInactivity(minutes)
+}
