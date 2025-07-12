@@ -300,7 +300,7 @@ const filteredUsers = computed(() => {
   });
 });
 
-// Group users by status using clean status store
+// Group users by status using professional presence store
 const groupedUsers = computed(() => {
   const groups = {
     online: [] as User[],
@@ -310,15 +310,15 @@ const groupedUsers = computed(() => {
   };
   
   filteredUsers.value.forEach(user => {
-    const status = getUserStatus(user.id).value;
+    const presence = getUserPresence(user.id).value;
     
-    if (!status) {
-      // If no status available, treat as offline
+    if (!presence) {
+      // If no presence available, treat as offline
       groups.offline.push(user);
       return;
     }
     
-    switch (status.status) {
+    switch (presence.status) {
       case UserStatus.Online:
         groups.online.push(user);
         break;
@@ -390,8 +390,9 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     const userIds = await getUserIdsForServer(serverId);
     await serverUsersStore.fetchUserProfiles(userIds);
     
-    // Subscribe to real-time presence for server users  
-    await subscribeToServer(serverId, userIds);
+    // Note: Presence subscription is now handled centrally in UnifiedView
+    // This prevents duplicate subscriptions and conflicts
+    console.log(`📋 Loaded ${userIds.length} user profiles for server:`, serverId);
   }
 };
 
@@ -406,21 +407,12 @@ const showUserProfile = (user: User) => {
   showProfileModal.value = true;
 };
 
-// Clean status getter for avatars - no side effects
+// Professional presence status getter for avatars - no side effects
 const getStatusForAvatarValue = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
-  const status = getStatusForAvatar(userId).value;
+  const avatarStatus = getStatusForAvatar(userId).value;
   
-  switch (status) {
-    case UserStatus.Online:
-      return 'online';
-    case UserStatus.Away:
-      return 'away';
-    case UserStatus.Busy:
-      return 'busy';
-    case UserStatus.Offline:
-    default:
-      return 'offline';
-  }
+  // getStatusForAvatar already returns the correct string format
+  return avatarStatus as 'online' | 'away' | 'busy' | 'offline';
 };
 
 const closeProfile = () => {

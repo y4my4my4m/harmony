@@ -14,7 +14,8 @@
 
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { UserStatus } from '@/types'
-import { professionalPresenceService, type UserPresence } from '@/services/professionalPresenceService'
+import { professionalPresenceService } from '@/services/professionalPresenceService'
+import type { UserPresence } from '@/services/professionalPresenceService'
 
 export function useProfessionalPresence() {
   // Reactive state
@@ -92,7 +93,11 @@ export function useProfessionalPresence() {
    */
   const getUserPresence = (userId: string) => computed(() => {
     updateCounter.value // Force reactivity
-    return professionalPresenceService.getUserPresence(userId)
+    const presence = professionalPresenceService.getUserPresence(userId)
+    if (userId === professionalPresenceService.getCurrentUserId()) {
+      console.log('🔍 getUserPresence for current user:', userId, presence ? UserStatus[presence.status] : 'No presence')
+    }
+    return presence
   })
 
   /**
@@ -100,7 +105,9 @@ export function useProfessionalPresence() {
    */
   const getCurrentUserStatus = computed(() => {
     updateCounter.value // Force reactivity
-    return professionalPresenceService.getCurrentUserStatus()
+    const status = professionalPresenceService.getCurrentUserStatus()
+    console.log('🔍 getCurrentUserStatus called, returning:', UserStatus[status])
+    return status
   })
 
   /**

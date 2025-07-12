@@ -121,6 +121,9 @@ class ProfessionalPresenceService {
     // Load the user's current status from database
     await this.loadCurrentUserStatus(userId)
     
+    // **CRITICAL**: Initialize current user's presence FIRST
+    await this.initializeCurrentUserPresence(userId, username, avatar)
+    
     // Load all contextually relevant users immediately (Discord approach)
     await this.loadContextualUsers(userId)
     
@@ -262,29 +265,44 @@ class ProfessionalPresenceService {
     this.currentUserStatus = newStatus
 
     try {
-      // Update in database
+      // Update in database first
       await this.updateStatusInDatabase(this.currentUserId, newStatus, customText)
 
-      // Update local presence
-      const currentPresence = this.presenceMap.get(this.currentUserId)
-      if (currentPresence) {
-        const updatedPresence: UserPresence = {
-          ...currentPresence,
-          status: newStatus,
-          isOnline: newStatus !== UserStatus.Offline,
+      // Get current presence or create if it doesn't exist
+      let currentPresence = this.presenceMap.get(this.currentUserId)
+      if (!currentPresence) {
+        console.log('⚠️ Current user presence not found, creating...')
+        currentPresence = {
+          userId: this.currentUserId,
+          status: UserStatus.Offline,
+          isOnline: false,
           lastSeen: new Date().toISOString(),
-          customStatusText: customText,
+          username: 'Unknown',
+          displayName: 'Unknown',
           lastHeartbeat: new Date().toISOString()
         }
-
-        this.presenceMap.set(this.currentUserId, updatedPresence)
-        this.updateCache(this.currentUserId, updatedPresence)
-        
-        // Broadcast to all active contexts
-        await this.broadcastStatusChange(this.currentUserId, updatedPresence)
       }
 
-      // Emit event
+      // Update presence with new status
+      const updatedPresence: UserPresence = {
+        ...currentPresence,
+        status: newStatus,
+        isOnline: newStatus !== UserStatus.Offline,
+        lastSeen: new Date().toISOString(),
+        customStatusText: customText,
+        lastHeartbeat: new Date().toISOString()
+      }
+
+      // Update in presence map and cache
+      this.presenceMap.set(this.currentUserId, updatedPresence)
+      this.updateCache(this.currentUserId, updatedPresence)
+      
+      console.log('✅ Updated presence in map:', updatedPresence)
+      
+      // Broadcast to all active contexts
+      await this.broadcastStatusChange(this.currentUserId, updatedPresence)
+
+      // Emit event for reactivity
       this.emitEvent('status-changed', {
         userId: this.currentUserId,
         status: newStatus,
@@ -306,6 +324,12 @@ class ProfessionalPresenceService {
    * Get current user's status
    */
   getCurrentUserStatus(): UserStatus {
+    if (this.currentUserId) {
+      const presence = this.presenceMap.get(this.currentUserId)
+      if (presence) {
+        return presence.status
+      }
+    }
     return this.currentUserStatus
   }
 
@@ -449,6 +473,58 @@ class ProfessionalPresenceService {
     } catch (error) {
       console.error('❌ Failed to load current user status:', error)
       this.currentUserStatus = UserStatus.Online
+    }
+  }
+
+  private async initializeCurrentUserPresence(userId: string, username: string, avatar?: string): Promise<void> {
+    console.log('🔄 Initializing current user presence in presence map')
+    
+    try {
+      // Get full profile data for current user
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url, bio, color, status, verified, updated_at')
+        .eq('id', userId)
+        .single()
+
+      // Create comprehensive presence object for current user
+      const currentUserPresence: UserPresence = {
+        userId,
+        status: this.currentUserStatus,
+        isOnline: true, // Current user is always online when logged in
+        lastSeen: new Date().toISOString(),
+        username: profile?.username || username || 'Unknown',
+        displayName: profile?.display_name || profile?.username || username || 'Unknown',
+        avatarUrl: profile?.avatar_url || avatar,
+        bio: profile?.bio,
+        color: profile?.color,
+        verified: profile?.verified || false,
+        lastHeartbeat: new Date().toISOString()
+      }
+
+      // Add to presence map
+      this.presenceMap.set(userId, currentUserPresence)
+      this.updateCache(userId, currentUserPresence)
+      
+      console.log('✅ Current user presence initialized:', currentUserPresence)
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize current user presence:', error)
+      
+      // Fallback: create basic presence object
+      const fallbackPresence: UserPresence = {
+        userId,
+        status: this.currentUserStatus,
+        isOnline: true,
+        lastSeen: new Date().toISOString(),
+        username: username || 'Unknown',
+        displayName: username || 'Unknown',
+        avatarUrl: avatar,
+        lastHeartbeat: new Date().toISOString()
+      }
+      
+      this.presenceMap.set(userId, fallbackPresence)
+      this.updateCache(userId, fallbackPresence)
     }
   }
 
@@ -869,9 +945,22 @@ class ProfessionalPresenceService {
       timestamp: new Date().toISOString()
     }
     
-    // Broadcast to all active contexts
-    const broadcastPromises = Array.from(this.activeContexts.values()).map(context => {
+    // Broadcast to all active contexts and update presence tracking
+    const broadcastPromises = Array.from(this.activeContexts.values()).map(async context => {
       if (context.userIds.has(userId)) {
+        // Update presence tracking in this context
+        await context.channel.track({
+          user_id: userId,
+          status: presence.status,
+          username: presence.username,
+          display_name: presence.displayName,
+          avatar_url: presence.avatarUrl,
+          online_at: new Date().toISOString(),
+          context_id: context.id,
+          context_type: context.type
+        })
+        
+        // Also send broadcast
         return context.channel.send({
           type: 'broadcast',
           event: 'status_change',
