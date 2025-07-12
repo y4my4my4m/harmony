@@ -93,7 +93,7 @@
             <span class="stat-label">Member Since</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">{{ getUserStatusText(userStatus) }}</span>
+            <span class="stat-value">{{ userStatusText }}</span>
             <span class="stat-label">Status</span>
           </div>
           
@@ -302,7 +302,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'  
-import { useUserStatus } from '@/composables/useUserStatus'
+import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import type { User, FederatedUser } from '../types'
@@ -320,8 +320,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
-// Use global status system
-const { getUserStatusForAvatar, getUserStatusText } = useUserStatus()
+// Use clean status system
+const { getStatusForAvatar, getStatusText } = useCleanUserStatus()
 
 // Reactive state
 const showActionsMenu = ref(false)
@@ -372,9 +372,14 @@ const socialStats = computed(() => {
 
 const userStatus = computed(() => {
   if (!props.user) return 'offline'
-  // Use global status system
-  const status = getUserStatusForAvatar(props.user.id).value
+  // Use clean status system
+  const status = getStatusForAvatar(props.user.id).value
   return status || 'offline'
+})
+
+const userStatusText = computed(() => {
+  if (!props.user) return 'Offline'
+  return getStatusText(props.user.id).value
 })
 
 // Methods

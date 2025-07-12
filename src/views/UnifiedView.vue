@@ -1277,54 +1277,69 @@ onMounted(async () => {
     isAppInitialized.value = true;
     hasServersLoaded.value = true;
     
-    // Initialize global user status system
+    // Initialize clean user status system
     const userProfile = profileStore.profile || serverUsersStore.userProfiles[userId];
     const username = userProfile?.display_name || userProfile?.username || 
                     authStore.session?.user?.user_metadata?.username || 'Unknown User';
     const avatar = userProfile?.avatar_url;
     
-    // Initialize the global presence system
+    // Initialize the clean status store
+    let statusStoreInitialized = false;
+    
     try {
-      const { initializeUserStatus } = await import('@/composables/useUserStatus');
-      await initializeUserStatus(userId, username, avatar);
-      console.log('✅ Global user status system initialized');
+      const { useCleanUserStatus } = await import('@/composables/useCleanUserStatus');
+      const { initializeStatus } = useCleanUserStatus();
+      await initializeStatus(userId);
+      console.log('✅ Clean user status system initialized');
+      statusStoreInitialized = true;
       
-      // Initialize unified app presence management
-      await unifiedAppService.initializePresence(userId, username, avatar);
+    } catch (error) {
+      console.error('Failed to initialize clean user status system:', error);
+      statusStoreInitialized = false;
+    }
+    
+    // Initialize additional presence features (but don't fail if these don't work)
+    if (statusStoreInitialized) {
+      try {
+        // Initialize unified app presence management
+        await unifiedAppService.initializePresence(userId, username, avatar);
+        console.log('✅ Unified app presence management initialized');
+      } catch (error) {
+        console.error('Failed to initialize unified app presence management:', error);
+        // Don't clean up global presence just because this failed
+      }
       
-      // Initialize view context integration for presence
-      const contextInfo = {
-        type: currentServer.value?.id ? 'server' as const : 'unknown' as const,
-        serverId: currentServer.value?.id,
-        channelId: undefined,
-        conversationId: undefined
-      };
-      
-      const { presenceContextManager } = await import('@/services/presenceContextManager');
-      await presenceContextManager.updateContext(contextInfo);
-      
-      viewContextTracker.updateContext({
-        server_id: currentServer.value?.id,
-        channel_id: undefined,
-        conversation_id: undefined,
-        view_type: currentServer.value?.id ? 'server_channel' : 'home'
-      });
+      try {
+        // Initialize view context integration for presence
+        const contextInfo = {
+          type: currentServer.value?.id ? 'server' as const : 'unknown' as const,
+          serverId: currentServer.value?.id,
+          channelId: undefined,
+          conversationId: undefined
+        };
+        
+        const { presenceContextManager } = await import('@/services/presenceContextManager');
+        await presenceContextManager.updateContext(contextInfo);
+        
+        viewContextTracker.updateContext({
+          server_id: currentServer.value?.id,
+          channel_id: undefined,
+          conversation_id: undefined,
+          view_type: currentServer.value?.id ? 'server_channel' : 'home'
+        });
+        
+        console.log('✅ Presence context integration initialized');
+      } catch (error) {
+        console.error('Failed to initialize presence context integration:', error);
+        // Don't clean up global presence just because this failed
+      }
       
       console.log('✅ Global presence system fully initialized, skipping old system');
       
-    } catch (error) {
-      console.error('Failed to initialize user status system:', error);
+    } else {
       console.log('🔄 Falling back to old server-specific presence system...');
       
-      // COMPLETELY DISABLE GLOBAL SYSTEM ON FALLBACK
-      try {
-        const { cleanupUserStatus } = await import('@/composables/useUserStatus');
-        await cleanupUserStatus();
-      } catch (cleanupError) {
-        console.error('Failed to cleanup global system:', cleanupError);
-      }
-      
-      // Fallback to old system if global system fails
+      // Fallback to old system if global system fails to initialize
       if (userProfile && currentServer.value?.id) {
         serverUsersStore.initializePresence(
           currentServer.value.id, 

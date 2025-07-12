@@ -5,7 +5,7 @@
     <Avatar 
       :src="profile?.avatar_url"
       size="md"
-      :status="getUserStatusForAvatar(authStore.session?.user?.id || '').value"
+      :status="getStatusForAvatar(authStore.session?.user?.id || '').value"
     />
     <div class="user-info">
       <p class="user-name">{{ profile?.display_name }}</p>
@@ -72,7 +72,7 @@ import { updateUserStatus } from '@/services/profileService'
 import { useRouter } from 'vue-router'
 import type { User } from '@/types'
 import { UserStatus } from '@/types'
-import { useUserStatus } from '@/composables/useUserStatus'
+import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
 import MicIcon from '@/components/icons/Mic.vue'
 import MicMutedIcon from '@/components/icons/MicMuted.vue'
 import HeadphonesIcon from '@/components/icons/Headphones.vue'
@@ -89,22 +89,38 @@ const showStatusDropdown = ref(false)
 const selectedStatus = ref(UserStatus.Offline)
 const targetRef = ref<HTMLElement | null>(null)
 
-// Use global status system
+// Use clean status system - no conflicts, no dual systems
 const { 
   getCurrentUserStatus, 
-  setCurrentUserStatus, 
-  getUserStatusForAvatar 
-} = useUserStatus()
+  updateCurrentUserStatus, 
+  getStatusForAvatar 
+} = useCleanUserStatus()
 
-// Make status reactive to global status system
+// Make status reactive to clean status system
 const currentStatus = computed(() => {
   try {
-    const status = getCurrentUserStatus().value
-    console.log('UserProfileComponent - Current status from global service:', UserStatus[status])
-    return status || UserStatus.Offline
+    const globalStatus = getCurrentUserStatus.value
+    
+    // If global status is available, use it
+    if (globalStatus !== undefined && globalStatus !== null) {
+      console.log('UserProfileComponent - Using global status:', UserStatus[globalStatus.status])
+      return globalStatus.status
+    }
+    
+    // Fall back to profile status
+    if (profile.value?.status !== undefined && profile.value.status !== null) {
+      console.log('UserProfileComponent - Using profile status:', UserStatus[profile.value.status])
+      return profile.value.status
+    }
+    
+    // Fall back to selected status
+    console.log('UserProfileComponent - Using selected status fallback:', UserStatus[selectedStatus.value])
+    return selectedStatus.value || UserStatus.Offline
+    
   } catch (error) {
     console.error('Error getting current user status:', error)
-    return selectedStatus.value || UserStatus.Offline
+    // Return profile status or selected status as fallback
+    return profile.value?.status || selectedStatus.value || UserStatus.Offline
   }
 })
 
@@ -188,18 +204,30 @@ const selectStatus = async (status: UserStatus) => {
     // Update the selected status first
     selectedStatus.value = status
     
-    // Try to update via global presence service
-    await setCurrentUserStatus(status)
+    // Check if global presence service is available and properly initialized
+    const { globalPresenceService } = await import('@/services/globalPresenceService')
+    const debugInfo = globalPresenceService.getDebugInfo()
+    console.log('🔍 Global presence service debug info:', debugInfo)
     
-    // Update the profile status locally if successful
-    if (profile.value) {
-      profile.value.status = status
-    }
+    // Note: Status initialization is now handled centrally in UnifiedView.vue
+    // No need for component-level re-initialization
+    
+    // Try to update via clean status system
+    await updateCurrentUserStatus(status)
+    
+    // The status store will handle all necessary updates
+    console.log('✅ Status updated via clean status system')
     
     // Check if the status was actually updated
-    const newStatus = getCurrentUserStatus().value
+    const newStatus = getCurrentUserStatus.value
     console.log('✅ Status successfully changed to:', UserStatus[status])
-    console.log('✅ Verified new status from global service:', UserStatus[newStatus])
+    console.log('✅ Verified new status from global service:', newStatus ? UserStatus[newStatus.status] : 'No status available')
+    
+    // Force update the reactive presence if it didn't update automatically
+    if (!newStatus || newStatus.status !== status) {
+      console.log('⚠️ Status mismatch detected, forcing presence update...')
+      globalPresenceService.forceUpdateCurrentUserPresence()
+    }
     
   } catch (error) {
     console.error('❌ Failed to change status:', error)

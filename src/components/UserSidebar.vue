@@ -87,7 +87,7 @@
               :src="user.avatar_url"
               :alt="user.display_name || 'Unknown User'"
               size="sm"
-              :status="getStatusForAvatar(user.id)"
+              :status="getStatusForAvatarValue(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
@@ -120,7 +120,7 @@
               :src="user.avatar_url"
               :alt="user.display_name || 'Unknown User'"
               size="sm"
-              :status="getStatusForAvatar(user.id)"
+              :status="getStatusForAvatarValue(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
@@ -153,7 +153,7 @@
               :src="user.avatar_url"
               :alt="user.display_name || 'Unknown User'"
               size="sm"
-              :status="getStatusForAvatar(user.id)"
+              :status="getStatusForAvatarValue(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
@@ -186,7 +186,7 @@
               :src="user.avatar_url"
               :alt="user.display_name || 'Unknown User'"
               size="sm"
-              :status="getStatusForAvatar(user.id)"
+              :status="getStatusForAvatarValue(user.id)"
               class="user-avatar"
             />
             <div class="user-info">
@@ -216,7 +216,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from './InviteModal.vue';
@@ -225,13 +225,13 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
-import { useUserStatus } from '@/composables/useUserStatus';
+import { useCleanUserStatus } from '@/composables/useCleanUserStatus';
 
 const serverChannelStore = useServerChannelStore();
 const serverUsersStore = useServerUsersStore();
 
-// Use the regular useUserStatus instead of context-aware for now
-const { getUserStatusEnum, getUserStatusForAvatar } = useUserStatus();
+// Use clean status system - no corruption, no watchers, no hacks
+const { getStatusForAvatar, getUserStatus, initializeServerUsers } = useCleanUserStatus();
 
 // Component state
 const selectedUser = ref<User | null>(null);
@@ -250,15 +250,12 @@ const collapsedGroups = ref({
   offline: true // Start with offline collapsed
 });
 
-// Computed properties
-// Make users reactive to store changes
+// Clean user data - never corrupted by status system
 const users = computed(() => {
   const serverId = serverChannelStore.currentServerId;
-  console.log('UserSidebar - Current server ID:', serverId);
   if (!serverId) return [];
   
   const profiles = Object.values(serverUsersStore.userProfiles);
-  console.log('UserSidebar - User profiles:', profiles.length, profiles);
   return profiles.filter(user => user && user.id);
 });
 
@@ -275,7 +272,7 @@ const filteredUsers = computed(() => {
   );
 });
 
-// Group users by status using global status system
+// Group users by status using clean status store
 const groupedUsers = computed(() => {
   const groups = {
     online: [] as User[],
@@ -285,50 +282,21 @@ const groupedUsers = computed(() => {
   };
   
   filteredUsers.value.forEach(user => {
-    try {
-      // Use global status system instead of server-specific status
-      const globalStatus = getUserStatusEnum(user.id).value;
-      console.log('UserSidebar - User', user.display_name, 'global status:', globalStatus);
-      
-      switch (globalStatus) {
-        case UserStatus.Online:
-          groups.online.push(user);
-          break;
-        case UserStatus.Away:
-          groups.away.push(user);
-          break;
-        case UserStatus.Busy:
-          groups.busy.push(user);
-          break;
-        default:
-          groups.offline.push(user);
-          break;
-      }
-    } catch (error) {
-      console.error('UserSidebar - Error getting global status for user', user.id, ':', error);
-      // Fallback to local status or offline
-      const localStatus = user.status;
-      console.log('UserSidebar - User', user.display_name, 'fallback to local status:', localStatus);
-      
-      if (localStatus !== undefined) {
-        switch (localStatus) {
-          case UserStatus.Online:
-            groups.online.push(user);
-            break;
-          case UserStatus.Away:
-            groups.away.push(user);
-            break;
-          case UserStatus.Busy:
-            groups.busy.push(user);
-            break;
-          default:
-            groups.offline.push(user);
-            break;
-        }
-      } else {
-        // No status available, default to offline
+    const status = getUserStatus(user.id).value;
+    
+    switch (status.status) {
+      case UserStatus.Online:
+        groups.online.push(user);
+        break;
+      case UserStatus.Away:
+        groups.away.push(user);
+        break;
+      case UserStatus.Busy:
+        groups.busy.push(user);
+        break;
+      default:
         groups.offline.push(user);
-      }
+        break;
     }
   });
   
@@ -337,7 +305,6 @@ const groupedUsers = computed(() => {
     group.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
   });
   
-  console.log('UserSidebar - Grouped users:', groups);
   return groups;
 });
 
@@ -349,7 +316,6 @@ const currentServerData = computed(() => {
   const serverId = serverChannelStore.currentServerId;
   if (!serverId) return null;
   
-  // Get server data from the server store
   const currentServer = serverChannelStore.currentServer;
   return {
     id: serverId,
@@ -366,13 +332,11 @@ const toggleSidebar = () => {
 
 const toggleServerSettings = () => {
   showServerSettings.value = !showServerSettings.value;
-  // You can emit an event or call a parent method here
   console.log('Server settings toggled:', showServerSettings.value);
 };
 
 const toggleRolesView = () => {
   showRolesView.value = !showRolesView.value;
-  // You can emit an event or call a parent method here
   console.log('Roles view toggled:', showRolesView.value);
 };
 
@@ -387,9 +351,13 @@ const fetchAndSetUsers = async (serverId: string | null) => {
   if (serverId) {
     const userIds = await getUserIdsForServer(serverId);
     await serverUsersStore.fetchUserProfiles(userIds);
+    
+    // Initialize status tracking for server users - clean, no side effects
+    initializeServerUsers(userIds);
   }
 };
 
+// Clean watcher for server changes - no debouncing hacks
 watch(() => serverChannelStore.currentServerId, (newServerId) => {
   fetchAndSetUsers(newServerId);
   selectedUser.value = null; // Close profile when switching servers
@@ -400,31 +368,9 @@ const showUserProfile = (user: User) => {
   showProfileModal.value = true;
 };
 
-const getStatusForAvatar = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
-  try {
-    // First try global status system
-    const status = getUserStatusForAvatar(userId).value;
-    console.log('UserSidebar - Global status for user', userId, ':', status);
-    return status;
-  } catch (error) {
-    console.error('UserSidebar - Error getting global status for user', userId, ':', error);
-    
-    // Fallback to local user status
-    const user = serverUsersStore.userProfiles[userId];
-    if (user?.status !== undefined) {
-      switch (user.status) {
-        case UserStatus.Online:
-          return 'online';
-        case UserStatus.Away:
-          return 'away';
-        case UserStatus.Busy:
-          return 'busy';
-        default:
-          return 'offline';
-      }
-    }
-    return 'offline';
-  }
+// Clean status getter for avatars - no side effects
+const getStatusForAvatarValue = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
+  return getStatusForAvatar(userId).value;
 };
 
 const closeProfile = () => {
@@ -444,7 +390,6 @@ const closeInviteModal = () => {
 // Initialize on mount
 onMounted(() => {
   fetchAndSetUsers(serverChannelStore.currentServerId);
-  // Global status subscription is now handled by useContextUserStatus
 });
 </script>
 

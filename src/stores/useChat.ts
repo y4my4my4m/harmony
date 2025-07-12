@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Message, MessagePart, ChannelCache, CacheMetadata } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
+import { useServerUsersStore } from '@/stores/useServerUsers';
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
@@ -281,6 +282,21 @@ export const useChatStore = defineStore('chat', {
         // Get reactions store instance
         const reactionsStore = useReactionsStore();
         
+        // Extract unique user IDs from messages and pre-load profiles
+        const userIds = new Set<string>();
+        messages.forEach(message => {
+          if (message?.user_id) {
+            userIds.add(message.user_id);
+          }
+        });
+        
+        // Pre-load all user profiles before updating messages
+        // This ensures no "Loading..." appears in message display
+        if (userIds.size > 0) {
+          const serverUsersStore = useServerUsersStore();
+          await serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds));
+        }
+        
         // Fetch reactions for all messages in batch
         const messageIds = messages.map(m => m.id);
         await reactionsStore.fetchMultipleMessageReactions(messageIds);
@@ -292,7 +308,11 @@ export const useChatStore = defineStore('chat', {
           // Initial load - update cache and current messages
           this.messages = reversedMessages;
           this.allMessagesLoaded = allLoaded;
-          this.currentChannelId = channelId;
+          
+          // Only update currentChannelId if it's actually different to prevent recursive loops
+          if (this.currentChannelId !== channelId) {
+            this.currentChannelId = channelId;
+          }
 
           // Update cache
           this.evictOldestCache();

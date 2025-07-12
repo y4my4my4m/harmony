@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 
@@ -91,8 +91,12 @@ const loadMessages = async () => {
     if (serverId && channelId) {
       isLoading.value = true
       try {
+        // Set current channel first to avoid race condition
+        // Only set if it's different to prevent recursive triggers
+        if (serverChannelStore.currentChannelId !== channelId) {
+          serverChannelStore.setCurrentChannel(channelId)
+        }
         await chatStore.fetchMessages(channelId)
-        serverChannelStore.setCurrentChannel(channelId)
       } finally {
         isLoading.value = false
       }
@@ -123,9 +127,10 @@ const handleSendMessage = (message: any) => {
 // Watch for route changes
 watch(() => route.params, loadMessages, { immediate: true })
 
-onMounted(() => {
-  loadMessages()
-})
+// Remove onMounted since the watcher with immediate: true handles initial load
+// onMounted(() => {
+//   loadMessages()
+// })
 </script>
 
 <style scoped>

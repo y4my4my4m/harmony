@@ -73,7 +73,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
-import { useUserStatus } from '@/composables/useUserStatus'
+import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
 import type { DMConversation } from '@/stores/useDM'
 
 // Props
@@ -90,8 +90,8 @@ const emit = defineEmits<{
   'toggle-voice-panel': []
 }>()
 
-// Use global status system
-const { isUserOnline, getUserStatusForAvatar } = useUserStatus()
+// Use clean status system
+const { isUserOnline, getStatusForAvatar } = useCleanUserStatus()
 
 // State
 const showSearchModal = ref(false)
@@ -105,7 +105,7 @@ const isOtherUserOnline = computed(() => {
 
 const otherUserStatus = computed(() => {
   if (!props.conversation.other_user?.id) return 'offline'
-  return getUserStatusForAvatar(props.conversation.other_user.id).value
+  return getStatusForAvatar(props.conversation.other_user.id).value
 })
 
 // Methods

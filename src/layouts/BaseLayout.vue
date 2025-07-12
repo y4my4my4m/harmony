@@ -126,6 +126,16 @@ const initializeApp = async () => {
     // Initialize the user profile 
     await profileStore.fetchProfile(userId)
     
+    // Initialize the clean user status system
+    try {
+      const { useCleanUserStatus } = await import('@/composables/useCleanUserStatus')
+      const { initializeStatus } = useCleanUserStatus()
+      await initializeStatus(userId)
+      console.log('✅ Clean user status system initialized')
+    } catch (error) {
+      console.error('❌ Failed to initialize clean user status system:', error)
+    }
+    
     hasServersLoaded.value = true
     isAppInitialized.value = true
     console.log('✅ App initialization complete')

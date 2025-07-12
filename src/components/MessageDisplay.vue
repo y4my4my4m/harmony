@@ -863,25 +863,19 @@ export default defineComponent({
       const user = serverUsersStore.getUserProfile(userId);
       
       if (!user) {
-        // Trigger async fetch in background without blocking
-        serverUsersStore.fetchUserProfile(userId).catch(error => {
-          console.error("Error fetching user profile for display name:", error);
-        });
-        return 'Loading...';
+        // Return a fallback that doesn't say "Loading..."
+        // The profile should already be loaded by the time messages are rendered
+        return 'Unknown User';
       }
       
-      return user.display_name || 'Unknown User';
+      return user.display_name || user.username || 'Unknown User';
     };
     
     const getUserColor = (userId: string) => {
       const user = serverUsersStore.getUserProfile(userId);
       
       if (!user) {
-        // Trigger async fetch in background without blocking
-        serverUsersStore.fetchUserProfile(userId).catch(error => {
-          console.error("Error fetching user profile for color:", error);
-        });
-        return '#dddddd';
+        return '#dddddd'; // Default color
       }
       
       const profile = user as Profile;
@@ -892,10 +886,6 @@ export default defineComponent({
       const user = serverUsersStore.getUserProfile(userId);
       
       if (!user) {
-        // Trigger async fetch in background without blocking
-        serverUsersStore.fetchUserProfile(userId).catch(error => {
-          console.error("Error fetching user profile for avatar:", error);
-        });
         return '/default_avatar.png';
       }
       
@@ -1149,14 +1139,10 @@ export default defineComponent({
       const user = serverUsersStore.getUserProfile(userId);
       
       if (!user && userId !== 'unknown') {
-        // Trigger async fetch in background without blocking
-        serverUsersStore.fetchUserProfile(userId).catch(error => {
-          console.error("Error fetching reply user profile for display name:", error);
-        });
-        return 'Loading...';
+        return 'Unknown User';
       }
       
-      return user?.display_name || 'Loading...';
+      return user?.display_name || user?.username || 'Unknown User';
     };
 
     const getReplyUserColor = (replyMessageId: string) => {
@@ -1164,10 +1150,6 @@ export default defineComponent({
       const user = serverUsersStore.getUserProfile(userId);
       
       if (!user && userId !== 'unknown') {
-        // Trigger async fetch in background without blocking
-        serverUsersStore.fetchUserProfile(userId).catch(error => {
-          console.error("Error fetching reply user profile for color:", error);
-        });
         return '#dddddd';
       }
       
@@ -1180,10 +1162,6 @@ export default defineComponent({
       const user = serverUsersStore.getUserProfile(userId);
       
       if (!user && userId !== 'unknown') {
-        // Trigger async fetch in background without blocking
-        serverUsersStore.fetchUserProfile(userId).catch(error => {
-          console.error("Error fetching reply user profile for avatar:", error);
-        });
         return '/default_avatar.png';
       }
       

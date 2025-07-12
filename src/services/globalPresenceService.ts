@@ -47,6 +47,7 @@ class GlobalPresenceService {
   private globalPresence = new Map<string, UserPresence>()
   private currentUserStatus: UserStatus = UserStatus.Offline
   private currentUserId: string | null = null
+  private lastStatusChangeTime: number = 0 // Timestamp of last status change
   
   // Real-time subscriptions
   private globalPresenceChannel: RealtimeChannel | null = null
@@ -118,12 +119,27 @@ class GlobalPresenceService {
    */
   async setUserStatus(status: UserStatus): Promise<void> {
     if (!this.currentUserId) {
-      console.warn('Cannot set status: no current user')
-      return
+      console.error('Cannot set status: no current user')
+      console.error('Debug info:', this.getDebugInfo())
+      
+      // Try to recover by checking if we have session data
+      const { useAuthStore } = await import('@/stores/auth')
+      const authStore = useAuthStore()
+      const userId = authStore.session?.user?.id
+      
+      if (userId) {
+        console.log('🔄 Found user ID from auth store, attempting recovery...')
+        this.currentUserId = userId
+        this.forceUpdateCurrentUserPresence()
+      } else {
+        console.error('❌ No user ID available for recovery')
+        throw new Error('No current user available for status update')
+      }
     }
 
     const previousStatus = this.currentUserStatus
     this.currentUserStatus = status
+    this.lastStatusChangeTime = Date.now() // Track when status was changed
 
     try {
       // Update in database
@@ -138,8 +154,12 @@ class GlobalPresenceService {
 
       // Update presence in real-time channels
       if (this.globalPresenceChannel && status !== UserStatus.Offline) {
+        const currentPresence = this.globalPresence.get(this.currentUserId)
         await this.globalPresenceChannel.track({
           user_id: this.currentUserId,
+          username: currentPresence?.username,
+          display_name: currentPresence?.displayName,
+          avatar_url: currentPresence?.avatarUrl,
           status: status,
           online_at: new Date().toISOString()
         })
@@ -443,9 +463,18 @@ class GlobalPresenceService {
 
     console.log('🔄 Online users after sync:', Array.from(onlineUserIds))
 
-    // Mark users not in presence as offline
+    // Mark users not in presence as offline, but don't override current user's explicitly set status
     this.globalPresence.forEach((presence, userId) => {
       if (!onlineUserIds.has(userId) && presence.isOnline) {
+        // Don't mark current user as offline if they just set an online status (within last 5 seconds)
+        if (userId === this.currentUserId && this.currentUserStatus !== UserStatus.Offline) {
+          const timeSinceStatusChange = Date.now() - this.lastStatusChangeTime
+          if (timeSinceStatusChange < 5000) { // 5 seconds grace period
+            console.log('🟡 Skipping offline marking for current user who recently set online status:', userId, 'time since change:', timeSinceStatusChange)
+            return
+          }
+        }
+        
         this.updateUserPresence(userId, {
           isOnline: false,
           status: UserStatus.Offline,
@@ -569,6 +598,44 @@ class GlobalPresenceService {
   private emitEvent<K extends keyof PresenceEvents>(type: K, detail: PresenceEvents[K]): void {
     const event = new CustomEvent(type, { detail })
     this.eventTarget.dispatchEvent(event)
+  }
+
+  /**
+   * Debug method to check initialization status
+   */
+  getDebugInfo(): {
+    isInitialized: boolean;
+    currentUserId: string | null;
+    currentUserStatus: UserStatus;
+    presenceMapSize: number;
+    hasCurrentUserPresence: boolean;
+  } {
+    return {
+      isInitialized: this.isInitialized,
+      currentUserId: this.currentUserId,
+      currentUserStatus: this.currentUserStatus,
+      presenceMapSize: this.globalPresence.size,
+      hasCurrentUserPresence: this.currentUserId ? this.globalPresence.has(this.currentUserId) : false
+    }
+  }
+
+  /**
+   * Debug method to force update current user presence
+   */
+  forceUpdateCurrentUserPresence(): void {
+    if (!this.currentUserId) {
+      console.warn('Cannot force update: no current user')
+      return
+    }
+
+    console.log('🔄 Force updating current user presence...')
+    this.updateUserPresence(this.currentUserId, {
+      status: this.currentUserStatus,
+      isOnline: this.currentUserStatus !== UserStatus.Offline,
+      lastSeen: new Date().toISOString()
+    })
+    
+    console.log('✅ Current user presence force updated')
   }
 }
 
