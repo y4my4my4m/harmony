@@ -549,6 +549,9 @@
     <path v-if="name === 'pencil'" d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>
     <path v-if="name === 'pencil'" d="m15 5 4 4"/>
 
+    <!-- Thread -->
+    <path v-if="name === 'thread'" d="M17 13.44 4.442 17.082A2 2 0 0 0 4.982 21H19a2 2 0 0 0 .558-3.921l-1.115-.32A2 2 0 0 1 17 14.837V7.66"/>
+    <path v-if="name === 'thread'" d="m7 10.56 12.558-3.642A2 2 0 0 0 19.018 3H5a2 2 0 0 0-.558 3.921l1.115.32A2 2 0 0 1 7 9.163v7.178"/>
     <!-- Repeat (Repost/Retweet) -->
     <polyline v-if="name === 'repeat'" points="17 1 21 5 17 9"></polyline>
     <path v-if="name === 'repeat'" d="M3 11V9a4 4 0 0 1 4-4h14"></path>

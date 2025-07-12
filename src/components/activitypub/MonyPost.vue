@@ -56,7 +56,7 @@
             @click="showReplyTarget"
             title="View full conversation"
           >
-            <Icon name="message-square" class="btn-icon" />
+            <Icon name="thread" :size="16" />
             <span>Show thread</span>
           </button>
         </div>
