@@ -73,11 +73,12 @@ export const useDMStore = defineStore('dm', () => {
     })
   })
 
-  // Check if user is online using global status system
+  // Check if user is online using modern user data system
   const isUserOnline = async (userId: string): Promise<boolean> => {
     try {
-      const { globalPresenceService } = await import('@/services/globalPresenceService')
-      return globalPresenceService.isUserOnline(userId)
+      const { userDataService } = await import('@/services/userDataService')
+      const userData = userDataService.getUser(userId)
+      return userData?.isOnline || false
     } catch (error) {
       console.error('Failed to check user online status:', error)
       // Fallback to searching in cached user data

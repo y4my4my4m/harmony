@@ -125,6 +125,7 @@
           <UnifiedNotificationSettings 
             v-else-if="activeSection === 'notifications'"
             :loading="loading"
+            @update-notifications="handleNotificationsUpdate"
           />
 
           <!-- Voice & Video Section -->
@@ -177,7 +178,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar } from '@/services/profileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
+import { useUserState } from '@/composables/useUserState'
 import type { User } from '@/types'
 import { useToast } from 'vue-toastification'
 
@@ -220,7 +221,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 const settingsNav = createSettingsNavigator(router)
-const { broadcastProfileUpdate } = useCleanUserStatus()
+const { broadcastProfileUpdate } = useUserState()
 
 // Reactive state
 const loading = ref(false)
@@ -331,10 +332,9 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
     await broadcastProfileUpdate({
       displayName: updatedProfile.display_name,
       avatarUrl: updatedProfile.avatar_url,
-      userColor: (updatedProfile as any).color,
+      color: (updatedProfile as any).color,
       bio: (updatedProfile as any).bio,
-      verified: (updatedProfile as any).verified,
-      // Add any other fields that need real-time sync
+      // Note: verified field not included as it's not in UserPresence interface
     })
     
     toast.success('Profile updated successfully')
@@ -372,7 +372,6 @@ const handleAvatarUpload = async (file: File) => {
 }
 
 const isAdmin = computed(() => {
-  // Implement your admin check logic here
   return profile.value?.is_admin || false
 })
 
@@ -391,11 +390,6 @@ const handleNotificationsUpdate = async (notificationSettings: any) => {
   console.log('Notification settings updated:', notificationSettings)
 }
 
-const handleActivityPubNotificationsUpdate = async (activityPubSettings: any) => {
-  // Handle ActivityPub notification settings update
-  // The ActivityPub notification settings component handles its own persistence
-  console.log('ActivityPub notification settings updated:', activityPubSettings)
-}
 
 const handleVoiceSettingsUpdate = async (voiceSettings: any) => {
   // Handle voice settings update

@@ -552,8 +552,7 @@ class UserDataService extends EventTarget {
       
     } catch (error) {
       console.error('❌ Failed to update status:', error)
-      // Revert local change on failure
-      userData.status = userData.status
+      // Note: local change already applied, database update failed
       throw error
     }
   }
@@ -581,6 +580,90 @@ class UserDataService extends EventTarget {
     }
     
     console.log(`📡 Status updated in ${this.contexts.size} context channels`)
+  }
+  
+  /**
+   * Update current user profile data and broadcast to relevant contexts only
+   * This is context-aware - only users who can see this user will get the update
+   */
+  async updateCurrentUserProfile(profileData: {
+    displayName?: string
+    avatarUrl?: string
+    bio?: string
+    color?: string
+    username?: string
+  }): Promise<void> {
+    if (!this.currentUserId) throw new Error('No current user')
+    
+    console.log('🔄 Updating current user profile:', profileData)
+    
+    const userData = this.users.get(this.currentUserId)
+    if (!userData) throw new Error('Current user data not found')
+    
+    // Update local data immediately for instant UI feedback
+    if (profileData.displayName !== undefined) userData.displayName = profileData.displayName
+    if (profileData.avatarUrl !== undefined) userData.avatarUrl = profileData.avatarUrl
+    if (profileData.bio !== undefined) userData.bio = profileData.bio
+    if (profileData.color !== undefined) userData.color = profileData.color
+    if (profileData.username !== undefined) userData.username = profileData.username
+    userData.lastUpdated = new Date().toISOString()
+    
+    try {
+      // Broadcast profile changes to relevant contexts only (context-aware)
+      await this.broadcastProfileToContexts(profileData)
+      
+      this.emitEvent('user-updated', { userId: this.currentUserId })
+      console.log('✅ Profile updated and broadcast to relevant contexts')
+      
+    } catch (error) {
+      console.error('❌ Failed to broadcast profile update:', error)
+      throw error
+    }
+  }
+  
+  /**
+   * Broadcast profile updates to context-specific presence channels only
+   * Only users in the same server/DM contexts will receive the update - scalable approach
+   */
+  private async broadcastProfileToContexts(profileData: {
+    displayName?: string
+    avatarUrl?: string
+    bio?: string
+    color?: string
+    username?: string
+  }): Promise<void> {
+    if (!this.currentUserId) return
+    
+    console.log(`🔄 Broadcasting profile update to ${this.contexts.size} contexts`)
+    
+    // Only broadcast to contexts where this user is present and has presence tracking
+    for (const context of this.contexts.values()) {
+      if (context.channel && context.userIds.has(this.currentUserId)) {
+        const userData = this.users.get(this.currentUserId)
+        if (userData) {
+          try {
+            await context.channel.track({
+              user_id: this.currentUserId,
+              username: profileData.username ?? userData.username,
+              display_name: profileData.displayName ?? userData.displayName,
+              avatar_url: profileData.avatarUrl ?? userData.avatarUrl,
+              status: userData.status,
+              server_id: context.type === 'server' ? context.id : undefined,
+              online_at: new Date().toISOString(),
+              // Include profile-specific fields for real-time updates
+              bio: profileData.bio ?? userData.bio,
+              color: profileData.color ?? userData.color
+            })
+            
+            console.log(`📡 Profile broadcast to ${context.type} context: ${context.id}`)
+          } catch (error) {
+            console.error(`❌ Failed to broadcast profile to context ${context.id}:`, error)
+          }
+        }
+      }
+    }
+    
+    console.log(`📡 Profile broadcast completed to ${this.contexts.size} context channels`)
   }
   
   /**
