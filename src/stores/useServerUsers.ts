@@ -308,16 +308,24 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
       this.userProfiles = profiles.reduce((acc, profile) => {
         if (profile) {
-          acc[profile.id] = { 
+          const userProfile = { 
             ...profile,
             status: convertToStatusEnum(profile.status as number)
           };
+          acc[profile.id] = userProfile;
           
           // Also add to cache
-          this.addToProfileCache(acc[profile.id]);
+          this.addToProfileCache(userProfile);
         }
         return acc;
       }, {} as Record<string, User>);
+      
+      // IMPORTANT: Ensure userDataService also has this user data for reactive access
+      try {
+        await userDataService.ensureUsersLoaded(userIds);
+      } catch (error) {
+        console.warn('Failed to load user data into userDataService:', error);
+      }
     },
 
     async setStatus(userId: string, status: UserStatus) {

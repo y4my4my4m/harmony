@@ -612,6 +612,13 @@ class UserDataService extends EventTarget {
   }
   
   /**
+   * Public method to ensure user data is loaded (for external stores)
+   */
+  async ensureUsersLoaded(userIds: string[]): Promise<void> {
+    await this.loadUsersData(userIds)
+  }
+
+  /**
    * Check if user data is stale and needs refresh
    */
   private isUserDataStale(userId: string): boolean {

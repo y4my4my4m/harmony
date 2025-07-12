@@ -542,6 +542,22 @@ export const useDMStore = defineStore('dm', () => {
 
       if (!messagesData) return
 
+      // Extract unique user IDs from messages and pre-load profiles
+      // This ensures user data is available for UI components (same as chat system)
+      const userIds = new Set<string>();
+      messagesData.forEach(message => {
+        if (message?.user_id) {
+          userIds.add(message.user_id);
+        }
+      });
+
+      // Pre-load all user profiles before updating messages
+      // This ensures no "Loading..." or "Unknown User" appears in DM display
+      if (userIds.size > 0) {
+        const serverUsersStore = useServerUsersStore();
+        await serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds));
+      }
+
       // Fetch reactions for messages
       for (const message of messagesData) {
         if (message.reactions && message.reactions.length > 0) {
