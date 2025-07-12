@@ -127,10 +127,10 @@ const initializeApp = async () => {
     // Initialize the user profile 
     await profileStore.fetchProfile(userId)
     
-    // Initialize the professional presence system (replaces old fragmented system)
+    // Initialize the user data system (replaces old fragmented system)
     try {
-      const { useProfessionalPresence } = await import('@/composables/useProfessionalPresence')
-      const presence = useProfessionalPresence()
+      const { useUserData } = await import('@/composables/useUserData')
+      const userData = useUserData()
       
       const userProfile = profileStore.profile || {
         id: userId,
@@ -140,14 +140,14 @@ const initializeApp = async () => {
         status: UserStatus.Online
       }
       
-      await presence.initialize(
+      await userData.initialize(
         userId, 
         userProfile.username || userProfile.display_name || 'Unknown',
         userProfile.avatar_url
       )
-      console.log('✅ Professional presence system initialized')
+      console.log('✅ User data system initialized')
     } catch (error) {
-      console.error('❌ Failed to initialize professional presence system:', error)
+      console.error('❌ Failed to initialize user data system:', error)
     }
     
     hasServersLoaded.value = true
@@ -171,13 +171,12 @@ watch(() => authStore.session, async (newSession, oldSession) => {
   else if (oldSession && !newSession) {
     console.log('👋 User logged out, cleaning up presence and resetting app state')
     
-    // Clean up professional presence service
+    // Clean up user data service
     try {
-      const { useProfessionalPresence } = await import('@/composables/useProfessionalPresence')
-      const presence = useProfessionalPresence()
-      await presence.cleanup()
+      const { userDataService } = await import('@/services/userDataService')
+      await userDataService.cleanup()
     } catch (error) {
-      console.error('Failed to cleanup professional presence:', error)
+      console.error('Failed to cleanup user data:', error)
     }
     
     isAppInitialized.value = false

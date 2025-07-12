@@ -302,7 +302,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'  
-import { useProfessionalPresence } from '@/composables/useProfessionalPresence'
+import { useUserData } from '@/composables/useUserData'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import type { User, FederatedUser } from '../types'
@@ -321,7 +321,7 @@ const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
 // Use professional presence system
-const { getStatusForAvatar, getStatusText } = useProfessionalPresence()
+const { getUserStatusForAvatar, getUserStatusText } = useUserData()
 
 // Reactive state
 const showActionsMenu = ref(false)
@@ -373,13 +373,13 @@ const socialStats = computed(() => {
 const userStatus = computed(() => {
   if (!props.user) return 'offline'
   // Use clean status system
-  const status = getStatusForAvatar(props.user.id).value
+  const status = getUserStatusForAvatar(props.user.id).value
   return status || 'offline'
 })
 
 const userStatusText = computed(() => {
   if (!props.user) return 'Offline'
-  return getStatusText(props.user.id).value
+  return getUserStatusText(props.user.id).value
 })
 
 // Methods

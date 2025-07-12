@@ -1262,8 +1262,8 @@ watch(() => currentServer.value?.id, async (newServerId, oldServerId) => {
   if (!isAppInitialized.value) return;
   
   try {
-    const { useProfessionalPresence } = await import('@/composables/useProfessionalPresence');
-    const { subscribeToServer, unsubscribeFromContext } = useProfessionalPresence();
+    const { useUserData } = await import('@/composables/useUserData');
+    const { subscribeToContext, unsubscribeFromContext } = useUserData();
     
     // Unsubscribe from old server if exists
     if (oldServerId) {
@@ -1280,7 +1280,7 @@ watch(() => currentServer.value?.id, async (newServerId, oldServerId) => {
       
       if (memberIds.length > 0) {
         // Use the professional subscription method that ensures user data is loaded
-        await subscribeToServer(newServerId, memberIds);
+        await subscribeToContext(newServerId, 'server', memberIds);
         console.log(`✅ Professional server presence active: ${currentServer.value?.name} (${memberIds.length} members)`);
       } else {
         console.log(`⚠️ No members found for server: ${newServerId}`);

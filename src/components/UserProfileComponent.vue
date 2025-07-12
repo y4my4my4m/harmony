@@ -72,7 +72,7 @@ import { updateUserStatus } from '@/services/profileService'
 import { useRouter } from 'vue-router'
 import type { User } from '@/types'
 import { UserStatus } from '@/types'
-import { useProfessionalPresence } from '@/composables/useProfessionalPresence'
+import { useUserData } from '@/composables/useUserData'
 import MicIcon from '@/components/icons/Mic.vue'
 import MicMutedIcon from '@/components/icons/MicMuted.vue'
 import HeadphonesIcon from '@/components/icons/Headphones.vue'
@@ -86,45 +86,28 @@ const themeStore = useThemeStore()
 const router = useRouter()
 const profile = ref<User | null>(null)
 const showStatusDropdown = ref(false)
-const selectedStatus = ref(UserStatus.Offline)
 const targetRef = ref<HTMLElement | null>(null)
 
-// Use professional presence system - no conflicts, no dual systems
+// Use new clean user data system - ONE source of truth
 const { 
-  getCurrentUserStatus, 
-  updateCurrentUserStatus, 
-  getStatusForAvatar 
-} = useProfessionalPresence()
+  getCurrentUser,
+  getCurrentUserStatus,
+  getUserStatusForAvatar,
+  updateCurrentUserStatus,
+  getStats
+} = useUserData()
 
-// Make status reactive to professional presence system
+// Get current status reactively from the unified system
 const currentStatus = computed(() => {
   try {
-    const globalStatus = getCurrentUserStatus.value
-    
-    // Always prioritize the professional presence system
-    if (globalStatus !== undefined && globalStatus !== null) {
-      console.log('UserProfileComponent - Using professional presence status:', UserStatus[globalStatus])
-      return globalStatus
-    }
-    
-    // If no professional presence status, check what we last selected
-    if (selectedStatus.value !== undefined && selectedStatus.value !== null) {
-      console.log('UserProfileComponent - Using selected status:', UserStatus[selectedStatus.value])
-      return selectedStatus.value
-    }
-    
-    // Fall back to profile status
-    if (profile.value?.status !== undefined && profile.value.status !== null) {
-      console.log('UserProfileComponent - Using profile status fallback:', UserStatus[profile.value.status])
-      return profile.value.status
-    }
-    
-    console.log('UserProfileComponent - Using offline fallback')
-    return UserStatus.Offline
+    // Always use the unified system as source of truth
+    const unifiedStatus = getCurrentUserStatus.value
+    console.log('UserProfileComponent - Current status from unified system:', UserStatus[unifiedStatus])
+    return unifiedStatus
     
   } catch (error) {
     console.error('Error getting current user status:', error)
-    return selectedStatus.value || profile.value?.status || UserStatus.Offline
+    return profile.value?.status || UserStatus.Offline
   }
 })
 
@@ -205,18 +188,19 @@ const selectStatus = async (status: UserStatus) => {
   console.log('🔄 Current status before change:', UserStatus[currentStatus.value])
   
   try {
-    // Update the selected status first
-    selectedStatus.value = status
-    
-    // Update via professional presence system
+    // Update via unified user data system - clean and simple
     await updateCurrentUserStatus(status)
     
-    console.log('✅ Status updated via professional presence system')
+    console.log('✅ Status updated successfully to:', UserStatus[status])
     
-    // Check if the status was actually updated
+    // Verify the update
     const newStatus = getCurrentUserStatus.value
-    console.log('✅ Status successfully changed to:', UserStatus[status])
-    console.log('✅ Verified new status from professional presence:', newStatus ? UserStatus[newStatus] : 'No status available')
+    console.log('✅ Verified new status from unified system:', UserStatus[newStatus])
+    
+    // Update local profile as backup
+    if (profile.value) {
+      profile.value.status = status
+    }
     
   } catch (error) {
     console.error('❌ Failed to change status:', error)
@@ -233,8 +217,6 @@ const selectStatus = async (status: UserStatus) => {
       }
     } catch (fallbackError) {
       console.error('❌ Legacy status update also failed:', fallbackError)
-      // Revert selectedStatus on failure
-      selectedStatus.value = currentStatus.value
     }
   } finally {
     showStatusDropdown.value = false
@@ -254,9 +236,12 @@ const goToSettings = () => {
 onMounted(async () => {
   if (authStore.session?.user) {
     profile.value = await getProfileWithAvatarUrl(authStore.session.user.id)
-    selectedStatus.value = profile.value?.status || UserStatus.Offline
   }
   document.addEventListener('click', onClickOutside)
+  
+  // Debug: Log unified system stats
+  const stats = getStats.value
+  console.log('🔍 UserData service stats from UserProfileComponent:', stats)
 })
 
 onBeforeUnmount(() => {
