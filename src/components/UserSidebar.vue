@@ -257,7 +257,9 @@ const {
   subscribeToServer,
   getUserDisplayName,
   getUserAvatarUrl, 
-  getUserColor
+  getUserColor,
+  getUsersInContext,
+  getAllUsers
 } = useProfessionalPresence();
 
 // Component state
@@ -277,13 +279,22 @@ const collapsedGroups = ref({
   offline: true // Start with offline collapsed
 });
 
-// Clean user data - never corrupted by status system
+// Professional user data from presence system - always accurate and real-time
 const users = computed(() => {
   const serverId = serverChannelStore.currentServerId;
   if (!serverId) return [];
   
-  const profiles = Object.values(serverUsersStore.userProfiles);
-  return profiles.filter(user => user && user.id);
+  // Get all users in current server context from professional presence system
+  const serverUsers = getUsersInContext(serverId).value;
+  
+  // Convert to User format for compatibility - includes both online and offline users
+  return serverUsers.map(presence => ({
+    id: presence.userId,
+    username: presence.username,
+    display_name: presence.displayName,
+    avatar_url: presence.avatarUrl,
+    status: presence.status
+  }));
 });
 
 // Filter users based on search query
@@ -388,11 +399,11 @@ const toggleGroup = (groupName: string) => {
 const fetchAndSetUsers = async (serverId: string | null) => {
   if (serverId) {
     const userIds = await getUserIdsForServer(serverId);
-    await serverUsersStore.fetchUserProfiles(userIds);
     
-    // Note: Presence subscription is now handled centrally in UnifiedView
-    // This prevents duplicate subscriptions and conflicts
-    console.log(`📋 Loaded ${userIds.length} user profiles for server:`, serverId);
+    // Professional presence system now handles all user loading and presence tracking
+    // via the UnifiedView server watcher - no duplicate loading needed here
+    console.log(`📋 Server user list ready for server: ${serverId} (${userIds.length} members)`);
+    console.log(`🎯 Professional presence system handles all user data loading and real-time updates`);
   }
 };
 

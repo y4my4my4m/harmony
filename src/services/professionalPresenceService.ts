@@ -35,7 +35,6 @@ export interface UserPresence {
   avatarUrl?: string
   bio?: string
   color?: string
-  verified?: boolean
   
   // Context data
   currentActivity?: string
@@ -348,6 +347,34 @@ class ProfessionalPresenceService {
   }
 
   /**
+   * Get all users in a specific context (both online and offline)
+   */
+  getUsersInContext(contextId: string): UserPresence[] {
+    const context = this.activeContexts.get(contextId)
+    if (!context) {
+      return []
+    }
+    
+    const users: UserPresence[] = []
+    context.userIds.forEach(userId => {
+      const presence = this.presenceMap.get(userId)
+      if (presence) {
+        users.push(presence)
+      }
+    })
+    
+    return users.sort((a, b) => a.displayName.localeCompare(b.displayName))
+  }
+
+  /**
+   * Get all users with presence data (for debugging and comprehensive views)
+   */
+  getAllUsers(): UserPresence[] {
+    this.updateStats()
+    return Array.from(this.presenceMap.values()).sort((a, b) => a.displayName.localeCompare(b.displayName))
+  }
+
+  /**
    * Check if user is online
    */
   isUserOnline(userId: string): boolean {
@@ -447,6 +474,48 @@ class ProfessionalPresenceService {
     console.log('✅ Professional presence service cleaned up')
   }
 
+  /**
+   * Subscribe to server presence and ensure all users are loaded
+   */
+  async subscribeToServer(serverId: string, memberIds: string[]): Promise<void> {
+    try {
+      console.log(`🔄 Professional server subscription: ${serverId} (${memberIds.length} members)`)
+      
+      // First, ensure we have user data for all members
+      await this.ensureUserData(memberIds)
+      
+      // Then subscribe to real-time presence for this server context
+      await this.subscribeToContext(serverId, 'server', memberIds, 2)
+      
+      console.log(`✅ Professional server presence ready: ${memberIds.length} users loaded and subscribed`)
+      
+    } catch (error) {
+      console.error('❌ Failed to subscribe to server presence:', error)
+      throw error
+    }
+  }
+  
+  /**
+   * Subscribe to DM presence and ensure all users are loaded
+   */
+  async subscribeToDM(conversationId: string, participantIds: string[]): Promise<void> {
+    try {
+      console.log(`🔄 Professional DM subscription: ${conversationId} (${participantIds.length} participants)`)
+      
+      // First, ensure we have user data for all participants
+      await this.ensureUserData(participantIds)
+      
+      // Then subscribe to real-time presence for this DM context
+      await this.subscribeToContext(conversationId, 'dm', participantIds, 3)
+      
+      console.log(`✅ Professional DM presence ready: ${participantIds.length} users loaded and subscribed`)
+      
+    } catch (error) {
+      console.error('❌ Failed to subscribe to DM presence:', error)
+      throw error
+    }
+  }
+
   // ============================================================================
   // EVENT SYSTEM
   // ============================================================================
@@ -496,7 +565,7 @@ class ProfessionalPresenceService {
       let profile: any = null
       const { data: profileData, error } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, verified, updated_at')
+        .select('id, username, display_name, avatar_url, bio, color, status, updated_at')
         .eq('id', userId)
         .single()
       
@@ -530,7 +599,6 @@ class ProfessionalPresenceService {
         avatarUrl: profile?.avatar_url || avatar,
         bio: profile?.bio,
         color: profile?.color,
-        verified: profile?.verified || false,
         lastHeartbeat: new Date().toISOString()
       }
 
@@ -577,7 +645,7 @@ class ProfessionalPresenceService {
       // Load their profiles from database
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, verified, updated_at')
+        .select('id, username, display_name, avatar_url, bio, color, status, updated_at')
         .in('id', relevantUserIds)
       
       if (profiles) {
@@ -592,7 +660,6 @@ class ProfessionalPresenceService {
             avatarUrl: profile.avatar_url,
             bio: profile.bio,
             color: profile.color,
-            verified: profile.verified || false,
             lastHeartbeat: new Date().toISOString()
           }
           
@@ -664,7 +731,7 @@ class ProfessionalPresenceService {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, verified, updated_at')
+        .select('id, username, display_name, avatar_url, bio, color, status, updated_at')
         .in('id', missingUserIds)
       
       if (profiles) {
@@ -679,7 +746,6 @@ class ProfessionalPresenceService {
             avatarUrl: profile.avatar_url,
             bio: profile.bio,
             color: profile.color,
-            verified: profile.verified || false,
             lastHeartbeat: new Date().toISOString()
           }
           

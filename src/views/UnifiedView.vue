@@ -1262,13 +1262,12 @@ watch(() => currentServer.value?.id, async (newServerId, oldServerId) => {
   if (!isAppInitialized.value) return;
   
   try {
-    const { useProfessionalPresence } = await import('@/composables/useProfessionalPresence');
-    const presence = useProfessionalPresence();
+    const { professionalPresenceService } = await import('@/services/professionalPresenceService');
     
     // Unsubscribe from old server if exists
     if (oldServerId) {
       console.log(`🔄 Unsubscribing from old server presence: ${oldServerId}`);
-      await presence.unsubscribeFromContext(oldServerId);
+      await professionalPresenceService.unsubscribeFromContext(oldServerId);
     }
     
     // Subscribe to new server if exists
@@ -1279,8 +1278,9 @@ watch(() => currentServer.value?.id, async (newServerId, oldServerId) => {
       const memberIds = await getUserIdsForServer(newServerId);
       
       if (memberIds.length > 0) {
-        await presence.subscribeToServer(newServerId, memberIds);
-        console.log(`✅ Subscribed to server presence: ${currentServer.value?.name} (${memberIds.length} members)`);
+        // Use the professional subscription method that ensures user data is loaded
+        await professionalPresenceService.subscribeToServer(newServerId, memberIds);
+        console.log(`✅ Professional server presence active: ${currentServer.value?.name} (${memberIds.length} members)`);
       } else {
         console.log(`⚠️ No members found for server: ${newServerId}`);
       }

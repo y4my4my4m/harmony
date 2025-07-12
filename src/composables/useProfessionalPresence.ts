@@ -270,13 +270,7 @@ export function useProfessionalPresence() {
     return presence?.bio || ''
   })
 
-  /**
-   * Check if user is verified
-   */
-  const isUserVerified = (userId: string) => computed(() => {
-    const presence = getUserPresence(userId).value
-    return presence?.verified || false
-  })
+  // Note: Verified status removed as it doesn't exist in current database schema
 
   // ============================================================================
   // CONTEXT MANAGEMENT
@@ -450,6 +444,14 @@ export function useProfessionalPresence() {
     getCurrentUserStatus,
     getCurrentUserId,
     getOnlineUsers,
+    getAllUsers: computed(() => {
+      updateCounter.value // Force reactivity
+      return professionalPresenceService.getAllUsers()
+    }),
+    getUsersInContext: (contextId: string) => computed(() => {
+      updateCounter.value // Force reactivity
+      return professionalPresenceService.getUsersInContext(contextId)
+    }),
     isUserOnline,
 
     // UI helpers
@@ -460,7 +462,6 @@ export function useProfessionalPresence() {
     getUserAvatarUrl,
     getUserColor,
     getUserBio,
-    isUserVerified,
 
     // Context management
     subscribeToServer,
