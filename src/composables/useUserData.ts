@@ -246,6 +246,19 @@ export function useUserData() {
   }
   
   /**
+   * Update current user profile
+   * Broadcasts profile updates to all connected clients for real-time updates
+   */
+  const updateCurrentUserProfile = async (profileData: {
+    displayName?: string
+    avatarUrl?: string
+    color?: string
+    bio?: string
+  }) => {
+    await userDataService.updateCurrentUserProfile(profileData)
+  }
+  
+  /**
    * Force refresh all data
    */
   const refresh = async () => {
@@ -311,6 +324,7 @@ export function useUserData() {
     subscribeToContext,
     unsubscribeFromContext,
     updateCurrentUserStatus,
+    updateCurrentUserProfile,
     
     // Utilities
     toLegacyUser,

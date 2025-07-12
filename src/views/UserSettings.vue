@@ -178,7 +178,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar } from '@/services/profileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
-import { useUserState } from '@/composables/useUserState'
+import { useUserData } from '@/composables/useUserData'
 import type { User } from '@/types'
 import { useToast } from 'vue-toastification'
 
@@ -221,7 +221,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 const settingsNav = createSettingsNavigator(router)
-const { broadcastProfileUpdate } = useUserState()
+const { updateCurrentUserProfile } = useUserData()
 
 // Reactive state
 const loading = ref(false)
@@ -329,7 +329,7 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
     profile.value = { ...profile.value, ...updatedProfile } as User
     
     // Broadcast profile updates to all connected clients for real-time updates
-    await broadcastProfileUpdate({
+    await updateCurrentUserProfile({
       displayName: updatedProfile.display_name,
       avatarUrl: updatedProfile.avatar_url,
       color: (updatedProfile as any).color,
@@ -358,7 +358,7 @@ const handleAvatarUpload = async (file: File) => {
     profile.value = { ...profile.value, avatar_url: normalizedPath } as User
     
     // Broadcast avatar update to all connected clients for real-time updates
-    await broadcastProfileUpdate({
+    await updateCurrentUserProfile({
       avatarUrl: normalizedPath || undefined
     })
     

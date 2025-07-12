@@ -178,7 +178,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
-import { useServerUsersStore } from '@/stores/useServerUsers';
+import { useUserData } from '@/composables/useUserData';
 import UnifiedVoiceOverlay from './UnifiedVoiceOverlay.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
@@ -192,7 +192,7 @@ import Avatar from '@/components/common/Avatar.vue';
 const voiceStore: any = useUnifiedVoiceChannelStore();
 const spatialStore = useSpatialAudioStore();
 const authStore = useAuthStore();
-const serverUsersStore = useServerUsersStore();
+const { getUser } = useUserData();
 
 // =============================================================================
 // STATE
@@ -213,10 +213,16 @@ const currentUserProfile = computed(() => {
   if (!currentUserId.value) {
     return { display_name: 'Unknown', username: 'Unknown', avatar_url: null };
   }
-  return serverUsersStore.userProfiles[currentUserId.value] || { 
-    display_name: 'Unknown', 
-    username: 'Unknown', 
-    avatar_url: null 
+  
+  const user = getUser(currentUserId.value).value
+  if (!user) {
+    return { display_name: 'Unknown', username: 'Unknown', avatar_url: null };
+  }
+  
+  return {
+    display_name: user.displayName,
+    username: user.username,
+    avatar_url: user.avatarUrl
   };
 });
 

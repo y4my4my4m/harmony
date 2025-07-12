@@ -5,7 +5,7 @@
 5. system messages aren't real time
 6. "accepting invitation" is bugged
 7. server discovery is bugged
-
+8. re-instore context based notifications so that you don't get a notification if currently viewing the channel or dm or whatever
 
 
 ---
