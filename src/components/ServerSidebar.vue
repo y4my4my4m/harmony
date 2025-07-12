@@ -125,7 +125,7 @@ export default defineComponent({
     const goToMonyverse = () => {
       activityPubStore.clearUnreadCount();
       emit('switch-to-activitypub');
-      router.push({ name: 'Monyverse' });
+      router.push({ name: 'SocialHome' });
     };
 
     return {

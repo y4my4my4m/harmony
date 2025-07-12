@@ -456,6 +456,8 @@ export type AudioAction =
   | 'voice_disconnect'
   | 'mic_on'
   | 'mic_off'
+  | 'deafen_on'
+  | 'deafen_off'
   | 'camera_on'
   | 'camera_off'
   | 'screenshare_on'

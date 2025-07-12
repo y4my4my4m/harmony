@@ -82,6 +82,8 @@ export class AudioThemeService {
         voice_disconnect: '/assets/sounds/default/voice_disconnect.mp3',
         mic_on: '/assets/sounds/default/mic_on.mp3',
         mic_off: '/assets/sounds/default/mic_off.mp3',
+        deafen_on: '/assets/sounds/default/deafen_on.mp3',
+        deafen_off: '/assets/sounds/default/deafen_off.mp3',
         camera_on: '/assets/sounds/default/camera_on.mp3',
         camera_off: '/assets/sounds/default/camera_off.mp3',
         screenshare_on: '/assets/sounds/default/screenshare_on.mp3',

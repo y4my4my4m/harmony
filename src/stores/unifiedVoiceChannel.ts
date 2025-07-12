@@ -5,6 +5,7 @@ import { spatialAudioService } from '@/services/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
+import { useThemeStore } from '@/stores/useTheme';
 
 // =============================================================================
 // TYPES
@@ -137,7 +138,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const authStore = useAuthStore();
         const serverUsersStore = useServerUsersStore();
         const serverChannelStore = useServerChannelStore();
-        
+        const themeStore = useThemeStore();
+
         if (!authStore.session?.user) {
           throw new Error('User not authenticated');
         }
@@ -196,7 +198,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.isOverlayVisible = false;
         
         // Play join sound
-        this.playSound('voice_connect.mp3');
+        themeStore.testAudio('voice_connect');
         
         return true;
       } catch (error) {
@@ -212,7 +214,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       try {
         const authStore = useAuthStore();
         const serverUsersStore = useServerUsersStore();
-        
+        const themeStore = useThemeStore();
+
         if (!this.currentChannelId || !authStore.session?.user) {
           return true;
         }
@@ -236,8 +239,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.resetState();
         
         // Play leave sound
-        this.playSound('voice_disconnect.mp3');
-        
+        themeStore.testAudio('voice_disconnect');
+
         return true;
       } catch (error) {
         console.error('❌ Failed to leave voice channel:', error);
@@ -249,6 +252,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Toggle video on/off
      */
     async toggleVideo(): Promise<boolean> {
+      const themeStore = useThemeStore();
       const enabled = await unifiedWebRTC.toggleVideo();
       
       // Force sync with WebRTC service state
@@ -257,7 +261,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // Give UI time to update before playing sound
       setTimeout(() => {
-        this.playSound(enabled ? 'camera_on.mp3' : 'camera_off.mp3');
+        themeStore.testAudio(enabled ? 'camera_on' : 'camera_off');
       }, 100);
       
       console.log('📹 Video toggled, local stream updated:', {
@@ -278,6 +282,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     async toggleScreenShare(): Promise<boolean> {
       const enabled = await unifiedWebRTC.toggleScreenShare();
+      const themeStore = useThemeStore();
       
       // Force sync with WebRTC service state
       this.localState = unifiedWebRTC.getLocalState();
@@ -285,7 +290,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // Give UI time to update before playing sound
       setTimeout(() => {
-        this.playSound(enabled ? 'screenshare_on.mp3' : 'screenshare_off.mp3');
+        themeStore.testAudio(enabled ? 'screenshare_on' : 'screenshare_off');
       }, 100);
       
       console.log('📺 Screen share toggled, local stream updated:', {
@@ -305,17 +310,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Toggle mute on/off
      */
     async toggleMute(): Promise<boolean> {
+      const themeStore = useThemeStore();
       // Allow mute/unmute even when not connected (preemptive state)
       if (this.isConnected) {
         const muted = unifiedWebRTC.toggleMute();
         this.localState = unifiedWebRTC.getLocalState();
-        this.playSound(muted ? 'mic_off.mp3' : 'mic_on.mp3');
+        themeStore.testAudio(muted ? 'mic_off' : 'mic_on');
         return muted;
       } else {
         // Toggle local state when not connected
         this.localState.isMuted = !this.localState.isMuted;
         console.log('Setting preemptive mute state:', this.localState.isMuted);
-        this.playSound(this.localState.isMuted ? 'mic_off.mp3' : 'mic_on.mp3');
+        themeStore.testAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
         return this.localState.isMuted;
       }
     },
@@ -324,11 +330,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Toggle deafen on/off
      */
     async toggleDeafen(): Promise<boolean> {
+      const themeStore = useThemeStore();
       // Allow deafen/undeafen even when not connected (preemptive state)
       if (this.isConnected) {
         const deafened = unifiedWebRTC.toggleDeafen();
         this.localState = unifiedWebRTC.getLocalState();
-        this.playSound(deafened ? 'deafen_on.mp3' : 'deafen_off.mp3');
+        themeStore.testAudio(deafened ? 'deafen_on' : 'deafen_off');
         return deafened;
       } else {
         // Toggle local state when not connected
@@ -340,7 +347,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
         
         console.log('Setting preemptive deafen state:', this.localState.isDeafened);
-        this.playSound(this.localState.isDeafened ? 'deafen_on.mp3' : 'deafen_off.mp3');
+        themeStore.testAudio(this.localState.isDeafened ? 'deafen_on' : 'deafen_off');
         return this.localState.isDeafened;
       }
     },
@@ -363,6 +370,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Setup WebRTC event listeners
      */
     setupWebRTCListeners(): void {
+      const themeStore = useThemeStore();
       // Channel events
       unifiedWebRTC.on('channel-joined', (data) => {
         console.log('✅ Channel joined:', data);
@@ -388,8 +396,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         } else {
           this.allUsers[existingIndex] = data.mediaState;
         }
-        
-        this.playSound('voice_connect.mp3');
+
+        themeStore.testAudio('voice_connect');
       });
 
       unifiedWebRTC.on('user-left', (data) => {
@@ -401,8 +409,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         // Remove from spatial audio
         this.removeUserFromSpatialAudio(data.userId);
-        
-        this.playSound('voice_disconnect.mp3');
+
+        themeStore.testAudio('voice_disconnect');
       });
 
       unifiedWebRTC.on('user-state-changed', (data) => {
