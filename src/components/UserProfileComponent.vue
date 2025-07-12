@@ -107,7 +107,7 @@ const currentStatus = computed(() => {
     
   } catch (error) {
     console.error('Error getting current user status:', error)
-    return profile.value?.status || UserStatus.Offline
+    return profile.value?.status ?? UserStatus.Offline
   }
 })
 

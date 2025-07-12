@@ -136,8 +136,8 @@ const initializeApp = async () => {
         id: userId,
         username: authStore.session?.user?.user_metadata?.username || 'Unknown',
         display_name: authStore.session?.user?.user_metadata?.display_name,
-        avatar_url: authStore.session?.user?.user_metadata?.avatar_url,
-        status: UserStatus.Online
+        avatar_url: authStore.session?.user?.user_metadata?.avatar_url
+        // Do NOT set status here - let userDataService load it from database
       }
       
       await userData.initialize(

@@ -138,25 +138,23 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Setup global presence channel for real-time updates
+   * Setup selective global presence channel - only for connectivity, not user tracking
    */
   private async setupGlobalPresence(): Promise<void> {
     if (!this.currentUserId) return
     
-    this.globalChannel = supabase.channel('global-presence')
-      .on('presence', { event: 'sync' }, () => this.handleGlobalSync())
-      .on('presence', { event: 'join' }, ({ key, newPresences }: { key: string; newPresences: any[] }) => this.handleUserJoin(key, newPresences))
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }: { key: string; leftPresences: any[] }) => this.handleUserLeave(key, leftPresences))
+    // Use a lightweight global channel only for current user's connectivity
+    this.globalChannel = supabase.channel(`user-presence:${this.currentUserId}`)
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Global presence channel connected')
+          console.log('✅ Personal presence channel connected')
           await this.trackCurrentUser()
         }
       })
   }
   
   /**
-   * Track current user in global presence
+   * Track current user connectivity (lightweight)
    */
   private async trackCurrentUser(): Promise<void> {
     if (!this.globalChannel || !this.currentUserId) return
@@ -164,65 +162,16 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
+    // Just maintain basic connectivity, detailed presence handled by context channels
     await this.globalChannel.track({
       user_id: this.currentUserId,
-      username: userData.username,
-      display_name: userData.displayName,
-      avatar_url: userData.avatarUrl,
-      status: userData.status,
       online_at: new Date().toISOString()
     })
     
-    console.log('✅ Current user tracked in global presence')
+    console.log('✅ Current user connectivity tracked')
   }
   
-  /**
-   * Handle global presence sync
-   */
-  private handleGlobalSync(): void {
-    if (!this.globalChannel) return
-    
-    const state = this.globalChannel.presenceState()
-    console.log('📡 Global presence sync:', Object.keys(state).length, 'users online')
-    
-    Object.entries(state).forEach(([userId, presences]) => {
-      if (Array.isArray(presences) && presences.length > 0) {
-        const presence = presences[0] as any
-        this.updateUserFromPresence(userId, presence)
-      }
-    })
-    
-    this.emitEvent('presence-sync', { userCount: Object.keys(state).length })
-  }
-  
-  /**
-   * Handle user joining presence
-   */
-  private handleUserJoin(key: string, newPresences: any[]): void {
-    if (newPresences.length > 0) {
-      const presence = newPresences[0]
-      this.updateUserFromPresence(presence.user_id, presence)
-      console.log('👋 User joined:', presence.display_name || presence.username)
-    }
-  }
-  
-  /**
-   * Handle user leaving presence
-   */
-  private handleUserLeave(key: string, leftPresences: any[]): void {
-    if (leftPresences.length > 0) {
-      const presence = leftPresences[0]
-      const userData = this.users.get(presence.user_id)
-      if (userData) {
-        userData.isOnline = false
-        userData.lastSeen = new Date().toISOString()
-        userData.lastUpdated = new Date().toISOString()
-        userData.source = 'presence'
-        this.emitEvent('user-updated', { userId: presence.user_id })
-      }
-      console.log('👋 User left:', presence.display_name || presence.username)
-    }
-  }
+  // Global presence sync handlers removed - we now only track context-specific users
   
   /**
    * Update user data from presence
@@ -476,25 +425,10 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Update status in all presence channels
+   * Update status in context-specific presence channels only
    */
   private async updatePresenceStatus(status: UserStatus): Promise<void> {
-    // Update global presence
-    if (this.globalChannel && this.currentUserId) {
-      const userData = this.users.get(this.currentUserId)
-      if (userData) {
-        await this.globalChannel.track({
-          user_id: this.currentUserId,
-          username: userData.username,
-          display_name: userData.displayName,
-          avatar_url: userData.avatarUrl,
-          status: status,
-          online_at: new Date().toISOString()
-        })
-      }
-    }
-    
-    // Update server presence channels
+    // Only update context-specific presence channels (servers, DMs)
     for (const context of this.contexts.values()) {
       if (context.channel && context.userIds.has(this.currentUserId!)) {
         const userData = this.users.get(this.currentUserId!)
@@ -511,6 +445,8 @@ class UserDataService extends EventTarget {
         }
       }
     }
+    
+    console.log(`📡 Status updated in ${this.contexts.size} context channels`)
   }
   
   /**
