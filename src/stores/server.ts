@@ -103,14 +103,29 @@ export const useServerStore = defineStore('server', {
           throw new Error('Only the server owner can delete the server');
         }
 
-        // Delete the server (this will cascade delete related data due to foreign key constraints)
-        const { error } = await supabase
-          .from('servers')
-          .delete()
-          .eq('id', serverId)
-          .eq('owner', userId); // Double check ownership in the query
+        // Use a transaction to ensure all deletions happen atomically
+        const { error } = await supabase.rpc('delete_server_with_cleanup', {
+          p_server_id: serverId,
+          p_owner_id: userId
+        });
 
-        if (error) throw error;
+        if (error) {
+          // If the RPC function doesn't exist, fall back to the original method
+          if (error.code === '42883') { // function does not exist
+            console.warn('Server cleanup function not found, using fallback deletion');
+            
+            // Delete the server (this will cascade delete related data due to foreign key constraints)
+            const { error: deleteError } = await supabase
+              .from('servers')
+              .delete()
+              .eq('id', serverId)
+              .eq('owner', userId); // Double check ownership in the query
+
+            if (deleteError) throw deleteError;
+          } else {
+            throw error;
+          }
+        }
 
         // Also delete server icon from storage if it exists
         if (server.icon && server.icon !== '/default_server_icon.png') {
@@ -131,7 +146,7 @@ export const useServerStore = defineStore('server', {
         return true;
       } catch (error) {
         console.error('Error deleting server:', error);
-        return false;
+        throw error; // Re-throw to allow proper error handling in the component
       }
     }
   }
