@@ -27,7 +27,8 @@ export function useUserData() {
       { type: 'user-updated', listener: triggerUpdate },
       { type: 'status-changed', listener: triggerUpdate },
       { type: 'presence-sync', listener: triggerUpdate },
-      { type: 'data-refreshed', listener: triggerUpdate }
+      { type: 'data-refreshed', listener: triggerUpdate },
+      { type: 'context-updated', listener: triggerUpdate }
     ]
     
     listeners.forEach(({ type, listener }) => {

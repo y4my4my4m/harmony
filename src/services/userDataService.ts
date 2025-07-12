@@ -80,11 +80,30 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Initialize current user data
+   * Professional status restoration from localStorage backup
+   */
+  private getStatusFromLocalStorage(): UserStatus | null {
+    try {
+      const saved = localStorage.getItem('harmony_user_status')
+      if (saved !== null) {
+        const statusNumber = parseInt(saved, 10)
+        if (!isNaN(statusNumber) && statusNumber >= 0 && statusNumber <= 3) {
+          console.log('📱 Found status backup in localStorage:', UserStatus[statusNumber])
+          return statusNumber as UserStatus
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to read status from localStorage:', error)
+    }
+    return null
+  }
+
+  /**
+   * Initialize current user data (Discord/Slack style)
    */
   private async initializeCurrentUser(userId: string, username: string, avatarUrl?: string): Promise<void> {
     try {
-      // Try to load from database first
+      // Try to load from database first - this is the primary source of truth
       const { data: profile } = await supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio, color, status, domain, updated_at')
@@ -92,6 +111,35 @@ class UserDataService extends EventTarget {
         .single()
       
       if (profile) {
+        // Professional status handling: database is truth, localStorage is backup
+        let finalStatus = UserStatus.Online // default
+        
+        // Primary: Use database status if it exists and is valid
+        if (profile.status !== null && profile.status !== undefined) {
+          finalStatus = profile.status
+          console.log('✅ Status loaded from database:', UserStatus[finalStatus])
+        } else {
+          // Fallback: Try localStorage backup
+          const backupStatus = this.getStatusFromLocalStorage()
+          if (backupStatus !== null) {
+            finalStatus = backupStatus
+            console.log('🔄 Using status from localStorage backup:', UserStatus[finalStatus])
+            
+            // Sync backup to database for consistency
+            try {
+              await supabase
+                .from('profiles')
+                .update({ status: finalStatus })
+                .eq('id', userId)
+              console.log('💾 Synced localStorage status to database')
+            } catch (syncError) {
+              console.warn('⚠️ Failed to sync status to database:', syncError)
+            }
+          } else {
+            console.log('🆕 New user, defaulting to Online status')
+          }
+        }
+        
         const userData: UserData = {
           id: profile.id,
           username: profile.username || username,
@@ -100,7 +148,7 @@ class UserDataService extends EventTarget {
           bio: profile.bio,
           color: profile.color,
           domain: profile.domain || 'har.mony.lol',
-          status: profile.status ?? UserStatus.Online,
+          status: finalStatus,
           isOnline: true,
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
@@ -109,15 +157,18 @@ class UserDataService extends EventTarget {
         }
         
         this.users.set(userId, userData)
-        console.log('✅ Current user initialized from database:', userData.displayName)
+        console.log('✅ Current user initialized:', userData.displayName, 'Final Status:', UserStatus[finalStatus])
       } else {
-        // Create minimal user data
+        // No profile exists - check localStorage backup
+        const backupStatus = this.getStatusFromLocalStorage()
+        const initialStatus = backupStatus ?? UserStatus.Online
+        
         const userData: UserData = {
           id: userId,
           username: username,
           displayName: username,
           avatarUrl: avatarUrl,
-          status: UserStatus.Online,
+          status: initialStatus,
           isOnline: true,
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
@@ -126,7 +177,7 @@ class UserDataService extends EventTarget {
         }
         
         this.users.set(userId, userData)
-        console.log('✅ Current user initialized with minimal data:', username)
+        console.log('✅ Current user initialized with minimal data:', username, 'Status:', UserStatus[initialStatus])
       }
       
       this.emitEvent('user-updated', { userId })
@@ -252,6 +303,19 @@ class UserDataService extends EventTarget {
       .on('presence', { event: 'sync' }, () => this.handleServerSync(serverId))
       .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => this.handleServerUserJoin(serverId, newPresences))
       .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => this.handleServerUserLeave(serverId, leftPresences))
+      // Listen for real-time server membership changes
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'user_servers',
+        filter: `server_id=eq.${serverId}`
+      }, (payload) => this.handleServerMemberJoin(serverId, payload))
+      .on('postgres_changes', {
+        event: 'DELETE', 
+        schema: 'public',
+        table: 'user_servers',
+        filter: `server_id=eq.${serverId}`
+      }, (payload) => this.handleServerMemberLeave(serverId, payload))
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           console.log(`✅ Server presence connected: ${serverId}`)
@@ -332,6 +396,51 @@ class UserDataService extends EventTarget {
       console.log(`👋 User left server ${serverId}:`, presence.display_name || presence.username)
     })
   }
+
+  /**
+   * Handle real-time server membership join
+   */
+  private async handleServerMemberJoin(serverId: string, payload: any): Promise<void> {
+    const newUserId = payload.new.user_id
+    console.log(`👤 New member joined server ${serverId}:`, newUserId)
+    
+    const context = this.contexts.get(serverId)
+    if (context) {
+      // Add user to context
+      context.userIds.add(newUserId)
+      
+      // Load user data
+      await this.loadUsersData([newUserId])
+      
+      // Emit context update
+      this.emitEvent('context-updated', { contextId: serverId, type: 'member-join', userId: newUserId })
+    }
+  }
+
+  /**
+   * Handle real-time server membership leave  
+   */
+  private async handleServerMemberLeave(serverId: string, payload: any): Promise<void> {
+    const leftUserId = payload.old.user_id
+    console.log(`👋 Member left server ${serverId}:`, leftUserId)
+    
+    const context = this.contexts.get(serverId)
+    if (context) {
+      // Remove user from context
+      context.userIds.delete(leftUserId)
+      
+      // Mark user as offline for this context
+      const userData = this.users.get(leftUserId)
+      if (userData) {
+        userData.isOnline = false
+        userData.lastSeen = new Date().toISOString()
+        userData.lastUpdated = new Date().toISOString()
+      }
+      
+      // Emit context update
+      this.emitEvent('context-updated', { contextId: serverId, type: 'member-leave', userId: leftUserId })
+    }
+  }
   
   /**
    * Load user data from database
@@ -390,7 +499,7 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Update current user status
+   * Update current user status (Discord/Slack style persistence)
    */
   async updateCurrentUserStatus(status: UserStatus): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
@@ -400,26 +509,51 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
     
-    // Update local data immediately
+    // Update local data immediately for instant UI feedback
     userData.status = status
     userData.lastUpdated = new Date().toISOString()
     userData.lastHeartbeat = new Date().toISOString()
     
     try {
-      // Update database
-      await supabase
+      // Professional status persistence - update database with verification
+      const { data, error } = await supabase
         .from('profiles')
-        .update({ status })
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', this.currentUserId)
+        .select('status')
+      
+      if (error) {
+        throw new Error(`Database update failed: ${error.message}`)
+      }
+      
+      // Verify the status was actually saved
+      if (data && data[0] && data[0].status !== status) {
+        throw new Error(`Status verification failed. Expected: ${status}, Got: ${data[0].status}`)
+      }
+      
+      console.log('✅ Status verified in database:', UserStatus[status])
       
       // Update all presence channels
       await this.updatePresenceStatus(status)
+      
+      // Save to localStorage as professional backup (like Discord/Slack)
+      try {
+        localStorage.setItem('harmony_user_status', status.toString())
+        console.log('💾 Status backed up to localStorage')
+      } catch (localStorageError) {
+        console.warn('⚠️ Failed to backup status to localStorage:', localStorageError)
+      }
       
       this.emitEvent('status-changed', { userId: this.currentUserId, status })
       console.log('✅ Status updated successfully to:', UserStatus[status])
       
     } catch (error) {
       console.error('❌ Failed to update status:', error)
+      // Revert local change on failure
+      userData.status = userData.status
       throw error
     }
   }
