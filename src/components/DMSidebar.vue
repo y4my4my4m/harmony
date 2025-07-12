@@ -134,7 +134,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
+import { useProfessionalPresence } from '@/composables/useProfessionalPresence'
 import type { Message, MessagePart } from '@/types'
 import { getUserAvatarUrl } from '@/utils/avatarUtils'
 import Avatar from '@/components/common/Avatar.vue'
@@ -151,8 +151,8 @@ const emit = defineEmits<{
 const dmStore = useDMStore()
 const authStore = useAuthStore()
 
-// Use clean status system
-const { getStatusForAvatar } = useCleanUserStatus()
+// Use professional presence system
+const { getStatusForAvatar } = useProfessionalPresence()
 
 // State
 const showUserSearch = ref(false)

@@ -282,10 +282,29 @@ const collapsedGroups = ref({
 // Professional user data from presence system - always accurate and real-time
 const users = computed(() => {
   const serverId = serverChannelStore.currentServerId;
-  if (!serverId) return [];
+  if (!serverId) {
+    console.log('🔍 UserSidebar: No current server ID');
+    return [];
+  }
   
   // Get all users in current server context from professional presence system
   const serverUsers = getUsersInContext(serverId).value;
+  console.log(`🔍 UserSidebar: Server ${serverId} users from context:`, serverUsers.length, serverUsers);
+  
+  // Fallback: if no context users, get all users
+  if (serverUsers.length === 0) {
+    const allUsers = getAllUsers.value;
+    console.log(`🔍 UserSidebar: Fallback to all users:`, allUsers.length, allUsers);
+    
+    // Convert to User format for compatibility
+    return allUsers.map(presence => ({
+      id: presence.userId,
+      username: presence.username,
+      display_name: presence.displayName,
+      avatar_url: presence.avatarUrl,
+      status: presence.status
+    }));
+  }
   
   // Convert to User format for compatibility - includes both online and offline users
   return serverUsers.map(presence => ({

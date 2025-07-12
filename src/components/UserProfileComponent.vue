@@ -101,26 +101,30 @@ const currentStatus = computed(() => {
   try {
     const globalStatus = getCurrentUserStatus.value
     
-    // If global status is available, use it
+    // Always prioritize the professional presence system
     if (globalStatus !== undefined && globalStatus !== null) {
       console.log('UserProfileComponent - Using professional presence status:', UserStatus[globalStatus])
       return globalStatus
     }
     
+    // If no professional presence status, check what we last selected
+    if (selectedStatus.value !== undefined && selectedStatus.value !== null) {
+      console.log('UserProfileComponent - Using selected status:', UserStatus[selectedStatus.value])
+      return selectedStatus.value
+    }
+    
     // Fall back to profile status
     if (profile.value?.status !== undefined && profile.value.status !== null) {
-      console.log('UserProfileComponent - Using profile status:', UserStatus[profile.value.status])
+      console.log('UserProfileComponent - Using profile status fallback:', UserStatus[profile.value.status])
       return profile.value.status
     }
     
-    // Fall back to selected status
-    console.log('UserProfileComponent - Using selected status fallback:', UserStatus[selectedStatus.value])
-    return selectedStatus.value || UserStatus.Offline
+    console.log('UserProfileComponent - Using offline fallback')
+    return UserStatus.Offline
     
   } catch (error) {
     console.error('Error getting current user status:', error)
-    // Return profile status or selected status as fallback
-    return profile.value?.status || selectedStatus.value || UserStatus.Offline
+    return selectedStatus.value || profile.value?.status || UserStatus.Offline
   }
 })
 
