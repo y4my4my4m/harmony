@@ -139,6 +139,7 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useServerStore } from '@/stores/server'
 import { useAuthStore } from '@/stores/auth'
+import { useServerChannelStore } from '@/stores/useServerChannel'
 
 interface ServerAdvancedPermissions {
   canDeleteServer: boolean
@@ -158,6 +159,7 @@ const router = useRouter()
 const toast = useToast()
 const serverStore = useServerStore()
 const authStore = useAuthStore()
+const serverChannelStore = useServerChannelStore()
 
 // State
 const showDeleteModal = ref(false)
@@ -210,8 +212,20 @@ const confirmDeleteServer = async () => {
     if (success) {
       toast.success('Server deleted successfully')
       hideDeleteConfirmation()
-      // Navigate to home or server list
-      router.push('/')
+      
+      // Refresh the server list to remove the deleted server
+      await serverChannelStore.fetchServersForUser(userId)
+      
+      // Find the next available server to navigate to
+      const availableServers = serverChannelStore.servers
+      if (availableServers.length > 0) {
+        // Navigate to the first available server
+        const nextServer = availableServers[0]
+        router.push(`/servers/${nextServer.id}`)
+      } else {
+        // No servers left, go to home/DMs
+        router.push('/dm')
+      }
     } else {
       throw new Error('Failed to delete server')
     }
