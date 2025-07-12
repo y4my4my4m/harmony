@@ -52,14 +52,14 @@
           @click="startConversation(user)"
         >
           <Avatar
-            :src="getUserAvatarUrl(user)"
-            :alt="user.display_name || user.username"
+            :src="getUserAvatarUrl(user.id).value"
+            :alt="getUserDisplayName(user.id).value"
             size="sm"
             :status="getUserStatus(user.id)"
             class="user-avatar"
           />
           <div class="user-info">
-            <div class="user-name">{{ user.display_name || user.username }}</div>
+            <div class="user-name">{{ getUserDisplayName(user.id).value }}</div>
             <div v-if="user.display_name" class="username">{{ user.username }}</div>
           </div>
         </div>
@@ -95,8 +95,8 @@
           @click="selectConversation(conversation.id)"
         >
           <Avatar
-            :src="getUserAvatarUrl(conversation.other_user)"
-            :alt="conversation.other_user?.display_name || conversation.other_user?.username"
+            :src="getUserAvatarUrl(conversation.other_user?.id || '').value"
+            :alt="getUserDisplayName(conversation.other_user?.id || '').value"
             size="sm"
             :status="getConversationUserStatus(conversation)"
             class="conversation-avatar"
@@ -105,7 +105,7 @@
           <div class="conversation-content">
             <div class="conversation-header">
               <div class="conversation-name">
-                {{ conversation.other_user?.display_name || conversation.other_user?.username }}
+                {{ getUserDisplayName(conversation.other_user?.id || '').value }}
               </div>
               <div class="conversation-time">
                 {{ formatMessageTime(conversation.last_activity || conversation.created_at) }}
@@ -136,7 +136,6 @@ import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import { useUserData } from '@/composables/useUserData'
 import type { Message, MessagePart } from '@/types'
-import { getUserAvatarUrl } from '@/utils/avatarUtils'
 import Avatar from '@/components/common/Avatar.vue'
 
 // Register component (needed for script setup)
@@ -152,7 +151,7 @@ const dmStore = useDMStore()
 const authStore = useAuthStore()
 
 // Use professional presence system
-const { getUserStatusForAvatar } = useUserData()
+const { getUserStatusForAvatar, getUserDisplayName, getUserAvatarUrl } = useUserData()
 
 // State
 const showUserSearch = ref(false)

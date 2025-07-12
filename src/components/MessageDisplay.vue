@@ -89,7 +89,7 @@
         <div v-if="shouldShowHeader(message, index)" class="message-header">
           <div class="message-avatar">
             <Avatar 
-              :src="getUserAvatar(message.user_id)"
+              :src="getUserAvatarUrl(message.user_id).value"
               size="sm" 
               :interactive="true"
               @click="showUserProfile(message.user_id, $event)"
@@ -97,8 +97,8 @@
           </div>
           <div class="message-main">
             <div class="message-meta">
-              <span class="username" :style="{color: getUserColor(message.user_id)}" @click="showUserProfile(message.user_id, $event)">
-                {{ getUserDisplayName(message.user_id) }}
+              <span class="username" :style="{color: getUserColor(message.user_id).value}" @click="showUserProfile(message.user_id, $event)">
+                {{ getUserDisplayName(message.user_id).value }}
               </span>
               <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
             </div>
@@ -215,12 +215,13 @@
 <script lang="ts">
 import { defineComponent, computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { PropType, Ref } from 'vue';
-import type { Message, User, Emoji, Reaction, MessagePart, Profile } from '@/types';
+import type { Message, User, Emoji, Reaction, MessagePart } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel'; 
 import { useServerPermissions } from '@/composables/useServerPermissions';
+import { useUserData } from '@/composables/useUserData';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
@@ -270,6 +271,9 @@ export default defineComponent({
     const useChat = useChatStore();
     const authStore = useAuthStore();
     const { isCurrentUserServerOwner } = useServerPermissions();
+    
+    // Use reactive user data system for real-time updates
+    const { getUserDisplayName, getUserColor, getUserAvatarUrl } = useUserData();
     
     // Initialize imageLoaded early to prevent initialization order issues
     const imageLoaded: Ref<Record<string, boolean>> = ref({});
@@ -329,9 +333,9 @@ export default defineComponent({
       
       const usersDetails = reaction.reactions.map(r => ({
         id: r.user_id,
-        displayName: getUserDisplayName(r.user_id),
-        avatarUrl: getUserAvatar(r.user_id),
-        userColor: getUserColor(r.user_id),
+        displayName: getUserDisplayName(r.user_id).value,
+        avatarUrl: getUserAvatarUrl(r.user_id).value,
+        userColor: getUserColor(r.user_id).value,
       }));
       
       // Set a timer to delay showing the tooltip
@@ -717,7 +721,7 @@ export default defineComponent({
 
     // Find emoji by name (reuse existing logic)
     const findEmojiByName = (name: string) => {
-      const resolvedEmojiList = serverChannelStore.resolvedEmojiList;
+      const resolvedEmojiList = (serverChannelStore as any).resolvedEmojiList;
       for (const serverId in resolvedEmojiList) {
         const server = resolvedEmojiList[serverId];
         const emoji = server.emojis.find((e: any) => e.name === name);
@@ -859,38 +863,7 @@ export default defineComponent({
     const getUserIdFromMessage = (messageId:string) => {
       return useChat.messages.find(message => message.id === messageId)?.user_id || 'Unknown Message Id';
     };
-    const getUserDisplayName = (userId: string) => {
-      const user = serverUsersStore.getUserProfile(userId);
-      
-      if (!user) {
-        // Return a fallback that doesn't say "Loading..."
-        // The profile should already be loaded by the time messages are rendered
-        return 'Unknown User';
-      }
-      
-      return user.display_name || user.username || 'Unknown User';
-    };
     
-    const getUserColor = (userId: string) => {
-      const user = serverUsersStore.getUserProfile(userId);
-      
-      if (!user) {
-        return '#dddddd'; // Default color
-      }
-      
-      const profile = user as Profile;
-      return `${profile?.color || '#dddddd'}`;
-    };
-    
-    const getUserAvatar = (userId: string) => {
-      const user = serverUsersStore.getUserProfile(userId);
-      
-      if (!user) {
-        return '/default_avatar.png';
-      }
-      
-      return user.avatar_url || '/default_avatar.png';
-    };
     const formatTimestamp = (timestamp: Date) => {
       const date = new Date(timestamp);
       if (!isValid(date)) return '';
@@ -1136,36 +1109,20 @@ export default defineComponent({
 
     const getReplyUserDisplayName = (replyMessageId: string) => {
       const userId = getReplyUserId(replyMessageId);
-      const user = serverUsersStore.getUserProfile(userId);
-      
-      if (!user && userId !== 'unknown') {
-        return 'Unknown User';
-      }
-      
-      return user?.display_name || user?.username || 'Unknown User';
+      if (userId === 'unknown') return 'Unknown User';
+      return getUserDisplayName(userId).value;
     };
 
     const getReplyUserColor = (replyMessageId: string) => {
       const userId = getReplyUserId(replyMessageId);
-      const user = serverUsersStore.getUserProfile(userId);
-      
-      if (!user && userId !== 'unknown') {
-        return '#dddddd';
-      }
-      
-      const profile = user as Profile;
-      return `${profile?.color || '#dddddd'}`;
+      if (userId === 'unknown') return '#dddddd';
+      return getUserColor(userId).value;
     };
 
     const getReplyUserAvatar = (replyMessageId: string) => {
       const userId = getReplyUserId(replyMessageId);
-      const user = serverUsersStore.getUserProfile(userId);
-      
-      if (!user && userId !== 'unknown') {
-        return '/default_avatar.png';
-      }
-      
-      return user?.avatar_url || '/default_avatar.png';
+      if (userId === 'unknown') return '/default_avatar.png';
+      return getUserAvatarUrl(userId).value;
     };
 
     const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
@@ -1215,7 +1172,7 @@ export default defineComponent({
     return { 
       getUserDisplayName, 
       getUserColor, 
-      getUserAvatar,
+      getUserAvatarUrl,
       getUserIdFromMessage,
       formatTimestamp,
       formatSystemTimestamp,

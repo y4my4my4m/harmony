@@ -38,11 +38,11 @@ const updateProfile = async (userId: string, updates: Partial<User>): Promise<Us
 
   if (error) throw error;
   
-  // If the update was successful, broadcast profile changes via presence service
+  // If the update was successful, broadcast profile changes to relevant contexts only
   if (data && data[0]) {
     try {
       // Import dynamically to avoid circular dependencies
-      const { globalPresenceService } = await import('./globalPresenceService')
+      const { userDataService } = await import('./userDataService')
       
       // Extract profile data that should be broadcast
       const profileData: any = {}
@@ -54,11 +54,11 @@ const updateProfile = async (userId: string, updates: Partial<User>): Promise<Us
       const profileUpdates = updates as any
       if (profileUpdates.bio !== undefined) profileData.bio = profileUpdates.bio
       if (profileUpdates.color !== undefined) profileData.color = profileUpdates.color
-      if (profileUpdates.verified !== undefined) profileData.verified = profileUpdates.verified
       
       // Only broadcast if there are profile changes to broadcast
       if (Object.keys(profileData).length > 0) {
-        await globalPresenceService.updateUserProfile(userId, profileData)
+        await userDataService.updateCurrentUserProfile(profileData)
+        console.log('✅ Profile updated and broadcast to relevant contexts only')
       }
     } catch (presenceError) {
       // Don't fail the profile update if presence broadcast fails

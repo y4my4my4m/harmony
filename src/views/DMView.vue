@@ -92,8 +92,14 @@ const loadMessages = async () => {
       // Initialize DM environment for direct access if needed
       const userId = authStore.session?.user?.id
       if (userId) {
-        await dmStore.initializeDMEnvironmentForDirectAccess(userId, conversationId)
-        await dmStore.fetchConversationMessages(conversationId)
+        // IMPORTANT: Wait for conversation and user data to be loaded before proceeding
+        // This ensures the DMHeader has user data available when it renders
+        const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(userId, conversationId)
+        
+        // Only fetch messages if we successfully got the conversation
+        if (conversation) {
+          await dmStore.fetchConversationMessages(conversationId)
+        }
       }
     } finally {
       isLoading.value = false
@@ -143,7 +149,6 @@ onMounted(async () => {
 
 .dm-header-container {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
 }
 
 .dm-placeholder-header {

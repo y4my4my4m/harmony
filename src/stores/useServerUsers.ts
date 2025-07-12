@@ -7,6 +7,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getProfilesWithAvatarUrls } from '@/services/usersService';
 import { updateUserStatus } from '@/services/profileService';
 import { getMembershipService } from '@/services/membershipService';
+import { userDataService } from '@/services/userDataService';
 
 const convertToStatusEnum = (numericStatus: number): UserStatus => {
     return numericStatus as UserStatus;
@@ -84,6 +85,45 @@ export const useServerUsersStore = defineStore('serverUsers', {
     }),
   },
   actions: {
+    /**
+     * Initialize integration with userDataService for single source of truth
+     * This ensures serverUsersStore stays in sync with userDataService updates
+     */
+    initializeUserDataIntegration() {
+      console.log('🔗 Setting up userDataService integration with serverUsersStore')
+      
+      // Listen for user profile updates from userDataService
+      userDataService.addEventListener('user-updated', (event: Event) => {
+        const customEvent = event as CustomEvent
+        const { userId } = customEvent.detail
+        const userData = userDataService.getUser(userId)
+        
+        if (userData) {
+          // Convert UserData to User format for serverUsersStore
+          const userProfile: User = {
+            id: userData.id,
+            username: userData.username,
+            display_name: userData.displayName,
+            avatar_url: userData.avatarUrl,
+            status: userData.status,
+            // Keep other fields from existing profile if available
+            ...this.getUserProfile(userId)
+          }
+          
+          // Update both cache and main profiles
+          this.addToProfileCache(userProfile)
+          
+          // Update main profiles if user is a server member
+          if (this.userProfiles[userId]) {
+            this.userProfiles[userId] = userProfile
+            console.log(`🔄 Updated server user profile for: ${userData.displayName}`)
+          }
+        }
+      })
+      
+      console.log('✅ UserDataService integration initialized')
+    },
+
     // Cache management methods
     evictOldestCacheEntries() {
       if (this.profileCache.size <= this.maxCacheSize) return;
@@ -268,16 +308,24 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
       this.userProfiles = profiles.reduce((acc, profile) => {
         if (profile) {
-          acc[profile.id] = { 
+          const userProfile = { 
             ...profile,
             status: convertToStatusEnum(profile.status as number)
           };
+          acc[profile.id] = userProfile;
           
           // Also add to cache
-          this.addToProfileCache(acc[profile.id]);
+          this.addToProfileCache(userProfile);
         }
         return acc;
       }, {} as Record<string, User>);
+      
+      // IMPORTANT: Ensure userDataService also has this user data for reactive access
+      try {
+        await userDataService.ensureUsersLoaded(userIds);
+      } catch (error) {
+        console.warn('Failed to load user data into userDataService:', error);
+      }
     },
 
     async setStatus(userId: string, status: UserStatus) {

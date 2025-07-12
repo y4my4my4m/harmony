@@ -164,6 +164,15 @@ export function useUserData() {
     return currentUser?.status ?? UserStatus.Offline
   })
   
+  /**
+   * Get user status
+   */
+  const getUserStatus = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    return user?.status ?? UserStatus.Offline
+  })
+  
   // Context Data Getters
   
   /**
@@ -271,6 +280,7 @@ export function useUserData() {
     getCurrentUser,
     getUserAvatarUrl,
     getUserDisplayName,
+    getUserStatus,
     getUserStatusForAvatar,
     getUserStatusText,
     getUserColor,

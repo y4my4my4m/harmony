@@ -14,15 +14,15 @@
       <div class="conversation-info">
         <div class="conversation-avatar">
           <Avatar
-            :src="conversation.other_user?.avatar_url"
-            :alt="conversation.other_user?.display_name || conversation.other_user?.username"
+            :src="getUserAvatarUrl(conversation.other_user?.id || '').value || conversation.other_user?.avatar_url || '/default_avatar.png'"
+            :alt="getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'User'"
             size="sm"
             :status="otherUserStatus"
           />
         </div>
         <div class="conversation-details">
           <h2 class="conversation-name">
-            {{ conversation.other_user?.display_name || conversation.other_user?.username }}
+            {{ getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}
           </h2>
           <div class="conversation-status">
             <span v-if="isOtherUserOnline" class="status online">
@@ -91,7 +91,7 @@ const emit = defineEmits<{
 }>()
 
 // Use clean status system
-const { isUserOnline, getUserStatusForAvatar } = useUserData()
+const { isUserOnline, getUserStatusForAvatar, getUserDisplayName, getUserAvatarUrl } = useUserData()
 
 // State
 const showSearchModal = ref(false)
@@ -144,8 +144,8 @@ const handleMoreClick = () => {
   padding: 12px 16px;
   background: var(--background-primary);
   border-bottom: 1px solid var(--border-color);
-  height: 64px;
-  min-height: 64px;
+  height: 48px;
+  min-height: 48px;
 }
 
 .header-left {
@@ -184,19 +184,25 @@ const handleMoreClick = () => {
   min-width: 0;
 }
 
+.conversation-avatar {
+  display: flex;
+  align-items: center;
+}
 .conversation-details {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .conversation-name {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0 0 2px 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 18px;
 }
 
 .conversation-status {

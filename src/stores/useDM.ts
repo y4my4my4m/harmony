@@ -73,11 +73,12 @@ export const useDMStore = defineStore('dm', () => {
     })
   })
 
-  // Check if user is online using global status system
+  // Check if user is online using modern user data system
   const isUserOnline = async (userId: string): Promise<boolean> => {
     try {
-      const { globalPresenceService } = await import('@/services/globalPresenceService')
-      return globalPresenceService.isUserOnline(userId)
+      const { userDataService } = await import('@/services/userDataService')
+      const userData = userDataService.getUser(userId)
+      return userData?.isOnline || false
     } catch (error) {
       console.error('Failed to check user online status:', error)
       // Fallback to searching in cached user data
@@ -540,6 +541,22 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       if (!messagesData) return
+
+      // Extract unique user IDs from messages and pre-load profiles
+      // This ensures user data is available for UI components (same as chat system)
+      const userIds = new Set<string>();
+      messagesData.forEach(message => {
+        if (message?.user_id) {
+          userIds.add(message.user_id);
+        }
+      });
+
+      // Pre-load all user profiles before updating messages
+      // This ensures no "Loading..." or "Unknown User" appears in DM display
+      if (userIds.size > 0) {
+        const serverUsersStore = useServerUsersStore();
+        await serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds));
+      }
 
       // Fetch reactions for messages
       for (const message of messagesData) {

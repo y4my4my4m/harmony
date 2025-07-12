@@ -303,6 +303,8 @@ class UserDataService extends EventTarget {
       .on('presence', { event: 'sync' }, () => this.handleServerSync(serverId))
       .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => this.handleServerUserJoin(serverId, newPresences))
       .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => this.handleServerUserLeave(serverId, leftPresences))
+      // 🔥 Listen for profile update broadcasts (the correct way for real-time profile changes)
+      .on('broadcast', { event: 'profile_update' }, (payload) => this.handleProfileUpdateBroadcast(serverId, payload))
       // Listen for real-time server membership changes
       .on('postgres_changes', {
         event: 'INSERT',
@@ -316,6 +318,12 @@ class UserDataService extends EventTarget {
         table: 'user_servers',
         filter: `server_id=eq.${serverId}`
       }, (payload) => this.handleServerMemberLeave(serverId, payload))
+      // 🔥 Listen for real-time PROFILE changes (avatar, display name, color, bio)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public', 
+        table: 'profiles'
+      }, (payload) => this.handleProfileUpdate(serverId, payload))
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           console.log(`✅ Server presence connected: ${serverId}`)
@@ -441,6 +449,122 @@ class UserDataService extends EventTarget {
       this.emitEvent('context-updated', { contextId: serverId, type: 'member-leave', userId: leftUserId })
     }
   }
+
+  /**
+   * Handle real-time profile updates (avatar, display name, color, bio)
+   * This ensures all users in the server see profile changes in real-time
+   */
+  private async handleProfileUpdate(serverId: string, payload: any): Promise<void> {
+    const updatedProfile = payload.new
+    const userId = updatedProfile.id
+    
+    console.log(`🔄 Profile update received for user ${userId} in server ${serverId}:`, {
+      display_name: updatedProfile.display_name,
+      avatar_url: updatedProfile.avatar_url,
+      color: updatedProfile.color
+    })
+    
+    // Update our local user data if we have it
+    const userData = this.users.get(userId)
+    if (userData) {
+      // Update all profile fields that might have changed
+      if (updatedProfile.display_name !== undefined) {
+        userData.displayName = updatedProfile.display_name
+      }
+      if (updatedProfile.avatar_url !== undefined) {
+        userData.avatarUrl = updatedProfile.avatar_url
+      }
+      if (updatedProfile.bio !== undefined) {
+        userData.bio = updatedProfile.bio
+      }
+      if (updatedProfile.color !== undefined) {
+        userData.color = updatedProfile.color
+      }
+      if (updatedProfile.username !== undefined) {
+        userData.username = updatedProfile.username
+      }
+      
+      userData.lastUpdated = new Date().toISOString()
+      userData.source = 'database'
+      
+      // Emit update event so UI components can react
+      this.emitEvent('user-updated', { userId })
+      
+      console.log(`✅ Updated user data for ${userData.displayName} in server ${serverId}`)
+    } else {
+      // If we don't have the user data, load it fresh from the database
+      console.log(`🔄 Loading fresh user data for ${userId} after profile update`)
+      await this.loadUsersData([userId])
+      
+      // Emit event after loading
+      this.emitEvent('user-updated', { userId })
+    }
+    
+    // Also emit a context-specific update event
+    this.emitEvent('context-updated', { 
+      contextId: serverId, 
+      type: 'profile-update', 
+      userId 
+    })
+  }
+  
+  /**
+   * Handle profile update broadcast events from other users
+   * This is how we receive real-time profile changes from other clients
+   */
+  private async handleProfileUpdateBroadcast(serverId: string, payload: any): Promise<void> {
+    const { userId, ...profileUpdates } = payload.payload
+    
+    if (!userId || userId === this.currentUserId) {
+      // Don't process our own broadcasts or invalid payloads
+      return
+    }
+    
+    console.log(`📡 Received profile update broadcast for user ${userId} in server ${serverId}:`, profileUpdates)
+    
+    // Update our local user data if we have it
+    const userData = this.users.get(userId)
+    if (userData) {
+      // Update profile fields that were broadcast
+      if (profileUpdates.displayName !== undefined) {
+        userData.displayName = profileUpdates.displayName
+      }
+      if (profileUpdates.avatarUrl !== undefined) {
+        userData.avatarUrl = profileUpdates.avatarUrl
+      }
+      if (profileUpdates.bio !== undefined) {
+        userData.bio = profileUpdates.bio
+      }
+      if (profileUpdates.color !== undefined) {
+        userData.color = profileUpdates.color
+      }
+      if (profileUpdates.username !== undefined) {
+        userData.username = profileUpdates.username
+      }
+      
+      userData.lastUpdated = new Date().toISOString()
+      userData.source = 'presence' // Updated via real-time broadcast
+      
+      // Emit update event so UI components can react immediately
+      this.emitEvent('user-updated', { userId })
+      
+      console.log(`✅ Updated user data for ${userData.displayName} from broadcast`)
+    } else {
+      // If we don't have the user data, load it fresh from the database
+      console.log(`🔄 Loading fresh user data for ${userId} after profile broadcast`)
+      await this.loadUsersData([userId])
+      
+      // Emit event after loading
+      this.emitEvent('user-updated', { userId })
+    }
+    
+    // Also emit a context-specific update event
+    this.emitEvent('context-updated', { 
+      contextId: serverId, 
+      type: 'profile-broadcast', 
+      userId 
+    })
+  }
   
   /**
    * Load user data from database
@@ -487,6 +611,13 @@ class UserDataService extends EventTarget {
     }
   }
   
+  /**
+   * Public method to ensure user data is loaded (for external stores)
+   */
+  async ensureUsersLoaded(userIds: string[]): Promise<void> {
+    await this.loadUsersData(userIds)
+  }
+
   /**
    * Check if user data is stale and needs refresh
    */
@@ -552,8 +683,7 @@ class UserDataService extends EventTarget {
       
     } catch (error) {
       console.error('❌ Failed to update status:', error)
-      // Revert local change on failure
-      userData.status = userData.status
+      // Note: local change already applied, database update failed
       throw error
     }
   }
@@ -581,6 +711,84 @@ class UserDataService extends EventTarget {
     }
     
     console.log(`📡 Status updated in ${this.contexts.size} context channels`)
+  }
+  
+  /**
+   * Update current user profile data and broadcast to relevant contexts only
+   * This is context-aware - only users who can see this user will get the update
+   */
+  async updateCurrentUserProfile(profileData: {
+    displayName?: string
+    avatarUrl?: string
+    bio?: string
+    color?: string
+    username?: string
+  }): Promise<void> {
+    if (!this.currentUserId) throw new Error('No current user')
+    
+    console.log('🔄 Updating current user profile:', profileData)
+    
+    const userData = this.users.get(this.currentUserId)
+    if (!userData) throw new Error('Current user data not found')
+    
+    // Update local data immediately for instant UI feedback
+    if (profileData.displayName !== undefined) userData.displayName = profileData.displayName
+    if (profileData.avatarUrl !== undefined) userData.avatarUrl = profileData.avatarUrl
+    if (profileData.bio !== undefined) userData.bio = profileData.bio
+    if (profileData.color !== undefined) userData.color = profileData.color
+    if (profileData.username !== undefined) userData.username = profileData.username
+    userData.lastUpdated = new Date().toISOString()
+    
+    try {
+      // Broadcast profile changes to relevant contexts only (context-aware)
+      await this.broadcastProfileToContexts(profileData)
+      
+      this.emitEvent('user-updated', { userId: this.currentUserId })
+      console.log('✅ Profile updated and broadcast to relevant contexts')
+      
+    } catch (error) {
+      console.error('❌ Failed to broadcast profile update:', error)
+      throw error
+    }
+  }
+  
+  /**
+   * Broadcast profile updates using proper broadcast events (not presence tracking)
+   * Only users in the same server/DM contexts will receive the update - scalable approach
+   */
+  private async broadcastProfileToContexts(profileData: {
+    displayName?: string
+    avatarUrl?: string
+    bio?: string
+    color?: string
+    username?: string
+  }): Promise<void> {
+    if (!this.currentUserId) return
+    
+    console.log(`🔄 Broadcasting profile update to ${this.contexts.size} contexts`)
+    
+    // Broadcast profile updates as events (not presence state)
+    for (const context of this.contexts.values()) {
+      if (context.channel && context.userIds.has(this.currentUserId)) {
+        try {
+          // Use broadcast events for profile updates (the correct way)
+          await context.channel.send({
+            type: 'broadcast',
+            event: 'profile_update',
+            payload: {
+              userId: this.currentUserId,
+              ...profileData
+            }
+          })
+          
+          console.log(`📡 Profile broadcast to ${context.type} context: ${context.id}`)
+        } catch (error) {
+          console.error(`❌ Failed to broadcast profile to context ${context.id}:`, error)
+        }
+      }
+    }
+    
+    console.log(`📡 Profile broadcast completed to ${this.contexts.size} context channels`)
   }
   
   /**

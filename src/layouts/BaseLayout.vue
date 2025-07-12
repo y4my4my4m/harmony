@@ -146,6 +146,13 @@ const initializeApp = async () => {
         userProfile.avatar_url
       )
       console.log('✅ User data system initialized')
+      
+      // Initialize integration between userDataService and serverUsersStore
+      // This ensures all UI views using serverUsersStore get real-time profile updates
+      const { useServerUsersStore } = await import('@/stores/useServerUsers')
+      const serverUsersStore = useServerUsersStore()
+      serverUsersStore.initializeUserDataIntegration()
+      console.log('✅ Server users store integration initialized')
     } catch (error) {
       console.error('❌ Failed to initialize user data system:', error)
     }
