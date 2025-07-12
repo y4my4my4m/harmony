@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useUserProfile } from '@/composables/useUserProfile'
+import { useUserData } from '@/composables/useUserData'
 import Avatar from '@/components/common/Avatar.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
 
@@ -110,10 +110,10 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-const { getUserAvatar, getUserDisplayName } = useUserProfile()
+const { getUserAvatarUrl, getUserDisplayName } = useUserData()
 
-const ownerAvatar = computed(() => getUserAvatar(props.server.owner))
-const ownerName = computed(() => getUserDisplayName(props.server.owner))
+const ownerAvatar = computed(() => getUserAvatarUrl(props.server.owner).value)
+const ownerName = computed(() => getUserDisplayName(props.server.owner).value)
 
 const formatMemberCount = (count?: number): string => {
   if (!count) return '0 members'
