@@ -1,8 +1,12 @@
 1. the sidebar profile view goes out of bound if the screen is too small
 2. the profile view on clicking a username might be out of bound (if too close to top or bottom of the screen)
-6. search
-8. better invite system
-9. currently there's a bug where users can be invited and join the same server multiple times (should probably be fixed in the backend)
+3. search
+4. currently there's a bug where users can be invited and join the same server multiple times (should probably be fixed in the backend)
+5. system messages aren't real time
+6. "accepting invitation" is bugged
+7. server discovery is bugged
+
+
 
 ---
 
