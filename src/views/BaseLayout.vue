@@ -20,8 +20,8 @@ const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const trendingStore = useTrendingStore()
 
-// Use new clean user data system
-const { initialize: initializeUserData } = useUserData()
+// NOTE: This BaseLayout is deprecated - userDataService initialization removed to prevent conflicts
+// The main BaseLayout is in src/layouts/BaseLayout.vue
 
 const profile = ref<User | null>(null)
 const currentTheme = ref('dark')
@@ -31,7 +31,7 @@ const isAppInitialized = ref(false)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
 const isAdmin = computed(() => profile.value?.is_admin || false)
 
-// Initialize the application
+// Simplified initialization without userDataService conflicts
 const initializeApp = async () => {
   try {
     if (!authStore.session?.user) {
@@ -40,20 +40,13 @@ const initializeApp = async () => {
     }
 
     const userId = authStore.session.user.id
-    const userMetadata = authStore.session.user.user_metadata
     
     console.log('🚀 Initializing application for user:', userId)
     
     // Load user profile
     profile.value = await getProfileWithAvatarUrl(userId)
-    const username = profile.value?.username || userMetadata?.username || 'Unknown'
-    const avatarUrl = profile.value?.avatar_url
     
-    console.log('👤 User profile loaded:', { username, userId })
-    
-    // Initialize user data service - replaces all old presence systems
-    await initializeUserData(userId, username, avatarUrl)
-    console.log('✅ User Data Service initialized successfully')
+    console.log('👤 User profile loaded:', { userId })
     
     // Initialize trending data in background
     try {

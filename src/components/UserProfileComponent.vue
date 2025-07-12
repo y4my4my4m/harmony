@@ -3,12 +3,12 @@
 
   <div class="user-profile" ref="targetRef">
     <Avatar 
-      :src="profile?.avatar_url"
+      :src="getCurrentUser?.avatarUrl"
       size="md"
       :status="getUserStatusForAvatar(authStore.session?.user?.id || '').value"
     />
     <div class="user-info">
-      <p class="user-name">{{ profile?.display_name }}</p>
+      <p class="user-name">{{ getCurrentUser?.displayName }}</p>
       <div class="user-status-container" @click="toggleStatusDropdown">
         <div class="status-dot" :class="currentStatusDisplay.class"></div>
         <span class="status-text">{{ currentStatusDisplay.text }}</span>
@@ -107,7 +107,7 @@ const currentStatus = computed(() => {
     
   } catch (error) {
     console.error('Error getting current user status:', error)
-    return profile.value?.status ?? UserStatus.Offline
+    return UserStatus.Offline
   }
 })
 
@@ -197,11 +197,6 @@ const selectStatus = async (status: UserStatus) => {
     const newStatus = getCurrentUserStatus.value
     console.log('✅ Verified new status from unified system:', UserStatus[newStatus])
     
-    // Update local profile as backup
-    if (profile.value) {
-      profile.value.status = status
-    }
-    
   } catch (error) {
     console.error('❌ Failed to change status:', error)
     
@@ -210,9 +205,6 @@ const selectStatus = async (status: UserStatus) => {
       console.log('🔄 Attempting fallback to legacy status update...')
       if (authStore.session?.user) {
         await updateUserStatus(authStore.session.user.id, status)
-        if (profile.value) {
-          profile.value.status = status
-        }
         console.log('✅ Status updated via legacy system:', UserStatus[status])
       }
     } catch (fallbackError) {
@@ -234,14 +226,14 @@ const goToSettings = () => {
 }
 
 onMounted(async () => {
-  if (authStore.session?.user) {
-    profile.value = await getProfileWithAvatarUrl(authStore.session.user.id)
-  }
+  // REMOVED legacy profile loading to prevent status conflicts!
+  // Now using ONLY userDataService as single source of truth
   document.addEventListener('click', onClickOutside)
   
   // Debug: Log unified system stats
   const stats = getStats.value
   console.log('🔍 UserData service stats from UserProfileComponent:', stats)
+  console.log('🔍 Current user from userDataService:', getCurrentUser.value)
 })
 
 onBeforeUnmount(() => {

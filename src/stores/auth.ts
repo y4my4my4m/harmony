@@ -19,7 +19,7 @@ export const useAuthStore = defineStore('auth', {
 
       // Initialize notification system for existing session
       if (this.session?.user?.id) {
-        await this.setUserOnline(this.session.user.id);
+        // DO NOT force status to online - let userDataService handle status properly
         this.setupOfflineHandlers(this.session.user.id);
         await this.initializeNotificationSystem(this.session.user.id);
       }
@@ -31,8 +31,7 @@ export const useAuthStore = defineStore('auth', {
         this.session = session;
         
         if (session?.user?.id) {
-          // User logged in
-          await this.setUserOnline(session.user.id);
+          // User logged in - let userDataService handle status restoration
           this.setupOfflineHandlers(session.user.id);
           await this.initializeNotificationSystem(session.user.id);
         } else if (wasLoggedIn && previousUserId) {
@@ -87,9 +86,19 @@ export const useAuthStore = defineStore('auth', {
             }
           }, 5 * 60 * 1000);
         } else {
-          // User returned to tab - set as online
+          // User returned to tab - restore to their preferred status (not force online)
           if (this.session?.user?.id) {
-            await updateUserStatus(this.session.user.id, UserStatus.Online);
+            // Let userDataService restore the user's actual preferred status
+            try {
+              const { userDataService } = await import('@/services/userDataService')
+              const currentUser = userDataService.getCurrentUser()
+              if (currentUser) {
+                // Restore to their preferred status (from localStorage or database)
+                await userDataService.updateCurrentUserStatus(currentUser.status)
+              }
+            } catch (error) {
+              console.error('Failed to restore user status on tab focus:', error)
+            }
           }
         }
       };
