@@ -22,7 +22,6 @@ import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useAuthStore } from '@/stores/auth'
-import { useLayoutState } from '@/composables/useLayoutState'
 
 // Props
 interface Props {
@@ -49,9 +48,6 @@ const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
 const route = useRoute()
 
-// Layout state
-const { isMobile } = useLayoutState()
-
 // State
 const isAtBottom = ref(true)
 const isLoading = ref(false)
@@ -59,12 +55,6 @@ const isLoading = ref(false)
 // Computed
 const chatMessages = computed(() => {
   return props.isDM ? dmStore.currentDMMessages : chatStore.messages
-})
-
-const currentServer = computed(() => serverChannelStore.currentServer)
-const currentChannel = computed(() => {
-  const channelId = route.params.channelId as string
-  return serverChannelStore.channels.find(c => c.id === channelId) || null
 })
 
 // Load messages when route changes
@@ -97,6 +87,8 @@ const loadMessages = async () => {
           serverChannelStore.setCurrentChannel(channelId)
         }
         await chatStore.fetchMessages(channelId)
+        // Subscribe to real-time messages for this channel
+        chatStore.subscribeToMessages(channelId)
       } finally {
         isLoading.value = false
       }

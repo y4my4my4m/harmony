@@ -173,9 +173,8 @@
     />
   </div>
 </template>
-
-<script lang="ts">
-import { defineComponent, computed, ref, onMounted, onUnmounted } from 'vue';
+<script setup lang="ts">
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
@@ -186,158 +185,132 @@ import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
-export default defineComponent({
-  name: 'UnifiedVoiceDock',
-  components: {
-    UnifiedVoiceOverlay,
-    VoiceSettingsPanel,
-    SpatialAudioPanel,
-    Icon,
-    Avatar
-  },
-  
-  
-  setup() {
-    // Explicitly type as 'any' to avoid leaking private types
-    const voiceStore: any = useUnifiedVoiceChannelStore();
-    const spatialStore = useSpatialAudioStore();
-    const authStore = useAuthStore();
-    const serverUsersStore = useServerUsersStore();
-    
-    const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
-    const showSettings = ref(false);
-    
-    // =============================================================================
-    // COMPUTED PROPERTIES
-    // =============================================================================
-    const channelName = computed(() => {
-      return voiceStore.currentChannelName || 'Voice Channel';
-    });
-    const currentUserId = computed(() => authStore.session?.user?.id);
-    
-    const currentUserProfile = computed(() => {
-      if (!currentUserId.value) return { display_name: 'Unknown', username: 'Unknown', avatar_url: null };
-      return serverUsersStore.userProfiles[currentUserId.value] || { 
-        display_name: 'Unknown', 
-        username: 'Unknown', 
-        avatar_url: null 
-      };
-    });
-    
-    const isCurrentUserSpeaking = computed(() => {
-      return voiceStore.localState.audioLevel > 20 && !voiceStore.localState.isMuted;
-    });
-    
-    const dockMode = computed(() => {
-      return {
-        'dock-mode': currentMode.value === 'dock',
-        'minimized-mode': currentMode.value === 'minimized',
-        'overlay-mode': currentMode.value === 'overlay'
-      };
-    });
-    
-    // =============================================================================
-    // METHODS
-    // =============================================================================
-    
-    const expandToOverlay = () => {
-      currentMode.value = 'overlay';
-      voiceStore.isOverlayVisible = true;
-    };
-    
-    const expandToDock = () => {
-      currentMode.value = 'dock';
-      voiceStore.isOverlayVisible = false;
-    };
-    
-    const minimizeDock = () => {
-      currentMode.value = 'minimized';
-      voiceStore.isOverlayVisible = false;
-    };
-    
-    const collapseToMinimized = () => {
-      currentMode.value = 'minimized';
-      voiceStore.isOverlayVisible = false;
-    };
-    
-    const toggleSettings = () => {
-      showSettings.value = !showSettings.value;
-    };
-    
-    const toggleSpatialPanel = () => {
-      spatialStore.togglePanel();
-    };
-    
-    const leaveChannel = async () => {
-      await voiceStore.leaveVoiceChannel();
-      currentMode.value = 'dock';
-    };
-    
-    const handleOverlayClosed = () => {
-      // When overlay is closed, we leave the channel entirely
-      currentMode.value = 'dock';
-    };
-    
-    // =============================================================================
-    // LIFECYCLE
-    // =============================================================================
-    
-    onMounted(() => {
-      // Start in dock mode when first connecting
-      currentMode.value = 'dock';
-      
-      // Keyboard shortcuts
-      const handleKeyPress = (event: KeyboardEvent) => {
-        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-          return;
-        }
-        
-        // Only handle shortcuts when not in overlay mode
-        if (currentMode.value !== 'overlay') {
-          switch (event.key.toLowerCase()) {
-            case 'm':
-              voiceStore.toggleMute();
-              break;
-            case 'd':
-              voiceStore.toggleDeafen();
-              break;
-            case 'v':
-              voiceStore.toggleVideo();
-              break;
-            case 's':
-              if (event.ctrlKey || event.metaKey) return; // Don't interfere with save
-              voiceStore.toggleScreenShare();
-              break;
-          }
-        }
-      };
-      
-      document.addEventListener('keydown', handleKeyPress);
-      
-      onUnmounted(() => {
-        document.removeEventListener('keydown', handleKeyPress);
-      });
-    });
-    
-    return {
-      voiceStore,
-      spatialStore,
-      channelName,
-      currentMode,
-      showSettings,
-      currentUserProfile,
-      isCurrentUserSpeaking,
-      dockMode,
-      expandToOverlay,
-      expandToDock,
-      minimizeDock,
-      collapseToMinimized,
-      toggleSettings,
-      toggleSpatialPanel,
-      leaveChannel,
-      handleOverlayClosed
-    };
+// =============================================================================
+// STORE INSTANCES
+// =============================================================================
+// The original used `any` to avoid leaking private store types, which is preserved here.
+const voiceStore: any = useUnifiedVoiceChannelStore();
+const spatialStore = useSpatialAudioStore();
+const authStore = useAuthStore();
+const serverUsersStore = useServerUsersStore();
+
+// =============================================================================
+// STATE
+// =============================================================================
+const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
+const showSettings = ref(false);
+
+// =============================================================================
+// COMPUTED PROPERTIES
+// =============================================================================
+const channelName = computed(() => {
+  return voiceStore.currentChannelName || 'Voice Channel';
+});
+
+const currentUserId = computed(() => authStore.session?.user?.id);
+
+const currentUserProfile = computed(() => {
+  if (!currentUserId.value) {
+    return { display_name: 'Unknown', username: 'Unknown', avatar_url: null };
   }
+  return serverUsersStore.userProfiles[currentUserId.value] || { 
+    display_name: 'Unknown', 
+    username: 'Unknown', 
+    avatar_url: null 
+  };
+});
+
+const isCurrentUserSpeaking = computed(() => {
+  return voiceStore.localState.audioLevel > 20 && !voiceStore.localState.isMuted;
+});
+
+const dockMode = computed(() => ({
+  'dock-mode': currentMode.value === 'dock',
+  'minimized-mode': currentMode.value === 'minimized',
+  'overlay-mode': currentMode.value === 'overlay'
+}));
+
+// =============================================================================
+// METHODS
+// =============================================================================
+const expandToOverlay = () => {
+  currentMode.value = 'overlay';
+  voiceStore.isOverlayVisible = true;
+};
+
+const expandToDock = () => {
+  currentMode.value = 'dock';
+  voiceStore.isOverlayVisible = false;
+};
+
+const minimizeDock = () => {
+  currentMode.value = 'minimized';
+  voiceStore.isOverlayVisible = false;
+};
+
+const collapseToMinimized = () => {
+  currentMode.value = 'minimized';
+  voiceStore.isOverlayVisible = false;
+};
+
+const toggleSettings = () => {
+  showSettings.value = !showSettings.value;
+};
+
+const toggleSpatialPanel = () => {
+  spatialStore.togglePanel();
+};
+
+const leaveChannel = async () => {
+  await voiceStore.leaveVoiceChannel();
+  currentMode.value = 'dock'; // Reset to default state after leaving
+};
+
+const handleOverlayClosed = () => {
+  // When the overlay is closed, return to the docked mode.
+  currentMode.value = 'dock';
+};
+
+// =============================================================================
+// LIFECYCLE & EVENT LISTENERS
+// =============================================================================
+onMounted(() => {
+  // Start in dock mode when first connecting
+  currentMode.value = 'dock';
+  
+  // Keyboard shortcuts
+  const handleKeyPress = (event: KeyboardEvent) => {
+    // Ignore keypresses in input fields
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    
+    // Only handle shortcuts when not in overlay mode
+    if (currentMode.value !== 'overlay') {
+      switch (event.key.toLowerCase()) {
+        case 'm':
+          voiceStore.toggleMute();
+          break;
+        case 'd':
+          voiceStore.toggleDeafen();
+          break;
+        case 'v':
+          voiceStore.toggleVideo();
+          break;
+        case 's':
+          if (event.ctrlKey || event.metaKey) return; // Don't interfere with save shortcut
+          voiceStore.toggleScreenShare();
+          break;
+      }
+    }
+  };
+  
+  document.addEventListener('keydown', handleKeyPress);
+  
+  // Clean up the event listener when the component is unmounted
+  onUnmounted(() => {
+    document.removeEventListener('keydown', handleKeyPress);
+  });
 });
 </script>
 
@@ -415,13 +388,15 @@ export default defineComponent({
 
 .user-avatar-container {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
 }
 
 .user-avatar {
   /* width: 100%;
   height: 100%; */
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #40444b;

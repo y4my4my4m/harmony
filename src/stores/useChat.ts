@@ -357,20 +357,38 @@ export const useChatStore = defineStore('chat', {
         return;
       }
 
+      console.log('🔄 Adding message to cache via real-time:', {
+        messageId: message.id,
+        channelId: message.channel_id,
+        currentChannelId: this.currentChannelId,
+        match: this.currentChannelId === message.channel_id
+      });
+
       // Add to current messages if it's the current channel
-      if (this.currentChannelId === message.channel_id.toString()) {
+      if (this.currentChannelId === message.channel_id) {
         if (!this.messages.some(msg => msg.id === message.id)) {
           this.messages.push(message);
+          console.log('✅ Real-time message added to current messages:', message.id);
+        } else {
+          console.log('⚠️ Message already exists in current messages:', message.id);
         }
+      } else {
+        console.log('🔍 Message not for current channel:', {
+          messageChannelId: message.channel_id,
+          currentChannelId: this.currentChannelId
+        });
       }
 
       // Update cache
-      const cached = this.messageCache.get(message.channel_id.toString());
+      const cached = this.messageCache.get(message.channel_id);
       if (cached) {
         if (!cached.messages.some(msg => msg.id === message.id)) {
           cached.messages.push(message);
           cached.lastModified = new Date();
+          console.log('✅ Real-time message added to cache:', message.id);
         }
+      } else {
+        console.log('⚠️ No cache found for channel:', message.channel_id);
       }
     },
 
@@ -552,8 +570,10 @@ export const useChatStore = defineStore('chat', {
     },
 
     subscribeToMessages(channelId: string) {
+      console.log('🔔 Setting up real-time subscription for channel:', channelId);
       
       if (this.currentSubscription) {
+        console.log('🔄 Unsubscribing from previous channel');
         this.currentSubscription.unsubscribe();
       }
 
@@ -564,6 +584,8 @@ export const useChatStore = defineStore('chat', {
       const listenedMessageIds = new Set();
 
       const channelName = `channel-${channelId}`;
+      console.log('📡 Creating real-time subscription:', channelName);
+      
       this.currentSubscription = supabase
         .channel(channelName)
         .on(
@@ -575,6 +597,7 @@ export const useChatStore = defineStore('chat', {
             filter: `channel_id=eq.${channelId}`
           },
           (payload) => {
+            console.log('🟢 Real-time INSERT received:', payload);
             const newMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
@@ -588,7 +611,7 @@ export const useChatStore = defineStore('chat', {
 
             this.addMessageToCache(newMessage);
             listenedMessageIds.add(newMessage.id);
-            console.log(listenedMessageIds);
+            console.log('📝 Real-time message processed, total listened messages:', listenedMessageIds.size);
           }
         )
         .on(
@@ -651,7 +674,16 @@ export const useChatStore = defineStore('chat', {
             reactionsStore.handleRealtimeUpdate(payload);
           }
         )
-        .subscribe();            
+        .subscribe((status) => {
+          console.log('📡 Real-time subscription status:', status, 'for channel:', channelName);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Successfully subscribed to real-time updates for channel:', channelId);
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Real-time subscription error for channel:', channelId);
+          } else if (status === 'TIMED_OUT') {
+            console.error('⏰ Real-time subscription timed out for channel:', channelId);
+          }
+        });            
     },
 
     // Jump to a specific message (for reply navigation)
