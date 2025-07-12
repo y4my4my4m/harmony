@@ -13,8 +13,10 @@
   </svg>
 </template>
 
-<script>
-export default {
-  name: 'GlobeIcon'
-}
+<script lang="ts">
+import { defineComponent } from 'vue';
+
+export default defineComponent({
+    name: 'GlobeIcon',
+});
 </script>

@@ -767,6 +767,27 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     /**
+     * Set volume for notification sounds
+     */
+    async setVolume(volume: number) {
+      try {
+        const { useThemeStore } = await import('./useTheme')
+        const themeStore = useThemeStore()
+
+        // Ensure theme system is initialized
+        if (!themeStore.isInitialized) {
+          await themeStore.initialize()
+        }
+
+        // Update the audio volume in theme store
+        themeStore.audioVolume = Math.max(0, Math.min(1, volume))
+
+        console.log(`🔊 Set notification volume to ${Math.round(volume * 100)}%`)
+      } catch (error) {
+        console.error('❌ Failed to set notification volume:', error)
+      }
+    },
+    /**
      * Updated notification click handler to use formatter navigation data
      */
     handleNotificationClick(notification: Notification) {
