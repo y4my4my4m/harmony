@@ -10,7 +10,7 @@
           @click="handleToastClick(toast)"
         >
           <div class="toast-icon">
-            <img 
+            <Avatar 
               v-if="toast.avatar" 
               :src="toast.avatar" 
               :alt="toast.title"
@@ -61,6 +61,7 @@
 import { computed, h } from 'vue'
 import { useNotificationStore } from '@/stores/useNotification'
 import type { NotificationToast, NotificationType } from '@/types'
+import Avatar from './common/Avatar.vue'
 
 const notificationStore = useNotificationStore()
 
