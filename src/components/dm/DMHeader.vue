@@ -73,7 +73,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
+import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 
 // Props
@@ -91,7 +91,7 @@ const emit = defineEmits<{
 }>()
 
 // Use clean status system
-const { isUserOnline, getStatusForAvatar } = useCleanUserStatus()
+const { isUserOnline, getUserStatusForAvatar } = useUserData()
 
 // State
 const showSearchModal = ref(false)
@@ -105,7 +105,7 @@ const isOtherUserOnline = computed(() => {
 
 const otherUserStatus = computed(() => {
   if (!props.conversation.other_user?.id) return 'offline'
-  return getStatusForAvatar(props.conversation.other_user.id).value
+  return getUserStatusForAvatar(props.conversation.other_user.id).value
 })
 
 // Methods

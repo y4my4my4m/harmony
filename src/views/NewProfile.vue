@@ -126,7 +126,7 @@
               <label class="input-label">About Me <span class="optional">(optional)</span></label>
               <div class="input-container">
                 <textarea
-                  v-model="about"
+                  v-model="bio"
                   class="modern-textarea"
                   placeholder="Tell others about yourself..."
                   maxlength="190"
@@ -135,7 +135,7 @@
                 <div class="input-accent"></div>
               </div>
               <div class="input-feedback">
-                <span class="char-count">{{ about.length }}/190</span>
+                <span class="char-count">{{ bio.length }}/190</span>
               </div>
             </div>
           </div>
@@ -241,7 +241,7 @@ import { useToast } from 'vue-toastification';
 
 const username = ref('');
 const displayName = ref('');
-const about = ref('');
+const bio = ref('');
 const currentStep = ref(1);
 const avatarFile = ref<File | null>(null);
 const avatarPreview = ref<string | null>(null);
@@ -380,7 +380,7 @@ const createProfile = async () => {
       id: authStore.session.user.id,
       username: formattedUsername.value,
       display_name: displayName.value.trim(),
-      about: about.value.trim() || null,
+      bio: bio.value.trim() || null,
       color: selectedColor.value,
     });
 
@@ -388,7 +388,7 @@ const createProfile = async () => {
       id: authStore.session.user.id,
       username: formattedUsername.value,
       display_name: displayName.value.trim(),
-      about: about.value.trim() || undefined,
+      bio: bio.value.trim() || undefined,
       color: selectedColor.value,
     };
 

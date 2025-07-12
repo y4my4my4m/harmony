@@ -230,6 +230,9 @@
       :force-refresh="shouldForceRefreshPublicServers"
       @close="handleClosePublicServers"
     />
+    
+    <!-- Temporary Debug Panel -->
+    <PresenceDebugPanel />
   </div>
 </template>
 
@@ -259,6 +262,9 @@ import MonyComposer from '@/components/activitypub/MonyComposer.vue';
 import UserCard from '@/components/activitypub/UserCard.vue';
 import UserSearchModal from '@/components/activitypub/UserSearchModal.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
+
+// Debug Components
+import PresenceDebugPanel from '@/components/debug/PresenceDebugPanel.vue';
 
 // Stores
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -1251,6 +1257,41 @@ watch(() => props.profileHandle, async (newHandle) => {
   }
 }, { immediate: true });
 
+// Watch for server changes to handle presence subscriptions
+watch(() => currentServer.value?.id, async (newServerId, oldServerId) => {
+  if (!isAppInitialized.value) return;
+  
+  try {
+    const { useUserData } = await import('@/composables/useUserData');
+    const { subscribeToContext, unsubscribeFromContext } = useUserData();
+    
+    // Unsubscribe from old server if exists
+    if (oldServerId) {
+      console.log(`🔄 Unsubscribing from old server presence: ${oldServerId}`);
+      await unsubscribeFromContext(oldServerId);
+    }
+    
+    // Subscribe to new server if exists
+    if (newServerId) {
+      console.log(`🔄 Subscribing to new server presence: ${newServerId}`);
+      
+      const { getUserIdsForServer } = await import('@/services/usersService');
+      const memberIds = await getUserIdsForServer(newServerId);
+      
+      if (memberIds.length > 0) {
+        // Use the professional subscription method that ensures user data is loaded
+        await subscribeToContext(newServerId, 'server', memberIds);
+        console.log(`✅ Professional server presence active: ${currentServer.value?.name} (${memberIds.length} members)`);
+      } else {
+        console.log(`⚠️ No members found for server: ${newServerId}`);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Failed to handle server presence subscription:', error);
+  }
+}, { immediate: true });
+
 // Lifecycle hooks
 onMounted(async () => {
   const userId = authStore.session?.user?.id;
@@ -1277,80 +1318,8 @@ onMounted(async () => {
     isAppInitialized.value = true;
     hasServersLoaded.value = true;
     
-    // Initialize clean user status system
-    const userProfile = profileStore.profile || serverUsersStore.userProfiles[userId];
-    const username = userProfile?.display_name || userProfile?.username || 
-                    authStore.session?.user?.user_metadata?.username || 'Unknown User';
-    const avatar = userProfile?.avatar_url;
-    
-    // Initialize the clean status store
-    let statusStoreInitialized = false;
-    
-    try {
-      const { useCleanUserStatus } = await import('@/composables/useCleanUserStatus');
-      const { initializeStatus } = useCleanUserStatus();
-      await initializeStatus(userId);
-      console.log('✅ Clean user status system initialized');
-      statusStoreInitialized = true;
-      
-    } catch (error) {
-      console.error('Failed to initialize clean user status system:', error);
-      statusStoreInitialized = false;
-    }
-    
-    // Initialize additional presence features (but don't fail if these don't work)
-    if (statusStoreInitialized) {
-      try {
-        // Initialize unified app presence management
-        await unifiedAppService.initializePresence(userId, username, avatar);
-        console.log('✅ Unified app presence management initialized');
-      } catch (error) {
-        console.error('Failed to initialize unified app presence management:', error);
-        // Don't clean up global presence just because this failed
-      }
-      
-      try {
-        // Initialize view context integration for presence
-        const contextInfo = {
-          type: currentServer.value?.id ? 'server' as const : 'unknown' as const,
-          serverId: currentServer.value?.id,
-          channelId: undefined,
-          conversationId: undefined
-        };
-        
-        const { presenceContextManager } = await import('@/services/presenceContextManager');
-        await presenceContextManager.updateContext(contextInfo);
-        
-        viewContextTracker.updateContext({
-          server_id: currentServer.value?.id,
-          channel_id: undefined,
-          conversation_id: undefined,
-          view_type: currentServer.value?.id ? 'server_channel' : 'home'
-        });
-        
-        console.log('✅ Presence context integration initialized');
-      } catch (error) {
-        console.error('Failed to initialize presence context integration:', error);
-        // Don't clean up global presence just because this failed
-      }
-      
-      console.log('✅ Global presence system fully initialized, skipping old system');
-      
-    } else {
-      console.log('🔄 Falling back to old server-specific presence system...');
-      
-      // Fallback to old system if global system fails to initialize
-      if (userProfile && currentServer.value?.id) {
-        serverUsersStore.initializePresence(
-          currentServer.value.id, 
-          userId, 
-          username, 
-          avatar
-        );
-      }
-      serverUsersStore.subscribeToUserStatuses();
-      serverUsersStore.subscribeToOfflineBroadcasts();
-    }
+    // Professional presence system is already initialized in BaseLayout
+    // Context subscriptions will be handled by watchers when servers are loaded
     
     // Load initial server and channel state
     await loadServerAndChannel();

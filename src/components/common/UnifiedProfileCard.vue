@@ -157,7 +157,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
+import { useUserData } from '@/composables/useUserData'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
 import type { User, FederatedUser } from '@/types'
@@ -202,8 +202,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
-// Clean status system
-const { getStatusForAvatar, isUserOnline } = useCleanUserStatus()
+// Professional presence system
+const { getUserStatusForAvatar, isUserOnline } = useUserData()
 
 // State
 const isFollowLoading = ref(false)
@@ -261,7 +261,7 @@ const specialBadgeIcon = computed(() => {
 const chatUserStatus = computed(() => {
   if (isFederatedUser(props.user)) return undefined
   // Use clean status system for chat users
-  return getStatusForAvatar(props.user.id).value
+  return getUserStatusForAvatar(props.user.id).value
 })
 
 const isFollowing = computed(() => {

@@ -134,7 +134,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
+import { useUserData } from '@/composables/useUserData'
 import type { Message, MessagePart } from '@/types'
 import { getUserAvatarUrl } from '@/utils/avatarUtils'
 import Avatar from '@/components/common/Avatar.vue'
@@ -151,8 +151,8 @@ const emit = defineEmits<{
 const dmStore = useDMStore()
 const authStore = useAuthStore()
 
-// Use clean status system
-const { getStatusForAvatar } = useCleanUserStatus()
+// Use professional presence system
+const { getUserStatusForAvatar } = useUserData()
 
 // State
 const showUserSearch = ref(false)
@@ -165,7 +165,7 @@ const sortedConversations = computed(() => dmStore.getSortedConversations)
 // Get user status for avatar display
 const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
   try {
-    const status = getStatusForAvatar(userId).value;
+    const status = getUserStatusForAvatar(userId).value;
     console.log('DMSidebar - Status for user', userId, ':', status);
     return status;
   } catch (error) {

@@ -3,12 +3,12 @@
 
   <div class="user-profile" ref="targetRef">
     <Avatar 
-      :src="profile?.avatar_url"
+      :src="getCurrentUser?.avatarUrl"
       size="md"
-      :status="getStatusForAvatar(authStore.session?.user?.id || '').value"
+      :status="getUserStatusForAvatar(authStore.session?.user?.id || '').value"
     />
     <div class="user-info">
-      <p class="user-name">{{ profile?.display_name }}</p>
+      <p class="user-name">{{ getCurrentUser?.displayName }}</p>
       <div class="user-status-container" @click="toggleStatusDropdown">
         <div class="status-dot" :class="currentStatusDisplay.class"></div>
         <span class="status-text">{{ currentStatusDisplay.text }}</span>
@@ -72,7 +72,7 @@ import { updateUserStatus } from '@/services/profileService'
 import { useRouter } from 'vue-router'
 import type { User } from '@/types'
 import { UserStatus } from '@/types'
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus'
+import { useUserData } from '@/composables/useUserData'
 import MicIcon from '@/components/icons/Mic.vue'
 import MicMutedIcon from '@/components/icons/MicMuted.vue'
 import HeadphonesIcon from '@/components/icons/Headphones.vue'
@@ -86,41 +86,28 @@ const themeStore = useThemeStore()
 const router = useRouter()
 const profile = ref<User | null>(null)
 const showStatusDropdown = ref(false)
-const selectedStatus = ref(UserStatus.Offline)
 const targetRef = ref<HTMLElement | null>(null)
 
-// Use clean status system - no conflicts, no dual systems
+// Use new clean user data system - ONE source of truth
 const { 
-  getCurrentUserStatus, 
-  updateCurrentUserStatus, 
-  getStatusForAvatar 
-} = useCleanUserStatus()
+  getCurrentUser,
+  getCurrentUserStatus,
+  getUserStatusForAvatar,
+  updateCurrentUserStatus,
+  getStats
+} = useUserData()
 
-// Make status reactive to clean status system
+// Get current status reactively from the unified system
 const currentStatus = computed(() => {
   try {
-    const globalStatus = getCurrentUserStatus.value
-    
-    // If global status is available, use it
-    if (globalStatus !== undefined && globalStatus !== null) {
-      console.log('UserProfileComponent - Using global status:', UserStatus[globalStatus.status])
-      return globalStatus.status
-    }
-    
-    // Fall back to profile status
-    if (profile.value?.status !== undefined && profile.value.status !== null) {
-      console.log('UserProfileComponent - Using profile status:', UserStatus[profile.value.status])
-      return profile.value.status
-    }
-    
-    // Fall back to selected status
-    console.log('UserProfileComponent - Using selected status fallback:', UserStatus[selectedStatus.value])
-    return selectedStatus.value || UserStatus.Offline
+    // Always use the unified system as source of truth
+    const unifiedStatus = getCurrentUserStatus.value
+    console.log('UserProfileComponent - Current status from unified system:', UserStatus[unifiedStatus])
+    return unifiedStatus
     
   } catch (error) {
     console.error('Error getting current user status:', error)
-    // Return profile status or selected status as fallback
-    return profile.value?.status || selectedStatus.value || UserStatus.Offline
+    return UserStatus.Offline
   }
 })
 
@@ -201,33 +188,14 @@ const selectStatus = async (status: UserStatus) => {
   console.log('🔄 Current status before change:', UserStatus[currentStatus.value])
   
   try {
-    // Update the selected status first
-    selectedStatus.value = status
-    
-    // Check if global presence service is available and properly initialized
-    const { globalPresenceService } = await import('@/services/globalPresenceService')
-    const debugInfo = globalPresenceService.getDebugInfo()
-    console.log('🔍 Global presence service debug info:', debugInfo)
-    
-    // Note: Status initialization is now handled centrally in UnifiedView.vue
-    // No need for component-level re-initialization
-    
-    // Try to update via clean status system
+    // Update via unified user data system - clean and simple
     await updateCurrentUserStatus(status)
     
-    // The status store will handle all necessary updates
-    console.log('✅ Status updated via clean status system')
+    console.log('✅ Status updated successfully to:', UserStatus[status])
     
-    // Check if the status was actually updated
+    // Verify the update
     const newStatus = getCurrentUserStatus.value
-    console.log('✅ Status successfully changed to:', UserStatus[status])
-    console.log('✅ Verified new status from global service:', newStatus ? UserStatus[newStatus.status] : 'No status available')
-    
-    // Force update the reactive presence if it didn't update automatically
-    if (!newStatus || newStatus.status !== status) {
-      console.log('⚠️ Status mismatch detected, forcing presence update...')
-      globalPresenceService.forceUpdateCurrentUserPresence()
-    }
+    console.log('✅ Verified new status from unified system:', UserStatus[newStatus])
     
   } catch (error) {
     console.error('❌ Failed to change status:', error)
@@ -237,15 +205,10 @@ const selectStatus = async (status: UserStatus) => {
       console.log('🔄 Attempting fallback to legacy status update...')
       if (authStore.session?.user) {
         await updateUserStatus(authStore.session.user.id, status)
-        if (profile.value) {
-          profile.value.status = status
-        }
         console.log('✅ Status updated via legacy system:', UserStatus[status])
       }
     } catch (fallbackError) {
       console.error('❌ Legacy status update also failed:', fallbackError)
-      // Revert selectedStatus on failure
-      selectedStatus.value = currentStatus.value
     }
   } finally {
     showStatusDropdown.value = false
@@ -263,11 +226,14 @@ const goToSettings = () => {
 }
 
 onMounted(async () => {
-  if (authStore.session?.user) {
-    profile.value = await getProfileWithAvatarUrl(authStore.session.user.id)
-    selectedStatus.value = profile.value?.status || UserStatus.Offline
-  }
+  // REMOVED legacy profile loading to prevent status conflicts!
+  // Now using ONLY userDataService as single source of truth
   document.addEventListener('click', onClickOutside)
+  
+  // Debug: Log unified system stats
+  const stats = getStats.value
+  console.log('🔍 UserData service stats from UserProfileComponent:', stats)
+  console.log('🔍 Current user from userDataService:', getCurrentUser.value)
 })
 
 onBeforeUnmount(() => {

@@ -84,7 +84,7 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="getUserAvatar(user.id).value"
+              :src="getUserAvatarUrl(user.id).value"
               :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
@@ -122,7 +122,7 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="getUserAvatar(user.id).value"
+              :src="getUserAvatarUrl(user.id).value"
               :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
@@ -160,7 +160,7 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="getUserAvatar(user.id).value"
+              :src="getUserAvatarUrl(user.id).value"
               :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
@@ -198,7 +198,7 @@
             @click="showUserProfile(user)"
           >
             <Avatar
-              :src="getUserAvatar(user.id).value"
+              :src="getUserAvatarUrl(user.id).value"
               :alt="getUserDisplayName(user.id).value || 'Unknown User'"
               size="sm"
               :status="getStatusForAvatarValue(user.id)"
@@ -245,20 +245,24 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
-import { useCleanUserStatus } from '@/composables/useCleanUserStatus';
+import { useUserData } from '@/composables/useUserData';
 
 const serverChannelStore = useServerChannelStore();
 const serverUsersStore = useServerUsersStore();
 
-// Use clean status system - contextual subscriptions, full profile data
+// Use new clean user data system - ONE source of truth
 const { 
-  getStatusForAvatar, 
-  getUserStatus, 
-  subscribeToServerUsers,
+  getUserAvatarUrl,
   getUserDisplayName,
-  getUserAvatar, 
-  getUserColor
-} = useCleanUserStatus();
+  getUserStatusForAvatar,
+  getUserColor,
+  getUsersInContext,
+  getUsersInContextLegacy,
+  getAllUsers,
+  subscribeToContext,
+  unsubscribeFromContext,
+  getStats
+} = useUserData();
 
 // Component state
 const selectedUser = ref<User | null>(null);
@@ -277,13 +281,34 @@ const collapsedGroups = ref({
   offline: true // Start with offline collapsed
 });
 
-// Clean user data - never corrupted by status system
+// Clean user data from unified system - always accurate and real-time
 const users = computed(() => {
   const serverId = serverChannelStore.currentServerId;
-  if (!serverId) return [];
+  if (!serverId) {
+    console.log('🔍 UserSidebar: No current server ID');
+    return [];
+  }
   
-  const profiles = Object.values(serverUsersStore.userProfiles);
-  return profiles.filter(user => user && user.id);
+  // Get users from context first
+  const contextUsers = getUsersInContextLegacy(serverId).value;
+  console.log(`🔍 UserSidebar: Server ${serverId} users from context:`, contextUsers.length, contextUsers);
+  
+  // Fallback to all users if context is empty  
+  if (contextUsers.length === 0) {
+    const allUsers = getAllUsers.value;
+    console.log(`🔍 UserSidebar: Fallback to all users:`, allUsers.length, allUsers);
+    
+    // Convert to legacy format for compatibility
+    return allUsers.map(userData => ({
+      id: userData.id,
+      username: userData.username,
+      display_name: userData.displayName,
+      avatar_url: userData.avatarUrl,
+      status: userData.status
+    }));
+  }
+  
+  return contextUsers;
 });
 
 // Filter users based on search query
@@ -294,13 +319,13 @@ const filteredUsers = computed(() => {
   
   const query = searchQuery.value.toLowerCase();
   return users.value.filter(user => {
-    const displayName = getUserDisplayName(user.id).value?.toLowerCase() || '';
+    const displayName = getUserDisplayName(user.id).value.toLowerCase();
     const username = user.username?.toLowerCase() || '';
     return displayName.includes(query) || username.includes(query);
   });
 });
 
-// Group users by status using clean status store
+// Group users by status
 const groupedUsers = computed(() => {
   const groups = {
     online: [] as User[],
@@ -308,17 +333,10 @@ const groupedUsers = computed(() => {
     busy: [] as User[],
     offline: [] as User[]
   };
-  
+
   filteredUsers.value.forEach(user => {
-    const status = getUserStatus(user.id).value;
-    
-    if (!status) {
-      // If no status available, treat as offline
-      groups.offline.push(user);
-      return;
-    }
-    
-    switch (status.status) {
+    const status = user.status;
+    switch (status) {
       case UserStatus.Online:
         groups.online.push(user);
         break;
@@ -328,39 +346,33 @@ const groupedUsers = computed(() => {
       case UserStatus.Busy:
         groups.busy.push(user);
         break;
+      case UserStatus.Offline:
       default:
         groups.offline.push(user);
         break;
     }
   });
-  
-  // Sort users within each group by display name using real-time data
+
+  // Sort users within each group
   Object.values(groups).forEach(group => {
     group.sort((a, b) => {
-      const nameA = getUserDisplayName(a.id).value || '';
-      const nameB = getUserDisplayName(b.id).value || '';
+      const nameA = getUserDisplayName(a.id).value.toLowerCase();
+      const nameB = getUserDisplayName(b.id).value.toLowerCase();
       return nameA.localeCompare(nameB);
     });
   });
-  
+
   return groups;
 });
 
 // Total member count
-const totalMemberCount = computed(() => users.value.length);
+const totalMemberCount = computed(() => {
+  return users.value.length;
+});
 
-// Current server data for invite modal
+// Current server data
 const currentServerData = computed(() => {
-  const serverId = serverChannelStore.currentServerId;
-  if (!serverId) return null;
-  
-  const currentServer = serverChannelStore.currentServer;
-  return {
-    id: serverId,
-    name: currentServer?.name || 'Unknown Server',
-    icon_url: currentServer?.icon,
-    member_count: users.value.length
-  };
+  return serverChannelStore.currentServer;
 });
 
 // Methods
@@ -388,39 +400,32 @@ const toggleGroup = (groupName: string) => {
 const fetchAndSetUsers = async (serverId: string | null) => {
   if (serverId) {
     const userIds = await getUserIdsForServer(serverId);
-    await serverUsersStore.fetchUserProfiles(userIds);
     
-    // Subscribe to real-time presence for server users  
-    await subscribeToServerUsers(serverId, userIds);
+    // Subscribe to context using new system
+    await subscribeToContext(serverId, 'server', userIds);
+    console.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
+    console.log(`🎯 User Data system handles all user loading and presence tracking automatically`);
   }
 };
 
 // Clean watcher for server changes - no debouncing hacks
-watch(() => serverChannelStore.currentServerId, (newServerId) => {
-  fetchAndSetUsers(newServerId);
-  selectedUser.value = null; // Close profile when switching servers
-});
+watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId) => {
+  if (oldServerId) {
+    await unsubscribeFromContext(oldServerId);
+  }
+  if (newServerId) {
+    await fetchAndSetUsers(newServerId);
+  }
+}, { immediate: true });
 
 const showUserProfile = (user: User) => {
   selectedUser.value = user;
   showProfileModal.value = true;
 };
 
-// Clean status getter for avatars - no side effects
+// Helper to get status for avatar from composable
 const getStatusForAvatarValue = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
-  const status = getStatusForAvatar(userId).value;
-  
-  switch (status) {
-    case UserStatus.Online:
-      return 'online';
-    case UserStatus.Away:
-      return 'away';
-    case UserStatus.Busy:
-      return 'busy';
-    case UserStatus.Offline:
-    default:
-      return 'offline';
-  }
+  return getUserStatusForAvatar(userId).value;
 };
 
 const closeProfile = () => {
@@ -438,8 +443,15 @@ const closeInviteModal = () => {
 };
 
 // Initialize on mount
-onMounted(() => {
-  fetchAndSetUsers(serverChannelStore.currentServerId);
+onMounted(async () => {
+  const serverId = serverChannelStore.currentServerId;
+  if (serverId) {
+    await fetchAndSetUsers(serverId);
+  }
+  
+  // Debug: Log service stats
+  const stats = getStats.value;
+  console.log('🔍 UserData service stats:', stats);
 });
 </script>
 
