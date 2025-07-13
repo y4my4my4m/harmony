@@ -23,6 +23,10 @@
     @blur="handleBlur"
     @paste="handlePaste"
     :data-placeholder="placeholder"
+    :style="{
+      '--min-height': `${props.minHeight}px`,
+      '--max-height': `${props.maxHeight}px`
+    }"
   >
   </div>
 </template>
@@ -778,8 +782,8 @@ onMounted(() => {
 </script>
 <style scoped>
 .rich-text-editor {
-  min-height: v-bind('props.minHeight + "px"');
-  max-height: v-bind('props.maxHeight + "px"');
+  min-height: var(--min-height);
+  max-height: var(--max-height);
   padding: 11px 12px;
   background: transparent;
   border: none;
