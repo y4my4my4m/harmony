@@ -95,6 +95,10 @@ serve(async (req: Request) => {
       .eq('is_local', true)
       .single()
 
+    if (error) {
+      console.log('Debug - Database error:', error)
+    }
+
     if (error || !user) {
       return new Response('User not found', { 
         status: 404, 

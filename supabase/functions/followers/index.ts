@@ -36,17 +36,8 @@ serve(async (req: Request) => {
   try {
     const url = new URL(req.url)
     
-    // Extract username from path
-    let username = ''
-    const originalUri = req.headers.get('X-Original-URI')
-    if (originalUri) {
-      const match = originalUri.match(/\/users\/([^/]+)\/followers/)
-      username = match ? match[1] : ''
-    } else {
-      const pathParts = url.pathname.split('/')
-      const userIndex = pathParts.indexOf('users')
-      username = userIndex >= 0 ? pathParts[userIndex + 1] : ''
-    }
+    // Extract username from query parameter (passed by nginx rewrite)
+    const username = url.searchParams.get('username')
 
     if (!username) {
       return new Response('Username required', { 
