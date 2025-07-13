@@ -762,6 +762,8 @@ export class ActivityPubService {
       .limit(limit);
 
     if (error) throw error;
+    console.log(`👥 Followers loaded for user ${userId}: ${data?.length || 0}`);
+    console.log('Followers data:', data);
 
     return (data?.map((follow: any) => ({
       ...follow.follower,

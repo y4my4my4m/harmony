@@ -338,12 +338,6 @@ const followButtonText = computed(() => {
 });
 
 // Methods
-const formatNumber = (num: number): string => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-  return num.toString();
-};
-
 const formatJoinDate = (dateString: string): string => {
   return format(new Date(dateString), 'MMMM yyyy');
 };
@@ -388,16 +382,16 @@ const loadUserProfile = async (handle: string) => {
           const profile = profileStore.profile;
           
           if (profile) {
-            // Get accurate post count from the database
+            // Get accurate post count - use the same consistent approach
             let posts_count = 0;
             try {
-              await activityPubService.getUserPosts(currentUser.id, { limit: 1 });
-              // This gives us a sample, but for accurate count we'd need to implement a count endpoint
-              // For now, use the length of userPosts when they're loaded, or fall back to homeFeed filter
-              posts_count = activityPubStore.homeFeed.posts.filter(p => p.author_id === currentUser.id).length;
+              // Try to get a sample of posts to validate the user exists and has posts
+              const userPostsSample = await activityPubService.getUserPosts(currentUser.id, { limit: 5 });
+              posts_count = userPostsSample?.length || 0;
+              console.log(`📊 Post count sample: ${posts_count} (this will be updated after full posts load)`);
             } catch (error) {
-              console.log('Could not get post count, using fallback:', error);
-              posts_count = activityPubStore.homeFeed.posts.filter(p => p.author_id === currentUser.id).length;
+              console.log('Could not get post count, using 0 as default:', error);
+              posts_count = 0;
             }
             
             user.value = {
@@ -517,33 +511,22 @@ const loadFollowing = async () => {
   if (!user.value) return;
   
   try {
-    console.log(`👥 Loading following for user: ${user.value.username}`);
-    console.log(`🔍 User is local: ${user.value.is_local}, Is current user: ${isCurrentUser.value}`);
+    console.log(`👥 Loading following for user: ${user.value.username} (ID: ${user.value.id})`);
     
-    if (user.value.is_local && isCurrentUser.value) {
-      // For current user, get from ActivityPub store
-      console.log(`📊 ActivityPub store following data:`, {
-        following: activityPubStore.following,
-        followingCount: activityPubStore.followingCount,
-        followingLength: activityPubStore.following?.length || 'undefined'
-      });
-      
-      followingUsers.value = activityPubStore.following || [];
-    } else {
-      // For other users, try to fetch their following
-      try {
-        const following = await activityPubService.getFollowing(user.value.id);
-        followingUsers.value = following || [];
-      } catch (error) {
-        console.log('Could not load user following:', error);
-        followingUsers.value = [];
-      }
-    }
+    // Use consistent getFollowing method for all users
+    // This ensures the same data structure and behavior regardless of whether it's the current user or not
+    const following = await activityPubService.getFollowing(user.value.id, { limit: 50 });
+    followingUsers.value = following || [];
     
     console.log(`📊 Loaded ${followingUsers.value.length} following for ${user.value.username}`);
     console.log('👥 Following users:', followingUsers.value.map(u => u.display_name || u.username));
+    
+    // Update following count with actual loaded data
+    if (user.value) {
+      user.value.following_count = followingUsers.value.length;
+    }
   } catch (error) {
-    console.error('Failed to load following:', error);
+    console.error('❌ Failed to load following:', error);
     followingUsers.value = [];
   }
 };
@@ -552,33 +535,22 @@ const loadFollowers = async () => {
   if (!user.value) return;
   
   try {
-    console.log(`👥 Loading followers for user: ${user.value.username}`);
-    console.log(`🔍 User is local: ${user.value.is_local}, Is current user: ${isCurrentUser.value}`);
+    console.log(`👥 Loading followers for user: ${user.value.username} (ID: ${user.value.id})`);
     
-    if (user.value.is_local && isCurrentUser.value) {
-      // For current user, get from ActivityPub store
-      console.log(`📊 ActivityPub store followers data:`, {
-        followers: activityPubStore.followers,
-        followersCount: activityPubStore.followersCount,
-        followersLength: activityPubStore.followers?.length || 'undefined'
-      });
-      
-      followerUsers.value = activityPubStore.followers || [];
-    } else {
-      // For other users, try to fetch their followers
-      try {
-        const followers = await activityPubService.getFollowers(user.value.id);
-        followerUsers.value = followers || [];
-      } catch (error) {
-        console.log('Could not load user followers:', error);
-        followerUsers.value = [];
-      }
-    }
+    // Use consistent getFollowers method for all users
+    // This ensures the same data structure and behavior regardless of whether it's the current user or not
+    const followers = await activityPubService.getFollowers(user.value.id, { limit: 50 });
+    followerUsers.value = followers || [];
     
     console.log(`📊 Loaded ${followerUsers.value.length} followers for ${user.value.username}`);
     console.log('👥 Follower users:', followerUsers.value.map(u => u.display_name || u.username));
+    
+    // Update followers count with actual loaded data
+    if (user.value) {
+      user.value.followers_count = followerUsers.value.length;
+    }
   } catch (error) {
-    console.error('Failed to load followers:', error);
+    console.error('❌ Failed to load followers:', error);
     followerUsers.value = [];
   }
 };
