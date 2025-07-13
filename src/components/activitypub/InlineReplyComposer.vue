@@ -218,6 +218,11 @@ watch(() => props.isVisible, async (visible) => {
   padding: 16px;
   margin-top: 8px;
 }
+.root-post .inline-reply-composer,
+.threaded-post .inline-reply-composer {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
 
 .reply-context-indicator {
   display: flex;

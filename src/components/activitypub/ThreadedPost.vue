@@ -28,18 +28,6 @@
       />
     </article>
 
-    <!-- Reply composer (if replying to this post) -->
-    <div 
-      v-if="showReplyComposer && replyingToPostId === post.id" 
-      class="nested-reply-composer"
-    >
-      <InlineReplyComposer
-        :reply-to="post"
-        @post-created="handleReplyCreated"
-        @cancel="$emit('cancel-reply')"
-      />
-    </div>
-
     <!-- Nested replies -->
     <div v-if="post.replies && post.replies.length > 0 && threadDepth < maxDepth" class="nested-replies">
       <ThreadedPost
@@ -149,10 +137,10 @@ const expandThread = () => {
   left: -0.75rem;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 1px;
   background: linear-gradient(
     to bottom,
-    #80848e 0%,
+    transparent 0%,
     #80848e 50%,
     transparent 100%
   );
@@ -160,18 +148,11 @@ const expandThread = () => {
 }
 
 .post-content {
-  background: var(--h-sidebar, #2b2d31);
-  border-radius: 12px;
-  padding: 1rem;
-  border: 2px solid transparent;
   transition: all 0.3s ease;
   position: relative;
+  border-radius: 12px;
 }
 
-.highlighted-post .post-content {
-  border-color: var(--h-brand, #5865f2);
-  box-shadow: 0 0 20px rgba(88, 101, 242, 0.3);
-}
 
 .deep-thread {
   margin-left: calc(3 * 1.5rem); /* Cap indentation at 3 levels */
@@ -180,7 +161,7 @@ const expandThread = () => {
 .deep-thread .thread-line {
   background: linear-gradient(
     135deg,
-    #80848e 0%,
+    transparent 0%,
     #5865f2 50%,
     transparent 100%
   );

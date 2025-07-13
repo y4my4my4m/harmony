@@ -67,15 +67,6 @@
         <!-- Thread line connector for root post -->
         <div v-if="threadReplies.length > 0" class="thread-connector root-connector"></div>
 
-        <!-- Reply composer (if replying to root) -->
-        <div v-if="showReplyComposer && replyingToPostId === conversationThread.root_post.id" class="reply-composer">
-          <InlineReplyComposer
-            :reply-to-post="transformedRootPost"
-            :is-visible="true"
-            @reply-sent="handleReplyCreated"
-            @close="showReplyComposer = false"
-          />
-        </div>
 
         <!-- Threaded replies -->
         <div v-if="threadReplies.length > 0" class="replies-section">
@@ -653,17 +644,14 @@ watch(() => props.postId, () => {
 }
 
 .root-post {
-  background: var(--h-sidebar, #2b2d31);
-  border-radius: 12px;
-  padding: 1.5rem;
   margin-bottom: 1rem;
-  border: 2px solid transparent;
   transition: all 0.3s ease;
 }
 
 .highlighted-post {
   border-color: var(--h-brand, #5865f2);
-  box-shadow: 0 0 20px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 0 16px 5px rgba(88, 101, 242, 0.9);
+  border-radius: 12px;
 }
 
 .scroll-highlight {
