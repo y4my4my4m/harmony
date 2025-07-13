@@ -187,31 +187,83 @@ export function useUserData() {
     return user?.status ?? UserStatus.Offline
   })
   
-  // Context Data Getters
-  
   /**
-   * Get users in a specific context (server, DM)
+   * Get user creation date (Member Since)
    */
-  const getUsersInContext = (contextId: string) => computed(() => {
+  const getUserCreatedAt = (userId: string) => computed(() => {
     forceUpdate.value // Force reactivity
-    return userDataService.getUsersInContext(contextId)
+    const user = userDataService.getUser(userId)
+    return user?.createdAt || null
   })
-  
+
   /**
-   * Get all online users
+   * Get user profile data (complete profile info for compatibility)
    */
-  const getOnlineUsers = computed(() => {
+  const getUserProfile = (userId: string) => computed(() => {
     forceUpdate.value // Force reactivity
-    return userDataService.getOnlineUsers()
+    return userDataService.getUserProfile(userId)
   })
-  
+
   /**
-   * Get all users
+   * Get user bio
    */
-  const getAllUsers = computed(() => {
+  const getUserBio = (userId: string) => computed(() => {
     forceUpdate.value // Force reactivity
-    return userDataService.getAllUsers()
+    const user = userDataService.getUser(userId)
+    return user?.bio || null
   })
+
+  /**
+   * Get user roles
+   */
+  const getUserRoles = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    return user?.roles || []
+  })
+
+  /**
+   * Get user message count
+   */
+  const getUserMessageCount = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    return user?.messageCount || 0
+  })
+
+  /**
+   * Get user voice time
+   */
+  const getUserVoiceTime = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    return user?.voiceTime || 0
+  })
+
+  /**
+   * Fetch user profile (with caching)
+   */
+  const fetchUserProfile = async (userId: string, forceRefresh: boolean = false) => {
+    await ensureInitialized()
+    return await userDataService.fetchUserProfile(userId, forceRefresh)
+  }
+
+  /**
+   * Fetch multiple user profiles efficiently
+   */
+  const fetchMultipleUserProfiles = async (userIds: string[], forceRefresh: boolean = false) => {
+    await ensureInitialized()
+    return await userDataService.fetchMultipleUserProfiles(userIds, forceRefresh)
+  }
+
+  /**
+   * Professional cache method to ensure profiles are available
+   * Use this in components that need to display user data
+   */
+  const ensureProfilesAvailable = async (userIds: string[]) => {
+    await ensureInitialized()
+    await userDataService.ensureUsersLoaded(userIds)
+  }
   
   // Actions
   
@@ -288,6 +340,30 @@ export function useUserData() {
     return userDataService.getUsersInContext(contextId).map(toLegacyUser)
   })
   
+  /**
+   * Get users in a specific context (server, DM)
+   */
+  const getUsersInContext = (contextId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    return userDataService.getUsersInContext(contextId)
+  })
+  
+  /**
+   * Get all online users
+   */
+  const getOnlineUsers = computed(() => {
+    forceUpdate.value // Force reactivity
+    return userDataService.getOnlineUsers()
+  })
+  
+  /**
+   * Get all users
+   */
+  const getAllUsers = computed(() => {
+    forceUpdate.value // Force reactivity
+    return userDataService.getAllUsers()
+  })
+
   // Lifecycle
   onMounted(async () => {
     await ensureInitialized()
@@ -313,6 +389,12 @@ export function useUserData() {
     getUserColor,
     isUserOnline,
     getCurrentUserStatus,
+    getUserCreatedAt,
+    getUserProfile,
+    getUserBio,
+    getUserRoles,
+    getUserMessageCount,
+    getUserVoiceTime,
     
     // Context Data (reactive)
     getUsersInContext,
@@ -330,6 +412,9 @@ export function useUserData() {
     toLegacyUser,
     getStats,
     getUserAvatarUrlCurrent,
+    fetchUserProfile,
+    fetchMultipleUserProfiles,
+    ensureProfilesAvailable,
     
     // State
     isInitialized

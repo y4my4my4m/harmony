@@ -57,7 +57,6 @@ export interface Profile {
   following_count?: number;
   posts_count?: number;
   is_local?: boolean;
-  verified?: boolean;
   created_at?: string;
   updated_at?: string;
   handle?: string;
@@ -660,7 +659,6 @@ export interface EnhancedActivityPubPost extends ActivityPubPost {
     domain: string;
     bio?: string;
     is_local?: boolean;
-    verified?: boolean;
     followers_count?: number;
     following_count?: number;
     posts_count?: number;
@@ -757,7 +755,6 @@ export interface FederatedUser extends Profile {
   posts_count?: number;
   following_count?: number;
   followers_count?: number;
-  verified?: boolean;
   bio?: string; // Alias for about
   is_following?: boolean;
   is_follower?: boolean;

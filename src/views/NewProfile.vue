@@ -378,7 +378,7 @@ const createProfile = async () => {
   try {
     console.log('Creating profile with data:', {
       id: authStore.session.user.id,
-      username: formattedUsername.value,
+      username: username.value.trim().toLowerCase(),
       display_name: displayName.value.trim(),
       bio: bio.value.trim() || null,
       color: selectedColor.value,
@@ -386,7 +386,7 @@ const createProfile = async () => {
 
     const profileData = {
       id: authStore.session.user.id,
-      username: formattedUsername.value,
+      username: username.value,
       display_name: displayName.value.trim(),
       bio: bio.value.trim() || undefined,
       color: selectedColor.value,
@@ -408,7 +408,7 @@ const createProfile = async () => {
           await profileStore.updateProfile({
             id: authStore.session.user.id,
             avatar_url: uploadResult.url,
-            username: formattedUsername.value,
+            username: username.value,
             display_name: displayName.value.trim(),
           });
           console.log('Avatar uploaded successfully:', uploadResult.url);

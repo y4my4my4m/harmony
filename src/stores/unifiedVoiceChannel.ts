@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
 import { useThemeStore } from '@/stores/useTheme';
+import { useUserData } from '@/composables/useUserData';
 
 // =============================================================================
 // TYPES
@@ -380,13 +381,33 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         console.log('👋 Channel left:', data);
       });
 
-      unifiedWebRTC.on('channel-state-synced', (data) => {
+      unifiedWebRTC.on('channel-state-synced', async (data) => {
         console.log('🔄 Channel state synced:', data);
         this.allUsers = data.users;
+        
+        // Ensure all users' profile data is loaded through unified system
+        const { ensureProfilesAvailable } = useUserData();
+        const userIds = data.users.map((user: any) => user.userId);
+        
+        // Check if user list has changed
+        const userIdsChanged = !this.previousUserIds || userIds.length !== this.previousUserIds.length || 
+          userIds.some((id, index) => id !== this.previousUserIds[index]);
+        
+        if (userIdsChanged && userIds.length > 0) {
+          try {
+            await ensureProfilesAvailable(userIds);
+            console.log('✅ Loaded profiles for all voice users:', userIds.length);
+            this.previousUserIds = userIds; // Update cache
+          } catch (error) {
+            console.warn('⚠️ Failed to load profiles for voice users:', error);
+          }
+        } else {
+          console.log('ℹ️ No changes in user list, skipping profile load.');
+        }
       });
 
       // User events
-      unifiedWebRTC.on('user-joined', (data) => {
+      unifiedWebRTC.on('user-joined', async (data) => {
         console.log('👋 User joined:', data);
         
         // Add user if not already in list
@@ -395,6 +416,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.allUsers.push(data.mediaState);
         } else {
           this.allUsers[existingIndex] = data.mediaState;
+        }
+
+        // Ensure user profile data is loaded through unified system
+        const { ensureProfilesAvailable } = useUserData();
+        try {
+          await ensureProfilesAvailable([data.userId]);
+          console.log('✅ Loaded profile for voice user:', data.userId);
+        } catch (error) {
+          console.warn('⚠️ Failed to load profile for voice user:', data.userId, error);
         }
 
         themeStore.testAudio('voice_connect');
@@ -579,11 +609,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Get user profile info
+     * Get user profile info - uses unified userDataService
      */
     getUserProfile(userId: string) {
-      const serverUsersStore = useServerUsersStore();
-      return serverUsersStore.userProfiles[userId] || {
+      const { getUserProfile } = useUserData();
+      const profile = getUserProfile(userId).value;
+      
+      return profile || {
         id: userId,
         username: 'Unknown User',
         display_name: 'Unknown User',

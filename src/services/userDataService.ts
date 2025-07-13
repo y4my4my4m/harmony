@@ -10,6 +10,7 @@
 
 import { supabase } from '@/supabase'
 import { UserStatus } from '@/types'
+import { activityTracker } from '@/services/ActivityTracker'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface UserData {
@@ -23,6 +24,11 @@ export interface UserData {
   bio?: string
   color?: string
   domain?: string
+  createdAt: string // When the user account was created
+  updatedAt?: string // When the profile was last updated in database
+  roles?: any[]
+  messageCount?: number
+  voiceTime?: number
   
   // Presence data (real-time)
   status: UserStatus
@@ -32,7 +38,7 @@ export interface UserData {
   
   // Cache metadata
   isLocal: boolean // true if loaded from local cache, false if fetched from server
-  lastUpdated: string
+  lastCacheUpdate: string // When we last fetched/updated this data in our local cache
   source: 'database' | 'presence' | 'cache'
 }
 
@@ -51,10 +57,17 @@ class UserDataService extends EventTarget {
   private globalChannel: RealtimeChannel | null = null
   private initialized = false
   
+  // Status management
+  private wasManuallySet = false
+  private manualStatus: UserStatus | null = null
+  private lastAutoStatus: UserStatus = UserStatus.Online
+  
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
   private readonly HEARTBEAT_INTERVAL = 30 * 1000 // 30 seconds
   private heartbeatTimer: NodeJS.Timeout | null = null
+  private heartbeatFailures = 0
+  private readonly MAX_HEARTBEAT_FAILURES = 3
 
   /**
    * Initialize the service for a user
@@ -72,6 +85,9 @@ class UserDataService extends EventTarget {
     
     // Setup global presence channel
     await this.setupGlobalPresence()
+    
+    // Start activity tracking and lifecycle management
+    this.setupActivityTracking()
     
     // Start heartbeat
     this.startHeartbeat()
@@ -98,7 +114,79 @@ class UserDataService extends EventTarget {
     }
     return null
   }
-
+  
+  /**
+   * Setup activity tracking and lifecycle management
+   */
+  private setupActivityTracking(): void {
+    // Start activity tracking
+    activityTracker.startTracking()
+    
+    // Listen for activity events
+    activityTracker.addEventListener('activity-resumed', () => {
+      this.handleActivityResumed()
+    })
+    
+    activityTracker.addEventListener('status-should-change', (event: any) => {
+      this.handleAutomaticStatusChange(event.detail)
+    })
+    
+    console.log('🎯 Activity tracking started')
+  }
+  
+  /**
+   * Handle user activity resumption
+   */
+  private async handleActivityResumed(): Promise<void> {
+    if (!this.currentUserId) return
+    
+    // If user was set to Away/Offline automatically, restore their preferred status
+    const userData = this.users.get(this.currentUserId)
+    if (!userData) return
+    
+    // If status was manually set (Away, Busy), respect that
+    if (this.wasManuallySet && this.manualStatus !== null) {
+      console.log('👋 User active again, restoring manual status:', UserStatus[this.manualStatus])
+      await this.updateCurrentUserStatus(this.manualStatus, false) // Don't mark as manual again
+    } else {
+      // Restore to Online if they were auto-set to Away/Offline
+      if (userData.status === UserStatus.Away || userData.status === UserStatus.Offline) {
+        console.log('👋 User active again, restoring to Online')
+        await this.updateCurrentUserStatus(UserStatus.Online, false)
+      }
+    }
+    
+    // Reset activity tracking
+    activityTracker.resetStatusTracking()
+  }
+  
+  /**
+   * Handle automatic status changes due to inactivity
+   */
+  private async handleAutomaticStatusChange(detail: { status: UserStatus, reason: string, inactiveTime: number }): Promise<void> {
+    if (!this.currentUserId) return
+    
+    const userData = this.users.get(this.currentUserId)
+    if (!userData) return
+    
+    // Only auto-change status if it's currently Online or if going to Offline
+    // Don't override manual Away/Busy settings
+    if (this.wasManuallySet && userData.status !== UserStatus.Online && detail.status !== UserStatus.Offline) {
+      console.log('⏭️ Skipping auto status change - user manually set to:', UserStatus[userData.status])
+      return
+    }
+    
+    console.log(`😴 Auto-changing status to ${UserStatus[detail.status]} due to ${detail.reason} (${Math.round(detail.inactiveTime / 60000)}min)`)
+    
+    // Store current status if it's manual
+    if (!this.wasManuallySet && userData.status !== UserStatus.Online) {
+      this.manualStatus = userData.status
+      this.wasManuallySet = true
+    }
+    
+    await this.updateCurrentUserStatus(detail.status, false) // Don't mark as manual
+  }
+  
   /**
    * Initialize current user data (Discord/Slack style)
    */
@@ -107,24 +195,46 @@ class UserDataService extends EventTarget {
       // Try to load from database first - this is the primary source of truth
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, domain, is_local, updated_at')
+        .select('id, username, display_name, avatar_url, bio, color, status, domain, is_local, updated_at, created_at')
         .eq('id', userId)
         .single()
       
       if (profile) {
         // Professional status handling: database is truth, localStorage is backup
-        let finalStatus = UserStatus.Online // default
+        // IMPORTANT: Active users should be Online by default, not Offline
+        let finalStatus = UserStatus.Online // Always default to Online for active users
         
-        // Primary: Use database status if it exists and is valid
+        // Primary: Use database status if it exists and is valid AND not offline
         if (profile.status !== null && profile.status !== undefined) {
-          finalStatus = profile.status
-          console.log('✅ Status loaded from database:', UserStatus[finalStatus])
+          // If user was explicitly set to Away/Busy, preserve that
+          if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy) {
+            finalStatus = profile.status
+            console.log('✅ Preserving user-set status from database:', UserStatus[finalStatus])
+          } else if (profile.status === UserStatus.Online) {
+            finalStatus = UserStatus.Online
+            console.log('✅ Status loaded from database:', UserStatus[finalStatus])
+          } else {
+            // User was offline in database, but they're actively using the app now
+            finalStatus = UserStatus.Online
+            console.log('🔄 User was offline in DB but is now active, setting to Online')
+            
+            // Update database to reflect they're now online
+            try {
+              await supabase
+                .from('profiles')
+                .update({ status: UserStatus.Online })
+                .eq('id', userId)
+              console.log('💾 Updated database to show user as Online')
+            } catch (syncError) {
+              console.warn('⚠️ Failed to update online status in database:', syncError)
+            }
+          }
         } else {
-          // Fallback: Try localStorage backup
+          // No status in database, try localStorage backup for Away/Busy only
           const backupStatus = this.getStatusFromLocalStorage()
-          if (backupStatus !== null) {
+          if (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy) {
             finalStatus = backupStatus
-            console.log('🔄 Using status from localStorage backup:', UserStatus[finalStatus])
+            console.log('🔄 Using Away/Busy status from localStorage backup:', UserStatus[finalStatus])
             
             // Sync backup to database for consistency
             try {
@@ -137,7 +247,8 @@ class UserDataService extends EventTarget {
               console.warn('⚠️ Failed to sync status to database:', syncError)
             }
           } else {
-            console.log('🆕 New user, defaulting to Online status')
+            // Default to Online - user is actively using the app
+            console.log('🆕 No valid status found, defaulting to Online (user is active)')
           }
         }
         
@@ -154,16 +265,21 @@ class UserDataService extends EventTarget {
           isOnline: true,
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
-          lastUpdated: new Date().toISOString(),
+          lastCacheUpdate: new Date().toISOString(),
+          createdAt: profile.created_at || new Date().toISOString(),
           source: 'database'
         }
         
         this.users.set(userId, userData)
         console.log('✅ Current user initialized:', userData.displayName, 'Final Status:', UserStatus[finalStatus])
       } else {
-        // No profile exists - check localStorage backup
+        // No profile exists - user is actively using the app, so they should be Online
         const backupStatus = this.getStatusFromLocalStorage()
-        const initialStatus = backupStatus ?? UserStatus.Online
+        // Only use backup status if it's Away or Busy (user preference states)
+        // Never use Offline from backup since user is actively using the app
+        const initialStatus = (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy) 
+          ? backupStatus 
+          : UserStatus.Online
         
         const userData: UserData = {
           id: userId,
@@ -175,7 +291,8 @@ class UserDataService extends EventTarget {
           isLocal: true,
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
-          lastUpdated: new Date().toISOString(),
+          lastCacheUpdate: new Date().toISOString(),
+          createdAt: new Date().toISOString(), //TODO: does that make sense?
           source: 'cache'
         }
         
@@ -246,7 +363,8 @@ class UserDataService extends EventTarget {
       isOnline: true,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
+      lastCacheUpdate: new Date().toISOString(),
+      createdAt: existing?.createdAt || new Date().toISOString(),
       source: 'presence'
     }
     
@@ -264,11 +382,42 @@ class UserDataService extends EventTarget {
       if (this.currentUserId) {
         const userData = this.users.get(this.currentUserId)
         if (userData) {
-          userData.lastHeartbeat = new Date().toISOString()
-          await this.trackCurrentUser()
+          try {
+            userData.lastHeartbeat = new Date().toISOString()
+            await this.trackCurrentUser()
+            
+            // Reset failure count on successful heartbeat
+            this.heartbeatFailures = 0
+            
+          } catch (error) {
+            console.warn('💔 Heartbeat failed:', error)
+            this.heartbeatFailures++
+            
+            // If heartbeat fails repeatedly, set offline
+            if (this.heartbeatFailures >= this.MAX_HEARTBEAT_FAILURES) {
+              console.log('💀 Connection lost - setting offline after', this.heartbeatFailures, 'failures')
+              await this.handleConnectionLost()
+            }
+          }
         }
       }
     }, this.HEARTBEAT_INTERVAL)
+  }
+  
+  /**
+   * Handle connection loss - set offline status
+   */
+  private async handleConnectionLost(): Promise<void> {
+    if (!this.currentUserId) return
+    
+    console.log('📡 Connection lost - setting user offline')
+    
+    try {
+      // Set offline status (this will be automatic, not manual)
+      await this.updateCurrentUserStatus(UserStatus.Offline, false)
+    } catch (error) {
+      console.error('Failed to set offline status on connection loss:', error)
+    }
   }
   
   /**
@@ -402,7 +551,7 @@ class UserDataService extends EventTarget {
       if (userData) {
         userData.isOnline = false
         userData.lastSeen = new Date().toISOString()
-        userData.lastUpdated = new Date().toISOString()
+        userData.lastCacheUpdate = new Date().toISOString()
         this.emitEvent('user-updated', { userId: presence.user_id })
       }
       console.log(`👋 User left server ${serverId}:`, presence.display_name || presence.username)
@@ -446,7 +595,7 @@ class UserDataService extends EventTarget {
       if (userData) {
         userData.isOnline = false
         userData.lastSeen = new Date().toISOString()
-        userData.lastUpdated = new Date().toISOString()
+        userData.lastCacheUpdate = new Date().toISOString()
       }
       
       // Emit context update
@@ -488,7 +637,7 @@ class UserDataService extends EventTarget {
         userData.username = updatedProfile.username
       }
       
-      userData.lastUpdated = new Date().toISOString()
+      userData.lastCacheUpdate = new Date().toISOString()
       userData.source = 'database'
       
       // Emit update event so UI components can react
@@ -546,7 +695,7 @@ class UserDataService extends EventTarget {
         userData.username = profileUpdates.username
       }
       
-      userData.lastUpdated = new Date().toISOString()
+      userData.lastCacheUpdate = new Date().toISOString()
       userData.source = 'presence' // Updated via real-time broadcast
       
       // Emit update event so UI components can react immediately
@@ -583,7 +732,7 @@ class UserDataService extends EventTarget {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, domain, updated_at')
+        .select('id, username, display_name, avatar_url, bio, color, status, domain, updated_at, created_at, is_local')
         .in('id', missingUserIds)
       
       if (profiles) {
@@ -601,7 +750,9 @@ class UserDataService extends EventTarget {
             isOnline: false, // Will be updated by presence
             lastSeen: profile.updated_at || new Date().toISOString(),
             lastHeartbeat: new Date().toISOString(),
-            lastUpdated: new Date().toISOString(),
+            lastCacheUpdate: new Date().toISOString(),
+            createdAt: profile.created_at || new Date().toISOString(),
+            updatedAt: profile.updated_at,
             source: 'database'
           }
           
@@ -617,6 +768,67 @@ class UserDataService extends EventTarget {
   }
   
   /**
+   * Get user in a format compatible with User interface (for backwards compatibility)
+   */
+  getUserProfile(userId: string): any | null {
+    const userData = this.users.get(userId)
+    if (!userData) return null
+    
+    return {
+      id: userData.id,
+      username: userData.username,
+      display_name: userData.displayName,
+      avatar_url: userData.avatarUrl,
+      bio: userData.bio,
+      color: userData.color,
+      created_at: userData.createdAt,
+      updated_at: userData.updatedAt,
+      status: userData.status,
+      domain: userData.domain,
+      roles: userData.roles || [],
+      is_local: userData.isLocal,
+      online_at: userData.lastSeen,
+      last_seen: userData.lastSeen
+    }
+  }
+  
+  /**
+   * Professional cache management - automatically fetch missing user data
+   */
+  async fetchUserProfile(userId: string, forceRefresh: boolean = false): Promise<any | null> {
+    // If force refresh or user not in cache, fetch from database
+    if (forceRefresh || !this.users.has(userId) || this.isUserDataStale(userId)) {
+      await this.loadUsersData([userId])
+    }
+    
+    return this.getUserProfile(userId)
+  }
+  
+  /**
+   * Batch fetch multiple user profiles efficiently
+   */
+  async fetchMultipleUserProfiles(userIds: string[], forceRefresh: boolean = false): Promise<Record<string, any>> {
+    // Load missing users
+    if (forceRefresh) {
+      // Force refresh all users
+      userIds.forEach(id => this.users.delete(id))
+    }
+    
+    await this.loadUsersData(userIds)
+    
+    // Return profiles in expected format
+    const results: Record<string, any> = {}
+    userIds.forEach(userId => {
+      const profile = this.getUserProfile(userId)
+      if (profile) {
+        results[userId] = profile
+      }
+    })
+    
+    return results
+  }
+
+  /**
    * Public method to ensure user data is loaded (for external stores)
    */
   async ensureUsersLoaded(userIds: string[]): Promise<void> {
@@ -630,24 +842,32 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(userId)
     if (!userData) return true
     
-    const age = Date.now() - new Date(userData.lastUpdated).getTime()
+    const age = Date.now() - new Date(userData.lastCacheUpdate).getTime()
     return age > this.CACHE_TTL
   }
   
   /**
    * Update current user status (Discord/Slack style persistence)
    */
-  async updateCurrentUserStatus(status: UserStatus): Promise<void> {
+  async updateCurrentUserStatus(status: UserStatus, isManual: boolean = true): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
     
-    console.log('🔄 Updating current user status to:', UserStatus[status])
+    console.log('🔄 Updating current user status to:', UserStatus[status], isManual ? '(manual)' : '(automatic)')
     
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
     
+    // Track manual status changes
+    if (isManual) {
+      this.wasManuallySet = (status === UserStatus.Away || status === UserStatus.Busy)
+      this.manualStatus = this.wasManuallySet ? status : null
+      // Note: activityTracker would be called here if available
+      console.log('📌 Status manually set:', this.wasManuallySet ? 'Yes' : 'No')
+    }
+    
     // Update local data immediately for instant UI feedback
     userData.status = status
-    userData.lastUpdated = new Date().toISOString()
+    userData.lastCacheUpdate = new Date().toISOString()
     userData.lastHeartbeat = new Date().toISOString()
     
     try {
@@ -742,7 +962,7 @@ class UserDataService extends EventTarget {
     if (profileData.bio !== undefined) userData.bio = profileData.bio
     if (profileData.color !== undefined) userData.color = profileData.color
     if (profileData.username !== undefined) userData.username = profileData.username
-    userData.lastUpdated = new Date().toISOString()
+    userData.lastCacheUpdate = new Date().toISOString()
     
     try {
       // Broadcast profile changes to relevant contexts only (context-aware)

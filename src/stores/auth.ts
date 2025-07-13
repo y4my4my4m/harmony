@@ -76,30 +76,15 @@ export const useAuthStore = defineStore('auth', {
         // We can't reliably do async Supabase calls here due to timing constraints
       };
 
-      // Handle page visibility for away status
+      // Handle page visibility for better status management
       const handleVisibilityChange = async () => {
         if (document.hidden) {
-          // Set as away after 5 minutes of tab being hidden
-          setTimeout(async () => {
-            if (document.hidden && this.session?.user?.id) {
-              await updateUserStatus(this.session.user.id, UserStatus.Away);
-            }
-          }, 5 * 60 * 1000);
+          // The ActivityTracker will handle automatic Away/Offline transitions
+          // No need to set timers here - let the activity system manage it
+          console.log('📱 Tab hidden - activity tracker will handle status changes')
         } else {
-          // User returned to tab - restore to their preferred status (not force online)
-          if (this.session?.user?.id) {
-            // Let userDataService restore the user's actual preferred status
-            try {
-              const { userDataService } = await import('@/services/userDataService')
-              const currentUser = userDataService.getCurrentUser()
-              if (currentUser) {
-                // Restore to their preferred status (from localStorage or database)
-                await userDataService.updateCurrentUserStatus(currentUser.status)
-              }
-            } catch (error) {
-              console.error('Failed to restore user status on tab focus:', error)
-            }
-          }
+          // User returned to tab - activity tracker will detect this automatically
+          console.log('📱 Tab visible - activity tracker will restore status if needed')
         }
       };
 
