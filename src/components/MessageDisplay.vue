@@ -273,7 +273,14 @@ export default defineComponent({
     const { isCurrentUserServerOwner } = useServerPermissions();
     
     // Use reactive user data system for real-time updates
-    const { getUserDisplayName, getUserColor, getUserAvatarUrl } = useUserData();
+    const { 
+      getUserDisplayName, 
+      getUserColor, 
+      getUserAvatarUrl, 
+      ensureProfilesAvailable,
+      fetchUserProfile,
+      getUserProfile
+    } = useUserData();
     
     // Initialize imageLoaded early to prevent initialization order issues
     const imageLoaded: Ref<Record<string, boolean>> = ref({});
@@ -314,21 +321,13 @@ export default defineComponent({
         clearTimeout(tooltipTimer.value);
       }
       
-      // Pre-fetch any missing user profiles using the getter
-      const missingUserIds = reaction.reactions
-        .filter(r => !serverUsersStore.getUserProfile(r.user_id))
-        .map(r => r.user_id);
+      // Pre-fetch any missing user profiles using the unified system
+      const userIds = reaction.reactions.map(r => r.user_id)
       
-      if (missingUserIds.length > 0) {
-        try {
-          await Promise.all(missingUserIds.map(id => 
-            serverUsersStore.fetchUserProfile(id).catch(error => {
-              console.error("Error fetching user profile for tooltip:", error);
-            })
-          ));
-        } catch (error) {
-          console.error("Error fetching user profiles for tooltip:", error);
-        }
+      try {
+        await ensureProfilesAvailable(userIds)
+      } catch (error) {
+        console.error("Error ensuring user profiles are available for tooltip:", error)
       }
       
       const usersDetails = reaction.reactions.map(r => ({
@@ -477,11 +476,11 @@ export default defineComponent({
         });
       });
 
-      // Ensure all user profiles are available
+      // Ensure all user profiles are available using unified system
       if (userIds.size > 0) {
         // Use setTimeout to prevent blocking the main thread and avoid recursion
         setTimeout(() => {
-          serverUsersStore.ensureProfilesAvailable(Array.from(userIds)).catch(error => {
+          ensureProfilesAvailable(Array.from(userIds)).catch(error => {
             console.error('Error ensuring user profiles are available:', error);
           });
         }, 0);
@@ -809,12 +808,13 @@ export default defineComponent({
     const showProfileModal = ref(false);
     const showInviteModal = ref(false);
     const showUserProfile = async (userId: string, event?: MouseEvent) => {
-      let user = serverUsersStore.getUserProfile(userId);
+      // Try to get user from unified system first
+      let user = getUserProfile(userId).value
       
       if (!user) {
-        console.log("User not found in cache, fetching profile for ID:", userId);
+        console.log("User not found in unified cache, fetching profile for ID:", userId);
         try {
-          const fetchedUser = await serverUsersStore.fetchUserProfile(userId);
+          const fetchedUser = await fetchUserProfile(userId);
           if (!fetchedUser) {
             console.error("Failed to fetch user profile for ID:", userId);
             return;
@@ -1068,9 +1068,8 @@ export default defineComponent({
     }
 
     const replyTo = (message: Message) => {
-      // Get display name synchronously without triggering async operations
-      const user = serverUsersStore.getUserProfile(message.user_id);
-      const displayName = user?.display_name || 'Unknown User';
+      // Get display name synchronously from unified system
+      const displayName = getUserDisplayName(message.user_id).value || 'Unknown User';
       emit('replyingTo', message.id, displayName);
     }
 

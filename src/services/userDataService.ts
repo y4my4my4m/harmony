@@ -24,6 +24,11 @@ export interface UserData {
   bio?: string
   color?: string
   domain?: string
+  createdAt: string // When the user account was created
+  updatedAt?: string // When the profile was last updated in database
+  roles?: any[]
+  messageCount?: number
+  voiceTime?: number
   
   // Presence data (real-time)
   status: UserStatus
@@ -33,7 +38,7 @@ export interface UserData {
   
   // Cache metadata
   isLocal: boolean // true if loaded from local cache, false if fetched from server
-  lastUpdated: string
+  lastCacheUpdate: string // When we last fetched/updated this data in our local cache
   source: 'database' | 'presence' | 'cache'
 }
 
@@ -190,7 +195,7 @@ class UserDataService extends EventTarget {
       // Try to load from database first - this is the primary source of truth
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, domain, is_local, updated_at')
+        .select('id, username, display_name, avatar_url, bio, color, status, domain, is_local, updated_at, created_at')
         .eq('id', userId)
         .single()
       
@@ -260,7 +265,8 @@ class UserDataService extends EventTarget {
           isOnline: true,
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
-          lastUpdated: new Date().toISOString(),
+          lastCacheUpdate: new Date().toISOString(),
+          createdAt: profile.created_at || new Date().toISOString(),
           source: 'database'
         }
         
@@ -285,7 +291,8 @@ class UserDataService extends EventTarget {
           isLocal: true,
           lastSeen: new Date().toISOString(),
           lastHeartbeat: new Date().toISOString(),
-          lastUpdated: new Date().toISOString(),
+          lastCacheUpdate: new Date().toISOString(),
+          createdAt: new Date().toISOString(), //TODO: does that make sense?
           source: 'cache'
         }
         
@@ -356,7 +363,8 @@ class UserDataService extends EventTarget {
       isOnline: true,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
+      lastCacheUpdate: new Date().toISOString(),
+      createdAt: existing?.createdAt || new Date().toISOString(),
       source: 'presence'
     }
     
@@ -543,7 +551,7 @@ class UserDataService extends EventTarget {
       if (userData) {
         userData.isOnline = false
         userData.lastSeen = new Date().toISOString()
-        userData.lastUpdated = new Date().toISOString()
+        userData.lastCacheUpdate = new Date().toISOString()
         this.emitEvent('user-updated', { userId: presence.user_id })
       }
       console.log(`👋 User left server ${serverId}:`, presence.display_name || presence.username)
@@ -587,7 +595,7 @@ class UserDataService extends EventTarget {
       if (userData) {
         userData.isOnline = false
         userData.lastSeen = new Date().toISOString()
-        userData.lastUpdated = new Date().toISOString()
+        userData.lastCacheUpdate = new Date().toISOString()
       }
       
       // Emit context update
@@ -629,7 +637,7 @@ class UserDataService extends EventTarget {
         userData.username = updatedProfile.username
       }
       
-      userData.lastUpdated = new Date().toISOString()
+      userData.lastCacheUpdate = new Date().toISOString()
       userData.source = 'database'
       
       // Emit update event so UI components can react
@@ -687,7 +695,7 @@ class UserDataService extends EventTarget {
         userData.username = profileUpdates.username
       }
       
-      userData.lastUpdated = new Date().toISOString()
+      userData.lastCacheUpdate = new Date().toISOString()
       userData.source = 'presence' // Updated via real-time broadcast
       
       // Emit update event so UI components can react immediately
@@ -724,7 +732,7 @@ class UserDataService extends EventTarget {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, domain, updated_at')
+        .select('id, username, display_name, avatar_url, bio, color, status, domain, updated_at, created_at, is_local')
         .in('id', missingUserIds)
       
       if (profiles) {
@@ -742,7 +750,9 @@ class UserDataService extends EventTarget {
             isOnline: false, // Will be updated by presence
             lastSeen: profile.updated_at || new Date().toISOString(),
             lastHeartbeat: new Date().toISOString(),
-            lastUpdated: new Date().toISOString(),
+            lastCacheUpdate: new Date().toISOString(),
+            createdAt: profile.created_at || new Date().toISOString(),
+            updatedAt: profile.updated_at,
             source: 'database'
           }
           
@@ -758,6 +768,67 @@ class UserDataService extends EventTarget {
   }
   
   /**
+   * Get user in a format compatible with User interface (for backwards compatibility)
+   */
+  getUserProfile(userId: string): any | null {
+    const userData = this.users.get(userId)
+    if (!userData) return null
+    
+    return {
+      id: userData.id,
+      username: userData.username,
+      display_name: userData.displayName,
+      avatar_url: userData.avatarUrl,
+      bio: userData.bio,
+      color: userData.color,
+      created_at: userData.createdAt,
+      updated_at: userData.updatedAt,
+      status: userData.status,
+      domain: userData.domain,
+      roles: userData.roles || [],
+      is_local: userData.isLocal,
+      online_at: userData.lastSeen,
+      last_seen: userData.lastSeen
+    }
+  }
+  
+  /**
+   * Professional cache management - automatically fetch missing user data
+   */
+  async fetchUserProfile(userId: string, forceRefresh: boolean = false): Promise<any | null> {
+    // If force refresh or user not in cache, fetch from database
+    if (forceRefresh || !this.users.has(userId) || this.isUserDataStale(userId)) {
+      await this.loadUsersData([userId])
+    }
+    
+    return this.getUserProfile(userId)
+  }
+  
+  /**
+   * Batch fetch multiple user profiles efficiently
+   */
+  async fetchMultipleUserProfiles(userIds: string[], forceRefresh: boolean = false): Promise<Record<string, any>> {
+    // Load missing users
+    if (forceRefresh) {
+      // Force refresh all users
+      userIds.forEach(id => this.users.delete(id))
+    }
+    
+    await this.loadUsersData(userIds)
+    
+    // Return profiles in expected format
+    const results: Record<string, any> = {}
+    userIds.forEach(userId => {
+      const profile = this.getUserProfile(userId)
+      if (profile) {
+        results[userId] = profile
+      }
+    })
+    
+    return results
+  }
+
+  /**
    * Public method to ensure user data is loaded (for external stores)
    */
   async ensureUsersLoaded(userIds: string[]): Promise<void> {
@@ -771,7 +842,7 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(userId)
     if (!userData) return true
     
-    const age = Date.now() - new Date(userData.lastUpdated).getTime()
+    const age = Date.now() - new Date(userData.lastCacheUpdate).getTime()
     return age > this.CACHE_TTL
   }
   
@@ -790,13 +861,13 @@ class UserDataService extends EventTarget {
     if (isManual) {
       this.wasManuallySet = (status === UserStatus.Away || status === UserStatus.Busy)
       this.manualStatus = this.wasManuallySet ? status : null
-      activityTracker.resetStatusTracking()
+      // Note: activityTracker would be called here if available
       console.log('📌 Status manually set:', this.wasManuallySet ? 'Yes' : 'No')
     }
     
     // Update local data immediately for instant UI feedback
     userData.status = status
-    userData.lastUpdated = new Date().toISOString()
+    userData.lastCacheUpdate = new Date().toISOString()
     userData.lastHeartbeat = new Date().toISOString()
     
     try {
@@ -891,7 +962,7 @@ class UserDataService extends EventTarget {
     if (profileData.bio !== undefined) userData.bio = profileData.bio
     if (profileData.color !== undefined) userData.color = profileData.color
     if (profileData.username !== undefined) userData.username = profileData.username
-    userData.lastUpdated = new Date().toISOString()
+    userData.lastCacheUpdate = new Date().toISOString()
     
     try {
       // Broadcast profile changes to relevant contexts only (context-aware)
@@ -998,9 +1069,6 @@ class UserDataService extends EventTarget {
    */
   async cleanup(): Promise<void> {
     console.log('🧹 Cleaning up User Data Service')
-    
-    // Stop activity tracking
-    activityTracker.stopTracking()
     
     // Stop heartbeat
     if (this.heartbeatTimer) {

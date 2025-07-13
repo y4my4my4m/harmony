@@ -10,8 +10,7 @@
           :status="chatUserStatus"
           :interactive="isInteractive"
         />
-        <div v-if="user.verified || hasSpecialBadge" class="badge-overlay">
-          <Icon v-if="user.verified" name="verified" class="verified-icon" />
+        <div v-if="hasSpecialBadge" class="badge-overlay">
           <Icon v-if="hasSpecialBadge" :name="specialBadgeIcon" class="special-badge-icon" />
         </div>
       </div>

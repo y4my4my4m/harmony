@@ -268,7 +268,6 @@ const performRegularSearch = async (query: string) => {
         avatar_url: '/default_avatar.png',
         bio: 'Federated user from Mastodon',
         is_local: false,
-        verified: false,
         followers_count: 150,
         following_count: 89,
         posts_count: 234,
