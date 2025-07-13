@@ -93,7 +93,7 @@
               v-model="localProfile.color"
               type="text"
               class="color-input"
-              placeholder="#5865f2"
+              :placeholder="localProfile.color || '#5865f2'"
               @input="onColorChange"
             />
             <button class="color-reset-btn" @click="resetColor">Reset</button>
@@ -104,7 +104,7 @@
             v-click-outside="closeColorPicker"
             ref="colorPickerRef"
             theme="light"
-            :color="localProfile.color || '#5865f2'"
+            :color="`#${localProfile.color}`"
             @changeColor="onColorPickerChange"
           />
         </div>
