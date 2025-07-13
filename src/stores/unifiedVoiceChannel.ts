@@ -388,13 +388,21 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Ensure all users' profile data is loaded through unified system
         const { ensureProfilesAvailable } = useUserData();
         const userIds = data.users.map((user: any) => user.userId);
-        if (userIds.length > 0) {
+        
+        // Check if user list has changed
+        const userIdsChanged = !this.previousUserIds || userIds.length !== this.previousUserIds.length || 
+          userIds.some((id, index) => id !== this.previousUserIds[index]);
+        
+        if (userIdsChanged && userIds.length > 0) {
           try {
             await ensureProfilesAvailable(userIds);
             console.log('✅ Loaded profiles for all voice users:', userIds.length);
+            this.previousUserIds = userIds; // Update cache
           } catch (error) {
             console.warn('⚠️ Failed to load profiles for voice users:', error);
           }
+        } else {
+          console.log('ℹ️ No changes in user list, skipping profile load.');
         }
       });
 
