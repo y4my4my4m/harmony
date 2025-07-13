@@ -72,7 +72,7 @@
           v-else-if="part && typeof part === 'object' && part.type === 'mention'" 
           class="mention" 
           @click="$emit('show-user-profile', part.userId, $event)"
-        >{{ part.mention }}</span>
+        >{{ formatMentionDisplay(part) }}</span>
         
         <!-- Custom emojis -->
         <img 
@@ -211,6 +211,7 @@ import AutoSuggest from '@/components/AutoSuggest.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
+import { userDataService } from '@/services/userDataService';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -280,6 +281,62 @@ export default defineComponent({
       const sizes = ['Bytes', 'KB', 'MB', 'GB'];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    // Format mention display based on structured mention data
+    const formatMentionDisplay = (mentionPart: any): string => {
+      try {
+        // Use the structured data from the new MentionContent format
+        if (mentionPart.isLocal) {
+          return `@${mentionPart.username}`;
+        } else {
+          return `@${mentionPart.username}@${mentionPart.domain}`;
+        }
+      } catch (error) {
+        console.error('Error formatting mention display:', error, { mentionPart });
+        // Fallback to legacy format handling if needed
+        if (mentionPart.mention) {
+          return formatLegacyMentionDisplay(mentionPart.mention, mentionPart.userId);
+        }
+        return '@unknown';
+      }
+    };
+
+    // Legacy mention format handler (for backwards compatibility)
+    const formatLegacyMentionDisplay = (storedMention: string, userId: string): string => {
+      // storedMention is in format @uuid@domain
+      // We need to display as @username for local users or @username@domain for remote users
+      
+      try {
+        // Parse the stored mention @uuid@domain
+        const mentionMatch = storedMention.match(/^@([^@]+)@(.+)$/);
+        if (!mentionMatch) {
+          // Fallback: if not in expected format, return as-is
+          return storedMention;
+        }
+        
+        const [, , domain] = mentionMatch;
+        
+        // Get user profile from userDataService
+        const userProfile = userDataService.getUserProfile(userId);
+        
+        if (userProfile) {
+          // If user is local, display as @username
+          // If user is remote, display as @username@domain
+          if (userProfile.isLocal) {
+            return `@${userProfile.username}`;
+          } else {
+            return `@${userProfile.username}@${userProfile.domain || domain}`;
+          }
+        } else {
+          // Fallback: if we can't find the user, try to extract username from stored format
+          // This shouldn't happen but provides graceful degradation
+          return storedMention;
+        }
+      } catch (error) {
+        console.error('Error formatting legacy mention display:', error, { storedMention, userId });
+        return storedMention; // Fallback to stored format
+      }
     };
 
     // Simple markdown-style text rendering with extracted code blocks
@@ -511,6 +568,7 @@ export default defineComponent({
       isImageUrl,
       isVideoUrl,
       formatFileSize,
+      formatMentionDisplay,
       renderTextContent,
       renderTextSegments,
       getFileName,
@@ -867,6 +925,26 @@ export default defineComponent({
 
 .system-username:hover {
   color: #5865f2;
+  text-decoration: underline;
+}
+
+/* Mention styling */
+.mention {
+  color: #5865f2;
+  background-color: rgba(88, 101, 242, 0.15);
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: pointer;
+  font-weight: 500;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  transition: background-color 0.2s ease;
+}
+
+.mention:hover {
+  background-color: rgba(88, 101, 242, 0.3);
   text-decoration: underline;
 }
 </style>

@@ -33,7 +33,6 @@
       @update:replyMessageId="handleDontReply"
       @upload-status-changed="handleUploadStatusChanged"
     />
-
     <GifComponent
       v-if="giphyOpen==true"
       @click.stop
@@ -65,7 +64,7 @@
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
-  import { useServerUsersStore } from '@/stores/useServerUsers'; 
+  import { userDataService } from '@/services/userDataService'; 
   import { useDMStore } from '@/stores/useDM';
   import { useThemeStore } from '@/stores/useTheme';
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
@@ -102,7 +101,7 @@
   const chatStore = useChatStore();
   const authStore = useAuthStore();
   const serverChannelStore = useServerChannelStore();
-  const serverUsersStore = useServerUsersStore();
+  // Remove serverUsersStore as we now use userDataService
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
   const emojiCacheStore = useEmojiCacheStore();
@@ -298,33 +297,128 @@
 
         // Process remaining text
         const remainingText = input.slice(lastIndex);
-        result.push(...parseTextForURLsAndMentions(remainingText));
-
+        console.log('🔧 Processing remaining text for mentions/URLs:', remainingText);
+        const textParts = parseTextForURLsAndMentions(remainingText);
+        result.push(...textParts);
+        
+        console.log('🔧 Final parsed message parts:', result);
         return result;
       };
 
       const urlRegex = /(\bhttps?:\/\/\S+)/gi;
-      const mentionRegex = /(@\w+@\w+\S+)/g;
+      // Updated mention regex to match both @username/@username@domain and @uuid@domain (UUIDs contain hyphens)
+      const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
       const parseTextForURLsAndMentions = (text: string): MessagePart[] => {
+        console.log('🔧 parseTextForURLsAndMentions called with:', text);
         const parts: MessagePart[] = [];
         let lastIndex = 0;
 
-        const combinedRegex = new RegExp(`${urlRegex.source}|${mentionRegex.source}`, 'gi');
-        let textMatch;
-        while ((textMatch = combinedRegex.exec(text)) !== null) {
-          if (textMatch.index > lastIndex) {
-            parts.push({ type: 'text', text: text.slice(lastIndex, textMatch.index) });
+        // Process URLs and mentions separately to avoid capture group issues
+        const matches: Array<{match: RegExpExecArray, type: 'url' | 'mention'}> = [];
+        
+        // Find all URL matches
+        let urlMatch;
+        urlRegex.lastIndex = 0; // Reset regex
+        while ((urlMatch = urlRegex.exec(text)) !== null) {
+          matches.push({match: urlMatch, type: 'url'});
+        }
+        
+        // Find all mention matches
+        let mentionMatch;
+        mentionRegex.lastIndex = 0; // Reset regex
+        while ((mentionMatch = mentionRegex.exec(text)) !== null) {
+          matches.push({match: mentionMatch, type: 'mention'});
+        }
+        
+        // Sort matches by position
+        matches.sort((a, b) => a.match.index! - b.match.index!);
+        
+        // Process matches in order
+        for (const {match, type} of matches) {
+          console.log('🔧 Found match in ChatComponent:', match, 'type:', type);
+          
+          if (match.index! > lastIndex) {
+            parts.push({ type: 'text', text: text.slice(lastIndex, match.index) });
           }
 
-          if (textMatch[0].startsWith('http')) {
-            parts.push({ type: 'url', url: textMatch[0], preview: true });
-          } else {
-            const mention = textMatch[0];
-            const userId = serverUsersStore.usernameToUserIdMap[mention.toLowerCase()];
-            parts.push({ type: 'mention', mention: mention, userId });
+          if (type === 'url') {
+            parts.push({ type: 'url', url: match[0], preview: true });
+          } else if (type === 'mention') {
+            // Handle mention parsing - support both formats
+            const fullMatch = match[0]; // Full mention like @username or @uuid@domain
+            const firstPart = match[1]; // First capture group: username or uuid
+            const domain = match[2]; // Second capture group: domain (optional)
+            
+            // Check if this is already in @uuid@domain format (UUID pattern - flexible hex)
+            const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(firstPart);
+            
+            if (isUuidFormat && domain) {
+              // Already in storage format @uuid@domain, use as-is
+              console.log('🔧 Found UUID format mention:', fullMatch);
+              
+              // Get user profile for additional data
+              const userProfile = userDataService.getUserProfile(firstPart);
+              if (userProfile) {
+                console.log('🔧 UserProfile for UUID mention:', userProfile);
+                parts.push({ 
+                  type: 'mention', 
+                  userId: firstPart,
+                  username: userProfile.username,
+                  domain: userProfile.domain || domain,
+                  isLocal: userProfile.isLocal === true || (userProfile.domain || domain) === 'har.mony.lol',
+                  displayName: userProfile.displayName
+                });
+              } else {
+                // Fallback if user not found
+                parts.push({ type: 'text', text: fullMatch });
+              }
+            } else {
+              // Display format @username or @username@domain, convert to storage format
+              console.log('🔧 Found display format mention, looking up user:', firstPart, domain);
+              const userId = userDataService.findUserIdByUsername(firstPart, domain);
+              
+              if (userId) {
+                // Get user profile for complete data
+                const userProfile = userDataService.getUserProfile(userId);
+                if (userProfile) {
+                  const userDomain = userProfile.domain || 'har.mony.lol';
+                  
+                  console.log('🔧 UserProfile for display mention:', userProfile);
+                  console.log('🔧 Full isLocal debug:', {
+                    username: userProfile.username,
+                    domain: userProfile.domain,
+                    isLocal_raw: userProfile.isLocal,
+                    isLocal_type: typeof userProfile.isLocal,
+                    isLocal_boolean: Boolean(userProfile.isLocal),
+                    comparison_with_har_mony_lol: userProfile.domain === 'har.mony.lol',
+                    expected_isLocal: userProfile.domain === 'har.mony.lol' || userProfile.isLocal === true
+                  });
+                  console.log('🔧 Created structured mention object for:', userProfile.username);
+                  
+                  const mentionObject = { 
+                    type: 'mention' as const, 
+                    userId,
+                    username: userProfile.username,
+                    domain: userDomain,
+                    isLocal: userProfile.isLocal === true || userDomain === 'har.mony.lol',
+                    displayName: userProfile.displayName
+                  };
+                  
+                  console.log('🔧 Final mention object:', mentionObject);
+                  parts.push(mentionObject);
+                } else {
+                  console.log('🔧 User profile not found, storing as text:', fullMatch);
+                  parts.push({ type: 'text', text: fullMatch });
+                }
+              } else {
+                // If user not found, store as plain text
+                console.log('🔧 User not found, storing as text:', fullMatch);
+                parts.push({ type: 'text', text: fullMatch });
+              }
+            }
           }
 
-          lastIndex = textMatch.index + textMatch[0].length;
+          lastIndex = match.index! + match[0].length;
         }
 
         if (lastIndex < text.length) {
@@ -518,6 +612,9 @@
   .chat-container {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0; /* Important for flex child with overflow */
+    position: relative;
     /* custom wallpapers/styling for users */
     /* background:#000; */
     /* background-image: url('https://wallpaperswide.com/download/counter_strike_cs_go-wallpaper-1920x1080.jpg'); */

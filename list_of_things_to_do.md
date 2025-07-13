@@ -12,6 +12,8 @@
   - 🔄 Subscribing to server context: 9895ae8a-b25a-475b-b2f1-3bd3e2dffeab (9 users)
   - 👋 User joined server 9895ae8a-b25a-475b-b2f1-3bd3e2dffeab: poring
 
+11. we're saving mentions (and other places) the domain as a text string, we should use the instance's UUID instead (even if remote) to ensure consistency and avoid issues with domain changes
+12. we have many files using useProfileStore, we should refactor to use the new userDataService and ensure all components use the same source of truth for user data
 
 
 ---

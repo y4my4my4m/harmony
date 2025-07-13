@@ -81,8 +81,11 @@ export interface UrlContent {
 
 export interface MentionContent {
   type: 'mention';
-  mention: string;
   userId: string;
+  username: string;
+  domain: string;
+  isLocal: boolean;
+  displayName?: string;
 }
 
 export interface EmojiContent {

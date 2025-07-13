@@ -21,8 +21,8 @@
               {{ author.display_name || author.username }}
             </div>
             <div class="author-handle">
-              <span>{{ authorHandle }}</span>
-              <span class="instance-domain" :class="{ 'is-local': isLocalPost }">
+              <span>{{ author.username }}</span>
+              <span class="instance-domain" :class="{ 'is-local': author.is_local }">
                 @{{ instanceDomain }}
               </span>
             </div>
@@ -35,11 +35,11 @@
           </div>
           <time 
             :datetime="post.created_at" 
-            :title="formatFullDate(post.created_at)"
+            :title="formatFullDate(post.updated_at)"
             class="post-time"
             @click="handleTimeClick"
           >
-            {{ formatRelativeTime(post.created_at) }}
+            {{ formatRelativeTime(post.updated_at) }}
           </time>
         </div>
       </div>
@@ -283,6 +283,7 @@ const author = computed(() => {
   return props.post.author;
 });
 
+
 const authorHandle = computed(() => {
   const { username, domain } = props.post.author;
   return domain === 'har.mony.lol' || domain === 'har.mony.lol' 
@@ -295,18 +296,20 @@ const instanceDomain = computed(() => {
   return domain || 'har.mony.lol';
 });
 
-const isAuthorLocal = computed(() => {
-  const { domain } = props.post.author;
-  return domain === 'har.mony.lol' || domain === 'har.mony.lol'
-});
-
 // Helper to flatten MessagePart[] or JSON string to plain text
 const flattenMessageParts = (content: any): string => {
   if (Array.isArray(content)) {
     return content
       .map(part => {
         if (part.type === 'text') return part.text;
-        if (part.type === 'mention') return part.mention;
+        if (part.type === 'mention') {
+          // Handle new structured mention format
+          if (part.username && part.domain) {
+            return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
+          }
+          // Fallback to legacy format if needed
+          return part.mention || `@${part.username || 'unknown'}`;
+        }
         if (part.type === 'url') return part.url;
         return '';
       })
@@ -475,10 +478,6 @@ const vClickOutside = {
     }
   }
 };
-
-const isLocalPost = computed(() => {
-  return props.post.is_local || instanceDomain.value === 'har.mony.lol';
-});
 
 const handleAuthorClick = (event: Event) => {
   event.preventDefault();

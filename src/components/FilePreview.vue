@@ -132,7 +132,6 @@ const hasUploading = computed(() => {
   background-color: var(--h-chat-light);
   border-radius: 8px 8px 0 0;
   padding: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .file-preview-header {

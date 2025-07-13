@@ -228,7 +228,8 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
 .content-section {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 80px);
+  flex: 1;
+  min-height: 0; /* Important for flex child with overflow */
 }
 
 .social-content {

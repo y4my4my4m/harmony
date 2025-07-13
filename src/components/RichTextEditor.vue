@@ -23,6 +23,10 @@
     @blur="handleBlur"
     @paste="handlePaste"
     :data-placeholder="placeholder"
+    :style="{
+      '--min-height': `${props.minHeight}px`,
+      '--max-height': `${props.maxHeight}px`
+    }"
   >
   </div>
 </template>
@@ -32,19 +36,7 @@ import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
-
-// Debounce function for performance
-const debounce = (func: Function, wait: number) => {
-  let timeout: NodeJS.Timeout;
-  return function executedFunction(...args: any[]) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
+import { userDataService } from '@/services/userDataService';
 
 interface Props {
   modelValue: string;
@@ -74,13 +66,6 @@ const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
 const emojiCache = useEmojiCacheStore();
 const isRendering = ref(false);
-
-// Debounced rendering for better performance
-const debouncedRender = debounce((text: string) => {
-  if (!isRendering.value) {
-    renderContent(text);
-  }
-}, 50);
 
 const hasContent = computed(() => {
   if (!editorRef.value) return false;
@@ -129,6 +114,17 @@ const getPlainText = (): string => {
         if (emojiName) {
           text += `:${emojiName}:`;
         }
+      } else if (el.classList.contains('editor-mention')) {
+        // Extract mention data from rich attributes
+        const displayText = el.getAttribute('data-display-text');
+        
+        if (displayText) {
+          // Use the display text (@username or @username@domain) for message parsing
+          text += displayText;
+        } else {
+          // Fallback to element text content
+          text += el.textContent || '';
+        }
       } else if (el.tagName === 'BR') {
         text += '\n';
       } else {
@@ -166,7 +162,9 @@ const getCursorPosition = (): number => {
           return NodeFilter.FILTER_ACCEPT;
         } else if (node.nodeType === Node.ELEMENT_NODE) {
           const el = node as HTMLElement;
-          if (el.classList.contains('editor-emoji') || el.tagName === 'BR') {
+          if (el.classList.contains('editor-emoji') || 
+              el.classList.contains('editor-mention') || 
+              el.tagName === 'BR') {
             return NodeFilter.FILTER_ACCEPT;
           }
         }
@@ -200,6 +198,11 @@ const getCursorPosition = (): number => {
         if (emojiName) {
           position += `:${emojiName}:`.length;
         }
+      } else if (el.classList.contains('editor-mention')) {
+        const mentionData = el.getAttribute('data-mention');
+        if (mentionData) {
+          position += mentionData.length; // Count the full @uuid@domain length
+        }
       } else if (el.tagName === 'BR') {
         position += 1; // newline
       }
@@ -231,7 +234,9 @@ const setCursorPosition = (targetPosition: number) => {
           return NodeFilter.FILTER_ACCEPT;
         } else if (node.nodeType === Node.ELEMENT_NODE) {
           const el = node as HTMLElement;
-          if (el.classList.contains('editor-emoji') || el.tagName === 'BR') {
+          if (el.classList.contains('editor-emoji') || 
+              el.classList.contains('editor-mention') || 
+              el.tagName === 'BR') {
             return NodeFilter.FILTER_ACCEPT;
           }
         }
@@ -258,6 +263,11 @@ const setCursorPosition = (targetPosition: number) => {
         const emojiName = el.getAttribute('data-emoji');
         if (emojiName) {
           nodeLength = `:${emojiName}:`.length;
+        }
+      } else if (el.classList.contains('editor-mention')) {
+        const mentionData = el.getAttribute('data-mention');
+        if (mentionData) {
+          nodeLength = mentionData.length; // Count the full @uuid@domain length
         }
       } else if (el.tagName === 'BR') {
         nodeLength = 1;
@@ -291,15 +301,112 @@ const setCursorPosition = (targetPosition: number) => {
   }
 };
 
+// Process mentions in text and create visual elements
+const processMentionsInText = (text: string): DocumentFragment => {
+  const fragment = document.createDocumentFragment();
+  
+  // Simple regex to match @username or @username@domain format (display format)
+  const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
+  
+  console.log('🔧 processMentionsInText called with:', text);
+  
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = mentionRegex.exec(text)) !== null) {
+    console.log('🔧 Found mention match:', match);
+    const matchStart = match.index;
+    const matchEnd = match.index + match[0].length;
+    
+    // Add text before the mention
+    if (matchStart > lastIndex) {
+      const textBefore = text.substring(lastIndex, matchStart);
+      fragment.appendChild(document.createTextNode(textBefore));
+    }
+    
+    // Create mention element with rich metadata
+    const username = match[1];
+    const domain = match[2];
+    const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
+    fragment.appendChild(mentionElement);
+    
+    lastIndex = matchEnd;
+  }
+  
+  // Add remaining text after last mention
+  if (lastIndex < text.length) {
+    const remainingText = text.substring(lastIndex);
+    fragment.appendChild(document.createTextNode(remainingText));
+  }
+  
+  // If no mentions found, just return the text as a text node
+  // Removed redundant fallback block that appended the full text again.
+  
+  return fragment;
+};
+
+// Create a mention element from display format (@username or @username@domain)
+const createMentionElementFromDisplay = (displayText: string, username: string, domain?: string): HTMLElement => {
+  const span = document.createElement('span');
+  span.className = 'editor-mention';
+  span.contentEditable = 'false'; // Prevent editing the mention element itself
+  
+  // Look up user information
+  let userId: string | null = null;
+  let userProfile: any = null;
+  let isLocal = false;
+  let actualDomain = domain;
+  
+  try {
+    // Find user by username and domain
+    userId = userDataService.findUserIdByUsername(username, domain);
+    if (userId) {
+      userProfile = userDataService.getUserProfile(userId);
+      isLocal = userProfile?.is_local || false;
+      actualDomain = userProfile?.domain || domain || 'har.mony.lol';
+    }
+  } catch (error) {
+    console.error('Error looking up user for mention:', error);
+  }
+  
+  // Store rich metadata in data attributes
+  span.setAttribute('data-type', 'mention');
+  span.setAttribute('data-username', username);
+  span.setAttribute('data-display-text', displayText);
+  
+  if (userId) {
+    span.setAttribute('data-userid', userId);
+  }
+  if (actualDomain) {
+    span.setAttribute('data-domain', actualDomain);
+  }
+  span.setAttribute('data-islocal', isLocal.toString());
+  
+  // Display text (what the user sees)
+  if (isLocal) {
+    span.textContent = `@${username}`;
+  } else {
+    span.textContent = domain ? `@${username}@${domain}` : `@${username}`;
+  }
+  
+  return span;
+};
+
 // Render content with Discord-like markdown styling
 const renderContent = (text: string) => {
-  if (!editorRef.value || isRendering.value) return;
+  console.log('🔧 renderContent called with:', text);
+  if (!editorRef.value || isRendering.value) {
+    console.log('🔧 renderContent early return:', { hasEditor: !!editorRef.value, isRendering: isRendering.value });
+    return;
+  }
   
   isRendering.value = true;
   const currentCursorPos = getCursorPosition();
+  console.log('🔧 Current cursor position:', currentCursorPos);
   
   // Clear content
   editorRef.value.innerHTML = '';
+  console.log('🔧 Cleared editor content');
   
   if (!text) {
     isRendering.value = false;
@@ -313,11 +420,13 @@ const renderContent = (text: string) => {
   // Process tokens and handle newlines properly
   tokens.forEach(token => {
     if (token.type === 'text') {
-      // Handle text with potential newlines
+      // Handle text with potential newlines and mentions
       const lines = token.content.split('\n');
       lines.forEach((line, index) => {
         if (line) {
-          fragment.appendChild(document.createTextNode(line));
+          // Process mentions in this line
+          const processedFragment = processMentionsInText(line);
+          fragment.appendChild(processedFragment);
         }
         // Add line break for all newlines except the last one if it's empty
         if (index < lines.length - 1) {
@@ -555,12 +664,12 @@ const handleInput = (event: Event) => {
   emit('update:modelValue', text);
   emit('input', event);
   
-  // Re-render content with formatting (debounced for performance)
-  debouncedRender(text);
-  
   // Emit cursor position for auto-suggest
   const cursorPos = getCursorPosition();
   emit('cursor-position-changed', cursorPos);
+  
+  // DO NOT re-render on input to avoid infinite loops
+  // Rendering will happen when modelValue changes externally
   
   // Auto-expand editor
   autoExpand();
@@ -640,24 +749,6 @@ const clear = () => {
   }
 };
 
-// Watch for external model value changes
-watch(() => props.modelValue, (newValue) => {
-  if (editorRef.value) {
-    const currentText = getPlainText();
-    if (currentText !== newValue) {
-      renderContent(newValue);
-      autoExpand();
-    }
-  }
-});
-
-onMounted(() => {
-  if (props.modelValue) {
-    renderContent(props.modelValue);
-  }
-  autoExpand();
-});
-
 defineExpose({
   focus,
   clear,
@@ -670,7 +761,9 @@ defineExpose({
 watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
     const currentText = getPlainText();
+    console.log('🔧 RichTextEditor watch triggered:', { newValue, currentText, different: currentText !== newValue });
     if (currentText !== newValue) {
+      console.log('🔧 Calling renderContent with:', newValue);
       renderContent(newValue);
       autoExpand();
     }
@@ -686,8 +779,8 @@ onMounted(() => {
 </script>
 <style scoped>
 .rich-text-editor {
-  min-height: v-bind('props.minHeight + "px"');
-  max-height: v-bind('props.maxHeight + "px"');
+  min-height: var(--min-height);
+  max-height: var(--max-height);
   padding: 11px 12px;
   background: transparent;
   border: none;
@@ -866,4 +959,20 @@ onMounted(() => {
 .rich-text-editor :deep(.token.bold) { font-weight: bold; }
 .rich-text-editor :deep(.token.italic) { font-style: italic; }
 .rich-text-editor :deep(.token.entity) { cursor: help; }
+
+/* Mention styles */
+.rich-text-editor :deep(.editor-mention) {
+  color: #5865f2;
+  background-color: rgba(88, 101, 242, 0.15);
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: pointer;
+  font-weight: 500;
+  user-select: none;
+}
+
+.rich-text-editor :deep(.editor-mention:hover) {
+  background-color: rgba(88, 101, 242, 0.3);
+  text-decoration: underline;
+}
 </style>
