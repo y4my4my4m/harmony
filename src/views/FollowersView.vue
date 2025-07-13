@@ -336,7 +336,7 @@ onMounted(() => {
 }
 
 .toggle-btn.active {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   color: white;
 }
 
@@ -369,7 +369,7 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border: 2px solid var(--border-color);
-  border-top: 2px solid var(--brand-primary);
+  border-top: 2px solid var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -399,7 +399,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 12px 24px;
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   color: white;
   text-decoration: none;
   border-radius: 8px;
@@ -408,7 +408,7 @@ onMounted(() => {
 }
 
 .discover-btn:hover {
-  background: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
   transform: translateY(-1px);
 }
 

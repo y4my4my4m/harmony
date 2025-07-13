@@ -544,8 +544,8 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 }
 
 .tab-btn.active {
-  color: var(--brand-primary);
-  border-bottom-color: var(--brand-primary);
+  color: var(--harmony-primary);
+  border-bottom-color: var(--harmony-primary);
 }
 
 .explore-controls {
@@ -577,7 +577,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
   color: white;
@@ -587,7 +587,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background: var(--brand-primary-hover, #4752c4);
+  background: var(--harmony-primary-hover, #4752c4);
 }
 
 .refresh-btn:disabled {
@@ -650,7 +650,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   width: 32px;
   height: 32px;
   border: 3px solid var(--border-color);
-  border-top: 3px solid var(--brand-primary);
+  border-top: 3px solid var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -717,7 +717,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 
 .hashtag-name {
   font-weight: 600;
-  color: var(--brand-primary);
+  color: var(--harmony-primary);
 }
 
 .hashtag-count {
@@ -784,7 +784,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 
 .follow-btn {
   padding: 6px 16px;
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   border: none;
   border-radius: 16px;
   color: white;
@@ -795,7 +795,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 }
 
 .follow-btn:hover {
-  background: var(--brand-primary-hover, #4752c4);
+  background: var(--harmony-primary-hover, #4752c4);
 }
 
 .instance-browser {
@@ -825,7 +825,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 }
 
 .instance-card:hover {
-  border-color: var(--brand-primary);
+  border-color: var(--harmony-primary);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }

@@ -458,7 +458,7 @@ const vClickOutside = {
 .special-badge-icon {
   width: 16px;
   height: 16px;
-  color: var(--brand-primary);
+  color: var(--harmony-primary);
   background: var(--background-primary);
   border-radius: 50%;
   padding: 2px;
@@ -605,14 +605,14 @@ const vClickOutside = {
 }
 
 .message-btn {
-  background: var(--brand-primary);
-  border-color: var(--brand-primary);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
   color: white;
 }
 
 .message-btn:hover {
-  background: var(--brand-primary-hover);
-  border-color: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
+  border-color: var(--harmony-primary-hover);
 }
 
 .more-actions {

@@ -668,9 +668,6 @@ const formatNumber = (num: number): string => {
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-  .social-layout {
-    flex-direction: row;
-  }
   
   .social-sidebar-container,
   .right-sidebar-container {
@@ -678,7 +675,7 @@ const formatNumber = (num: number): string => {
     top: 48px;
     height: calc(100vh - 48px);
     z-index: 200;
-    transform: translateX(-100%);
+    transform: translateX(0%);
     transition: transform 0.3s ease;
   }
   

@@ -270,18 +270,17 @@ onBeforeUnmount(() => {
   top: 0;
   bottom: 0;
   width: 100%;
+  height: 100vh;
   pointer-events: none;
   z-index: 300;
 }
 
 .edge-indicator {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
   width: 4px;
-  height: 100px;
-  background: var(--accent-primary);
-  opacity: 0;
+  height: 100vh;
+  background: var(--harmony-primary);
+  opacity: 0.25;
   transition: opacity 0.3s ease;
 }
 

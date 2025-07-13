@@ -527,7 +527,7 @@ onMounted(() => {
 }
 
 .post-preview:hover {
-  border-color: var(--brand-primary);
+  border-color: var(--harmony-primary);
   background: var(--background-hover);
 }
 
@@ -602,13 +602,13 @@ onMounted(() => {
 }
 
 .primary-btn {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   border: none;
   color: white;
 }
 
 .primary-btn:hover {
-  background: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
 }
 
 .secondary-btn {

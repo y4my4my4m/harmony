@@ -139,12 +139,12 @@ defineEmits<{
 }
 
 .explore-btn {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   color: white;
 }
 
 .explore-btn:hover {
-  background: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }

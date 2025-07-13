@@ -249,7 +249,7 @@ const currentViewTitle = computed(() => {
 }
 
 .mobile-menu-btn.active {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   color: white;
 }
 
@@ -325,17 +325,17 @@ const currentViewTitle = computed(() => {
 }
 
 .action-btn.active {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   color: white;
 }
 
 .compose-btn {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   color: white;
 }
 
 .compose-btn:hover {
-  background: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
 }
 
 /* Mobile specific styles */

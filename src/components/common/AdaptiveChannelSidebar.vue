@@ -560,7 +560,7 @@ onUnmounted(() => {
 
 .mode-toggle-btn:hover {
   background: var(--background-hover);
-  color: var(--brand-primary);
+  color: var(--harmony-primary);
 }
 
 .user-profile-card {
@@ -642,7 +642,7 @@ onUnmounted(() => {
 
 .nav-item.active {
   background: var(--background-modifier-selected);
-  color: var(--brand-primary);
+  color: var(--harmony-primary);
 }
 
 .quick-stats {

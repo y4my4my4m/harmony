@@ -211,8 +211,8 @@ const getIconPath = (iconName: string): string => {
 }
 
 .feed-tab.active {
-  color: var(--brand-primary, #5865f2);
-  background: var(--brand-primary-alpha, rgba(88, 101, 242, 0.1));
+  color: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.1));
 } */
 
 
@@ -265,7 +265,7 @@ const getIconPath = (iconName: string): string => {
 }
 
 .feed-tab.active {
-  background: linear-gradient(135deg, var(--brand-primary), #4752c4);
+  background: linear-gradient(135deg, var(--harmony-primary), #4752c4);
   color: #ffffff;
   box-shadow: 
     0 0 13px rgba(88, 101, 242, 0.4),
@@ -317,12 +317,12 @@ const getIconPath = (iconName: string): string => {
 }
 
 .composer-btn {
-  background: var(--brand-primary, #5865f2);
+  background: var(--harmony-primary, #5865f2);
   color: white;
 }
 
 .composer-btn:hover {
-  background: var(--brand-primary-hover, #4752c4);
+  background: var(--harmony-primary-hover, #4752c4);
   color: white;
 }
 

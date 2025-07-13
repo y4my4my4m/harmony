@@ -495,8 +495,8 @@ onMounted(() => {
 }
 
 .setting-label input[type="checkbox"]:checked + .checkmark {
-  background: var(--brand-primary);
-  border-color: var(--brand-primary);
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
 }
 
 .setting-label input[type="checkbox"]:checked + .checkmark::after {
@@ -535,7 +535,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   color: white;
   border-radius: 16px;
   font-size: 12px;
@@ -545,7 +545,7 @@ onMounted(() => {
 
 .language-chip:hover,
 .keyword-chip:hover {
-  background: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
 }
 
 .add-language-btn {
@@ -564,8 +564,8 @@ onMounted(() => {
 
 .add-language-btn:hover {
   background: var(--background-hover);
-  border-color: var(--brand-primary);
-  color: var(--brand-primary);
+  border-color: var(--harmony-primary);
+  color: var(--harmony-primary);
 }
 
 .slider-container {
@@ -588,7 +588,7 @@ onMounted(() => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   cursor: pointer;
 }
 
@@ -596,7 +596,7 @@ onMounted(() => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   cursor: pointer;
   border: none;
 }
@@ -634,7 +634,7 @@ onMounted(() => {
 
 .add-keyword-btn {
   padding: 8px 16px;
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
   color: white;
@@ -645,7 +645,7 @@ onMounted(() => {
 }
 
 .add-keyword-btn:hover {
-  background: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
 }
 
 .settings-footer {
@@ -666,13 +666,13 @@ onMounted(() => {
 }
 
 .primary-btn {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   border: none;
   color: white;
 }
 
 .primary-btn:hover {
-  background: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
 }
 
 .secondary-btn {

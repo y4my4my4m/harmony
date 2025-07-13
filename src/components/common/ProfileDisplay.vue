@@ -183,7 +183,7 @@ const setActiveTab = (tabId: string) => {
 
 .profile-banner {
   height: 200px;
-  background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary, #4752c4));
+  background: linear-gradient(135deg, var(--harmony-primary), var(--brand-secondary, #4752c4));
   position: absolute;
 }
 
@@ -220,7 +220,7 @@ const setActiveTab = (tabId: string) => {
 }
 
 .profile-name:hover {
-  color: var(--brand-primary);
+  color: var(--harmony-primary);
 }
 
 .profile-handle {
@@ -232,7 +232,7 @@ const setActiveTab = (tabId: string) => {
 }
 
 .profile-handle:hover {
-  color: var(--brand-primary);
+  color: var(--harmony-primary);
 }
 
 .profile-bio {
@@ -283,12 +283,12 @@ const setActiveTab = (tabId: string) => {
 }
 
 .follow-btn {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   color: white;
 }
 
 .follow-btn:hover {
-  background: var(--brand-primary-hover, #4752c4);
+  background: var(--harmony-primary-hover, #4752c4);
 }
 
 .unfollow-btn {
@@ -325,8 +325,8 @@ const setActiveTab = (tabId: string) => {
 }
 
 .tab.active {
-  color: var(--brand-primary);
-  border-bottom-color: var(--brand-primary);
+  color: var(--harmony-primary);
+  border-bottom-color: var(--harmony-primary);
 }
 
 .profile-posts {
@@ -382,7 +382,7 @@ const setActiveTab = (tabId: string) => {
   width: 32px;
   height: 32px;
   border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top: 3px solid var(--brand-primary);
+  border-top: 3px solid var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

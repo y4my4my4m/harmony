@@ -403,9 +403,6 @@ onMounted(() => {
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-  .chat-layout {
-    flex-direction: row;
-  }
   
   .channel-sidebar-container,
   .right-sidebar-container {
@@ -413,7 +410,7 @@ onMounted(() => {
     top: 48px;
     height: calc(100vh - 48px);
     z-index: 200;
-    transform: translateX(-100%);
+    transform: translateX(-120%);
     transition: transform 0.3s ease;
   }
   

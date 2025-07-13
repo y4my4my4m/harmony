@@ -346,7 +346,7 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border: 3px solid var(--border-color);
-  border-top: 3px solid var(--brand-primary);
+  border-top: 3px solid var(--harmony-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
@@ -366,7 +366,7 @@ onMounted(() => {
 }
 
 .back-home-btn {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
   color: white;
@@ -378,7 +378,7 @@ onMounted(() => {
 }
 
 .back-home-btn:hover {
-  background: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
 }
 
 .post-container {
@@ -473,7 +473,7 @@ onMounted(() => {
 }
 
 .reply-cta-btn {
-  background: var(--brand-primary);
+  background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
   color: white;
@@ -484,7 +484,7 @@ onMounted(() => {
 }
 
 .reply-cta-btn:hover {
-  background: var(--brand-primary-hover);
+  background: var(--harmony-primary-hover);
 }
 
 .spinning {
