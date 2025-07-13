@@ -53,8 +53,20 @@ serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url)
-    const pathParts = url.pathname.split('/')
-    const username = pathParts[pathParts.length - 1]
+    
+    // Extract username from path - handle both direct and rewritten paths
+    let username = ''
+    
+    // Check if it's a rewritten path from nginx
+    const originalUri = req.headers.get('X-Original-URI')
+    if (originalUri) {
+      const match = originalUri.match(/\/users\/([^/]+)/)
+      username = match ? match[1] : ''
+    } else {
+      // Fallback to direct path parsing
+      const pathParts = url.pathname.split('/')
+      username = pathParts[pathParts.length - 1]
+    }
 
     if (!username) {
       return new Response('Username required', { 
@@ -121,17 +133,17 @@ serve(async (req: Request) => {
         url: user.avatar_url.startsWith('http') ? user.avatar_url : `${baseUrl}${user.avatar_url}`
       } : undefined,
       inbox: `${actorId}/inbox`,
-      outbox: `${actorId}/outbox`,
-      following: `${actorId}/following`,
-      followers: `${actorId}/followers`,
-      featured: `${actorId}/featured`,
+      outbox: `${actorId}/outbox`, // TODO: Implement outbox endpoint
+      following: `${actorId}/following`, // TODO: Implement following endpoint  
+      followers: `${actorId}/followers`, // TODO: Implement followers endpoint
+      featured: `${actorId}/featured`, // TODO: Implement featured endpoint
       publicKey: {
         id: `${actorId}#main-key`,
         owner: actorId,
         publicKeyPem: user.public_key || ''
       },
       endpoints: {
-        sharedInbox: `${baseUrl}/api/activitypub/inbox`
+        sharedInbox: `${baseUrl}/api/activitypub/inbox` // This exists in nginx config
       },
       url: `${baseUrl}/social/profile/${username}`
     }
