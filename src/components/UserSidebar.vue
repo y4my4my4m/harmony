@@ -236,19 +236,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from './InviteModal.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useServerUsersStore } from '@/stores/useServerUsers';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
 import { useUserData } from '@/composables/useUserData';
 
 const serverChannelStore = useServerChannelStore();
-const serverUsersStore = useServerUsersStore();
+
+// Debug: Track duplicate calls
+let fetchCallCounter = 0;
 
 // Use new clean user data system - ONE source of truth
 const { 
@@ -256,12 +257,10 @@ const {
   getUserDisplayName,
   getUserStatusForAvatar,
   getUserColor,
-  getUsersInContext,
-  getUsersInContextLegacy,
   getAllUsers,
+  getUsersInContext,
   subscribeToContext,
   unsubscribeFromContext,
-  getStats
 } = useUserData();
 
 // Component state
@@ -290,7 +289,7 @@ const users = computed(() => {
   }
   
   // Get users from context first
-  const contextUsers = getUsersInContextLegacy(serverId).value;
+  const contextUsers = getUsersInContext(serverId).value;
   console.log(`🔍 UserSidebar: Server ${serverId} users from context:`, contextUsers.length, contextUsers);
   
   // Fallback to all users if context is empty  
@@ -318,7 +317,7 @@ const filteredUsers = computed(() => {
   }
   
   const query = searchQuery.value.toLowerCase();
-  return users.value.filter(user => {
+  return users.value.filter((user: User) => {
     const displayName = getUserDisplayName(user.id).value.toLowerCase();
     const username = user.username?.toLowerCase() || '';
     return displayName.includes(query) || username.includes(query);
@@ -334,7 +333,7 @@ const groupedUsers = computed(() => {
     offline: [] as User[]
   };
 
-  filteredUsers.value.forEach(user => {
+  filteredUsers.value.forEach((user: User) => {
     const status = user.status;
     switch (status) {
       case UserStatus.Online:
@@ -398,6 +397,9 @@ const toggleGroup = (groupName: string) => {
 };
 
 const fetchAndSetUsers = async (serverId: string | null) => {
+  fetchCallCounter++;
+  console.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
+  
   if (serverId) {
     const userIds = await getUserIdsForServer(serverId);
     
@@ -442,17 +444,6 @@ const closeInviteModal = () => {
   showInviteModal.value = false;
 };
 
-// Initialize on mount
-onMounted(async () => {
-  const serverId = serverChannelStore.currentServerId;
-  if (serverId) {
-    await fetchAndSetUsers(serverId);
-  }
-  
-  // Debug: Log service stats
-  const stats = getStats.value;
-  console.log('🔍 UserData service stats:', stats);
-});
 </script>
 
 <style scoped>

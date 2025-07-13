@@ -57,6 +57,9 @@ class UserDataService extends EventTarget {
   private globalChannel: RealtimeChannel | null = null
   private initialized = false
   
+  // Subscription tracking to prevent duplicates
+  private pendingSubscriptions = new Set<string>()
+  
   // Status management
   private wasManuallySet = false
   private manualStatus: UserStatus | null = null
@@ -424,27 +427,47 @@ class UserDataService extends EventTarget {
    * Subscribe to a context (server, DM)
    */
   async subscribeToContext(contextId: string, type: 'server' | 'dm', userIds: string[]): Promise<void> {
-    console.log(`🔄 Subscribing to ${type} context:`, contextId, `(${userIds.length} users)`)
-    
-    // Load user data for context
-    await this.loadUsersData(userIds)
-    
-    // Create context
-    const context: UserContext = {
-      id: contextId,
-      type,
-      userIds: new Set(userIds),
-      lastSync: new Date()
+    // Check if already subscribed to this context
+    if (this.contexts.has(contextId)) {
+      console.log(`⚠️ Already subscribed to ${type} context:`, contextId, '- skipping duplicate subscription')
+      return
     }
     
-    this.contexts.set(contextId, context)
-    
-    // Setup context-specific presence if needed
-    if (type === 'server') {
-      await this.setupServerPresence(contextId, userIds)
+    // Check if subscription is already in progress
+    if (this.pendingSubscriptions.has(contextId)) {
+      console.log(`⚠️ Subscription already in progress for ${type} context:`, contextId, '- skipping duplicate')
+      return
     }
     
-    console.log(`✅ Subscribed to ${type} context:`, contextId)
+    // Mark subscription as in progress
+    this.pendingSubscriptions.add(contextId)
+    
+    try {
+      console.log(`🔄 Subscribing to ${type} context:`, contextId, `(${userIds.length} users)`)
+      
+      // Load user data for context
+      await this.loadUsersData(userIds)
+      
+      // Create context
+      const context: UserContext = {
+        id: contextId,
+        type,
+        userIds: new Set(userIds),
+        lastSync: new Date()
+      }
+      
+      this.contexts.set(contextId, context)
+      
+      // Setup context-specific presence if needed
+      if (type === 'server') {
+        await this.setupServerPresence(contextId, userIds)
+      }
+      
+      console.log(`✅ Subscribed to ${type} context:`, contextId)
+    } finally {
+      // Remove from pending subscriptions
+      this.pendingSubscriptions.delete(contextId)
+    }
   }
   
   /**
