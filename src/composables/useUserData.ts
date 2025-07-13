@@ -325,21 +325,6 @@ export function useUserData() {
     return userDataService.getStats()
   })
   
-  // Convert single user to legacy format for compatibility
-  const toLegacyUser = (userData: UserData) => ({
-    id: userData.id,
-    username: userData.username,
-    display_name: userData.displayName,
-    avatar_url: userData.avatarUrl,
-    status: userData.status
-  })
-  
-  // Get users in legacy format for compatibility
-  const getUsersInContextLegacy = (contextId: string) => computed(() => {
-    forceUpdate.value // Force reactivity
-    return userDataService.getUsersInContext(contextId).map(toLegacyUser)
-  })
-  
   /**
    * Get users in a specific context (server, DM)
    */
@@ -398,7 +383,6 @@ export function useUserData() {
     
     // Context Data (reactive)
     getUsersInContext,
-    getUsersInContextLegacy,
     getOnlineUsers,
     getAllUsers,
     
@@ -409,7 +393,6 @@ export function useUserData() {
     updateCurrentUserProfile,
     
     // Utilities
-    toLegacyUser,
     getStats,
     getUserAvatarUrlCurrent,
     fetchUserProfile,
