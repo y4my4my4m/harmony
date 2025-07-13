@@ -8,7 +8,7 @@
       <Icon name="reblog" class="reblog-icon" />
       <div 
         class="reblog-author" 
-        @click="handleAuthorClick"
+        @click="viewProfile(authorHandle)"
         :title="`Reblogged by ${author.display_name || author.username}`"
       >
         {{ author.display_name || author.username }} reblogged
@@ -28,7 +28,7 @@
       <div class="post-header">
         <div 
           class="author-info"
-          @click="isReblog ? handleOriginalAuthorClick : handleAuthorClick"
+          @click="viewProfile(displayAuthor.username)"
         >
           <Avatar
             :src="displayAuthor.avatar_url"
@@ -368,7 +368,9 @@ const handleTimeClick = () => {
 const author = computed(() => {
   return props.post.author;
 });
-
+const viewProfile = (username: string) => {
+  router.push({ name: 'UserProfile', params: { handle: username } });
+};
 
 const authorHandle = computed(() => {
   const { username, domain } = props.post.author;
@@ -672,7 +674,8 @@ const handleAuthorClick = (event: Event) => {
 };
 
 const handleMentionClick = (handle: string) => {
-  emit('user-mention-click', handle);
+  console.log('Mention clicked:', handle);
+  router.push({ name: 'UserProfile', params: { handle } });
 };
 
 const handleHashtagClick = (tag: string) => {

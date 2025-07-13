@@ -1,6 +1,6 @@
 <!-- MonyContent - Render ActivityPub post content with rich formatting -->
 <template>
-  <div class="mony-content" v-html="formattedContent"></div>
+  <div class="mony-content" v-html="formattedContent" @click="handleClick"></div>
 </template>
 
 <script setup lang="ts">
@@ -143,24 +143,6 @@ const handleClick = (event: Event) => {
     }
   }
 };
-
-// Add event listener for clicks
-import { onMounted, onUnmounted } from 'vue';
-
-let contentElement: HTMLElement | null = null;
-
-onMounted(() => {
-  contentElement = document.querySelector('.mony-content');
-  if (contentElement) {
-    contentElement.addEventListener('click', handleClick);
-  }
-});
-
-onUnmounted(() => {
-  if (contentElement) {
-    contentElement.removeEventListener('click', handleClick);
-  }
-});
 </script>
 
 <style scoped>
