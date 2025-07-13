@@ -220,6 +220,107 @@ async function processUndoActivity(supabase: any, activity: ActivityPubActivity)
 async function processCreateActivity(supabase: any, activity: ActivityPubActivity) {
   // Handle Create activities (new posts)
   console.log('Processing Create activity:', activity.id)
+  
+  const object = typeof activity.object === 'string' ? null : activity.object as any
+  if (!object || object.type !== 'Note') {
+    console.log('Create activity does not contain a Note object')
+    return
+  }
+
+  const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol'
+  
+  // Check if this post mentions any of our local users
+  const mentionTags = object.tag?.filter((tag: any) => tag.type === 'Mention') || []
+  const localMentions = mentionTags.filter((tag: any) => 
+    tag.href && tag.href.includes(`https://${ourDomain}/users/`)
+  )
+
+  if (localMentions.length === 0) {
+    console.log('Create activity does not mention any local users, ignoring')
+    return
+  }
+
+  console.log(`📬 Incoming post mentions ${localMentions.length} local users:`, 
+    localMentions.map((tag: any) => tag.name)
+  )
+
+  try {
+    // Get or create the author profile
+    const author = await getOrCreateRemoteProfile(supabase, activity.actor)
+    if (!author) {
+      console.error('Failed to resolve post author')
+      return
+    }
+
+    // Store the federated post
+    const postData = {
+      author_id: author.id,
+      content: [{ type: 'text', text: object.content || '' }],
+      visibility: 'public', // Assume public for federated posts
+      ap_id: object.id,
+      ap_type: 'Note',
+      url: object.url || object.id,
+      is_local: false,
+      is_federated: true,
+      federation_status: 'received',
+      created_at: object.published || new Date().toISOString(),
+      metadata: {
+        mentions: mentionTags,
+        federated_from: new URL(activity.actor).hostname
+      }
+    }
+
+    const { data: savedPost, error: postError } = await supabase
+      .from('posts')
+      .insert(postData)
+      .select()
+      .single()
+
+    if (postError) {
+      console.error('Failed to save federated post:', postError)
+      return
+    }
+
+    console.log(`✅ Saved federated post ${savedPost.id} from ${activity.actor}`)
+
+    // Create notifications for mentioned users
+    for (const mention of localMentions) {
+      const userMatch = mention.href.match(`https://${ourDomain}/users/([^/]+)`)
+      if (!userMatch) continue
+
+      const mentionedUsername = userMatch[1]
+      
+      // Get the mentioned user
+      const { data: mentionedUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', mentionedUsername)
+        .eq('domain', ourDomain)
+        .eq('is_local', true)
+        .single()
+
+      if (mentionedUser) {
+        // Create mention notification
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: mentionedUser.id,
+            type: 'mention',
+            actor_id: author.id,
+            target_type: 'post',
+            target_id: savedPost.id,
+            is_read: false,
+            created_at: new Date().toISOString()
+          })
+
+        console.log(`📩 Created mention notification for @${mentionedUsername}`)
+      }
+    }
+
+  } catch (error) {
+    console.error('Error processing Create activity:', error)
+    throw error
+  }
 }
 
 async function processUpdateActivity(supabase: any, activity: ActivityPubActivity) {

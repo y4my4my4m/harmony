@@ -1,0 +1,274 @@
+/**
+ * Professional mention extraction and processing utilities
+ * Handles both local (@username) and remote (@username@domain) mentions
+ */
+
+import { supabase } from '@/supabase';
+import type { FederatedUser } from '@/types';
+
+export interface MentionMatch {
+  full: string;          // "@tester004@mastodon.social"
+  username: string;      // "tester004"
+  domain?: string;       // "mastodon.social" or undefined for local
+  startIndex: number;
+  endIndex: number;
+}
+
+export interface ResolvedMention {
+  mention: MentionMatch;
+  user?: FederatedUser;
+  inboxUrl?: string;
+  actorUrl?: string;
+}
+
+/**
+ * Extract all mentions from text content
+ * Supports both @username (local) and @username@domain (remote) formats
+ */
+export function extractMentions(text: string): MentionMatch[] {
+  // Enhanced regex to match both local and remote mentions
+  const mentionRegex = /@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+))?/g;
+  const mentions: MentionMatch[] = [];
+  let match;
+
+  while ((match = mentionRegex.exec(text)) !== null) {
+    mentions.push({
+      full: match[0],
+      username: match[1],
+      domain: match[2],
+      startIndex: match.index,
+      endIndex: match.index + match[0].length
+    });
+  }
+
+  return mentions;
+}
+
+/**
+ * Resolve mentions to actual users and their federation details
+ */
+export async function resolveMentions(mentions: MentionMatch[]): Promise<ResolvedMention[]> {
+  const resolved: ResolvedMention[] = [];
+  const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+
+  for (const mention of mentions) {
+    try {
+      const domain = mention.domain || currentDomain;
+      const isLocal = domain === currentDomain;
+
+      // Query database for user
+      const { data: user, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', mention.username)
+        .eq('domain', domain)
+        .eq('is_local', isLocal)
+        .single();
+
+      if (error || !user) {
+        console.log(`📋 Mention ${mention.full} not found in database`);
+        resolved.push({ mention });
+        continue;
+      }
+
+      // Convert to FederatedUser format
+      const federatedUser: FederatedUser = {
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        domain: user.domain,
+        avatar_url: user.avatar_url,
+        handle: domain === currentDomain 
+          ? `@${user.username}`
+          : `@${user.username}@${domain}`,
+        is_local: user.is_local,
+        bio: user.bio || '',
+        verified: false,
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        federated_id: user.federated_id,
+        public_key: user.public_key,
+        inbox_url: user.inbox_url,
+        outbox_url: user.outbox_url,
+        followers_url: user.followers_url,
+        following_url: user.following_url,
+        featured_url: user.featured_url,
+        last_synced_at: user.last_synced_at
+      };
+
+      // Determine inbox URL for federation
+      let inboxUrl: string | undefined;
+      let actorUrl: string | undefined;
+
+      if (isLocal) {
+        actorUrl = `https://${currentDomain}/users/${user.username}`;
+        inboxUrl = `${actorUrl}/inbox`;
+      } else {
+        actorUrl = user.federated_id || `https://${domain}/users/${user.username}`;
+        inboxUrl = user.inbox_url || `${actorUrl}/inbox`;
+      }
+
+      resolved.push({
+        mention,
+        user: federatedUser,
+        inboxUrl,
+        actorUrl
+      });
+
+    } catch (error) {
+      console.error(`❌ Failed to resolve mention ${mention.full}:`, error);
+      resolved.push({ mention });
+    }
+  }
+
+  return resolved;
+}
+
+/**
+ * Generate ActivityPub-compatible mention tags for activities
+ */
+export function generateMentionTags(resolvedMentions: ResolvedMention[]): any[] {
+  return resolvedMentions
+    .filter(rm => rm.user && rm.actorUrl)
+    .map(rm => ({
+      type: 'Mention',
+      href: rm.actorUrl,
+      name: rm.mention.full
+    }));
+}
+
+/**
+ * Get unique inbox URLs from resolved mentions for federation delivery
+ */
+export function getDeliveryInboxes(resolvedMentions: ResolvedMention[]): string[] {
+  const inboxes = new Set<string>();
+  
+  resolvedMentions.forEach(rm => {
+    if (rm.inboxUrl && rm.user && !rm.user.is_local) {
+      inboxes.add(rm.inboxUrl);
+    }
+  });
+
+  return Array.from(inboxes);
+}
+
+/**
+ * Convert plain text with mentions to ActivityPub HTML format
+ */
+export function formatMentionsForActivityPub(
+  text: string, 
+  resolvedMentions: ResolvedMention[]
+): string {
+  let formatted = text;
+  
+  // Sort mentions by position (reverse order to maintain indices)
+  const sortedMentions = [...resolvedMentions].sort(
+    (a, b) => b.mention.startIndex - a.mention.startIndex
+  );
+
+  sortedMentions.forEach(rm => {
+    if (rm.user && rm.actorUrl) {
+      const before = formatted.substring(0, rm.mention.startIndex);
+      const after = formatted.substring(rm.mention.endIndex);
+      const mentionHtml = `<a href="${rm.actorUrl}" class="mention">${rm.mention.full}</a>`;
+      formatted = before + mentionHtml + after;
+    }
+  });
+
+  return formatted;
+}
+
+/**
+ * Attempt to resolve remote mention via WebFinger
+ */
+export async function resolveRemoteMention(username: string, domain: string): Promise<FederatedUser | null> {
+  try {
+    // WebFinger lookup
+    const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:${username}@${domain}`;
+    const webfingerResponse = await fetch(webfingerUrl, {
+      headers: { 'Accept': 'application/jrd+json' }
+    });
+
+    if (!webfingerResponse.ok) return null;
+
+    const webfinger = await webfingerResponse.json();
+    const selfLink = webfinger.links?.find((link: any) => 
+      link.rel === 'self' && link.type === 'application/activity+json'
+    );
+
+    if (!selfLink) return null;
+
+    // Fetch actor document
+    const actorResponse = await fetch(selfLink.href, {
+      headers: { 'Accept': 'application/activity+json' }
+    });
+
+    if (!actorResponse.ok) return null;
+
+    const actor = await actorResponse.json();
+
+    // Store remote user in database
+    const remoteUser = {
+      username,
+      display_name: actor.name || actor.preferredUsername,
+      domain,
+      avatar_url: actor.icon?.url,
+      bio: actor.summary || '',
+      federated_id: actor.id,
+      public_key: actor.publicKey?.publicKeyPem,
+      inbox_url: actor.inbox,
+      outbox_url: actor.outbox,
+      followers_url: actor.followers,
+      following_url: actor.following,
+      featured_url: actor.featured,
+      is_local: false,
+      last_synced_at: new Date().toISOString()
+    };
+
+    const { data: savedUser, error } = await supabase
+      .from('profiles')
+      .upsert(remoteUser, {
+        onConflict: 'username,domain',
+        ignoreDuplicates: false
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to save remote user:', error);
+      return null;
+    }
+
+    return {
+      id: savedUser.id,
+      username: savedUser.username,
+      display_name: savedUser.display_name,
+      domain: savedUser.domain,
+      avatar_url: savedUser.avatar_url,
+      handle: `@${username}@${domain}`,
+      is_local: false,
+      bio: savedUser.bio || '',
+      verified: false,
+      followers_count: 0,
+      following_count: 0,
+      posts_count: 0,
+      created_at: savedUser.created_at,
+      updated_at: savedUser.updated_at,
+      federated_id: savedUser.federated_id,
+      public_key: savedUser.public_key,
+      inbox_url: savedUser.inbox_url,
+      outbox_url: savedUser.outbox_url,
+      followers_url: savedUser.followers_url,
+      following_url: savedUser.following_url,
+      featured_url: savedUser.featured_url,
+      last_synced_at: savedUser.last_synced_at
+    };
+
+  } catch (error) {
+    console.error(`Failed to resolve remote mention ${username}@${domain}:`, error);
+    return null;
+  }
+}

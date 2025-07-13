@@ -4,6 +4,14 @@
  */
 
 import { supabase } from '@/supabase';
+import { 
+  extractMentions, 
+  resolveMentions, 
+  generateMentionTags, 
+  getDeliveryInboxes, 
+  formatMentionsForActivityPub,
+  resolveRemoteMention
+} from '@/utils/mentionUtils';
 import type { 
   ActivityPubActivity, 
   ActivityPubActivityObject,
@@ -172,23 +180,27 @@ export class FederationService {
   // =============================================================================
 
   /**
-   * Federate a newly created post
+   * Federate a newly created post with mention extraction and delivery
    */
   async federatePost(post: Post, authorProfile: any): Promise<string> {
     const actor = `${this.config.instanceUrl}/users/${authorProfile.username}`;
     const objectUrl = `${this.config.instanceUrl}/posts/${post.id}`;
+
+    // Extract and resolve mentions from post content
+    const { processedContent, mentionTags, deliveryInboxes } = await this.processMentions(post.content);
 
     // Build ActivityPub Note object
     const noteObject = {
       id: objectUrl,
       type: 'Note' as ActivityPubObjectType,
       attributedTo: actor,
-      content: this.formatContentForActivityPub(post.content),
+      content: processedContent,
       published: post.created_at,
       to: this.buildAudience(post.visibility, actor),
       cc: [],
       url: objectUrl,
       mediaType: 'text/html',
+      ...(mentionTags.length > 0 && { tag: mentionTags }),
       ...(post.content_warning && { summary: post.content_warning }),
       ...(post.in_reply_to && { inReplyTo: await this.resolveReplyTarget(post.in_reply_to) }),
       ...(post.media_attachments && post.media_attachments.length > 0 && {
@@ -209,8 +221,8 @@ export class FederationService {
       })
       .eq('id', post.id);
 
-    // Queue Create activity
-    return await this.queueActivity({
+    // Queue Create activity with enhanced delivery targets
+    const activityId = await this.queueActivity({
       type: 'Create',
       actor,
       object: noteObject,
@@ -218,6 +230,26 @@ export class FederationService {
       to: noteObject.to,
       cc: noteObject.cc
     });
+
+    // 🌐 DELIVER TO MENTIONED USERS: Send directly to remote inboxes
+    if (deliveryInboxes.length > 0) {
+      console.log(`📬 Delivering post ${post.id} to ${deliveryInboxes.length} mentioned users:`, deliveryInboxes);
+      
+      const createActivity = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${actor}/activities/create/${Date.now()}`,
+        type: 'Create',
+        actor,
+        object: noteObject,
+        published: new Date().toISOString(),
+        to: noteObject.to,
+        cc: noteObject.cc
+      };
+
+      await this.deliverActivity(createActivity, deliveryInboxes);
+    }
+
+    return activityId;
   }
 
   /**
@@ -507,6 +539,99 @@ export class FederationService {
   }
 
   // =============================================================================
+  // MENTION PROCESSING AND DELIVERY
+  // =============================================================================
+
+  /**
+   * Process mentions in post content for federation
+   */
+  private async processMentions(content: any): Promise<{
+    processedContent: string;
+    mentionTags: any[];
+    deliveryInboxes: string[];
+  }> {
+    const textContent = this.formatContentForActivityPub(content);
+    
+    // Extract mentions from content
+    const mentions = extractMentions(textContent);
+    console.log(`📋 Found ${mentions.length} mentions in post:`, mentions.map(m => m.full));
+
+    if (mentions.length === 0) {
+      return {
+        processedContent: textContent,
+        mentionTags: [],
+        deliveryInboxes: []
+      };
+    }
+
+    // Resolve mentions to users (local and remote)
+    const resolvedMentions = await resolveMentions(mentions);
+    
+    // Try to resolve any unresolved remote mentions via WebFinger
+    for (let i = 0; i < resolvedMentions.length; i++) {
+      const rm = resolvedMentions[i];
+      if (!rm.user && rm.mention.domain && rm.mention.domain !== this.config.domain) {
+        console.log(`🔍 Attempting WebFinger resolution for ${rm.mention.full}`);
+        const remoteUser = await resolveRemoteMention(rm.mention.username, rm.mention.domain);
+        if (remoteUser) {
+          rm.user = remoteUser;
+          rm.actorUrl = remoteUser.federated_id;
+          rm.inboxUrl = remoteUser.inbox_url;
+          console.log(`✅ Resolved remote mention: ${rm.mention.full} -> ${rm.actorUrl}`);
+        }
+      }
+    }
+
+    // Generate ActivityPub mention tags
+    const mentionTags = generateMentionTags(resolvedMentions);
+    
+    // Get delivery inboxes for remote mentions
+    const deliveryInboxes = getDeliveryInboxes(resolvedMentions);
+    
+    // Format content with proper mention links for ActivityPub
+    const processedContent = formatMentionsForActivityPub(textContent, resolvedMentions);
+
+    console.log(`🎯 Processed mentions: ${mentionTags.length} tags, ${deliveryInboxes.length} delivery targets`);
+
+    return {
+      processedContent,
+      mentionTags,
+      deliveryInboxes
+    };
+  }
+
+  /**
+   * Deliver ActivityPub activity to remote inboxes
+   */
+  private async deliverActivity(activity: any, inboxUrls: string[]): Promise<void> {
+    console.log(`📡 Delivering activity to ${inboxUrls.length} inboxes:`, activity.type);
+    
+    const deliveryPromises = inboxUrls.map(async (inboxUrl) => {
+      try {
+        const response = await fetch(inboxUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/activity+json',
+            'Accept': 'application/activity+json',
+            'User-Agent': `Harmony/${this.config.domain}`,
+          },
+          body: JSON.stringify(activity)
+        });
+
+        if (response.ok) {
+          console.log(`✅ Successfully delivered to ${inboxUrl}`);
+        } else {
+          console.error(`❌ Failed to deliver to ${inboxUrl}: ${response.status} ${response.statusText}`);
+        }
+      } catch (error) {
+        console.error(`❌ Network error delivering to ${inboxUrl}:`, error);
+      }
+    });
+
+    await Promise.allSettled(deliveryPromises);
+  }
+
+  // =============================================================================
   // UTILITY METHODS
   // =============================================================================
 
@@ -702,4 +827,4 @@ export class FederationService {
 }
 
 // Export singleton instance
-export const federationService = new FederationService(); 
+export const federationService = new FederationService();

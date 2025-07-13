@@ -853,15 +853,31 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Format post content for storage
+     * Format post content for storage with mention detection
      */
     formatPostContent(content: string): any {
-      // Format content as JSONB structure similar to messages
-      // This matches the expected database schema
+      // Extract mentions to validate they exist before storing
+      const mentionRegex = /@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+))?/g;
+      const mentions = [];
+      let match;
+
+      while ((match = mentionRegex.exec(content)) !== null) {
+        mentions.push({
+          username: match[1],
+          domain: match[2] || 'har.mony.lol',
+          full: match[0],
+          startIndex: match.index,
+          endIndex: match.index + match[0].length
+        });
+      }
+
+      // For now, store as simple text content
+      // The federation service will handle mention processing
       return [
         {
           type: 'text',
-          text: content
+          text: content,
+          ...(mentions.length > 0 && { mentions })
         }
       ];
     },
