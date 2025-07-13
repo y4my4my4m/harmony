@@ -125,8 +125,8 @@ const initializeApp = async () => {
     // Initialize the user environment which includes server loading
     await serverChannelStore.initializeUserEnvironment(userId)
     
-    // Initialize the user profile 
-    await profileStore.fetchProfile(userId)
+    // Initialize the user profile by auth user ID
+    await profileStore.fetchProfileByAuthUserId(userId)
     
     // Initialize the user data system (replaces old fragmented system)
     try {

@@ -1,6 +1,7 @@
 import { supabase } from '../supabase';
 import type { User } from '@/types';
 
+// Get profile by profile ID (for federated users and direct lookups)
 const getProfile = async (userId: string): Promise<User | null> => {
   const { data, error } = await supabase
     .from('profiles')
@@ -12,8 +13,40 @@ const getProfile = async (userId: string): Promise<User | null> => {
   return data;
 };
 
+// Get profile by auth user ID (for local authenticated users)
+const getProfileByAuthUserId = async (authUserId: string): Promise<User | null> => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('auth_user_id', authUserId)
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+// Get profile with avatar URL by profile ID
 const getProfileWithAvatarUrl = async (userId: string): Promise<User | null> => {
   const profile = await getProfile(userId);
+  if (!profile || !profile.avatar_url) return profile;
+
+  try {
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .createSignedUrl(profile.avatar_url, 60); // 60 seconds validity for the URL
+
+    if (error) throw error;
+    profile.avatar_url = data.signedUrl;
+    return profile;
+  } catch (error) {
+    console.error('Error getting signed avatar URL:', error);
+    return profile; // Return the profile even if the URL fetch fails
+  }
+};
+
+// Get profile with avatar URL by auth user ID (for authenticated users)
+const getProfileWithAvatarUrlByAuthUserId = async (authUserId: string): Promise<User | null> => {
+  const profile = await getProfileByAuthUserId(authUserId);
   if (!profile || !profile.avatar_url) return profile;
 
   try {
@@ -97,4 +130,4 @@ const updateUserStatus = async (userId: string, status: number) => {
   return data;
 };
 
-export { getProfile, getProfileWithAvatarUrl, updateProfile, downloadAvatar, uploadAvatar, updateUserStatus };
+export { getProfile, getProfileWithAvatarUrl, updateProfile, downloadAvatar, uploadAvatar, updateUserStatus, getProfileByAuthUserId, getProfileWithAvatarUrlByAuthUserId };

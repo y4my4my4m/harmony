@@ -413,31 +413,33 @@ async function getOrCreateRemoteProfile(supabase: any, actorUrl: string) {
     const actor = await response.json()
     const domain = new URL(actorUrl).hostname
 
-    // Create remote profile
-    const { data: newProfile, error } = await supabase
-      .from('profiles')
-      .insert({
-        username: actor.preferredUsername,
-        display_name: actor.name || actor.preferredUsername,
-        domain,
-        avatar_url: actor.icon?.url,
-        bio: actor.summary || '',
-        federated_id: actorUrl,
-        inbox_url: actor.inbox,
-        outbox_url: actor.outbox,
-        followers_url: actor.followers,
-        following_url: actor.following,
-        public_key: actor.publicKey?.publicKeyPem,
-        is_local: false,
-        last_synced_at: new Date().toISOString()
+    // Use the new function to create federated profile
+    const { data: profileId, error } = await supabase
+      .rpc('create_federated_profile', {
+        p_username: actor.preferredUsername || 'unknown',
+        p_display_name: actor.name || actor.preferredUsername,
+        p_domain: domain,
+        p_avatar_url: actor.icon?.url,
+        p_bio: actor.summary || '',
+        p_federated_id: actorUrl,
+        p_inbox_url: actor.inbox,
+        p_outbox_url: actor.outbox,
+        p_followers_url: actor.followers,
+        p_following_url: actor.following,
+        p_public_key: actor.publicKey?.publicKeyPem
       })
-      .select()
-      .single()
 
     if (error) {
       console.error('Failed to create remote profile:', error)
       return null
     }
+
+    // Fetch the created profile
+    const { data: newProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', profileId)
+      .single()
 
     return newProfile
   } catch (error) {

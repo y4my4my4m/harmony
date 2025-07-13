@@ -112,6 +112,25 @@ export const useProfileStore = defineStore('profile', {
         console.error('Error creating profile:', error);
         throw error; // Re-throw to allow proper error handling in components
       }
-    }
+    },
+    async fetchProfileByAuthUserId(authUserId: string) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('auth_user_id', authUserId)
+          .single();
+
+        if (error && error.code !== 'PGRST100' /* Row not found error code */) {
+          throw error;
+        }
+
+        // If profile data is found, set it, else keep it null
+        this.profile = data ? data : null;
+      } catch (error) {
+        console.error('Error fetching profile by auth user ID:', error);
+        // Handle error appropriately
+      }
+    },
   },
 });
