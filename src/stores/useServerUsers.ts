@@ -4,21 +4,9 @@ import type { User } from '@/types';
 import { UserStatus } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-import { getProfilesWithAvatarUrls } from '@/services/usersService';
 import { updateUserStatus } from '@/services/profileService';
 import { getMembershipService } from '@/services/membershipService';
 import { userDataService } from '@/services/userDataService';
-
-const convertToStatusEnum = (numericStatus: number): UserStatus => {
-    return numericStatus as UserStatus;
-};
-
-// Cache configuration
-interface UserProfileCache {
-  profile: User;
-  lastFetched: Date;
-  hits: number;
-}
   
 export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
@@ -29,20 +17,23 @@ export const useServerUsersStore = defineStore('serverUsers', {
     offlineBroadcastChannel: null as RealtimeChannel | null,
     currentServerId: null as string | null, // Track current server for membership events
     membershipSubscriptionActive: false,
-    
-    // Enhanced caching system
-    profileCache: new Map<string, UserProfileCache>(),
-    cacheValidityDuration: 10 * 60 * 1000, // 10 minutes for user profiles
-    maxCacheSize: 1000, // Maximum number of profiles to cache
-    pendingFetches: new Set<string>(), // Track in-progress fetches to avoid duplicates
   }),
   getters: {
-    usernameToUserIdMap: (state) => {
+    usernameToUserIdMap: () => {
       const map: Record<string, string> = {};
-      for (const userId in state.userProfiles) {
-        const profile = state.userProfiles[userId];
-        if (profile && profile.username) {
-          map[profile.username.toLowerCase()] = userId;
+      
+      // Get users from userDataService (single source of truth)
+      const allUsers = userDataService.getAllUsers();
+      
+      for (const userData of allUsers) {
+        if (userData && userData.username) {
+          // Always add local username mapping (just username)
+          map[userData.username.toLowerCase()] = userData.id;
+          
+          // Add full handle mapping for remote users (username@domain)
+          if (!userData.isLocal && userData.domain) {
+            map[`${userData.username}@${userData.domain}`.toLowerCase()] = userData.id;
+          }
         }
       }
       return map;
@@ -53,303 +44,94 @@ export const useServerUsersStore = defineStore('serverUsers', {
       return userId in state.userProfiles;
     },
     
-    // Get user profile with intelligent fallback strategy
-    // First checks server members, then falls back to cache for non-members
-    getUserProfile: (state) => (userId: string): User | null => {
-      // First check the main userProfiles (current server users)
-      if (state.userProfiles[userId]) {
-        return state.userProfiles[userId];
-      }
-      
-      // Check cache for any previously fetched profiles (including non-server members)
-      const cached = state.profileCache.get(userId);
-      if (cached) {
-        const now = new Date();
-        const cacheAge = now.getTime() - cached.lastFetched.getTime();
-        if (cacheAge < state.cacheValidityDuration) {
-          cached.hits++;
-          return cached.profile;
-        }
-      }
-      
-      return null;
+    // Get user profile - delegate to userDataService
+    getUserProfile: () => (userId: string): User | null => {
+      // Use userDataService's getUserProfile which already returns User format
+      return userDataService.getUserProfile(userId);
     },
     
-    // Get cache statistics
-    getCacheStats: (state) => ({
-      totalCached: state.profileCache.size,
-      mainProfiles: Object.keys(state.userProfiles).length,
-      pendingFetches: state.pendingFetches.size,
-      hitRate: state.profileCache.size > 0 ? 
-        Array.from(state.profileCache.values()).reduce((sum, cache) => sum + cache.hits, 0) / state.profileCache.size : 0,
-    }),
+    // Get cache statistics - now from userDataService
+    getCacheStats: () => {
+      const allUsers = userDataService.getAllUsers();
+      return {
+        totalCached: allUsers.length,
+        mainProfiles: allUsers.length,
+        pendingFetches: 0, // No longer tracked locally
+        hitRate: 1, // userDataService handles this internally
+      };
+    },
   },
   actions: {
     /**
      * Initialize integration with userDataService for single source of truth
-     * This ensures serverUsersStore stays in sync with userDataService updates
+     * This is now simplified since userDataService IS the source of truth
      */
     initializeUserDataIntegration() {
-      console.log('🔗 Setting up userDataService integration with serverUsersStore')
-      
-      // Listen for user profile updates from userDataService
-      userDataService.addEventListener('user-updated', (event: Event) => {
-        const customEvent = event as CustomEvent
-        const { userId } = customEvent.detail
-        const userData = userDataService.getUser(userId)
-        
-        if (userData) {
-          // Convert UserData to User format for serverUsersStore
-          const userProfile: User = {
-            id: userData.id,
-            username: userData.username,
-            display_name: userData.displayName,
-            avatar_url: userData.avatarUrl,
-            status: userData.status,
-            // Keep other fields from existing profile if available
-            ...this.getUserProfile(userId)
-          }
-          
-          // Update both cache and main profiles
-          this.addToProfileCache(userProfile)
-          
-          // Update main profiles if user is a server member
-          if (this.userProfiles[userId]) {
-            this.userProfiles[userId] = userProfile
-            console.log(`🔄 Updated server user profile for: ${userData.displayName}`)
-          }
-        }
-      })
-      
+      console.log('🔗 UserDataService is now the single source of truth for user data')
       console.log('✅ UserDataService integration initialized')
     },
 
-    // Cache management methods
-    evictOldestCacheEntries() {
-      if (this.profileCache.size <= this.maxCacheSize) return;
-
-      // Sort by last accessed time and remove oldest entries
-      const entries = Array.from(this.profileCache.entries())
-        .sort((a, b) => a[1].lastFetched.getTime() - b[1].lastFetched.getTime());
-
-      const toRemove = entries.slice(0, entries.length - this.maxCacheSize);
-      toRemove.forEach(([userId]) => {
-        this.profileCache.delete(userId);
-      });
-
-      console.log(`Evicted ${toRemove.length} old profile cache entries`);
-    },
-
-    addToProfileCache(user: User) {
-      this.evictOldestCacheEntries();
-      
-      this.profileCache.set(user.id, {
-        profile: user,
-        lastFetched: new Date(),
-        hits: 0,
-      });
-    },
-
-    // Fetch individual user profile with caching
+    // Fetch individual user profile with caching - delegate to userDataService
     async fetchUserProfile(userId: string, forceRefresh = false): Promise<User | null> {
-      // Check if already fetching to avoid duplicate requests
-      if (this.pendingFetches.has(userId)) {
-        // Wait for existing fetch to complete
-        return new Promise((resolve) => {
-          const checkComplete = () => {
-            if (!this.pendingFetches.has(userId)) {
-              resolve(this.getUserProfile(userId));
-            } else {
-              setTimeout(checkComplete, 50);
-            }
-          };
-          checkComplete();
-        });
-      }
-
-      // Check cache first (unless force refresh)
-      if (!forceRefresh) {
-        const cachedProfile = this.getUserProfile(userId);
-        if (cachedProfile) {
-          console.log(`Profile cache hit for user: ${userId}`);
-          return cachedProfile;
-        }
-      }
-
-      this.pendingFetches.add(userId);
-
       try {
-        console.log(`Fetching profile for user: ${userId}`);
-        
-        const profiles = await getProfilesWithAvatarUrls([userId]);
-        
-        if (profiles.length === 0) {
-          console.warn(`No profile found for user: ${userId}`);
-          return null;
-        }
-
-        const profile = {
-          ...profiles[0],
-          status: convertToStatusEnum(profiles[0].status as number)
-        };
-
-        // Always add to cache for future lookups
-        this.addToProfileCache(profile);
-
-        // Only add to main userProfiles if they're already there (i.e., they're a server member)
-        // This keeps userProfiles clean and only for current server members
-        if (this.userProfiles[userId]) {
-          this.userProfiles[userId] = profile;
-        }
-
-        console.log(`Successfully fetched and cached profile for user: ${userId}`);
-        return profile;
-
+        return await userDataService.fetchUserProfile(userId, forceRefresh);
       } catch (error) {
         console.error(`Error fetching profile for user ${userId}:`, error);
         return null;
-      } finally {
-        this.pendingFetches.delete(userId);
       }
     },
 
-    // Batch fetch multiple profiles efficiently
+    // Batch fetch multiple profiles efficiently - delegate to userDataService
     async fetchMultipleUserProfiles(userIds: string[], forceRefresh = false): Promise<Record<string, User>> {
-      const results: Record<string, User> = {};
-
-      // Filter out users that are already cached (unless force refresh)
-      const uncachedUserIds = forceRefresh ? userIds : userIds.filter(id => !this.getUserProfile(id));
-
-      if (uncachedUserIds.length === 0) {
-        // All profiles are cached, return them
-        userIds.forEach(id => {
-          const profile = this.getUserProfile(id);
-          if (profile) {
-            results[id] = profile;
-          }
-        });
-        return results;
-      }
-
       try {
-        console.log(`Batch fetching ${uncachedUserIds.length} profiles`);
-        
-        const profiles = await getProfilesWithAvatarUrls(uncachedUserIds);
-
-        profiles.forEach(profile => {
-          if (profile) {
-            const processedProfile = {
-              ...profile,
-              status: convertToStatusEnum(profile.status as number)
-            };
-
-            // Add to cache
-            this.addToProfileCache(processedProfile);
-
-            // Add to main userProfiles if not already there
-            if (!this.userProfiles[profile.id]) {
-              this.userProfiles[profile.id] = processedProfile;
-            }
-
-            results[profile.id] = processedProfile;
-          }
-        });
-
-        // Also include any cached profiles that were requested
-        userIds.forEach(id => {
-          if (!results[id]) {
-            const cachedProfile = this.getUserProfile(id);
-            if (cachedProfile) {
-              results[id] = cachedProfile;
-            }
-          }
-        });
-
-        console.log(`Successfully batch fetched ${profiles.length} profiles`);
-        return results;
-
+        return await userDataService.fetchMultipleUserProfiles(userIds, forceRefresh);
       } catch (error) {
         console.error('Error batch fetching profiles:', error);
-        return results;
+        return {};
       }
     },
 
-    // Optimized profile fetching for message displays
-    // Efficiently handles bulk fetching of profiles that might not be server members
+    // Optimized profile fetching for message displays - delegate to userDataService
     async ensureProfilesAvailable(userIds: string[]): Promise<void> {
-      const missingUserIds = userIds.filter(id => !this.getUserProfile(id));
-      
-      if (missingUserIds.length === 0) {
-        return; // All profiles already available
-      }
-
       try {
-        console.log(`Ensuring ${missingUserIds.length} profiles are available`);
-        await this.fetchMultipleUserProfiles(missingUserIds);
+        await userDataService.ensureUsersLoaded(userIds);
       } catch (error) {
         console.error('Error ensuring profiles are available:', error);
       }
     },
 
-    // Clear cache for specific user (useful when profile is updated)
-    invalidateUserProfileCache(userId: string) {
-      this.profileCache.delete(userId);
-      console.log(`Invalidated profile cache for user: ${userId}`);
-    },
-
-    // Clear all profile caches
-    clearProfileCache() {
-      this.profileCache.clear();
-      console.log('Cleared all profile caches');
-    },
+    // REMOVED: Cache management is now handled by userDataService
 
     async fetchUserProfiles(userIds: string[]) {
-      const profiles = await getProfilesWithAvatarUrls(userIds);
-
-      this.userProfiles = profiles.reduce((acc, profile) => {
-        if (profile) {
-          const userProfile = { 
-            ...profile,
-            status: convertToStatusEnum(profile.status as number)
-          };
-          acc[profile.id] = userProfile;
-          
-          // Also add to cache
-          this.addToProfileCache(userProfile);
-        }
-        return acc;
-      }, {} as Record<string, User>);
+      // Delegate to userDataService for data loading
+      await userDataService.ensureUsersLoaded(userIds);
       
-      // IMPORTANT: Ensure userDataService also has this user data for reactive access
-      try {
-        await userDataService.ensureUsersLoaded(userIds);
-      } catch (error) {
-        console.warn('Failed to load user data into userDataService:', error);
-      }
+      // Update local userProfiles for server members only (for backwards compatibility)
+      this.userProfiles = {};
+      userIds.forEach(userId => {
+        const userProfile = userDataService.getUserProfile(userId);
+        if (userProfile) {
+          this.userProfiles[userId] = userProfile;
+        }
+      });
     },
 
     async setStatus(userId: string, status: UserStatus) {
-      const numericStatus = status as number;
-      const updatedUser = await updateUserStatus(userId, numericStatus);
-      if (updatedUser) {
-        this.userProfiles[userId].status = status;
+      // If updating current user, use userDataService
+      const currentUser = userDataService.getCurrentUser();
+      if (currentUser && currentUser.id === userId) {
+        await userDataService.updateCurrentUserStatus(status, true);
+      } else {
+        // For other users, use the legacy method
+        const numericStatus = status as number;
+        const updatedUser = await updateUserStatus(userId, numericStatus);
+        if (updatedUser) {
+          // Update local state for backwards compatibility
+          if (this.userProfiles[userId]) {
+            this.userProfiles[userId].status = status;
+          }
+        }
       }
-    },
-
-    // DEPRECATED: This method is replaced by the global presence system
-    // Kept for backward compatibility but should not be used
-    subscribeToUserStatuses() {
-      console.warn('subscribeToUserStatuses is deprecated. Use global presence system instead.');
-      return; // No-op to avoid conflicts with global presence
-      
-      // Legacy implementation (disabled):
-      // Only unsubscribe from the specific user-status channel if it exists
-      // DO NOT use removeAllChannels() as it destroys ALL subscriptions including notifications!
-      // const existingChannel = supabase.getChannels().find(ch => ch.topic === 'user-statuses');
-      // if (existingChannel) {
-      //   supabase.removeChannel(existingChannel);
-      // }
-      // ... rest of legacy implementation
     },
 
     // Professional approach: Use Supabase Presence with proper TypeScript
@@ -491,6 +273,14 @@ export const useServerUsersStore = defineStore('serverUsers', {
     },
 
     setUserOnlineStatus(userId: string, isOnline: boolean) {
+      // Update userDataService (single source of truth)
+      const userData = userDataService.getUser(userId);
+      if (userData) {
+        userData.isOnline = isOnline;
+        userData.status = isOnline ? UserStatus.Online : UserStatus.Offline;
+      }
+      
+      // Also update local state for backwards compatibility
       if (this.userProfiles[userId]) {
         // Only update if it's actually changing the online/offline status
         const currentStatus = this.userProfiles[userId].status;

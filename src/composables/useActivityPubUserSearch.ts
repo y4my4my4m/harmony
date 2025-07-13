@@ -31,7 +31,7 @@ export function useActivityPubUserSearch() {
             display_name: user.display_name,
             username: user.username,
             avatar: user.avatar_url,
-            domain: user.domain || 'har.mony.lol',
+            domain: user.domain, // Don't default to any domain, let is_local field handle this
             type: 'mention',
             user: user
           });

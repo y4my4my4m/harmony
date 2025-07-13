@@ -61,13 +61,17 @@
             <div class="name-section">
               <h1 class="display-name" :style="{ color: userColor }">
                 {{ displayName }}
+                <span v-if="getUserVerified(user)" class="verified-badge">
+                  <Icon name="check-circle" class="verified-icon" />
+                </span>
               </h1>
               <p class="username">{{ displayHandle }}</p>
             </div>
 
-            <div class="user-badges">              <div v-if="user && getUserRoles(user.id).value.length" class="roles-container">
-                <div
-                  v-for="role in getUserRoles(user.id).value"
+            <div class="user-badges">
+              <div v-if="getUserRoles(user).length" class="roles-container">
+                <div 
+                  v-for="role in getUserRoles(user)" 
                   :key="role.id"
                   class="role-badge"
                   :style="{ 
@@ -109,7 +113,7 @@
           
           <!-- Chat User Stats -->
           <div v-else class="stat-item">
-            <span class="stat-value">{{ user ? getUserRoles(user.id).value.length : 0 }}</span>
+            <span class="stat-value">{{ getUserRoles(user).length || 0 }}</span>
             <span class="stat-label">Roles</span>
           </div>
         </div>
@@ -178,7 +182,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Messages</span>
-                  <span class="activity-value">{{ userMessageCount }}</span>
+                  <span class="activity-value">{{ getUserMessageCount(user) }}</span>
                 </div>
               </div>
               
@@ -188,7 +192,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Voice Time</span>
-                  <span class="activity-value">{{ formatVoiceTime(userVoiceTime) }}</span>
+                  <span class="activity-value">{{ formatVoiceTime(getUserVoiceTime(user)) }}</span>
                 </div>
               </div>
             </template>
@@ -251,7 +255,7 @@
           <template v-else>
             <!-- Local Users: Send DM (local users can DM each other) -->
             <button 
-              v-if="userIsLocal"
+              v-if="getUserIsLocal(user)"
               @click="sendDirectMessage"
               class="primary-action-btn"
             >
@@ -263,10 +267,10 @@
             <button 
               @click="handleFollowToggle"
               class="primary-action-btn"
-              :class="{ 'following': userIsFollowing }"
+              :class="{ 'following': getUserIsFollowing(user) }"
             >
-              <Icon :name="userIsFollowing ? 'unfollow' : 'follow'" :size="16" />
-              {{ userIsFollowing ? 'Unfollow' : 'Follow' }}
+              <Icon :name="getUserIsFollowing(user) ? 'unfollow' : 'follow'" :size="16" />
+              {{ getUserIsFollowing(user) ? 'Unfollow' : 'Follow' }}
             </button>
             
             <!-- All Users: Mention -->
@@ -316,19 +320,13 @@ const router = useRouter()
 const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
-// Use professional presence system AND unified user data
+// Use professional presence system
 const { 
   getUserStatusForAvatar, 
   getUserStatusText,
   getUserDisplayName,
   getUserAvatarUrl,
-  getUserColor,
-  getUserCreatedAt,
-  getUserBio,
-  getUserRoles,
-  ensureProfilesAvailable,
-  getUserMessageCount,
-  getUserVoiceTime
+  getUserColor
 } = useUserData()
 
 // Reactive state
@@ -365,7 +363,7 @@ const displayHandle = computed(() => {
 const displayAbout = computed(() => {
   if (!props.user) return null
   
-  return getUserBio(props.user.id).value
+  return getUserBio(props.user)
 })
 
 const socialStats = computed(() => {
@@ -406,28 +404,6 @@ const userColor = computed(() => {
   return getUserColor(props.user.id).value || '#ffffff'
 })
 
-// Computed properties using unified user data
-const userMessageCount = computed(() => {
-  if (!props.user) return 0
-  return getUserMessageCount(props.user.id).value || 0
-})
-
-const userVoiceTime = computed(() => {
-  if (!props.user) return 0
-  return getUserVoiceTime(props.user.id).value || 0
-})
-
-const userIsLocal = computed(() => {
-  if (!props.user) return true
-  // Check if it's a local user (not federated)
-  return !isFederatedUser(props.user)
-})
-
-const userIsFollowing = computed(() => {
-  if (!props.user || !isFederatedUser(props.user)) return false
-  return props.user.is_following || false
-})
-
 // Methods
 const handleAvatarError = (event: Event) => {
   const target = event.target as HTMLImageElement
@@ -435,10 +411,8 @@ const handleAvatarError = (event: Event) => {
 }
 
 const formatJoinDate = (dateString: string | undefined) => {
-  // Use the unified created date from userDataService first
-  const createdAt = props.user ? getUserCreatedAt(props.user.id).value : null
-  const date = createdAt ? new Date(createdAt) : (dateString ? new Date(dateString) : null)
-  if (!date) return 'Unknown'
+  if (!dateString) return 'Unknown'
+  const date = new Date(dateString)
   return date.toLocaleDateString('en-US', { 
     year: 'numeric', 
     month: 'short',
@@ -563,6 +537,35 @@ const debouncedSaveNote = (() => {
   }
 })()
 
+// Helper methods for safe property access
+const getUserVerified = (user: any) => {
+  return user?.verified || user?.profile?.verified
+}
+
+const getUserRoles = (user: any) => {
+  return user?.roles || user?.profile?.roles || []
+}
+
+const getUserBio = (user: any) => {
+  return user?.bio || user?.profile?.bio || user?.about
+}
+
+const getUserMessageCount = (user: any) => {
+  return user?.message_count || user?.profile?.message_count || 0
+}
+
+const getUserVoiceTime = (user: any) => {
+  return user?.voice_time || user?.profile?.voice_time || 0
+}
+
+const getUserIsLocal = (user: any) => {
+  return user?.is_local ?? true // Default to local if not specified
+}
+
+const getUserIsFollowing = (user: any) => {
+  return user?.is_following || false
+}
+
 const saveUserNote = () => {
   if (!props.user) return
   
@@ -580,17 +583,8 @@ const loadUserNote = () => {
 }
 
 // Lifecycle
-onMounted(async () => {
+onMounted(() => {
   loadUserNote()
-  
-  // Ensure user profile data is loaded if we have a user
-  if (props.user) {
-    try {
-      await ensureProfilesAvailable([props.user.id])
-    } catch (error) {
-      console.error('Failed to ensure user profile is available:', error)
-    }
-  }
 })
 </script>
 
@@ -849,6 +843,21 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 12px;
+}
+
+.about-content {
+  margin-bottom: 12px;
+  background: var(--background-quaternary);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.about-text {
+  color: #b5bac1;
+  margin: 0;
+  line-height: 1.5;
+  word-wrap: break-word;
+  user-select: text;
 }
 
 .stat-item {

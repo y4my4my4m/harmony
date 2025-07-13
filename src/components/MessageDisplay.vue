@@ -656,7 +656,8 @@ export default defineComponent({
       
       const emojiRegex = /:([\w\d_+-]+):/g;
       const urlRegex = /(\bhttps?:\/\/\S+)/gi;
-      const mentionRegex = /(@\w+@\w+\S+)/g;
+      // Updated mention regex to match both @username/@username@domain (display format) and @uuid@domain (stored format)
+      const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
       const fileRegex = /\[(?:image|video|file): [^\]]+\]/g;
       
       let lastIndex = 0;
@@ -694,8 +695,37 @@ export default defineComponent({
         }
         // Handle mention
         else if (matchedText.startsWith('@')) {
-          const userId = serverUsersStore.usernameToUserIdMap[matchedText.toLowerCase()];
-          result.push({ type: 'mention', mention: matchedText, userId });
+          // Handle mention parsing with new format
+          const username = match[1]; // First capture group: username or uuid
+          const domain = match[2]; // Second capture group: domain (optional)
+          
+          // Check if this is in @uuid@domain format (UUID pattern)
+          const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(username);
+          
+          if (isUuidFormat && domain) {
+            // Already in stored format @uuid@domain, store as-is for database
+            result.push({ type: 'mention', mention: matchedText, userId: username });
+          } else {
+            // Display format @username or @username@domain, convert to stored format
+            const mentionKey = domain ? `${username}@${domain}` : username;
+            
+            // Look up user ID using the mention key
+            const userId = serverUsersStore.usernameToUserIdMap[mentionKey.toLowerCase()];
+            
+            if (userId) {
+              // Get user profile to get domain
+              const userProfile = serverUsersStore.getUserProfile(userId);
+              const userDomain = (userProfile as any)?.domain || 'har.mony.lol';
+              
+              // Store in database format: @uuid@domain for all users
+              const storedMention = `@${userId}@${userDomain}`;
+              
+              result.push({ type: 'mention', mention: storedMention, userId });
+            } else {
+              // If user not found, store as plain text
+              result.push({ type: 'text', text: matchedText });
+            }
+          }
         }
         // Handle file placeholders (don't allow editing)
         else if (matchedText.startsWith('[') && matchedText.endsWith(']')) {

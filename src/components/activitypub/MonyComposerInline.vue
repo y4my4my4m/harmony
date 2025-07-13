@@ -392,7 +392,7 @@ const handleMentionInsertion = (mention: SuggestionItem) => {
     let mentionText = '';
     
     // For federated users, use full handle, for local users use just @username
-    if (mention.domain && mention.domain !== 'har.mony.lol') {
+    if (!mention.is_local && mention.domain) {
       mentionText = `@${mention.username}@${mention.domain}`;
     } else {
       mentionText = `@${mention.username}`;

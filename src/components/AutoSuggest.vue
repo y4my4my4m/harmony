@@ -20,13 +20,24 @@
         <!-- Default fallback rendering -->
         <div class="suggest-item-default">
           <Avatar
-            v-if="suggestion.avatar || suggestion.url"
+            v-if="suggestion.avatar"
             :src="suggestion.avatar || suggestion.url"
             :alt="suggestion.name || suggestion.display_name"
             class="suggest-icon"
+            size="sm"
           />
-          <span class="suggest-name">{{ suggestion.name || suggestion.display_name }}</span>
-          <span v-if="suggestion.username" class="suggest-username">{{ suggestion.username }}</span>
+          <img
+            v-else-if="suggestion.emoji"
+            :src="suggestion.url"
+            alt="Emoji"
+            class="suggest-icon emoji-icon"
+          />
+          <div class="suggest-text">
+            <span class="suggest-name" v-if="!suggestion.emoji">{{ suggestion.display_name || suggestion.name }}</span>
+            <span class="suggest-name" v-else>:{{ suggestion.emoji.name }}:</span>
+            <span v-if="suggestion.username" class="suggest-username">{{ suggestion.username }}</span>
+            <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
+          </div>
         </div>
       </slot>
     </div>
@@ -46,6 +57,8 @@ export interface SuggestionItem {
   username?: string;
   avatar?: string;
   url?: string;
+  domain?: string;
+  isLocal?: boolean; // Indicates if the user is local to the server
   [key: string]: any;
 }
 
@@ -181,10 +194,32 @@ watch(() => props.selectedIndex, (newIndex) => {
   object-fit: contain;
 }
 
+/* Auto-suggest item styling */
+.suggest-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.suggest-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.suggest-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+
 .suggest-name {
   font-weight: 500;
   color: #ffffff;
-  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -198,26 +233,19 @@ watch(() => props.selectedIndex, (newIndex) => {
   text-overflow: ellipsis;
 }
 
-.suggest-item-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.suggest-text {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-}
-
 .suggest-server {
   font-size: 11px;
   color: #72767d;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.suggest-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 /* Scrollbar styling */

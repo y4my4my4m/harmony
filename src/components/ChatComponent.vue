@@ -65,7 +65,7 @@
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
-  import { useServerUsersStore } from '@/stores/useServerUsers'; 
+  import { userDataService } from '@/services/userDataService'; 
   import { useDMStore } from '@/stores/useDM';
   import { useThemeStore } from '@/stores/useTheme';
   import { useEmojiCacheStore } from '@/stores/useEmojiCache';
@@ -102,7 +102,7 @@
   const chatStore = useChatStore();
   const authStore = useAuthStore();
   const serverChannelStore = useServerChannelStore();
-  const serverUsersStore = useServerUsersStore();
+  // Remove serverUsersStore as we now use userDataService
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
   const emojiCacheStore = useEmojiCacheStore();
@@ -304,7 +304,8 @@
       };
 
       const urlRegex = /(\bhttps?:\/\/\S+)/gi;
-      const mentionRegex = /(@\w+@\w+\S+)/g;
+      // Updated mention regex to match both @username/@username@domain and @uuid@domain (UUIDs contain hyphens)
+      const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
       const parseTextForURLsAndMentions = (text: string): MessagePart[] => {
         const parts: MessagePart[] = [];
         let lastIndex = 0;
@@ -319,9 +320,26 @@
           if (textMatch[0].startsWith('http')) {
             parts.push({ type: 'url', url: textMatch[0], preview: true });
           } else {
-            const mention = textMatch[0];
-            const userId = serverUsersStore.usernameToUserIdMap[mention.toLowerCase()];
-            parts.push({ type: 'mention', mention: mention, userId });
+            // Handle mention parsing with new format
+            const username = textMatch[1]; // First capture group: username
+            const domain = textMatch[2]; // Second capture group: domain (optional)
+            
+            // Look up user ID using the mention key
+            const userId = userDataService.findUserIdByUsername(username, domain);
+            
+            if (userId) {
+              // Get user profile to check domain
+              const userProfile = userDataService.getUserProfile(userId);
+              const userDomain = (userProfile as any)?.domain || 'har.mony.lol';
+              
+              // Store in database format: @uuid@domain for all users
+              const storedMention = `@${userId}@${userDomain}`;
+              
+              parts.push({ type: 'mention', mention: storedMention, userId });
+            } else {
+              // If user not found, store as plain text
+              parts.push({ type: 'text', text: textMatch[0] });
+            }
           }
 
           lastIndex = textMatch.index + textMatch[0].length;

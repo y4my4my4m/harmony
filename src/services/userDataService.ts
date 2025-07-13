@@ -1137,6 +1137,32 @@ class UserDataService extends EventTarget {
       globalChannelConnected: !!this.globalChannel
     }
   }
+  
+  /**
+   * Find user ID by username (for mention parsing)
+   */
+  findUserIdByUsername(username: string, domain?: string): string | null {
+    // Create search key - if domain provided, search for username@domain, otherwise just username
+    const searchKey = domain ? `${username}@${domain}`.toLowerCase() : username.toLowerCase();
+    
+    // Search through all cached users
+    for (const [userId, userData] of this.users.entries()) {
+      // Check exact username match for local users
+      if (!domain && userData.username.toLowerCase() === searchKey) {
+        return userId;
+      }
+      
+      // Check username@domain match for remote users or when domain is specified
+      if (domain && userData.domain) {
+        const userKey = `${userData.username}@${userData.domain}`.toLowerCase();
+        if (userKey === searchKey) {
+          return userId;
+        }
+      }
+    }
+    
+    return null;
+  }
 }
 
 // Export singleton instance

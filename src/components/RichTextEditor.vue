@@ -32,19 +32,7 @@ import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
 import { highlightSyntax } from '@/utils/syntaxHighlighter';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
-
-// Debounce function for performance
-const debounce = (func: Function, wait: number) => {
-  let timeout: NodeJS.Timeout;
-  return function executedFunction(...args: any[]) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
+import { userDataService } from '@/services/userDataService';
 
 interface Props {
   modelValue: string;
@@ -74,13 +62,6 @@ const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
 const emojiCache = useEmojiCacheStore();
 const isRendering = ref(false);
-
-// Debounced rendering for better performance
-const debouncedRender = debounce((text: string) => {
-  if (!isRendering.value) {
-    renderContent(text);
-  }
-}, 50);
 
 const hasContent = computed(() => {
   if (!editorRef.value) return false;
@@ -129,6 +110,11 @@ const getPlainText = (): string => {
         if (emojiName) {
           text += `:${emojiName}:`;
         }
+      } else if (el.classList.contains('editor-mention')) {
+        const mentionData = el.getAttribute('data-mention');
+        if (mentionData) {
+          text += mentionData; // Return the stored @uuid@domain format
+        }
       } else if (el.tagName === 'BR') {
         text += '\n';
       } else {
@@ -166,7 +152,9 @@ const getCursorPosition = (): number => {
           return NodeFilter.FILTER_ACCEPT;
         } else if (node.nodeType === Node.ELEMENT_NODE) {
           const el = node as HTMLElement;
-          if (el.classList.contains('editor-emoji') || el.tagName === 'BR') {
+          if (el.classList.contains('editor-emoji') || 
+              el.classList.contains('editor-mention') || 
+              el.tagName === 'BR') {
             return NodeFilter.FILTER_ACCEPT;
           }
         }
@@ -200,6 +188,11 @@ const getCursorPosition = (): number => {
         if (emojiName) {
           position += `:${emojiName}:`.length;
         }
+      } else if (el.classList.contains('editor-mention')) {
+        const mentionData = el.getAttribute('data-mention');
+        if (mentionData) {
+          position += mentionData.length; // Count the full @uuid@domain length
+        }
       } else if (el.tagName === 'BR') {
         position += 1; // newline
       }
@@ -231,7 +224,9 @@ const setCursorPosition = (targetPosition: number) => {
           return NodeFilter.FILTER_ACCEPT;
         } else if (node.nodeType === Node.ELEMENT_NODE) {
           const el = node as HTMLElement;
-          if (el.classList.contains('editor-emoji') || el.tagName === 'BR') {
+          if (el.classList.contains('editor-emoji') || 
+              el.classList.contains('editor-mention') || 
+              el.tagName === 'BR') {
             return NodeFilter.FILTER_ACCEPT;
           }
         }
@@ -258,6 +253,11 @@ const setCursorPosition = (targetPosition: number) => {
         const emojiName = el.getAttribute('data-emoji');
         if (emojiName) {
           nodeLength = `:${emojiName}:`.length;
+        }
+      } else if (el.classList.contains('editor-mention')) {
+        const mentionData = el.getAttribute('data-mention');
+        if (mentionData) {
+          nodeLength = mentionData.length; // Count the full @uuid@domain length
         }
       } else if (el.tagName === 'BR') {
         nodeLength = 1;
@@ -291,6 +291,78 @@ const setCursorPosition = (targetPosition: number) => {
   }
 };
 
+// Process mentions in text and create visual elements
+const processMentionsInText = (text: string): DocumentFragment => {
+  const fragment = document.createDocumentFragment();
+  
+  // Regex to match @uuid@domain format
+  const mentionRegex = /@([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})@([a-zA-Z0-9.-]+)/g;
+  
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = mentionRegex.exec(text)) !== null) {
+    const matchStart = match.index;
+    const matchEnd = match.index + match[0].length;
+    
+    // Add text before the mention
+    if (matchStart > lastIndex) {
+      const textBefore = text.substring(lastIndex, matchStart);
+      fragment.appendChild(document.createTextNode(textBefore));
+    }
+    
+    // Create mention element
+    const mentionElement = createMentionElement(match[0], match[1], match[2]);
+    fragment.appendChild(mentionElement);
+    
+    lastIndex = matchEnd;
+  }
+  
+  // Add remaining text after last mention
+  if (lastIndex < text.length) {
+    const remainingText = text.substring(lastIndex);
+    fragment.appendChild(document.createTextNode(remainingText));
+  }
+  
+  // If no mentions found, just return the text as a text node
+  if (lastIndex === 0) {
+    fragment.appendChild(document.createTextNode(text));
+  }
+  
+  return fragment;
+};
+
+// Create a mention element that displays @username but preserves @uuid@domain in data
+const createMentionElement = (fullMention: string, uuid: string, domain: string): HTMLElement => {
+  const span = document.createElement('span');
+  span.className = 'editor-mention';
+  span.contentEditable = 'false'; // Prevent editing the mention element itself
+  span.setAttribute('data-mention', fullMention); // Store full @uuid@domain
+  span.setAttribute('data-uuid', uuid);
+  span.setAttribute('data-domain', domain);
+  
+  // Get user profile to display @username
+  try {
+    const userProfile = userDataService.getUserProfile(uuid);
+    if (userProfile) {
+      // Display as @username for local users, @username@domain for remote users
+      if (userProfile.isLocal) {
+        span.textContent = `@${userProfile.username}`;
+      } else {
+        span.textContent = `@${userProfile.username}@${userProfile.domain || domain}`;
+      }
+    } else {
+      // Fallback: display as-is if user not found
+      span.textContent = fullMention;
+    }
+  } catch (error) {
+    console.error('Error creating mention element:', error);
+    span.textContent = fullMention;
+  }
+  
+  return span;
+};
+
 // Render content with Discord-like markdown styling
 const renderContent = (text: string) => {
   if (!editorRef.value || isRendering.value) return;
@@ -313,11 +385,13 @@ const renderContent = (text: string) => {
   // Process tokens and handle newlines properly
   tokens.forEach(token => {
     if (token.type === 'text') {
-      // Handle text with potential newlines
+      // Handle text with potential newlines and mentions
       const lines = token.content.split('\n');
       lines.forEach((line, index) => {
         if (line) {
-          fragment.appendChild(document.createTextNode(line));
+          // Process mentions in this line
+          const processedFragment = processMentionsInText(line);
+          fragment.appendChild(processedFragment);
         }
         // Add line break for all newlines except the last one if it's empty
         if (index < lines.length - 1) {
@@ -555,12 +629,12 @@ const handleInput = (event: Event) => {
   emit('update:modelValue', text);
   emit('input', event);
   
-  // Re-render content with formatting (debounced for performance)
-  debouncedRender(text);
-  
   // Emit cursor position for auto-suggest
   const cursorPos = getCursorPosition();
   emit('cursor-position-changed', cursorPos);
+  
+  // DO NOT re-render on input to avoid infinite loops
+  // Rendering will happen when modelValue changes externally
   
   // Auto-expand editor
   autoExpand();
@@ -639,24 +713,6 @@ const clear = () => {
     autoExpand();
   }
 };
-
-// Watch for external model value changes
-watch(() => props.modelValue, (newValue) => {
-  if (editorRef.value) {
-    const currentText = getPlainText();
-    if (currentText !== newValue) {
-      renderContent(newValue);
-      autoExpand();
-    }
-  }
-});
-
-onMounted(() => {
-  if (props.modelValue) {
-    renderContent(props.modelValue);
-  }
-  autoExpand();
-});
 
 defineExpose({
   focus,
@@ -866,4 +922,20 @@ onMounted(() => {
 .rich-text-editor :deep(.token.bold) { font-weight: bold; }
 .rich-text-editor :deep(.token.italic) { font-style: italic; }
 .rich-text-editor :deep(.token.entity) { cursor: help; }
+
+/* Mention styles */
+.rich-text-editor .editor-mention {
+  color: #5865f2;
+  background-color: rgba(88, 101, 242, 0.15);
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: pointer;
+  font-weight: 500;
+  user-select: none;
+}
+
+.rich-text-editor .editor-mention:hover {
+  background-color: rgba(88, 101, 242, 0.3);
+  text-decoration: underline;
+}
 </style>

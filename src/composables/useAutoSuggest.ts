@@ -1,8 +1,7 @@
 import { ref, computed, nextTick, watch } from 'vue';
 import type { Ref } from 'vue';
-import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
 import type { ResolvedEmoji } from '@/types';
@@ -41,11 +40,9 @@ type InputElementType = HTMLTextAreaElement | HTMLInputElement | RichTextEditorR
 export function useAutoSuggest(
   inputElement: Ref<InputElementType | null>,
   getCurrentText?: () => string,
-  updateText?: (newText: string) => void,
+  updateText?: (newText: string, cursorPosition?: number) => void,
   config: AutoSuggestConfig = { mode: 'chat' }
 ) {
-  const serverChannelStore = useServerChannelStore();
-  const serverUsersStore = useServerUsersStore();
   const emojiCacheStore = useEmojiCacheStore();
 
   // Merge config with defaults
@@ -84,7 +81,7 @@ export function useAutoSuggest(
   if (finalConfig.enableMentions) {
     triggers.push({
       char: '@',
-      pattern: /@([a-zA-Z0-9_+-]*)$/,
+      pattern: /(?:^|\s)@([a-zA-Z0-9_+-]*)$/,
       type: 'mention'
     });
   }
@@ -147,23 +144,32 @@ export function useAutoSuggest(
     const query = state.value.query.toLowerCase();
 
     if (finalConfig.mode === 'chat') {
-      // Chat mode: Use server users store (current server only)
-      const userProfiles = serverUsersStore.userProfiles;
+      // Chat mode: Use userDataService (single source of truth)
       const suggestions: SuggestionItem[] = [];
 
-      // Search through user profiles
-      for (const userId in userProfiles) {
-        const user = userProfiles[userId];
-        const displayName = user.display_name?.toLowerCase() || '';
-        const username = user.username?.toLowerCase() || '';
+      // Search through all users from userDataService
+      const allUsers = userDataService.getAllUsers();
+      for (const userData of allUsers) {
+        const displayName = userData.displayName?.toLowerCase() || '';
+        const usernameStr = userData.username?.toLowerCase() || '';
 
-        if (displayName.includes(query) || username.includes(query)) {
+        if (displayName.includes(query) || usernameStr.includes(query)) {
+          // Create display format for text input (what user sees while typing)
+          const isLocal = userData.isLocal;
+          const userDomain = userData.domain || 'har.mony.lol';
+          const displayText = isLocal ? `@${userData.username}` : `@${userData.username}@${userDomain}`;
+          
+          // Create storage format for database (always @uuid@domain)
+          const mentionText = `@${userData.id}@${userDomain}`;
+
           suggestions.push({
-            id: userId,
-            display_name: user.display_name,
-            username: user.username,
-            avatar: user.avatar_url,
-            user: user // Keep reference for easy access
+            id: userData.id,
+            display_name: userData.displayName,
+            username: userData.username,
+            avatar: userData.avatarUrl,
+            display_text: displayText, // What user sees in input
+            mention_text: mentionText, // What gets stored in DB
+            user: userData // Keep reference for easy access
           });
         }
       }
@@ -194,7 +200,7 @@ export function useAutoSuggest(
         display_name: user.display_name,
         username: user.username,
         avatar: user.avatar_url, // Fix: Use avatar_url for avatar field
-        handle: user.handle || `@${user.username}${user.domain !== 'har.mony.lol' ? '@' + user.domain : ''}`,
+        handle: user.handle || `@${user.username}${!user.is_local && user.domain ? '@' + user.domain : ''}`,
         user: user
       })).slice(0, finalConfig.maxSuggestions);
     }
@@ -341,15 +347,16 @@ export function useAutoSuggest(
     
     for (const trigger of triggers) {
       const match = textBeforeCursor.match(trigger.pattern);
-      if (match) {
+      if (match && match.index !== undefined) {
         foundTrigger = true;
         const query = match[1] || '';
+        const triggerPosition = match.index;
         
         state.value = {
           isActive: true,
           triggerType: trigger.type,
           query,
-          triggerPosition: cursorPosition - match[0].length,
+          triggerPosition,
           selectedIndex: 0,
           position: calculateCursorPosition()
         };
@@ -367,6 +374,9 @@ export function useAutoSuggest(
       closeSuggestions();
     }
   };
+
+  // Selection state to prevent duplicate selections
+  const isSelecting = ref(false);
 
   // Handle keyboard navigation
   const handleKeyDown = (event: KeyboardEvent): boolean => {    
@@ -405,9 +415,39 @@ export function useAutoSuggest(
 
   // Select a suggestion and replace the trigger text
   const selectSuggestion = (suggestion: SuggestionItem): string => {
-    const currentText = getCurrentText ? getCurrentText() : '';
-    const triggerStart = state.value.triggerPosition;
-    const triggerEnd = triggerStart + state.value.query.length + 1; // +1 for trigger char
+    // Prevent duplicate selections
+    if (isSelecting.value) {
+      console.log('🔧 Preventing duplicate selection');
+      return '';
+    }
+    
+    isSelecting.value = true;
+    
+    try {
+      const currentText = getCurrentText ? getCurrentText() : '';
+      
+      // Use the stored trigger position instead of pattern matching for more accuracy
+      const triggerStart = state.value.triggerPosition;
+      
+      // Find the actual end of the trigger text by re-matching from the trigger position
+      const textFromTrigger = currentText.substring(triggerStart);
+      
+      // Find where the trigger text ends (up to space, newline, or end of string)
+      const endMatch = textFromTrigger.match(/^[^\s\n]*/);
+      const triggerLength = endMatch ? endMatch[0].length : 1; // At least the trigger char
+      const triggerEnd = triggerStart + triggerLength;
+    
+    console.log('🔧 selectSuggestion detailed debug:', {
+      currentText,
+      triggerPosition: state.value.triggerPosition,
+      query: state.value.query,
+      triggerStart,
+      triggerEnd,
+      textToReplace: currentText.substring(triggerStart, triggerEnd),
+      charAtTriggerStart: currentText[triggerStart],
+      textBeforeTrigger: currentText.substring(0, triggerStart),
+      textAfterTrigger: currentText.substring(triggerEnd)
+    });
     
     let insertText = '';
     
@@ -415,9 +455,14 @@ export function useAutoSuggest(
       insertText = `:${suggestion.name}:`;
     } else if (state.value.triggerType === 'mention') {
       if (finalConfig.mode === 'activitypub') {
-        insertText = suggestion.handle || `${suggestion.username}`;
+        insertText = suggestion.handle || `@${suggestion.username}`;
       } else {
-        insertText = `${suggestion.username}`;
+        // Chat mode: use mention_text for storage (@uuid@domain format)
+        if (suggestion.mention_text) {
+          insertText = suggestion.mention_text; // Store as @uuid@domain
+        } else {
+          insertText = `@${suggestion.username}`;
+        }
       }
     }
     
@@ -425,20 +470,28 @@ export function useAutoSuggest(
                    insertText + 
                    currentText.substring(triggerEnd);
     
+    // Calculate new cursor position (should be right after the inserted text)
+    const newCursorPosition = triggerStart + insertText.length;
+    
+    console.log('🔧 Final replacement:', { 
+      insertText, 
+      newText,
+      oldLength: currentText.length,
+      newLength: newText.length,
+      newCursorPosition
+    });
+    
     if (updateText) {
-      updateText(newText);
+      updateText(newText, newCursorPosition);
     }
     
     closeSuggestions();
     
-    // Focus back to input after short delay
-    nextTick(() => {
-      if (inputElement.value && 'focus' in inputElement.value) {
-        inputElement.value.focus();
-      }
-    });
-    
-    return insertText;
+    return newText;
+    } finally {
+      // Reset selection flag to allow future selections
+      isSelecting.value = false;
+    }
   };
 
   // Close suggestions

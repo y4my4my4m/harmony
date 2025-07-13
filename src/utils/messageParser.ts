@@ -8,7 +8,9 @@ type MessagePart =
   { emoji: Emoji };
 
 const urlRegex = /(\bhttps?:\/\/\S+)/gi;
-const mentionRegex = /(@\w+@\w+\S+)/g;
+// Updated mention regex to match both @username and @uuid@domain
+// UUIDs contain hyphens, so we need to include them in the character class
+const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
 const emojiRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
 
 export async function parseMessageContent(
@@ -16,28 +18,86 @@ export async function parseMessageContent(
   usernameToUserIdMap: any,
 ): Promise<MessagePart[]> {
     const parts: MessagePart[] = [];
-    let remainingText = message;
+    let lastIndex = 0;
   
-    // Process URLs and Mentions first
-    let textMatch;
-    const combinedRegex = new RegExp(`${urlRegex.source}|${mentionRegex.source}`, 'gi');
-    while ((textMatch = combinedRegex.exec(message)) !== null) {
-      const matchIndex = textMatch.index;
-      if (matchIndex > 0) {
-        parts.push(...await parseRemainingTextForEmoji(remainingText.substring(0, matchIndex)));
+    // Reset regex lastIndex to ensure fresh search
+    mentionRegex.lastIndex = 0;
+    urlRegex.lastIndex = 0;
+    
+    // Find all mentions and URLs
+    const matches: Array<{match: RegExpExecArray, type: 'mention' | 'url'}> = [];
+    
+    // Find all mentions
+    let mentionMatch;
+    while ((mentionMatch = mentionRegex.exec(message)) !== null) {
+      matches.push({match: mentionMatch, type: 'mention'});
+    }
+    
+    // Find all URLs
+    let urlMatch;
+    while ((urlMatch = urlRegex.exec(message)) !== null) {
+      matches.push({match: urlMatch, type: 'url'});
+    }
+    
+    // Sort by position
+    matches.sort((a, b) => a.match.index - b.match.index);
+    
+    // Process matches in order
+    for (const {match, type} of matches) {
+      const matchIndex = match.index;
+      
+      // Add text before this match
+      if (matchIndex > lastIndex) {
+        const textBefore = message.substring(lastIndex, matchIndex);
+        parts.push(...await parseRemainingTextForEmoji(textBefore));
       }
-      if (textMatch[0].startsWith('http')) {
-        parts.push({ url: textMatch[0] });
+      
+      if (type === 'url') {
+        parts.push({ url: match[0] });
       } else {
-        // console.log(textMatch[0]);
-        const userId = usernameToUserIdMap[textMatch[0].toLowerCase()];
-        parts.push(userId ? { mention: textMatch[0], userId } : textMatch[0]);
+        // Handle mention
+        const fullMatch = match[0]; // Full mention like @uuid@domain
+        
+        // Check if this is already in @uuid@domain format
+        if (fullMatch.includes('@') && fullMatch.split('@').length === 3) {
+          // Already in @uuid@domain format, store as-is
+          const uuidPart = match[1]; // First capture group
+          parts.push({ 
+            mention: fullMatch, 
+            userId: uuidPart 
+          });
+        } else {
+          // Legacy @username format, look up user ID
+          const username = match[1]; // First capture group: username
+          const domain = match[2]; // Second capture group: domain (optional)
+          
+          // Create the mention key for lookup
+          const mentionKey = domain ? `${username}@${domain}`.toLowerCase() : username.toLowerCase();
+          
+          // Look up user ID using the mention key
+          const userId = usernameToUserIdMap[mentionKey];
+          
+          if (userId) {
+            // Convert to @uuid@domain format for storage
+            const userDomain = domain || 'har.mony.lol'; // Use provided domain or fallback
+            const storedMention = `@${userId}@${userDomain}`;
+            
+            parts.push({ mention: storedMention, userId });
+          } else {
+            // If no user found, just push the text as-is
+            parts.push(fullMatch);
+          }
+        }
       }
-      remainingText = remainingText.substring(matchIndex + textMatch[0].length);
+      
+      lastIndex = matchIndex + match[0].length;
     }
   
     // Process remaining text for emojis
-    parts.push(...await parseRemainingTextForEmoji(remainingText));
+    if (lastIndex < message.length) {
+      const remainingText = message.substring(lastIndex);
+      parts.push(...await parseRemainingTextForEmoji(remainingText));
+    }
   
     return parts;
   };

@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 
 interface Props {
   content: string;
@@ -18,12 +18,12 @@ const emit = defineEmits<{
   'hashtag-click': [tag: string];
 }>();
 
-// Initialize store (same as ChatComponent)
-const serverChannelStore = useServerChannelStore();
+// Initialize emoji cache store for emoji lookup
+const emojiCacheStore = useEmojiCacheStore();
 
 // Get resolved emoji list (same as ChatComponent)
 const resolvedEmojiList = computed(() => {
-  return serverChannelStore.resolvedEmojiList;
+  return emojiCacheStore.resolvedEmojis;
 });
 
 // Find emoji by name (exact same as ChatComponent)
@@ -59,6 +59,8 @@ const formattedContent = computed(() => {
   
   // Format mentions SECOND  
   formatted = formatted.replace(/@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g, (match, username, domain) => {
+    // TODO: This should check user's is_local field from database instead of hardcoding domain
+    // For now, assume no domain means local, domain means remote
     const handle = domain ? `@${username}@${domain}` : `@${username}`;
     return `<span class="mention" data-handle="${handle}">${handle}</span>`;
   });

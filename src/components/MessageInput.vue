@@ -56,28 +56,12 @@
       :selectedIndex="autoSuggest.state.value.selectedIndex"
       :headerText="autoSuggest.headerText.value"
       @select="handleSuggestionSelect"
-    >
-      <template #default="{ suggestion }">
-        <div class="suggest-item-content">
-          <img 
-            v-if="suggestion.url || suggestion.avatar" 
-            :src="suggestion.url || suggestion.avatar" 
-            :alt="suggestion.name || suggestion.display_name"
-            class="suggest-icon"
-          />
-          <div class="suggest-text">
-            <span class="suggest-name">{{ suggestion.display_name || suggestion.name }}</span>
-            <span v-if="suggestion.username" class="suggest-username">{{ suggestion.username }}</span>
-            <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
-          </div>
-        </div>
-      </template>
-    </AutoSuggest>
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import GifIcon from '@/components/icons/Gif.vue'
 import PlusIcon from '@/components/icons/Plus.vue'
@@ -133,7 +117,16 @@ const emojiTriggerRef = ref<HTMLElement | null>(null);
 
 // Auto-suggest setup
 const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
-const updateText = (newText: string) => emit('update:modelValue', newText);
+const updateText = (newText: string, cursorPosition?: number) => {
+  emit('update:modelValue', newText);
+  
+  // Set cursor position after text update if provided
+  if (cursorPosition !== undefined && richEditorRef.value?.setCursorPosition) {
+    nextTick(() => {
+      richEditorRef.value?.setCursorPosition(cursorPosition);
+    });
+  }
+};
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
     const handleEditorInput = () => {
@@ -148,18 +141,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Special handling for Enter key when autosuggestion is active
-      if (event.key === 'Enter' && autoSuggest.state.value.isActive && autoSuggest.suggestions.value.length > 0) {
-        event.preventDefault();
-        const selectedSuggestion = autoSuggest.suggestions.value[autoSuggest.state.value.selectedIndex];
-        if (selectedSuggestion) {
-          handleSuggestionSelect(selectedSuggestion);
-          autoSuggest.closeSuggestions();
-        }
-        return;
-      }
-      
-      // Let auto-suggest handle navigation keys (arrows, escape)
+      // Let auto-suggest handle all its own keys (including Enter for selection)
       const autoSuggestHandled = autoSuggest.handleKeyDown(event);
       
       if (autoSuggestHandled) {
@@ -463,52 +445,6 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
   /* Focus styling */
   .message-container:has(.rich-text-editor.is-focused) {
     box-shadow: inset 0 0 5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,.15)
-  }
-
-  /* Auto-suggest item styling */
-  .suggest-item-content {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .suggest-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    flex-shrink: 0;
-  }
-
-  .suggest-text {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .suggest-name {
-    font-weight: 500;
-    color: #ffffff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .suggest-username {
-    font-size: 12px;
-    color: #b9bbbe;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .suggest-server {
-    font-size: 11px;
-    color: #72767d;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   @media (max-width: 768px) {
