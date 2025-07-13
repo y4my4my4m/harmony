@@ -48,6 +48,21 @@ class StatusLifecycleDebugger {
   stopDebugging(): void {
     console.log('⏹️ Stopping status lifecycle debugging')
     this.isDebugging = false
+    
+    if (this.statusChangedListener) {
+      userDataService.removeEventListener('status-changed', this.statusChangedListener)
+      this.statusChangedListener = undefined
+    }
+    
+    if (this.activityResumedListener) {
+      activityTracker.removeEventListener('activity-resumed', this.activityResumedListener)
+      this.activityResumedListener = undefined
+    }
+    
+    if (this.statusShouldChangeListener) {
+      activityTracker.removeEventListener('status-should-change', this.statusShouldChangeListener)
+      this.statusShouldChangeListener = undefined
+    }
   }
 
   /**
