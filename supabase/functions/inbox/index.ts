@@ -310,20 +310,44 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
         .single()
 
       if (mentionedUser) {
-        // Create mention notification
-        await supabase
+        // Create mention notification matching the actual notifications table schema
+        const notificationData = {
+          actor: {
+            user_id: author.id,
+            username: author.username,
+            display_name: author.display_name,
+            avatar_url: author.avatar_url,
+            domain: author.domain
+          },
+          post: {
+            id: savedPost.id,
+            content_preview: typeof savedPost.content === 'string' 
+              ? savedPost.content.substring(0, 100)
+              : Array.isArray(savedPost.content) 
+                ? savedPost.content.map(item => item.text || '').join('').substring(0, 100)
+                : '',
+            ap_id: savedPost.ap_id
+          },
+          mention: {
+            mentioned_user: mentionedUsername,
+            post_type: 'federated_post'
+          }
+        }
+
+        const { error: notificationError } = await supabase
           .from('notifications')
           .insert({
             user_id: mentionedUser.id,
-            type: 'mention',
-            actor_id: author.id,
-            target_type: 'post',
-            target_id: savedPost.id,
-            is_read: false,
-            created_at: new Date().toISOString()
+            type: 'activitypub_mention',
+            data: notificationData,
+            is_read: false
           })
 
-        console.log(`📩 Created mention notification for @${mentionedUsername}`)
+        if (notificationError) {
+          console.error('Failed to create mention notification:', notificationError)
+        } else {
+          console.log(`📩 Created mention notification for @${mentionedUsername}`)
+        }
       }
     }
 
