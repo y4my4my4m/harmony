@@ -5,7 +5,7 @@
 5. system messages aren't real time
 6. "accepting invitation" is bugged
 7. re-instore context based notifications so that you don't get a notification if currently viewing the channel or dm or whatever
-8. message display has it's own "fetchUserProfile" logic, the cache system is good but we should definitely use the useUserState or whatever to ensure we have one source of truth, currently components that arent from that do not properly show "created_at/member since". Howevwer we must ensure that the cache system in useUserState (or whatever we call it) is solid.
+8. message display has it's own "fetchUserProfile" logic, the cache system is good but we should definitely use the useUserState or whatever to ensure we have one source of truth, currently components that arent from that do not properly show "created_at/member since". However we must ensure that the cache system in useUserState (or whatever we call it) is solid.
 9. do we still need that? "fetchMultipleUserProfiles"
 10. these appear twice, maybe route watching and prop watching?
   - 🔍 UserSidebar: Server 9895ae8a-b25a-475b-b2f1-3bd3e2dffeab users from context: 9 
