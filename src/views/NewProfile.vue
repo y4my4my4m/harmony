@@ -378,7 +378,7 @@ const createProfile = async () => {
   try {
     console.log('Creating profile with data:', {
       id: authStore.session.user.id,
-      username: username.value,
+      username: username.value.trim().toLowerCase(),
       display_name: displayName.value.trim(),
       bio: bio.value.trim() || null,
       color: selectedColor.value,
