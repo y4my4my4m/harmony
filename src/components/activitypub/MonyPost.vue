@@ -21,9 +21,9 @@
               {{ author.display_name || author.username }}
             </div>
             <div class="author-handle">
-              <span>{{ authorHandle }}</span>
-              <span class="instance-domain" :class="{ 'is-local': isLocalPost }">
-                @{{ instanceDomain }}
+              <span>{{ author.username }}</span>
+              <span class="instance-domain" :class="{ 'is-local': author.is_local }">
+                @{{ author.domain }}
               </span>
             </div>
           </div>
@@ -35,11 +35,11 @@
           </div>
           <time 
             :datetime="post.created_at" 
-            :title="formatFullDate(post.created_at)"
+            :title="formatFullDate(post.updated_at)"
             class="post-time"
             @click="handleTimeClick"
           >
-            {{ formatRelativeTime(post.created_at) }}
+            {{ formatRelativeTime(post.updated_at) }}
           </time>
         </div>
       </div>
@@ -283,6 +283,7 @@ const author = computed(() => {
   return props.post.author;
 });
 
+
 const authorHandle = computed(() => {
   const { username, domain } = props.post.author;
   return domain === 'har.mony.lol' || domain === 'har.mony.lol' 
@@ -293,11 +294,6 @@ const authorHandle = computed(() => {
 const instanceDomain = computed(() => {
   const { domain } = props.post.author;
   return domain || 'har.mony.lol';
-});
-
-const isAuthorLocal = computed(() => {
-  const { domain } = props.post.author;
-  return domain === 'har.mony.lol' || domain === 'har.mony.lol'
 });
 
 // Helper to flatten MessagePart[] or JSON string to plain text
@@ -482,10 +478,6 @@ const vClickOutside = {
     }
   }
 };
-
-const isLocalPost = computed(() => {
-  return props.post.is_local || instanceDomain.value === 'har.mony.lol';
-});
 
 const handleAuthorClick = (event: Event) => {
   event.preventDefault();
