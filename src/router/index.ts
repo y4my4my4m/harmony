@@ -228,6 +228,17 @@ const router = createRouter({
         }
       ]
     },
+    // ActivityPub User Profile Routes (handled by nginx, this is just for browser fallback)
+    {
+      path: '/users/:username',
+      name: 'ActivityPubUser',
+      redirect: route => {
+        // For browser access, redirect to the proper Vue app profile route
+        const username = route.params.username as string;
+        return `/social/profile/${username}`;
+      },
+      meta: { requiresAuth: false }
+    },
     // Legacy route redirects
     {
       path: '/social/:timeline',
