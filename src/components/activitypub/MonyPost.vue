@@ -1,29 +1,49 @@
 <!-- MonyPost Component - Individual post display -->
 <template>
   <article class="mony-post" 
-  v-if="author" :class="{ 'is-reply': post.reply_context }">
+  v-if="author" :class="{ 'is-reply': post.reply_context, 'is-reblog': isReblog }">
+    
+    <!-- Reblog Header (if this is a reblog) -->
+    <div v-if="isReblog" class="reblog-header">
+      <Icon name="reblog" class="reblog-icon" />
+      <div 
+        class="reblog-author" 
+        @click="handleAuthorClick"
+        :title="`Reblogged by ${author.display_name || author.username}`"
+      >
+        {{ author.display_name || author.username }} reblogged
+      </div>
+      <time 
+        :datetime="post.created_at" 
+        :title="formatFullDate(post.created_at)"
+        class="reblog-time"
+      >
+        {{ formatRelativeTime(post.created_at) }}
+      </time>
+    </div>
+
     <!-- Main Post Content -->
-    <div class="post-content">
-      <!-- Author Info -->
+    <div class="post-content" :class="{ 'reblog-content': isReblog }">
+      <!-- Author Info (show original author for reblogs) -->
       <div class="post-header">
         <div 
           class="author-info"
-          @click="handleAuthorClick"
+          @click="isReblog ? handleOriginalAuthorClick : handleAuthorClick"
         >
           <Avatar
-            :src="author.avatar_url"
-            :alt="author.display_name || author.username"
+            :src="displayAuthor.avatar_url"
+            :alt="displayAuthor.display_name || displayAuthor.username"
             size="md"
             :interactive="true"
           />
           <div class="author-details">
             <div class="author-name">
-              {{ author.display_name || author.username }}
+              {{ displayAuthor.display_name || displayAuthor.username }}
             </div>
             <div class="author-handle">
-              <span>{{ author.username }}</span>
-              <span class="instance-domain" :class="{ 'is-local': author.is_local }">
-                @{{ instanceDomain }}
+              <span>{{ displayAuthor.username }}</span>
+              <span class="instance-domain" :class="{ 'is-local': displayAuthor.is_local }">
+                @{{ isReblog ? originalInstanceDomain : instanceDomain }}
               </span>
             </div>
           </div>
@@ -34,18 +54,18 @@
             <Icon :name="visibilityIcon" />
           </div>
           <time 
-            :datetime="post.created_at" 
-            :title="formatFullDate(post.updated_at)"
+            :datetime="originalCreatedAt" 
+            :title="formatFullDate(originalCreatedAt)"
             class="post-time"
             @click="handleTimeClick"
           >
-            {{ formatRelativeTime(post.updated_at) }}
+            {{ formatRelativeTime(originalCreatedAt) }}
           </time>
         </div>
       </div>
 
       <!-- Reply Context (if this is a reply) -->
-      <div v-if="post.reply_context" class="reply-context">
+      <div v-if="displayReplyContext" class="reply-context">
         <div class="reply-header">
           <div class="reply-indicator">
             <Icon name="reply" class="reply-icon" />
@@ -62,12 +82,12 @@
         </div>
         <div class="reply-preview-card">
           <Avatar 
-            :src="post.reply_context.author.avatar_url"
-            :alt="post.reply_context.author.display_name"
+            :src="displayReplyContext.author.avatar_url"
+            :alt="displayReplyContext.author.display_name"
             size="xs"
           />
           <div class="reply-details">
-            <span class="reply-author">@{{ post.reply_context.author.username }}</span>
+            <span class="reply-author">@{{ displayReplyContext.author.username }}</span>
             <span class="reply-content-preview">
               <MonyContent :content="replyContentText" />
             </span>
@@ -76,10 +96,10 @@
       </div>
 
       <!-- Content Warning -->
-      <div v-if="post.content_warning" class="content-warning">
+      <div v-if="displayContentWarning" class="content-warning">
         <div class="cw-header">
           <Icon name="warning" />
-          <span>{{ post.content_warning }}</span>
+          <span>{{ displayContentWarning }}</span>
         </div>
         <button 
           class="cw-toggle"
@@ -91,44 +111,110 @@
 
       <!-- Post Body -->
       <div 
-        v-show="!post.content_warning || showSensitiveContent"
+        v-show="!displayContentWarning || showSensitiveContent"
         class="post-body"
-        :class="{ 'is-sensitive': post.is_sensitive }"
+        :class="{ 'is-sensitive': displayIsSensitive }"
       >
-        <!-- Text Content -->
-        <div class="post-text">
-          <MonyContent 
-            :content="contentText" 
-            @user-mention-click="handleMentionClick"
-            @hashtag-click="handleHashtagClick"
-          />
-        </div>
-
-        <!-- Media Attachments -->
-        <div 
-          v-if="post.media_attachments?.length > 0"
-          class="media-gallery"
-        >
-          <!-- Simple media display for now -->
-          <div 
-            v-for="media in post.media_attachments" 
-            :key="media.id"
-            class="media-item"
-          >
-            <img 
-              v-if="media.type === 'image'" 
-              :src="media.url" 
-              :alt="media.description || 'Media attachment'"
-              class="media-image"
+        <!-- Quote Post: Show user's comment first, then quoted content -->
+        <div v-if="isQuotePost" class="quote-post-layout">
+          <!-- User's comment on the quote -->
+          <div class="quote-comment">
+            <MonyContent 
+              :content="userQuoteContent" 
+              @user-mention-click="handleMentionClick"
+              @hashtag-click="handleHashtagClick"
             />
-            <video 
-              v-else-if="media.type === 'video'" 
-              :src="media.url" 
-              controls
-              class="media-video"
+          </div>
+          
+          <!-- Quoted post content -->
+          <div class="quoted-post">
+            <div class="quoted-post-header">
+              <Avatar
+                :src="displayAuthor.avatar_url"
+                :alt="displayAuthor.display_name || displayAuthor.username"
+                size="sm"
+              />
+              <div class="quoted-author-info">
+                <span class="quoted-author-name">{{ displayAuthor.display_name || displayAuthor.username }}</span>
+                <span class="quoted-author-handle">@{{ displayAuthor.username }}</span>
+                <time class="quoted-post-time">{{ formatRelativeTime(originalCreatedAt) }}</time>
+              </div>
+            </div>
+            
+            <div class="quoted-post-content">
+              <MonyContent 
+                :content="displayContent" 
+                @user-mention-click="handleMentionClick"
+                @hashtag-click="handleHashtagClick"
+              />
+            </div>
+            
+            <!-- Media in quoted post -->
+            <div 
+              v-if="displayMediaAttachments?.length > 0"
+              class="quoted-media-gallery"
             >
-              Your browser does not support the video tag.
-            </video>
+              <div 
+                v-for="media in displayMediaAttachments" 
+                :key="media.id"
+                class="media-item"
+              >
+                <img 
+                  v-if="media.type === 'image'" 
+                  :src="media.url" 
+                  :alt="media.description || 'Media attachment'"
+                  class="media-image"
+                />
+                <video 
+                  v-else-if="media.type === 'video'" 
+                  :src="media.url" 
+                  controls
+                  class="media-video"
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Pure Reblog or Regular Post: Show content normally -->
+        <div v-else>
+          <!-- Text Content -->
+          <div class="post-text">
+            <MonyContent 
+              :content="displayContent" 
+              @user-mention-click="handleMentionClick"
+              @hashtag-click="handleHashtagClick"
+            />
+          </div>
+
+          <!-- Media Attachments -->
+          <div 
+            v-if="displayMediaAttachments?.length > 0"
+            class="media-gallery"
+          >
+            <!-- Simple media display for now -->
+            <div 
+              v-for="media in displayMediaAttachments" 
+              :key="media.id"
+              class="media-item"
+            >
+              <img 
+                v-if="media.type === 'image'" 
+                :src="media.url" 
+                :alt="media.description || 'Media attachment'"
+                class="media-image"
+              />
+              <video 
+                v-else-if="media.type === 'video'" 
+                :src="media.url" 
+                controls
+                class="media-video"
+              >
+                Your browser does not support the video tag.
+              </video>
+            </div>
           </div>
         </div>
       </div>
@@ -296,6 +382,104 @@ const instanceDomain = computed(() => {
   return domain || 'har.mony.lol';
 });
 
+// Reblog-related computed properties
+const isReblog = computed(() => {
+  return !!(props.post.reblog && props.post.reblog_author);
+});
+
+const isQuotePost = computed(() => {
+  // A quote post has both reblog data AND non-empty content
+  if (!isReblog.value) return false;
+  const content = props.post.content;
+  
+  // Check if content is empty (pure reblog) or has actual content (quote post)
+  if (Array.isArray(content)) {
+    return content.length > 0 && content.some(part => 
+      part.type === 'text' && part.text && part.text.trim().length > 0
+    );
+  }
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) {
+        return parsed.length > 0 && parsed.some(part => 
+          part.type === 'text' && part.text && part.text.trim().length > 0
+        );
+      }
+    } catch {
+      // Ignore JSON parsing errors
+    }
+    return content.trim().length > 0;
+  }
+  return false;
+});
+
+const isPureReblog = computed(() => {
+  return isReblog.value && !isQuotePost.value;
+});
+
+const displayAuthor = computed(() => {
+  return isReblog.value ? props.post.reblog_author : props.post.author;
+});
+
+const originalInstanceDomain = computed(() => {
+  if (!isReblog.value) return instanceDomain.value;
+  const { domain } = props.post.reblog_author;
+  return domain || 'har.mony.lol';
+});
+
+const originalCreatedAt = computed(() => {
+  return isReblog.value ? props.post.reblog.created_at : props.post.created_at;
+});
+
+// For quote posts, we show both the user's content AND the quoted content
+const userQuoteContent = computed(() => {
+  return isQuotePost.value ? props.post.content : null;
+});
+
+const displayContent = computed(() => {
+  // For pure reblogs, show the original content
+  // For quote posts, we'll show the original content in a quoted block
+  return isReblog.value ? props.post.reblog.content : props.post.content;
+});
+
+const displayMediaAttachments = computed(() => {
+  return isReblog.value ? props.post.reblog.media_attachments : props.post.media_attachments;
+});
+
+const displayContentWarning = computed(() => {
+  return isReblog.value ? props.post.reblog.content_warning : props.post.content_warning;
+});
+
+const displayIsSensitive = computed(() => {
+  return isReblog.value ? props.post.reblog.is_sensitive : props.post.is_sensitive;
+});
+
+const displayReplyContext = computed(() => {
+  return isReblog.value ? props.post.reblog.reply_context : props.post.reply_context;
+});
+
+const displayInteractionCounts = computed(() => {
+  if (isReblog.value && props.post.reblog) {
+    return {
+      favorites_count: props.post.reblog.favorites_count,
+      reblogs_count: props.post.reblog.reblogs_count,
+      replies_count: props.post.reblog.replies_count,
+      is_favorited: props.post.reblog.is_favorited || false,
+      is_reblogged: props.post.reblog.is_reblogged || false,
+      is_bookmarked: props.post.reblog.is_bookmarked || false
+    };
+  }
+  return {
+    favorites_count: props.post.favorites_count,
+    reblogs_count: props.post.reblogs_count,
+    replies_count: props.post.replies_count,
+    is_favorited: props.post.is_favorited || false,
+    is_reblogged: props.post.is_reblogged || false,
+    is_bookmarked: props.post.is_bookmarked || false
+  };
+});
+
 // Helper to flatten MessagePart[] or JSON string to plain text
 const flattenMessageParts = (content: any): string => {
   if (Array.isArray(content)) {
@@ -322,7 +506,9 @@ const flattenMessageParts = (content: any): string => {
       if (Array.isArray(parsed)) {
         return flattenMessageParts(parsed);
       }
-    } catch {}
+    } catch {
+      // Ignore JSON parsing errors
+    }
     return content;
   }
   return '';
@@ -331,8 +517,8 @@ const flattenMessageParts = (content: any): string => {
 const contentText = computed(() => flattenMessageParts(props.post.content));
 
 const replyContentText = computed(() => {
-  if (props.post.reply_context && props.post.reply_context.content_preview !== undefined) {
-    return flattenMessageParts(props.post.reply_context.content_preview);
+  if (displayReplyContext.value && displayReplyContext.value.content_preview !== undefined) {
+    return flattenMessageParts(displayReplyContext.value.content_preview);
   }
   return '';
 });
@@ -413,9 +599,9 @@ const onDelete = () => {
 
 const showReplyTarget = async () => {
   console.log('🔗 Show thread clicked for post:', props.post.id);
-  console.log('📝 Reply context:', props.post.reply_context);
+  console.log('📝 Reply context:', displayReplyContext.value);
   
-  if (props.post.reply_context) {
+  if (displayReplyContext.value) {
     try {
       // Get conversation navigation data from service
       const navigationData = await ConversationService.getConversationNavigationData(props.post.id, {
@@ -892,6 +1078,85 @@ const handleHashtagClick = (tag: string) => {
 .dropdown-item.danger:hover {
   background-color: rgba(239, 68, 68, 0.1);
 }
+
+/* Quote Post Styles */
+.quote-post-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.quote-comment {
+  color: white;
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.quoted-post {
+  border: 1px solid #374151;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  margin-top: 0.5rem;
+}
+
+.quoted-post-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.quoted-author-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.quoted-author-name {
+  font-weight: 600;
+  color: white;
+}
+
+.quoted-author-handle {
+  color: #9ca3af;
+}
+
+.quoted-post-time {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.quoted-post-content {
+  color: white;
+  line-height: 1.6;
+  word-wrap: break-word;
+  margin-bottom: 0.75rem;
+}
+
+.quoted-media-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.quoted-media-gallery .media-item {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.quoted-media-gallery .media-image,
+.quoted-media-gallery .media-video {
+  width: 100%;
+  height: auto;
+  max-height: 200px;
+  object-fit: cover;
+}
+
+/* Media Gallery Styles */
 
 /* Mobile responsive */
 @media (max-width: 768px) {

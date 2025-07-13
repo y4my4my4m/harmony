@@ -910,50 +910,127 @@ export class ActivityPubService {
   }
 
   /**
-   * Toggle reblog (share) status for a post
+   * Toggle reblog (share) status for a post - creates actual reblog posts with federation
    */
-  async toggleReblog(postId: string): Promise<{ reblogged: boolean; interaction?: PostInteraction }> {
+  async toggleReblog(postId: string): Promise<{ reblogged: boolean; reblogPost?: any }> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    // Check if already reblogged
-    const { data: existing } = await supabase
+    // Check if we already have a reblog interaction for this post
+    const { data: existingInteraction } = await supabase
       .from('post_interactions')
       .select('id')
       .eq('user_id', user.id)
       .eq('post_id', postId)
       .eq('interaction_type', 'reblog')
-      .single();
+      .maybeSingle();
 
-    if (existing) {
-      // Remove reblog
-      await this.unreblogPost(postId);
+    if (existingInteraction) {
+      // Remove reblog interaction
+      await supabase
+        .from('post_interactions')
+        .delete()
+        .eq('id', existingInteraction.id);
+
+      // Also remove any reblog post we created
+      const { data: reblogPost } = await supabase
+        .from('posts')
+        .select('id')
+        .eq('author_id', user.id)
+        .eq('metadata->>reblog_of', postId)
+        .maybeSingle();
+
+      if (reblogPost) {
+        await this.unreblogPost(reblogPost.id);
+      }
+
+      // 🌐 FEDERATION: Undo announce activity
+      try {
+        const { federationService } = await import('@/services/FederationService');
+        await federationService.federateAnnounce(postId, user.id, false);
+      } catch (federationError) {
+        console.error('❌ Federation failed for undo reblog:', federationError);
+      }
+
       return { reblogged: false };
     } else {
-      // Add reblog
-      const interaction = await this.reblogPost(postId);
-      return { reblogged: true, interaction };
+      // Add reblog interaction
+      await supabase
+        .from('post_interactions')
+        .insert({
+          user_id: user.id,
+          post_id: postId,
+          interaction_type: 'reblog',
+          is_local: true,
+          metadata: {}
+        });
+
+      // Create reblog post
+      const reblogPost = await this.reblogPost(postId);
+
+      // 🌐 FEDERATION: Announce activity
+      try {
+        const { federationService } = await import('@/services/FederationService');
+        await federationService.federateAnnounce(postId, user.id, true);
+      } catch (federationError) {
+        console.error('❌ Federation failed for reblog:', federationError);
+      }
+
+      return { reblogged: true, reblogPost };
     }
   }
 
   /**
-   * Reblog (share) a post
+   * Reblog (share) a post - creates an actual reblog post
    */
-  async reblogPost(postId: string): Promise<PostInteraction> {
+  async reblogPost(postId: string): Promise<any> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    const interaction = {
-      user_id: user.id,
-      post_id: postId,
-      interaction_type: 'reblog' as const,
+    // Get the original post to reblog
+    const { data: originalPost, error: postError } = await supabase
+      .from('timeline_posts')
+      .select('*')
+      .eq('id', postId)
+      .single();
+
+    if (postError) throw postError;
+
+    // Create reblog post
+    const reblogPost = {
+      author_id: user.id,
+      content: originalPost.content,
+      visibility: originalPost.visibility,
       is_local: true,
-      metadata: {}
+      is_federated: true,
+      conversation_id: originalPost.conversation_id,
+      conversation_root_id: originalPost.conversation_root_id || originalPost.id,
+      reblog: {
+        id: originalPost.id,
+        content: originalPost.content,
+        created_at: originalPost.created_at,
+        author: originalPost.author,
+        visibility: originalPost.visibility,
+        favorites_count: originalPost.favorites_count,
+        reblogs_count: originalPost.reblogs_count,
+        replies_count: originalPost.replies_count,
+        media_attachments: originalPost.media_attachments,
+        reply_context: originalPost.reply_context,
+        content_warning: originalPost.content_warning,
+        is_sensitive: originalPost.is_sensitive,
+        url: originalPost.url
+      },
+      reblog_author: originalPost.author,
+      ap_type: 'Announce',
+      metadata: { 
+        reblog_of: postId,
+        original_author: originalPost.author.id 
+      }
     };
 
     const { data, error } = await supabase
-      .from('post_interactions')
-      .insert(interaction)
+      .from('posts')
+      .insert(reblogPost)
       .select()
       .single();
 
@@ -964,22 +1041,25 @@ export class ActivityPubService {
       throw error;
     }
 
-    return data as PostInteraction;
+    console.log(`📍 Created reblog post ${data.id} for original post ${postId}`);
+    return data;
   }
 
   /**
-   * Un-reblog a post
+   * Un-reblog a post - removes the reblog post
    */
-  async unreblogPost(postId: string): Promise<void> {
+  async unreblogPost(reblogPostId: string): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
     const { error } = await supabase
-      .from('post_interactions')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('post_id', postId)
-      .eq('interaction_type', 'reblog');
+      .from('posts')
+      .update({ 
+        is_deleted: true, 
+        deleted_at: new Date().toISOString() 
+      })
+      .eq('id', reblogPostId)
+      .eq('author_id', user.id);
 
     if (error) throw error;
   }

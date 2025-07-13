@@ -8,7 +8,7 @@ import { computed } from 'vue';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 
 interface Props {
-  content: string;
+  content: string | any[] | any; // Can be string, JSONB array, or other format
 }
 
 const props = defineProps<Props>();
@@ -38,9 +38,50 @@ const findEmojiByName = (name: string) => {
   return undefined;
 };
 
+// Helper to flatten ActivityPub content to plain text
+const flattenContentToString = (content: any): string => {
+  if (typeof content === 'string') {
+    return content;
+  }
+  
+  if (Array.isArray(content)) {
+    return content
+      .map(part => {
+        if (typeof part === 'string') return part;
+        if (part.type === 'text') return part.text || '';
+        if (part.type === 'mention') {
+          // Handle new structured mention format
+          if (part.username && part.domain) {
+            return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
+          }
+          // Fallback to legacy format if needed
+          return part.mention || `@${part.username || 'unknown'}`;
+        }
+        if (part.type === 'url') return part.url || '';
+        return '';
+      })
+      .join('');
+  }
+  
+  if (typeof content === 'object' && content !== null) {
+    // Try to parse as JSON string if it looks like it
+    try {
+      const parsed = JSON.parse(JSON.stringify(content));
+      if (Array.isArray(parsed)) {
+        return flattenContentToString(parsed);
+      }
+    } catch {
+      // Ignore JSON parsing errors
+    }
+    return content.toString();
+  }
+  
+  return '';
+};
+
 // Check if content is a single emoji
 const isSingleEmoji = computed(() => {
-  const trimmedContent = props.content.trim();
+  const trimmedContent = flattenContentToString(props.content).trim();
   // Check if content matches the pattern of a single emoji (e.g., ":smile:")
   const singleEmojiMatch = trimmedContent.match(/^:([a-zA-Z0-9_+-]+):$/);
   if (singleEmojiMatch) {
@@ -52,7 +93,7 @@ const isSingleEmoji = computed(() => {
 });
 
 const formattedContent = computed(() => {
-  let formatted = props.content;
+  let formatted = flattenContentToString(props.content);
   
   // Format hashtags FIRST
   formatted = formatted.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');

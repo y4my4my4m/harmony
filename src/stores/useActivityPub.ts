@@ -1307,15 +1307,15 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post reblog - clean and professional
+     * Toggle post reblog - creates actual reblog posts for timeline display with federation
      */
     async toggleReblog(postId: string) {
       try {
         const user = await supabase.auth.getUser();
         if (!user.data.user) throw new Error('User not authenticated');
 
-        // Check current state
-        const { data: existing, error: existingError } = await supabase
+        // Check if we already have a reblog interaction for this post
+        const { data: existingInteraction, error: interactionError } = await supabase
           .from('post_interactions')
           .select('id')
           .eq('user_id', user.data.user.id)
@@ -1323,21 +1323,50 @@ export const useActivityPubStore = defineStore('activitypub', {
           .eq('interaction_type', 'reblog')
           .maybeSingle();
 
-        if (existingError && existingError.code !== 'PGRST116') {
-          throw existingError;
+        if (interactionError && interactionError.code !== 'PGRST116') {
+          throw interactionError;
         }
 
-        const isReblogged = !!existing;
+        const isReblogged = !!existingInteraction;
         const newReblogState = !isReblogged;
 
-        if (existing) {
-          // Remove reblog
+        if (existingInteraction) {
+          // Remove reblog interaction
           await supabase
             .from('post_interactions')
             .delete()
-            .eq('id', existing.id);
+            .eq('id', existingInteraction.id);
+
+          // Also remove any reblog post we created
+          const { data: reblogPost } = await supabase
+            .from('posts')
+            .select('id')
+            .eq('author_id', user.data.user.id)
+            .eq('metadata->>reblog_of', postId)
+            .maybeSingle();
+
+          if (reblogPost) {
+            await supabase
+              .from('posts')
+              .update({ 
+                is_deleted: true, 
+                deleted_at: new Date().toISOString() 
+              })
+              .eq('id', reblogPost.id);
+
+            // Remove reblog from our feeds
+            this.removePostFromFeeds(reblogPost.id);
+          }
+
+          // 🌐 FEDERATION: Undo announce activity
+          try {
+            const { federationService } = await import('@/services/FederationService');
+            await federationService.federateAnnounce(postId, user.data.user.id, false);
+          } catch (federationError) {
+            console.error('❌ Federation failed for undo reblog:', federationError);
+          }
         } else {
-          // Add reblog
+          // Add reblog interaction
           await supabase
             .from('post_interactions')
             .insert({
@@ -1347,10 +1376,72 @@ export const useActivityPubStore = defineStore('activitypub', {
               is_local: true,
               metadata: {}
             });
+
+          // Get the original post to reblog
+          const { data: originalPost, error: postError } = await supabase
+            .from('timeline_posts')
+            .select('*')
+            .eq('id', postId)
+            .single();
+
+          if (postError) throw postError;
+
+          // Create reblog post for timeline display
+          // For a pure reblog (no additional content), content should be empty
+          const reblogPost = {
+            author_id: user.data.user.id,
+            content: [], // Empty content for pure reblog - if user adds content later, it becomes a quote
+            visibility: originalPost.visibility,
+            is_local: true,
+            is_federated: true,
+            conversation_id: null, // Reblogs don't inherit conversation context
+            conversation_root_id: null,
+            reblog: {
+              id: originalPost.id,
+              content: originalPost.content,
+              created_at: originalPost.created_at,
+              author: originalPost.author,
+              visibility: originalPost.visibility,
+              favorites_count: originalPost.favorites_count,
+              reblogs_count: originalPost.reblogs_count,
+              replies_count: originalPost.replies_count,
+              media_attachments: originalPost.media_attachments,
+              in_reply_to: originalPost.in_reply_to,
+              content_warning: originalPost.content_warning,
+              is_sensitive: originalPost.is_sensitive,
+              url: originalPost.url
+            },
+            reblog_author: originalPost.author,
+            ap_type: 'Announce',
+            metadata: { 
+              reblog_of: postId,
+              original_author: originalPost.author.id 
+            }
+          };
+
+          const { error: createError } = await supabase
+            .from('posts')
+            .insert(reblogPost);
+
+          if (createError) throw createError;
+
+          // Don't add to feeds immediately - let realtime handle it
+          // This prevents showing both the original post and reblog immediately
+          // The realtime system will properly add the reblog post to feeds
+
+          // 🌐 FEDERATION: Announce activity
+          try {
+            const { federationService } = await import('@/services/FederationService');
+            await federationService.federateAnnounce(postId, user.data.user.id, true);
+          } catch (federationError) {
+            console.error('❌ Federation failed for reblog:', federationError);
+          }
         }
 
-        // Update post state in all feeds immediately for better UX
+        // Update interaction state for the original post
         this.updatePostInteractionState(postId, 'reblog', newReblogState);
+
+        console.log(`📍 Reblog ${newReblogState ? 'added' : 'removed'} for post ${postId}`);
 
       } catch (error) {
         console.error('Failed to toggle reblog:', error);
@@ -1640,7 +1731,7 @@ export const useActivityPubStore = defineStore('activitypub', {
            content: this.formatPostContent(content),
            visibility: options.visibility || 'public',
            content_warning: options.content_warning,
-           in_reply_to: postId, // This will be converted to reply_context by service
+           in_reply_to: postId,
            is_sensitive: options.is_sensitive || false,
            language: 'en'
          };
