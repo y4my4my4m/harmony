@@ -267,6 +267,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useAuthStore } from '@/stores/auth';
+import { useUserData } from '@/composables/useUserData';
 import { spatialAudioService } from '@/services/spatialAudio';
 import Icon from '@/components/common/Icon.vue';
 
@@ -291,6 +292,7 @@ withDefaults(defineProps<Props>(), {
 const spatialStore = useSpatialAudioStore();
 const voiceStore = useUnifiedVoiceChannelStore();
 const authStore = useAuthStore();
+const { getUserProfile: getUnifiedUserProfile, ensureProfilesAvailable } = useUserData();
 
 const gridContainer = ref<HTMLElement | null>(null);
 const showSettings = ref(false);
@@ -370,7 +372,13 @@ const isSpeaking = (participant: any): boolean => {
 };
 
 const getUserProfile = (userId: string) => {
-  return voiceStore.getUserProfile(userId);
+  const profile = getUnifiedUserProfile(userId).value;
+  return profile || {
+    id: userId,
+    username: 'Unknown User',
+    display_name: 'Unknown User',
+    avatar_url: null
+  };
 };
 
 // =============================================================================
@@ -580,6 +588,19 @@ watch(() => allParticipants.value, (newParticipants, oldParticipants) => {
     }
   });
 }, { deep: true });
+
+// Ensure all participant profiles are loaded when participants change
+watch(allParticipants, async (newParticipants) => {
+  const userIds = newParticipants.map(p => p.userId);
+  if (userIds.length > 0) {
+    try {
+      await ensureProfilesAvailable(userIds);
+      console.log('✅ Loaded profiles for spatial audio participants:', userIds.length);
+    } catch (error) {
+      console.warn('⚠️ Failed to load profiles for spatial audio participants:', error);
+    }
+  }
+}, { immediate: true });
 
 onMounted(() => {
   nextTick(() => {
