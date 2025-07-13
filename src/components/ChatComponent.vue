@@ -271,7 +271,6 @@
       });
 
       const parseMessageInput = (input: string): MessagePart[] => {
-        console.log('🔧 parseMessageInput called with:', input);
         const emojiRegex = /:([\w\d_+-]+):/g;
         let lastIndex = 0;
         const result: MessagePart[] = [];

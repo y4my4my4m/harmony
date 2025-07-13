@@ -157,12 +157,6 @@ export function useAutoSuggest(
           // Create display format for text input (what user sees while typing)
           const isLocal = userData.isLocal;
           const userDomain = userData.domain || 'har.mony.lol';
-          console.log('🔧 User suggestion data:', { 
-            username: userData.username, 
-            isLocal: userData.isLocal, 
-            domain: userData.domain,
-            userDomain 
-          });
           const displayText = isLocal ? `@${userData.username}` : `@${userData.username}@${userDomain}`;
           
           // Create storage format for database (always @uuid@domain)

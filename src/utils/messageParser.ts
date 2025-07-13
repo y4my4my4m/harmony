@@ -1,11 +1,6 @@
-import type { Emoji } from '@/types';
+import type { MessagePart } from '@/types';
 import { getEmoji } from '@/services/emojiService';
-
-type MessagePart = 
-  string | 
-  { url: string } | 
-  { mention: string; userId: string } | 
-  { emoji: Emoji };
+import { createMentionFromUser } from '@/utils/mentionMigration';
 
 const urlRegex = /(\bhttps?:\/\/\S+)/gi;
 // Updated mention regex to match both @username and @uuid@domain
@@ -53,19 +48,23 @@ export async function parseMessageContent(
       }
       
       if (type === 'url') {
-        parts.push({ url: match[0] });
+        parts.push({ type: 'url', url: match[0], preview: true });
       } else {
         // Handle mention
         const fullMatch = match[0]; // Full mention like @uuid@domain
         
         // Check if this is already in @uuid@domain format
         if (fullMatch.includes('@') && fullMatch.split('@').length === 3) {
-          // Already in @uuid@domain format, store as-is
+          // Already in @uuid@domain format, extract UUID and create proper mention
           const uuidPart = match[1]; // First capture group
-          parts.push({ 
-            mention: fullMatch, 
-            userId: uuidPart 
-          });
+          const mentionContent = createMentionFromUser(uuidPart);
+          
+          if (mentionContent) {
+            parts.push(mentionContent);
+          } else {
+            // If user not found, push as plain text
+            parts.push({ type: 'text', text: fullMatch });
+          }
         } else {
           // Legacy @username format, look up user ID
           const username = match[1]; // First capture group: username
@@ -78,14 +77,18 @@ export async function parseMessageContent(
           const userId = usernameToUserIdMap[mentionKey];
           
           if (userId) {
-            // Convert to @uuid@domain format for storage
-            const userDomain = domain || 'har.mony.lol'; // Use provided domain or fallback
-            const storedMention = `@${userId}@${userDomain}`;
+            // Create proper MentionContent object
+            const mentionContent = createMentionFromUser(userId);
             
-            parts.push({ mention: storedMention, userId });
+            if (mentionContent) {
+              parts.push(mentionContent);
+            } else {
+              // If user profile not found, push as plain text
+              parts.push({ type: 'text', text: fullMatch });
+            }
           } else {
             // If no user found, just push the text as-is
-            parts.push(fullMatch);
+            parts.push({ type: 'text', text: fullMatch });
           }
         }
       }
@@ -110,16 +113,20 @@ export async function parseMessageContent(
     while ((emojiMatch = emojiRegex.exec(text)) !== null) {
       const emojiIndex = emojiMatch.index;
       if (emojiIndex > lastIndex) {
-        remainingParts.push(text.substring(lastIndex, emojiIndex));
+        remainingParts.push({ type: 'text', text: text.substring(lastIndex, emojiIndex) });
       }
       const emojiId = emojiMatch[1];
       const emojiData = emojiId ? await getEmoji(emojiId) : undefined;
-      remainingParts.push(emojiData ? { emoji: emojiData } : emojiMatch[0]);
+      if (emojiData) {
+        remainingParts.push({ type: 'emoji', emoji: emojiData });
+      } else {
+        remainingParts.push({ type: 'text', text: emojiMatch[0] });
+      }
       lastIndex = emojiIndex + emojiMatch[0].length;
     }
   
     if (lastIndex < text.length) {
-      remainingParts.push(text.substring(lastIndex));
+      remainingParts.push({ type: 'text', text: text.substring(lastIndex) });
     }
   
     return remainingParts;
