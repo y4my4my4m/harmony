@@ -311,21 +311,33 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
 
       if (mentionedUser) {
         // Create mention notification matching the actual notifications table schema
+        // Extract and clean up the content for the notification
+        let contentPreview = '';
+        if (typeof savedPost.content === 'string') {
+          contentPreview = savedPost.content;
+        } else if (Array.isArray(savedPost.content)) {
+          contentPreview = savedPost.content.map(item => item.text || '').join('');
+        }
+        
+        // Strip HTML tags and truncate
+        contentPreview = contentPreview.replace(/<[^>]*>/g, '').substring(0, 120);
+        
+        // Ensure avatar URL is absolute
+        const avatarUrl = author.avatar_url 
+          ? (author.avatar_url.startsWith('http') ? author.avatar_url : `https://${author.domain}${author.avatar_url}`)
+          : null;
+
         const notificationData = {
           actor: {
             user_id: author.id,
             username: author.username,
             display_name: author.display_name,
-            avatar_url: author.avatar_url,
+            avatar_url: avatarUrl,
             domain: author.domain
           },
           post: {
             id: savedPost.id,
-            content_preview: typeof savedPost.content === 'string' 
-              ? savedPost.content.substring(0, 100)
-              : Array.isArray(savedPost.content) 
-                ? savedPost.content.map(item => item.text || '').join('').substring(0, 100)
-                : '',
+            content_preview: contentPreview,
             ap_id: savedPost.ap_id
           },
           mention: {
@@ -437,13 +449,19 @@ async function getOrCreateRemoteProfile(supabase: any, actorUrl: string) {
     const actor = await response.json()
     const domain = new URL(actorUrl).hostname
 
+    // Ensure avatar URL is absolute
+    let avatarUrl = actor.icon?.url
+    if (avatarUrl && !avatarUrl.startsWith('http')) {
+      avatarUrl = new URL(avatarUrl, `https://${domain}`).toString()
+    }
+
     // Use the new function to create federated profile
     const { data: profileId, error } = await supabase
       .rpc('create_federated_profile', {
         p_username: actor.preferredUsername || 'unknown',
         p_display_name: actor.name || actor.preferredUsername,
         p_domain: domain,
-        p_avatar_url: actor.icon?.url,
+        p_avatar_url: avatarUrl,
         p_bio: actor.summary || '',
         p_federated_id: actorUrl,
         p_inbox_url: actor.inbox,
