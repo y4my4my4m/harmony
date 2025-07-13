@@ -23,7 +23,7 @@
             <div class="author-handle">
               <span>{{ author.username }}</span>
               <span class="instance-domain" :class="{ 'is-local': author.is_local }">
-                @{{ author.domain }}
+                @{{ instanceDomain }}
               </span>
             </div>
           </div>

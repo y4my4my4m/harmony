@@ -340,10 +340,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
   }
   
   // If no mentions found, just return the text as a text node
-  if (lastIndex === 0) {
-    console.log('🔧 No mentions found in text, adding as plain text');
-    fragment.appendChild(document.createTextNode(text));
-  }
+  // Removed redundant fallback block that appended the full text again.
   
   return fragment;
 };
