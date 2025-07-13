@@ -96,7 +96,7 @@ serve(async (req: Request) => {
         status: 302,
         headers: {
           ...corsHeaders,
-          'Location': `https://${ourDomain}/profile/${username}`
+          'Location': `https://${ourDomain}/social/profile/${username}`
         }
       })
     }
@@ -133,7 +133,7 @@ serve(async (req: Request) => {
       endpoints: {
         sharedInbox: `${baseUrl}/api/activitypub/inbox`
       },
-      url: `${baseUrl}/profile/${username}`
+      url: `${baseUrl}/social/profile/${username}`
     }
 
     // Remove undefined fields

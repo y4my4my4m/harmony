@@ -234,7 +234,6 @@ onMounted(() => {
 
 .mony-header-container {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color);
 }
 
 .explore-content {

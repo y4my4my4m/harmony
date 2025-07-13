@@ -215,6 +215,16 @@ const router = createRouter({
             fromPostId: route.query.from as string,
             contextTimestamp: route.query.t ? parseInt(route.query.t as string) : null
           })
+        },
+        {
+          path: 'profile/:handle',
+          name: 'UserProfile',
+          component: () => import('@/views/UserProfileView.vue'),
+          props: route => ({
+            profileHandle: route.params.handle as string,
+            currentView: CurrentView.PROFILE,
+            viewType: ViewType.PROFILE
+          })
         }
       ]
     },
@@ -232,26 +242,13 @@ const router = createRouter({
       name: 'Explore',
       redirect: '/social/trending'
     },
+    // Profile redirect for backward compatibility
     {
       path: '/profile/:handle',
-      name: 'UserProfile',
-      component: () => import('@/layouts/SocialLayout.vue'),
-      props: route => ({
-        currentView: CurrentView.PROFILE,
-        viewType: ViewType.PROFILE,
-        profileHandle: route.params.handle as string
-      }),
-      children: [
-        {
-          path: '',
-          component: () => import('@/views/UserProfileView.vue'),
-          props: route => ({
-            profileHandle: route.params.handle as string,
-            currentView: CurrentView.PROFILE,
-            viewType: ViewType.PROFILE
-          })
-        }
-      ]
+      redirect: route => {
+        const handle = route.params.handle as string;
+        return `/social/profile/${handle}`;
+      }
     },
     // Settings and Admin (standalone routes)
     {

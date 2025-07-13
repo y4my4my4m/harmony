@@ -273,11 +273,11 @@ const getUserProfilePath = () => {
     ? username 
     : `${username}@${domain}`;
     
-  return `/profile/${handle}`;
+  return `/social/profile/${handle}`;
 };
 
 const getProfileUrl = (handle: string) => {
-  return `/profile/${handle}`;
+  return `/social/profile/${handle}`;
 };
 
 

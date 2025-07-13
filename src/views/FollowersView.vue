@@ -242,7 +242,7 @@ const handleUnfollow = async (userId: string) => {
 };
 
 const handleUserClick = (user: FederatedUser) => {
-  router.push(`/profile/${user.handle.replace('@', '')}`);
+  router.push(`/social/profile/${user.handle.replace('@', '')}`);
 };
 
 // Watchers

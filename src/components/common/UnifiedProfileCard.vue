@@ -374,7 +374,7 @@ const handleBlock = async () => {
 
 const handleViewProfile = () => {
   if (isFederatedUser(props.user)) {
-    router.push(`/profile/${props.user.handle}`)
+    router.push(`/social/profile/${props.user.handle}`)
   } else {
     // Open profile modal for chat users
     emit('click', props.user)

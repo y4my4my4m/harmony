@@ -258,7 +258,7 @@ const routeBasedProps = computed(() => {
   if (routePath.includes('/social/notifications')) return { currentView: 'notifications', viewType: 'notifications' }
   if (routePath.includes('/social/bookmarks')) return { currentView: 'bookmarks', viewType: 'bookmarks' }
   if (routePath.includes('/social/trending')) return { currentView: 'trending', viewType: 'explore' }
-  if (routePath.includes('/profile/')) return { currentView: 'profile', viewType: 'profile' }
+  if (routePath.includes('/social/profile/')) return { currentView: 'profile', viewType: 'profile' }
   
   // Ultimate fallback
   return { currentView: 'home', viewType: 'timeline' }

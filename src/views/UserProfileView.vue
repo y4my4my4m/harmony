@@ -1,5 +1,16 @@
 <!-- UserProfileView - Federated user profile page -->
 <template>
+  <!-- Mony Header -->
+  <div class="mony-header-container">
+    <MonyHeader
+      :current-view="currentView"
+      :is-mobile="false"
+      @switch-feed="handleSwitchFeed"
+      @refresh-timeline="handleRefresh"
+      @open-composer="handleOpenComposer"
+      @open-search="handleOpenSearch"
+    />
+  </div>
   <div class="user-profile-view">
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-state">
@@ -22,73 +33,15 @@
     <div v-else-if="user" class="profile-content">
       <!-- Profile Header -->
       <div class="profile-header">
+        <!-- Banner with gradient overlay -->
         <div class="profile-banner" :style="{ backgroundImage: user.banner_url ? `url(${user.banner_url})` : undefined }">
-          <div class="banner-overlay"></div>
-        </div>
-        
-        <div class="profile-info">
-          <div class="avatar-section">
-            <Avatar 
-              :src="user.avatar_url" 
-              :alt="user.display_name"
-              size="2xl" />
-            <div v-if="!user.is_local" class="federation-badge" :title="`From ${user.domain}`">
-              <Icon name="federation" />
-              <span>{{ user.domain }}</span>
-            </div>
-          </div>
-
-          <div class="user-details">
-            <div class="name-section">
-              <h1 class="display-name">
-                {{ user.display_name || user.username }}
-                <Icon v-if="user.verified" name="verified" class="verified-icon" />
-              </h1>
-              <p class="user-handle">{{ user.handle }}</p>
-            </div>
-
-            <div v-if="user.bio" class="bio-section">
-              <MonyContent :content="user.bio" />
-            </div>
-
-            <div class="stats-section">
-              <div class="stat-item">
-                <strong>{{ formatNumber(user.posts_count || 0) }}</strong>
-                <span>Monies</span>
-              </div>
-              <div class="stat-item">
-                <strong>{{ formatNumber(user.following_count || 0) }}</strong>
-                <span>Following</span>
-              </div>
-              <div class="stat-item">
-                <strong>{{ formatNumber(user.followers_count || 0) }}</strong>
-                <span>Followers</span>
-              </div>
-            </div>
-
-            <div v-if="user.created_at" class="join-date">
-              <Icon name="calendar" />
-              <span>Joined {{ formatJoinDate(user.created_at) }}</span>
-            </div>
-          </div>
-
-          <!-- Action Buttons -->
-          <div class="profile-actions">
-            <button
-              v-if="!isCurrentUser"
-              @click="toggleFollow"
-              :disabled="isFollowLoading"
-              :class="['action-btn', 'follow-btn', { following: isFollowing }]"
-            >
-              <Icon v-if="isFollowLoading" name="loader" class="spinning" />
-              <Icon v-else-if="isFollowing" name="user-check" />
-              <Icon v-else name="user-plus" />
-              <span>{{ followButtonText }}</span>
-            </button>
-
+          <div class="banner-gradient"></div>
+          
+          <!-- Action buttons overlay on banner -->
+          <div class="banner-actions">
             <button
               @click="mentionUser"
-              class="action-btn mention-btn"
+              class="banner-action-btn"
               title="Mention user"
             >
               <Icon name="at-sign" />
@@ -97,7 +50,7 @@
             <div class="more-actions">
               <button
                 @click="showActionsMenu = !showActionsMenu"
-                class="action-btn more-btn"
+                class="banner-action-btn"
                 title="More actions"
               >
                 <Icon name="more-horizontal" />
@@ -118,6 +71,66 @@
                   <Icon name="flag" />
                   <span>Report</span>
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Profile info container -->
+        <div class="profile-info-container">
+          <!-- Avatar section with status indicator -->
+          <div class="avatar-container">
+            <div class="avatar-wrapper">
+              <Avatar 
+                :src="user.avatar_url" 
+                :alt="user.display_name"
+                size="2xl" 
+                class="profile-avatar"
+              />
+              <div v-if="!user.is_local" class="federation-badge" :title="`From ${user.domain}`">
+                <Icon name="federation" size="12" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Main profile content -->
+          <div class="profile-main-content">
+            <!-- Top row: Name/handle + Follow button -->
+            <div class="profile-top-row">
+              <div class="name-handle-section">
+                <div class="display-name-row">
+                  <h1 class="display-name">{{ user.display_name || user.username }}</h1>
+                  <Icon v-if="user.verified" name="verified" class="verified-icon" />
+                  <span v-if="!user.is_local" class="domain-tag">{{ user.domain }}</span>
+                </div>
+                <p class="user-handle">{{ user.handle }}</p>
+              </div>
+
+              <!-- Primary action button -->
+              <div class="primary-actions" v-if="!isCurrentUser">
+                <button
+                  @click="toggleFollow"
+                  :disabled="isFollowLoading"
+                  :class="['primary-action-btn', 'follow-btn', { following: isFollowing }]"
+                >
+                  <Icon v-if="isFollowLoading" name="loader" class="spinning" />
+                  <Icon v-else-if="isFollowing" name="user-check" />
+                  <Icon v-else name="user-plus" />
+                  <span>{{ followButtonText }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Bio section -->
+            <div v-if="user.bio" class="bio-section">
+              <MonyContent :content="user.bio" />
+            </div>
+
+            <!-- Meta info row -->
+            <div class="meta-info-row">
+              <div v-if="user.created_at" class="join-date">
+                <Icon name="calendar" :size="16" />
+                <span>Joined {{ formatJoinDate(user.created_at) }}</span>
               </div>
             </div>
           </div>
@@ -226,11 +239,25 @@ import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';
 
 // Components
+import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import MonyContent from '@/components/activitypub/MonyContent.vue';
 import UserCard from '@/components/activitypub/UserCard.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+
+// Props
+interface Props {
+  profileHandle?: string;
+  currentView?: string;
+  viewType?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  profileHandle: undefined,
+  currentView: 'profile',
+  viewType: 'profile'
+});
 
 // Stores
 const activityPubStore = useActivityPubStore();
@@ -277,6 +304,16 @@ const profileTabs = computed(() => [
     count: user.value?.followers_count || 0
   }
 ]);
+
+// Debug active tab
+watch(activeTab, (newTab) => {
+  console.log(`🔄 Active tab changed to: ${newTab}`);
+  console.log(`📊 Current data lengths:`, {
+    posts: userPosts.value.length,
+    following: followingUsers.value.length,
+    followers: followerUsers.value.length
+  });
+});
 
 // Computed
 const isCurrentUser = computed(() => {
@@ -332,10 +369,11 @@ const loadUserProfile = async (handle: string) => {
     } else {
       console.log('👤 Looking up local user...');
       
-             // For local users, try to get from activity pub service first
-       try {
-         user.value = await activityPubService.getUserByHandle(`@${handle}`);
-       } catch (localError) {
+      // For local users, try to get from activity pub service first
+      try {
+        console.log(`🔎 Fetching user by handle: @${handle}`);
+        user.value = await activityPubService.getUserByHandle(`@${handle}`);
+      } catch (localError) {
         console.log('⚠️ ActivityPub lookup failed, trying profile service...');
         
         // Fallback: check if this is the current user
@@ -350,6 +388,18 @@ const loadUserProfile = async (handle: string) => {
           const profile = profileStore.profile;
           
           if (profile) {
+            // Get accurate post count from the database
+            let posts_count = 0;
+            try {
+              await activityPubService.getUserPosts(currentUser.id, { limit: 1 });
+              // This gives us a sample, but for accurate count we'd need to implement a count endpoint
+              // For now, use the length of userPosts when they're loaded, or fall back to homeFeed filter
+              posts_count = activityPubStore.homeFeed.posts.filter(p => p.author_id === currentUser.id).length;
+            } catch (error) {
+              console.log('Could not get post count, using fallback:', error);
+              posts_count = activityPubStore.homeFeed.posts.filter(p => p.author_id === currentUser.id).length;
+            }
+            
             user.value = {
               id: currentUser.id,
               username: profile.username || currentUsername,
@@ -362,10 +412,16 @@ const loadUserProfile = async (handle: string) => {
               verified: false,
               followers_count: activityPubStore.followersCount || 0,
               following_count: activityPubStore.followingCount || 0,
-              posts_count: activityPubStore.homeFeed.posts.filter(p => p.author_id === currentUser.id).length,
+              posts_count: posts_count,
               created_at: profile.created_at || currentUser.created_at || new Date().toISOString(),
               updated_at: profile.updated_at || new Date().toISOString()
             };
+            
+            console.log(`✅ Created user object with ActivityPub counts:`, {
+              followers_count: user.value.followers_count,
+              following_count: user.value.following_count,
+              posts_count: user.value.posts_count
+            });
           }
         } else {
           // Try to find user by username in the system
@@ -394,7 +450,14 @@ const loadUserProfile = async (handle: string) => {
     
     if (user.value) {
       console.log('✅ User profile loaded:', user.value.display_name);
+      console.log('📊 User stats:', {
+        posts: user.value.posts_count,
+        following: user.value.following_count,
+        followers: user.value.followers_count
+      });
       await loadUserPosts();
+      await loadFollowing();
+      await loadFollowers();
     } else {
       console.log('❌ User not found');
       error.value = 'User not found';
@@ -412,18 +475,150 @@ const loadUserPosts = async () => {
   
   isLoadingPosts.value = true;
   try {
-    // TODO: Implement user posts API call
+    console.log(`📝 Loading posts for user: ${user.value.username} (ID: ${user.value.id})`);
+    
+    // Use consistent getUserPosts method for all users
+    // This ensures the same data structure and behavior regardless of whether it's the current user or not
+    const posts = await activityPubService.getUserPosts(user.value.id, { limit: 20 });
+    userPosts.value = posts || [];
+    
+    hasMorePosts.value = posts && posts.length >= 20; // Enable pagination if we got a full page
+    console.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
+    
+    // Update post count for current user with actual loaded posts
+    if (isCurrentUser.value && user.value) {
+      user.value.posts_count = userPosts.value.length;
+    }
+    
+    // Safe debugging with error handling
+    try {
+      console.log('📋 Posts sample:', userPosts.value.slice(0, 3).map(p => ({ 
+        id: p.id, 
+        content: p.content ? (typeof p.content === 'string' ? p.content.substring(0, 50) : JSON.stringify(p.content).substring(0, 50)) : 'No content',
+        content_type: typeof p.content,
+        author: p.author?.username || p.author_id,
+        visibility: p.visibility,
+        created_at: p.created_at
+      })));
+    } catch (debugError) {
+      console.log('📋 Posts debug error:', debugError);
+      console.log('📋 Raw posts data:', userPosts.value.slice(0, 2));
+    }
+  } catch (error) {
+    console.error('❌ Failed to load user posts:', error);
     userPosts.value = [];
     hasMorePosts.value = false;
-  } catch (error) {
-    console.error('Failed to load user posts:', error);
   } finally {
     isLoadingPosts.value = false;
   }
 };
 
+const loadFollowing = async () => {
+  if (!user.value) return;
+  
+  try {
+    console.log(`👥 Loading following for user: ${user.value.username}`);
+    console.log(`🔍 User is local: ${user.value.is_local}, Is current user: ${isCurrentUser.value}`);
+    
+    if (user.value.is_local && isCurrentUser.value) {
+      // For current user, get from ActivityPub store
+      console.log(`📊 ActivityPub store following data:`, {
+        following: activityPubStore.following,
+        followingCount: activityPubStore.followingCount,
+        followingLength: activityPubStore.following?.length || 'undefined'
+      });
+      
+      followingUsers.value = activityPubStore.following || [];
+    } else {
+      // For other users, try to fetch their following
+      try {
+        const following = await activityPubService.getFollowing(user.value.id);
+        followingUsers.value = following || [];
+      } catch (error) {
+        console.log('Could not load user following:', error);
+        followingUsers.value = [];
+      }
+    }
+    
+    console.log(`📊 Loaded ${followingUsers.value.length} following for ${user.value.username}`);
+    console.log('👥 Following users:', followingUsers.value.map(u => u.display_name || u.username));
+  } catch (error) {
+    console.error('Failed to load following:', error);
+    followingUsers.value = [];
+  }
+};
+
+const loadFollowers = async () => {
+  if (!user.value) return;
+  
+  try {
+    console.log(`👥 Loading followers for user: ${user.value.username}`);
+    console.log(`🔍 User is local: ${user.value.is_local}, Is current user: ${isCurrentUser.value}`);
+    
+    if (user.value.is_local && isCurrentUser.value) {
+      // For current user, get from ActivityPub store
+      console.log(`📊 ActivityPub store followers data:`, {
+        followers: activityPubStore.followers,
+        followersCount: activityPubStore.followersCount,
+        followersLength: activityPubStore.followers?.length || 'undefined'
+      });
+      
+      followerUsers.value = activityPubStore.followers || [];
+    } else {
+      // For other users, try to fetch their followers
+      try {
+        const followers = await activityPubService.getFollowers(user.value.id);
+        followerUsers.value = followers || [];
+      } catch (error) {
+        console.log('Could not load user followers:', error);
+        followerUsers.value = [];
+      }
+    }
+    
+    console.log(`📊 Loaded ${followerUsers.value.length} followers for ${user.value.username}`);
+    console.log('👥 Follower users:', followerUsers.value.map(u => u.display_name || u.username));
+  } catch (error) {
+    console.error('Failed to load followers:', error);
+    followerUsers.value = [];
+  }
+};
+
 const loadMorePosts = async () => {
-  // TODO: Implement pagination
+  if (!user.value || isLoadingPosts.value || !hasMorePosts.value) return;
+  
+  isLoadingPosts.value = true;
+  try {
+    console.log(`📖 Loading more posts for user: ${user.value.username}`);
+    
+    // Get the oldest post's created_at as max_id for pagination
+    const oldestPost = userPosts.value[userPosts.value.length - 1];
+    const maxId = oldestPost?.created_at;
+    
+    if (!maxId) {
+      console.log('❌ No max_id found for pagination');
+      hasMorePosts.value = false;
+      return;
+    }
+    
+    const posts = await activityPubService.getUserPosts(user.value.id, { 
+      limit: 20, 
+      max_id: maxId 
+    });
+    
+    if (posts && posts.length > 0) {
+      userPosts.value.push(...posts);
+      hasMorePosts.value = posts.length >= 20; // Continue pagination if we got a full page
+      console.log(`📊 Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
+    } else {
+      hasMorePosts.value = false;
+      console.log('📭 No more posts available');
+    }
+  } catch (error) {
+    console.error('❌ Failed to load more posts:', error);
+    hasMorePosts.value = false;
+  } finally {
+    isLoadingPosts.value = false;
+  }
 };
 
 const toggleFollow = async () => {
@@ -450,9 +645,9 @@ const mentionUser = () => {
   activityPubStore.openComposer({
     content: `${user.value.handle} `
   });
-  
-  // Navigate to Monyverse
-  router.push('/monyverse');
+
+  // Navigate to Social Home
+  router.push('/social/home');
 };
 
 const handleMute = async () => {
@@ -491,7 +686,26 @@ const handleReport = () => {
 };
 
 const showUserProfile = (clickedUser: FederatedUser) => {
-  router.push(`/profile/${clickedUser.handle}`);
+  // Clean the handle for routing - remove leading @ and ensure proper format
+  let handle = clickedUser.handle.replace(/^@/, ''); // Remove leading @
+  
+  // For routing, we need clean handles without domain for local users
+  if (handle.endsWith('@har.mony.lol')) {
+    handle = handle.replace('@har.mony.lol', '');
+  }
+  
+  console.log(`🔗 Navigating to profile: ${handle} (from ${clickedUser.handle})`);
+  console.log(`📍 Current route before navigation:`, route.path);
+  
+  // Use named route navigation to ensure proper handling
+  router.push({ 
+    name: 'UserProfile', 
+    params: { handle: encodeURIComponent(handle) } 
+  }).then(() => {
+    console.log(`✅ Navigation completed to: /social/profile/${handle}`);
+  }).catch((error) => {
+    console.error(`❌ Navigation failed:`, error);
+  });
 };
 
 const replyToPost = (post: TimelinePost) => {
@@ -518,17 +732,37 @@ const handleReblog = async (postId: string) => {
   }
 };
 
-// Watch route changes
-watch(() => route.params.handle, (newHandle, oldHandle) => {
-  console.log(`👤 Profile route changed from ${oldHandle} to ${newHandle}`);
+// Get the handle from props or route params
+const currentHandle = computed(() => {
+  return props.profileHandle || (route.params.handle as string);
+});
+
+// Watch for handle changes (from both props and route)
+watch(currentHandle, (newHandle, oldHandle) => {
+  console.log(`👤 Profile handle changed from ${oldHandle} to ${newHandle}`);
+  console.log(`📍 Current route:`, route.path);
+  console.log(`🏷️ Props handle:`, props.profileHandle);
+  console.log(`🔗 Route handle:`, route.params.handle);
+  
   if (newHandle && typeof newHandle === 'string') {
+    loadUserProfile(newHandle);
+  }
+}, { immediate: true });
+
+// Watch route changes specifically (for direct URL access)
+watch(() => route.params.handle, (newHandle) => {
+  console.log(`🔗 Route handle changed to: ${newHandle}`);
+  console.log(`📍 Full route path:`, route.path);
+  console.log(`🎯 Route name:`, route.name);
+  
+  if (newHandle && typeof newHandle === 'string' && !props.profileHandle) {
     loadUserProfile(newHandle);
   }
 }, { immediate: true });
 
 // Ensure profile loads on mount
 onMounted(() => {
-  const handle = route.params.handle;
+  const handle = currentHandle.value;
   console.log(`🔄 UserProfileView mounted with handle: ${handle}`);
   if (handle && typeof handle === 'string') {
     loadUserProfile(handle);
@@ -545,14 +779,33 @@ const handleClickOutside = (event: Event) => {
   }
 };
 
+// MonyHeader event handlers
+const handleSwitchFeed = (feed: string) => {
+  router.push({ name: 'Social', params: { timeline: feed } })
+}
+
+const handleOpenComposer = () => {
+  activityPubStore.openComposer()
+}
+
+const handleOpenSearch = () => {
+  // TODO: Implement search functionality
+  console.log('Open search')
+}
+
 document.addEventListener('click', handleClickOutside);
 </script>
 
 <style scoped>
+.mony-header-container {
+  flex-shrink: 0;
+}
 .user-profile-view {
-  min-height: 100vh;
+  height: 100vh;
   background: var(--h-chat, #313338);
   color: white;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .loading-state,
@@ -600,8 +853,16 @@ document.addEventListener('click', handleClickOutside);
   background: #4752c4;
 }
 
+.profile-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
 .profile-header {
   position: relative;
+  flex-shrink: 0;
 }
 
 .profile-banner {
@@ -610,63 +871,119 @@ document.addEventListener('click', handleClickOutside);
   background-size: cover;
   background-position: center;
   position: relative;
+  overflow: hidden;
 }
 
-.banner-overlay {
+.banner-gradient {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: linear-gradient(180deg, 
+    rgba(0, 0, 0, 0.1) 0%, 
+    rgba(0, 0, 0, 0.2) 50%, 
+    rgba(0, 0, 0, 0.4) 100%
+  );
 }
 
-.profile-info {
+.banner-actions {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  z-index: 2;
+}
+
+.banner-action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.banner-action-btn:hover {
+  background: rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: scale(1.05);
+}
+
+.profile-info-container {
   background: var(--h-sidebar, #2b2d31);
-  /* border-radius: 12px 12px 0 0; */
-  margin-top: -60px;
   position: relative;
-  padding: 2rem;
+  padding: 0 1.5rem 1.5rem;
 }
 
-.avatar-section {
+.avatar-container {
   position: relative;
+  margin-top: -50px;
   margin-bottom: 1rem;
+  z-index: 1;
+}
+
+.avatar-wrapper {
+  position: relative;
+  display: inline-block;
 }
 
 .profile-avatar {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
   border: 4px solid var(--h-sidebar, #2b2d31);
-  object-fit: cover;
+  border-radius: 50%;
+  background: var(--h-sidebar, #2b2d31);
 }
 
 .federation-badge {
   position: absolute;
-  bottom: 0;
-  right: 0;
+  bottom: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1d9bf0;
+  border: 2px solid var(--h-sidebar, #2b2d31);
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  background: rgba(114, 137, 218, 0.1);
-  color: #7289da;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border: 1px solid rgba(114, 137, 218, 0.3);
+  justify-content: center;
+  color: white;
+  font-size: 10px;
 }
 
-.name-section {
+.profile-main-content {
+}
+
+.profile-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
   margin-bottom: 1rem;
 }
 
-.display-name {
+.name-handle-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.display-name-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 2rem;
-  font-weight: 700;
-  margin: 0 0 0.25rem;
+  margin-bottom: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.display-name {
+  font-size: 1.5rem;
+  font-weight: 800;
   color: white;
+  margin: 0;
+  line-height: 1.2;
 }
 
 .verified-icon {
@@ -674,99 +991,137 @@ document.addEventListener('click', handleClickOutside);
   flex-shrink: 0;
 }
 
+.domain-tag {
+  background: rgba(29, 155, 240, 0.1);
+  color: #1d9bf0;
+  padding: 0.125rem 0.375rem;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: 1px solid rgba(29, 155, 240, 0.2);
+  text-transform: lowercase;
+}
+
 .user-handle {
-  color: #80848e;
-  font-size: 1.1rem;
-  margin: 0;
-}
-
-.bio-section {
-  margin-bottom: 1.5rem;
+  color: #b9bbbe;
   font-size: 1rem;
-  line-height: 1.5;
+  margin: 0;
+  font-weight: 400;
 }
 
-.stats-section {
-  display: flex;
-  gap: 2rem;
-  margin-bottom: 1rem;
+.primary-actions {
+  flex-shrink: 0;
 }
 
-.stat-item {
+.primary-action-btn {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
+  gap: 0.5rem;
+  background: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  color: #000;
+  padding: 0.6rem 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-width: 100px;
+  justify-content: center;
 }
 
-.stat-item strong {
-  font-size: 1.5rem;
-  font-weight: 700;
+.primary-action-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.primary-action-btn.following {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.5);
   color: white;
 }
 
-.stat-item span {
-  font-size: 0.875rem;
-  color: #80848e;
+.primary-action-btn.following:hover:not(:disabled) {
+  background: rgba(242, 63, 66, 0.15);
+  border-color: #f23f42;
+  color: #f23f42;
+  box-shadow: 0 4px 12px rgba(242, 63, 66, 0.2);
+}
+
+.primary-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.bio-section {
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #dcddde;
+}
+
+.meta-info-row {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .join-date {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #80848e;
+  color: #b9bbbe;
   font-size: 0.875rem;
+  width: 100%;
 }
 
-.profile-actions {
+.stats-row {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
 }
 
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--h-chat, #313338);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  color: white;
-  padding: 0.75rem 1rem;
+.stat-button {
+  background: none;
+  border: none;
+  color: inherit;
   cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 500;
+  padding: 0.125rem 0.25rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  text-decoration: none;
 }
 
-.action-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+.stat-button:hover {
+  text-decoration: underline;
 }
 
-.follow-btn {
-  background: var(--h-brand, #5865f2);
-  border-color: var(--h-brand, #5865f2);
-}
-
-.follow-btn:hover:not(:disabled) {
-  background: #4752c4;
-}
-
-.follow-btn.following {
-  background: transparent;
-  border-color: var(--h-brand, #5865f2);
+.stat-button.active strong {
   color: var(--h-brand, #5865f2);
 }
 
-.follow-btn.following:hover:not(:disabled) {
-  background: rgba(242, 63, 66, 0.1);
-  border-color: #f23f42;
-  color: #f23f42;
+.stat-button.active span {
+  color: var(--h-brand, #5865f2);
 }
 
-.follow-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.stat-button strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+}
+
+.stat-button span {
+  font-size: 0.95rem;
+  color: #b9bbbe;
+  font-weight: 400;
 }
 
 .more-actions {
@@ -775,16 +1130,16 @@ document.addEventListener('click', handleClickOutside);
 
 .actions-menu {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 0.5rem);
   right: 0;
-  width: 180px;
+  width: 200px;
   background: var(--h-sidebar, #2b2d31);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
   padding: 0.5rem;
   z-index: 100;
-  margin-top: 0.5rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
 }
 
 .action-item {
@@ -796,18 +1151,20 @@ document.addEventListener('click', handleClickOutside);
   border: none;
   color: white;
   padding: 0.75rem;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   text-align: left;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
 }
 
 .action-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .action-item.active {
   color: var(--h-brand, #5865f2);
+  background: rgba(88, 101, 242, 0.1);
 }
 
 .action-item.danger {
@@ -822,6 +1179,10 @@ document.addEventListener('click', handleClickOutside);
   display: flex;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: var(--h-sidebar, #2b2d31);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .tab-btn {
@@ -864,12 +1225,15 @@ document.addEventListener('click', handleClickOutside);
 .tab-content {
   background: var(--h-chat, #313338);
   min-height: 400px;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .posts-tab,
 .following-tab,
 .followers-tab {
   padding: 1.5rem;
+  padding-bottom: 100px;
 }
 
 .posts-list {
@@ -941,25 +1305,46 @@ document.addEventListener('click', handleClickOutside);
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-  .profile-info {
-    padding: 1rem;
+  .profile-banner {
+    height: 150px;
   }
   
-  .profile-avatar {
-    width: 80px;
-    height: 80px;
+  .profile-info-container {
+    padding: 0 1rem 1rem;
+  }
+  
+  .avatar-container {
+    margin-top: -35px;
   }
   
   .display-name {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
   }
   
-  .stats-section {
+  .profile-top-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .primary-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .stats-row {
     gap: 1rem;
   }
   
-  .profile-actions {
-    flex-wrap: wrap;
+  .banner-actions {
+    top: 0.75rem;
+    right: 0.75rem;
+    gap: 0.375rem;
+  }
+  
+  .banner-action-btn {
+    width: 32px;
+    height: 32px;
   }
   
   .users-grid {
@@ -968,6 +1353,11 @@ document.addEventListener('click', handleClickOutside);
   
   .tab-btn {
     padding: 0.75rem 1rem;
+  }
+  
+  .actions-menu {
+    right: -0.5rem;
+    width: 180px;
   }
 }
 </style>

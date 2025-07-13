@@ -957,9 +957,9 @@ const moderateUser = async (user: any, action: string) => {
 const navigateToUserPosts = (user: any) => {
   // Navigate to user's profile/posts
   if (user.domain && user.domain !== 'har.mony.lol') {
-    router.push(`/profile/${user.username}@${user.domain}`)
+    router.push(`/social/profile/${user.username}@${user.domain}`)
   } else {
-    router.push(`/profile/${user.username}`)
+    router.push(`/social/profile/${user.username}`)
   }
 }
 
