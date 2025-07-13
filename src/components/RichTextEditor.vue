@@ -111,9 +111,15 @@ const getPlainText = (): string => {
           text += `:${emojiName}:`;
         }
       } else if (el.classList.contains('editor-mention')) {
-        const mentionData = el.getAttribute('data-mention');
-        if (mentionData) {
-          text += mentionData; // Return the stored @uuid@domain format
+        // Extract mention data from rich attributes
+        const displayText = el.getAttribute('data-display-text');
+        
+        if (displayText) {
+          // Use the display text (@username or @username@domain) for message parsing
+          text += displayText;
+        } else {
+          // Fallback to element text content
+          text += el.textContent || '';
         }
       } else if (el.tagName === 'BR') {
         text += '\n';
@@ -295,13 +301,16 @@ const setCursorPosition = (targetPosition: number) => {
 const processMentionsInText = (text: string): DocumentFragment => {
   const fragment = document.createDocumentFragment();
   
-  // Regex to match @uuid@domain format
-  const mentionRegex = /@([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})@([a-zA-Z0-9.-]+)/g;
+  // Simple regex to match @username or @username@domain format (display format)
+  const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
+  
+  console.log('🔧 processMentionsInText called with:', text);
   
   let lastIndex = 0;
   let match;
   
   while ((match = mentionRegex.exec(text)) !== null) {
+    console.log('🔧 Found mention match:', match);
     const matchStart = match.index;
     const matchEnd = match.index + match[0].length;
     
@@ -311,8 +320,10 @@ const processMentionsInText = (text: string): DocumentFragment => {
       fragment.appendChild(document.createTextNode(textBefore));
     }
     
-    // Create mention element
-    const mentionElement = createMentionElement(match[0], match[1], match[2]);
+    // Create mention element with rich metadata
+    const username = match[1];
+    const domain = match[2];
+    const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
     fragment.appendChild(mentionElement);
     
     lastIndex = matchEnd;
@@ -326,38 +337,55 @@ const processMentionsInText = (text: string): DocumentFragment => {
   
   // If no mentions found, just return the text as a text node
   if (lastIndex === 0) {
+    console.log('🔧 No mentions found in text, adding as plain text');
     fragment.appendChild(document.createTextNode(text));
   }
   
   return fragment;
 };
 
-// Create a mention element that displays @username but preserves @uuid@domain in data
-const createMentionElement = (fullMention: string, uuid: string, domain: string): HTMLElement => {
+// Create a mention element from display format (@username or @username@domain)
+const createMentionElementFromDisplay = (displayText: string, username: string, domain?: string): HTMLElement => {
   const span = document.createElement('span');
   span.className = 'editor-mention';
   span.contentEditable = 'false'; // Prevent editing the mention element itself
-  span.setAttribute('data-mention', fullMention); // Store full @uuid@domain
-  span.setAttribute('data-uuid', uuid);
-  span.setAttribute('data-domain', domain);
   
-  // Get user profile to display @username
+  // Look up user information
+  let userId: string | null = null;
+  let userProfile: any = null;
+  let isLocal = false;
+  let actualDomain = domain;
+  
   try {
-    const userProfile = userDataService.getUserProfile(uuid);
-    if (userProfile) {
-      // Display as @username for local users, @username@domain for remote users
-      if (userProfile.isLocal) {
-        span.textContent = `@${userProfile.username}`;
-      } else {
-        span.textContent = `@${userProfile.username}@${userProfile.domain || domain}`;
-      }
-    } else {
-      // Fallback: display as-is if user not found
-      span.textContent = fullMention;
+    // Find user by username and domain
+    userId = userDataService.findUserIdByUsername(username, domain);
+    if (userId) {
+      userProfile = userDataService.getUserProfile(userId);
+      isLocal = userProfile?.is_local || false;
+      actualDomain = userProfile?.domain || domain || 'har.mony.lol';
     }
   } catch (error) {
-    console.error('Error creating mention element:', error);
-    span.textContent = fullMention;
+    console.error('Error looking up user for mention:', error);
+  }
+  
+  // Store rich metadata in data attributes
+  span.setAttribute('data-type', 'mention');
+  span.setAttribute('data-username', username);
+  span.setAttribute('data-display-text', displayText);
+  
+  if (userId) {
+    span.setAttribute('data-userid', userId);
+  }
+  if (actualDomain) {
+    span.setAttribute('data-domain', actualDomain);
+  }
+  span.setAttribute('data-islocal', isLocal.toString());
+  
+  // Display text (what the user sees)
+  if (isLocal) {
+    span.textContent = `@${username}`;
+  } else {
+    span.textContent = domain ? `@${username}@${domain}` : `@${username}`;
   }
   
   return span;
@@ -365,13 +393,19 @@ const createMentionElement = (fullMention: string, uuid: string, domain: string)
 
 // Render content with Discord-like markdown styling
 const renderContent = (text: string) => {
-  if (!editorRef.value || isRendering.value) return;
+  console.log('🔧 renderContent called with:', text);
+  if (!editorRef.value || isRendering.value) {
+    console.log('🔧 renderContent early return:', { hasEditor: !!editorRef.value, isRendering: isRendering.value });
+    return;
+  }
   
   isRendering.value = true;
   const currentCursorPos = getCursorPosition();
+  console.log('🔧 Current cursor position:', currentCursorPos);
   
   // Clear content
   editorRef.value.innerHTML = '';
+  console.log('🔧 Cleared editor content');
   
   if (!text) {
     isRendering.value = false;
@@ -726,7 +760,9 @@ defineExpose({
 watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
     const currentText = getPlainText();
+    console.log('🔧 RichTextEditor watch triggered:', { newValue, currentText, different: currentText !== newValue });
     if (currentText !== newValue) {
+      console.log('🔧 Calling renderContent with:', newValue);
       renderContent(newValue);
       autoExpand();
     }
@@ -924,7 +960,7 @@ onMounted(() => {
 .rich-text-editor :deep(.token.entity) { cursor: help; }
 
 /* Mention styles */
-.rich-text-editor .editor-mention {
+.rich-text-editor :deep(.editor-mention) {
   color: #5865f2;
   background-color: rgba(88, 101, 242, 0.15);
   border-radius: 3px;
@@ -934,7 +970,7 @@ onMounted(() => {
   user-select: none;
 }
 
-.rich-text-editor .editor-mention:hover {
+.rich-text-editor :deep(.editor-mention:hover) {
   background-color: rgba(88, 101, 242, 0.3);
   text-decoration: underline;
 }

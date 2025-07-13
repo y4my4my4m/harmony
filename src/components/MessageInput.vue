@@ -159,6 +159,13 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       // Use the autoSuggest system's built-in selection method
       // This handles both emojis and mentions correctly, including the @ symbol for mentions
       autoSuggest.selectSuggestion(suggestion);
+      
+      // Return focus to the rich text editor after selection
+      nextTick(() => {
+        if (richEditorRef.value?.focus) {
+          richEditorRef.value.focus();
+        }
+      });
     };
 
     const send = () => {

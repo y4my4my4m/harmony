@@ -272,6 +272,7 @@
       });
 
       const parseMessageInput = (input: string): MessagePart[] => {
+        console.log('🔧 parseMessageInput called with:', input);
         const emojiRegex = /:([\w\d_+-]+):/g;
         let lastIndex = 0;
         const result: MessagePart[] = [];
@@ -298,8 +299,11 @@
 
         // Process remaining text
         const remainingText = input.slice(lastIndex);
-        result.push(...parseTextForURLsAndMentions(remainingText));
-
+        console.log('🔧 Processing remaining text for mentions/URLs:', remainingText);
+        const textParts = parseTextForURLsAndMentions(remainingText);
+        result.push(...textParts);
+        
+        console.log('🔧 Final parsed message parts:', result);
         return result;
       };
 
@@ -307,42 +311,116 @@
       // Updated mention regex to match both @username/@username@domain and @uuid@domain (UUIDs contain hyphens)
       const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
       const parseTextForURLsAndMentions = (text: string): MessagePart[] => {
+        console.log('🔧 parseTextForURLsAndMentions called with:', text);
         const parts: MessagePart[] = [];
         let lastIndex = 0;
 
-        const combinedRegex = new RegExp(`${urlRegex.source}|${mentionRegex.source}`, 'gi');
-        let textMatch;
-        while ((textMatch = combinedRegex.exec(text)) !== null) {
-          if (textMatch.index > lastIndex) {
-            parts.push({ type: 'text', text: text.slice(lastIndex, textMatch.index) });
+        // Process URLs and mentions separately to avoid capture group issues
+        const matches: Array<{match: RegExpExecArray, type: 'url' | 'mention'}> = [];
+        
+        // Find all URL matches
+        let urlMatch;
+        urlRegex.lastIndex = 0; // Reset regex
+        while ((urlMatch = urlRegex.exec(text)) !== null) {
+          matches.push({match: urlMatch, type: 'url'});
+        }
+        
+        // Find all mention matches
+        let mentionMatch;
+        mentionRegex.lastIndex = 0; // Reset regex
+        while ((mentionMatch = mentionRegex.exec(text)) !== null) {
+          matches.push({match: mentionMatch, type: 'mention'});
+        }
+        
+        // Sort matches by position
+        matches.sort((a, b) => a.match.index! - b.match.index!);
+        
+        // Process matches in order
+        for (const {match, type} of matches) {
+          console.log('🔧 Found match in ChatComponent:', match, 'type:', type);
+          
+          if (match.index! > lastIndex) {
+            parts.push({ type: 'text', text: text.slice(lastIndex, match.index) });
           }
 
-          if (textMatch[0].startsWith('http')) {
-            parts.push({ type: 'url', url: textMatch[0], preview: true });
-          } else {
-            // Handle mention parsing with new format
-            const username = textMatch[1]; // First capture group: username
-            const domain = textMatch[2]; // Second capture group: domain (optional)
+          if (type === 'url') {
+            parts.push({ type: 'url', url: match[0], preview: true });
+          } else if (type === 'mention') {
+            // Handle mention parsing - support both formats
+            const fullMatch = match[0]; // Full mention like @username or @uuid@domain
+            const firstPart = match[1]; // First capture group: username or uuid
+            const domain = match[2]; // Second capture group: domain (optional)
             
-            // Look up user ID using the mention key
-            const userId = userDataService.findUserIdByUsername(username, domain);
+            // Check if this is already in @uuid@domain format (UUID pattern - flexible hex)
+            const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(firstPart);
             
-            if (userId) {
-              // Get user profile to check domain
-              const userProfile = userDataService.getUserProfile(userId);
-              const userDomain = (userProfile as any)?.domain || 'har.mony.lol';
+            if (isUuidFormat && domain) {
+              // Already in storage format @uuid@domain, use as-is
+              console.log('🔧 Found UUID format mention:', fullMatch);
               
-              // Store in database format: @uuid@domain for all users
-              const storedMention = `@${userId}@${userDomain}`;
-              
-              parts.push({ type: 'mention', mention: storedMention, userId });
+              // Get user profile for additional data
+              const userProfile = userDataService.getUserProfile(firstPart);
+              if (userProfile) {
+                console.log('🔧 UserProfile for UUID mention:', userProfile);
+                parts.push({ 
+                  type: 'mention', 
+                  userId: firstPart,
+                  username: userProfile.username,
+                  domain: userProfile.domain || domain,
+                  isLocal: userProfile.isLocal === true || (userProfile.domain || domain) === 'har.mony.lol',
+                  displayName: userProfile.displayName
+                });
+              } else {
+                // Fallback if user not found
+                parts.push({ type: 'text', text: fullMatch });
+              }
             } else {
-              // If user not found, store as plain text
-              parts.push({ type: 'text', text: textMatch[0] });
+              // Display format @username or @username@domain, convert to storage format
+              console.log('🔧 Found display format mention, looking up user:', firstPart, domain);
+              const userId = userDataService.findUserIdByUsername(firstPart, domain);
+              
+              if (userId) {
+                // Get user profile for complete data
+                const userProfile = userDataService.getUserProfile(userId);
+                if (userProfile) {
+                  const userDomain = userProfile.domain || 'har.mony.lol';
+                  
+                  console.log('🔧 UserProfile for display mention:', userProfile);
+                  console.log('🔧 Full isLocal debug:', {
+                    username: userProfile.username,
+                    domain: userProfile.domain,
+                    isLocal_raw: userProfile.isLocal,
+                    isLocal_type: typeof userProfile.isLocal,
+                    isLocal_boolean: Boolean(userProfile.isLocal),
+                    comparison_with_har_mony_lol: userProfile.domain === 'har.mony.lol',
+                    expected_isLocal: userProfile.domain === 'har.mony.lol' || userProfile.isLocal === true
+                  });
+                  console.log('🔧 Created structured mention object for:', userProfile.username);
+                  
+                  const mentionObject = { 
+                    type: 'mention' as const, 
+                    userId,
+                    username: userProfile.username,
+                    domain: userDomain,
+                    isLocal: userProfile.isLocal === true || userDomain === 'har.mony.lol',
+                    displayName: userProfile.displayName
+                  };
+                  
+                  console.log('🔧 Final mention object:', mentionObject);
+                  parts.push(mentionObject);
+                } else {
+                  console.log('🔧 User profile not found, storing as text:', fullMatch);
+                  parts.push({ type: 'text', text: fullMatch });
+                }
+              } else {
+                // If user not found, store as plain text
+                console.log('🔧 User not found, storing as text:', fullMatch);
+                parts.push({ type: 'text', text: fullMatch });
+              }
             }
           }
 
-          lastIndex = textMatch.index + textMatch[0].length;
+          lastIndex = match.index! + match[0].length;
         }
 
         if (lastIndex < text.length) {

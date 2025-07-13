@@ -72,7 +72,7 @@
           v-else-if="part && typeof part === 'object' && part.type === 'mention'" 
           class="mention" 
           @click="$emit('show-user-profile', part.userId, $event)"
-        >{{ formatMentionDisplay(part.mention, part.userId) }}</span>
+        >{{ formatMentionDisplay(part) }}</span>
         
         <!-- Custom emojis -->
         <img 
@@ -283,8 +283,27 @@ export default defineComponent({
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    // Format mention display based on stored @uuid@domain format
-    const formatMentionDisplay = (storedMention: string, userId: string): string => {
+    // Format mention display based on structured mention data
+    const formatMentionDisplay = (mentionPart: any): string => {
+      try {
+        // Use the structured data from the new MentionContent format
+        if (mentionPart.isLocal) {
+          return `@${mentionPart.username}`;
+        } else {
+          return `@${mentionPart.username}@${mentionPart.domain}`;
+        }
+      } catch (error) {
+        console.error('Error formatting mention display:', error, { mentionPart });
+        // Fallback to legacy format handling if needed
+        if (mentionPart.mention) {
+          return formatLegacyMentionDisplay(mentionPart.mention, mentionPart.userId);
+        }
+        return '@unknown';
+      }
+    };
+
+    // Legacy mention format handler (for backwards compatibility)
+    const formatLegacyMentionDisplay = (storedMention: string, userId: string): string => {
       // storedMention is in format @uuid@domain
       // We need to display as @username for local users or @username@domain for remote users
       
@@ -315,7 +334,7 @@ export default defineComponent({
           return storedMention;
         }
       } catch (error) {
-        console.error('Error formatting mention display:', error, { storedMention, userId });
+        console.error('Error formatting legacy mention display:', error, { storedMention, userId });
         return storedMention; // Fallback to stored format
       }
     };
@@ -906,6 +925,26 @@ export default defineComponent({
 
 .system-username:hover {
   color: #5865f2;
+  text-decoration: underline;
+}
+
+/* Mention styling */
+.mention {
+  color: #5865f2;
+  background-color: rgba(88, 101, 242, 0.15);
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: pointer;
+  font-weight: 500;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  transition: background-color 0.2s ease;
+}
+
+.mention:hover {
+  background-color: rgba(88, 101, 242, 0.3);
   text-decoration: underline;
 }
 </style>

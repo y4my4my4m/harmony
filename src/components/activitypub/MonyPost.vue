@@ -306,7 +306,14 @@ const flattenMessageParts = (content: any): string => {
     return content
       .map(part => {
         if (part.type === 'text') return part.text;
-        if (part.type === 'mention') return part.mention;
+        if (part.type === 'mention') {
+          // Handle new structured mention format
+          if (part.username && part.domain) {
+            return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
+          }
+          // Fallback to legacy format if needed
+          return part.mention || `@${part.username || 'unknown'}`;
+        }
         if (part.type === 'url') return part.url;
         return '';
       })

@@ -157,6 +157,12 @@ export function useAutoSuggest(
           // Create display format for text input (what user sees while typing)
           const isLocal = userData.isLocal;
           const userDomain = userData.domain || 'har.mony.lol';
+          console.log('🔧 User suggestion data:', { 
+            username: userData.username, 
+            isLocal: userData.isLocal, 
+            domain: userData.domain,
+            userDomain 
+          });
           const displayText = isLocal ? `@${userData.username}` : `@${userData.username}@${userDomain}`;
           
           // Create storage format for database (always @uuid@domain)
@@ -350,7 +356,19 @@ export function useAutoSuggest(
       if (match && match.index !== undefined) {
         foundTrigger = true;
         const query = match[1] || '';
-        const triggerPosition = match.index;
+        
+        // Calculate the actual trigger position (where @ or : starts)
+        let triggerPosition = match.index;
+        
+        if (trigger.type === 'mention') {
+          // For mentions, the pattern is (?:^|\s)@([a-zA-Z0-9_+-]*)$
+          // So if the match starts with whitespace, we need to adjust
+          const matchText = match[0];
+          if (matchText.startsWith(' ') || matchText.startsWith('\t')) {
+            triggerPosition = match.index + 1; // Skip the whitespace
+          }
+        }
+        // For emojis, the position is already correct since pattern is :([a-zA-Z0-9_+-]*)$
         
         state.value = {
           isActive: true,
@@ -426,68 +444,67 @@ export function useAutoSuggest(
     try {
       const currentText = getCurrentText ? getCurrentText() : '';
       
-      // Use the stored trigger position instead of pattern matching for more accuracy
+      // Use the stored trigger position
       const triggerStart = state.value.triggerPosition;
       
-      // Find the actual end of the trigger text by re-matching from the trigger position
+      // Find the end of the current trigger text by looking from the trigger position
+      // to the next space, newline, or end of text
       const textFromTrigger = currentText.substring(triggerStart);
-      
-      // Find where the trigger text ends (up to space, newline, or end of string)
       const endMatch = textFromTrigger.match(/^[^\s\n]*/);
-      const triggerLength = endMatch ? endMatch[0].length : 1; // At least the trigger char
+      const triggerLength = endMatch ? endMatch[0].length : 1;
       const triggerEnd = triggerStart + triggerLength;
-    
-    console.log('🔧 selectSuggestion detailed debug:', {
-      currentText,
-      triggerPosition: state.value.triggerPosition,
-      query: state.value.query,
-      triggerStart,
-      triggerEnd,
-      textToReplace: currentText.substring(triggerStart, triggerEnd),
-      charAtTriggerStart: currentText[triggerStart],
-      textBeforeTrigger: currentText.substring(0, triggerStart),
-      textAfterTrigger: currentText.substring(triggerEnd)
-    });
-    
-    let insertText = '';
-    
-    if (state.value.triggerType === 'emoji') {
-      insertText = `:${suggestion.name}:`;
-    } else if (state.value.triggerType === 'mention') {
-      if (finalConfig.mode === 'activitypub') {
-        insertText = suggestion.handle || `@${suggestion.username}`;
-      } else {
-        // Chat mode: use mention_text for storage (@uuid@domain format)
-        if (suggestion.mention_text) {
-          insertText = suggestion.mention_text; // Store as @uuid@domain
+      
+      console.log('🔧 selectSuggestion detailed debug:', {
+        currentText,
+        triggerPosition: state.value.triggerPosition,
+        query: state.value.query,
+        triggerStart,
+        triggerEnd,
+        triggerLength,
+        textToReplace: currentText.substring(triggerStart, triggerEnd),
+        textBeforeTrigger: currentText.substring(0, triggerStart),
+        textAfterTrigger: currentText.substring(triggerEnd)
+      });
+      
+      let insertText = '';
+      
+      if (state.value.triggerType === 'emoji') {
+        insertText = `:${suggestion.name}:`;
+      } else if (state.value.triggerType === 'mention') {
+        if (finalConfig.mode === 'activitypub') {
+          insertText = suggestion.handle || `@${suggestion.username}`;
         } else {
-          insertText = `@${suggestion.username}`;
+          // Chat mode: use display_text for what user sees
+          if (suggestion.display_text) {
+            insertText = suggestion.display_text; // User sees @username or @username@domain
+          } else {
+            insertText = `@${suggestion.username}`;
+          }
         }
       }
-    }
-    
-    const newText = currentText.substring(0, triggerStart) + 
-                   insertText + 
-                   currentText.substring(triggerEnd);
-    
-    // Calculate new cursor position (should be right after the inserted text)
-    const newCursorPosition = triggerStart + insertText.length;
-    
-    console.log('🔧 Final replacement:', { 
-      insertText, 
-      newText,
-      oldLength: currentText.length,
-      newLength: newText.length,
-      newCursorPosition
-    });
-    
-    if (updateText) {
-      updateText(newText, newCursorPosition);
-    }
-    
-    closeSuggestions();
-    
-    return newText;
+      
+      const newText = currentText.substring(0, triggerStart) + 
+                     insertText + 
+                     currentText.substring(triggerEnd);
+      
+      // Calculate new cursor position (should be right after the inserted text)
+      const newCursorPosition = triggerStart + insertText.length;
+      
+      console.log('🔧 Final replacement:', { 
+        insertText, 
+        newText,
+        oldLength: currentText.length,
+        newLength: newText.length,
+        newCursorPosition
+      });
+      
+      if (updateText) {
+        updateText(newText, newCursorPosition);
+      }
+      
+      closeSuggestions();
+      
+      return newText;
     } finally {
       // Reset selection flag to allow future selections
       isSelecting.value = false;
