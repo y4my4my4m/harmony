@@ -1272,11 +1272,11 @@ export default defineComponent({
 <style scoped>
 /* Modern message display styles */
 .message-display {
-  flex-grow: 1;
+  flex: 1;
   overflow-y: auto;
   margin-right: 4px;
   padding: 20px 0 10px 0;
-  height: calc(100vh - 165px);
+  min-height: 0; /* Important for flex child with overflow */
 }
 
 /* Individual message item */

@@ -33,7 +33,6 @@
       @update:replyMessageId="handleDontReply"
       @upload-status-changed="handleUploadStatusChanged"
     />
-
     <GifComponent
       v-if="giphyOpen==true"
       @click.stop
@@ -614,6 +613,9 @@
   .chat-container {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0; /* Important for flex child with overflow */
+    position: relative;
     /* custom wallpapers/styling for users */
     /* background:#000; */
     /* background-image: url('https://wallpaperswide.com/download/counter_strike_cs_go-wallpaper-1920x1080.jpg'); */

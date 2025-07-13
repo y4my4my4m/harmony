@@ -382,6 +382,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     padding: 10px 12px 20px 12px;
     /* background-color: var(--h-chat); */
     flex-direction: column;
+    flex-shrink: 0; /* Prevent the input from shrinking */
   }
   
   .message-input.replying {
@@ -456,8 +457,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
 
   @media (max-width: 768px) {
     .message-input {
-      position: sticky;
-      bottom: 0;
+      flex-shrink: 0;
       margin: 0;
       padding: 12px 16px;
       background: var(--h-chat, #313338);
