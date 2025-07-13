@@ -58,19 +58,29 @@ serve(async (req: Request) => {
     // For now, we'll accept all activities (development only)
     
     // Store the activity
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id || ''
     const { error: storeError } = await supabase
       .from('ap_activities')
       .insert({
         ap_id: activity.id,
         ap_type: activity.type,
+        actor_ap_id: actorUrl,
         activity_data: activity,
-        origin_domain: new URL(activity.actor).hostname,
+        origin_domain: actorUrl ? new URL(actorUrl).hostname : null,
         status: 'received',
-        received_at: new Date().toISOString()
+        is_local: false,
+        to_addresses: activity.to || [],
+        cc_addresses: activity.cc || []
       })
 
     if (storeError) {
       console.error('Failed to store activity:', storeError)
+      return new Response(`Failed to store activity: ${storeError.message}`, { 
+        status: 500, 
+        headers: corsHeaders 
+      })
+    } else {
+      console.log('Successfully stored activity:', activity.id)
     }
 
     // Process the activity based on type
@@ -331,6 +341,39 @@ async function processUpdateActivity(supabase: any, activity: ActivityPubActivit
 async function processDeleteActivity(supabase: any, activity: ActivityPubActivity) {
   // Handle Delete activities
   console.log('Processing Delete activity:', activity.id)
+  
+  // For Delete activities, the object being deleted could be a post, profile, etc.
+  const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id
+  
+  if (!objectId) {
+    console.log('Delete activity has no object to delete')
+    return
+  }
+  
+  // Check if it's a post deletion
+  const { data: post } = await supabase
+    .from('posts')
+    .select('id, author_id')
+    .eq('ap_id', objectId)
+    .single()
+    
+  if (post) {
+    // Mark post as deleted (soft delete)
+    await supabase
+      .from('posts')
+      .update({ 
+        content: null,
+        visibility: 'deleted',
+        deleted_at: new Date().toISOString()
+      })
+      .eq('id', post.id)
+      
+    console.log('Marked post as deleted:', objectId)
+    return
+  }
+  
+  // Could also handle profile deletions, etc.
+  console.log('Delete activity processed for unknown object:', objectId)
 }
 
 async function processLikeActivity(supabase: any, activity: ActivityPubActivity) {

@@ -119,7 +119,8 @@ serve(async (req: Request) => {
 
     // Build ActivityPub Actor document
     const baseUrl = `https://${ourDomain}`
-    const actorId = `${baseUrl}/users/${username}`
+  const actorId = `${baseUrl}/users/${username}`
+  const avatarBase = 'https://db.mony.lol/storage/v1/object/public/avatars/'
     
     const actor: ActivityPubActor = {
       '@context': [
@@ -134,7 +135,7 @@ serve(async (req: Request) => {
       icon: user.avatar_url ? {
         type: 'Image',
         mediaType: 'image/jpeg',
-        url: user.avatar_url.startsWith('http') ? user.avatar_url : `${baseUrl}${user.avatar_url}`
+        url: user.avatar_url.startsWith('http') ? user.avatar_url : `${avatarBase}${user.avatar_url}`
       } : undefined,
       inbox: `${actorId}/inbox`,
       outbox: `${actorId}/outbox`, // TODO: Implement outbox endpoint
