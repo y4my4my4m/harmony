@@ -8,7 +8,7 @@
       <Icon name="reblog" class="reblog-icon" />
       <div 
         class="reblog-author" 
-        @click="viewProfile(authorHandle)"
+        @click="viewProfile(author)"
         :title="`Reblogged by ${author.display_name || author.username}`"
       >
         {{ author.display_name || author.username }} reblogged
@@ -710,13 +710,16 @@ const handleHashtagClick = (tag: string) => {
 }
 
 .reblog-icon {
-  color: #10b981;
+  color: var(--harmony-primary);
+  width: 1rem;
+  height: 1rem;
 }
 
 .reblog-author {
-  color: #3b82f6;
+  color: var(--harmony-primary);
   text-decoration: none;
   font-weight: 500;
+  cursor: pointer;
 }
 
 .reblog-author:hover {
