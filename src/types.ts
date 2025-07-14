@@ -1,3 +1,5 @@
+import type { RealtimeChannel } from '@supabase/supabase-js'
+
 export interface Server {
   id: string;
   name: string;
@@ -60,6 +62,43 @@ export interface Profile {
   created_at?: string;
   updated_at?: string;
   handle?: string;
+}
+
+export interface UserData {
+  // Core identity
+  id: string
+  username: string
+  displayName: string
+  
+  // Profile data
+  avatarUrl?: string
+  bio?: string
+  color?: string
+  domain?: string
+  createdAt: string // When the user account was created
+  updatedAt?: string // When the profile was last updated in database
+  roles?: any[]
+  messageCount?: number
+  voiceTime?: number
+  
+  // Presence data (real-time)
+  status: UserStatus
+  isOnline: boolean
+  lastSeen: string
+  lastHeartbeat: string
+  
+  // Cache metadata
+  isLocal: boolean // true if loaded from local cache, false if fetched from server
+  lastCacheUpdate: string // When we last fetched/updated this data in our local cache
+  source: 'database' | 'presence' | 'cache'
+}
+
+export interface UserContext {
+  id: string
+  type: 'server' | 'dm' | 'global'
+  userIds: Set<string>
+  channel?: RealtimeChannel
+  lastSync: Date
 }
 
 export enum UserStatus {
