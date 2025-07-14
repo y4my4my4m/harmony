@@ -856,9 +856,10 @@ export class ActivityPubService {
       // Remove favorite
       await this.unfavoritePost(postId);
       
-      // 🌐 FEDERATION: Queue unlike activity
+      // 🚀 HYBRID FEDERATION: Try immediate delivery, fallback to queue
       try {
-        await federationService.federateLike(postId, user.id, false);
+        const result = await federationService.federateLike(postId, user.id, false);
+        console.log(`📤 Unlike federation: ${result?.deliveryMethod || 'completed'}`);
       } catch (federationError) {
         console.error('❌ Federation failed for unlike:', federationError);
       }
@@ -868,9 +869,10 @@ export class ActivityPubService {
       // Add favorite
       const interaction = await this.favoritePost(postId);
       
-      // 🌐 FEDERATION: Queue like activity
+      // 🚀 HYBRID FEDERATION: Try immediate delivery, fallback to queue
       try {
-        await federationService.federateLike(postId, user.id, true);
+        const result = await federationService.federateLike(postId, user.id, true);
+        console.log(`📤 Like federation: ${result?.deliveryMethod || 'completed'}`);
       } catch (federationError) {
         console.error('❌ Federation failed for like:', federationError);
       }

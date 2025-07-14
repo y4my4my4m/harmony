@@ -123,7 +123,7 @@
           <div class="action-buttons">
             <!-- Media Upload -->
             <label class="action-btn media-btn" title="Add media">
-              <Icon name="image" />
+              <Icon name="image" :size="24" />
               <input
                 ref="fileInputRef"
                 type="file"
@@ -160,7 +160,7 @@
               :class="['action-btn', 'cw-btn', { active: showContentWarning }]"
               title="Add content warning"
             >
-              <Icon name="warning" />
+              <Icon name="warning" :size="24"/>
             </button>
 
             <!-- Visibility Selector -->
@@ -170,7 +170,7 @@
                 class="action-btn visibility-btn"
                 :title="`Visibility: ${visibilityLabels[visibility]}`"
               >
-                <Icon :name="visibilityIcons[visibility]" />
+                <Icon :size="24" :name="visibilityIcons[visibility]" />
                 <Icon name="chevron-down" :size="12" />
               </button>
               
@@ -181,7 +181,7 @@
                   @click="selectVisibility(key)"
                   :class="['visibility-option', { active: visibility === key }]"
                 >
-                  <Icon :name="visibilityIcons[key]" />
+                  <Icon :size="24" :name="visibilityIcons[key]" />
                   <div class="visibility-info">
                     <div class="visibility-label">{{ label }}</div>
                     <div class="visibility-desc">{{ visibilityDescriptions[key] }}</div>
