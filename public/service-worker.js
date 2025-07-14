@@ -55,82 +55,9 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// Fetch event - implement caching strategies
-self.addEventListener('fetch', (event) => {
-  const { request } = event
-  const url = new URL(request.url)
+// Note: Main fetch event handler is implemented later in the file with enhanced logic
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') return
-
-  // Skip unsupported schemes (chrome-extension, moz-extension, etc.)
-  if (!url.protocol.startsWith('http')) return
-
-  // Handle different types of requests
-  if (url.pathname.startsWith('/api/')) {
-    // API requests - network first with cache fallback
-    event.respondWith(networkFirstStrategy(request, API_CACHE))
-  } else if (STATIC_RESOURCES.some(resource => url.pathname === resource || url.pathname.endsWith(resource))) {
-    // Static resources - cache first
-    event.respondWith(cacheFirstStrategy(request, STATIC_CACHE))
-  } else if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2)$/)) {
-    // Assets - cache first with network fallback
-    event.respondWith(cacheFirstStrategy(request, CACHE_NAME))
-  } else {
-    // HTML pages - network first with cache fallback
-    event.respondWith(networkFirstStrategy(request, CACHE_NAME))
-  }
-})
-
-// Caching strategies
-async function cacheFirstStrategy(request, cacheName) {
-  try {
-    // Skip caching for unsupported schemes
-    const url = new URL(request.url)
-    if (!url.protocol.startsWith('http')) {
-      return fetch(request)
-    }
-
-    const cachedResponse = await caches.match(request)
-    if (cachedResponse) {
-      return cachedResponse
-    }
-
-    const networkResponse = await fetch(request)
-    if (networkResponse.status === 200) {
-      const cache = await caches.open(cacheName)
-      cache.put(request, networkResponse.clone())
-    }
-    return networkResponse
-  } catch (error) {
-    console.error('Cache first strategy failed:', error)
-    return new Response('Offline', { status: 503 })
-  }
-}
-
-async function networkFirstStrategy(request, cacheName) {
-  try {
-    // Skip caching for unsupported schemes
-    const url = new URL(request.url)
-    if (!url.protocol.startsWith('http')) {
-      return fetch(request)
-    }
-
-    const networkResponse = await fetch(request)
-    if (networkResponse.status === 200) {
-      const cache = await caches.open(cacheName)
-      cache.put(request, networkResponse.clone())
-    }
-    return networkResponse
-  } catch (error) {
-    console.log('Network failed, trying cache:', error)
-    const cachedResponse = await caches.match(request)
-    if (cachedResponse) {
-      return cachedResponse
-    }
-    return new Response('Offline', { status: 503 })
-  }
-}
+// Note: Caching strategies are implemented later in the file with enhanced versions
 
 // Enhanced notification handling with proper Discord-like behavior
 self.addEventListener('push', async (event) => {
@@ -376,69 +303,52 @@ async function processNotification(data) {
   console.log('🔄 Service Worker: Processing notification:', data)
 }
 
-// Cache management
-self.addEventListener('install', (event) => {
-  console.log('🔧 Service Worker: Installing...')
-  
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll([
-        '/',
-        '/harmony_icon1.png',
-        '/manifest.json'
-      ])
-    })
-  )
-  
-  self.skipWaiting()
-})
-
-self.addEventListener('activate', (event) => {
-  console.log('✅ Service Worker: Activated')
-  
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME && cacheName !== NOTIFICATION_CACHE) {
-            console.log('🗑️ Service Worker: Deleting old cache:', cacheName)
-            return caches.delete(cacheName)
-          }
-        })
-      )
-    })
-  )
-  
-  self.clients.claim()
-})
+// Note: Install and activate event listeners are defined at the top of the file
 
 // Enhanced fetch handling with offline support
 self.addEventListener('fetch', (event) => {
-  // Only handle same-origin HTTP(S) requests
-  if (!event.request.url.startsWith(self.location.origin)) {
-    return
-  }
-
   // Skip unsupported schemes
   const requestUrl = new URL(event.request.url)
   if (!requestUrl.protocol.startsWith('http')) {
     return
   }
 
-  // Enhanced request categorization
+  // Skip ALL image requests to prevent avatar loops
+  if (event.request.destination === 'image' || 
+      requestUrl.pathname.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|bmp)$/i)) {
+    return
+  }
+
+  // Only handle same-origin requests - this prevents external avatar loops
+  if (requestUrl.hostname !== self.location.hostname) {
+    return
+  }
+
+  // Skip Supabase storage URLs (these are external and cause loops)
+  if (requestUrl.hostname.includes('supabase') || 
+      requestUrl.hostname.includes('storage') ||
+      requestUrl.pathname.includes('storage/v1/object/public')) {
+    return
+  }
+
+  // Skip requests that might cause loops (additional safety)
+  if (requestUrl.pathname.includes('avatar') || 
+      requestUrl.pathname.includes('profile') || 
+      requestUrl.searchParams.has('avatar') ||
+      requestUrl.searchParams.has('profile_image')) {
+    return
+  }
+
+  // Enhanced request categorization (images are skipped above)
   const url = new URL(event.request.url)
   const isAPIRequest = url.pathname.startsWith('/api/')
   const isAuthRequest = url.pathname.includes('/auth/')
-  const isImageRequest = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url.pathname)
   const isCSSRequest = url.pathname.endsWith('.css')
   const isJSRequest = url.pathname.endsWith('.js')
 
   if (isAPIRequest || isAuthRequest) {
     // Critical API requests - network first with enhanced error handling
     event.respondWith(enhancedNetworkFirst(event.request, API_CACHE))
-  } else if (isImageRequest) {
-    // Images - cache first with network fallback
-    event.respondWith(enhancedCacheFirst(event.request, CACHE_NAME))
   } else if (isCSSRequest || isJSRequest) {
     // Static assets - stale while revalidate
     event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE))
@@ -453,10 +363,13 @@ async function enhancedNetworkFirst(request, cacheName) {
   try {
     const networkResponse = await fetch(request)
     
-    if (networkResponse.status === 200) {
+    if (networkResponse.status === 200 && networkResponse.ok) {
       const cache = await caches.open(cacheName)
       // Clone response before caching
-      cache.put(request, networkResponse.clone())
+      const responseClone = networkResponse.clone()
+      cache.put(request, responseClone).catch(err => {
+        console.warn('Failed to cache response:', err)
+      })
     }
     
     return networkResponse
@@ -535,60 +448,36 @@ async function enhancedNetworkFirst(request, cacheName) {
   }
 }
 
-async function enhancedCacheFirst(request, cacheName) {
-  const cachedResponse = await caches.match(request)
-  
-  if (cachedResponse) {
-    // Update cache in background
-    fetch(request).then(response => {
-      if (response.status === 200) {
-        caches.open(cacheName).then(cache => {
-          cache.put(request, response)
-        })
-      }
-    }).catch(() => {
-      // Ignore network errors for background updates
-    })
-    
-    return cachedResponse
-  }
-  
-  try {
-    const networkResponse = await fetch(request)
-    
-    if (networkResponse.status === 200) {
-      const cache = await caches.open(cacheName)
-      cache.put(request, networkResponse.clone())
-    }
-    
-    return networkResponse
-  } catch (error) {
-    return new Response('Resource not available offline', { status: 503 })
-  }
-}
-
 async function staleWhileRevalidate(request, cacheName) {
   const cachedResponse = await caches.match(request)
   
   // Always fetch in background to update cache
   const fetchPromise = fetch(request).then(response => {
     if (response.status === 200) {
+      // Clone the response BEFORE using it
+      const responseClone = response.clone()
       caches.open(cacheName).then(cache => {
-        cache.put(request, response.clone())
+        cache.put(request, responseClone)
+      }).catch(err => {
+        console.warn('Failed to cache response in background:', err)
       })
     }
     return response
-  }).catch(() => {
-    // Ignore errors for background updates
+  }).catch(err => {
+    console.warn('Background fetch failed:', err)
+    return null
   })
   
   // Return cached version immediately if available
   if (cachedResponse) {
+    // Start background update but don't wait for it
+    fetchPromise
     return cachedResponse
   }
   
   // Otherwise wait for network
-  return fetchPromise || new Response('Resource not available', { status: 503 })
+  const networkResponse = await fetchPromise
+  return networkResponse || new Response('Resource not available', { status: 503 })
 }
 
 console.log('🚀 Service Worker: Script loaded successfully')

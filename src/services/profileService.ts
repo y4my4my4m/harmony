@@ -112,7 +112,9 @@ const downloadAvatar = async (avatarPath: string): Promise<string> => {
 
 const uploadAvatar = async (userId: string, file: File): Promise<string> => {
   const filePath = `${userId}/${file.name}`;
-  const { error } = await supabase.storage.from('avatars').upload(filePath, file);
+  const { error } = await supabase.storage.from('avatars').upload(filePath, file, {
+    upsert: true
+  });
 
   if (error) throw error;
   return filePath;

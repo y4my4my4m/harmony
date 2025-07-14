@@ -6,32 +6,37 @@ import { supabase } from '@/supabase'
  * Always returns the proper public URL for Supabase storage paths
  */
 export function getAvatarUrl(avatarUrl: string | null | undefined): string {
-  // Return default avatar if no URL provided
-  if (!avatarUrl) {
+  // Return default avatar if no URL provided or if it's not a string
+  if (!avatarUrl || typeof avatarUrl !== 'string') {
     return '/default_avatar.png'
   }
 
   // If it's already a full URL (starts with http/https), return as-is
   // This handles external URLs and already-processed Supabase URLs
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+    console.log('Returning existing full URL:', avatarUrl)
     return avatarUrl
   }
 
   // If it's a Supabase storage path (contains user ID folder structure)
   if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
+    // Use public URL since avatars bucket is now public
     const { data } = supabase.storage
       .from('avatars')
       .getPublicUrl(avatarUrl)
     
+    console.log('Generated Supabase public URL:', data.publicUrl, 'from path:', avatarUrl)
     return data.publicUrl
   }
 
   // If it's a local path (starts with /), return as-is
   if (avatarUrl.startsWith('/')) {
+    console.log('Returning local path:', avatarUrl)
     return avatarUrl
   }
 
   // If it's just a filename or doesn't match expected patterns, return default
+  console.log('Returning default avatar for unrecognized format:', avatarUrl)
   return '/default_avatar.png'
 }
 
@@ -64,4 +69,12 @@ export function normalizeAvatarForStorage(avatarUrl: string | null | undefined):
   
   // If it's an external URL, return as-is (we'll store the full URL)
   return avatarUrl
+}
+
+/**
+ * Gets avatar URL for federated/external use (ActivityPub, WebFinger)
+ * Since the bucket is now public, this just uses the main getAvatarUrl function
+ */
+export function getFederatedAvatarUrl(avatarUrl: string | null | undefined): string {
+  return getAvatarUrl(avatarUrl)
 }
