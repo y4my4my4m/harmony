@@ -38,9 +38,9 @@ const findEmojiByName = (name: string) => {
   return undefined;
 };
 
-// Helper to handle both ActivityPub HTML content and our internal JSON format  
+// Helper to handle both ActivityPub converted content and our internal JSON format  
 const flattenContentToString = (content: any): string => {
-  // ActivityPub content is typically HTML string - use directly
+  // Handle string content (shouldn't happen anymore with our new system)
   if (typeof content === 'string') {
     return content;
   }
@@ -53,14 +53,18 @@ const flattenContentToString = (content: any): string => {
         if (part && typeof part === 'object' && part.text) return part.text;
         if (part && typeof part === 'object' && part.type === 'text') return part.text;
         if (part && typeof part === 'object' && part.type === 'mention') {
-          // Handle new structured mention format
-          if (part.username && part.domain) {
-            return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
+          // Handle mention objects from ActivityPub conversion
+          if (part.username && part.domain && !part.isLocal) {
+            return `@${part.username}@${part.domain}`;
+          } else if (part.username) {
+            return `@${part.username}`;
           }
           // Fallback to legacy format if needed
           return part.mention || `@${part.username || 'unknown'}`;
         }
-        if (part && typeof part === 'object' && part.type === 'url') return part.url || '';
+        if (part && typeof part === 'object' && part.type === 'url') {
+          return part.text || part.url || '';
+        }
         return '';
       })
       .join('');
@@ -96,14 +100,26 @@ const isSingleEmoji = computed(() => {
 });
 
 const formattedContent = computed(() => {
-  let formatted = flattenContentToString(props.content);
-  
-  // If the content is already HTML (from ActivityPub), clean and process it
-  if (typeof props.content === 'string' && (formatted.includes('<') || formatted.includes('&'))) {
-    // Clean up malformed HTML from ActivityPub content
-    formatted = cleanActivityPubHTML(formatted);
+  // If content is not an array, fallback to string processing
+  if (!Array.isArray(props.content)) {
+    let formatted = flattenContentToString(props.content);
     
-    // Apply emoji formatting
+    // Format hashtags FIRST
+    formatted = formatted.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
+    
+    // Format mentions SECOND  
+    formatted = formatted.replace(/@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g, (match, username, domain) => {
+      const handle = domain ? `@${username}@${domain}` : `@${username}`;
+      return `<span class="mention" data-handle="${handle}">${handle}</span>`;
+    });
+    
+    // Format URLs THIRD (before emojis to avoid conflicts)
+    formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="url-link">$1</a>');
+    
+    // Format line breaks
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // Format custom emojis LAST to avoid URL conflicts
     formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
       const emoji = findEmojiByName(emojiName);
       if (emoji && emoji.url) {
@@ -112,67 +128,65 @@ const formattedContent = computed(() => {
       }
       return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
     });
+    
     return formatted;
   }
-  
-  // For our internal format, apply full formatting
-  // Format hashtags FIRST
-  formatted = formatted.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
-  
-  // Format mentions SECOND  
-  formatted = formatted.replace(/@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g, (match, username, domain) => {
-    const handle = domain ? `@${username}@${domain}` : `@${username}`;
-    return `<span class="mention" data-handle="${handle}">${handle}</span>`;
-  });
-  
-  // Format URLs THIRD (before emojis to avoid conflicts)
-  formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="url-link">$1</a>');
-  
-  // Format line breaks
-  formatted = formatted.replace(/\n/g, '<br>');
-  
-  // Format custom emojis LAST to avoid URL conflicts
-  formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
-    const emoji = findEmojiByName(emojiName);
-    if (emoji && emoji.url) {
-      const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
-      return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
-    }
-    return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
-  });
-  
-  return formatted;
-});
 
-// Clean and fix malformed ActivityPub HTML content
-const cleanActivityPubHTML = (html: string): string => {
-  // Fix common malformed HTML patterns from ActivityPub
-  
-  // Fix nested anchor tags (like the issue you showed)
-  // Pattern: <a href="<a href="URL"...">@username</a>
-  html = html.replace(/<a\s+href="<a\s+href="\s*([^"]+)"\s*[^>]*>\s*([^<]+)<\/a>/gi, '<a href="$1" class="mention">$2</a>');
-  
-  // Fix broken anchor tag attributes
-  // Pattern: <a href="URL" class="...">... becomes proper link
-  html = html.replace(/<a\s+href="\s*([^"]+)"\s*[^>]*class="[^"]*mention[^"]*"[^>]*>\s*@?([^<]+)\s*<\/a>/gi, '<a href="$1" class="mention">@$2</a>');
-  
-  // Fix h-card spans with malformed structure
-  html = html.replace(/<span[^>]*class="[^"]*h-card[^"]*"[^>]*>.*?<a[^>]*href="\s*([^"]+)"\s*[^>]*>\s*@?([^<]+)\s*<\/a>.*?<\/span>/gi, '<a href="$1" class="mention">@$2</a>');
-  
-  // Remove any stray closing tags that don't have opening tags
-  html = html.replace(/<\/a>\s*class="[^"]*"/gi, '');
-  
-  // Fix any remaining malformed URLs that aren't in proper anchor tags
-  html = html.replace(/([^"'>])(https?:\/\/[^\s<>"']+)([^<]*?)class="[^"]*"/gi, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>$3');
-  
-  // Clean up extra whitespace and line breaks
-  html = html.replace(/\s+/g, ' ').trim();
-  
-  // Ensure mentions are properly formatted
-  html = html.replace(/<a\s+href="([^"]+)"\s+class="mention">@?([^<]+)<\/a>/gi, '<a href="$1" class="mention" target="_blank" rel="noopener noreferrer">@$2</a>');
-  
-  return html;
-};
+  // Process JSONB array directly (our new standard format)
+  return props.content
+    .map(item => {
+      if (!item || typeof item !== 'object') {
+        return String(item || '');
+      }
+
+      switch (item.type) {
+        case 'text': {
+          let text = item.text || '';
+          
+          // Format hashtags
+          text = text.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
+          
+          // Format line breaks
+          text = text.replace(/\n/g, '<br>');
+          
+          // Format custom emojis
+          text = text.replace(/:([a-zA-Z0-9_+-]+):/g, (match: string, emojiName: string) => {
+            const emoji = findEmojiByName(emojiName);
+            if (emoji && emoji.url) {
+              const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
+              return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
+            }
+            return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
+          });
+          
+          return text;
+        }
+
+        case 'mention': {
+          const username = item.username || 'unknown';
+          const domain = item.domain;
+          const isLocal = item.isLocal;
+          
+          // For local users, show just @username
+          // For remote users, show @username@domain
+          const displayName = isLocal ? `@${username}` : `@${username}@${domain}`;
+          const handle = isLocal ? `@${username}` : `@${username}@${domain}`;
+          
+          return `<span class="mention" data-handle="${handle}">${displayName}</span>`;
+        }
+
+        case 'url': {
+          const url = item.url || '';
+          const linkText = item.text || url;
+          return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="url-link">${linkText}</a>`;
+        }
+
+        default:
+          return String(item.text || item || '');
+      }
+    })
+    .join('');
+});
 
 // Add click event handling for mentions and hashtags
 const handleClick = (event: Event) => {

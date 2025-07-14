@@ -262,29 +262,13 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
       return
     }
 
-    // Clean up the HTML content before storing
-    let cleanContent = object.content || '';
-    if (typeof cleanContent === 'string') {
-      // Fix common malformed HTML patterns from ActivityPub
-      cleanContent = cleanContent
-        // Fix nested anchor tags
-        .replace(/<a\s+href="<a\s+href="\s*([^"]+)"\s*[^>]*>\s*([^<]+)<\/a>/gi, '<a href="$1" class="mention">$2</a>')
-        // Fix broken anchor tag attributes  
-        .replace(/<a\s+href="\s*([^"]+)"\s*[^>]*class="[^"]*mention[^"]*"[^>]*>\s*@?([^<]+)\s*<\/a>/gi, '<a href="$1" class="mention">@$2</a>')
-        // Fix h-card spans with malformed structure
-        .replace(/<span[^>]*class="[^"]*h-card[^"]*"[^>]*>.*?<a[^>]*href="\s*([^"]+)"\s*[^>]*>\s*@?([^<]+)\s*<\/a>.*?<\/span>/gi, '<a href="$1" class="mention">@$2</a>')
-        // Remove stray closing tags
-        .replace(/<\/a>\s*class="[^"]*"/gi, '')
-        // Fix malformed URLs
-        .replace(/([^"'>])(https?:\/\/[^\s<>"']+)([^<]*?)class="[^"]*"/gi, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>$3')
-        // Clean up whitespace
-        .replace(/\s+/g, ' ').trim();
-    }
+    // Convert ActivityPub HTML content to our standard JSONB format
+    const contentArray = parseActivityPubHTMLToJSONB(object.content || '', mentionTags);
 
-    // Store the federated post with cleaned HTML content
+    // Store the federated post with converted content in our standard JSONB array format
     const postData = {
       author_id: author.id,
-      content: cleanContent, // Store cleaned HTML content
+      content: contentArray, // Store as our standard JSONB array format
       visibility: 'public', // Assume public for federated posts
       ap_id: object.id,
       ap_type: 'Note',
@@ -332,19 +316,23 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
         // Create mention notification matching the actual notifications table schema
         // Extract and clean up the HTML content for the notification preview
         let contentPreview = '';
-        if (typeof savedPost.content === 'string') {
-          // Strip HTML tags and decode entities for notification preview
-          contentPreview = savedPost.content
-            .replace(/<[^>]*>/g, '') // Remove HTML tags
-            .replace(/&lt;/g, '<')   // Decode HTML entities
-            .replace(/&gt;/g, '>')
-            .replace(/&amp;/g, '&')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/&nbsp;/g, ' ')  // Non-breaking space
-            .replace(/&hellip;/g, '...') // Ellipsis
-            .trim()
-            .substring(0, 120);
+        if (Array.isArray(savedPost.content) && savedPost.content.length > 0) {
+          // Content is now stored as JSONB array, extract text from first element
+          const textContent = savedPost.content[0]?.text || '';
+          if (typeof textContent === 'string') {
+            // Strip HTML tags and decode entities for notification preview
+            contentPreview = textContent
+              .replace(/<[^>]*>/g, '') // Remove HTML tags
+              .replace(/&lt;/g, '<')   // Decode HTML entities
+              .replace(/&gt;/g, '>')
+              .replace(/&amp;/g, '&')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&nbsp;/g, ' ')  // Non-breaking space
+              .replace(/&hellip;/g, '...') // Ellipsis
+              .trim()
+              .substring(0, 120);
+          }
         }
         
         // Ensure avatar URL is absolute
@@ -513,4 +501,142 @@ async function getOrCreateRemoteProfile(supabase: any, actorUrl: string) {
     console.error('Failed to fetch/create remote profile:', error)
     return null
   }
-} 
+}
+
+// HTML to JSONB content parser for ActivityPub content
+function parseActivityPubHTMLToJSONB(htmlContent: string, mentionTags: any[] = []): any[] {
+  if (!htmlContent || typeof htmlContent !== 'string') {
+    return [{ type: 'text', text: '' }];
+  }
+
+  const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol';
+
+  // Create a map of mention URLs to usernames for easy lookup
+  const mentionMap = new Map();
+  mentionTags.forEach((tag: any) => {
+    if (tag.type === 'Mention' && tag.href && tag.name) {
+      mentionMap.set(tag.href, tag.name.replace('@', ''));
+    }
+  });
+
+  // Clean up malformed HTML first
+  const cleanHtml = htmlContent
+    // Fix nested anchor tags
+    .replace(/<a\s+href="<a\s+href="\s*([^"]+)"\s*[^>]*>\s*([^<]+)<\/a>/gi, '<a href="$1" class="mention">$2</a>')
+    // Fix broken anchor tag attributes  
+    .replace(/<a\s+href="\s*([^"]+)"\s*[^>]*class="[^"]*mention[^"]*"[^>]*>\s*@?([^<]+)\s*<\/a>/gi, '<a href="$1" class="mention">@$2</a>')
+    // Fix h-card spans with malformed structure
+    .replace(/<span[^>]*class="[^"]*h-card[^"]*"[^>]*>.*?<a[^>]*href="\s*([^"]+)"\s*[^>]*>\s*@?([^<]+)\s*<\/a>.*?<\/span>/gi, '<a href="$1" class="mention">@$2</a>')
+    // Remove stray closing tags
+    .replace(/<\/a>\s*class="[^"]*"/gi, '')
+    // Clean up whitespace
+    .replace(/\s+/g, ' ').trim();
+
+  const result: any[] = [];
+  
+  // Simple HTML parser - split by tags and process
+  const parts = cleanHtml.split(/(<[^>]+>)/g).filter(part => part.trim() !== '');
+  
+  let currentText = '';
+  let inTag = false;
+  let tagName = '';
+  let tagAttributes: any = {};
+
+  for (const part of parts) {
+    if (part.startsWith('<')) {
+      // Process any accumulated text
+      if (currentText.trim()) {
+        result.push({ type: 'text', text: currentText.trim() });
+        currentText = '';
+      }
+
+      // Handle tag
+      if (part.startsWith('</')) {
+        // Closing tag
+        inTag = false;
+        tagName = '';
+        tagAttributes = {};
+      } else {
+        // Opening tag
+        const tagMatch = part.match(/<(\w+)([^>]*)>/);
+        if (tagMatch) {
+          tagName = tagMatch[1].toLowerCase();
+          const attrString = tagMatch[2];
+          
+          // Parse attributes
+          tagAttributes = {};
+          const attrMatches = attrString.matchAll(/(\w+)=['""]([^'""]*)['"]/g);
+          for (const match of attrMatches) {
+            tagAttributes[match[1]] = match[2];
+          }
+
+          inTag = true;
+        }
+      }
+    } else {
+      // Text content
+      if (inTag && tagName === 'a' && tagAttributes.href) {
+        // This is a link - check if it's a mention
+        const linkText = part.trim();
+        const href = tagAttributes.href;
+        
+        if (tagAttributes.class?.includes('mention') || mentionMap.has(href)) {
+          // It's a mention
+          const username = mentionMap.get(href) || linkText.replace('@', '');
+          const domain = href ? new URL(href).hostname : null;
+          
+          result.push({
+            type: 'mention',
+            username: username,
+            domain: domain,
+            isLocal: domain === ourDomain,
+            url: href
+          });
+        } else {
+          // It's a regular URL
+          result.push({
+            type: 'url',
+            url: href,
+            text: linkText || href
+          });
+        }
+        inTag = false;
+      } else {
+        // Regular text
+        currentText += part;
+      }
+    }
+  }
+
+  // Process any remaining text
+  if (currentText.trim()) {
+    result.push({ type: 'text', text: currentText.trim() });
+  }
+
+  // If no content was parsed, return empty text
+  if (result.length === 0) {
+    return [{ type: 'text', text: '' }];
+  }
+
+  // Decode HTML entities in text parts
+  return result.map(item => {
+    if (item.type === 'text') {
+      item.text = item.text
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&hellip;/g, '...')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<p>/gi, '')
+        .replace(/<\/p>/gi, '\n')
+        .trim();
+    }
+    return item;
+  }).filter(item => 
+    // Remove empty text items
+    !(item.type === 'text' && !item.text.trim())
+  );
+}

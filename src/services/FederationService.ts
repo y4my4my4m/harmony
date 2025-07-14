@@ -684,6 +684,17 @@ export class FederationService {
               .replace(/</g, '&lt;')
               .replace(/>/g, '&gt;')
               .replace(/\n/g, '<br>');
+          } else if (item.type === 'mention') {
+            // Convert mention objects to HTML
+            const username = item.username || 'unknown';
+            const domain = item.domain;
+            const href = item.url || (domain ? `https://${domain}/users/${username}` : `https://har.mony.lol/users/${username}`);
+            return `<a href="${href}" class="mention">@${username}</a>`;
+          } else if (item.type === 'url') {
+            // Convert URL objects to HTML
+            const url = item.url || '';
+            const text = item.text || url;
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
           }
           return '';
         })
