@@ -1436,15 +1436,31 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Delete a post
+     * Delete a post with federation support
      */
     async deletePost(postId: string) {
       try {
         const user = await supabase.auth.getUser();
         if (!user.data.user) throw new Error('User not authenticated');
 
-        // Mark post as deleted
-        const { error } = await supabase
+        // First, get the post with author information to check if it needs federation
+        const { data: postData, error: fetchError } = await supabase
+          .from('posts')
+          .select(`
+            *,
+            author:profiles (
+              id, username, display_name, domain, avatar_url, is_local
+            )
+          `)
+          .eq('id', postId)
+          .eq('author_id', user.data.user.id)
+          .single();
+
+        if (fetchError) throw fetchError;
+        if (!postData) throw new Error('Post not found or you do not have permission to delete it');
+
+        // Mark post as deleted in database
+        const { error: deleteError } = await supabase
           .from('posts')
           .update({ 
             is_deleted: true, 
@@ -1453,7 +1469,19 @@ export const useActivityPubStore = defineStore('activitypub', {
           .eq('id', postId)
           .eq('author_id', user.data.user.id);
 
-        if (error) throw error;
+        if (deleteError) throw deleteError;
+
+        // 🌐 FEDERATION: Federate delete if it's a local public post
+        if (postData.is_local && postData.visibility === 'public') {
+          try {
+            const { federationService } = await import('@/services/FederationService');
+            const activityId = await federationService.federatePostDelete(postId, postData.author);
+            console.log(`🗑️ Post delete ${postId} queued for federation: ${activityId}`);
+          } catch (federationError) {
+            console.error('❌ Federation delete failed for post:', federationError);
+            // Continue - federation failure shouldn't prevent local deletion
+          }
+        }
 
         // Remove from local feeds
         this.removePostFromFeeds(postId);

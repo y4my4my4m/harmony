@@ -258,39 +258,43 @@
         >
           <Icon :name="post.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
-
         <div class="action-menu">
-          <button class="action-button menu-button" @click="showMenu = !showMenu">
+          <button 
+            class="action-button menu-button" 
+            @click="handleMenuToggle"
+            :title="showMenu ? 'Close menu' : 'More options'"
+          >
             <Icon name="more-horizontal" />
           </button>
+        </div>
+        
+        <!-- Post action dropdown menu -->
+        <div v-if="showMenu" class="action-dropdown">
+          <button 
+            class="dropdown-item"
+            @click="copyLink"
+          >
+            <Icon name="link" />
+            <span>Copy link</span>
+          </button>
           
-          <div v-if="showMenu" class="action-dropdown" v-click-outside="closeMenu">
-            <button 
-              class="dropdown-item"
-              @click="copyLink"
-            >
-              <Icon name="link" />
-              <span>Copy link</span>
-            </button>
-            
-            <button 
-              v-if="canEdit"
-              class="dropdown-item"
-              @click="onEdit"
-            >
-              <Icon name="edit" />
-              <span>Edit</span>
-            </button>
-            
-            <button 
-              v-if="canDelete"
-              class="dropdown-item danger"
-              @click="onDelete"
-            >
-              <Icon name="trash" />
-              <span>Delete</span>
-            </button>
-          </div>
+          <button 
+            v-if="canEdit"
+            class="dropdown-item"
+            @click="onEdit"
+          >
+            <Icon name="edit" />
+            <span>Edit</span>
+          </button>
+          
+          <button 
+            v-if="canDelete"
+            class="dropdown-item danger"
+            @click="onDelete"
+          >
+            <Icon name="trash" />
+            <span>Delete</span>
+          </button>
         </div>
       </div>
     </div>
@@ -303,13 +307,24 @@
       @reply-sent="handleReplySent"
       @close="showInlineReply = false"
     />
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmationModal
+      :show="showDeleteConfirmation"
+      title="Confirm Delete"
+      message="Are you sure you want to delete this post? This action cannot be undone."
+      @confirm="handleDeleteConfirm"
+      @cancel="handleDeleteCancel"
+      @close="handleDeleteCancel"
+    />
   </article>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useAuthStore } from '@/stores/auth';
+import { useUserData } from '@/composables/useUserData';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { useNotificationStore } from '@/stores/useNotification';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -320,6 +335,7 @@ import MonyContent from './MonyContent.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import InlineReplyComposer from './InlineReplyComposer.vue';
+import ConfirmationModal from '../ConfirmationModal.vue';
 import router from '@/router';
 
 // Props
@@ -341,24 +357,21 @@ const emit = defineEmits<{
   'show-conversation': [postId: string]; // New emit for showing conversation
 }>();
 
-// Stores
-const authStore = useAuthStore();
+// Stores and composables
+const { getCurrentUser } = useUserData();
 const activityPubStore = useActivityPubStore();
+const notificationStore = useNotificationStore();
 
 // Composables for clean interaction handling
-const { toggleFavorite, toggleReblog, toggleBookmark, follow, favorite, reblog, bookmark } = usePostInteractions();
+const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
 
 // Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
 const showInlineReply = ref(false);
+const showDeleteConfirmation = ref(false);
+const isDeleting = ref(false);
 
-// Extend HTMLElement type for click outside handler
-declare global {
-  interface HTMLElement {
-    _clickOutsideHandler?: (event: Event) => void;
-  }
-}
 
 const handleTimeClick = () => {
   router.push({ name: 'PostDetail', params: { postId: props.post.id } });
@@ -372,13 +385,6 @@ const viewProfile = (author: { username: string; domain: string, is_local: boole
   const profileHandle = author.is_local ? `@${author.username}` : `@${author.username}@${author.domain}`;
   router.push({ name: 'UserProfile', params: { handle: profileHandle } });
 };
-
-const authorHandle = computed(() => {
-  const { username, domain } = props.post.author;
-  return domain === 'har.mony.lol' || domain === 'har.mony.lol' 
-    ? `@${username}` 
-    : `@${username}@${domain}`;
-});
 
 const instanceDomain = computed(() => {
   const { domain } = props.post.author;
@@ -517,8 +523,6 @@ const flattenMessageParts = (content: any): string => {
   return '';
 };
 
-const contentText = computed(() => flattenMessageParts(props.post.content));
-
 const replyContentText = computed(() => {
   if (displayReplyContext.value && displayReplyContext.value.content_preview !== undefined) {
     return flattenMessageParts(displayReplyContext.value.content_preview);
@@ -527,11 +531,13 @@ const replyContentText = computed(() => {
 });
 
 const canEdit = computed(() => {
-  return authStore.session?.user?.id === props.post.author_id;
+  const currentUser = getCurrentUser.value;
+  return currentUser?.id === props.post.author.id;
 });
 
 const canDelete = computed(() => {
-  return authStore.session?.user?.id === props.post.author_id;
+  const currentUser = getCurrentUser.value;
+  return currentUser?.id === props.post.author.id;
 });
 
 const visibilityIcon = computed(() => {
@@ -596,8 +602,53 @@ const onEdit = () => {
 };
 
 const onDelete = () => {
-  emit('delete', props.post.id);
+  showDeleteConfirmation.value = true;
   closeMenu();
+};
+
+/**
+ * Handle confirmed delete action - professional with feedback
+ */
+const handleDeleteConfirm = async () => {
+  if (isDeleting.value) return;
+  
+  try {
+    isDeleting.value = true;
+    showDeleteConfirmation.value = false;
+    
+    // Call the delete action through the store
+    await activityPubStore.deletePost(props.post.id);
+    
+    // Show success toast
+    notificationStore.showToast(
+      'server_update',
+      'Post deleted',
+      'Your post has been successfully deleted',
+      3000
+    );
+    
+    console.log('✅ Post successfully deleted:', props.post.id);
+    
+  } catch (error) {
+    console.error('❌ Failed to delete post:', error);
+    
+    // Show error toast
+    notificationStore.showToast(
+      'server_update',
+      'Delete failed',
+      'Failed to delete post. Please try again.',
+      5000
+    );
+  } finally {
+    isDeleting.value = false;
+  }
+};
+
+/**
+ * Handle delete confirmation cancel
+ */
+const handleDeleteCancel = () => {
+  showDeleteConfirmation.value = false;
 };
 
 const showReplyTarget = async () => {
@@ -651,28 +702,15 @@ const closeMenu = () => {
   showMenu.value = false;
 };
 
-// Click outside directive
-const vClickOutside = {
-  mounted(el: HTMLElement, binding: any) {
-    el._clickOutsideHandler = (event: Event) => {
-      if (!(el === event.target || el.contains(event.target as Node))) {
-        binding.value();
-      }
-    };
-    document.addEventListener('click', el._clickOutsideHandler);
-  },
-  unmounted(el: HTMLElement) {
-    if (el._clickOutsideHandler) {
-      document.removeEventListener('click', el._clickOutsideHandler);
-    }
-  }
+const handleMenuToggle = () => {
+  console.log('🔘 Menu button clicked, current state:', showMenu.value);
+  showMenu.value = !showMenu.value;
+  console.log('🔘 Menu state after toggle:', showMenu.value);
 };
 
-const handleAuthorClick = (event: Event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  emit('user-click', author.value);
-};
+
+
+
 
 const handleMentionClick = (handle: string) => {
   console.log('Mention clicked:', handle);
@@ -1055,8 +1093,9 @@ const handleHashtagClick = (tag: string) => {
   border-radius: 0.5rem;
   padding: 0.5rem;
   min-width: 150px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  z-index: 10;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  margin-top: 0.25rem;
 }
 
 .dropdown-item {
