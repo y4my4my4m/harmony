@@ -222,8 +222,20 @@ const handleScroll = () => {
   const { scrollTop, scrollHeight, clientHeight } = feedContainer.value;
   const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
   
+  // Get the current feed state
+  const getCurrentFeed = () => {
+    switch (currentView.value) {
+      case 'home': return activityPubStore.homeFeed;
+      case 'public': return activityPubStore.publicFeed;
+      case 'local': return activityPubStore.localFeed;
+      default: return { has_more: false };
+    }
+  };
+  
+  const currentFeed = getCurrentFeed();
+  
   // Auto-load when 80% scrolled
-  if (scrollPercentage > 0.8 && currentView.value.has_more && !isLoadingAnyFeed.value) {
+  if (scrollPercentage > 0.8 && currentFeed.has_more && !isLoadingAnyFeed.value) {
     loadMore();
   }
 };

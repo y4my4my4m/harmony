@@ -136,7 +136,10 @@ export class ActivityPubFederationService {
    * Resolve a remote user by their handle (@username@domain)
    */
   async resolveRemoteUser(handle: string): Promise<Profile | null> {
-    const [, username, domain] = handle.match(/@([^@]+)@(.+)/) || []
+    // Accepts both "@username@domain" and "username@domain"
+    const match = handle.match(/^@?([^@]+)@([^@]+)$/)
+    const username = match?.[1]
+    const domain = match?.[2]
     if (!username || !domain) return null
 
     // Check if already cached locally
