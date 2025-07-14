@@ -234,20 +234,23 @@ watch(() => props.selectedIndex, (newIndex) => {
 }
 
 .suggest-server {
-  font-size: 11px;
+  font-size: 12px;
   color: #72767d;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.suggest-item-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
+.suggest-domain {
+  font-size: 12px;
+  color: #72767d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
+.selected .suggest-server,
+.selected .suggest-domain {
+  color: rgba(255, 255, 255, 0.5);
+}
 /* Scrollbar styling */
 .auto-suggest::-webkit-scrollbar {
   width: 4px;

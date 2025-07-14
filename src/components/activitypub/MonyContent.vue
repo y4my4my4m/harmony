@@ -227,8 +227,10 @@ const handleClick = (event: Event) => {
   font-weight: 500;
   cursor: pointer;
   background: rgba(16, 185, 129, 0.1);
-  padding: 1px 4px;
+  padding: 1px 2px;
   border-radius: 3px;
+  margin-right: 2px;
+  transition: background 0.2s ease;
 }
 
 .mony-content :deep(.mention:hover) {

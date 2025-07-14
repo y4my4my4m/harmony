@@ -829,52 +829,6 @@ document.addEventListener('click', handleClickOutside);
   to { transform: rotate(360deg); }
 }
 
-/* AutoSuggest styles for mentions */
-.suggest-item-content {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-}
-
-.suggest-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.suggest-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.suggest-name {
-  font-weight: 600;
-  color: white;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.suggest-username {
-  font-size: 0.875rem;
-  color: #9ca3af;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.suggest-domain {
-  font-size: 0.75rem;
-  color: #6b7280;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
 /* Mobile responsiveness */
 @media (max-width: 768px) {
   .inline-composer {
