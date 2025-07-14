@@ -28,7 +28,7 @@
       <div class="post-header">
         <div 
           class="author-info"
-          @click="viewProfile(displayAuthor.username)"
+          @click="viewProfile(displayAuthor)"
         >
           <Avatar
             :src="displayAuthor.avatar_url"
@@ -368,8 +368,9 @@ const handleTimeClick = () => {
 const author = computed(() => {
   return props.post.author;
 });
-const viewProfile = (username: string) => {
-  router.push({ name: 'UserProfile', params: { handle: username } });
+const viewProfile = (author: { username: string; domain: string, is_local: boolean }) => {
+  const profileHandle = author.is_local ? `@${author.username}` : `@${author.username}@${author.domain}`;
+  router.push({ name: 'UserProfile', params: { handle: profileHandle } });
 };
 
 const authorHandle = computed(() => {
