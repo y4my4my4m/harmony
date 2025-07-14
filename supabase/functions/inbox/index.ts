@@ -262,10 +262,10 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
       return
     }
 
-    // Store the federated post
+    // Store the federated post with raw HTML content (ActivityPub standard)
     const postData = {
       author_id: author.id,
-      content: [{ type: 'text', text: object.content || '' }],
+      content: object.content || '', // Store raw HTML content as per ActivityPub standard
       visibility: 'public', // Assume public for federated posts
       ap_id: object.id,
       ap_type: 'Note',
@@ -311,16 +311,22 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
 
       if (mentionedUser) {
         // Create mention notification matching the actual notifications table schema
-        // Extract and clean up the content for the notification
+        // Extract and clean up the HTML content for the notification preview
         let contentPreview = '';
         if (typeof savedPost.content === 'string') {
-          contentPreview = savedPost.content;
-        } else if (Array.isArray(savedPost.content)) {
-          contentPreview = savedPost.content.map(item => item.text || '').join('');
+          // Strip HTML tags and decode entities for notification preview
+          contentPreview = savedPost.content
+            .replace(/<[^>]*>/g, '') // Remove HTML tags
+            .replace(/&lt;/g, '<')   // Decode HTML entities
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&nbsp;/g, ' ')  // Non-breaking space
+            .replace(/&hellip;/g, '...') // Ellipsis
+            .trim()
+            .substring(0, 120);
         }
-        
-        // Strip HTML tags and truncate
-        contentPreview = contentPreview.replace(/<[^>]*>/g, '').substring(0, 120);
         
         // Ensure avatar URL is absolute
         const avatarUrl = author.avatar_url 
@@ -379,7 +385,7 @@ async function processDeleteActivity(supabase: any, activity: ActivityPubActivit
   console.log('Processing Delete activity:', activity.id)
   
   // For Delete activities, the object being deleted could be a post, profile, etc.
-  const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id
+  const objectId = typeof activity.object === 'string' ? activity.object : (activity.object as any)?.id
   
   if (!objectId) {
     console.log('Delete activity has no object to delete')

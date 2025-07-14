@@ -38,18 +38,21 @@ const findEmojiByName = (name: string) => {
   return undefined;
 };
 
-// Helper to flatten ActivityPub content to plain text
+// Helper to handle both ActivityPub HTML content and our internal JSON format  
 const flattenContentToString = (content: any): string => {
+  // ActivityPub content is typically HTML string - use directly
   if (typeof content === 'string') {
     return content;
   }
   
+  // Our internal format is JSON array - convert to text for processing
   if (Array.isArray(content)) {
     return content
       .map(part => {
         if (typeof part === 'string') return part;
-        if (part.type === 'text') return part.text || '';
-        if (part.type === 'mention') {
+        if (part && typeof part === 'object' && part.text) return part.text;
+        if (part && typeof part === 'object' && part.type === 'text') return part.text;
+        if (part && typeof part === 'object' && part.type === 'mention') {
           // Handle new structured mention format
           if (part.username && part.domain) {
             return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
@@ -57,7 +60,7 @@ const flattenContentToString = (content: any): string => {
           // Fallback to legacy format if needed
           return part.mention || `@${part.username || 'unknown'}`;
         }
-        if (part.type === 'url') return part.url || '';
+        if (part && typeof part === 'object' && part.type === 'url') return part.url || '';
         return '';
       })
       .join('');
@@ -95,13 +98,26 @@ const isSingleEmoji = computed(() => {
 const formattedContent = computed(() => {
   let formatted = flattenContentToString(props.content);
   
+  // If the content is already HTML (from ActivityPub), apply minimal processing
+  if (typeof props.content === 'string' && (formatted.includes('<') || formatted.includes('&'))) {
+    // This is likely HTML content from ActivityPub - apply emoji formatting only
+    formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
+      const emoji = findEmojiByName(emojiName);
+      if (emoji && emoji.url) {
+        const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
+        return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
+      }
+      return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
+    });
+    return formatted;
+  }
+  
+  // For our internal format, apply full formatting
   // Format hashtags FIRST
   formatted = formatted.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
   
   // Format mentions SECOND  
   formatted = formatted.replace(/@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g, (match, username, domain) => {
-    // TODO: This should check user's is_local field from database instead of hardcoding domain
-    // For now, assume no domain means local, domain means remote
     const handle = domain ? `@${username}@${domain}` : `@${username}`;
     return `<span class="mention" data-handle="${handle}">${handle}</span>`;
   });
@@ -116,11 +132,9 @@ const formattedContent = computed(() => {
   formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
     const emoji = findEmojiByName(emojiName);
     if (emoji && emoji.url) {
-      // Add 'single' class if this is a single emoji message
       const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
       return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
     }
-    // Fallback to styled shortcode if emoji not found
     return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
   });
   

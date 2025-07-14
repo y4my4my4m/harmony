@@ -668,11 +668,28 @@ export class FederationService {
    * Format content for ActivityPub federation
    */
   private formatContentForActivityPub(content: any): string {
+    // If content is already a string (HTML), use it directly
+    if (typeof content === 'string') {
+      return content;
+    }
+    
+    // If content is our internal array format, convert to HTML
     if (Array.isArray(content)) {
       return content
-        .map(item => item.type === 'text' ? item.text : '')
+        .map(item => {
+          if (item.type === 'text') {
+            // Convert plain text to HTML by escaping and preserving line breaks
+            return item.text
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\n/g, '<br>');
+          }
+          return '';
+        })
         .join('');
     }
+    
     return String(content);
   }
 
