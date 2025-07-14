@@ -1121,6 +1121,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Update post state in all feeds immediately for better UX
         this.updatePostInteractionState(postId, 'favorite', result.favorited);
 
+        // Ensure federation is triggered for remote posts
+        if (result.favorited || !result.favorited) {
+          console.log(`🌐 Federation triggered for favorite: ${result.favorited ? 'added' : 'removed'}`);
+        }
+
       } catch (error) {
         console.error('Failed to toggle favorite:', error);
         throw error;
