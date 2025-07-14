@@ -70,7 +70,7 @@ serve(async (req: Request) => {
 
     const { data: user, error } = await supabase
       .from('profiles')
-      .select('username, domain, is_local')
+      .select('username, domain, is_local, display_name, avatar_url, bio')
       .eq('username', username)
       .eq('domain', domain)
       .eq('is_local', true)
@@ -85,20 +85,55 @@ serve(async (req: Request) => {
 
     // Build WebFinger response
     const baseUrl = `https://${ourDomain}`
+    const avatarBase = 'https://db.mony.lol/storage/v1/object/public/avatars/'
+    
+    const links = [
+      {
+        rel: 'self',
+        type: 'application/activity+json',
+        href: `${baseUrl}/users/${username}`
+      },
+      {
+        rel: 'http://webfinger.net/rel/profile-page',
+        type: 'text/html',
+        href: `${baseUrl}/users/${username}`
+      }
+    ]
+
+    // Add avatar link if user has one
+    if (user.avatar_url) {
+      const fullAvatarUrl = user.avatar_url.startsWith('http') ? user.avatar_url : `${avatarBase}${user.avatar_url}`
+      
+      // Helper function to get media type from file extension
+      const getMediaType = (url: string): string => {
+        const extension = url.toLowerCase().split('.').pop()
+        switch (extension) {
+          case 'jpg':
+          case 'jpeg':
+            return 'image/jpeg'
+          case 'png':
+            return 'image/png'
+          case 'webp':
+            return 'image/webp'
+          case 'gif':
+            return 'image/gif'
+          case 'svg':
+            return 'image/svg+xml'
+          default:
+            return 'image/jpeg' // fallback
+        }
+      }
+      
+      links.push({
+        rel: 'http://webfinger.net/rel/avatar',
+        type: getMediaType(fullAvatarUrl),
+        href: fullAvatarUrl
+      })
+    }
+
     const webfingerResponse: WebFingerResponse = {
       subject: resource,
-      links: [
-        {
-          rel: 'self',
-          type: 'application/activity+json',
-          href: `${baseUrl}/users/${username}`
-        },
-        {
-          rel: 'http://webfinger.net/rel/profile-page',
-          type: 'text/html',
-          href: `${baseUrl}/users/${username}`
-        }
-      ]
+      links
     }
 
     return new Response(JSON.stringify(webfingerResponse), {

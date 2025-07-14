@@ -119,8 +119,28 @@ serve(async (req: Request) => {
 
     // Build ActivityPub Actor document
     const baseUrl = `https://${ourDomain}`
-  const actorId = `${baseUrl}/users/${username}`
-  const avatarBase = 'https://db.mony.lol/storage/v1/object/public/avatars/'
+    const actorId = `${baseUrl}/users/${username}`
+    const avatarBase = 'https://db.mony.lol/storage/v1/object/public/avatars/'
+    
+    // Helper function to get media type from file extension
+    const getMediaType = (url: string): string => {
+      const extension = url.toLowerCase().split('.').pop()
+      switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+          return 'image/jpeg'
+        case 'png':
+          return 'image/png'
+        case 'webp':
+          return 'image/webp'
+        case 'gif':
+          return 'image/gif'
+        case 'svg':
+          return 'image/svg+xml'
+        default:
+          return 'image/jpeg' // fallback
+      }
+    }
     
     const actor: ActivityPubActor = {
       '@context': [
@@ -132,11 +152,14 @@ serve(async (req: Request) => {
       preferredUsername: user.username,
       name: user.display_name || user.username,
       summary: user.bio || '',
-      icon: user.avatar_url ? {
-        type: 'Image',
-        mediaType: 'image/jpeg',
-        url: user.avatar_url.startsWith('http') ? user.avatar_url : `${avatarBase}${user.avatar_url}`
-      } : undefined,
+      icon: user.avatar_url ? (() => {
+        const fullAvatarUrl = user.avatar_url.startsWith('http') ? user.avatar_url : `${avatarBase}${user.avatar_url}`
+        return {
+          type: 'Image',
+          mediaType: getMediaType(fullAvatarUrl),
+          url: fullAvatarUrl
+        }
+      })() : undefined,
       inbox: `${actorId}/inbox`,
       outbox: `${actorId}/outbox`, // TODO: Implement outbox endpoint
       following: `${actorId}/following`, // TODO: Implement following endpoint  
