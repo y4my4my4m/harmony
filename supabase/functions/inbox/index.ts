@@ -515,111 +515,83 @@ function parseActivityPubHTMLToJSONB(htmlContent: string, mentionTags: any[] = [
   const mentionMap = new Map();
   mentionTags.forEach((tag: any) => {
     if (tag.type === 'Mention' && tag.href && tag.name) {
-      mentionMap.set(tag.href, tag.name.replace('@', ''));
+      const username = tag.name.replace('@', '').split('@')[0]; // Extract just the username part
+      mentionMap.set(tag.href, username);
     }
   });
 
-  // Clean up malformed HTML first
+  console.log('📋 Mention map created:', Array.from(mentionMap.entries()));
+
+  // Clean up malformed HTML first and simplify the structure
   const cleanHtml = htmlContent
+    // Remove p tags
+    .replace(/<\/?p[^>]*>/gi, '')
     // Fix nested anchor tags
     .replace(/<a\s+href="<a\s+href="\s*([^"]+)"\s*[^>]*>\s*([^<]+)<\/a>/gi, '<a href="$1" class="mention">$2</a>')
-    // Fix broken anchor tag attributes  
-    .replace(/<a\s+href="\s*([^"]+)"\s*[^>]*class="[^"]*mention[^"]*"[^>]*>\s*@?([^<]+)\s*<\/a>/gi, '<a href="$1" class="mention">@$2</a>')
-    // Fix h-card spans with malformed structure
-    .replace(/<span[^>]*class="[^"]*h-card[^"]*"[^>]*>.*?<a[^>]*href="\s*([^"]+)"\s*[^>]*>\s*@?([^<]+)\s*<\/a>.*?<\/span>/gi, '<a href="$1" class="mention">@$2</a>')
+    // Simplify h-card spans with nested structure 
+    .replace(/<span[^>]*class="[^"]*h-card[^"]*"[^>]*>.*?<a[^>]*href="\s*([^"]+)"\s*[^>]*class="[^"]*mention[^"]*"[^>]*>@?<span>([^<]+)<\/span><\/a>.*?<\/span>/gi, '<a href="$1" class="mention">@$2</a>')
+    // Handle simpler mention patterns
+    .replace(/<a[^>]*href="\s*([^"]+)"\s*[^>]*class="[^"]*mention[^"]*"[^>]*>@?([^<]+)<\/a>/gi, '<a href="$1" class="mention">@$2</a>')
     // Remove stray closing tags
     .replace(/<\/a>\s*class="[^"]*"/gi, '')
     // Clean up whitespace
     .replace(/\s+/g, ' ').trim();
 
+  console.log('🧹 Cleaned HTML:', cleanHtml);
+
   const result: any[] = [];
   
-  // Simple HTML parser - split by tags and process
-  const parts = cleanHtml.split(/(<[^>]+>)/g).filter(part => part.trim() !== '');
+  // Use a more robust regex-based approach for the cleaned HTML
+  const mentionRegex = /<a[^>]*href="([^"]+)"[^>]*class="[^"]*mention[^"]*"[^>]*>@?([^<]+)<\/a>/gi;
   
-  let currentText = '';
-  let inTag = false;
-  let tagName = '';
-  let tagAttributes: any = {};
-
-  for (const part of parts) {
-    if (part.startsWith('<')) {
-      // Process any accumulated text
-      if (currentText.trim()) {
-        result.push({ type: 'text', text: currentText.trim() });
-        currentText = '';
-      }
-
-      // Handle tag
-      if (part.startsWith('</')) {
-        // Closing tag
-        inTag = false;
-        tagName = '';
-        tagAttributes = {};
-      } else {
-        // Opening tag
-        const tagMatch = part.match(/<(\w+)([^>]*)>/);
-        if (tagMatch) {
-          tagName = tagMatch[1].toLowerCase();
-          const attrString = tagMatch[2];
-          
-          // Parse attributes
-          tagAttributes = {};
-          const attrMatches = attrString.matchAll(/(\w+)=['""]([^'""]*)['"]/g);
-          for (const match of attrMatches) {
-            tagAttributes[match[1]] = match[2];
-          }
-
-          inTag = true;
-        }
-      }
-    } else {
-      // Text content
-      if (inTag && tagName === 'a' && tagAttributes.href) {
-        // This is a link - check if it's a mention
-        const linkText = part.trim();
-        const href = tagAttributes.href;
-        
-        if (tagAttributes.class?.includes('mention') || mentionMap.has(href)) {
-          // It's a mention
-          const username = mentionMap.get(href) || linkText.replace('@', '');
-          const domain = href ? new URL(href).hostname : null;
-          
-          result.push({
-            type: 'mention',
-            username: username,
-            domain: domain,
-            isLocal: domain === ourDomain,
-            url: href
-          });
-        } else {
-          // It's a regular URL
-          result.push({
-            type: 'url',
-            url: href,
-            text: linkText || href
-          });
-        }
-        inTag = false;
-      } else {
-        // Regular text
-        currentText += part;
-      }
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = mentionRegex.exec(cleanHtml)) !== null) {
+    const fullMatch = match[0];
+    const href = match[1];
+    const linkText = match[2];
+    
+    // Add any text before this mention
+    const textBefore = cleanHtml.substring(lastIndex, match.index).trim();
+    if (textBefore) {
+      result.push({ type: 'text', text: textBefore });
+    }
+    
+    // Process the mention
+    const username = mentionMap.get(href) || linkText.replace('@', '').trim();
+    const domain = href ? new URL(href).hostname : null;
+    
+    console.log(`🔍 Processing mention: href=${href}, linkText=${linkText}, username=${username}, domain=${domain}`);
+    
+    result.push({
+      type: 'mention',
+      username: username,
+      domain: domain,
+      isLocal: domain === ourDomain,
+      url: href
+    });
+    
+    lastIndex = match.index + fullMatch.length;
+  }
+  
+  // Add any remaining text after the last mention
+  const remainingText = cleanHtml.substring(lastIndex).trim();
+  if (remainingText) {
+    result.push({ type: 'text', text: remainingText });
+  }
+  
+  // If no mentions were found, treat the whole thing as text
+  if (result.length === 0) {
+    // Strip all HTML tags for plain text
+    const plainText = cleanHtml.replace(/<[^>]*>/g, '').trim();
+    if (plainText) {
+      result.push({ type: 'text', text: plainText });
     }
   }
 
-  // Process any remaining text
-  if (currentText.trim()) {
-    result.push({ type: 'text', text: currentText.trim() });
-  }
-
-  // If no content was parsed, return empty text
-  if (result.length === 0) {
-    return [{ type: 'text', text: '' }];
-  }
-
   // Decode HTML entities in text parts
-  return result.map(item => {
+  const finalResult = result.map(item => {
     if (item.type === 'text') {
       item.text = item.text
         .replace(/&lt;/g, '<')
@@ -630,8 +602,6 @@ function parseActivityPubHTMLToJSONB(htmlContent: string, mentionTags: any[] = [
         .replace(/&nbsp;/g, ' ')
         .replace(/&hellip;/g, '...')
         .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<p>/gi, '')
-        .replace(/<\/p>/gi, '\n')
         .trim();
     }
     return item;
@@ -639,4 +609,8 @@ function parseActivityPubHTMLToJSONB(htmlContent: string, mentionTags: any[] = [
     // Remove empty text items
     !(item.type === 'text' && !item.text.trim())
   );
+
+  console.log('✅ Final parsed result:', finalResult);
+
+  return finalResult.length > 0 ? finalResult : [{ type: 'text', text: '' }];
 }
