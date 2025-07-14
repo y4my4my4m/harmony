@@ -262,10 +262,29 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
       return
     }
 
-    // Store the federated post with raw HTML content (ActivityPub standard)
+    // Clean up the HTML content before storing
+    let cleanContent = object.content || '';
+    if (typeof cleanContent === 'string') {
+      // Fix common malformed HTML patterns from ActivityPub
+      cleanContent = cleanContent
+        // Fix nested anchor tags
+        .replace(/<a\s+href="<a\s+href="\s*([^"]+)"\s*[^>]*>\s*([^<]+)<\/a>/gi, '<a href="$1" class="mention">$2</a>')
+        // Fix broken anchor tag attributes  
+        .replace(/<a\s+href="\s*([^"]+)"\s*[^>]*class="[^"]*mention[^"]*"[^>]*>\s*@?([^<]+)\s*<\/a>/gi, '<a href="$1" class="mention">@$2</a>')
+        // Fix h-card spans with malformed structure
+        .replace(/<span[^>]*class="[^"]*h-card[^"]*"[^>]*>.*?<a[^>]*href="\s*([^"]+)"\s*[^>]*>\s*@?([^<]+)\s*<\/a>.*?<\/span>/gi, '<a href="$1" class="mention">@$2</a>')
+        // Remove stray closing tags
+        .replace(/<\/a>\s*class="[^"]*"/gi, '')
+        // Fix malformed URLs
+        .replace(/([^"'>])(https?:\/\/[^\s<>"']+)([^<]*?)class="[^"]*"/gi, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>$3')
+        // Clean up whitespace
+        .replace(/\s+/g, ' ').trim();
+    }
+
+    // Store the federated post with cleaned HTML content
     const postData = {
       author_id: author.id,
-      content: object.content || '', // Store raw HTML content as per ActivityPub standard
+      content: cleanContent, // Store cleaned HTML content
       visibility: 'public', // Assume public for federated posts
       ap_id: object.id,
       ap_type: 'Note',

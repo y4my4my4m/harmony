@@ -98,9 +98,12 @@ const isSingleEmoji = computed(() => {
 const formattedContent = computed(() => {
   let formatted = flattenContentToString(props.content);
   
-  // If the content is already HTML (from ActivityPub), apply minimal processing
+  // If the content is already HTML (from ActivityPub), clean and process it
   if (typeof props.content === 'string' && (formatted.includes('<') || formatted.includes('&'))) {
-    // This is likely HTML content from ActivityPub - apply emoji formatting only
+    // Clean up malformed HTML from ActivityPub content
+    formatted = cleanActivityPubHTML(formatted);
+    
+    // Apply emoji formatting
     formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
       const emoji = findEmojiByName(emojiName);
       if (emoji && emoji.url) {
@@ -140,6 +143,36 @@ const formattedContent = computed(() => {
   
   return formatted;
 });
+
+// Clean and fix malformed ActivityPub HTML content
+const cleanActivityPubHTML = (html: string): string => {
+  // Fix common malformed HTML patterns from ActivityPub
+  
+  // Fix nested anchor tags (like the issue you showed)
+  // Pattern: <a href="<a href="URL"...">@username</a>
+  html = html.replace(/<a\s+href="<a\s+href="\s*([^"]+)"\s*[^>]*>\s*([^<]+)<\/a>/gi, '<a href="$1" class="mention">$2</a>');
+  
+  // Fix broken anchor tag attributes
+  // Pattern: <a href="URL" class="...">... becomes proper link
+  html = html.replace(/<a\s+href="\s*([^"]+)"\s*[^>]*class="[^"]*mention[^"]*"[^>]*>\s*@?([^<]+)\s*<\/a>/gi, '<a href="$1" class="mention">@$2</a>');
+  
+  // Fix h-card spans with malformed structure
+  html = html.replace(/<span[^>]*class="[^"]*h-card[^"]*"[^>]*>.*?<a[^>]*href="\s*([^"]+)"\s*[^>]*>\s*@?([^<]+)\s*<\/a>.*?<\/span>/gi, '<a href="$1" class="mention">@$2</a>');
+  
+  // Remove any stray closing tags that don't have opening tags
+  html = html.replace(/<\/a>\s*class="[^"]*"/gi, '');
+  
+  // Fix any remaining malformed URLs that aren't in proper anchor tags
+  html = html.replace(/([^"'>])(https?:\/\/[^\s<>"']+)([^<]*?)class="[^"]*"/gi, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>$3');
+  
+  // Clean up extra whitespace and line breaks
+  html = html.replace(/\s+/g, ' ').trim();
+  
+  // Ensure mentions are properly formatted
+  html = html.replace(/<a\s+href="([^"]+)"\s+class="mention">@?([^<]+)<\/a>/gi, '<a href="$1" class="mention" target="_blank" rel="noopener noreferrer">@$2</a>');
+  
+  return html;
+};
 
 // Add click event handling for mentions and hashtags
 const handleClick = (event: Event) => {
