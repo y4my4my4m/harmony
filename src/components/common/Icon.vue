@@ -229,11 +229,6 @@
     <circle v-if="name === 'server'" cx="7" cy="11.5" r="0.5"></circle>
     <circle v-if="name === 'server'" cx="7" cy="18.5" r="0.5"></circle>
 
-    <!-- Federation -->
-    <circle v-if="name === 'federation'" cx="9" cy="12" r="1"></circle>
-    <circle v-if="name === 'federation'" cx="15" cy="12" r="1"></circle>
-    <path v-if="name === 'federation'" d="M8 12h1m4 0h1m-3-5v2m0 6v2"></path>
-    <path v-if="name === 'federation'" d="M12 2a4 4 0 0 1 4 4v1.5h1.5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2H8V6a4 4 0 0 1 4-4z"></path>
 
     <!-- Message -->
     <path v-if="name === 'message'" d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>

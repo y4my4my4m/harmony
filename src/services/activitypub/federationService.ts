@@ -148,7 +148,7 @@ export class ActivityPubFederationService {
       .select('*')
       .eq('username', username)
       .eq('domain', domain)
-      .single()
+      .maybeSingle()
 
     if (existingProfile && this.isRecentlyFetched(existingProfile.last_synced_at)) {
       return existingProfile
@@ -229,16 +229,75 @@ export class ActivityPubFederationService {
       last_synced_at: new Date().toISOString()
     }
 
+    // First try to find existing user by federated_id
+    const { data: existingUser, error: federatedLookupError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('federated_id', actor.id)
+      .maybeSingle()
+
+    if (federatedLookupError) {
+      console.error('Error looking up user by federated_id:', federatedLookupError)
+    }
+
+    if (existingUser) {
+      // Update existing user
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          ...profileData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingUser.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }
+
+    // Check if user exists by username@domain combination
+    const { data: existingByUsername, error: usernameLookupError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('username', actor.preferredUsername)
+      .eq('domain', domain)
+      .maybeSingle()
+
+    if (usernameLookupError) {
+      console.error('Error looking up user by username@domain:', usernameLookupError)
+    }
+
+    if (existingByUsername) {
+      // Update existing user with federated_id
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          ...profileData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingByUsername.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    }
+
+    // Create new user
+    console.log('Creating new federated user:', profileData)
     const { data, error } = await supabase
       .from('profiles')
-      .upsert(profileData, {
-        onConflict: 'username,domain',
-        ignoreDuplicates: false
-      })
+      .insert(profileData)
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Error creating new user:', error)
+      throw error
+    }
+    
+    console.log('Successfully created federated user:', data)
     return data
   }
 
