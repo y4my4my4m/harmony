@@ -1111,50 +1111,15 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post favorite (like) with optimistic updates
+     * Toggle post favorite (like) with federation support
      */
     async toggleFavorite(postId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
-
-        // Check current state
-        const { data: existing, error: existingError } = await supabase
-          .from('post_interactions')
-          .select('id')
-          .eq('user_id', user.data.user.id)
-          .eq('post_id', postId)
-          .eq('interaction_type', 'favorite')
-          .maybeSingle();
-
-        if (existingError && existingError.code !== 'PGRST116') {
-          throw existingError;
-        }
-
-        const isFavorited = !!existing;
-        const newFavoriteState = !isFavorited;
-
-        if (existing) {
-          // Remove favorite
-          await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('id', existing.id);
-        } else {
-          // Add favorite
-          await supabase
-            .from('post_interactions')
-            .insert({
-              user_id: user.data.user.id,
-              post_id: postId,
-              interaction_type: 'favorite',
-              is_local: true,
-              metadata: {}
-            });
-        }
-
+        // Use activityPubService which includes federation logic
+        const result = await activityPubService.toggleFavorite(postId);
+        
         // Update post state in all feeds immediately for better UX
-        this.updatePostInteractionState(postId, 'favorite', newFavoriteState);
+        this.updatePostInteractionState(postId, 'favorite', result.favorited);
 
       } catch (error) {
         console.error('Failed to toggle favorite:', error);

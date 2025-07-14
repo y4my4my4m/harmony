@@ -85,7 +85,30 @@ serve(async (req: Request) => {
 
     // Build WebFinger response
     const baseUrl = `https://${ourDomain}`
-    const avatarBase = 'https://db.mony.lol/storage/v1/object/public/avatars/'
+    
+    // Helper function to get proper avatar URL
+    const getProperAvatarUrl = (avatarUrl: string | null | undefined): string | undefined => {
+      if (!avatarUrl || typeof avatarUrl !== 'string') {
+        return undefined
+      }
+
+      // If it's already a full URL, return as-is
+      if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+        return avatarUrl
+      }
+
+      // If it's a Supabase storage path, construct proper public URL
+      if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
+        return `${supabaseUrl}/storage/v1/object/public/avatars/${avatarUrl}`
+      }
+
+      // If it's a local path, convert to full URL
+      if (avatarUrl.startsWith('/')) {
+        return `${baseUrl}${avatarUrl}`
+      }
+
+      return undefined
+    }
     
     const links = [
       {
@@ -101,9 +124,8 @@ serve(async (req: Request) => {
     ]
 
     // Add avatar link if user has one
-    if (user.avatar_url) {
-      const fullAvatarUrl = user.avatar_url.startsWith('http') ? user.avatar_url : `${avatarBase}${user.avatar_url}`
-      
+    const avatarUrl = getProperAvatarUrl(user.avatar_url)
+    if (avatarUrl) {
       // Helper function to get media type from file extension
       const getMediaType = (url: string): string => {
         const extension = url.toLowerCase().split('.').pop()
@@ -126,8 +148,8 @@ serve(async (req: Request) => {
       
       links.push({
         rel: 'http://webfinger.net/rel/avatar',
-        type: getMediaType(fullAvatarUrl),
-        href: fullAvatarUrl
+        type: getMediaType(avatarUrl),
+        href: avatarUrl
       })
     }
 

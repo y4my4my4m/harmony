@@ -120,7 +120,30 @@ serve(async (req: Request) => {
     // Build ActivityPub Actor document
     const baseUrl = `https://${ourDomain}`
     const actorId = `${baseUrl}/users/${username}`
-    const avatarBase = 'https://db.mony.lol/storage/v1/object/public/avatars/'
+    
+    // Helper function to get proper avatar URL
+    const getProperAvatarUrl = (avatarUrl: string | null | undefined): string | undefined => {
+      if (!avatarUrl || typeof avatarUrl !== 'string') {
+        return undefined
+      }
+
+      // If it's already a full URL, return as-is
+      if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+        return avatarUrl
+      }
+
+      // If it's a Supabase storage path, construct proper public URL
+      if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
+        return `${supabaseUrl}/storage/v1/object/public/avatars/${avatarUrl}`
+      }
+
+      // If it's a local path, convert to full URL
+      if (avatarUrl.startsWith('/')) {
+        return `${baseUrl}${avatarUrl}`
+      }
+
+      return undefined
+    }
     
     // Helper function to get media type from file extension
     const getMediaType = (url: string): string => {
@@ -142,6 +165,8 @@ serve(async (req: Request) => {
       }
     }
     
+    const avatarUrl = getProperAvatarUrl(user.avatar_url)
+    
     const actor: ActivityPubActor = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -152,14 +177,11 @@ serve(async (req: Request) => {
       preferredUsername: user.username,
       name: user.display_name || user.username,
       summary: user.bio || '',
-      icon: user.avatar_url ? (() => {
-        const fullAvatarUrl = user.avatar_url.startsWith('http') ? user.avatar_url : `${avatarBase}${user.avatar_url}`
-        return {
-          type: 'Image',
-          mediaType: getMediaType(fullAvatarUrl),
-          url: fullAvatarUrl
-        }
-      })() : undefined,
+      icon: avatarUrl ? {
+        type: 'Image',
+        mediaType: getMediaType(avatarUrl),
+        url: avatarUrl
+      } : undefined,
       inbox: `${actorId}/inbox`,
       outbox: `${actorId}/outbox`, // TODO: Implement outbox endpoint
       following: `${actorId}/following`, // TODO: Implement following endpoint  
