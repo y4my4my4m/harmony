@@ -443,10 +443,93 @@ async function getOrCreateRemoteProfile(supabase: any, actorUrl: string) {
     .eq('federated_id', actorUrl)
     .single()
 
+  // If profile exists, check if we should update it
   if (existing) {
-    return existing
+    // Check if profile is stale (older than 6 hours) or missing critical data
+    const lastUpdated = existing.updated_at ? new Date(existing.updated_at) : new Date(existing.created_at);
+    const isStale = (Date.now() - lastUpdated.getTime()) > (6 * 60 * 60 * 1000); // 6 hours
+    const missingAvatar = !existing.avatar_url;
+    const missingDisplayName = !existing.display_name || existing.display_name === existing.username;
+    
+    const shouldUpdate = isStale || missingAvatar || missingDisplayName;
+    
+    if (shouldUpdate) {
+      console.log(`🔄 Refreshing remote profile ${existing.username}@${existing.domain} (stale: ${isStale}, missing avatar: ${missingAvatar}, missing display name: ${missingDisplayName})`);
+      return await updateRemoteProfile(supabase, existing, actorUrl);
+    }
+    
+    console.log(`✅ Using cached profile ${existing.username}@${existing.domain}`);
+    return existing;
   }
 
+  // Create new profile if it doesn't exist
+  return await createNewRemoteProfile(supabase, actorUrl);
+}
+
+async function updateRemoteProfile(supabase: any, existingProfile: any, actorUrl: string) {
+  try {
+    // Fetch fresh actor data from remote instance
+    const response = await fetch(actorUrl, {
+      headers: {
+        'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn(`Failed to fetch updated actor data: ${response.status}`);
+      return existingProfile; // Return existing profile if fetch fails
+    }
+
+    const actor = await response.json();
+    const domain = new URL(actorUrl).hostname;
+
+    // Ensure avatar URL is absolute
+    let avatarUrl = actor.icon?.url;
+    if (avatarUrl && !avatarUrl.startsWith('http')) {
+      avatarUrl = new URL(avatarUrl, `https://${domain}`).toString();
+    }
+
+    // Update the profile with fresh data
+    const updateData: any = {
+      display_name: actor.name || actor.preferredUsername || existingProfile.display_name,
+      bio: actor.summary || existingProfile.bio,
+      updated_at: new Date().toISOString()
+    };
+
+    // Only update avatar if we have a new one
+    if (avatarUrl) {
+      updateData.avatar_url = avatarUrl;
+    }
+
+    // Update other federation-specific fields
+    if (actor.inbox) updateData.inbox_url = actor.inbox;
+    if (actor.outbox) updateData.outbox_url = actor.outbox;
+    if (actor.followers) updateData.followers_url = actor.followers;
+    if (actor.following) updateData.following_url = actor.following;
+    if (actor.publicKey?.publicKeyPem) updateData.public_key = actor.publicKey.publicKeyPem;
+
+    const { data: updatedProfile, error } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', existingProfile.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to update remote profile:', error);
+      return existingProfile; // Return existing profile if update fails
+    }
+
+    console.log(`✅ Updated remote profile ${updatedProfile.username}@${updatedProfile.domain}`);
+    return updatedProfile;
+
+  } catch (error) {
+    console.error('Error updating remote profile:', error);
+    return existingProfile; // Return existing profile if update fails
+  }
+}
+
+async function createNewRemoteProfile(supabase: any, actorUrl: string) {
   // Fetch actor data from remote instance
   try {
     const response = await fetch(actorUrl, {
@@ -467,6 +550,8 @@ async function getOrCreateRemoteProfile(supabase: any, actorUrl: string) {
     if (avatarUrl && !avatarUrl.startsWith('http')) {
       avatarUrl = new URL(avatarUrl, `https://${domain}`).toString()
     }
+
+    console.log(`👤 Creating new remote profile for ${actor.preferredUsername}@${domain} with avatar: ${avatarUrl}`);
 
     // Use the new function to create federated profile
     const { data: profileId, error } = await supabase
@@ -496,6 +581,7 @@ async function getOrCreateRemoteProfile(supabase: any, actorUrl: string) {
       .eq('id', profileId)
       .single()
 
+    console.log(`✅ Created new remote profile ${newProfile.username}@${newProfile.domain}`);
     return newProfile
   } catch (error) {
     console.error('Failed to fetch/create remote profile:', error)
