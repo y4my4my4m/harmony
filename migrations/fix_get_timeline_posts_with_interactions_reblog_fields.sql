@@ -108,8 +108,9 @@ BEGIN
       )
       ELSE tp.visibility = 'public'
     END
+    -- FIX: Use timeline_posts for pagination
     AND (p_max_id IS NULL OR tp.created_at < (
-      SELECT posts.created_at FROM posts WHERE posts.id = p_max_id::uuid
+      SELECT tp2.created_at FROM timeline_posts tp2 WHERE tp2.id = p_max_id::uuid
     ))
   
   ORDER BY tp.created_at DESC

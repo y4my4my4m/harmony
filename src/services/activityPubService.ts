@@ -273,41 +273,57 @@ export class ActivityPubService {
 
     const limit = options.limit || 20;
 
-    // Try cache first - super fast!
-    const { data: cached, error: cacheError } = await supabase
-      .rpc('get_cached_timeline', {
+    // Only use cache for initial load (no max_id), bypass cache for pagination
+    if (!options.max_id) {
+      // Try cache first - super fast!
+      const { data: cached, error: cacheError } = await supabase
+        .rpc('get_cached_timeline', {
+          p_user_id: user.id,
+          p_timeline_type: 'local',
+          p_limit: limit
+        });
+
+      if (!cacheError && cached?.cached) {
+        console.log(`📦 Serving local timeline from cache: ${cached.count} posts`);
+        return cached.posts || [];
+      }
+
+      // Cache miss - fall back to database with caching
+      console.log('🔄 Cache miss - building local timeline');
+      const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
         p_user_id: user.id,
-        p_timeline_type: 'local',
-        p_limit: limit
+        p_timeline_type: 'local', 
+        p_limit: limit,
+        p_max_id: null
       });
 
-    if (!cacheError && cached?.cached) {
-      console.log(`📦 Serving local timeline from cache: ${cached.count} posts`);
-      return cached.posts || [];
-    }
+      if (error) throw error;
 
-    // Cache miss - fall back to database with caching
-    console.log('🔄 Cache miss - building local timeline');
-    const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
-      p_user_id: user.id,
-      p_timeline_type: 'local', 
-      p_limit: limit,
-      p_max_id: options.max_id || null
-    });
+      // Cache the results for next time
+      if (data && data.length > 0) {
+        await supabase.rpc('update_timeline_cache', {
+          p_user_id: user.id,
+          p_timeline_type: 'local',
+          p_action: 'rebuild'
+        });
+      }
 
-    if (error) throw error;
-
-    // Cache the results for next time
-    if (data && data.length > 0) {
-      await supabase.rpc('update_timeline_cache', {
+      console.log(`📊 Local timeline loaded: ${data?.length || 0} posts`);
+      return data || [];
+    } else {
+      // For pagination (max_id provided), bypass cache entirely
+      console.log('🔄 Loading more local timeline posts (bypassing cache)');
+      const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
         p_user_id: user.id,
-        p_timeline_type: 'local',
-        p_action: 'rebuild'
+        p_timeline_type: 'local', 
+        p_limit: limit,
+        p_max_id: options.max_id
       });
-    }
 
-    console.log(`📊 Local timeline loaded: ${data?.length || 0} posts`);
-    return data || [];
+      if (error) throw error;
+      console.log(`📊 More local timeline posts loaded: ${data?.length || 0} posts`);
+      return data || [];
+    }
   }
 
   // =============================================

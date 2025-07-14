@@ -427,24 +427,8 @@ const handleShowUserProfile = (user: FederatedUser) => {
 }
 
 const handleLoadMorePosts = async () => {
-  try {
-    const currentPosts = currentViewData.value
-    const lastPost = currentPosts[currentPosts.length - 1]
-    
-    switch (currentView.value) {
-      case 'home':
-        await activityPubStore.loadHomeFeed(lastPost?.id)
-        break
-      case 'public':
-        await activityPubStore.loadPublicFeed(lastPost?.id)
-        break
-      case 'local':
-        await activityPubStore.loadLocalFeed(lastPost?.id)
-        break
-    }
-  } catch (error) {
-    console.error('Failed to load more posts:', error)
-  }
+  // Prevent duplicate loading - this is handled by TimelineView
+  console.log('⚠️ Load more handled by TimelineView component');
 }
 
 const handleFollow = async (user: FederatedUser | string) => {

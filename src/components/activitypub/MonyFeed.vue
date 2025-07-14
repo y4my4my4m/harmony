@@ -56,11 +56,11 @@
           <button 
             class="load-more-button"
             @click="loadMore"
-            :disabled="isLoadingAnyFeed"
+            :disabled="isLoadingAnyFeed || isManualLoading"
           >
-            <Icon v-if="isLoadingAnyFeed" name="spinner" class="spinning" />
+            <Icon v-if="isLoadingAnyFeed || isManualLoading" name="spinner" class="spinning" />
             <Icon v-else name="arrow-down" />
-            <span>{{ isLoadingAnyFeed ? 'Loading...' : 'Load More Monies' }}</span>
+            <span>{{ (isLoadingAnyFeed || isManualLoading) ? 'Loading...' : 'Load More Monies' }}</span>
           </button>
         </div>
 
@@ -137,6 +137,7 @@ const router = useRouter();
 
 // Refs
 const feedContainer = ref<HTMLElement>();
+const isManualLoading = ref(false);
 
 // Computed properties
 const {
@@ -197,20 +198,37 @@ const switchFeed = async (feedType: 'home' | 'public' | 'local') => {
 };
 
 const loadMore = () => {
+  // Prevent duplicate loading if already loading
+  if (isLoadingAnyFeed.value || isManualLoading.value) {
+    console.log('🚫 Load more ignored - already loading');
+    return;
+  }
+
+  isManualLoading.value = true;
+  
   switch (currentView.value) {
     case 'home': {
       const homeLastPost = activityPubStore.homeFeed.posts[activityPubStore.homeFeed.posts.length - 1];
-      activityPubStore.loadHomeFeed(homeLastPost?.id);
+      console.log('📄 Loading more home posts after:', homeLastPost?.id);
+      activityPubStore.loadHomeFeed(homeLastPost?.id).finally(() => {
+        isManualLoading.value = false;
+      });
       break;
     }
     case 'public': {
       const publicLastPost = activityPubStore.publicFeed.posts[activityPubStore.publicFeed.posts.length - 1];
-      activityPubStore.loadPublicFeed(publicLastPost?.id);
+      console.log('📄 Loading more public posts after:', publicLastPost?.id);
+      activityPubStore.loadPublicFeed(publicLastPost?.id).finally(() => {
+        isManualLoading.value = false;
+      });
       break;
     }
     case 'local': {
       const localLastPost = activityPubStore.localFeed.posts[activityPubStore.localFeed.posts.length - 1];
-      activityPubStore.loadLocalFeed(localLastPost?.id);
+      console.log('📄 Loading more local posts after:', localLastPost?.id);
+      activityPubStore.loadLocalFeed(localLastPost?.id).finally(() => {
+        isManualLoading.value = false;
+      });
       break;
     }
   }
@@ -234,8 +252,8 @@ const handleScroll = () => {
   
   const currentFeed = getCurrentFeed();
   
-  // Auto-load when 80% scrolled
-  if (scrollPercentage > 0.8 && currentFeed.has_more && !isLoadingAnyFeed.value) {
+  // Auto-load when 80% scrolled (but not if manually loading or already loading)
+  if (scrollPercentage > 0.8 && currentFeed.has_more && !isLoadingAnyFeed.value && !isManualLoading.value) {
     loadMore();
   }
 };
@@ -316,6 +334,8 @@ onUnmounted(() => {
 });
 
 // Auto-refresh on focus - only refresh current view if it has data
+// DISABLED to prevent conflicts with manual loading
+/*
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !activityPubStore.isLoadingFeed) {
     const currentFeed = currentView.value === 'home' ? activityPubStore.homeFeed :
@@ -338,6 +358,7 @@ document.addEventListener('visibilitychange', () => {
     }
   }
 });
+*/
 </script>
 
 <style scoped>
