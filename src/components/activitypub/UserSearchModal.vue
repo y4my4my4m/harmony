@@ -149,7 +149,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
-import { federationService } from '@/services/activitypub/federationService';
+import { federationService } from '@/services/FederationService';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import UserCard from './UserCard.vue';
