@@ -52,14 +52,8 @@ BEGIN
     -- Generate date header (RFC 1123 format)
     v_date := to_char(NOW() AT TIME ZONE 'UTC', 'Dy, DD Mon YYYY HH24:MI:SS "GMT"');
     
-    -- Generate digest header (SHA-256 of body)
-    BEGIN
-        v_digest := 'SHA-256=' || encode(digest(convert_to(p_body, 'UTF8'), 'sha256'::text), 'base64');
-    EXCEPTION 
-        WHEN OTHERS THEN
-            -- Fallback if pgcrypto is not available
-            v_digest := 'SHA-256=' || encode(sha256(convert_to(p_body, 'UTF8')), 'base64');
-    END;
+    -- Generate digest header (SHA-256 of body) using plv8
+    v_digest := plv8_sha256_base64(p_body);
     
     -- Build key ID
     v_key_id := 'https://' || p_instance_domain || '/users/' || p_actor_username || '#main-key';
