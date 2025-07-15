@@ -72,7 +72,7 @@ BEGIN
         FOR v_recipient_profile IN 
             SELECT p.username, p.domain, p.federated_id, p.is_local
             FROM conversations c
-            JOIN profiles p ON (p.id = c.user1_id OR p.id = c.user2_id)
+            JOIN profiles p ON (p.id = c.user1 OR p.id = c.user2)
             WHERE c.id = p_conversation_id 
             AND p.id != p_sender_id
             AND NOT p.is_local

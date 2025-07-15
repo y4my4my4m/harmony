@@ -22,8 +22,8 @@ export interface DMUser {
 
 export interface DMConversation {
   id: string
-  user1_id: string
-  user2_id: string
+  user1: string
+  user2: string
   created_at: string
   last_activity?: string
   last_message?: Message
@@ -332,8 +332,8 @@ export const useDMStore = defineStore('dm', () => {
 
       const processedConv: DMConversation = {
         id: convData.id,
-        user1_id: convData.user1,
-        user2_id: convData.user2,
+        user1: convData.user1,
+        user2: convData.user2,
         created_at: convData.created_at,
         last_activity: lastMessageData?.created_at || convData.created_at,
         last_message: lastMessageData ? {
@@ -473,8 +473,8 @@ export const useDMStore = defineStore('dm', () => {
 
         const processedConv: DMConversation = {
           id: conv.id,
-          user1_id: conv.user1,
-          user2_id: conv.user2,
+          user1: conv.user1,
+          user2: conv.user2,
           created_at: conv.created_at,
           last_activity: lastMessageData?.created_at || conv.created_at,
           last_message: lastMessageData ? {
@@ -815,16 +815,16 @@ export const useDMStore = defineStore('dm', () => {
           .from('conversations')
           .select(`
             id,
-            user1_id,
-            user2_id,
-            user1:profiles!conversations_user1_id_fkey(id, username, domain, is_local),
-            user2:profiles!conversations_user2_id_fkey(id, username, domain, is_local)
+            user1,
+            user2,
+            user1:profiles!conversations_user1_fkey(id, username, domain, is_local),
+            user2:profiles!conversations_user2_fkey(id, username, domain, is_local)
           `)
           .eq('id', conversationId)
           .single()
 
         if (!convError && conversation) {
-          const otherUser = conversation.user1_id === userId ? conversation.user2 : conversation.user1
+          const otherUser = conversation.user1 === userId ? conversation.user2 : conversation.user1
           
           // Type assertion for the joined profile data
           const otherUserProfile = otherUser as any

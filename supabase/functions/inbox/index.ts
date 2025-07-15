@@ -69,20 +69,13 @@ serve(async (req: Request) => {
       .from('federated_instances')
       .select('is_blocked')
       .eq('domain', actorDomain)
-      .single()
-      if (blockError) {
-      console.error('Failed to check blocked instance:', blockError)
-      return new Response('Internal server error', { 
-        status: 500, 
-        headers: corsHeaders 
-      })
-      }
+      .maybeSingle()
       if (blocked?.is_blocked) {
-      console.log(`Blocked instance attempted to send activity: ${activity.id} from ${actorDomain}`)
-      return new Response('Blocked instance', { 
-        status: 403, 
-        headers: corsHeaders 
-      })
+        console.log(`Blocked instance attempted to send activity: ${activity.id} from ${actorDomain}`)
+        return new Response('Blocked instance', { 
+          status: 403, 
+          headers: corsHeaders 
+        })
       }
     }
 
@@ -977,11 +970,32 @@ async function processDirectMessage(supabase: any, activity: ActivityPubActivity
 async function findOrCreateDMConversation(supabase: any, user1Id: string, user2Id: string): Promise<string | null> {
   try {
     // Check if conversation already exists (regardless of user order)
-    const { data: existingConversation } = await supabase
+    // Try a simpler approach first - search for both orderings
+    let existingConversation: any = null;
+    
+    // Try first ordering
+    const { data: conv1 } = await supabase
       .from('conversations')
       .select('id')
-      .or(`and(user1.eq.${user1Id},user2.eq.${user2Id}),and(user1.eq.${user2Id},user2.eq.${user1Id})`)
-      .single()
+      .eq('user1', user1Id)
+      .eq('user2', user2Id)
+      .maybeSingle()
+    
+    if (conv1) {
+      existingConversation = conv1;
+    } else {
+      // Try reverse ordering
+      const { data: conv2 } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('user1', user2Id)
+        .eq('user2', user1Id)
+        .maybeSingle()
+      
+      if (conv2) {
+        existingConversation = conv2;
+      }
+    }
 
     if (existingConversation) {
       console.log(`📝 Found existing conversation: ${existingConversation.id}`)
