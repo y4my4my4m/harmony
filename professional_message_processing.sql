@@ -11,6 +11,7 @@ DROP TRIGGER IF EXISTS handle_new_messages ON messages;
 DROP FUNCTION IF EXISTS handle_message_notifications();
 DROP FUNCTION IF EXISTS federate_dm_message();
 DROP FUNCTION IF EXISTS create_http_signature();
+DROP FUNCTION IF EXISTS convert_content_to_activitypub_html();
 
 -- Helper function for HTTP signatures
 CREATE OR REPLACE FUNCTION create_http_signature(
@@ -118,6 +119,51 @@ BEGIN
         v_date,
         v_digest,
         v_headers;
+END;
+$$;
+
+-- Helper function to convert Harmony content to ActivityPub HTML
+CREATE OR REPLACE FUNCTION convert_content_to_activitypub_html(content_data JSONB)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+    html_content TEXT := '';
+    item JSONB;
+BEGIN
+    -- Handle array content (Harmony's structured format)
+    IF jsonb_typeof(content_data) = 'array' THEN
+        FOR item IN SELECT * FROM jsonb_array_elements(content_data)
+        LOOP
+            CASE item->>'type'
+                WHEN 'text' THEN
+                    html_content := html_content || (item->>'text');
+                WHEN 'mention' THEN
+                    html_content := html_content || format(
+                        '<span class="h-card"><a href="https://%s/@%s" class="u-url mention">@<span>%s</span></a></span>',
+                        item->>'domain',
+                        item->>'username', 
+                        item->>'username'
+                    );
+                WHEN 'link' THEN
+                    html_content := html_content || format(
+                        '<a href="%s">%s</a>',
+                        item->>'url',
+                        COALESCE(item->>'text', item->>'url')
+                    );
+                ELSE
+                    -- Unknown type, treat as text
+                    html_content := html_content || COALESCE(item->>'text', item::text);
+            END CASE;
+        END LOOP;
+    ELSE
+        -- Handle simple text content
+        html_content := content_data::text;
+        html_content := trim(both '"' from html_content); -- Remove JSON quotes
+    END IF;
+    
+    RETURN html_content;
 END;
 $$;
 
@@ -312,15 +358,18 @@ BEGIN
                 v_message_url := 'https://' || v_instance_domain || '/messages/' || NEW.id::TEXT;
                 v_activity_id := v_sender_url || '#dm-' || NEW.id::TEXT;
                 
-                -- Create ActivityPub Note object
+                -- Create ActivityPub Note object with proper content format
                 v_note_object := jsonb_build_object(
                     'id', v_message_url,
                     'type', 'Note',
-                    'content', NEW.content,
+                    'content', convert_content_to_activitypub_html(NEW.content),
+                    'contentMap', jsonb_build_object('en', convert_content_to_activitypub_html(NEW.content)),
                     'attributedTo', v_sender_url,
                     'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
                     'to', jsonb_build_array(v_recipient_url),
-                    'tag', jsonb_build_array()
+                    'tag', jsonb_build_array(),
+                    'cc', jsonb_build_array(),
+                    'sensitive', false
                 );
                 
                 -- Create ActivityPub Create activity
@@ -385,6 +434,9 @@ BEGIN
                 
                 -- Attempt immediate delivery first
                 BEGIN
+                    -- Log what we're about to attempt
+                    RAISE NOTICE 'Attempting DM delivery to: % with signature: %', v_inbox_url, LEFT(v_signature_header, 100);
+                    
                     -- Try to deliver immediately using HTTP extension with signatures
                     delivery_result := net.http_post(
                         v_inbox_url,
@@ -404,6 +456,8 @@ BEGIN
                     v_http_response := delivery_result->>'body';
                     v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);
                     
+                    RAISE NOTICE 'HTTP Response: Status=%, Body=%', v_http_status, LEFT(v_http_response, 200);
+                    
                     IF v_delivery_success THEN
                         -- Immediate delivery succeeded
                         UPDATE ap_activities 
@@ -415,15 +469,27 @@ BEGIN
                             v_recipient_profile.username, v_recipient_profile.domain, v_http_status;
                     ELSE
                         -- Immediate delivery failed, queue for retry
-                        RAISE WARNING 'Immediate delivery failed (HTTP %), queuing for retry', v_http_status;
+                        UPDATE ap_activities 
+                        SET status = 'failed',
+                            attempts = 1,
+                            last_attempt_at = NOW(),
+                            error_message = format('HTTP %: %', v_http_status, LEFT(v_http_response, 500))
+                        WHERE id = v_activity_uuid;
+                        
+                        RAISE WARNING 'Immediate delivery failed (HTTP %), queuing for retry. Response: %', v_http_status, LEFT(v_http_response, 200);
                         PERFORM queue_activity_for_federation(v_activity_uuid, ARRAY[v_recipient_profile.domain], 8, true);
                     END IF;
                     
                 EXCEPTION 
                     WHEN OTHERS THEN
                         -- HTTP extension not available or network error, queue for delivery
-                        RAISE NOTICE 'HTTP delivery not available or failed, queuing DM for: %@%', 
-                            v_recipient_profile.username, v_recipient_profile.domain;
+                        UPDATE ap_activities 
+                        SET status = 'failed',
+                            error_message = 'HTTP delivery failed: ' || SQLERRM
+                        WHERE id = v_activity_uuid;
+                        
+                        RAISE NOTICE 'HTTP delivery not available or failed (%), queuing DM for: %@%. Error: %', 
+                            SQLSTATE, v_recipient_profile.username, v_recipient_profile.domain, SQLERRM;
                         PERFORM queue_activity_for_federation(v_activity_uuid, ARRAY[v_recipient_profile.domain], 8, true);
                 END;
             END LOOP;
@@ -458,10 +524,13 @@ GRANT EXECUTE ON FUNCTION public.create_http_signature(text, text, text, text, t
 GRANT EXECUTE ON FUNCTION public.create_http_signature(text, text, text, text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION handle_new_message() TO authenticated;
 GRANT EXECUTE ON FUNCTION handle_new_message() TO service_role;
+GRANT EXECUTE ON FUNCTION convert_content_to_activitypub_html(JSONB) TO authenticated;
+GRANT EXECUTE ON FUNCTION convert_content_to_activitypub_html(JSONB) TO service_role;
 
 -- 4. Documentation
 COMMENT ON FUNCTION create_http_signature(text, text, text, text, text) IS 'Generates HTTP signatures for ActivityPub federation requests using RSA-SHA256. Used by both immediate and queued deliveries.';
 COMMENT ON FUNCTION handle_new_message() IS 'Comprehensive message processing: notifications (local users only) + federation (remote DMs with HTTP signatures) + extensibility for future features';
+COMMENT ON FUNCTION convert_content_to_activitypub_html(JSONB) IS 'Converts Harmony''s structured content format to ActivityPub-compatible HTML content';
 COMMENT ON TRIGGER handle_new_messages ON messages IS 'Single atomic trigger for all message processing - professional, scalable, maintainable';
 
 -- 5. Important Notes
