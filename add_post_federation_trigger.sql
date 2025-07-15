@@ -7,6 +7,7 @@ CREATE OR REPLACE FUNCTION handle_post_federation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = extensions, public, pg_temp
 AS $$
 DECLARE
     -- Variables for federation
@@ -212,35 +213,41 @@ BEGIN
                 -- Attempt immediate delivery
                 RAISE NOTICE 'Attempting post delivery to: % with signature: %', v_inbox_url, LEFT(v_signature_header, 100);
                 
-                -- Use Supabase's http_post function with proper signature
+                -- Try to deliver immediately using Supabase HTTP extension with proper ActivityPub headers
                 SELECT status, content INTO v_http_status, v_http_response
-                FROM http_post(
+                FROM http((
+                    'POST',
                     v_inbox_url,
-                    v_activity::text,
-                    'application/activity+json',
-                    jsonb_build_object(
+                    http_headers(
+                        'Content-Type', 'application/activity+json',
                         'User-Agent', 'Harmony/1.0.0',
                         'Host', v_domain,
                         'Date', v_date_header,
                         'Digest', v_digest_header,
                         'Signature', v_signature_header
-                    )
-                );
+                    ),
+                    'application/activity+json',
+                    v_activity::text
+                )::extensions.http_request);
                 
                 -- Check delivery success
                 v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);
                 
+                RAISE NOTICE 'HTTP Response: Status=%, Body=%', v_http_status, LEFT(v_http_response, 200);
+                
                 IF v_delivery_success THEN
                     RAISE NOTICE '✅ Immediate post delivery succeeded to: % (HTTP %)', v_domain, v_http_status;
                 ELSE
-                    RAISE WARNING 'Immediate delivery failed to % (HTTP %), will queue for retry. Response: %', 
+                    RAISE WARNING '❌ Immediate post delivery failed to % (HTTP %): %', 
                         v_domain, v_http_status, LEFT(v_http_response, 200);
+                    RAISE NOTICE 'Will queue post for retry delivery via federation queue';
                 END IF;
                 
             EXCEPTION 
                 WHEN OTHERS THEN
-                    RAISE NOTICE 'HTTP delivery failed to % (%), will queue for retry. Error: %', 
+                    RAISE WARNING '💥 HTTP delivery exception for post to % - SQLSTATE: %, Error: %', 
                         v_domain, SQLSTATE, SQLERRM;
+                    RAISE NOTICE 'Will queue post for retry delivery via federation queue due to exception';
                     v_delivery_success := false;
             END;
         END LOOP;

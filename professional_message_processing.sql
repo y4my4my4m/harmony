@@ -29,6 +29,7 @@ RETURNS TABLE(
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = extensions, public, pg_temp
 AS $$
 DECLARE
     v_date TEXT;
@@ -121,6 +122,7 @@ CREATE OR REPLACE FUNCTION convert_content_to_activitypub_html(content_data JSON
 RETURNS TEXT
 LANGUAGE plpgsql
 IMMUTABLE
+SET search_path = extensions, public, pg_temp
 AS $$
 DECLARE
     html_content TEXT := '';
@@ -166,6 +168,7 @@ CREATE OR REPLACE FUNCTION handle_new_message()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = extensions, public, pg_temp
 AS $$
 DECLARE
     -- Variables for notifications
@@ -431,20 +434,22 @@ BEGIN
                     -- Log what we're about to attempt
                     RAISE NOTICE 'Attempting DM delivery to: % with signature: %', v_inbox_url, LEFT(v_signature_header, 100);
                     
-                    -- Try to deliver immediately using Supabase HTTP extension with signatures
+                    -- Try to deliver immediately using Supabase HTTP extension with proper ActivityPub headers
                     SELECT status, content INTO v_http_status, v_http_response
-                    FROM http_post(
+                    FROM http((
+                        'POST',
                         v_inbox_url,
-                        v_activity::text,
-                        'application/activity+json',
-                        jsonb_build_object(
+                        http_headers(
+                            'Content-Type', 'application/activity+json',
                             'User-Agent', 'Harmony/1.0.0',
                             'Host', v_recipient_profile.domain,
                             'Date', v_date_header,
                             'Digest', v_digest_header,
                             'Signature', v_signature_header
-                        )
-                    );
+                        ),
+                        'application/activity+json',
+                        v_activity::text
+                    )::extensions.http_request);
                     
                     -- Check delivery success
                     v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);
@@ -469,7 +474,9 @@ BEGIN
                             error_message = format('HTTP %: %', v_http_status, LEFT(v_http_response, 500))
                         WHERE id = v_activity_uuid;
                         
-                        RAISE WARNING 'Immediate delivery failed (HTTP %), queuing for retry. Response: %', v_http_status, LEFT(v_http_response, 200);
+                        RAISE WARNING '❌ Immediate DM delivery failed to %@% (HTTP %): %', 
+                            v_recipient_profile.username, v_recipient_profile.domain, v_http_status, LEFT(v_http_response, 200);
+                        RAISE NOTICE 'Queuing DM for retry delivery via federation queue';
                         PERFORM queue_activity_for_federation(v_activity_uuid, ARRAY[v_recipient_profile.domain], 8, true);
                     END IF;
                     
@@ -481,8 +488,9 @@ BEGIN
                             error_message = 'HTTP delivery failed: ' || SQLERRM
                         WHERE id = v_activity_uuid;
                         
-                        RAISE NOTICE 'HTTP delivery not available or failed (%), queuing DM for: %@%. Error: %', 
-                            SQLSTATE, v_recipient_profile.username, v_recipient_profile.domain, SQLERRM;
+                        RAISE WARNING '💥 HTTP delivery exception for DM to %@% - SQLSTATE: %, Error: %', 
+                            v_recipient_profile.username, v_recipient_profile.domain, SQLSTATE, SQLERRM;
+                        RAISE NOTICE 'Queuing DM for retry delivery via federation queue due to exception';
                         PERFORM queue_activity_for_federation(v_activity_uuid, ARRAY[v_recipient_profile.domain], 8, true);
                 END;
             END LOOP;
