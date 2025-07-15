@@ -1,5 +1,4 @@
 <template>
-
   <div class="user-profile" ref="targetRef">
     <div @click.stop="handleAvatarClick">
       <Avatar 
