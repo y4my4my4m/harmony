@@ -81,6 +81,7 @@ serve(async (req: Request) => {
                            acceptHeader.includes('application/ld+json')
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseRemoteUrl = 'https://db.mony.lol'
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
@@ -134,7 +135,7 @@ serve(async (req: Request) => {
 
       // If it's a Supabase storage path, construct proper public URL
       if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
-        return `${supabaseUrl}/storage/v1/object/public/avatars/${avatarUrl}`
+        return `${supabaseRemoteUrl}/storage/v1/object/public/avatars/${avatarUrl}`
       }
 
       // If it's a local path, convert to full URL
@@ -183,10 +184,10 @@ serve(async (req: Request) => {
         url: avatarUrl
       } : undefined,
       inbox: `${actorId}/inbox`,
-      outbox: `${actorId}/outbox`, // TODO: Implement outbox endpoint
-      following: `${actorId}/following`, // TODO: Implement following endpoint  
-      followers: `${actorId}/followers`, // TODO: Implement followers endpoint
-      featured: `${actorId}/featured`, // TODO: Implement featured endpoint
+      outbox: `${actorId}/outbox`,
+      following: `${actorId}/following`,
+      followers: `${actorId}/followers`,
+      featured: `${actorId}/featured`,
       publicKey: {
         id: `${actorId}#main-key`,
         owner: actorId,

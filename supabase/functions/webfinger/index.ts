@@ -67,6 +67,7 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
+    const supabaseRemoteUrl = 'https://db.mony.lol'
 
     const { data: user, error } = await supabase
       .from('profiles')
@@ -99,7 +100,7 @@ serve(async (req: Request) => {
 
       // If it's a Supabase storage path, construct proper public URL
       if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
-        return `${supabaseUrl}/storage/v1/object/public/avatars/${avatarUrl}`
+        return `${supabaseRemoteUrl}/storage/v1/object/public/avatars/${avatarUrl}`
       }
 
       // If it's a local path, convert to full URL
