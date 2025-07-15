@@ -809,54 +809,10 @@ export const useDMStore = defineStore('dm', () => {
 
       console.log('✅ DM message sent successfully to database:', newMessage)
       
-      // Check if this conversation involves federated users
-      try {
-        const { data: conversation, error: convError } = await supabase
-          .from('conversations')
-          .select(`
-            id,
-            user1,
-            user2,
-            user1:profiles!conversations_user1_fkey(id, username, domain, is_local),
-            user2:profiles!conversations_user2_fkey(id, username, domain, is_local)
-          `)
-          .eq('id', conversationId)
-          .single()
-
-        if (!convError && conversation) {
-          const otherUser = conversation.user1 === userId ? conversation.user2 : conversation.user1
-          
-          // Type assertion for the joined profile data
-          const otherUserProfile = otherUser as any
-          
-          // If the other user is federated, queue federation delivery
-          if (otherUserProfile && !otherUserProfile.is_local && otherUserProfile.domain) {
-            console.log('🌐 Queuing federated DM delivery to:', `${otherUserProfile.username}@${otherUserProfile.domain}`)
-            
-            const { error: federationError } = await supabase.rpc('create_outgoing_dm_activity', {
-              p_message_id: newMessage.id,
-              p_conversation_id: conversationId,
-              p_sender_id: userId,
-              p_content: content,
-              p_recipient_domains: [otherUserProfile.domain]
-            })
-
-            if (federationError) {
-              console.error('❌ Failed to queue federated DM delivery:', federationError)
-              // Don't fail the entire message send for federation errors
-            } else {
-              console.log('✅ Federated DM delivery queued successfully')
-            }
-          }
-        }
-      } catch (federationError) {
-        console.error('❌ Error checking federation requirements:', federationError)
-        // Don't fail the entire message send for federation errors
-      }
-      
-      // 🔔 Database triggers now handle DM notifications automatically
-      // No need for manual notification creation - the database trigger will detect
-      // the new message insert and create appropriate notifications based on conversation participants
+      // 🎯 DATABASE TRIGGERS NOW HANDLE:
+      // 1. DM notifications (handle_message_notifications trigger)
+      // 2. Federation delivery (federate_dm_message trigger)
+      // No manual frontend calls needed!
 
       // Real-time subscription will handle adding to cache via addMessageToCache
       // Don't manually add here to prevent duplicates
