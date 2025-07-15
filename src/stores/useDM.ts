@@ -1091,6 +1091,141 @@ export const useDMStore = defineStore('dm', () => {
     console.log('✅ DM store cleaned up')
   }
 
+  // =================================================================
+  // FEDERATION SUPPORT
+  // =================================================================
+  
+  // Process incoming federated DM according to ActivityStreams specification
+  const processFederatedDM = async (activity: any, note: any) => {
+    try {
+      console.log('🌐 Processing federated DM:', { activityId: activity.id, noteId: note.id })
+      
+      // Validate this is a direct message according to ActivityStreams spec:
+      // - All actors in 'to' should be mentioned in 'tag' for "direct" visibility
+      const toActors = Array.isArray(activity.to) ? activity.to : [activity.to]
+      const mentions = note.tag?.filter((tag: any) => tag.type === 'Mention') || []
+      const mentionedActors = mentions.map((mention: any) => mention.href)
+      
+      // Check if all recipients are properly mentioned (required for direct messages)
+      const allRecipientsAreMentioned = toActors.every((actor: string) => 
+        mentionedActors.includes(actor) || actor === activity.actor
+      )
+      
+      if (!allRecipientsAreMentioned) {
+        console.warn('⚠️ Federated message does not follow direct message mention requirements, may not be a DM')
+      }
+      
+      // Extract sender information from ActivityPub actor
+      const senderUrl = activity.actor
+      const senderDomain = new URL(senderUrl).hostname
+      
+      // Find or create sender profile in local database
+      // This should integrate with existing federation user management
+      
+      return {
+        isDirectMessage: allRecipientsAreMentioned,
+        senderUrl,
+        senderDomain,
+        mentions,
+        toActors
+      }
+    } catch (error) {
+      console.error('❌ Failed to process federated DM:', error)
+      return null
+    }
+  }
+  
+  // Helper to validate ActivityPub mention format according to spec
+  const validateMentionTag = (tag: any): boolean => {
+    return (
+      tag &&
+      tag.type === 'Mention' &&
+      typeof tag.href === 'string' &&
+      typeof tag.name === 'string' &&
+      tag.name.startsWith('@')
+    )
+  }
+  
+  // Extract mentions from message content for federation
+  const extractMentionsForFederation = (content: MessagePart[]): Array<{username: string, domain?: string, url?: string}> => {
+    const mentions: Array<{username: string, domain?: string, url?: string}> = []
+    
+    content.forEach(part => {
+      if (part.type === 'mention' && part.username) {
+        mentions.push({
+          username: part.username,
+          domain: part.domain,
+          url: part.url
+        })
+      }
+    })
+    
+    return mentions
+  }
+  
+  // Generate proper ActivityPub mention tags for outgoing DMs
+  const generateActivityPubMentionTags = (
+    content: MessagePart[], 
+    recipientUrls: string[], 
+    instanceDomain: string
+  ): any[] => {
+    const mentionTags: any[] = []
+    const processedUrls = new Set<string>()
+    
+    // Add mentions from content
+    content.forEach(part => {
+      if (part.type === 'mention' && part.username) {
+        const domain = part.domain || instanceDomain
+        const url = part.url || `https://${domain}/@${part.username}`
+        const name = domain === instanceDomain ? `@${part.username}` : `@${part.username}@${domain}`
+        
+        if (!processedUrls.has(url)) {
+          mentionTags.push({
+            type: 'Mention',
+            href: url,
+            name: name
+          })
+          processedUrls.add(url)
+        }
+      }
+    })
+    
+    // For DMs, ensure ALL recipients are mentioned (required for "direct" visibility)
+    recipientUrls.forEach(recipientUrl => {
+      if (!processedUrls.has(recipientUrl)) {
+        try {
+          const url = new URL(recipientUrl)
+          const domain = url.hostname
+          const pathParts = url.pathname.split('/')
+          let username = ''
+          
+          // Handle different ActivityPub URL formats
+          if (pathParts[1] === 'users' && pathParts[2]) {
+            username = pathParts[2]
+          } else if (pathParts[1]?.startsWith('@')) {
+            username = pathParts[1].substring(1)
+          } else if (pathParts[1]) {
+            username = pathParts[1]
+          }
+          
+          if (username) {
+            const name = domain === instanceDomain ? `@${username}` : `@${username}@${domain}`
+            mentionTags.push({
+              type: 'Mention',
+              href: recipientUrl,
+              name: name
+            })
+            processedUrls.add(recipientUrl)
+          }
+        } catch (error) {
+          console.warn('Failed to parse recipient URL for mention tag:', recipientUrl, error)
+        }
+      }
+    })
+    
+    return mentionTags
+  }
+
   return {
     // State
     conversations,
@@ -1126,6 +1261,12 @@ export const useDMStore = defineStore('dm', () => {
     clearDMMessages,
     setupConversationSubscription,
     cleanupRealtimeSubscriptions,
-    cleanup
+    cleanup,
+    
+    // Federation Support
+    processFederatedDM,
+    validateMentionTag,
+    extractMentionsForFederation,
+    generateActivityPubMentionTags
   }
 })

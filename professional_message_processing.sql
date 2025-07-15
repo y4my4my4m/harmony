@@ -59,6 +59,99 @@ BEGIN
 END;
 $$;
 
+-- Helper function to extract ActivityPub Mention tags from content and recipients
+-- For DMs: Always includes all recipients as mentions (required for "direct" visibility)
+-- Also includes any explicit @mentions from message content
+CREATE OR REPLACE FUNCTION extract_activitypub_mention_tags(
+    content_data JSONB,
+    recipient_urls TEXT[],
+    instance_domain TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = extensions, public, pg_temp
+AS $$
+DECLARE
+    mention_tags JSONB := '[]'::jsonb;
+    item JSONB;
+    recipient_url TEXT;
+    username TEXT;
+    domain TEXT;
+    mention_name TEXT;
+    url_parts TEXT[];
+BEGIN
+    -- Extract explicit mentions from content (if any)
+    IF jsonb_typeof(content_data) = 'array' THEN
+        FOR item IN SELECT * FROM jsonb_array_elements(content_data)
+        LOOP
+            IF item->>'type' = 'mention' THEN
+                -- Build proper ActivityPub Mention tag from content mention
+                mention_name := '@' || (item->>'username');
+                IF item->>'domain' IS NOT NULL AND item->>'domain' != instance_domain THEN
+                    mention_name := mention_name || '@' || (item->>'domain');
+                END IF;
+                
+                mention_tags := mention_tags || jsonb_build_array(jsonb_build_object(
+                    'type', 'Mention',
+                    'href', 'https://' || COALESCE(item->>'domain', instance_domain) || '/@' || (item->>'username'),
+                    'name', mention_name
+                ));
+            END IF;
+        END LOOP;
+    END IF;
+    
+    -- For DMs: ALWAYS ensure all recipients are mentioned in tags (required for "direct" visibility)
+    -- This happens regardless of whether users explicitly @mention each other in chat
+    -- Critical for Mastodon compatibility and proper DM delivery
+    FOREACH recipient_url IN ARRAY recipient_urls
+    LOOP
+        -- Parse recipient URL to extract username and domain
+        -- Expected format: https://domain.com/@username or https://domain.com/users/username
+        IF recipient_url LIKE 'https://%' THEN
+            -- Remove https:// prefix
+            recipient_url := substring(recipient_url from 9);
+            
+            -- Split by / to get domain and path
+            url_parts := string_to_array(recipient_url, '/');
+            
+            IF array_length(url_parts, 1) >= 2 THEN
+                domain := url_parts[1];
+                
+                -- Extract username from path (handles both /@username and /users/username formats)
+                IF url_parts[2] LIKE '@%' THEN
+                    username := substring(url_parts[2] from 2);  -- Remove @ prefix
+                ELSIF array_length(url_parts, 1) >= 3 AND url_parts[2] = 'users' THEN
+                    username := url_parts[3];
+                ELSE
+                    username := url_parts[2];
+                END IF;
+                
+                -- Build mention name
+                mention_name := '@' || username;
+                IF domain != instance_domain THEN
+                    mention_name := mention_name || '@' || domain;
+                END IF;
+                
+                -- Check if this mention is already in tags (avoid duplicates)
+                IF NOT EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(mention_tags) AS tag
+                    WHERE tag->>'href' = 'https://' || domain || '/@' || username
+                ) THEN
+                    mention_tags := mention_tags || jsonb_build_array(jsonb_build_object(
+                        'type', 'Mention',
+                        'href', 'https://' || domain || '/@' || username,
+                        'name', mention_name
+                    ));
+                END IF;
+            END IF;
+        END IF;
+    END LOOP;
+    
+    RETURN mention_tags;
+END;
+$$;
+
 -- 1. Create comprehensive message processing function
 CREATE OR REPLACE FUNCTION handle_new_message()
 RETURNS TRIGGER
@@ -251,19 +344,39 @@ BEGIN
                 v_message_url := 'https://' || v_instance_domain || '/messages/' || NEW.id::TEXT;
                 v_activity_id := v_sender_url || '#dm-' || NEW.id::TEXT;
                 
-                -- Create ActivityPub Note object with proper content format
-                v_note_object := jsonb_build_object(
-                    'id', v_message_url,
-                    'type', 'Note',
-                    'content', convert_content_to_activitypub_html(NEW.content),
-                    'contentMap', jsonb_build_object('en', convert_content_to_activitypub_html(NEW.content)),
-                    'attributedTo', v_sender_url,
-                    'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-                    'to', jsonb_build_array(v_recipient_url),
-                    'tag', jsonb_build_array(),
-                    'cc', jsonb_build_array(),
-                    'sensitive', false
-                );
+                -- Generate proper ActivityPub Mention tags for DM recipients
+                -- This is required for "direct" visibility in Mastodon
+                -- NOTE: For DMs, we ALWAYS include recipients as mentions, regardless of whether
+                -- they are explicitly mentioned in the message content (chat-like behavior)
+                DECLARE
+                    v_mention_tags JSONB;
+                    v_recipient_urls TEXT[];
+                BEGIN
+                    -- Build array of all recipient URLs in the conversation
+                    v_recipient_urls := ARRAY[v_recipient_url];
+                    
+                    -- Extract mention tags including content mentions + all DM recipients
+                    -- This will handle both explicit @mentions in content AND ensure all recipients are mentioned
+                    v_mention_tags := extract_activitypub_mention_tags(
+                        NEW.content,
+                        v_recipient_urls,
+                        v_instance_domain
+                    );
+                    
+                    -- Create ActivityPub Note object with proper content format and mention tags
+                    v_note_object := jsonb_build_object(
+                        'id', v_message_url,
+                        'type', 'Note',
+                        'content', convert_content_to_activitypub_html(NEW.content),
+                        'contentMap', jsonb_build_object('en', convert_content_to_activitypub_html(NEW.content)),
+                        'attributedTo', v_sender_url,
+                        'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                        'to', jsonb_build_array(v_recipient_url),
+                        'tag', v_mention_tags,  -- Proper Mention tags for direct visibility
+                        'cc', jsonb_build_array(),
+                        'sensitive', false
+                    );
+                END;
                 
                 -- Create ActivityPub Create activity
                 v_activity := jsonb_build_object(
@@ -439,17 +552,26 @@ GRANT EXECUTE ON FUNCTION handle_new_message() TO authenticated;
 GRANT EXECUTE ON FUNCTION handle_new_message() TO service_role;
 GRANT EXECUTE ON FUNCTION convert_content_to_activitypub_html(JSONB) TO authenticated;
 GRANT EXECUTE ON FUNCTION convert_content_to_activitypub_html(JSONB) TO service_role;
+GRANT EXECUTE ON FUNCTION extract_activitypub_mention_tags(JSONB, TEXT[], TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION extract_activitypub_mention_tags(JSONB, TEXT[], TEXT) TO service_role;
 
 -- 4. Documentation
 COMMENT ON FUNCTION create_http_signature(text, text, text, text, text) IS 'Generates HTTP signatures for ActivityPub federation using edge function with proper RSA-SHA256 signing';
 COMMENT ON FUNCTION handle_new_message() IS 'Comprehensive message processing: notifications (local users only) + federation (remote DMs with proper HTTP signatures via edge function)';
 COMMENT ON FUNCTION convert_content_to_activitypub_html(JSONB) IS 'Converts Harmony''s structured content format to ActivityPub-compatible HTML content';
+COMMENT ON FUNCTION extract_activitypub_mention_tags(JSONB, TEXT[], TEXT) IS 'Generates proper ActivityPub Mention tags according to ActivityStreams specification: ensures all DM recipients are mentioned for "direct" visibility (chat-like behavior - no need for explicit @mentions), includes proper name property with @mention text';
 COMMENT ON TRIGGER handle_new_messages ON messages IS 'Single atomic trigger for all message processing - now with proper RSA signing via edge function';
 
 -- 5. Important Notes
 -- =================
+-- ActivityStreams Specification Compliance:
+-- - Mention tags follow ActivityStreams vocabulary: type="Mention", href=actor_url, name=@mention_text
+-- - For direct messages: all actors in 'to' are also mentioned in 'tag' for proper "direct" visibility
+-- - Mastodon compatibility: requires Mention tags for notifications and visibility calculation
+-- - Name property contains substring that appears in content (@username or @username@domain)
+-- 
 -- Edge Function Implementation:
--- - HTTP signatures now use proper RSA-SHA256 signing via edge function
+-- - HTTP signatures use proper RSA-SHA256 signing via edge function
 -- - Edge function handles cryptographic operations securely 
 -- - Database function calls edge function at localhost:8000/functions/v1/sign-http-request
 -- - Provides proper ActivityPub-compatible signatures
