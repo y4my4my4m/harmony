@@ -577,7 +577,6 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: var(--harmony-primary);
   border: none;
   border-radius: 6px;
   color: white;

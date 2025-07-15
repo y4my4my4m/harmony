@@ -233,7 +233,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
-import { federationService } from '@/services/activitypub/federationService';
+import { federationService } from '@/services/FederationService';
 import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';

@@ -316,10 +316,14 @@ export const useNotificationStore = defineStore('notification', {
       try {
         console.log('🔔 Fetching notifications for user:', userId)
         
+        // Get the profile ID for this auth user ID
+        const profileId = await this.getProfileId(userId)
+        console.log('🔄 Using profile ID for notifications:', profileId)
+        
         const { data, error } = await supabase
           .from('notifications')
           .select('*')
-          .eq('user_id', userId)
+          .eq('user_id', profileId)
           .order('created_at', { ascending: false })
           .limit(limit)
 
@@ -354,7 +358,7 @@ export const useNotificationStore = defineStore('notification', {
      * REAL-TIME NOTIFICATION SUBSCRIPTION
      * Database triggers send us structured data, we format messages client-side
      */
-    setupContextAwareRealtimeSubscription(userId: string) {
+    async setupContextAwareRealtimeSubscription(userId: string) {
       // Clean up existing subscription
       if (this.realtimeSubscription) {
         console.log('🧹 Cleaning up existing notification subscription')
@@ -363,15 +367,19 @@ export const useNotificationStore = defineStore('notification', {
 
       console.log('🔔 Setting up real-time notification subscription for user:', userId)
 
+      // Get the profile ID for realtime subscription
+      const profileId = await this.getProfileId(userId)
+      console.log('🔄 Using profile ID for realtime subscription:', profileId)
+
       this.realtimeSubscription = supabase
-        .channel(`harmony-notifications-${userId}`)
+        .channel(`harmony-notifications-${profileId}`)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
             table: 'notifications',
-            filter: `user_id=eq.${userId}`
+            filter: `user_id=eq.${profileId}`
           },
           async (payload) => {
             try {
@@ -912,7 +920,28 @@ export const useNotificationStore = defineStore('notification', {
       this.notifications = mockNotifications
       this.updateUnreadCount()
       console.log('📝 Created mock notifications with structured data for development')
-    }
+    },
+
+    // Helper function to get profile ID from auth user ID
+    async getProfileId(authUserId: string): Promise<string> {
+      try {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('auth_user_id', authUserId)
+          .single()
+
+        if (profile && !error) {
+          return profile.id
+        } else {
+          // Fallback to auth user ID for backward compatibility
+          return authUserId
+        }
+      } catch (error) {
+        console.warn('Could not find profile for auth user, using auth user ID:', error)
+        return authUserId
+      }
+    },
   }
 })
 

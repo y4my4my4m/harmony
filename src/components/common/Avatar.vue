@@ -132,11 +132,16 @@ const handleFileSelect = (event: Event) => {
 }
 
 const handleImageError = () => {
+  console.log('Avatar image error for URL:', avatarUrl.value)
   imageError.value = true
+  // Don't attempt to reload the URL on error to prevent infinite loops
 }
 
 const handleImageLoad = () => {
-  imageError.value = false
+  // Only reset error if we weren't already in error state
+  if (imageError.value) {
+    imageError.value = false
+  }
 }
 </script>
 

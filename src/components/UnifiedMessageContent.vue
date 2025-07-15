@@ -840,52 +840,6 @@ export default defineComponent({
   text-decoration: underline;
 }
 
-/* Auto-suggest custom styling */
-.suggest-item-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.suggest-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-.suggest-text {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-}
-
-.suggest-name {
-  font-weight: 500;
-  color: #ffffff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.suggest-username {
-  font-size: 12px;
-  color: #b9bbbe;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.suggest-server {
-  font-size: 11px;
-  color: #72767d;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 @media (max-width: 768px) {
   .image-container,
   .video-container {

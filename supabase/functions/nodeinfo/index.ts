@@ -1,47 +1,5 @@
-// NodeInfo endpoint for instance metadata discovery
-// /.well-known/nodeinfo and /nodeinfo/2.1
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-interface NodeInfoWellKnown {
-  links: Array<{
-    rel: string
-    href: string
-  }>
-}
-
-interface NodeInfo {
-  version: string
-  software: {
-    name: string
-    version: string
-    repository?: string
-  }
-  protocols: string[]
-  services: {
-    outbound: string[]
-    inbound: string[]
-  }
-  usage: {
-    users: {
-      total: number
-      activeMonth: number
-      activeHalfyear: number
-    }
-    localPosts: number
-    localComments: number
-  }
-  openRegistrations: boolean
-  metadata: {
-    nodeName: string
-    nodeDescription: string
-    maintainer?: {
-      name: string
-      email: string
-    }
-  }
-}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -50,7 +8,6 @@ const corsHeaders = {
 }
 
 serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -63,13 +20,15 @@ serve(async (req: Request) => {
   }
 
   try {
-    const url = new URL(req.url)
     const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol'
     const baseUrl = `https://${ourDomain}`
 
-    // Handle /.well-known/nodeinfo
-    if (url.pathname === '/.well-known/nodeinfo') {
-      const wellKnown: NodeInfoWellKnown = {
+    // --- Use the custom header from nginx ---
+    const endpoint = req.headers.get("x-nodeinfo-endpoint")
+
+    if (endpoint === "wellknown") {
+      // /.well-known/nodeinfo
+      const wellKnown = {
         links: [
           {
             rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1',
@@ -77,54 +36,50 @@ serve(async (req: Request) => {
           }
         ]
       }
-
       return new Response(JSON.stringify(wellKnown), {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': 'public, max-age=3600' // Cache for 1 hour
+          'Cache-Control': 'public, max-age=3600'
         }
       })
     }
 
-    // Handle /nodeinfo/2.1
-    if (url.pathname === '/nodeinfo/2.1') {
+    if (endpoint === "schema2_1") {
+      // /nodeinfo/2.1
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       const supabase = createClient(supabaseUrl, supabaseKey)
 
-      // Get user count
       const { count: userCount } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('is_local', true)
+        .eq('is_local', true);
 
-      // Get post count  
       const { count: postCount } = await supabase
         .from('posts')
         .select('*', { count: 'exact', head: true })
-        .eq('is_local', true)
+        .eq('is_local', true);
 
-      // Get active users (simplified - users with posts in last month)
-      const lastMonth = new Date()
-      lastMonth.setMonth(lastMonth.getMonth() - 1)
-      
+      const lastMonth = new Date();
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+
       const { count: activeMonth } = await supabase
         .from('posts')
-        .select('author_id', { count: 'exact', head: true })
+        .select('author', { count: 'exact', head: true })
         .eq('is_local', true)
-        .gte('created_at', lastMonth.toISOString())
+        .gte('created_at', lastMonth.toISOString());
 
-      const lastSixMonths = new Date()
-      lastSixMonths.setMonth(lastSixMonths.getMonth() - 6)
-      
+      const lastSixMonths = new Date();
+      lastSixMonths.setMonth(lastSixMonths.getMonth() - 6);
+
       const { count: activeHalfyear } = await supabase
         .from('posts')
-        .select('author_id', { count: 'exact', head: true })
+        .select('author', { count: 'exact', head: true })
         .eq('is_local', true)
-        .gte('created_at', lastSixMonths.toISOString())
+        .gte('created_at', lastSixMonths.toISOString());
 
-      const nodeInfo: NodeInfo = {
+      const nodeInfo = {
         version: '2.1',
         software: {
           name: 'harmony',
@@ -145,7 +100,7 @@ serve(async (req: Request) => {
           localPosts: postCount || 0,
           localComments: 0 // TODO: Implement comment counting
         },
-        openRegistrations: true, // Set based on your instance policy
+        openRegistrations: true,
         metadata: {
           nodeName: 'Harmony',
           nodeDescription: 'A federated social network built for meaningful connections',
@@ -160,11 +115,12 @@ serve(async (req: Request) => {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': 'public, max-age=3600' // Cache for 1 hour
+          'Cache-Control': 'public, max-age=3600'
         }
       })
     }
 
+    // Fallback if header is missing
     return new Response('Not found', { 
       status: 404, 
       headers: corsHeaders 
@@ -177,4 +133,4 @@ serve(async (req: Request) => {
       headers: corsHeaders 
     })
   }
-}) 
+})

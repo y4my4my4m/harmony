@@ -388,25 +388,6 @@ const handleReplyCreated = (newReply: ActivityPubPost) => {
 const handleFavorite = async (postId: string) => {
   try {
     await activityPubStore.toggleFavorite(postId);
-    
-    // Update local state - find the post in either root or replies
-    if (conversationThread.value) {
-      // Check if it's the root post
-      if (conversationThread.value.root_post.id === postId) {
-        const transformedRoot = transformedRootPost.value;
-        if (transformedRoot) {
-          transformedRoot.is_favorited = !transformedRoot.is_favorited;
-          transformedRoot.favorites_count += transformedRoot.is_favorited ? 1 : -1;
-        }
-      } else {
-        // Check in replies
-        const reply = conversationThread.value.posts.find(p => p.id === postId);
-        if (reply) {
-          reply.is_favorited = !reply.is_favorited;
-          reply.favorites_count += reply.is_favorited ? 1 : -1;
-        }
-      }
-    }
   } catch (error) {
     console.error('Failed to toggle favorite:', error);
   }
@@ -415,25 +396,6 @@ const handleFavorite = async (postId: string) => {
 const handleReblog = async (postId: string) => {
   try {
     await activityPubStore.toggleReblog(postId);
-    
-    // Update local state - find the post in either root or replies
-    if (conversationThread.value) {
-      // Check if it's the root post
-      if (conversationThread.value.root_post.id === postId) {
-        const transformedRoot = transformedRootPost.value;
-        if (transformedRoot) {
-          transformedRoot.is_reblogged = !transformedRoot.is_reblogged;
-          transformedRoot.reblogs_count += transformedRoot.is_reblogged ? 1 : -1;
-        }
-      } else {
-        // Check in replies
-        const reply = conversationThread.value.posts.find(p => p.id === postId);
-        if (reply) {
-          reply.is_reblogged = !reply.is_reblogged;
-          reply.reblogs_count += reply.is_reblogged ? 1 : -1;
-        }
-      }
-    }
   } catch (error) {
     console.error('Failed to reblog:', error);
   }
@@ -442,23 +404,6 @@ const handleReblog = async (postId: string) => {
 const handleBookmark = async (postId: string) => {
   try {
     await activityPubStore.toggleBookmark(postId);
-    
-    // Update local state - find the post in either root or replies
-    if (conversationThread.value) {
-      // Check if it's the root post
-      if (conversationThread.value.root_post.id === postId) {
-        const transformedRoot = transformedRootPost.value;
-        if (transformedRoot) {
-          transformedRoot.is_bookmarked = !transformedRoot.is_bookmarked;
-        }
-      } else {
-        // Check in replies
-        const reply = conversationThread.value.posts.find(p => p.id === postId);
-        if (reply) {
-          reply.is_bookmarked = !reply.is_bookmarked;
-        }
-      }
-    }
   } catch (error) {
     console.error('Failed to bookmark:', error);
   }

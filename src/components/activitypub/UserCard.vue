@@ -13,7 +13,7 @@
         <div class="user-name">
           {{ user.display_name || user.username }}
         </div>
-        <div class="user-handle">{{ user.handle }}</div>
+        <div class="user-handle">@{{ handle }}</div>
         
         <!-- Bio (for non-compact view) -->
         <div v-if="!isCompact && user.bio" class="user-bio">
@@ -115,7 +115,8 @@ import { usePostInteractions } from '@/composables/usePostInteractions';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
-
+import { useRouter } from 'vue-router';
+const router = useRouter();
 // Props
 interface Props {
   user: FederatedUser;
@@ -158,6 +159,11 @@ const { toggleFollow, getLoadingState } = usePostInteractions();
 const showActionsMenu = ref(false);
 
 // Computed
+
+const handle = computed(() => {
+  return props.user.is_local ? `${props.user.username}` : `${props.user.username}@${props.user.domain}`;
+});
+
 const isCurrentUser = computed(() => {
   return authStore.session?.user?.id === props.user.id;
 });
@@ -194,7 +200,7 @@ const formatNumber = (num: number): string => {
 };
 
 const handleUserClick = () => {
-  emit('user-click', props.user);
+  router.push({ name: 'UserProfile', params: { handle: handle.value } });
 };
 
 const handleFollowToggle = async () => {

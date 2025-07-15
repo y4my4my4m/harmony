@@ -29,7 +29,7 @@ sudo systemctl reload nginx
 
 ## 2. Supabase Functions
 
-Make sure your Supabase functions are deployed and accessible on port 54321:
+Make sure your Supabase functions are deployed and accessible on port 8000:
 
 ```bash
 # In your Supabase project directory
@@ -98,7 +98,7 @@ To test with other ActivityPub instances:
 
 ### Check function connectivity:
 ```bash
-curl http://localhost:54321/functions/v1/webfinger
+curl http://localhost:8000/functions/v1/webfinger
 ```
 
 ### Check nginx error logs:

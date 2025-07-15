@@ -1,14 +1,12 @@
 <template>
-
-
   <div class="user-profile" ref="targetRef">
     <Avatar 
-      :src="getCurrentUser?.avatarUrl"
+      :src="getUserAvatarUrlCurrent"
       size="md"
-      :status="getUserStatusForAvatar(authStore.session?.user?.id || '').value"
+      :status="currentUser.id ? getUserStatusForAvatar(currentUser.id).value : 'offline'"
     />
     <div class="user-info">
-      <p class="user-name">{{ getCurrentUser?.displayName }}</p>
+      <p class="user-name">{{ currentUser.displayName }}</p>
       <div class="user-status-container" @click="toggleStatusDropdown">
         <div class="status-dot" :class="currentStatusDisplay.class"></div>
         <span class="status-text">{{ currentStatusDisplay.text }}</span>
@@ -64,14 +62,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useThemeStore } from '@/stores/useTheme'
-import { getProfileWithAvatarUrl } from '@/services/profileService'
-import { updateUserStatus } from '@/services/profileService'
 import { useRouter } from 'vue-router'
-import type { User } from '@/types'
-import { UserStatus } from '@/types'
+import { UserStatus, type UserData } from '@/types'
 import { useUserData } from '@/composables/useUserData'
 import MicIcon from '@/components/icons/Mic.vue'
 import MicMutedIcon from '@/components/icons/MicMuted.vue'
@@ -80,23 +74,30 @@ import SettingsIcon from '@/components/icons/Settings.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
 
-const authStore = useAuthStore()
 const voiceChannelStore = useUnifiedVoiceChannelStore()
 const themeStore = useThemeStore()
 const router = useRouter()
-const profile = ref<User | null>(null)
 const showStatusDropdown = ref(false)
 const targetRef = ref<HTMLElement | null>(null)
 
-// Use new clean user data system - ONE source of truth
+// Use new clean user data system - ONE source of truth with full reactivity
 const { 
   getCurrentUser,
   getCurrentUserStatus,
   getUserStatusForAvatar,
+  getUserAvatarUrlCurrent,
   updateCurrentUserStatus,
   getStats
 } = useUserData()
 
+// Reactive current user from unified system - this will update in real-time
+const currentUser = computed(() => {
+  const user = getCurrentUser.value
+  if (!user || !user.id) {
+    return { id: '', displayName: 'Loading...', status: UserStatus.Offline } as UserData
+  }
+  return user
+})
 // Get current status reactively from the unified system
 const currentStatus = computed(() => {
   try {
@@ -191,17 +192,7 @@ const selectStatus = async (status: UserStatus) => {
     
   } catch (error) {
     console.error('❌ Failed to change status:', error)
-    
-    // Try fallback to legacy system
-    try {
-      console.log('🔄 Attempting fallback to legacy status update...')
-      if (authStore.session?.user) {
-        await updateUserStatus(authStore.session.user.id, status)
-        console.log('✅ Status updated via legacy system:', UserStatus[status])
-      }
-    } catch (fallbackError) {
-      console.error('❌ Legacy status update also failed:', fallbackError)
-    }
+    // Note: Removed legacy fallback - useUserData system is the single source of truth
   } finally {
     showStatusDropdown.value = false
   }
@@ -218,14 +209,15 @@ const goToSettings = () => {
 }
 
 onMounted(async () => {
-  // REMOVED legacy profile loading to prevent status conflicts!
-  // Now using ONLY userDataService as single source of truth
+  // 🎯 Component now uses ONLY useUserData for real-time profile updates
+  // All profile changes (avatar, display name, status, etc.) are handled reactively
+  // via the unified user data system - no auth store dependency needed!
   document.addEventListener('click', onClickOutside)
   
   // Debug: Log unified system stats
   const stats = getStats.value
   console.log('🔍 UserData service stats from UserProfileComponent:', stats)
-  console.log('🔍 Current user from userDataService:', getCurrentUser.value)
+  console.log('🔍 Current user from userDataService (real-time reactive):', getCurrentUser.value)
 })
 
 onBeforeUnmount(() => {
@@ -244,7 +236,6 @@ onBeforeUnmount(() => {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   height: 72px;
   border-radius: 12px;
-  /* Remove position: fixed since it's now inside the left sidebar container */
 }
 
 .avatar-container {

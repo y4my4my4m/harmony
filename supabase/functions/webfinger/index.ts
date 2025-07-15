@@ -67,10 +67,11 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
+    const supabaseRemoteUrl = 'https://db.mony.lol'
 
     const { data: user, error } = await supabase
       .from('profiles')
-      .select('username, domain, is_local')
+      .select('username, domain, is_local, display_name, avatar_url, bio')
       .eq('username', username)
       .eq('domain', domain)
       .eq('is_local', true)
@@ -85,20 +86,77 @@ serve(async (req: Request) => {
 
     // Build WebFinger response
     const baseUrl = `https://${ourDomain}`
+    
+    // Helper function to get proper avatar URL
+    const getProperAvatarUrl = (avatarUrl: string | null | undefined): string | undefined => {
+      if (!avatarUrl || typeof avatarUrl !== 'string') {
+        return undefined
+      }
+
+      // If it's already a full URL, return as-is
+      if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+        return avatarUrl
+      }
+
+      // If it's a Supabase storage path, construct proper public URL
+      if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
+        return `${supabaseRemoteUrl}/storage/v1/object/public/avatars/${avatarUrl}`
+      }
+
+      // If it's a local path, convert to full URL
+      if (avatarUrl.startsWith('/')) {
+        return `${baseUrl}${avatarUrl}`
+      }
+
+      return undefined
+    }
+    
+    const links = [
+      {
+        rel: 'self',
+        type: 'application/activity+json',
+        href: `${baseUrl}/users/${username}`
+      },
+      {
+        rel: 'http://webfinger.net/rel/profile-page',
+        type: 'text/html',
+        href: `${baseUrl}/users/${username}`
+      }
+    ]
+
+    // Add avatar link if user has one
+    const avatarUrl = getProperAvatarUrl(user.avatar_url)
+    if (avatarUrl) {
+      // Helper function to get media type from file extension
+      const getMediaType = (url: string): string => {
+        const extension = url.toLowerCase().split('.').pop()
+        switch (extension) {
+          case 'jpg':
+          case 'jpeg':
+            return 'image/jpeg'
+          case 'png':
+            return 'image/png'
+          case 'webp':
+            return 'image/webp'
+          case 'gif':
+            return 'image/gif'
+          case 'svg':
+            return 'image/svg+xml'
+          default:
+            return 'image/jpeg' // fallback
+        }
+      }
+      
+      links.push({
+        rel: 'http://webfinger.net/rel/avatar',
+        type: getMediaType(avatarUrl),
+        href: avatarUrl
+      })
+    }
+
     const webfingerResponse: WebFingerResponse = {
       subject: resource,
-      links: [
-        {
-          rel: 'self',
-          type: 'application/activity+json',
-          href: `${baseUrl}/users/${username}`
-        },
-        {
-          rel: 'http://webfinger.net/rel/profile-page',
-          type: 'text/html',
-          href: `${baseUrl}/users/${username}`
-        }
-      ]
+      links
     }
 
     return new Response(JSON.stringify(webfingerResponse), {

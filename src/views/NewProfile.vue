@@ -385,11 +385,14 @@ const createProfile = async () => {
     });
 
     const profileData = {
-      id: authStore.session.user.id,
+      id: authStore.session.user.id, // Keep using auth user ID as profile ID for compatibility
+      auth_user_id: authStore.session.user.id, // Also set the new auth_user_id field
       username: username.value,
       display_name: displayName.value.trim(),
       bio: bio.value.trim() || undefined,
       color: selectedColor.value,
+      is_local: true, // This is a local user
+      domain: 'har.mony.lol', // Set default domain
     };
 
     console.log('Calling profileStore.createProfile...');

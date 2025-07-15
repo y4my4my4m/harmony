@@ -118,22 +118,8 @@ export class ActivityPubService {
 
     if (fetchError) throw fetchError;
 
-    // 🌐 FEDERATION: Queue post for federation to remote instances
-      if (completePost.is_local && completePost.visibility === 'public') {
-        try {
-          // Ensure we pass the user UUID, not username
-          const authorForFederation = {
-            ...completePost.author,
-            id: user.id // Ensure we use the UUID from auth, not username
-          };
-          
-          const activityId = await federationService.federatePost(completePost, authorForFederation);
-          console.log(`🚀 Post ${completePost.id} queued for federation: ${activityId}`);
-        } catch (federationError) {
-          console.error('❌ Federation failed for post:', federationError);
-          // Continue - federation failure shouldn't prevent local post creation
-        }
-      }
+    // Federation is now handled automatically by the post trigger
+    // No need for client-side federation calls
 
     return completePost as Post;
   }
@@ -221,6 +207,26 @@ export class ActivityPubService {
 
       const posts = data || [];
       
+      // DEBUG: Log ALL posts returned by RPC to see if our post is there
+      console.log(`🔍 DEBUG - RPC returned ${posts.length} posts total`);
+      console.log(`🔍 DEBUG - All post IDs:`, posts.map((p: any) => p.id));
+      console.log(`🔍 DEBUG - Looking for post: 968f8b30-8de1-4e0f-b9bb-87d8085330a7`);
+      
+      // DEBUG: Log the problematic post's data from RPC
+      const debugPost = posts.find((p: any) => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
+      if (debugPost) {
+        console.log(`🔍 DEBUG - RPC returned post ${debugPost.id}:`, {
+          is_favorited: debugPost.is_favorited,
+          favorites_count: debugPost.favorites_count,
+          typeof_is_favorited: typeof debugPost.is_favorited,
+          all_keys: Object.keys(debugPost),
+          full_rpc_data: debugPost
+        });
+      } else {
+        console.log(`❌ DEBUG - Post 968f8b30-8de1-4e0f-b9bb-87d8085330a7 NOT FOUND in frontend RPC results!`);
+        console.log(`❌ DEBUG - But SQL shows it should be there...`);
+      }
+      
       // Log statistics
       const localCount = posts.filter((p: any) => p.is_local).length;
       const federatedCount = posts.filter((p: any) => !p.is_local).length;
@@ -265,7 +271,7 @@ export class ActivityPubService {
   }
 
   /**
-   * Get local timeline - Supabase-native caching
+   * Get local timeline - Always use RPC with interaction states (bypassing problematic cache)
    */
   async getLocalTimeline(options: TimelineOptions = {}): Promise<TimelinePost[]> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -273,21 +279,9 @@ export class ActivityPubService {
 
     const limit = options.limit || 20;
 
-    // Try cache first - super fast!
-    const { data: cached, error: cacheError } = await supabase
-      .rpc('get_cached_timeline', {
-        p_user_id: user.id,
-        p_timeline_type: 'local',
-        p_limit: limit
-      });
-
-    if (!cacheError && cached?.cached) {
-      console.log(`📦 Serving local timeline from cache: ${cached.count} posts`);
-      return cached.posts || [];
-    }
-
-    // Cache miss - fall back to database with caching
-    console.log('🔄 Cache miss - building local timeline');
+    // FIXED: Always use get_timeline_posts_with_interactions to ensure user interaction states
+    // The cache system was missing is_favorited, is_reblogged, is_bookmarked properties
+    console.log('🔄 Loading local timeline with user interaction states');
     const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
       p_user_id: user.id,
       p_timeline_type: 'local', 
@@ -296,17 +290,25 @@ export class ActivityPubService {
     });
 
     if (error) throw error;
-
-    // Cache the results for next time
-    if (data && data.length > 0) {
-      await supabase.rpc('update_timeline_cache', {
-        p_user_id: user.id,
-        p_timeline_type: 'local',
-        p_action: 'rebuild'
+    
+    // DEBUG: Verify all posts are truly local
+    const localCount = data?.filter((p: any) => p.is_local).length || 0;
+    const federatedCount = data?.filter((p: any) => !p.is_local).length || 0;
+    console.log(`📊 Local timeline loaded: ${data?.length || 0} posts total (${localCount} local, ${federatedCount} federated)`);
+    
+    if (federatedCount > 0) {
+      console.warn(`⚠️ WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
+      const federatedPosts = data?.filter((p: any) => !p.is_local) || [];
+      federatedPosts.forEach((post: any) => {
+        console.warn(`🌐 Federated post in local timeline:`, {
+          id: post.id,
+          author: post.author?.username,
+          domain: post.author?.domain,
+          is_local: post.is_local
+        });
       });
     }
-
-    console.log(`📊 Local timeline loaded: ${data?.length || 0} posts`);
+    
     return data || [];
   }
 
@@ -827,22 +829,27 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    // Check if already favorited
-    const { data: existing } = await supabase
+    // Check if already favorited - use maybeSingle to handle 0 rows gracefully
+    const { data: existing, error: existingError } = await supabase
       .from('post_interactions')
       .select('id')
       .eq('user_id', user.id)
       .eq('post_id', postId)
       .eq('interaction_type', 'favorite')
-      .single();
+      .maybeSingle();
+
+    if (existingError && existingError.code !== 'PGRST116') {
+      throw existingError;
+    }
 
     if (existing) {
       // Remove favorite
       await this.unfavoritePost(postId);
       
-      // 🌐 FEDERATION: Queue unlike activity
+      // 🚀 HYBRID FEDERATION: Try immediate delivery, fallback to queue
       try {
-        await federationService.federateLike(postId, user.id, false);
+        const result = await federationService.federateLike(postId, user.id, false);
+        console.log(`📤 Unlike federation: ${result?.deliveryMethod || 'completed'}`);
       } catch (federationError) {
         console.error('❌ Federation failed for unlike:', federationError);
       }
@@ -852,9 +859,10 @@ export class ActivityPubService {
       // Add favorite
       const interaction = await this.favoritePost(postId);
       
-      // 🌐 FEDERATION: Queue like activity
+      // 🚀 HYBRID FEDERATION: Try immediate delivery, fallback to queue
       try {
-        await federationService.federateLike(postId, user.id, true);
+        const result = await federationService.federateLike(postId, user.id, true);
+        console.log(`📤 Like federation: ${result?.deliveryMethod || 'completed'}`);
       } catch (federationError) {
         console.error('❌ Federation failed for like:', federationError);
       }

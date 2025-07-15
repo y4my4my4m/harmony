@@ -58,8 +58,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { UserStatus } from '@/types'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -125,8 +123,8 @@ const initializeApp = async () => {
     // Initialize the user environment which includes server loading
     await serverChannelStore.initializeUserEnvironment(userId)
     
-    // Initialize the user profile 
-    await profileStore.fetchProfile(userId)
+    // Initialize the user profile by auth user ID
+    await profileStore.fetchProfileByAuthUserId(userId)
     
     // Initialize the user data system (replaces old fragmented system)
     try {

@@ -38,26 +38,33 @@ const findEmojiByName = (name: string) => {
   return undefined;
 };
 
-// Helper to flatten ActivityPub content to plain text
+// Helper to handle both ActivityPub converted content and our internal JSON format  
 const flattenContentToString = (content: any): string => {
+  // Handle string content (shouldn't happen anymore with our new system)
   if (typeof content === 'string') {
     return content;
   }
   
+  // Our internal format is JSON array - convert to text for processing
   if (Array.isArray(content)) {
     return content
       .map(part => {
         if (typeof part === 'string') return part;
-        if (part.type === 'text') return part.text || '';
-        if (part.type === 'mention') {
-          // Handle new structured mention format
-          if (part.username && part.domain) {
-            return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
+        if (part && typeof part === 'object' && part.text) return part.text;
+        if (part && typeof part === 'object' && part.type === 'text') return part.text;
+        if (part && typeof part === 'object' && part.type === 'mention') {
+          // Handle mention objects from ActivityPub conversion
+          if (part.username && part.domain && !part.isLocal) {
+            return `@${part.username}@${part.domain}`;
+          } else if (part.username) {
+            return `@${part.username}`;
           }
           // Fallback to legacy format if needed
           return part.mention || `@${part.username || 'unknown'}`;
         }
-        if (part.type === 'url') return part.url || '';
+        if (part && typeof part === 'object' && part.type === 'url') {
+          return part.text || part.url || '';
+        }
         return '';
       })
       .join('');
@@ -93,38 +100,92 @@ const isSingleEmoji = computed(() => {
 });
 
 const formattedContent = computed(() => {
-  let formatted = flattenContentToString(props.content);
-  
-  // Format hashtags FIRST
-  formatted = formatted.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
-  
-  // Format mentions SECOND  
-  formatted = formatted.replace(/@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g, (match, username, domain) => {
-    // TODO: This should check user's is_local field from database instead of hardcoding domain
-    // For now, assume no domain means local, domain means remote
-    const handle = domain ? `@${username}@${domain}` : `@${username}`;
-    return `<span class="mention" data-handle="${handle}">${handle}</span>`;
-  });
-  
-  // Format URLs THIRD (before emojis to avoid conflicts)
-  formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="url-link">$1</a>');
-  
-  // Format line breaks
-  formatted = formatted.replace(/\n/g, '<br>');
-  
-  // Format custom emojis LAST to avoid URL conflicts
-  formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
-    const emoji = findEmojiByName(emojiName);
-    if (emoji && emoji.url) {
-      // Add 'single' class if this is a single emoji message
-      const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
-      return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
-    }
-    // Fallback to styled shortcode if emoji not found
-    return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
-  });
-  
-  return formatted;
+  // If content is not an array, fallback to string processing
+  if (!Array.isArray(props.content)) {
+    let formatted = flattenContentToString(props.content);
+    
+    // Format hashtags FIRST
+    formatted = formatted.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
+    
+    // Format mentions SECOND  
+    formatted = formatted.replace(/@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g, (match, username, domain) => {
+      const handle = domain ? `@${username}@${domain}` : `@${username}`;
+      return `<span class="mention" data-handle="${handle}">${handle}</span>`;
+    });
+    
+    // Format URLs THIRD (before emojis to avoid conflicts)
+    formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="url-link">$1</a>');
+    
+    // Format line breaks
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // Format custom emojis LAST to avoid URL conflicts
+    formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
+      const emoji = findEmojiByName(emojiName);
+      if (emoji && emoji.url) {
+        const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
+        return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
+      }
+      return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
+    });
+    
+    return formatted;
+  }
+
+  // Process JSONB array directly (our new standard format)
+  return props.content
+    .map(item => {
+      if (!item || typeof item !== 'object') {
+        return String(item || '');
+      }
+
+      switch (item.type) {
+        case 'text': {
+          let text = item.text || '';
+          
+          // Format hashtags
+          text = text.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
+          
+          // Format line breaks
+          text = text.replace(/\n/g, '<br>');
+          
+          // Format custom emojis
+          text = text.replace(/:([a-zA-Z0-9_+-]+):/g, (match: string, emojiName: string) => {
+            const emoji = findEmojiByName(emojiName);
+            if (emoji && emoji.url) {
+              const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
+              return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
+            }
+            return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
+          });
+          
+          return text;
+        }
+
+        case 'mention': {
+          const username = item.username || 'unknown';
+          const domain = item.domain;
+          const isLocal = item.isLocal;
+          
+          // For local users, show just @username
+          // For remote users, show @username@domain
+          const displayName = isLocal ? `@${username}` : `@${username}@${domain}`;
+          const handle = isLocal ? `@${username}` : `@${username}@${domain}`;
+          
+          return `<span class="mention" data-handle="${handle}">${displayName}</span>`;
+        }
+
+        case 'url': {
+          const url = item.url || '';
+          const linkText = item.text || url;
+          return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="url-link">${linkText}</a>`;
+        }
+
+        default:
+          return String(item.text || item || '');
+      }
+    })
+    .join('');
 });
 
 // Add click event handling for mentions and hashtags
@@ -166,8 +227,10 @@ const handleClick = (event: Event) => {
   font-weight: 500;
   cursor: pointer;
   background: rgba(16, 185, 129, 0.1);
-  padding: 1px 4px;
+  padding: 1px 2px;
   border-radius: 3px;
+  margin-right: 2px;
+  transition: background 0.2s ease;
 }
 
 .mony-content :deep(.mention:hover) {

@@ -108,15 +108,21 @@ const MESSAGE_TEMPLATES = {
   },
 
   activitypub_mention: {
-    title: (data: any) => `${data.author.display_name || data.author.username} mentioned you`,
-    message: (data: any) => {
-      if (data.post_content) {
-        const content = data.post_content.substring(0, 120);
-        return `"${content}${data.post_content.length > 120 ? '...' : ''}"`;
-      }
-      return 'Click to see the mention';
+    title: (data: any) => {
+      const displayName = data.actor?.display_name || data.actor?.username || 'Someone'
+      const domain = data.actor?.domain ? `@${data.actor.domain}` : ''
+      return `${displayName}${domain} mentioned you`
     },
-    shortTitle: (data: any) => `Mention`
+    message: (data: any) => {
+      const content = data.post?.content_preview || 'Click to see the mention'
+      
+      if (content && content !== 'Click to see the mention') {
+        // Content is already truncated and cleaned in the inbox function
+        return `"${content}${content.length >= 120 ? '...' : ''}"`
+      }
+      return 'Click to see the mention'
+    },
+    shortTitle: () => `Federated mention`
   },
 
   activitypub_reply: {
@@ -189,6 +195,7 @@ export class NotificationFormatter {
            data.reactor?.display_name || data.reactor?.username || 
            data.inviter?.display_name || data.inviter?.username ||
            // ActivityPub notifications
+           data.actor?.display_name || data.actor?.username ||
            data.follower?.display_name || data.follower?.username ||
            data.user?.display_name || data.user?.username ||
            data.author?.display_name || data.author?.username || 'Unknown'
@@ -201,6 +208,7 @@ export class NotificationFormatter {
     const data = notification.data
     return data.sender?.avatar_url || data.reactor?.avatar_url || data.inviter?.avatar_url ||
            // ActivityPub notifications  
+           data.actor?.avatar_url ||
            data.follower?.avatar_url || data.user?.avatar_url || data.author?.avatar_url || '/default_avatar.png'
   }
   

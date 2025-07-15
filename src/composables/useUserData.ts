@@ -6,7 +6,7 @@
  */
 
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { userDataService, type UserData } from '@/services/userDataService'
+import { userDataService } from '@/services/userDataService'
 import { UserStatus } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 

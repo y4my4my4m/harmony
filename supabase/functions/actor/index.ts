@@ -53,8 +53,20 @@ serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url)
-    const pathParts = url.pathname.split('/')
-    const username = pathParts[pathParts.length - 1]
+    
+    // Extract username from path - handle both direct and rewritten paths
+    let username = ''
+    
+    // Check if it's a rewritten path from nginx
+    const originalUri = req.headers.get('X-Original-URI')
+    if (originalUri) {
+      const match = originalUri.match(/\/users\/([^/]+)/)
+      username = match ? match[1] : ''
+    } else {
+      // Fallback to direct path parsing
+      const pathParts = url.pathname.split('/')
+      username = pathParts[pathParts.length - 1]
+    }
 
     if (!username) {
       return new Response('Username required', { 
@@ -69,6 +81,7 @@ serve(async (req: Request) => {
                            acceptHeader.includes('application/ld+json')
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseRemoteUrl = 'https://db.mony.lol'
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
@@ -82,6 +95,10 @@ serve(async (req: Request) => {
       .eq('domain', ourDomain)
       .eq('is_local', true)
       .single()
+
+    if (error) {
+      console.log('Debug - Database error:', error)
+    }
 
     if (error || !user) {
       return new Response('User not found', { 
@@ -105,6 +122,52 @@ serve(async (req: Request) => {
     const baseUrl = `https://${ourDomain}`
     const actorId = `${baseUrl}/users/${username}`
     
+    // Helper function to get proper avatar URL
+    const getProperAvatarUrl = (avatarUrl: string | null | undefined): string | undefined => {
+      if (!avatarUrl || typeof avatarUrl !== 'string') {
+        return undefined
+      }
+
+      // If it's already a full URL, return as-is
+      if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+        return avatarUrl
+      }
+
+      // If it's a Supabase storage path, construct proper public URL
+      if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
+        return `${supabaseRemoteUrl}/storage/v1/object/public/avatars/${avatarUrl}`
+      }
+
+      // If it's a local path, convert to full URL
+      if (avatarUrl.startsWith('/')) {
+        return `${baseUrl}${avatarUrl}`
+      }
+
+      return undefined
+    }
+    
+    // Helper function to get media type from file extension
+    const getMediaType = (url: string): string => {
+      const extension = url.toLowerCase().split('.').pop()
+      switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+          return 'image/jpeg'
+        case 'png':
+          return 'image/png'
+        case 'webp':
+          return 'image/webp'
+        case 'gif':
+          return 'image/gif'
+        case 'svg':
+          return 'image/svg+xml'
+        default:
+          return 'image/jpeg' // fallback
+      }
+    }
+    
+    const avatarUrl = getProperAvatarUrl(user.avatar_url)
+    
     const actor: ActivityPubActor = {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
@@ -115,10 +178,10 @@ serve(async (req: Request) => {
       preferredUsername: user.username,
       name: user.display_name || user.username,
       summary: user.bio || '',
-      icon: user.avatar_url ? {
+      icon: avatarUrl ? {
         type: 'Image',
-        mediaType: 'image/jpeg',
-        url: user.avatar_url.startsWith('http') ? user.avatar_url : `${baseUrl}${user.avatar_url}`
+        mediaType: getMediaType(avatarUrl),
+        url: avatarUrl
       } : undefined,
       inbox: `${actorId}/inbox`,
       outbox: `${actorId}/outbox`,
@@ -131,7 +194,7 @@ serve(async (req: Request) => {
         publicKeyPem: user.public_key || ''
       },
       endpoints: {
-        sharedInbox: `${baseUrl}/api/activitypub/inbox`
+        sharedInbox: `${baseUrl}/api/activitypub/inbox` // This exists in nginx config
       },
       url: `${baseUrl}/social/profile/${username}`
     }

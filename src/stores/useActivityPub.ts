@@ -48,6 +48,7 @@ interface ActivityPubState {
   isComposerOpen: boolean;
   composerState: PostComposerState;
   selectedPost?: Post;
+  currentView: 'home' | 'public' | 'local';
   
   // Loading states
   isLoadingFeed: boolean;
@@ -118,6 +119,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       mediaAttachments: []
     },
     selectedPost: undefined,
+    currentView: 'public',
     
     // Loading states
     isLoadingFeed: false,
@@ -302,8 +304,14 @@ export const useActivityPubStore = defineStore('activitypub', {
       );
 
       const interactionsChannel = activityPubService.subscribeToInteractionUpdates(
-        (interaction) => this.handleRealtimeInteractionChange({ event: 'INSERT', new: interaction }),
-        (interaction) => this.handleRealtimeInteractionChange({ event: 'DELETE', old: interaction })
+        (interaction) => {
+          console.log('🔔 REALTIME: Interaction CREATE received:', interaction);
+          this.handleRealtimeInteractionChange({ event: 'INSERT', new: interaction });
+        },
+        (interaction) => {
+          console.log('🔔 REALTIME: Interaction DELETE received:', interaction);
+          this.handleRealtimeInteractionChange({ event: 'DELETE', old: interaction });
+        }
       );
 
       // Store subscriptions for cleanup
@@ -480,18 +488,44 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Handle realtime interaction changes - clean and direct
      */
     handleRealtimeInteractionChange(payload: any) {
-      console.log('💫 Interaction changed:', payload);
+      console.log('💫💫💫 REALTIME INTERACTION TRIGGER 💫💫💫');
+      console.log('💫 Raw payload:', payload);
+      console.log('💫 DETAILED Interaction payload:', JSON.stringify(payload, null, 2));
+      
+      // Also log current user info for debugging
+      supabase.auth.getUser().then(user => {
+        console.log('💫 Current user receiving realtime event:', user.data.user?.id);
+      });
       
       const interaction = payload.new || payload.old;
-      if (!interaction) return;
+      if (!interaction) {
+        console.error('❌ No interaction data in realtime payload:', payload);
+        return;
+      }
+
+      // Validate required fields
+      if (!interaction.post_id) {
+        console.error('❌ Missing post_id in interaction:', interaction);
+        return;
+      }
+      
+      if (!interaction.interaction_type) {
+        console.error('❌ Missing interaction_type in interaction:', interaction);
+        return;
+      }
+      
+      if (!interaction.user_id) {
+        console.error('❌ Missing user_id in interaction:', interaction);
+        return;
+      }
 
       const eventType = payload.event || payload.eventType;
-      
-      // Simply update the counts in the UI - clean and straightforward
-      this.updatePostInteractionCounts(
+      // Update both counts AND interaction state based on realtime events
+      this.updatePostInteractionFromRealtime(
         interaction.post_id,
         interaction.interaction_type,
-        eventType
+        eventType,
+        interaction.user_id
       );
     },
 
@@ -533,32 +567,235 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Update post interaction counts - clean and professional
+     * Update post interaction counts - now uses server sync for consistency
      */
-    updatePostInteractionCounts(postId: string, interactionType: string, eventType: string) {
+    async updatePostInteractionCounts(postId: string, interactionType: string, eventType: string) {
+      // Get accurate server counts instead of guessing with delta
+      const { data: postCounts, error: countsError } = await supabase
+        .from('posts')
+        .select('favorites_count, reblogs_count, replies_count')
+        .eq('id', postId)
+        .single();
+
+      if (countsError) {
+        console.error('❌ Failed to get server counts:', countsError);
+        return;
+      }
+
       const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
       
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
-          const delta = eventType === 'INSERT' ? 1 : eventType === 'DELETE' ? -1 : 0;
+          // Update with server-accurate counts
+          post.favorites_count = postCounts.favorites_count;
+          post.reblogs_count = postCounts.reblogs_count;
+          post.replies_count = postCounts.replies_count;
           
-          switch (interactionType) {
-            case 'favorite':
-              post.favorites_count = Math.max(0, (post.favorites_count || 0) + delta);
-              break;
-            case 'reblog':
-              post.reblogs_count = Math.max(0, (post.reblogs_count || 0) + delta);
-              break;
-            case 'reply':
-              post.replies_count = Math.max(0, (post.replies_count || 0) + delta);
-              break;
-          }
+          console.log(`📊 Updated post ${postId} counts from server (${interactionType} ${eventType}):`, {
+            favorites_count: post.favorites_count,
+            reblogs_count: post.reblogs_count,
+            replies_count: post.replies_count
+          });
         }
       });
 
       // Update timeline cache in background
       this.updateTimelineCache();
+    },
+
+    /**
+     * Update post interaction from realtime - handles both counts and user state (now with server sync)
+     */
+    async updatePostInteractionFromRealtime(postId: string, interactionType: string, eventType: string, userId: string) {
+      console.log(`🔍 DEBUG: updatePostInteractionFromRealtime called with:`, {
+        postId,
+        interactionType,
+        eventType,
+        userId
+      });
+
+      // Early validation to prevent undefined errors
+      if (!postId || postId === 'undefined') {
+        console.error('❌ Invalid postId in realtime update:', postId);
+        return;
+      }
+
+      if (!interactionType) {
+        console.error('❌ Invalid interactionType in realtime update:', interactionType);
+        return;
+      }
+
+      if (!userId || userId === 'undefined') {
+        console.error('❌ Invalid userId in realtime update:', userId);
+        return;
+      }
+
+      const currentUser = await supabase.auth.getUser();
+      const isCurrentUser = currentUser.data.user?.id === userId;
+      
+      console.log(`🔍 DEBUG: Current user check:`, {
+        currentUserId: currentUser.data.user?.id,
+        eventUserId: userId,
+        isCurrentUser
+      });
+
+      // For realtime updates, we need to get accurate server state instead of guessing
+      // This prevents conflicts between manual actions and realtime updates
+      const { data: postCounts, error: countsError } = await supabase
+        .from('posts')
+        .select('favorites_count, reblogs_count, replies_count')
+        .eq('id', postId)
+        .single();
+
+      if (countsError) {
+        console.error('❌ Failed to get server counts for realtime update:', countsError);
+        return;
+      }
+
+      console.log(`📊 Realtime: Server counts for post ${postId}:`, {
+        favorites_count: postCounts.favorites_count,
+        reblogs_count: postCounts.reblogs_count,
+        replies_count: postCounts.replies_count,
+        interaction_type: interactionType,
+        event_type: eventType,
+        is_current_user: isCurrentUser
+      });
+
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      // DEBUG: Log all posts in feeds to see what's there
+      console.log(`🔍 DEBUG: Searching for postId ${postId} in feeds:`);
+      feeds.forEach((feed, index) => {
+        const feedName = ['homeFeed', 'publicFeed', 'localFeed'][index];
+        console.log(`🔍 DEBUG: ${feedName} has ${feed.posts.length} posts:`, 
+          feed.posts.map(p => ({ id: p.id, favorites_count: p.favorites_count, is_favorited: p.is_favorited }))
+        );
+      });
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          console.log(`🔍 DEBUG: Found post in feed, before realtime update:`, {
+            postId: post.id,
+            old_favorites_count: post.favorites_count,
+            old_is_favorited: post.is_favorited,
+            new_favorites_count: postCounts.favorites_count,
+            is_reblog: !!(post as any).reblog
+          });
+
+          // Always update with server-accurate counts
+          post.favorites_count = postCounts.favorites_count;
+          post.reblogs_count = postCounts.reblogs_count;
+          post.replies_count = postCounts.replies_count;
+          
+          console.log(`🔍 DEBUG: Updated post counts in feed:`, {
+            postId: post.id,
+            old_favorites_count: post.favorites_count,
+            new_favorites_count: postCounts.favorites_count,
+            updated_favorites_count: post.favorites_count,
+            is_current_user: isCurrentUser
+          });
+          
+          // IMPORTANT: For reblogs, also update the nested reblog object
+          // This ensures displayInteractionCounts computed property gets updated
+          const postWithReblog = post as any;
+          if (postWithReblog.reblog) {
+            postWithReblog.reblog.favorites_count = postCounts.favorites_count;
+            postWithReblog.reblog.reblogs_count = postCounts.reblogs_count;
+            postWithReblog.reblog.replies_count = postCounts.replies_count;
+            
+            // Update reblog user interaction state
+            if (isCurrentUser) {
+              switch (interactionType) {
+                case 'favorite':
+                  postWithReblog.reblog.is_favorited = eventType === 'INSERT';
+                  break;
+                case 'reblog':
+                  postWithReblog.reblog.is_reblogged = eventType === 'INSERT';
+                  break;
+                case 'bookmark':
+                  postWithReblog.reblog.is_bookmarked = eventType === 'INSERT';
+                  break;
+              }
+            }
+          }
+          
+          // Update interaction state only for current user based on event
+          if (isCurrentUser) {
+            switch (interactionType) {
+              case 'favorite':
+                post.is_favorited = eventType === 'INSERT';
+                break;
+              case 'reblog':
+                post.is_reblogged = eventType === 'INSERT';
+                break;
+              case 'bookmark':
+                post.is_bookmarked = eventType === 'INSERT';
+                break;
+            }
+          }
+
+          console.log(`🔍 DEBUG: Realtime update complete:`, {
+            postId: post.id,
+            favorites_count: post.favorites_count,
+            is_favorited: post.is_favorited,
+            reblog_favorites_count: postWithReblog.reblog?.favorites_count,
+            reblog_is_favorited: postWithReblog.reblog?.is_favorited,
+            isCurrentUser
+          });
+        } else {
+          console.log(`🔍 DEBUG: Post not found in feed for postId: ${postId}`);
+        }
+      });
+
+      // Update in user feeds
+      this.userFeeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          post.favorites_count = postCounts.favorites_count;
+          post.reblogs_count = postCounts.reblogs_count;
+          post.replies_count = postCounts.replies_count;
+          
+          // Also update reblog object if this is a reblog
+          const postWithReblog = post as any;
+          if (postWithReblog.reblog) {
+            postWithReblog.reblog.favorites_count = postCounts.favorites_count;
+            postWithReblog.reblog.reblogs_count = postCounts.reblogs_count;
+            postWithReblog.reblog.replies_count = postCounts.replies_count;
+            
+            if (isCurrentUser) {
+              switch (interactionType) {
+                case 'favorite':
+                  postWithReblog.reblog.is_favorited = eventType === 'INSERT';
+                  break;
+                case 'reblog':
+                  postWithReblog.reblog.is_reblogged = eventType === 'INSERT';
+                  break;
+                case 'bookmark':
+                  postWithReblog.reblog.is_bookmarked = eventType === 'INSERT';
+                  break;
+              }
+            }
+          }
+          
+          if (isCurrentUser) {
+            switch (interactionType) {
+              case 'favorite':
+                post.is_favorited = eventType === 'INSERT';
+                break;
+              case 'reblog':
+                post.is_reblogged = eventType === 'INSERT';
+                break;
+              case 'bookmark':
+                post.is_bookmarked = eventType === 'INSERT';
+                break;
+            }
+          }
+        }
+      });
+
+      console.log(`💫 Realtime interaction update with server sync: ${interactionType} ${eventType} for post ${postId} (user: ${userId}, current: ${isCurrentUser})`);
     },
 
     /**
@@ -594,7 +831,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Update post interaction state across all feeds
+     * Update post interaction state across all feeds (UI state only, counts handled by realtime)
      */
     updatePostInteractionState(postId: string, interactionType: 'favorite' | 'reblog' | 'bookmark', state: boolean) {
       const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
@@ -603,15 +840,18 @@ export const useActivityPubStore = defineStore('activitypub', {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
           switch (interactionType) {
-            case 'favorite':
+            case 'favorite': {
               post.is_favorited = state;
               break;
-            case 'reblog':
+            }
+            case 'reblog': {
               post.is_reblogged = state;
               break;
-            case 'bookmark':
+            }
+            case 'bookmark': {
               post.is_bookmarked = state;
               break;
+            }
           }
         }
       });
@@ -621,20 +861,23 @@ export const useActivityPubStore = defineStore('activitypub', {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
           switch (interactionType) {
-            case 'favorite':
+            case 'favorite': {
               post.is_favorited = state;
               break;
-            case 'reblog':
+            }
+            case 'reblog': {
               post.is_reblogged = state;
               break;
-            case 'bookmark':
+            }
+            case 'bookmark': {
               post.is_bookmarked = state;
               break;
+            }
           }
         }
       });
 
-      console.log(`📍 Updated ${interactionType} state to ${state} for post ${postId} across all feeds`);
+      console.log(`📍 Updated ${interactionType} state to ${state} for post ${postId} across all feeds (counts handled by realtime)`);
     },
 
     /**
@@ -718,6 +961,28 @@ export const useActivityPubStore = defineStore('activitypub', {
           this.publicFeed.posts.push(...posts);
         } else {
           this.publicFeed.posts = posts;
+        }
+
+        // DEBUG: Log the problematic post's data when loaded
+        const debugPost = posts.find(p => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
+        if (debugPost) {
+          console.log(`🔍 DEBUG - Timeline loaded post ${debugPost.id}:`, {
+            is_favorited: debugPost.is_favorited,
+            favorites_count: debugPost.favorites_count,
+            typeof_is_favorited: typeof debugPost.is_favorited,
+            full_post: debugPost
+          });
+        }
+
+        // DEBUG: Check the post data after store assignment
+        const storePost = this.publicFeed.posts.find(p => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
+        if (storePost) {
+          console.log(`🔍 DEBUG - Post in store after assignment:`, {
+            is_favorited: storePost.is_favorited,
+            favorites_count: storePost.favorites_count,
+            typeof_is_favorited: typeof storePost.is_favorited,
+            keys: Object.keys(storePost)
+          });
         }
 
         this.publicFeed.has_more = posts.length === 20;
@@ -853,15 +1118,31 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Format post content for storage
+     * Format post content for storage with mention detection
      */
     formatPostContent(content: string): any {
-      // Format content as JSONB structure similar to messages
-      // This matches the expected database schema
+      // Extract mentions to validate they exist before storing
+      const mentionRegex = /@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+))?/g;
+      const mentions = [];
+      let match;
+
+      while ((match = mentionRegex.exec(content)) !== null) {
+        mentions.push({
+          username: match[1],
+          domain: match[2] || 'har.mony.lol',
+          full: match[0],
+          startIndex: match.index,
+          endIndex: match.index + match[0].length
+        });
+      }
+
+      // For now, store as simple text content
+      // The federation service will handle mention processing
       return [
         {
           type: 'text',
-          text: content
+          text: content,
+          ...(mentions.length > 0 && { mentions })
         }
       ];
     },
@@ -1095,14 +1376,18 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post favorite (like) with optimistic updates
+     * Toggle post favorite (like) with local-first, then federation
      */
     async toggleFavorite(postId: string) {
+      console.log(`🔍 DEBUG: toggleFavorite called for post ${postId}`);
+      
       try {
         const user = await supabase.auth.getUser();
         if (!user.data.user) throw new Error('User not authenticated');
 
-        // Check current state
+        console.log(`🔍 DEBUG: User authenticated: ${user.data.user.id}`);
+
+        // Check current state first
         const { data: existing, error: existingError } = await supabase
           .from('post_interactions')
           .select('id')
@@ -1116,16 +1401,19 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
 
         const isFavorited = !!existing;
-        const newFavoriteState = !isFavorited;
+        console.log(`🔍 DEBUG: Current favorite state: ${isFavorited} (existing: ${JSON.stringify(existing)})`);
 
+        // Step 1: Handle local database state FIRST
         if (existing) {
           // Remove favorite
+          console.log(`🔍 DEBUG: Removing favorite with id: ${existing.id}`);
           await supabase
             .from('post_interactions')
             .delete()
             .eq('id', existing.id);
         } else {
           // Add favorite
+          console.log(`🔍 DEBUG: Adding new favorite`);
           await supabase
             .from('post_interactions')
             .insert({
@@ -1137,12 +1425,151 @@ export const useActivityPubStore = defineStore('activitypub', {
             });
         }
 
-        // Update post state in all feeds immediately for better UX
-        this.updatePostInteractionState(postId, 'favorite', newFavoriteState);
+        // Step 2: Immediate UI feedback (state only, no count changes)
+        const newFavoriteState = !isFavorited;
+        this.updatePostInteractionInAllFeeds(postId, 'favorite', newFavoriteState);
+
+        // Step 3: Get the updated post state from server (with correct counts)
+        console.log(`🔄 Refreshing post data after ${newFavoriteState ? 'favoriting' : 'unfavoriting'}`);
+        
+        // Get fresh counts from the posts table (more reliable than timeline RPC)
+        const { data: postCounts, error: countsError } = await supabase
+          .from('posts')
+          .select('favorites_count, reblogs_count, replies_count')
+          .eq('id', postId)
+          .single();
+
+        if (!countsError && postCounts) {
+          console.log(`📊 Server counts for post ${postId}:`, {
+            favorites_count: postCounts.favorites_count,
+            reblogs_count: postCounts.reblogs_count,
+            replies_count: postCounts.replies_count,
+            is_favorited: newFavoriteState,
+            before_action: isFavorited,
+            after_action: newFavoriteState
+          });
+          
+          // Update UI with correct server state - only update counts, keep user state consistent
+          this.updatePostCountsFromServer(postId, postCounts, newFavoriteState);
+        } else {
+          console.error('❌ Failed to get server counts:', countsError);
+          // State is already updated from step 2, no need for fallback
+        }
+        
+        // Step 4: Federation AFTER local success (background process)
+        // Don't wait for federation - it happens async
+        this.handleFederationLike(postId, user.data.user.id, newFavoriteState).catch(error => {
+          console.error('❌ Federation failed (background):', error);
+        });
+
+        console.log(`✅ Toggled favorite for post ${postId}: ${isFavorited} -> ${newFavoriteState} (synced with server state)`);
 
       } catch (error) {
         console.error('Failed to toggle favorite:', error);
         throw error;
+      }
+    },
+
+    /**
+     * Update post interaction state in all feeds immediately (state only, counts handled by server refresh)
+     */
+    updatePostInteractionInAllFeeds(postId: string, interactionType: 'favorite' | 'reblog' | 'bookmark', isActive: boolean) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          switch (interactionType) {
+            case 'favorite':
+              post.is_favorited = isActive;
+              // Don't update count - server will provide accurate count
+              break;
+            case 'reblog':
+              post.is_reblogged = isActive;
+              // Don't update count - server will provide accurate count
+              break;
+            case 'bookmark':
+              post.is_bookmarked = isActive;
+              break;
+          }
+          console.log(`🔄 Updated ${interactionType} state for post ${postId} in feed: ${isActive} (counts will be synced from server)`);
+        }
+      });
+    },
+
+    /**
+     * Update post with fresh server state (accurate counts and states)
+     */
+    updatePostWithServerState(postId: string, serverPost: any) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          // Update with server-accurate values
+          post.is_favorited = serverPost.is_favorited;
+          post.is_reblogged = serverPost.is_reblogged;
+          post.is_bookmarked = serverPost.is_bookmarked;
+          post.favorites_count = serverPost.favorites_count;
+          post.reblogs_count = serverPost.reblogs_count;
+          post.replies_count = serverPost.replies_count;
+          
+          console.log(`🔄 Updated post ${postId} with server state:`, {
+            is_favorited: post.is_favorited,
+            favorites_count: post.favorites_count,
+            is_reblogged: post.is_reblogged,
+            reblogs_count: post.reblogs_count
+          });
+        }
+      });
+    },
+
+    /**
+     * Update post counts from server while preserving user interaction state
+     */
+    updatePostCountsFromServer(postId: string, serverCounts: any, userFavoriteState: boolean) {
+      const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
+      
+      feeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          // Update with server-accurate counts but keep user state
+          post.favorites_count = serverCounts.favorites_count;
+          post.reblogs_count = serverCounts.reblogs_count;
+          post.replies_count = serverCounts.replies_count;
+          post.is_favorited = userFavoriteState; // User state from our action
+          
+          console.log(`🔄 Updated post ${postId} counts from server:`, {
+            favorites_count: post.favorites_count,
+            is_favorited: post.is_favorited,
+            reblogs_count: post.reblogs_count
+          });
+        }
+      });
+
+      // Update in user feeds too
+      this.userFeeds.forEach(feed => {
+        const post = feed.posts.find(p => p.id === postId);
+        if (post) {
+          post.favorites_count = serverCounts.favorites_count;
+          post.reblogs_count = serverCounts.reblogs_count;
+          post.replies_count = serverCounts.replies_count;
+          post.is_favorited = userFavoriteState;
+        }
+      });
+    },
+
+    /**
+     * Handle federation for likes in background
+     */
+    async handleFederationLike(postId: string, userId: string, isLike: boolean) {
+      try {
+        const { federationService } = await import('@/services/FederationService');
+        await federationService.federateLike(postId, userId, isLike);
+        console.log(`🌐 Federation ${isLike ? 'like' : 'unlike'} completed for post ${postId}`);
+      } catch (error) {
+        console.error(`❌ Federation ${isLike ? 'like' : 'unlike'} failed:`, error);
+        // In production, we'd queue this for retry
       }
     },
 
@@ -1168,7 +1595,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
 
         const isBookmarked = !!existing;
-        const newBookmarkState = !isBookmarked;
 
         if (existing) {
           // Remove bookmark
@@ -1189,8 +1615,8 @@ export const useActivityPubStore = defineStore('activitypub', {
             });
         }
 
-        // Update post state in all feeds immediately for better UX
-        this.updatePostInteractionState(postId, 'bookmark', newBookmarkState);
+        // Don't update UI state here - let realtime handle it to avoid double updates
+        console.log(`📍 Toggled bookmark for post ${postId}: ${isBookmarked} -> ${!isBookmarked} (realtime will update UI)`);
 
       } catch (error) {
         console.error('Failed to toggle bookmark:', error);
@@ -1328,7 +1754,6 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
 
         const isReblogged = !!existingInteraction;
-        const newReblogState = !isReblogged;
 
         if (existingInteraction) {
           // Remove reblog interaction
@@ -1438,10 +1863,8 @@ export const useActivityPubStore = defineStore('activitypub', {
           }
         }
 
-        // Update interaction state for the original post
-        this.updatePostInteractionState(postId, 'reblog', newReblogState);
-
-        console.log(`📍 Reblog ${newReblogState ? 'added' : 'removed'} for post ${postId}`);
+        // Don't update UI state here - let realtime handle it to avoid double updates
+        console.log(`📍 Toggled reblog for post ${postId}: ${isReblogged} -> ${!isReblogged} (realtime will update UI)`);
 
       } catch (error) {
         console.error('Failed to toggle reblog:', error);
@@ -1450,15 +1873,31 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Delete a post
+     * Delete a post with federation support
      */
     async deletePost(postId: string) {
       try {
         const user = await supabase.auth.getUser();
         if (!user.data.user) throw new Error('User not authenticated');
 
-        // Mark post as deleted
-        const { error } = await supabase
+        // First, get the post with author information to check if it needs federation
+        const { data: postData, error: fetchError } = await supabase
+          .from('posts')
+          .select(`
+            *,
+            author:profiles (
+              id, username, display_name, domain, avatar_url, is_local
+            )
+          `)
+          .eq('id', postId)
+          .eq('author_id', user.data.user.id)
+          .single();
+
+        if (fetchError) throw fetchError;
+        if (!postData) throw new Error('Post not found or you do not have permission to delete it');
+
+        // Mark post as deleted in database
+        const { error: deleteError } = await supabase
           .from('posts')
           .update({ 
             is_deleted: true, 
@@ -1467,7 +1906,19 @@ export const useActivityPubStore = defineStore('activitypub', {
           .eq('id', postId)
           .eq('author_id', user.data.user.id);
 
-        if (error) throw error;
+        if (deleteError) throw deleteError;
+
+        // 🌐 FEDERATION: Federate delete if it's a local public post
+        if (postData.is_local && postData.visibility === 'public') {
+          try {
+            const { federationService } = await import('@/services/FederationService');
+            const activityId = await federationService.federatePostDelete(postId, postData.author);
+            console.log(`🗑️ Post delete ${postId} queued for federation: ${activityId}`);
+          } catch (federationError) {
+            console.error('❌ Federation delete failed for post:', federationError);
+            // Continue - federation failure shouldn't prevent local deletion
+          }
+        }
 
         // Remove from local feeds
         this.removePostFromFeeds(postId);
@@ -1783,6 +2234,14 @@ export const useActivityPubStore = defineStore('activitypub', {
        ].filter((post, index, array) => 
          array.findIndex(p => p.id === post.id) === index // Remove duplicates
        );
+     },
+
+     /**
+      * Switch current timeline view
+      */
+     switchView(view: 'home' | 'public' | 'local') {
+       this.currentView = view;
+       console.log(`🔄 Switched to ${view} timeline`);
      },
 
      cleanup() {

@@ -123,7 +123,7 @@
           <div class="action-buttons">
             <!-- Media Upload -->
             <label class="action-btn media-btn" title="Add media">
-              <Icon name="image" />
+              <Icon name="image" :size="24" />
               <input
                 ref="fileInputRef"
                 type="file"
@@ -160,7 +160,7 @@
               :class="['action-btn', 'cw-btn', { active: showContentWarning }]"
               title="Add content warning"
             >
-              <Icon name="warning" />
+              <Icon name="warning" :size="24"/>
             </button>
 
             <!-- Visibility Selector -->
@@ -170,7 +170,7 @@
                 class="action-btn visibility-btn"
                 :title="`Visibility: ${visibilityLabels[visibility]}`"
               >
-                <Icon :name="visibilityIcons[visibility]" />
+                <Icon :size="24" :name="visibilityIcons[visibility]" />
                 <Icon name="chevron-down" :size="12" />
               </button>
               
@@ -181,7 +181,7 @@
                   @click="selectVisibility(key)"
                   :class="['visibility-option', { active: visibility === key }]"
                 >
-                  <Icon :name="visibilityIcons[key]" />
+                  <Icon :size="24" :name="visibilityIcons[key]" />
                   <div class="visibility-info">
                     <div class="visibility-label">{{ label }}</div>
                     <div class="visibility-desc">{{ visibilityDescriptions[key] }}</div>
@@ -827,52 +827,6 @@ document.addEventListener('click', handleClickOutside);
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-/* AutoSuggest styles for mentions */
-.suggest-item-content {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-}
-
-.suggest-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.suggest-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.suggest-name {
-  font-weight: 600;
-  color: white;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.suggest-username {
-  font-size: 0.875rem;
-  color: #9ca3af;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.suggest-domain {
-  font-size: 0.75rem;
-  color: #6b7280;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
 }
 
 /* Mobile responsiveness */

@@ -4,7 +4,7 @@
 Make sure your Supabase functions are running:
 ```bash
 # Check if Supabase is running
-curl http://localhost:54321/health
+curl http://localhost:8000/health
 
 # If not running, start Supabase
 supabase start
@@ -154,10 +154,10 @@ sudo tail -f /var/log/nginx/harmony.error.log
 sudo tail -f /var/log/nginx/harmony.access.log
 
 # Check if Supabase functions are accessible
-curl http://localhost:54321/functions/v1/actor
-curl http://localhost:54321/functions/v1/webfinger
-curl http://localhost:54321/functions/v1/nodeinfo
-curl http://localhost:54321/functions/v1/inbox
+curl http://localhost:8000/functions/v1/actor
+curl http://localhost:8000/functions/v1/webfinger
+curl http://localhost:8000/functions/v1/nodeinfo
+curl http://localhost:8000/functions/v1/inbox
 
 # Test DNS resolution
 nslookup har.mony.lol
