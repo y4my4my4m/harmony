@@ -215,12 +215,35 @@ watch(() => authStore.session, async (newSession, oldSession) => {
   }
 })
 
+// Touch event wrappers that provide the required parameters
+const wrappedTouchStart = (event: TouchEvent) => {
+  handleTouchStart(event, isMobile.value)
+}
+
+const wrappedTouchMove = (event: TouchEvent) => {
+  const hasOpenSidebars = leftSidebarOpen.value || rightSidebarOpen.value
+  handleTouchMove(event, isMobile.value, hasOpenSidebars)
+}
+
+const wrappedTouchEnd = (event: TouchEvent) => {
+  handleTouchEnd(event, isMobile.value, {
+    onSwipeRight: () => {
+      console.log('🔄 Edge swipe right detected, opening left sidebar')
+      toggleLeftSidebar()
+    },
+    onSwipeLeft: () => {
+      console.log('🔄 Edge swipe left detected, opening right sidebar')
+      toggleRightSidebar()
+    }
+  })
+}
+
 // Mobile touch handlers
 onMounted(() => {
   if (typeof window !== 'undefined') {
-    window.addEventListener('touchstart', handleTouchStart, { passive: true })
-    window.addEventListener('touchmove', handleTouchMove, { passive: true })
-    window.addEventListener('touchend', handleTouchEnd, { passive: true })
+    window.addEventListener('touchstart', wrappedTouchStart, { passive: true })
+    window.addEventListener('touchmove', wrappedTouchMove, { passive: false }) // Changed to false to allow preventDefault
+    window.addEventListener('touchend', wrappedTouchEnd, { passive: true })
   }
   
   initializeApp()
@@ -228,9 +251,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (typeof window !== 'undefined') {
-    window.removeEventListener('touchstart', handleTouchStart)
-    window.removeEventListener('touchmove', handleTouchMove)
-    window.removeEventListener('touchend', handleTouchEnd)
+    window.removeEventListener('touchstart', wrappedTouchStart)
+    window.removeEventListener('touchmove', wrappedTouchMove)
+    window.removeEventListener('touchend', wrappedTouchEnd)
   }
 })
 </script>
