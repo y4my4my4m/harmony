@@ -44,11 +44,7 @@ async function signHttpRequest(request: SignRequest): Promise<SignResponse> {
     .replace(/-----END PRIVATE KEY-----/, '')
     .replace(/[\r\n\s]/g, '');
 
-  console.log("private_key:", JSON.stringify(private_key));
-  console.log("keyData:", keyData.length, keyData.slice(0, 60), '...', keyData.slice(-60));
-
   try {
-    console.log('keyData (first 30):', keyData.slice(0, 30), '...(last 30):', keyData.slice(-30));
     const binaryKey = Uint8Array.from(atob(keyData), c => c.charCodeAt(0));
     const cryptoKey = await crypto.subtle.importKey(
       'pkcs8',
