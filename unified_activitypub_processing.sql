@@ -1,20 +1,12 @@
--- Unified ActivityPub Processing: Replace simple notification triggers with unified federation/notification handling  
--- This replaces handle_simple_interaction_notifications and handle_simple_post_notifications
--- with unified functions that determine local vs remote users and handle accordingly.
--- 
--- NOTE: Post creation federation is handled by the existing handle_post_federation() trigger
--- which is comprehensive and should be preserved. This only unifies interaction processing.
+-- Fixed unified ActivityPub processing with proper variable naming
+-- This fixes the "ambiguous column reference" error by renaming the variable
+
+-- Drop existing triggers first
+DROP TRIGGER IF EXISTS unified_activitypub_interaction_processing ON post_interactions;
+DROP TRIGGER IF EXISTS unified_activitypub_reply_processing ON posts;
 
 -- =====================================================
--- UNIFIED POST INTERACTION PROCESSING  
--- =====================================================
-
--- Drop existing simple triggers and create unified ones
-DROP TRIGGER IF EXISTS simple_activitypub_interaction_notifications ON post_interactions;
-DROP TRIGGER IF EXISTS simple_activitypub_post_notifications ON posts;
-
--- =====================================================
--- UNIFIED POST INTERACTION HANDLER
+-- UNIFIED POST INTERACTION HANDLER (FIXED)
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION handle_unified_interaction_processing()
@@ -29,7 +21,7 @@ DECLARE
     target_user_profile RECORD;
     is_target_local BOOLEAN;
     activity_id UUID;
-    activity_data JSONB;
+    v_activity_data JSONB;  -- Renamed to avoid column name conflict
     instance_domain TEXT;
     user_actor_url TEXT;
     post_ap_id TEXT;
@@ -109,7 +101,7 @@ BEGIN
             activity_id := gen_random_uuid();
             user_actor_url := format('https://%s/users/%s', instance_domain, user_profile.username);
             
-            activity_data := jsonb_build_object(
+            v_activity_data := jsonb_build_object(
                 '@context', 'https://www.w3.org/ns/activitystreams',
                 'id', format('https://%s/activities/%s', instance_domain, activity_id),
                 'type', 'Like',
@@ -131,13 +123,13 @@ BEGIN
                 is_local,
                 origin_domain
             ) VALUES (
-                activity_data->>'id',
+                v_activity_data->>'id',
                 'Like',
                 NEW.user_id,
                 user_actor_url,
                 post_record.ap_id,
                 'Note',
-                activity_data,
+                v_activity_data,
                 'pending',
                 true,
                 instance_domain
@@ -160,7 +152,7 @@ BEGIN
                     v_headers_to_sign
                 FROM create_http_signature(
                     target_inbox_url,
-                    activity_data::text,
+                    v_activity_data::text,
                     user_profile.username,
                     instance_domain,
                     'POST'
@@ -180,7 +172,7 @@ BEGIN
                         ('Signature', v_signature_header)
                     ]::http_header[],
                     'application/activity+json',
-                    activity_data::text
+                    v_activity_data::text
                 )::http_request);
                 
                 v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);
@@ -188,12 +180,12 @@ BEGIN
                 IF v_delivery_success THEN
                     UPDATE ap_activities 
                     SET status = 'completed', last_attempt_at = NOW()
-                    WHERE ap_id = activity_data->>'id';
+                    WHERE ap_id = v_activity_data->>'id';
                 ELSE
                     UPDATE ap_activities 
                     SET status = 'failed', attempts = 1, last_attempt_at = NOW(), 
                         error_message = format('HTTP %s: %s', v_http_status, LEFT(v_http_response, 200))
-                    WHERE ap_id = activity_data->>'id';
+                    WHERE ap_id = v_activity_data->>'id';
                     
                     -- Queue for retry
                     PERFORM queue_activity_for_federation(activity_id, ARRAY[target_user_profile.domain]);
@@ -203,7 +195,7 @@ BEGIN
                 UPDATE ap_activities 
                 SET status = 'failed', attempts = 1, last_attempt_at = NOW(),
                     error_message = format('Exception: %s', SQLERRM)
-                WHERE ap_id = activity_data->>'id';
+                WHERE ap_id = v_activity_data->>'id';
                 
                 -- Queue for retry
                 PERFORM queue_activity_for_federation(activity_id, ARRAY[target_user_profile.domain]);
@@ -233,7 +225,7 @@ BEGIN
             activity_id := gen_random_uuid();
             user_actor_url := format('https://%s/users/%s', instance_domain, user_profile.username);
             
-            activity_data := jsonb_build_object(
+            v_activity_data := jsonb_build_object(
                 '@context', 'https://www.w3.org/ns/activitystreams',
                 'id', format('https://%s/activities/%s', instance_domain, activity_id),
                 'type', 'Announce',
@@ -255,13 +247,13 @@ BEGIN
                 is_local,
                 origin_domain
             ) VALUES (
-                activity_data->>'id',
+                v_activity_data->>'id',
                 'Announce',
                 NEW.user_id,
                 user_actor_url,
                 post_record.ap_id,
                 'Note',
-                activity_data,
+                v_activity_data,
                 'pending',
                 true,
                 instance_domain
@@ -284,7 +276,7 @@ BEGIN
                     v_headers_to_sign
                 FROM create_http_signature(
                     target_inbox_url,
-                    activity_data::text,
+                    v_activity_data::text,
                     user_profile.username,
                     instance_domain,
                     'POST'
@@ -304,7 +296,7 @@ BEGIN
                         ('Signature', v_signature_header)
                     ]::http_header[],
                     'application/activity+json',
-                    activity_data::text
+                    v_activity_data::text
                 )::http_request);
                 
                 v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);
@@ -312,12 +304,12 @@ BEGIN
                 IF v_delivery_success THEN
                     UPDATE ap_activities 
                     SET status = 'completed', last_attempt_at = NOW()
-                    WHERE ap_id = activity_data->>'id';
+                    WHERE ap_id = v_activity_data->>'id';
                 ELSE
                     UPDATE ap_activities 
                     SET status = 'failed', attempts = 1, last_attempt_at = NOW(),
                         error_message = format('HTTP %s: %s', v_http_status, LEFT(v_http_response, 200))
-                    WHERE ap_id = activity_data->>'id';
+                    WHERE ap_id = v_activity_data->>'id';
                     
                     -- Queue for retry
                     PERFORM queue_activity_for_federation(activity_id, ARRAY[target_user_profile.domain]);
@@ -327,7 +319,7 @@ BEGIN
                 UPDATE ap_activities 
                 SET status = 'failed', attempts = 1, last_attempt_at = NOW(),
                     error_message = format('Exception: %s', SQLERRM)
-                WHERE ap_id = activity_data->>'id';
+                WHERE ap_id = v_activity_data->>'id';
                 
                 -- Queue for retry
                 PERFORM queue_activity_for_federation(activity_id, ARRAY[target_user_profile.domain]);
@@ -340,10 +332,8 @@ END;
 $$;
 
 -- =====================================================
--- UNIFIED POST REPLY PROCESSING  
+-- UNIFIED POST REPLY PROCESSING (FIXED)
 -- =====================================================
--- Note: Post creation federation is handled by handle_post_federation() trigger
--- This only handles reply notifications for local users vs federation for remote users
 
 CREATE OR REPLACE FUNCTION handle_unified_reply_processing()
 RETURNS TRIGGER
@@ -376,7 +366,7 @@ BEGIN
     WHERE id = NEW.author_id;
 
     -- Get target user (parent post author) profile
-    SELECT id, username, display_name, avatar_url, domain
+    SELECT id, username, display_name, avatar_url, domain, is_local
     INTO target_user_profile
     FROM profiles 
     WHERE id = parent_post.author_id;
@@ -417,11 +407,9 @@ END;
 $$;
 
 -- =====================================================
--- CREATE UNIFIED TRIGGERS
+-- CREATE UNIFIED TRIGGERS (FIXED)
 -- =====================================================
 
-DROP TRIGGER IF EXISTS unified_activitypub_interaction_processing ON post_interactions;
-DROP TRIGGER IF EXISTS unified_activitypub_reply_processing ON posts;
 -- Create unified triggers to replace the simple notification-only ones
 CREATE TRIGGER unified_activitypub_interaction_processing
     AFTER INSERT ON post_interactions
@@ -440,9 +428,9 @@ GRANT EXECUTE ON FUNCTION handle_unified_reply_processing() TO authenticated, se
 -- Log the changes
 DO $$
 BEGIN
-    RAISE NOTICE 'Unified ActivityPub processing installed successfully';
-    RAISE NOTICE 'Replaced simple notification triggers with unified federation/notification handling';
-    RAISE NOTICE 'Post creation federation continues to use existing handle_post_federation() trigger';
+    RAISE NOTICE 'Fixed unified ActivityPub processing installed successfully';
+    RAISE NOTICE 'Resolved ambiguous column reference error by renaming variables';
+    RAISE NOTICE 'Using profiles.is_local column for efficient local/remote determination';
     RAISE NOTICE 'Local users will receive notifications, remote users will receive federation activities';
     RAISE NOTICE 'Interactions (likes/reblogs) now handle both local notifications and remote federation';
 END;

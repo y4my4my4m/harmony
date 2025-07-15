@@ -1148,16 +1148,12 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Federate a post to remote instances
+     * Federate a post to remote instances (handled by database triggers)
      */
     async federatePost(postId: string) {
-      try {
-        // This would be handled by a background job in production
-        // For now, just log the federation intent
-        console.log(`🌐 Federating post ${postId}`);
-      } catch (error) {
-        console.error('Failed to federate post:', error);
-      }
+      // Federation is now handled automatically by database triggers
+      // This method is kept for backwards compatibility but does nothing
+      console.log(`🌐 Federation for post ${postId} is handled by database triggers`);
     },
 
     /**
@@ -1376,7 +1372,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post favorite (like) with local-first, then federation
+     * Toggle post favorite (like) with optimistic UI updates
      */
     async toggleFavorite(postId: string) {
       console.log(`🔍 DEBUG: toggleFavorite called for post ${postId}`);
@@ -1407,22 +1403,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (existing) {
           // Remove favorite
           console.log(`🔍 DEBUG: Removing favorite with id: ${existing.id}`);
-          await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('id', existing.id);
+          await activityPubService.unfavoritePost(postId);
         } else {
           // Add favorite
           console.log(`🔍 DEBUG: Adding new favorite`);
-          await supabase
-            .from('post_interactions')
-            .insert({
-              user_id: user.data.user.id,
-              post_id: postId,
-              interaction_type: 'favorite',
-              is_local: true,
-              metadata: {}
-            });
+          await activityPubService.favoritePost(postId);
         }
 
         // Step 2: Immediate UI feedback (state only, no count changes)
@@ -1456,11 +1441,8 @@ export const useActivityPubStore = defineStore('activitypub', {
           // State is already updated from step 2, no need for fallback
         }
         
-        // Step 4: Federation AFTER local success (background process)
-        // Don't wait for federation - it happens async
-        this.handleFederationLike(postId, user.data.user.id, newFavoriteState).catch(error => {
-          console.error('❌ Federation failed (background):', error);
-        });
+        // Step 4: Federation is handled automatically by database triggers
+        // No need for manual federation calls
 
         console.log(`✅ Toggled favorite for post ${postId}: ${isFavorited} -> ${newFavoriteState} (synced with server state)`);
 
@@ -1560,20 +1542,6 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Handle federation for likes in background
-     */
-    async handleFederationLike(postId: string, userId: string, isLike: boolean) {
-      try {
-        const { federationService } = await import('@/services/FederationService');
-        await federationService.federateLike(postId, userId, isLike);
-        console.log(`🌐 Federation ${isLike ? 'like' : 'unlike'} completed for post ${postId}`);
-      } catch (error) {
-        console.error(`❌ Federation ${isLike ? 'like' : 'unlike'} failed:`, error);
-        // In production, we'd queue this for retry
-      }
-    },
-
-    /**
      * Toggle post bookmark - clean and professional
      */
     async toggleBookmark(postId: string) {
@@ -1598,21 +1566,10 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (existing) {
           // Remove bookmark
-          await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('id', existing.id);
+          await activityPubService.unbookmarkPost(postId);
         } else {
           // Add bookmark
-          await supabase
-            .from('post_interactions')
-            .insert({
-              user_id: user.data.user.id,
-              post_id: postId,
-              interaction_type: 'bookmark',
-              is_local: true,
-              metadata: {}
-            });
+          await activityPubService.bookmarkPost(postId);
         }
 
         // Don't update UI state here - let realtime handle it to avoid double updates
@@ -1733,7 +1690,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Toggle post reblog - creates actual reblog posts for timeline display with federation
+     * Toggle post reblog - creates actual reblog posts for timeline display
      */
     async toggleReblog(postId: string) {
       try {
@@ -1756,13 +1713,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         const isReblogged = !!existingInteraction;
 
         if (existingInteraction) {
-          // Remove reblog interaction
-          await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('id', existingInteraction.id);
-
-          // Also remove any reblog post we created
+          // Remove reblog interaction and reblog post using service method
           const { data: reblogPost } = await supabase
             .from('posts')
             .select('id')
@@ -1771,96 +1722,27 @@ export const useActivityPubStore = defineStore('activitypub', {
             .maybeSingle();
 
           if (reblogPost) {
-            await supabase
-              .from('posts')
-              .update({ 
-                is_deleted: true, 
-                deleted_at: new Date().toISOString() 
-              })
-              .eq('id', reblogPost.id);
-
+            await activityPubService.unreblogPost(reblogPost.id);
             // Remove reblog from our feeds
             this.removePostFromFeeds(reblogPost.id);
           }
 
-          // 🌐 FEDERATION: Undo announce activity
-          try {
-            const { federationService } = await import('@/services/FederationService');
-            await federationService.federateAnnounce(postId, user.data.user.id, false);
-          } catch (federationError) {
-            console.error('❌ Federation failed for undo reblog:', federationError);
-          }
-        } else {
-          // Add reblog interaction
+          // Remove the interaction record
           await supabase
             .from('post_interactions')
-            .insert({
-              user_id: user.data.user.id,
-              post_id: postId,
-              interaction_type: 'reblog',
-              is_local: true,
-              metadata: {}
-            });
+            .delete()
+            .eq('id', existingInteraction.id);
 
-          // Get the original post to reblog
-          const { data: originalPost, error: postError } = await supabase
-            .from('timeline_posts')
-            .select('*')
-            .eq('id', postId)
-            .single();
-
-          if (postError) throw postError;
-
-          // Create reblog post for timeline display
-          // For a pure reblog (no additional content), content should be empty
-          const reblogPost = {
-            author_id: user.data.user.id,
-            content: [], // Empty content for pure reblog - if user adds content later, it becomes a quote
-            visibility: originalPost.visibility,
-            is_local: true,
-            is_federated: true,
-            conversation_id: null, // Reblogs don't inherit conversation context
-            conversation_root_id: null,
-            reblog: {
-              id: originalPost.id,
-              content: originalPost.content,
-              created_at: originalPost.created_at,
-              author: originalPost.author,
-              visibility: originalPost.visibility,
-              favorites_count: originalPost.favorites_count,
-              reblogs_count: originalPost.reblogs_count,
-              replies_count: originalPost.replies_count,
-              media_attachments: originalPost.media_attachments,
-              in_reply_to: originalPost.in_reply_to,
-              content_warning: originalPost.content_warning,
-              is_sensitive: originalPost.is_sensitive,
-              url: originalPost.url
-            },
-            reblog_author: originalPost.author,
-            ap_type: 'Announce',
-            metadata: { 
-              reblog_of: postId,
-              original_author: originalPost.author.id 
-            }
-          };
-
-          const { error: createError } = await supabase
-            .from('posts')
-            .insert(reblogPost);
-
-          if (createError) throw createError;
-
+          // Federation is handled automatically by database triggers
+        } else {
+          // Use service method for reblog (which creates both interaction and reblog post)
+          const result = await activityPubService.toggleReblog(postId);
+          
           // Don't add to feeds immediately - let realtime handle it
           // This prevents showing both the original post and reblog immediately
           // The realtime system will properly add the reblog post to feeds
 
-          // 🌐 FEDERATION: Announce activity
-          try {
-            const { federationService } = await import('@/services/FederationService');
-            await federationService.federateAnnounce(postId, user.data.user.id, true);
-          } catch (federationError) {
-            console.error('❌ Federation failed for reblog:', federationError);
-          }
+          // Federation is handled automatically by database triggers
         }
 
         // Don't update UI state here - let realtime handle it to avoid double updates
@@ -1873,14 +1755,14 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Delete a post with federation support
+     * Delete a post
      */
     async deletePost(postId: string) {
       try {
         const user = await supabase.auth.getUser();
         if (!user.data.user) throw new Error('User not authenticated');
 
-        // First, get the post with author information to check if it needs federation
+        // Get the post to verify ownership
         const { data: postData, error: fetchError } = await supabase
           .from('posts')
           .select(`
@@ -1908,17 +1790,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         if (deleteError) throw deleteError;
 
-        // 🌐 FEDERATION: Federate delete if it's a local public post
-        if (postData.is_local && postData.visibility === 'public') {
-          try {
-            const { federationService } = await import('@/services/FederationService');
-            const activityId = await federationService.federatePostDelete(postId, postData.author);
-            console.log(`🗑️ Post delete ${postId} queued for federation: ${activityId}`);
-          } catch (federationError) {
-            console.error('❌ Federation delete failed for post:', federationError);
-            // Continue - federation failure shouldn't prevent local deletion
-          }
-        }
+        // Federation is handled automatically by database triggers
 
         // Remove from local feeds
         this.removePostFromFeeds(postId);

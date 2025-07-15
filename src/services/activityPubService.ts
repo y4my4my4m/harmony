@@ -673,11 +673,14 @@ export class ActivityPubService {
       throw new Error('Cannot follow yourself');
     }
 
+    const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
+    
     const follow = {
       follower_id: user.id,
       following_id: targetUserId,
+      ap_id: ap_id,
       status: 'accepted', // Auto-accept for now, can be changed for locked accounts
-      is_local: true,
+      is_local: true, // Database triggers will determine the correct value
       metadata: {}
     };
 
@@ -846,11 +849,14 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
+    
     const interaction = {
       user_id: user.id,
       post_id: postId,
       interaction_type: 'favorite' as const,
-      is_local: true,
+      ap_id: ap_id,
+      is_local: true, // Database triggers will determine the correct value
       metadata: {}
     };
 
@@ -963,12 +969,15 @@ export class ActivityPubService {
     if (postError) throw postError;
 
     // Create reblog post
+    const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
+    
     const reblogPost = {
       author_id: user.id,
       content: originalPost.content,
       visibility: originalPost.visibility,
       is_local: true,
       is_federated: true,
+      ap_id: ap_id,
       conversation_id: originalPost.conversation_id,
       conversation_root_id: originalPost.conversation_root_id || originalPost.id,
       reblog: {
@@ -1064,11 +1073,14 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
+    
     const interaction = {
       user_id: user.id,
       post_id: postId,
       interaction_type: 'bookmark' as const,
-      is_local: true,
+      ap_id: ap_id,
+      is_local: true, // Database triggers will determine the correct value
       metadata: {}
     };
 
