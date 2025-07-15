@@ -383,18 +383,6 @@
                 if (userProfile) {
                   const userDomain = userProfile.domain || 'har.mony.lol';
                   
-                  console.log('🔧 UserProfile for display mention:', userProfile);
-                  console.log('🔧 Full isLocal debug:', {
-                    username: userProfile.username,
-                    domain: userProfile.domain,
-                    isLocal_raw: userProfile.isLocal,
-                    isLocal_type: typeof userProfile.isLocal,
-                    isLocal_boolean: Boolean(userProfile.isLocal),
-                    comparison_with_har_mony_lol: userProfile.domain === 'har.mony.lol',
-                    expected_isLocal: userProfile.domain === 'har.mony.lol' || userProfile.isLocal === true
-                  });
-                  console.log('🔧 Created structured mention object for:', userProfile.username);
-                  
                   const mentionObject = { 
                     type: 'mention' as const, 
                     userId,

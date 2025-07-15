@@ -653,6 +653,9 @@ const formatNumber = (num: number): string => {
 /* Mobile responsiveness */
 @media (max-width: 768px) {
   
+  .context-bar-container {
+    display: none;
+  }
   .social-sidebar-container,
   .right-sidebar-container {
     position: fixed;

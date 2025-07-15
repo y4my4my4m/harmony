@@ -353,7 +353,6 @@ const dragState = ref<DragState>({
 
 // Stores and Composables
 const serverChannelStore = useServerChannelStore();
-const authStore = useAuthStore();
 const router = useRouter();
 const serverUsersStore = useServerUsersStore();
 const voiceChannelStore = useUnifiedVoiceChannelStore();
@@ -362,7 +361,6 @@ const { canDragAndDrop, canCreateChannels, canMoveChannelsBetweenCategories, get
 
 // Computed Properties
 const isMobile = computed(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0);
-const userId = computed(() => authStore.session?.user?.id || '');
 
 const dragGroup = computed(() => ({
   name: 'channels',

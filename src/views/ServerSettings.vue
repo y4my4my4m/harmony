@@ -206,9 +206,6 @@ const server = ref<Server>({
 
 const originalServer = ref<Server | null>(null)
 
-// Computed properties
-const isMobile = computed(() => windowWidth.value <= 768)
-
 const currentSectionLabel = computed(() => {
   const section = availableSections.value.find(s => s.id === activeSection.value)
   return section?.label || 'Server Settings'

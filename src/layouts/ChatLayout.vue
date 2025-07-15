@@ -404,6 +404,9 @@ onMounted(() => {
 /* Mobile responsiveness */
 @media (max-width: 768px) {
   
+  .context-bar-container {
+    display: none;
+  }
   .channel-sidebar-container,
   .right-sidebar-container {
     position: fixed;
@@ -417,6 +420,10 @@ onMounted(() => {
   .channel-sidebar-container.mobile-open {
     transform: translateX(0);
     left: 72px;
+    top: 0;
+    height: 100vh;
+    width: 260px;
+    border-right: 1px solid var(--border-color);
   }
   
   .right-sidebar-container.mobile-open {

@@ -217,7 +217,6 @@ onMounted(async () => {
   // Debug: Log unified system stats
   const stats = getStats.value
   console.log('🔍 UserData service stats from UserProfileComponent:', stats)
-  console.log('🔍 Current user from userDataService (real-time reactive):', getCurrentUser.value)
 })
 
 onBeforeUnmount(() => {

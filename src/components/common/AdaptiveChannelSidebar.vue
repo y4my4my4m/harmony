@@ -4,13 +4,6 @@
     <div v-if="mode === 'chat' && !isDM" class="chat-mode-container">
       
       <div class="chat-content">
-        <!-- Debug info (remove in production) -->
-        <div v-if="false" style="background: red; color: white; padding: 4px; font-size: 10px;">
-          Server: {{ currentServer?.name || 'None' }} | 
-          Channels: {{ channels?.length || 0 }} |
-          Categories: {{ categories?.length || 0 }}
-        </div>
-        
         <ChannelSidebar
           v-if="currentServer"
           :currentServer="currentServer"
@@ -805,6 +798,8 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .adaptive-channel-sidebar {
     width: 100%;
+    border-top-left-radius: 0;
+    border-top: 0;
   }
   
   .social-sidebar {
