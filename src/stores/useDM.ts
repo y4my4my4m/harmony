@@ -13,12 +13,17 @@ export interface DMUser {
   avatar_url?: string
   is_online?: boolean
   last_seen?: string
+  // Federated user support
+  domain?: string
+  is_local?: boolean
+  federated_id?: string
+  handle?: string
 }
 
 export interface DMConversation {
   id: string
-  user1_id: string
-  user2_id: string
+  user1: string
+  user2: string
   created_at: string
   last_activity?: string
   last_message?: Message
@@ -304,7 +309,7 @@ export const useDMStore = defineStore('dm', () => {
       // Get other user's profile for the conversation
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url')
+        .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
         .eq('id', otherUserId)
         .single()
 
@@ -316,16 +321,19 @@ export const useDMStore = defineStore('dm', () => {
       // Get last message for conversation
       const { data: lastMessageData } = await supabase
         .from('messages')
-        .select('id, user_id, content, created_at')
+        .select('id, user_id, content, created_at, metadata')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
         .limit(1)
         .single()
 
+      // Determine if this is a federated conversation
+      const isFederated = !profileData.is_local && profileData.domain
+
       const processedConv: DMConversation = {
         id: convData.id,
-        user1_id: convData.user1,
-        user2_id: convData.user2,
+        user1: convData.user1,
+        user2: convData.user2,
         created_at: convData.created_at,
         last_activity: lastMessageData?.created_at || convData.created_at,
         last_message: lastMessageData ? {
@@ -335,7 +343,8 @@ export const useDMStore = defineStore('dm', () => {
           created_at: new Date(lastMessageData.created_at),
           channel_id: '', // Empty string for DMs
           conversation_id: conversationId,
-          reactions: []
+          reactions: [],
+          metadata: lastMessageData.metadata || {}
         } : undefined,
         unread_count: 0,
         other_user: {
@@ -343,7 +352,11 @@ export const useDMStore = defineStore('dm', () => {
           username: profileData.username,
           display_name: profileData.display_name,
           avatar_url: profileData.avatar_url,
-          is_online: false // Will be updated by global presence system in UI
+          is_online: false, // Will be updated by global presence system in UI
+          domain: profileData.domain,
+          is_local: profileData.is_local,
+          federated_id: profileData.federated_id,
+          handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
         }
       }
 
@@ -431,10 +444,10 @@ export const useDMStore = defineStore('dm', () => {
       for (const conv of conversationsData) {
         const otherUserId = conv.user1 === userId ? conv.user2 : conv.user1
         
-        // Get other user's profile
+        // Get other user's profile - enhanced to handle federated users
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url')
+          .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
           .eq('id', otherUserId)
           .single()
 
@@ -446,7 +459,7 @@ export const useDMStore = defineStore('dm', () => {
         // Get last message for conversation
         const { data: lastMessageData } = await supabase
           .from('messages')
-          .select('id, user_id, content, created_at')
+          .select('id, user_id, content, created_at, metadata')
           .eq('conversation_id', conv.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -455,10 +468,13 @@ export const useDMStore = defineStore('dm', () => {
         // Count unread messages (messages after user's last read)
         const unreadCount = 0 // TODO: Implement proper unread counting
 
+        // Determine if this is a federated conversation
+        const isFederated = !profileData.is_local && profileData.domain
+
         const processedConv: DMConversation = {
           id: conv.id,
-          user1_id: conv.user1,
-          user2_id: conv.user2,
+          user1: conv.user1,
+          user2: conv.user2,
           created_at: conv.created_at,
           last_activity: lastMessageData?.created_at || conv.created_at,
           last_message: lastMessageData ? {
@@ -468,7 +484,8 @@ export const useDMStore = defineStore('dm', () => {
             created_at: new Date(lastMessageData.created_at),
             channel_id: '', // Empty string for DMs
             conversation_id: conv.id,
-            reactions: []
+            reactions: [],
+            metadata: lastMessageData.metadata || {}
           } : undefined,
           unread_count: unreadCount,
           other_user: {
@@ -476,7 +493,12 @@ export const useDMStore = defineStore('dm', () => {
             username: profileData.username,
             display_name: profileData.display_name,
             avatar_url: profileData.avatar_url,
-            is_online: false // Will be updated by global presence system in UI
+            is_online: false, // Will be updated by global presence system in UI
+            // Add federated user information
+            domain: profileData.domain,
+            is_local: profileData.is_local,
+            federated_id: profileData.federated_id,
+            handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
           }
         }
 
@@ -640,10 +662,45 @@ export const useDMStore = defineStore('dm', () => {
         return
       }
 
+      // Check if query looks like a federated handle (@user@domain.com or user@domain.com)
+      const federatedMatch = query.match(/^@?([^@]+)@([^@]+\.[^@]+)$/)
+      
+      if (federatedMatch) {
+        // Search for federated user by handle
+        const [, username, domain] = federatedMatch
+        
+        const { data: federatedUsers, error: fedError } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
+          .eq('username', username)
+          .eq('domain', domain)
+          .eq('is_local', false)
+          .limit(5)
+
+        if (fedError) {
+          console.error('Error searching federated users:', fedError)
+        } else if (federatedUsers && federatedUsers.length > 0) {
+          searchResults.value = federatedUsers.map(user => ({
+            id: user.id,
+            username: user.username,
+            display_name: user.display_name,
+            avatar_url: user.avatar_url,
+            domain: user.domain,
+            is_local: user.is_local,
+            federated_id: user.federated_id,
+            handle: `${user.username}@${user.domain}`,
+            is_online: false
+          }))
+          return
+        }
+      }
+
+      // Search local users
       const { data: users, error } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url')
+        .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
         .neq('id', currentUserId) // Exclude current user
+        .eq('is_local', true) // Only search local users for now
         .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
         .limit(10)
 
@@ -658,6 +715,10 @@ export const useDMStore = defineStore('dm', () => {
         username: user.username,
         display_name: user.display_name,
         avatar_url: user.avatar_url,
+        domain: user.domain,
+        is_local: user.is_local,
+        federated_id: user.federated_id,
+        handle: user.is_local ? user.username : `${user.username}@${user.domain}`,
         is_online: false // Will be updated by global presence system in UI
       }))
       
@@ -748,9 +809,10 @@ export const useDMStore = defineStore('dm', () => {
 
       console.log('✅ DM message sent successfully to database:', newMessage)
       
-      // 🔔 Database triggers now handle DM notifications automatically
-      // No need for manual notification creation - the database trigger will detect
-      // the new message insert and create appropriate notifications based on conversation participants
+      // 🎯 DATABASE TRIGGERS NOW HANDLE:
+      // 1. DM notifications (handle_message_notifications trigger)
+      // 2. Federation delivery (federate_dm_message trigger)
+      // No manual frontend calls needed!
 
       // Real-time subscription will handle adding to cache via addMessageToCache
       // Don't manually add here to prevent duplicates
@@ -795,7 +857,7 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // Smart conversation switching that loads cached messages instantly when available
+  // Smart conversation switching that loads cached messages instantly
   const switchToConversation = async (conversationId: string) => {
     // Set the current conversation first (this sets up subscriptions)
     setCurrentConversation(conversationId)
@@ -1029,6 +1091,141 @@ export const useDMStore = defineStore('dm', () => {
     console.log('✅ DM store cleaned up')
   }
 
+  // =================================================================
+  // FEDERATION SUPPORT
+  // =================================================================
+  
+  // Process incoming federated DM according to ActivityStreams specification
+  const processFederatedDM = async (activity: any, note: any) => {
+    try {
+      console.log('🌐 Processing federated DM:', { activityId: activity.id, noteId: note.id })
+      
+      // Validate this is a direct message according to ActivityStreams spec:
+      // - All actors in 'to' should be mentioned in 'tag' for "direct" visibility
+      const toActors = Array.isArray(activity.to) ? activity.to : [activity.to]
+      const mentions = note.tag?.filter((tag: any) => tag.type === 'Mention') || []
+      const mentionedActors = mentions.map((mention: any) => mention.href)
+      
+      // Check if all recipients are properly mentioned (required for direct messages)
+      const allRecipientsAreMentioned = toActors.every((actor: string) => 
+        mentionedActors.includes(actor) || actor === activity.actor
+      )
+      
+      if (!allRecipientsAreMentioned) {
+        console.warn('⚠️ Federated message does not follow direct message mention requirements, may not be a DM')
+      }
+      
+      // Extract sender information from ActivityPub actor
+      const senderUrl = activity.actor
+      const senderDomain = new URL(senderUrl).hostname
+      
+      // Find or create sender profile in local database
+      // This should integrate with existing federation user management
+      
+      return {
+        isDirectMessage: allRecipientsAreMentioned,
+        senderUrl,
+        senderDomain,
+        mentions,
+        toActors
+      }
+    } catch (error) {
+      console.error('❌ Failed to process federated DM:', error)
+      return null
+    }
+  }
+  
+  // Helper to validate ActivityPub mention format according to spec
+  const validateMentionTag = (tag: any): boolean => {
+    return (
+      tag &&
+      tag.type === 'Mention' &&
+      typeof tag.href === 'string' &&
+      typeof tag.name === 'string' &&
+      tag.name.startsWith('@')
+    )
+  }
+  
+  // Extract mentions from message content for federation
+  const extractMentionsForFederation = (content: MessagePart[]): Array<{username: string, domain?: string, url?: string}> => {
+    const mentions: Array<{username: string, domain?: string, url?: string}> = []
+    
+    content.forEach(part => {
+      if (part.type === 'mention' && part.username) {
+        mentions.push({
+          username: part.username,
+          domain: part.domain,
+          url: part.url
+        })
+      }
+    })
+    
+    return mentions
+  }
+  
+  // Generate proper ActivityPub mention tags for outgoing DMs
+  const generateActivityPubMentionTags = (
+    content: MessagePart[], 
+    recipientUrls: string[], 
+    instanceDomain: string
+  ): any[] => {
+    const mentionTags: any[] = []
+    const processedUrls = new Set<string>()
+    
+    // Add mentions from content
+    content.forEach(part => {
+      if (part.type === 'mention' && part.username) {
+        const domain = part.domain || instanceDomain
+        const url = part.url || `https://${domain}/@${part.username}`
+        const name = domain === instanceDomain ? `@${part.username}` : `@${part.username}@${domain}`
+        
+        if (!processedUrls.has(url)) {
+          mentionTags.push({
+            type: 'Mention',
+            href: url,
+            name: name
+          })
+          processedUrls.add(url)
+        }
+      }
+    })
+    
+    // For DMs, ensure ALL recipients are mentioned (required for "direct" visibility)
+    recipientUrls.forEach(recipientUrl => {
+      if (!processedUrls.has(recipientUrl)) {
+        try {
+          const url = new URL(recipientUrl)
+          const domain = url.hostname
+          const pathParts = url.pathname.split('/')
+          let username = ''
+          
+          // Handle different ActivityPub URL formats
+          if (pathParts[1] === 'users' && pathParts[2]) {
+            username = pathParts[2]
+          } else if (pathParts[1]?.startsWith('@')) {
+            username = pathParts[1].substring(1)
+          } else if (pathParts[1]) {
+            username = pathParts[1]
+          }
+          
+          if (username) {
+            const name = domain === instanceDomain ? `@${username}` : `@${username}@${domain}`
+            mentionTags.push({
+              type: 'Mention',
+              href: recipientUrl,
+              name: name
+            })
+            processedUrls.add(recipientUrl)
+          }
+        } catch (error) {
+          console.warn('Failed to parse recipient URL for mention tag:', recipientUrl, error)
+        }
+      }
+    })
+    
+    return mentionTags
+  }
+
   return {
     // State
     conversations,
@@ -1064,6 +1261,12 @@ export const useDMStore = defineStore('dm', () => {
     clearDMMessages,
     setupConversationSubscription,
     cleanupRealtimeSubscriptions,
-    cleanup
+    cleanup,
+    
+    // Federation Support
+    processFederatedDM,
+    validateMentionTag,
+    extractMentionsForFederation,
+    generateActivityPubMentionTags
   }
 })

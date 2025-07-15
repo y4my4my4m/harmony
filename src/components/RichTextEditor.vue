@@ -761,7 +761,7 @@ defineExpose({
 watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
     const currentText = getPlainText();
-    console.log('🔧 RichTextEditor watch triggered:', { newValue, currentText, different: currentText !== newValue });
+    // console.log('🔧 RichTextEditor watch triggered:', { newValue, currentText, different: currentText !== newValue });
     if (currentText !== newValue) {
       console.log('🔧 Calling renderContent with:', newValue);
       renderContent(newValue);

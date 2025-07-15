@@ -44,8 +44,6 @@ serve(async (req: Request) => {
     // Parse activity from request body
     const activity: ActivityPubActivity = await req.json()
 
-    console.log('Received activity:', JSON.stringify(activity, null, 2))
-
     // Basic validation
     if (!activity.id || !activity.type || !activity.actor) {
       return new Response('Invalid activity', { 
@@ -53,6 +51,35 @@ serve(async (req: Request) => {
         headers: corsHeaders 
       })
     }
+    // Check if the actor's instance is blocked
+    let actorDomain: string | null = null
+    try {
+      if (typeof activity.actor === 'string') {
+      actorDomain = new URL(activity.actor).hostname
+      } else if (typeof activity.actor === 'object' && activity.actor.id) {
+      actorDomain = new URL(activity.actor.id).hostname
+      }
+    } catch (e) {
+      console.error('Failed to parse actor domain:', e)
+      actorDomain = null
+    }
+
+    if (actorDomain) {
+      const { data: blocked, error: blockError } = await supabase
+      .from('federated_instances')
+      .select('is_blocked')
+      .eq('domain', actorDomain)
+      .maybeSingle()
+      if (blocked?.is_blocked) {
+        console.log(`Blocked instance attempted to send activity: ${activity.id} from ${actorDomain}`)
+        return new Response('Blocked instance', { 
+          status: 403, 
+          headers: corsHeaders 
+        })
+      }
+    }
+
+    console.log('Received activity:', JSON.stringify(activity, null, 2))
 
     // TODO: Verify HTTP signature for security
     // For now, we'll accept all activities (development only)
@@ -229,28 +256,58 @@ async function processUndoActivity(supabase: any, activity: ActivityPubActivity)
 
 async function processCreateActivity(supabase: any, activity: ActivityPubActivity) {
   // Handle Create activities (new posts)
-  console.log('Processing Create activity:', activity.id)
+  console.log('🏁 Processing Create activity:', activity.id)
   
   const object = typeof activity.object === 'string' ? null : activity.object as any
   if (!object || object.type !== 'Note') {
-    console.log('Create activity does not contain a Note object')
+    console.log('❌ Create activity does not contain a Note object')
     return
   }
 
   const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol'
+  console.log('🌐 Our domain:', ourDomain)
   
-  // Check if this post mentions any of our local users
+  // Check if this is a direct/private message FIRST
+  console.log('🔍 Starting DM detection...')
+  const isDirectMessage = isActivityPubDirectMessage(object, ourDomain)
+  
+  if (isDirectMessage) {
+    console.log('✅ PROCESSING AS DIRECT MESSAGE')
+    await processDirectMessage(supabase, activity, object, ourDomain)
+    return // STOP HERE - do not process as public post
+  }
+  
+  console.log('📢 PROCESSING AS PUBLIC POST')
+  
+  // SAFETY CHECK: If this looks like it could be a DM, log a warning
   const mentionTags = object.tag?.filter((tag: any) => tag.type === 'Mention') || []
   const localMentions = mentionTags.filter((tag: any) => 
     tag.href && tag.href.includes(`https://${ourDomain}/users/`)
   )
+  
+  // Safety: If it's ONLY mentioning local users and no external users, it might be a missed DM
+  const externalMentions = mentionTags.filter((tag: any) => 
+    tag.href && !tag.href.includes(`https://${ourDomain}/users/`)
+  )
+  
+  if (localMentions.length > 0 && externalMentions.length === 0 && mentionTags.length <= 2) {
+    console.log('⚠️ WARNING: This looks like it could be a DM but was not detected as one!')
+    console.log('⚠️ Post details:', {
+      to: object.to,
+      cc: object.cc,
+      visibility: object.visibility,
+      mentionCount: mentionTags.length,
+      localMentions: localMentions.length
+    })
+    // Continue processing as public for now, but this indicates a detection issue
+  }
 
   if (localMentions.length === 0) {
-    console.log('Create activity does not mention any local users, ignoring')
+    console.log('❌ Public post does not mention any local users, ignoring')
     return
   }
 
-  console.log(`📬 Incoming post mentions ${localMentions.length} local users:`, 
+  console.log(`📬 PUBLIC post mentions ${localMentions.length} local users:`, 
     localMentions.map((tag: any) => tag.name)
   )
 
@@ -699,4 +756,273 @@ function parseActivityPubHTMLToJSONB(htmlContent: string, mentionTags: any[] = [
   console.log('✅ Final parsed result:', finalResult);
 
   return finalResult.length > 0 ? finalResult : [{ type: 'text', text: '' }];
+}
+
+// Helper function to determine if an ActivityPub Note is a direct message
+function isActivityPubDirectMessage(object: any, ourDomain: string): boolean {
+  console.log('🔍 DM Detection Analysis:', {
+    id: object.id,
+    visibility: object.visibility,
+    to: object.to,
+    cc: object.cc,
+    hasTag: !!object.tag,
+    tagCount: object.tag?.length || 0
+  })
+  
+  // Method 1: Check visibility property (Mastodon style)
+  if (object.visibility === 'direct') {
+    console.log('✅ DM detected via visibility=direct')
+    return true
+  }
+  
+  // Method 2: Check addressing - direct messages are typically sent only to specific recipients
+  // without including public collections
+  const to = Array.isArray(object.to) ? object.to : (object.to ? [object.to] : [])
+  const cc = Array.isArray(object.cc) ? object.cc : (object.cc ? [object.cc] : [])
+  
+  console.log('🔍 Audience analysis:', {
+    to: to,
+    cc: cc,
+    toLength: to.length,
+    ccLength: cc.length
+  })
+  
+  const publicIndicators = [...to, ...cc].filter(recipient => {
+    const isPublic = recipient === 'https://www.w3.org/ns/activitystreams#Public' ||
+                     recipient === 'as:Public' ||
+                     recipient.includes('/followers')
+    if (isPublic) {
+      console.log('❌ Found public indicator:', recipient)
+    }
+    return isPublic
+  })
+  
+  const hasPublicAudience = publicIndicators.length > 0
+  
+  if (hasPublicAudience) {
+    console.log('❌ DM rejected - has public audience:', publicIndicators)
+    return false
+  }
+  
+  // Check for local recipients in addressing
+  const localRecipients = [...to, ...cc].filter(recipient => 
+    recipient.includes(`https://${ourDomain}/users/`) ||
+    recipient.includes(`https://${ourDomain}/social/profile/`)
+  )
+  
+  console.log('🔍 Local recipients in addressing:', localRecipients)
+  
+  if (localRecipients.length > 0) {
+    console.log('✅ DM detected via direct addressing to local users')
+    return true
+  }
+  
+  // Method 3: Check mention tags - if only mentioned users are from our domain
+  // and there's no public audience, treat as DM
+  const mentionTags = object.tag?.filter((tag: any) => tag.type === 'Mention') || []
+  const localMentions = mentionTags.filter((tag: any) => 
+    tag.href && (
+      tag.href.includes(`https://${ourDomain}/users/`) ||
+      tag.href.includes(`https://${ourDomain}/social/profile/`)
+    )
+  )
+  
+  console.log('🔍 Mention analysis:', {
+    totalMentions: mentionTags.length,
+    localMentions: localMentions.length,
+    localMentionHrefs: localMentions.map(tag => tag.href),
+    hasPublicAudience: hasPublicAudience
+  })
+  
+  // For mention-based DMs: no public audience + local mentions + reasonable mention count
+  if (!hasPublicAudience && localMentions.length > 0 && mentionTags.length <= 3) {
+    console.log('✅ DM detected via mention-only pattern')
+    return true
+  }
+  
+  console.log('❌ Not detected as DM - will process as public post')
+  return false
+}
+
+// Process direct messages from ActivityPub
+async function processDirectMessage(supabase: any, activity: ActivityPubActivity, object: any, ourDomain: string) {
+  console.log('🔒 Processing direct message:', activity.id)
+  
+  try {
+    // Get or create the author profile
+    const author = await getOrCreateRemoteProfile(supabase, activity.actor)
+    if (!author) {
+      console.error('Failed to resolve DM author')
+      return
+    }
+
+    console.log(`📧 Direct message from ${author.username}@${author.domain}`)
+
+    // Extract mentioned local users
+    const mentionTags = object.tag?.filter((tag: any) => tag.type === 'Mention') || []
+    const localMentions = mentionTags.filter((tag: any) => 
+      tag.href && tag.href.includes(`https://${ourDomain}/users/`)
+    )
+
+    // Also check direct addressing
+    const to = Array.isArray(object.to) ? object.to : (object.to ? [object.to] : [])
+    const cc = Array.isArray(object.cc) ? object.cc : (object.cc ? [object.cc] : [])
+    
+    const directlyAddressed = [...to, ...cc]
+      .filter(recipient => 
+        recipient.includes(`https://${ourDomain}/users/`) ||
+        recipient.includes(`https://${ourDomain}/social/profile/`)
+      )
+      .map(recipient => {
+        // Handle both /users/ and /social/profile/ patterns
+        const userMatch = recipient.match(`https://${ourDomain}/users/([^/]+)`)
+        const profileMatch = recipient.match(`https://${ourDomain}/social/profile/([^/]+)`)
+        return userMatch ? userMatch[1] : (profileMatch ? profileMatch[1] : null)
+      })
+      .filter(Boolean)
+
+    // Combine mentioned and directly addressed users
+    const mentionedUsernames = new Set([
+      ...localMentions.map((tag: any) => {
+        // Handle both /users/ and /social/profile/ patterns
+        const userMatch = tag.href.match(`https://${ourDomain}/users/([^/]+)`)
+        const profileMatch = tag.href.match(`https://${ourDomain}/social/profile/([^/]+)`)
+        return userMatch ? userMatch[1] : (profileMatch ? profileMatch[1] : null)
+      }).filter(Boolean),
+      ...directlyAddressed
+    ])
+
+    if (mentionedUsernames.size === 0) {
+      console.log('Direct message has no local recipients')
+      return
+    }
+
+    console.log(`📧 DM mentions ${mentionedUsernames.size} local users:`, Array.from(mentionedUsernames))
+
+    // Convert ActivityPub HTML content to our standard JSONB format
+    const contentArray = parseActivityPubHTMLToJSONB(object.content || '', mentionTags)
+
+    // Process each mentioned user - create conversations and messages
+    for (const username of mentionedUsernames) {
+      // Get the local user
+      const { data: localUser } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .eq('username', username)
+        .eq('domain', ourDomain)
+        .eq('is_local', true)
+        .single()
+
+      if (!localUser) {
+        console.error(`Local user not found: ${username}`)
+        continue
+      }
+
+      // Find or create conversation between the federated user and local user
+      const conversationId = await findOrCreateDMConversation(supabase, author.id, localUser.id)
+      
+      if (!conversationId) {
+        console.error(`Failed to create/find conversation between ${author.id} and ${localUser.id}`)
+        continue
+      }
+
+      // Store the DM message
+      const messageData = {
+        conversation_id: conversationId,
+        user_id: author.id,
+        content: contentArray,
+        created_at: object.published || new Date().toISOString(),
+        is_system: false,
+        // Add federation metadata
+        metadata: {
+          federated: true,
+          ap_id: object.id,
+          ap_type: 'Note',
+          from_domain: author.domain,
+          original_url: object.url || object.id
+        }
+      }
+
+      const { data: savedMessage, error: messageError } = await supabase
+        .from('messages')
+        .insert(messageData)
+        .select()
+        .single()
+
+      if (messageError) {
+        console.error(`Failed to save federated DM for ${username}:`, messageError)
+        continue
+      }
+
+      console.log(`✅ Saved federated DM ${savedMessage.id} from ${author.username}@${author.domain} to ${username}`)
+
+      // Note: DM notifications are automatically created by database triggers
+      // No need to manually create notifications here
+    }
+
+  } catch (error) {
+    console.error('Error processing direct message:', error)
+    throw error
+  }
+}
+
+// Find or create a DM conversation between two users
+async function findOrCreateDMConversation(supabase: any, user1Id: string, user2Id: string): Promise<string | null> {
+  try {
+    // Check if conversation already exists (regardless of user order)
+    // Try a simpler approach first - search for both orderings
+    let existingConversation: any = null;
+    
+    // Try first ordering
+    const { data: conv1 } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('user1', user1Id)
+      .eq('user2', user2Id)
+      .maybeSingle()
+    
+    if (conv1) {
+      existingConversation = conv1;
+    } else {
+      // Try reverse ordering
+      const { data: conv2 } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('user1', user2Id)
+        .eq('user2', user1Id)
+        .maybeSingle()
+      
+      if (conv2) {
+        existingConversation = conv2;
+      }
+    }
+
+    if (existingConversation) {
+      console.log(`📝 Found existing conversation: ${existingConversation.id}`)
+      return existingConversation.id
+    }
+
+    // Create new conversation
+    const { data: newConversation, error } = await supabase
+      .from('conversations')
+      .insert({
+        user1: user1Id,
+        user2: user2Id,
+        created_at: new Date().toISOString()
+      })
+      .select('id')
+      .single()
+
+    if (error) {
+      console.error('Failed to create conversation:', error)
+      return null
+    }
+
+    console.log(`🆕 Created new conversation: ${newConversation.id}`)
+    return newConversation.id
+
+  } catch (error) {
+    console.error('Error finding/creating conversation:', error)
+    return null
+  }
 }
