@@ -124,11 +124,33 @@ serve(async (req: Request) => {
       //   .eq('is_local', true)
       //   .gte('created_at', lastSixMonths.toISOString())
 
-      const userCount = 1000; // Placeholder for user count
-      const postCount = 5000; // Placeholder for post count
-      const activeMonth = 200; // Placeholder for active users in last month
-      const activeHalfyear = 600; // Placeholder for active users in last 6 months
+      const { count: userCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_local', true);
 
+      const { count: postCount } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_local', true);
+
+      const lastMonth = new Date();
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+
+      const { count: activeMonth } = await supabase
+        .from('posts')
+        .select('author', { count: 'exact', head: true })
+        .eq('is_local', true)
+        .gte('created_at', lastMonth.toISOString());
+
+      const lastSixMonths = new Date();
+      lastSixMonths.setMonth(lastSixMonths.getMonth() - 6);
+
+      const { count: activeHalfyear } = await supabase
+        .from('posts')
+        .select('author', { count: 'exact', head: true })
+        .eq('is_local', true)
+        .gte('created_at', lastSixMonths.toISOString());
       const nodeInfo: NodeInfo = {
         version: '2.1',
         software: {
