@@ -229,36 +229,58 @@ async function processUndoActivity(supabase: any, activity: ActivityPubActivity)
 
 async function processCreateActivity(supabase: any, activity: ActivityPubActivity) {
   // Handle Create activities (new posts)
-  console.log('Processing Create activity:', activity.id)
+  console.log('🏁 Processing Create activity:', activity.id)
   
   const object = typeof activity.object === 'string' ? null : activity.object as any
   if (!object || object.type !== 'Note') {
-    console.log('Create activity does not contain a Note object')
+    console.log('❌ Create activity does not contain a Note object')
     return
   }
 
   const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol'
+  console.log('🌐 Our domain:', ourDomain)
   
-  // Check if this is a direct/private message
+  // Check if this is a direct/private message FIRST
+  console.log('🔍 Starting DM detection...')
   const isDirectMessage = isActivityPubDirectMessage(object, ourDomain)
   
   if (isDirectMessage) {
+    console.log('✅ PROCESSING AS DIRECT MESSAGE')
     await processDirectMessage(supabase, activity, object, ourDomain)
-    return
+    return // STOP HERE - do not process as public post
   }
   
-  // Check if this post mentions any of our local users (for public posts)
+  console.log('📢 PROCESSING AS PUBLIC POST')
+  
+  // SAFETY CHECK: If this looks like it could be a DM, log a warning
   const mentionTags = object.tag?.filter((tag: any) => tag.type === 'Mention') || []
   const localMentions = mentionTags.filter((tag: any) => 
     tag.href && tag.href.includes(`https://${ourDomain}/users/`)
   )
+  
+  // Safety: If it's ONLY mentioning local users and no external users, it might be a missed DM
+  const externalMentions = mentionTags.filter((tag: any) => 
+    tag.href && !tag.href.includes(`https://${ourDomain}/users/`)
+  )
+  
+  if (localMentions.length > 0 && externalMentions.length === 0 && mentionTags.length <= 2) {
+    console.log('⚠️ WARNING: This looks like it could be a DM but was not detected as one!')
+    console.log('⚠️ Post details:', {
+      to: object.to,
+      cc: object.cc,
+      visibility: object.visibility,
+      mentionCount: mentionTags.length,
+      localMentions: localMentions.length
+    })
+    // Continue processing as public for now, but this indicates a detection issue
+  }
 
   if (localMentions.length === 0) {
-    console.log('Create activity does not mention any local users, ignoring')
+    console.log('❌ Public post does not mention any local users, ignoring')
     return
   }
 
-  console.log(`📬 Incoming post mentions ${localMentions.length} local users:`, 
+  console.log(`📬 PUBLIC post mentions ${localMentions.length} local users:`, 
     localMentions.map((tag: any) => tag.name)
   )
 
@@ -711,8 +733,18 @@ function parseActivityPubHTMLToJSONB(htmlContent: string, mentionTags: any[] = [
 
 // Helper function to determine if an ActivityPub Note is a direct message
 function isActivityPubDirectMessage(object: any, ourDomain: string): boolean {
+  console.log('🔍 DM Detection Analysis:', {
+    id: object.id,
+    visibility: object.visibility,
+    to: object.to,
+    cc: object.cc,
+    hasTag: !!object.tag,
+    tagCount: object.tag?.length || 0
+  })
+  
   // Method 1: Check visibility property (Mastodon style)
   if (object.visibility === 'direct') {
+    console.log('✅ DM detected via visibility=direct')
     return true
   }
   
@@ -721,21 +753,40 @@ function isActivityPubDirectMessage(object: any, ourDomain: string): boolean {
   const to = Array.isArray(object.to) ? object.to : (object.to ? [object.to] : [])
   const cc = Array.isArray(object.cc) ? object.cc : (object.cc ? [object.cc] : [])
   
-  const hasPublicAudience = [...to, ...cc].some(recipient => 
-    recipient === 'https://www.w3.org/ns/activitystreams#Public' ||
-    recipient === 'as:Public' ||
-    recipient.includes('/followers')
+  console.log('🔍 Audience analysis:', {
+    to: to,
+    cc: cc,
+    toLength: to.length,
+    ccLength: cc.length
+  })
+  
+  const publicIndicators = [...to, ...cc].filter(recipient => {
+    const isPublic = recipient === 'https://www.w3.org/ns/activitystreams#Public' ||
+                     recipient === 'as:Public' ||
+                     recipient.includes('/followers')
+    if (isPublic) {
+      console.log('❌ Found public indicator:', recipient)
+    }
+    return isPublic
+  })
+  
+  const hasPublicAudience = publicIndicators.length > 0
+  
+  if (hasPublicAudience) {
+    console.log('❌ DM rejected - has public audience:', publicIndicators)
+    return false
+  }
+  
+  // Check for local recipients in addressing
+  const localRecipients = [...to, ...cc].filter(recipient => 
+    recipient.includes(`https://${ourDomain}/users/`)
   )
   
-  // If it's not public and has specific recipients from our domain, it's likely a DM
-  if (!hasPublicAudience) {
-    const hasLocalRecipients = [...to, ...cc].some(recipient => 
-      recipient.includes(`https://${ourDomain}/users/`)
-    )
-    
-    if (hasLocalRecipients) {
-      return true
-    }
+  console.log('🔍 Local recipients in addressing:', localRecipients)
+  
+  if (localRecipients.length > 0) {
+    console.log('✅ DM detected via direct addressing to local users')
+    return true
   }
   
   // Method 3: Check mention tags - if only mentioned users are from our domain
@@ -745,7 +796,21 @@ function isActivityPubDirectMessage(object: any, ourDomain: string): boolean {
     tag.href && tag.href.includes(`https://${ourDomain}/users/`)
   )
   
-  return !hasPublicAudience && localMentions.length > 0
+  console.log('🔍 Mention analysis:', {
+    totalMentions: mentionTags.length,
+    localMentions: localMentions.length,
+    localMentionHrefs: localMentions.map(tag => tag.href),
+    hasPublicAudience: hasPublicAudience
+  })
+  
+  // For mention-based DMs: no public audience + local mentions + reasonable mention count
+  if (!hasPublicAudience && localMentions.length > 0 && mentionTags.length <= 3) {
+    console.log('✅ DM detected via mention-only pattern')
+    return true
+  }
+  
+  console.log('❌ Not detected as DM - will process as public post')
+  return false
 }
 
 // Process direct messages from ActivityPub
