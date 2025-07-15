@@ -124,7 +124,7 @@ import ChatHeader from '@/components/chat/ChatHeader.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
-import { useAuthStore } from '@/stores/auth'
+import { useUserData } from '@/composables/useUserData'
 
 // Props
 interface Props {
@@ -158,9 +158,11 @@ const emit = defineEmits<{
 const serverChannelStore = useServerChannelStore()
 const chatStore = useChatStore()
 const dmStore = useDMStore()
-const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
+
+// User data
+const { getCurrentUser } = useUserData()
 
 // State
 const showCreateChannelForm = ref(false)
@@ -219,20 +221,20 @@ const handleChannelCreated = () => {
 }
 
 const handleSendMessage = async (content: any, replyTo?: string) => {
+  const currentUser = getCurrentUser.value
+  
   if (props.isDM) {
     const conversationId = props.conversationId
-    const userId = authStore.session?.user?.id
     
-    if (conversationId && userId) {
-      await dmStore.sendDMMessage(conversationId, userId, content, replyTo)
+    if (conversationId && currentUser?.id) {
+      await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo)
     }
   } else {
     const currentServerId = serverId.value
     const currentChannelId = channelId.value
-    const userId = authStore.session?.user?.id
     
-    if (currentServerId && currentChannelId && userId) {
-      await chatStore.sendMessage(currentServerId, currentChannelId, userId, content, replyTo)
+    if (currentServerId && currentChannelId && currentUser?.id) {
+      await chatStore.sendMessage(currentServerId, currentChannelId, currentUser.id, content, replyTo)
     }
   }
 }

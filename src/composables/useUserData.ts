@@ -349,14 +349,14 @@ export function useUserData() {
     return userDataService.getAllUsers()
   })
 
-  // Lifecycle
-  onMounted(async () => {
-    await ensureInitialized()
-  })
+  // // Lifecycle
+  // onMounted(async () => {
+  //   await ensureInitialized()
+  // })
   
-  onUnmounted(() => {
-    cleanupEventListeners()
-  })
+  // onUnmounted(() => {
+  //   cleanupEventListeners()
+  // })
   
   return {
     // Initialization

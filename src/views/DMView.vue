@@ -50,6 +50,7 @@ import DMHeader from '@/components/dm/DMHeader.vue'
 import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import { useLayoutState } from '@/composables/useLayoutState'
+import { useUserData } from '@/composables/useUserData'
 import type { MessagePart } from '@/types'
 
 // Props
@@ -72,6 +73,9 @@ const dmStore = useDMStore()
 const authStore = useAuthStore()
 const route = useRoute()
 
+// User data
+const { getCurrentUser } = useUserData()
+
 // Layout state
 const { isMobile } = useLayoutState()
 
@@ -90,11 +94,11 @@ const loadMessages = async () => {
     isLoading.value = true
     try {
       // Initialize DM environment for direct access if needed
-      const userId = authStore.session?.user?.id
-      if (userId) {
+      const currentUser = getCurrentUser.value
+      if (currentUser?.id) {
         // IMPORTANT: Wait for conversation and user data to be loaded before proceeding
         // This ensures the DMHeader has user data available when it renders
-        const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(userId, conversationId)
+        const conversation = await dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id, conversationId)
         
         // Only fetch messages if we successfully got the conversation
         if (conversation) {
@@ -117,10 +121,10 @@ const fetchMoreMessages = async () => {
 
 const handleSendMessage = async (content: MessagePart[], replyTo?: string) => {
   const conversationId = route.params.conversationId as string
-  const userId = authStore.session?.user?.id
+  const currentUser = getCurrentUser.value
   
-  if (conversationId && userId) {
-    const success = await dmStore.sendDMMessage(conversationId, userId, content, replyTo)
+  if (conversationId && currentUser?.id) {
+    const success = await dmStore.sendDMMessage(conversationId, currentUser.id, content, replyTo)
     if (success) {
       emit('sendMessage', { content, replyTo })
     }

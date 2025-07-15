@@ -151,7 +151,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
-import { useAuthStore } from '@/stores/auth'
 import { useUserData } from '@/composables/useUserData'
 import type { Message, MessagePart } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
@@ -161,10 +160,9 @@ const emit = defineEmits<{
 }>()
 
 const dmStore = useDMStore()
-const authStore = useAuthStore()
 
 // Use professional presence system
-const { getUserStatusForAvatar, getUserDisplayName, getUserAvatarUrl } = useUserData()
+const { getUserStatusForAvatar, getUserDisplayName, getUserAvatarUrl, getCurrentUser } = useUserData()
 
 // State
 const showUserSearch = ref(false)
@@ -202,8 +200,9 @@ const handleSearch = () => {
   }
 
   searchTimeout.value = setTimeout(() => {
-    if (searchQuery.value.trim() && authStore.session?.user?.id) {
-      dmStore.searchUsers(searchQuery.value.trim(), authStore.session.user.id)
+    const currentUser = getCurrentUser.value
+    if (searchQuery.value.trim() && currentUser?.id) {
+      dmStore.searchUsers(searchQuery.value.trim(), currentUser.id)
     }
   }, 300)
 }
@@ -219,10 +218,11 @@ const closeSearch = () => {
 }
 
 const startConversation = async (user: DMUser) => {
-  if (!authStore.session?.user?.id) return
+  const currentUser = getCurrentUser.value
+  if (!currentUser?.id) return
 
   const conversationId = await dmStore.createOrGetConversation(
-    authStore.session.user.id,
+    currentUser.id,
     user.id
   )
 
@@ -254,10 +254,10 @@ const getLastMessagePreview = (conversation: DMConversation): string => {
   
   try {
     const message = conversation.last_message
-    const currentUserId = authStore.session?.user?.id
+    const currentUser = getCurrentUser.value
     
     // Only show preview if the message is from the other user (not from current user)
-    if (message.user_id === currentUserId) {
+    if (message.user_id === currentUser?.id) {
       return 'You: ' + getMessagePreviewText(message)
     }
     
@@ -291,9 +291,10 @@ const getMessagePreviewText = (message: Message): string => {
 
 // Lifecycle
 onMounted(() => {
-  if (authStore.session?.user?.id) {
+  const currentUser = getCurrentUser.value
+  if (currentUser?.id) {
     // Use the enhanced initialization that ensures user profiles are loaded
-    dmStore.initializeDMEnvironmentForDirectAccess(authStore.session.user.id)
+    dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id)
   }
 })
 

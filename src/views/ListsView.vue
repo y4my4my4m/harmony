@@ -45,7 +45,9 @@ const hasMoreLists = computed(() => {
 const loadLists = async () => {
   isLoadingLists.value = true
   try {
-    await activityPubStore.loadLists()
+    // TODO: Implement actual loading logic
+    // This is a placeholder for loading lists from the ActivityPub store
+    // await activityPubStore.loadLists()
   } catch (error) {
     console.error('Failed to load lists:', error)
   } finally {

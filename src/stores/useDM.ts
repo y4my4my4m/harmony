@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
-import { useAuthStore } from './auth'
+import { userDataService } from '@/services/userDataService'
 
 // Types for DM functionality
 export interface DMUser {
@@ -1062,8 +1062,8 @@ export const useDMStore = defineStore('dm', () => {
       }
       
       // Only increment unread count if message is not from current user and we're not viewing this conversation
-      const authStore = useAuthStore()
-      const currentUserId = authStore.session?.user?.id
+      const currentUser = userDataService.getCurrentUser()
+      const currentUserId = currentUser?.id
       
       if (message.user_id !== currentUserId && currentConversationId.value !== message.conversation_id) {
         conversation.unread_count = (conversation.unread_count || 0) + 1

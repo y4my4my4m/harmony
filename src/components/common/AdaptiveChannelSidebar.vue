@@ -313,7 +313,7 @@ const isNavItemActive = (navItem: { id: string; path: string }) => {
 };
 
 const refreshStats = () => {
-  // TODO: Implement refresh stats
+  // TODO: Implement refresh stats (TODO: is this really needed? should be handled in realtime...unless we want to check for federated maybe)
   //activityPubStore.refreshStats();
   return
 };

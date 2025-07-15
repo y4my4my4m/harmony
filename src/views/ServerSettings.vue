@@ -163,6 +163,7 @@ import { useToast } from 'vue-toastification'
 import { useServerStore } from '@/stores/server'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { getProfileWithAvatarUrl } from '@/services/profileService'
+import { useLayoutState } from '@/composables/useLayoutState'
 import type { Server, Emoji } from '@/types'
 
 // Components
@@ -176,6 +177,9 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+// Layout State
+const { isMobile } = useLayoutState()
 
 // Composables
 const router = useRouter()

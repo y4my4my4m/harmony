@@ -160,7 +160,7 @@
           <div v-if="userPosts.length === 0 && !isLoadingPosts" class="empty-state">
             <Icon name="message-circle" :size="48" />
             <h3>No monies yet</h3>
-            <p>{{ isCurrentUser ? "You haven't" : `${user.display_name || user.username} hasn't` }} posted anything yet.</p>
+            <p>{{ isCurrentUser ? "You haven't" : `${(user?.display_name || user?.username) || 'Unknown User'} hasn't` }} posted anything yet.</p>
           </div>
           
           <div v-else class="posts-list">
@@ -325,6 +325,11 @@ watch(activeTab, (newTab) => {
     followers: followerUsers.value.length
   });
 });
+
+const handleRefresh = () => {
+  console.log('🔄 Refreshing profile data...');
+  loadUserProfile(currentHandle.value);
+};
 
 // Computed
 const isCurrentUser = computed(() => {
@@ -560,6 +565,7 @@ const loadFollowers = async () => {
     if (user.value) {
       user.value.followers_count = followerUsers.value.length;
     }
+    isLoading.value = false;
   } catch (error) {
     console.error('❌ Failed to load followers:', error);
     followerUsers.value = [];
