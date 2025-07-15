@@ -272,25 +272,6 @@ onBeforeUnmount(() => {
   z-index: 9999;
 }
 
-.loading-spinner-container {
-  text-align: center;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 2px solid var(--border-color);
-  border-top: 2px solid var(--accent-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
 .base-layout {
   width: 100%;
   height: 100vh;
