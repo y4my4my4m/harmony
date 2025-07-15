@@ -44,8 +44,6 @@ serve(async (req: Request) => {
     // Parse activity from request body
     const activity: ActivityPubActivity = await req.json()
 
-    console.log('Received activity:', JSON.stringify(activity, null, 2))
-
     // Basic validation
     if (!activity.id || !activity.type || !activity.actor) {
       return new Response('Invalid activity', { 
@@ -53,6 +51,42 @@ serve(async (req: Request) => {
         headers: corsHeaders 
       })
     }
+    // Check if the actor's instance is blocked
+    let actorDomain: string | null = null
+    try {
+      if (typeof activity.actor === 'string') {
+      actorDomain = new URL(activity.actor).hostname
+      } else if (typeof activity.actor === 'object' && activity.actor.id) {
+      actorDomain = new URL(activity.actor.id).hostname
+      }
+    } catch (e) {
+      console.error('Failed to parse actor domain:', e)
+      actorDomain = null
+    }
+
+    if (actorDomain) {
+      const { data: blocked, error: blockError } = await supabase
+      .from('federated_instances')
+      .select('is_blocked')
+      .eq('domain', actorDomain)
+      .single()
+      if (blockError) {
+      console.error('Failed to check blocked instance:', blockError)
+      return new Response('Internal server error', { 
+        status: 500, 
+        headers: corsHeaders 
+      })
+      }
+      if (blocked?.is_blocked) {
+      console.log(`Blocked instance attempted to send activity: ${activity.id} from ${actorDomain}`)
+      return new Response('Blocked instance', { 
+        status: 403, 
+        headers: corsHeaders 
+      })
+      }
+    }
+
+    console.log('Received activity:', JSON.stringify(activity, null, 2))
 
     // TODO: Verify HTTP signature for security
     // For now, we'll accept all activities (development only)

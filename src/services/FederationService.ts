@@ -368,7 +368,7 @@ export class FederationService {
   // =============================================================================
 
   /**
-   * Federate a like/favorite interaction
+   * Federate a like/favorite interaction with hybrid delivery
    */
   async federateLike(postId: string, userId: string, isLike: boolean): Promise<string | null> {
     try {
@@ -381,18 +381,30 @@ export class FederationService {
       const actor = `${this.config.instanceUrl}/users/${userProfile.username}`;
       const objectUrl = post.ap_id || `${this.config.instanceUrl}/posts/${postId}`;
 
+      let activityId: string;
+      let deliveryActivity: any;
+
       if (isLike) {
         // Create Like activity
-        return await this.queueActivity({
+        activityId = await this.queueActivity({
           type: 'Like',
           actor,
           object: objectUrl,
           target: postId
         });
+
+        deliveryActivity = {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${actor}/activities/like/${Date.now()}`,
+          type: 'Like',
+          actor,
+          object: objectUrl,
+          published: new Date().toISOString()
+        };
       } else {
         // Create Undo Like activity
         const likeId = `${this.config.instanceUrl}/activities/${crypto.randomUUID()}`;
-        return await this.queueActivity({
+        activityId = await this.queueActivity({
           type: 'Undo',
           actor,
           object: {
@@ -403,7 +415,35 @@ export class FederationService {
           },
           target: postId
         });
+
+        deliveryActivity = {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${actor}/activities/undo/${Date.now()}`,
+          type: 'Undo',
+          actor,
+          object: {
+            id: likeId,
+            type: 'Like',
+            actor,
+            object: objectUrl
+          },
+          published: new Date().toISOString()
+        };
       }
+
+      // 🚀 IMMEDIATE DELIVERY: Try to deliver immediately to post author's inbox
+      try {
+        const authorInbox = await this.getPostAuthorInbox(objectUrl);
+        if (authorInbox) {
+          console.log(`🚀 Immediately delivering ${isLike ? 'like' : 'unlike'} to ${authorInbox.domain}`);
+          await this.deliverActivity(deliveryActivity, [authorInbox.inboxUrl]);
+        }
+      } catch (error) {
+        console.error(`⚠️ Immediate delivery failed, will retry via cron:`, error);
+        // Activity is already queued, so cron will retry
+      }
+
+      return activityId;
     } catch (error) {
       console.error('❌ Failed to federate like:', error);
       return null;
@@ -411,7 +451,7 @@ export class FederationService {
   }
 
   /**
-   * Federate a follow request
+   * Federate a follow request with hybrid delivery
    */
   async federateFollow(followerId: string, followingId: string, isFollow: boolean): Promise<string | null> {
     try {
@@ -427,17 +467,29 @@ export class FederationService {
         ? `${this.config.instanceUrl}/users/${followingProfile.username}`
         : followingProfile.federated_id;
 
+      let activityId: string;
+      let deliveryActivity: any;
+
       if (isFollow) {
-        return await this.queueActivity({
+        activityId = await this.queueActivity({
           type: 'Follow',
           actor,
           object: target,
           target: followingId
         });
+
+        deliveryActivity = {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${actor}/activities/follow/${Date.now()}`,
+          type: 'Follow',
+          actor,
+          object: target,
+          published: new Date().toISOString()
+        };
       } else {
         // Undo follow
         const followId = `${this.config.instanceUrl}/activities/${crypto.randomUUID()}`;
-        return await this.queueActivity({
+        activityId = await this.queueActivity({
           type: 'Undo',
           actor,
           object: {
@@ -448,7 +500,35 @@ export class FederationService {
           },
           target: followingId
         });
+
+        deliveryActivity = {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${actor}/activities/undo/${Date.now()}`,
+          type: 'Undo',
+          actor,
+          object: {
+            id: followId,
+            type: 'Follow',
+            actor,
+            object: target
+          },
+          published: new Date().toISOString()
+        };
       }
+
+      // 🚀 IMMEDIATE DELIVERY: Try to deliver immediately to target user's inbox
+      try {
+        const targetInbox = await this.resolveActorInbox(target);
+        if (targetInbox) {
+          console.log(`🚀 Immediately delivering ${isFollow ? 'follow' : 'unfollow'} to ${targetInbox.domain}`);
+          await this.deliverActivity(deliveryActivity, [targetInbox.inboxUrl]);
+        }
+      } catch (error) {
+        console.error(`⚠️ Immediate delivery failed, will retry via cron:`, error);
+        // Activity is already queued, so cron will retry
+      }
+
+      return activityId;
     } catch (error) {
       console.error('❌ Failed to federate follow:', error);
       return null;
@@ -456,7 +536,7 @@ export class FederationService {
   }
 
   /**
-   * Federate an Announce (reblog/boost) activity
+   * Federate an Announce (reblog/boost) activity with hybrid delivery
    */
   async federateAnnounce(postId: string, userId: string, isAnnounce: boolean): Promise<string | null> {
     try {
@@ -476,18 +556,30 @@ export class FederationService {
       const actor = `${this.config.instanceUrl}/users/${userProfile.username}`;
       const objectUrl = post.ap_id || `${this.config.instanceUrl}/posts/${postId}`;
 
+      let activityId: string;
+      let deliveryActivity: any;
+
       if (isAnnounce) {
         // Create Announce activity
-        return await this.queueActivity({
+        activityId = await this.queueActivity({
           type: 'Announce',
           actor,
           object: objectUrl,
           target: postId
         });
+
+        deliveryActivity = {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${actor}/activities/announce/${Date.now()}`,
+          type: 'Announce',
+          actor,
+          object: objectUrl,
+          published: new Date().toISOString()
+        };
       } else {
         // Create Undo Announce activity
         const announceId = `${this.config.instanceUrl}/activities/${crypto.randomUUID()}`;
-        return await this.queueActivity({
+        activityId = await this.queueActivity({
           type: 'Undo',
           actor,
           object: {
@@ -498,7 +590,35 @@ export class FederationService {
           },
           target: postId
         });
+
+        deliveryActivity = {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${actor}/activities/undo/${Date.now()}`,
+          type: 'Undo',
+          actor,
+          object: {
+            id: announceId,
+            type: 'Announce',
+            actor,
+            object: objectUrl
+          },
+          published: new Date().toISOString()
+        };
       }
+
+      // 🚀 IMMEDIATE DELIVERY: Try to deliver immediately to post author's inbox
+      try {
+        const authorInbox = await this.getPostAuthorInbox(objectUrl);
+        if (authorInbox) {
+          console.log(`🚀 Immediately delivering ${isAnnounce ? 'announce' : 'undo announce'} to ${authorInbox.domain}`);
+          await this.deliverActivity(deliveryActivity, [authorInbox.inboxUrl]);
+        }
+      } catch (error) {
+        console.error(`⚠️ Immediate delivery failed, will retry via cron:`, error);
+        // Activity is already queued, so cron will retry
+      }
+
+      return activityId;
     } catch (error) {
       console.error('❌ Failed to federate announce:', error);
       return null;
@@ -906,7 +1026,73 @@ export class FederationService {
   }
 
   // =============================================================================
-  // INBOX RESOLUTION & TARGET DISCOVERY
+  // TESTING AND IMMEDIATE DELIVERY METHODS
+  // =============================================================================
+
+  /**
+   * Trigger immediate delivery processing for testing or manual intervention
+   */
+  async triggerImmediateDelivery(limit: number = 20): Promise<{processed: number, successful: number, failed: number}> {
+    console.log('🚀 Triggering immediate delivery processing...');
+    try {
+      const processed = await this.processDeliveryQueue(limit);
+      
+      // Get recent delivery stats
+      const { data: recentDeliveries } = await supabase
+        .from('federation_delivery_queue')
+        .select('status')
+        .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Last 5 minutes
+        .limit(limit);
+
+      const successful = recentDeliveries?.filter(d => d.status === 'delivered').length || 0;
+      const failed = recentDeliveries?.filter(d => d.status === 'failed').length || 0;
+
+      console.log(`✅ Immediate delivery complete: ${processed} processed, ${successful} successful, ${failed} failed`);
+      
+      return { processed, successful, failed };
+    } catch (error) {
+      console.error('❌ Failed to trigger immediate delivery:', error);
+      return { processed: 0, successful: 0, failed: 0 };
+    }
+  }
+
+  /**
+   * Get federation delivery status for monitoring
+   */
+  async getDeliveryStatus(): Promise<{
+    pending: number;
+    processing: number;
+    delivered: number;
+    failed: number;
+    total: number;
+    oldestPending?: string;
+  }> {
+    try {
+      const { data: stats } = await supabase
+        .from('federation_delivery_queue')
+        .select('status, created_at')
+        .order('created_at', { ascending: true });
+
+      if (!stats) return { pending: 0, processing: 0, delivered: 0, failed: 0, total: 0 };
+
+      const counts = stats.reduce((acc, item) => {
+        const status = item.status as 'pending' | 'processing' | 'delivered' | 'failed';
+        acc[status] = (acc[status] || 0) + 1;
+        acc.total++;
+        return acc;
+      }, { pending: 0, processing: 0, delivered: 0, failed: 0, total: 0 });
+
+      const oldestPending = stats.find(s => s.status === 'pending')?.created_at;
+
+      return { ...counts, oldestPending };
+    } catch (error) {
+      console.error('❌ Failed to get delivery status:', error);
+      return { pending: 0, processing: 0, delivered: 0, failed: 0, total: 0 };
+    }
+  }
+
+  // =============================================================================
+  // USER RESOLUTION AND CACHING
   // =============================================================================
 
   /**
@@ -1455,11 +1641,25 @@ IcaA2jGdmKKmJAaIcaA2jGdmKKmJAaIcaA2jGdmKKmJAaIcaA2jGdm
   }
 
   /**
-   * Auto-trigger delivery after queueing activities
+   * Auto-trigger delivery after queueing activities - implements hybrid approach
+   * Attempts immediate delivery, falls back to cron processing for failures
    */
   private async scheduleDelivery(): Promise<void> {
-    // Activities will be processed automatically by pg_cron or background jobs
-    console.log('✅ Activity queued successfully - will be processed by delivery system');
+    try {
+      // Attempt immediate processing of recent deliveries
+      console.log('🚀 Attempting immediate delivery of recent activities...');
+      const processed = await this.processDeliveryQueue(10); // Process up to 10 immediately
+      
+      if (processed > 0) {
+        console.log(`✅ Immediately processed ${processed} deliveries`);
+      } else {
+        console.log('📭 No immediate deliveries to process - activities will be handled by cron');
+      }
+    } catch (error) {
+      console.error('⚠️ Immediate delivery failed, falling back to cron processing:', error);
+      // Fallback: activities will be processed automatically by pg_cron
+      console.log('📋 Activities queued for cron processing (every 2 minutes)');
+    }
   }
 
   /**
@@ -2018,103 +2218,6 @@ IcaA2jGdmKKmJAaIcaA2jGdmKKmJAaIcaA2jGdmKKmJAaIcaA2jGdm
     if (!lastSynced) return false
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
     return new Date(lastSynced) > oneHourAgo
-  }
-
-  // =============================================================================
-  // SEARCH AND DISCOVERY
-  // =============================================================================
-
-  /**
-   * Search for federated users
-   */
-  async searchFederatedUsers(query: string, limit: number = 10): Promise<any[]> {
-    try {
-      const { data, error } = await supabase
-        .rpc('search_federated_users', {
-          p_query: query,
-          p_limit: limit
-        })
-
-      if (error) {
-        console.error('Failed to search federated users:', error)
-        return []
-      }
-
-      return data || []
-    } catch (error) {
-      console.error('Error in federated user search:', error)
-      return []
-    }
-  }
-
-  /**
-   * Get the instance domain
-   */
-  getInstanceDomain(): string {
-    return this.config.domain
-  }
-
-  /**
-   * Check if a domain is local
-   */
-  isLocalDomain(domain: string): boolean {
-    return domain === this.config.domain
-  }
-
-  // =============================================================================
-  // ENHANCED ACTIVITY PROCESSING
-  // =============================================================================
-
-  /**
-   * Resolve user by actor URL (try local first, then remote)
-   */
-  private async resolveUserByActorUrl(actorUrl: string): Promise<any | null> {
-    // Try local lookup first
-    const { data: localProfile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('federated_id', actorUrl)
-      .single()
-
-    if (localProfile) return localProfile
-
-    // Try to fetch and cache remote user
-    try {
-      const actor = await this.fetchActorDocument(actorUrl)
-      if (actor) {
-        const domain = new URL(actorUrl).hostname
-        return await this.storeRemoteUser(actor, domain)
-      }
-    } catch (error) {
-      console.error('Failed to resolve user by actor URL:', error)
-    }
-
-    return null
-  }
-
-  /**
-   * Get inbox URL for an actor (enhanced version)
-   */
-  private async getInboxUrl(actorUrl: string): Promise<string | null> {
-    try {
-      // First check if we have it cached
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('inbox_url')
-        .eq('federated_id', actorUrl)
-        .single()
-
-      if (profile?.inbox_url) {
-        return profile.inbox_url
-      }
-
-      // Fetch actor document to get inbox URL
-      const actor = await this.fetchActorDocument(actorUrl)
-      return actor?.inbox || null
-    } catch (error) {
-      console.error('❌ Failed to get inbox URL:', error);
-      return null;
-    }
   }
 }
 
