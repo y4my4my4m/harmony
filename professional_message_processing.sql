@@ -4,6 +4,7 @@
 -- 0. Clean up old functions and triggers
 DROP TRIGGER IF EXISTS trigger_message_notifications ON messages;
 DROP TRIGGER IF EXISTS trigger_federate_dm_messages ON messages;
+DROP TRIGGER IF EXISTS handle_new_messages ON messages;
 DROP FUNCTION IF EXISTS handle_message_notifications();
 DROP FUNCTION IF EXISTS federate_dm_message();
 
@@ -31,6 +32,7 @@ DECLARE
     v_recipient_profile RECORD;
     v_instance_domain TEXT;
     v_activity_id TEXT;
+    v_activity_uuid UUID;
     v_sender_url TEXT;
     v_recipient_url TEXT;
     v_message_url TEXT;
@@ -208,15 +210,46 @@ BEGIN
                     'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
                 );
                 
-                -- Queue for federation delivery
-                INSERT INTO federation_outbox (
-                    activity_id, activity_type, actor_id, activity_data,
-                    target_domain, target_inbox, created_at, status,
-                    retry_count, next_retry_at, message_id, conversation_id
+                -- First, create the ActivityPub activity record
+                INSERT INTO ap_activities (
+                    ap_id,
+                    ap_type,
+                    actor_id,
+                    actor_ap_id,
+                    object_id,
+                    object_type,
+                    activity_data,
+                    status,
+                    to_addresses,
+                    is_local,
+                    origin_domain
                 ) VALUES (
-                    v_activity_id, 'Create', NEW.user_id, v_activity,
-                    v_recipient_profile.domain, 'https://' || v_recipient_profile.domain || '/inbox',
-                    NEW.created_at, 'pending', 0, NEW.created_at, NEW.id, NEW.conversation_id
+                    v_activity_id,
+                    'Create',
+                    NEW.user_id,
+                    v_sender_url,
+                    v_message_url,
+                    'Note',
+                    v_activity,
+                    'pending',
+                    ARRAY[v_recipient_url],
+                    true,
+                    v_instance_domain
+                ) RETURNING id INTO v_activity_uuid;
+                
+                -- Then, queue for federation delivery
+                INSERT INTO federation_delivery_queue (
+                    activity_id,
+                    target_domain,
+                    target_inbox_url,
+                    status,
+                    priority
+                ) VALUES (
+                    v_activity_uuid,
+                    v_recipient_profile.domain,
+                    'https://' || v_recipient_profile.domain || '/inbox',
+                    'pending',
+                    8 -- High priority for DMs
                 );
                 
                 RAISE NOTICE 'Queued DM federation to: %@%', v_recipient_profile.username, v_recipient_profile.domain;
