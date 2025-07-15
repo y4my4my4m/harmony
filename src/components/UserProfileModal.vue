@@ -598,7 +598,6 @@ onMounted(() => {
   position: relative;
   height: 120px;
   background: linear-gradient(135deg, #5865f2, #7289da);
-  border-radius: 12px 12px 0 0;
   overflow: hidden;
 }
 
@@ -712,7 +711,6 @@ onMounted(() => {
 .profile-content {
   padding: 24px 32px 32px;
   background: #2b2d31;
-  border-radius: 0 0 12px 12px;
 }
 
 .profile-header {
