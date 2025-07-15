@@ -38,6 +38,9 @@ DECLARE
     v_message_url TEXT;
     v_activity JSONB;
     v_note_object JSONB;
+    v_delivery_success BOOLEAN;
+    v_http_response TEXT;
+    v_http_status INTEGER;
 BEGIN
     -- Get sender profile (used by both notifications and federation)
     SELECT * INTO sender_profile FROM profiles WHERE id = NEW.user_id;
@@ -237,22 +240,45 @@ BEGIN
                     v_instance_domain
                 ) RETURNING id INTO v_activity_uuid;
                 
-                -- Then, queue for federation delivery
-                INSERT INTO federation_delivery_queue (
-                    activity_id,
-                    target_domain,
-                    target_inbox_url,
-                    status,
-                    priority
-                ) VALUES (
-                    v_activity_uuid,
-                    v_recipient_profile.domain,
-                    'https://' || v_recipient_profile.domain || '/inbox',
-                    'pending',
-                    8 -- High priority for DMs
-                );
-                
-                RAISE NOTICE 'Queued DM federation to: %@%', v_recipient_profile.username, v_recipient_profile.domain;
+                -- Attempt immediate delivery first
+                BEGIN
+                    -- Try to deliver immediately using HTTP extension (if available)
+                    SELECT 
+                        status_code,
+                        response_body,
+                        (status_code >= 200 AND status_code < 300) as success
+                    INTO 
+                        v_http_status,
+                        v_http_response,
+                        v_delivery_success
+                    FROM http_post(
+                        'https://' || v_recipient_profile.domain || '/inbox',
+                        v_activity::text,
+                        'application/activity+json'
+                    );
+                    
+                    IF v_delivery_success THEN
+                        -- Immediate delivery succeeded
+                        UPDATE ap_activities 
+                        SET status = 'completed',
+                            last_attempt_at = NOW()
+                        WHERE id = v_activity_uuid;
+                        
+                        RAISE NOTICE '✅ Immediate DM delivery succeeded to: %@% (HTTP %)', 
+                            v_recipient_profile.username, v_recipient_profile.domain, v_http_status;
+                    ELSE
+                        -- Immediate delivery failed, queue for retry
+                        RAISE WARNING 'Immediate delivery failed (HTTP %), queuing for retry', v_http_status;
+                        PERFORM queue_activity_for_federation(v_activity_uuid, ARRAY[v_recipient_profile.domain], 8, true);
+                    END IF;
+                    
+                EXCEPTION 
+                    WHEN OTHERS THEN
+                        -- HTTP extension not available or network error, queue for delivery
+                        RAISE NOTICE 'HTTP delivery not available or failed, queuing DM for: %@%', 
+                            v_recipient_profile.username, v_recipient_profile.domain;
+                        PERFORM queue_activity_for_federation(v_activity_uuid, ARRAY[v_recipient_profile.domain], 8, true);
+                END;
             END LOOP;
         ELSE
             RAISE WARNING 'No instance domain configured, skipping federation';
