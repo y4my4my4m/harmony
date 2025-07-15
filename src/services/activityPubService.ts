@@ -118,22 +118,8 @@ export class ActivityPubService {
 
     if (fetchError) throw fetchError;
 
-    // 🌐 FEDERATION: Queue post for federation to remote instances
-      if (completePost.is_local && completePost.visibility === 'public') {
-        try {
-          // Ensure we pass the user UUID, not username
-          const authorForFederation = {
-            ...completePost.author,
-            id: user.id // Ensure we use the UUID from auth, not username
-          };
-          
-          const activityId = await federationService.federatePost(completePost, authorForFederation);
-          console.log(`🚀 Post ${completePost.id} queued for federation: ${activityId}`);
-        } catch (federationError) {
-          console.error('❌ Federation failed for post:', federationError);
-          // Continue - federation failure shouldn't prevent local post creation
-        }
-      }
+    // Federation is now handled automatically by the post trigger
+    // No need for client-side federation calls
 
     return completePost as Post;
   }

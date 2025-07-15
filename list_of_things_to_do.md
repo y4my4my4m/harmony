@@ -16,7 +16,7 @@
 12. we have many files using useProfileStore, we should refactor to use the new userDataService and ensure all components use the same source of truth for user data
 13. we need to have rate limits so that users don't spam updates, don't want people creating scripts that rainbows their color or something
 14. cleanup posts, we have metadata for "reblog_of/original_author" but we have all that info in reblog and reblog_author already...
-15. delivery_queue/delivery_queue_stats seems to be a duplicate of federation_delivery_queue/federation_stats, we should consolidate these (probably just remove the delivery one and all its relevant functions)
+15. ~~we should simply be creating posts and let the backend handle if is_local false to do the federation (create the ap_activities and properly send via http for direct or fallback to federation queue)~~ handle_post_federation and handle_post_federation_trigger
 
 ---
 
