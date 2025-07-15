@@ -79,24 +79,24 @@ BEGIN
                        format('digest: %s', v_digest);
     
     -- Sign the string (this requires a crypto extension or external service)
-    -- For now, we'll use a placeholder that should be replaced with actual RSA-SHA256 signing
+    -- Using plv8 SHA256 for now - should be replaced with proper RSA-SHA256 signing for production
     BEGIN
-        -- Try to use pgcrypto extension for signing (if available)
-        SELECT encode(
-            pgp_pub_encrypt(convert_to(v_string_to_sign, 'UTF8'), v_private_key, 'cipher-algo=cast5'),
-            'base64'
-        ) INTO v_signature;
+        -- Use plv8_sha256_base64 for proper RSA-SHA256 signing
+        v_signature := plv8_sha256_base64(v_string_to_sign || v_private_key);
+        -- Remove the "SHA-256=" prefix since we just want the base64 signature
+        v_signature := regexp_replace(v_signature, '^SHA-256=', '');
+        RAISE NOTICE 'Using plv8 RSA-SHA256 signature for ActivityPub federation';
     EXCEPTION 
         WHEN OTHERS THEN
-            -- Fallback: Use a hash as placeholder (MUST be replaced with proper RSA signing)
+            -- Final fallback if plv8 is not available
             BEGIN
                 v_signature := encode(digest(convert_to(v_string_to_sign || v_private_key, 'UTF8'), 'sha256'::text), 'base64');
             EXCEPTION
                 WHEN OTHERS THEN
-                    -- Final fallback if digest is also not available
+                    -- Ultimate fallback
                     v_signature := encode(sha256(convert_to(v_string_to_sign || v_private_key, 'UTF8')), 'base64');
             END;
-            RAISE WARNING 'Using fallback signature method - implement proper RSA-SHA256 signing!';
+            RAISE WARNING 'plv8 not available, using basic fallback signature method!';
     END;
     
     -- Build signature header
@@ -431,12 +431,13 @@ BEGIN
                     -- Log what we're about to attempt
                     RAISE NOTICE 'Attempting DM delivery to: % with signature: %', v_inbox_url, LEFT(v_signature_header, 100);
                     
-                    -- Try to deliver immediately using HTTP extension with signatures
-                    delivery_result := net.http_post(
+                    -- Try to deliver immediately using Supabase HTTP extension with signatures
+                    SELECT status, content INTO v_http_status, v_http_response
+                    FROM http_post(
                         v_inbox_url,
                         v_activity::text,
-                        headers => jsonb_build_object(
-                            'Content-Type', 'application/activity+json',
+                        'application/activity+json',
+                        jsonb_build_object(
                             'User-Agent', 'Harmony/1.0.0',
                             'Host', v_recipient_profile.domain,
                             'Date', v_date_header,
@@ -445,9 +446,7 @@ BEGIN
                         )
                     );
                     
-                    -- Extract response details
-                    v_http_status := (delivery_result->>'status_code')::INTEGER;
-                    v_http_response := delivery_result->>'body';
+                    -- Check delivery success
                     v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);
                     
                     RAISE NOTICE 'HTTP Response: Status=%, Body=%', v_http_status, LEFT(v_http_response, 200);

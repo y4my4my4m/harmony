@@ -138,21 +138,36 @@ BEGIN
     
     -- Find mentioned remote users and their domains
     WITH mentioned_users AS (
+        -- Handle both mention object types and mentions metadata
         SELECT DISTINCT 
             p.domain,
             p.username,
             p.federated_id
-        FROM jsonb_array_elements(NEW.content) AS content_item
-        CROSS JOIN LATERAL (
+        FROM (
+            -- Extract mentions from mentions metadata within text objects
+            SELECT 
+                mention_data->>'username' as username,
+                mention_data->>'domain' as domain
+            FROM jsonb_array_elements(NEW.content) AS content_item,
+                 jsonb_array_elements(content_item->'mentions') AS mention_data
+            WHERE content_item->>'type' = 'text'
+              AND content_item->'mentions' IS NOT NULL
+              AND mention_data->>'domain' IS NOT NULL
+              AND mention_data->>'domain' != v_instance_domain
+            
+            UNION
+            
+            -- Extract mentions from separate mention objects
             SELECT 
                 content_item->>'username' as username,
                 content_item->>'domain' as domain
+            FROM jsonb_array_elements(NEW.content) AS content_item
             WHERE content_item->>'type' = 'mention'
               AND content_item->>'domain' IS NOT NULL
               AND content_item->>'domain' != v_instance_domain
-        ) AS mention_data
-        JOIN profiles p ON p.username = mention_data.username 
-                        AND p.domain = mention_data.domain
+        ) AS all_mentions
+        JOIN profiles p ON p.username = all_mentions.username 
+                        AND p.domain = all_mentions.domain
                         AND NOT p.is_local
         WHERE p.domain IS NOT NULL
     )
@@ -197,11 +212,13 @@ BEGIN
                 -- Attempt immediate delivery
                 RAISE NOTICE 'Attempting post delivery to: % with signature: %', v_inbox_url, LEFT(v_signature_header, 100);
                 
-                delivery_result := net.http_post(
+                -- Use Supabase's http_post function with proper signature
+                SELECT status, content INTO v_http_status, v_http_response
+                FROM http_post(
                     v_inbox_url,
                     v_activity::text,
-                    headers => jsonb_build_object(
-                        'Content-Type', 'application/activity+json',
+                    'application/activity+json',
+                    jsonb_build_object(
                         'User-Agent', 'Harmony/1.0.0',
                         'Host', v_domain,
                         'Date', v_date_header,
@@ -210,9 +227,7 @@ BEGIN
                     )
                 );
                 
-                -- Extract response details
-                v_http_status := (delivery_result->>'status_code')::INTEGER;
-                v_http_response := delivery_result->>'body';
+                -- Check delivery success
                 v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);
                 
                 IF v_delivery_success THEN
