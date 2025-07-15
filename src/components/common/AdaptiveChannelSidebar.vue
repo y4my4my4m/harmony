@@ -803,8 +803,7 @@ onUnmounted(() => {
   }
   
   .social-sidebar {
-    padding: 12px;
-    gap: 16px;
+    gap: 12px;
   }
   
   .user-profile-card,

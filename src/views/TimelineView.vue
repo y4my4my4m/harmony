@@ -9,6 +9,8 @@
         @refresh-timeline="handleRefreshTimeline"
         @open-composer="handleOpenComposer"
         @open-search="handleOpenSearch"
+        @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+        @toggle-right-sidebar="$emit('toggleRightSidebar')"
       />
     </div>
 
@@ -77,6 +79,8 @@ const emit = defineEmits<{
   loadMorePosts: []
   followUser: [user: FederatedUser]
   unfollowUser: [user: FederatedUser]
+  toggleLeftSidebar: []
+  toggleRightSidebar: []
 }>()
 
 // Store

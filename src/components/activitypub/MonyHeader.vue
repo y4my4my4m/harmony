@@ -60,6 +60,17 @@
           <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" fill="currentColor"/>
         </svg>
       </button>
+      
+      <button 
+        class="action-btn sidebar-btn"
+        :class="{ active: rightSidebarOpen }"
+        @click="$emit('toggle-right-sidebar')"
+        title="Toggle sidebar"
+      >
+        <svg viewBox="0 0 24 24" class="sidebar-icon">
+          <path d="M3,3H21A2,2 0 0,1 23,5V19A2,2 0 0,1 21,21H3A2,2 0 0,1 1,19V5A2,2 0 0,1 3,3M3,5V19H13V5H3M15,5V19H21V5H15Z" fill="currentColor"/>
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -69,11 +80,13 @@
 interface Props {
   currentView?: string
   isMobile?: boolean
+  rightSidebarOpen?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   currentView: 'home',
-  isMobile: false
+  isMobile: false,
+  rightSidebarOpen: false
 })
 
 // Emits
@@ -83,6 +96,7 @@ const emit = defineEmits<{
   'open-composer': []
   'open-search': []
   'toggle-left-sidebar': []
+  'toggle-right-sidebar': []
 }>()
 
 // Feed tabs configuration
@@ -328,9 +342,15 @@ const getIconPath = (iconName: string): string => {
 
 .search-icon,
 .composer-icon,
-.refresh-icon {
+.refresh-icon,
+.sidebar-icon {
   width: 18px;
   height: 18px;
+}
+
+.sidebar-btn.active {
+  color: var(--harmony-primary, #5865f2);
+  background: var(--harmony-primary-alpha, rgba(88, 101, 242, 0.1));
 }
 
 /* Mobile styles */
@@ -369,7 +389,8 @@ const getIconPath = (iconName: string): string => {
   
   .search-icon,
   .composer-icon,
-  .refresh-icon {
+  .refresh-icon,
+  .sidebar-icon {
     width: 20px;
     height: 20px;
   }

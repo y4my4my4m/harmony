@@ -67,6 +67,8 @@
             @clear-all-bookmarks="handleClearAllBookmarks"
             @load-more-special-data="handleLoadMoreSpecialData"
             @back-to-timeline="handleBackToTimeline"
+            @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+            @toggle-right-sidebar="$emit('toggleRightSidebar')"
           />
         </div>
 
@@ -681,7 +683,7 @@ const formatNumber = (num: number): string => {
   }
   .social-sidebar-container.mobile-open {
     transform: translateX(72px);
-    width: 240px;
+    width: 280px;
     left: 0;
   }
   .social-sidebar-container {
@@ -696,7 +698,10 @@ const formatNumber = (num: number): string => {
     width: 0px;
     right: 0;
   }
-  
+  .right-sidebar-container.mobile-open {
+    transform: translateX(0);
+    width: 280px;
+  }
   .main-content-area {
     width: 100%;
   }

@@ -9,6 +9,8 @@
       @refresh-timeline="handleRefresh"
       @open-composer="handleOpenComposer"
       @open-search="handleOpenSearch"
+      @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+      @toggle-right-sidebar="$emit('toggleRightSidebar')"
     />
   </div>
   <div class="user-profile-view">
@@ -54,7 +56,7 @@
                 title="More actions"
               >
                 <Icon name="more-horizontal" />
-              </button>
+              </button
               
               <div v-if="showActionsMenu" class="actions-menu">
                 <button @click="handleMute" class="action-item" :class="{ active: isMuted }">
@@ -262,6 +264,12 @@ const props = withDefaults(defineProps<Props>(), {
   currentView: 'profile',
   viewType: 'profile'
 });
+
+// Emits
+const emit = defineEmits<{
+  toggleLeftSidebar: []
+  toggleRightSidebar: []
+}>()
 
 // Stores
 const activityPubStore = useActivityPubStore();

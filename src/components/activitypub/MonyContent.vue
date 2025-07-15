@@ -210,6 +210,8 @@ const handleClick = (event: Event) => {
 .mony-content {
   line-height: 1.6;
   word-wrap: break-word;
+  flex-wrap: wrap;
+  display: flex
 }
 
 .mony-content :deep(.hashtag) {

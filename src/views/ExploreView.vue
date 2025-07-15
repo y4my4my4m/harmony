@@ -9,6 +9,8 @@
         @refresh-timeline="handleRefresh"
         @open-composer="handleOpenComposer"
         @open-search="handleOpenSearch"
+        @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+        @toggle-right-sidebar="$emit('toggleRightSidebar')"
       />
     </div>
 
@@ -62,6 +64,8 @@ const emit = defineEmits<{
   reblogPost: [postId: string]
   bookmarkPost: [postId: string]
   showUserProfile: [user: FederatedUser]
+  toggleLeftSidebar: []
+  toggleRightSidebar: []
 }>()
 
 // Store and composables
