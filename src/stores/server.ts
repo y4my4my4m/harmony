@@ -39,7 +39,7 @@ export const useServerStore = defineStore('server', {
         // Update server data in database
         const { error } = await supabase
           .from('servers')
-          .update(serverData)
+          .upsert(serverData)
           .eq('id', serverData.id);
 
         if (error) throw error;

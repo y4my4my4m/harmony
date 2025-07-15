@@ -123,6 +123,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Server } from '@/types'
+import { useNotificationStore } from '@/stores/useNotification'
+
+const notificationStore = useNotificationStore()
 
 interface ServerPermissions {
   canEditBasicInfo: boolean
@@ -165,13 +168,13 @@ const handleFileInputChange = (event: Event) => {
   if (file) {
     // Validate file size (8MB limit)
     if (file.size > 8 * 1024 * 1024) {
-      alert('File size must be less than 8MB')
+      notificationStore.showToast('error', 'Error', 'File size must be less than 8MB', 3000)
       return
     }
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file')
+      notificationStore.showToast('error', 'Error', 'Please select a valid image file', 3000)
       return
     }
   }

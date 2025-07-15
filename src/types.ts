@@ -315,7 +315,8 @@ export type NotificationType =
   | 'activitypub_reblog'
   | 'activitypub_mention'
   | 'activitypub_reply'
-  | 'activitypub_follow_request';
+  | 'activitypub_follow_request'
+  | 'error';
 
 export interface NotificationData {
   message_id?: string;
