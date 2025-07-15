@@ -779,7 +779,8 @@ function isActivityPubDirectMessage(object: any, ourDomain: string): boolean {
   
   // Check for local recipients in addressing
   const localRecipients = [...to, ...cc].filter(recipient => 
-    recipient.includes(`https://${ourDomain}/users/`)
+    recipient.includes(`https://${ourDomain}/users/`) ||
+    recipient.includes(`https://${ourDomain}/social/profile/`)
   )
   
   console.log('🔍 Local recipients in addressing:', localRecipients)
@@ -793,7 +794,10 @@ function isActivityPubDirectMessage(object: any, ourDomain: string): boolean {
   // and there's no public audience, treat as DM
   const mentionTags = object.tag?.filter((tag: any) => tag.type === 'Mention') || []
   const localMentions = mentionTags.filter((tag: any) => 
-    tag.href && tag.href.includes(`https://${ourDomain}/users/`)
+    tag.href && (
+      tag.href.includes(`https://${ourDomain}/users/`) ||
+      tag.href.includes(`https://${ourDomain}/social/profile/`)
+    )
   )
   
   console.log('🔍 Mention analysis:', {
@@ -838,18 +842,25 @@ async function processDirectMessage(supabase: any, activity: ActivityPubActivity
     const cc = Array.isArray(object.cc) ? object.cc : (object.cc ? [object.cc] : [])
     
     const directlyAddressed = [...to, ...cc]
-      .filter(recipient => recipient.includes(`https://${ourDomain}/users/`))
+      .filter(recipient => 
+        recipient.includes(`https://${ourDomain}/users/`) ||
+        recipient.includes(`https://${ourDomain}/social/profile/`)
+      )
       .map(recipient => {
-        const match = recipient.match(`https://${ourDomain}/users/([^/]+)`)
-        return match ? match[1] : null
+        // Handle both /users/ and /social/profile/ patterns
+        const userMatch = recipient.match(`https://${ourDomain}/users/([^/]+)`)
+        const profileMatch = recipient.match(`https://${ourDomain}/social/profile/([^/]+)`)
+        return userMatch ? userMatch[1] : (profileMatch ? profileMatch[1] : null)
       })
       .filter(Boolean)
 
     // Combine mentioned and directly addressed users
     const mentionedUsernames = new Set([
       ...localMentions.map((tag: any) => {
-        const match = tag.href.match(`https://${ourDomain}/users/([^/]+)`)
-        return match ? match[1] : null
+        // Handle both /users/ and /social/profile/ patterns
+        const userMatch = tag.href.match(`https://${ourDomain}/users/([^/]+)`)
+        const profileMatch = tag.href.match(`https://${ourDomain}/social/profile/([^/]+)`)
+        return userMatch ? userMatch[1] : (profileMatch ? profileMatch[1] : null)
       }).filter(Boolean),
       ...directlyAddressed
     ])
@@ -918,61 +929,8 @@ async function processDirectMessage(supabase: any, activity: ActivityPubActivity
 
       console.log(`✅ Saved federated DM ${savedMessage.id} from ${author.username}@${author.domain} to ${username}`)
 
-      // Create DM notification for the local user
-      let contentPreview = ''
-      if (Array.isArray(contentArray) && contentArray.length > 0) {
-        const textContent = contentArray[0]?.text || ''
-        if (typeof textContent === 'string') {
-          contentPreview = textContent
-            .replace(/<[^>]*>/g, '') // Remove HTML tags
-            .replace(/&lt;/g, '<')   // Decode HTML entities
-            .replace(/&gt;/g, '>')
-            .replace(/&amp;/g, '&')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&hellip;/g, '...')
-            .trim()
-            .substring(0, 120)
-        }
-      }
-
-      const avatarUrl = author.avatar_url 
-        ? (author.avatar_url.startsWith('http') ? author.avatar_url : `https://${author.domain}${author.avatar_url}`)
-        : null
-
-      const notificationData = {
-        conversation_id: conversationId,
-        message_id: savedMessage.id,
-        sender: {
-          user_id: author.id,
-          username: author.username,
-          display_name: author.display_name,
-          avatar_url: avatarUrl,
-          domain: author.domain,
-          handle: `@${author.username}@${author.domain}`
-        },
-        message: {
-          content_preview: contentPreview,
-          federated: true
-        }
-      }
-
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: localUser.id,
-          type: 'dm',
-          data: notificationData,
-          is_read: false,
-          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
-        })
-
-      if (notificationError) {
-        console.error('Failed to create DM notification:', notificationError)
-      } else {
-        console.log(`📩 Created federated DM notification for @${username}`)
-      }
+      // Note: DM notifications are automatically created by database triggers
+      // No need to manually create notifications here
     }
 
   } catch (error) {
