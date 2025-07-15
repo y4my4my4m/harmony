@@ -702,6 +702,7 @@ const formatNumber = (num: number): string => {
   }
   .main-content-area {
     width: 100%;
+    height: 100%;
   }
 }
 </style>

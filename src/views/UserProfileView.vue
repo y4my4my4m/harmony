@@ -13,7 +13,7 @@
       @toggle-right-sidebar="$emit('toggleRightSidebar')"
     />
   </div>
-  <div class="user-profile-view">
+    <div class="user-profile-view">
     <!-- Loading State -->
     <div v-if="isLoading" class="loading-state">
       <div class="loading-spinner"></div>
@@ -36,7 +36,7 @@
       <!-- Profile Header -->
       <div class="profile-header">
         <!-- Banner with gradient overlay -->
-        <div class="profile-banner" :style="{ backgroundImage: user.banner_url ? `url(${user.banner_url})` : undefined }">
+        <div class="profile-banner" :style="{ backgroundImage: (user as any).banner_url ? `url(${(user as any).banner_url})` : undefined }">
           <div class="banner-gradient"></div>
           
           <!-- Action buttons overlay on banner -->
@@ -56,7 +56,7 @@
                 title="More actions"
               >
                 <Icon name="more-horizontal" />
-              </button
+              </button>
               
               <div v-if="showActionsMenu" class="actions-menu">
                 <button @click="handleMute" class="action-item" :class="{ active: isMuted }">
@@ -102,7 +102,7 @@
               <div class="name-handle-section">
                 <div class="display-name-row">
                   <h1 class="display-name">{{ user.display_name || user.username }}</h1>
-                  <Icon v-if="user.verified" name="verified" class="verified-icon" />
+                  <Icon v-if="(user as any).verified" name="verified" class="verified-icon" />
                   <span v-if="!user.is_local" class="domain-tag">{{ user.domain }}</span>
                 </div>
                 <p class="user-handle">{{ user.handle }}</p>
@@ -192,7 +192,7 @@
           <div v-if="followingUsers.length === 0" class="empty-state">
             <Icon name="users" :size="48" />
             <h3>Not following anyone</h3>
-            <p>{{ isCurrentUser ? "You're" : `${user.display_name || user.username} is` }} not following anyone yet.</p>
+            <p>{{ isCurrentUser ? "You're" : `${user?.display_name || user?.username} is` }} not following anyone yet.</p>
           </div>
           
           <div v-else class="users-grid">
@@ -211,7 +211,7 @@
           <div v-if="followerUsers.length === 0" class="empty-state">
             <Icon name="users" :size="48" />
             <h3>No followers</h3>
-            <p>{{ isCurrentUser ? "You don't" : `${user.display_name || user.username} doesn't` }} have any followers yet.</p>
+            <p>{{ isCurrentUser ? "You don't" : `${user?.display_name || user?.username} doesn't` }} have any followers yet.</p>
           </div>
           
           <div v-else class="users-grid">
@@ -226,6 +226,7 @@
         </div>
       </div>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -256,18 +257,47 @@ interface Props {
   profileHandle?: string;
   currentView?: string;
   viewType?: string;
+  posts?: any[];
+  isLoadingFeed?: boolean;
+  hasMorePosts?: boolean;
+  profileUser?: any;
+  specialViewData?: any;
+  hasMoreSpecialData?: boolean;
+  postId?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   profileHandle: undefined,
   currentView: 'profile',
-  viewType: 'profile'
+  viewType: 'profile',
+  posts: () => [],
+  isLoadingFeed: false,
+  hasMorePosts: false,
+  profileUser: undefined,
+  specialViewData: undefined,
+  hasMoreSpecialData: false,
+  postId: undefined
 });
 
 // Emits
 const emit = defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
+  refreshTimeline: []
+  postCreated: [post: any]
+  switchFeed: [feed: string]
+  replyToPost: [post: any]
+  favoritePost: [postId: string]
+  reblogPost: [postId: string]
+  bookmarkPost: [postId: string]
+  deletePost: [postId: string]
+  showUserProfile: [user: any]
+  loadMorePosts: []
+  followUser: [userId: string]
+  unfollowUser: [userId: string]
+  clearAllBookmarks: []
+  loadMoreSpecialData: []
+  backToTimeline: []
 }>()
 
 // Stores
@@ -288,13 +318,14 @@ const isFollowLoading = ref(false);
 // Posts
 const userPosts = ref<TimelinePost[]>([]);
 const isLoadingPosts = ref(false);
-const hasMorePosts = ref(false);
+const hasMorePostsRef = ref(false);
 
 // Social connections
 const followingUsers = ref<FederatedUser[]>([]);
 const followerUsers = ref<FederatedUser[]>([]);
 
-// Profile tabs configuration
+// Computed properties
+const hasMorePosts = computed(() => props.hasMorePosts || hasMorePostsRef.value);
 const profileTabs = computed(() => [
   { 
     id: 'posts', 
@@ -419,7 +450,6 @@ const loadUserProfile = async (handle: string) => {
               avatar_url: profile.avatar_url || currentUser.user_metadata?.avatar_url || '/default_avatar.png',
               bio: profile.bio || 'Monyverse user',
               is_local: true,
-              verified: false,
               followers_count: activityPubStore.followersCount || 0,
               following_count: activityPubStore.followingCount || 0,
               posts_count: posts_count,
@@ -447,7 +477,6 @@ const loadUserProfile = async (handle: string) => {
             avatar_url: '/default_avatar.png',
             bio: 'Monyverse user',
             is_local: true,
-            verified: false,
             followers_count: 0,
             following_count: 0,
             posts_count: 0,
@@ -490,9 +519,9 @@ const loadUserPosts = async () => {
     // Use consistent getUserPosts method for all users
     // This ensures the same data structure and behavior regardless of whether it's the current user or not
     const posts = await activityPubService.getUserPosts(user.value.id, { limit: 20 });
-    userPosts.value = posts || [];
+    userPosts.value = posts as TimelinePost[] || [];
     
-    hasMorePosts.value = posts && posts.length >= 20; // Enable pagination if we got a full page
+    hasMorePostsRef.value = posts && posts.length >= 20; // Enable pagination if we got a full page
     console.log(`📊 Loaded ${userPosts.value.length} posts for ${user.value.username}`);
     
     // Update post count for current user with actual loaded posts
@@ -504,7 +533,7 @@ const loadUserPosts = async () => {
     try {
       console.log('📋 Posts sample:', userPosts.value.slice(0, 3).map(p => ({ 
         id: p.id, 
-        content: p.content ? (typeof p.content === 'string' ? p.content.substring(0, 50) : JSON.stringify(p.content).substring(0, 50)) : 'No content',
+        content: p.content ? (typeof p.content === 'string' ? (p.content as string).substring(0, 50) : JSON.stringify(p.content).substring(0, 50)) : 'No content',
         content_type: typeof p.content,
         author: p.author?.username || p.author_id,
         visibility: p.visibility,
@@ -517,7 +546,7 @@ const loadUserPosts = async () => {
   } catch (error) {
     console.error('❌ Failed to load user posts:', error);
     userPosts.value = [];
-    hasMorePosts.value = false;
+    hasMorePostsRef.value = false;
   } finally {
     isLoadingPosts.value = false;
   }
@@ -573,7 +602,7 @@ const loadFollowers = async () => {
 };
 
 const loadMorePosts = async () => {
-  if (!user.value || isLoadingPosts.value || !hasMorePosts.value) return;
+  if (!user.value || isLoadingPosts.value || !hasMorePostsRef.value) return;
   
   isLoadingPosts.value = true;
   try {
@@ -585,7 +614,7 @@ const loadMorePosts = async () => {
     
     if (!maxId) {
       console.log('❌ No max_id found for pagination');
-      hasMorePosts.value = false;
+      hasMorePostsRef.value = false;
       return;
     }
     
@@ -595,16 +624,16 @@ const loadMorePosts = async () => {
     });
     
     if (posts && posts.length > 0) {
-      userPosts.value.push(...posts);
-      hasMorePosts.value = posts.length >= 20; // Continue pagination if we got a full page
+      userPosts.value.push(...(posts as TimelinePost[]));
+      hasMorePostsRef.value = posts.length >= 20; // Continue pagination if we got a full page
       console.log(`📊 Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
     } else {
-      hasMorePosts.value = false;
+      hasMorePostsRef.value = false;
       console.log('📭 No more posts available');
     }
   } catch (error) {
     console.error('❌ Failed to load more posts:', error);
-    hasMorePosts.value = false;
+    hasMorePostsRef.value = false;
   } finally {
     isLoadingPosts.value = false;
   }
@@ -698,11 +727,12 @@ const showUserProfile = (clickedUser: FederatedUser) => {
 };
 
 const replyToPost = (post: TimelinePost) => {
-  activityPubStore.openComposer({
-    in_reply_to: post.id,
-    content: `${post.author.handle} `
-  });
-  router.push('/monyverse');
+  // activityPubStore.openComposer({
+  //   replyTo: post.id,
+  //   content: `${post.author.handle} `
+  // });
+  // router.push('/monyverse');
+  // emit('replyToPost', post);
 };
 
 const handleFavorite = async (postId: string) => {
@@ -786,6 +816,12 @@ document.addEventListener('click', handleClickOutside);
 </script>
 
 <style scoped>
+.user-profile-wrapper {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
 .mony-header-container {
   flex-shrink: 0;
 }
@@ -944,6 +980,7 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .profile-main-content {
+  flex: 1;
 }
 
 .profile-top-row {
@@ -1287,6 +1324,9 @@ document.addEventListener('click', handleClickOutside);
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
+  .profile-content {
+    height: auto;
+  }
   .profile-banner {
     height: 150px;
   }
@@ -1332,9 +1372,23 @@ document.addEventListener('click', handleClickOutside);
   .users-grid {
     grid-template-columns: 1fr;
   }
-  
-  .tab-btn {
+  .posts-tab, .following-tab, .followers-tab {
     padding: 0.75rem 1rem;
+  }
+
+  .profile-tabs {
+    flex-direction: row;
+    width: 100%;
+    justify-content: stretch;
+    max-width: 100%;
+  }
+  .tab-btn {
+    flex: 1 1 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    text-align: center;
+    min-width: 0;
+    flex-direction:column
   }
   
   .actions-menu {
