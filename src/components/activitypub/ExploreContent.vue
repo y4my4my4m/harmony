@@ -600,14 +600,6 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
   padding: 16px;
 }
 
-.posts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
 .federated-post {
   position: relative;
 }

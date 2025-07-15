@@ -89,14 +89,6 @@ defineEmits<{
   padding: 20px 0;
 }
 
-.posts-list {
-  display: flex;
-  flex-direction: column;
-  margin: 0 auto;
-  gap: var(--space-4);
-  width: 600px;
-}
-
 .loading-state,
 .empty-state {
   display: flex;

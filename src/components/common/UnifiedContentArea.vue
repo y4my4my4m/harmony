@@ -257,7 +257,7 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
 
 @media (max-width: 768px) {
   .composer-section {
-    padding: var(--space-3);
+    padding: var(--space-1);
   }
 }
 </style>

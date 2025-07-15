@@ -47,6 +47,7 @@
 > important site to see suggested protocols and features for the fediverse
 > could add stuff you need or self implement in regards to voicechat/videochat, reactions, etc.
 
+27.   .social-sidebar-container and .channel-sidebar-container should be consolidated into the same styling
 
 ---
 

@@ -4,7 +4,7 @@
   <div class="mony-header-container">
     <MonyHeader
       :current-view="currentView"
-      :is-mobile="false"
+      :is-mobile="isMobile"
       @switch-feed="handleSwitchFeed"
       @refresh-timeline="handleRefresh"
       @open-composer="handleOpenComposer"
@@ -233,6 +233,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
+import { useLayoutState } from '@/composables/useLayoutState'
 
 import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser, TimelinePost } from '@/types';
@@ -245,6 +246,9 @@ import MonyContent from '@/components/activitypub/MonyContent.vue';
 import UserCard from '@/components/activitypub/UserCard.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+
+// Layout state
+const { isMobile } = useLayoutState()
 
 // Props
 interface Props {
@@ -1207,13 +1211,6 @@ document.addEventListener('click', handleClickOutside);
   padding: 1.5rem;
   padding-bottom: 100px;
 }
-
-.posts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
 .users-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

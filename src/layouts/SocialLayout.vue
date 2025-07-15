@@ -649,12 +649,52 @@ const formatNumber = (num: number): string => {
   color: var(--text-secondary);
   margin: 0;
 }
+/* 
+.right-sidebar-container {
+  flex-shrink: 0;
+  background: var(--background-tertiary);
+  transition: transform 0.3s ease, width 0.3s ease;
+  transform: translateX(100%);
+  width: 0px;
+} */
+
+.right-sidebar-container.sidebar-open {
+  transform: translateX(0);
+  height: 100vh;
+  width: 240px;
+}
+
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-  
+ 
   .context-bar-container {
     display: none;
+  }
+  .social-sidebar-container,
+  .right-sidebar-container {
+    position: fixed;
+    top: 0;
+    height: 100%;
+    z-index: 200;
+    transition: transform 0.3s ease, width 0.1s ease;
+  }
+  .social-sidebar-container.mobile-open {
+    transform: translateX(72px);
+    width: 240px;
+    left: 0;
+  }
+  .social-sidebar-container {
+    transform: translateX(-150%);
+    width: 0;
+    left: 0;
+    padding: 12px;
+    gap: 16px;
+  }
+  .right-sidebar-container {
+    transform: translateX(150%);
+    width: 0px;
+    right: 0;
   }
   
   .main-content-area {

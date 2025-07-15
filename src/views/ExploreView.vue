@@ -4,7 +4,7 @@
     <div class="mony-header-container">
       <MonyHeader
         :current-view="currentView"
-        :is-mobile="false"
+        :is-mobile="isMobile"
         @switch-feed="handleSwitchFeed"
         @refresh-timeline="handleRefresh"
         @open-composer="handleOpenComposer"
@@ -39,9 +39,13 @@ import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
+import { useLayoutState } from '@/composables/useLayoutState'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { usePostInteractions } from '@/composables/usePostInteractions'
 import type { TimelinePost, FederatedUser } from '@/types'
+
+// Layout state
+const { isMobile } = useLayoutState()
 
 // Props
 interface Props {

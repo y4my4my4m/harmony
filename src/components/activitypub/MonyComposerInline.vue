@@ -6,7 +6,7 @@
       <Avatar 
         :src="currentUser?.avatar_url"
         :alt="currentUser?.display_name || currentUser?.username"
-        size="md"
+        :size="isMobile ? 'sm' : 'md'"
         :interactive="true"
       />
       
@@ -229,7 +229,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useProfileStore } from '@/stores/useProfile';
 import type { Post, MediaAttachment } from '@/types';
@@ -241,11 +241,14 @@ import EmojiPopup from '@/components/EmojiPopup.vue';
 import GifComponent from '@/components/GifComponent.vue';
 import GifIcon from '@/components/icons/Gif.vue';
 import EmojiUI from '@/components/EmojiUI.vue';
+import { useLayoutState } from '@/composables/useLayoutState';
+
+// Layout state
+const { isMobile } = useLayoutState();
 
 // Composables
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
-import { activityPubService } from '@/services/activityPubService';
 
 
 // Emit events
@@ -565,15 +568,6 @@ document.addEventListener('click', handleClickOutside);
   display: flex;
   gap: 0.75rem;
 }
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
 .composer-form {
   flex: 1;
   display: flex;
@@ -832,14 +826,10 @@ document.addEventListener('click', handleClickOutside);
 /* Mobile responsiveness */
 @media (max-width: 768px) {
   .inline-composer {
-    padding: 0.75rem;
+    /* padding: 0.75rem; */
+    margin: 0.5rem;
+    margin-right: 1rem;
   }
-  
-  .user-avatar {
-    width: 32px;
-    height: 32px;
-  }
-  
   .visibility-menu {
     width: 200px;
   }
