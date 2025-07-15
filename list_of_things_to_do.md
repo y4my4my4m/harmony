@@ -32,6 +32,15 @@
 
 20. change all federation to be "Always Queue, Trigger Delivery ASAP, Fallback to Cron", right now a bunch of them are "attempt to deliver, if fail bring to queue" which could fail
 
+21. our home/federated timeline/views aren't aggregating ap_activities properly, we need to ensure that all activities are fetched and displayed correctly, including reblogs, likes, and follows
+
+22. delete events return old.id and it seems to be bugging post_interactions
+
+23. replies don't work in activitypub (should investigate this)
+
+24. implement "collections" for posts, this is a way to group posts together, similar to how threads work but more flexible, see https://www.w3.org/TR/activitypub/#collections (probably reowrk conversations to be collections, both DMs and threads maybe?)
+
+
 
 > https://codeberg.org/fediverse/fep/src/branch/main/fep
 > important site to see suggested protocols and features for the fediverse
