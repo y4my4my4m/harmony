@@ -20,6 +20,10 @@
     <rect v-if="name === 'copy'" width="14" height="14" x="8" y="8" rx="2" ry="2"/>
     <path v-if="name === 'copy'" d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
 
+    <!-- Ban -->
+    <circle v-if="name === 'ban'" cx="12" cy="12" r="10"/>
+    <path v-if="name === 'ban'" d="m4.9 4.9 14.2 14.2"/>
+
     <!-- Camera -->
     <path v-if="name === 'camera'" d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
     <circle v-if="name === 'camera'" cx="12" cy="13" r="4"></circle>
@@ -587,11 +591,10 @@
     <path v-if="name === 'hash'" fill="currentColor" fill-rule="evenodd" d="M10.99 3.16A1 1 0 1 0 9 2.84L8.15 8H4a1 1 0 0 0 0 2h3.82l-.67 4H3a1 1 0 1 0 0 2h3.82l-.8 4.84a1 1 0 0 0 1.97.32L8.85 16h4.97l-.8 4.84a1 1 0 0 0 1.97.32l.86-5.16H20a1 1 0 1 0 0-2h-3.82l.67-4H21a1 1 0 1 0 0-2h-3.82l.8-4.84a1 1 0 1 0-1.97-.32L15.15 8h-4.97l.8-4.84ZM14.15 14l.67-4H9.85l-.67 4h4.97Z" clip-rule="evenodd"></path>
 
     <!-- Follow (Arrow with Plus) -->
-    <path v-if="name === 'follow'" d="M5 12h9"></path>
-    <polyline v-if="name === 'follow'" points="12 9 15 12 12 15"></polyline>
-    <circle v-if="name === 'follow'" cx="19" cy="12" r="2"></circle>
-    <line v-if="name === 'follow'" x1="19" y1="10.5" x2="19" y2="13.5"></line>
-    <line v-if="name === 'follow'" x1="17.5" y1="12" x2="20.5" y2="12"></line>
+    <path v-if="name === 'follow'" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+    <circle v-if="name === 'follow'" cx="9" cy="7" r="4"/>
+    <line v-if="name === 'follow'" x1="19" x2="19" y1="8" y2="14"/>
+    <line v-if="name === 'follow'" x1="22" x2="16" y1="11" y2="11"/>
 
     <!-- Followed (Arrow with Check) -->
     <path v-if="name === 'followed'" d="M5 12h9"></path>
@@ -622,9 +625,8 @@
     <path v-if="name === 'dots-horizontal'" d="M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
 
     <!-- Mention -->
-    <path v-if="name === 'mention'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
-    <path v-if="name === 'mention'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
-    <path v-if="name === 'mention'" d="M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
+    <circle v-if="name === 'mention'" cx="12" cy="12" r="4"/>
+    <path v-if="name === 'mention'" d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>
 
     <!-- Mentioned -->
     <path v-if="name === 'mentioned'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
