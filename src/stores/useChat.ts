@@ -562,13 +562,6 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    async fetchAndPopulateReactions(messageId: string) {
-      // This method is deprecated in favor of useReactionsStore
-      // Kept for backward compatibility
-      const reactionsStore = useReactionsStore();
-      return await reactionsStore.fetchMessageReactions(messageId);
-    },
-
     subscribeToMessages(channelId: string) {
       console.log('🔔 Setting up real-time subscription for channel:', channelId);
       

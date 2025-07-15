@@ -159,7 +159,7 @@
       >
         <!-- Avatar Image -->
         <div class="avatar-container">
-          <img
+          <Avatar
             :src="getUserProfile(participant.userId)?.avatar_url || '/default_avatar.png'"
             :alt="getUserProfile(participant.userId)?.display_name || 'User'"
             class="avatar-image"
@@ -270,6 +270,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useUserData } from '@/composables/useUserData';
 import { spatialAudioService } from '@/services/spatialAudio';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '../common/Avatar.vue';
 
 // =============================================================================
 // PROPS & EMITS

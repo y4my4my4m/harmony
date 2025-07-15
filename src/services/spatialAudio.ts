@@ -325,21 +325,6 @@ export class SpatialAudioService {
   }
 
   /**
-   * Legacy compatibility method for HTMLAudioElement
-   * @deprecated Use setupSpatialForUser with MediaStream instead
-   */
-  async addUser(userId: string, audioElement: HTMLAudioElement): Promise<void> {
-    console.warn('⚠️ addUser with HTMLAudioElement is deprecated. Use setupSpatialForUser with MediaStream for better quality.');
-    
-    if (!audioElement.srcObject || !(audioElement.srcObject instanceof MediaStream)) {
-      console.error('❌ HTMLAudioElement must have a MediaStream as srcObject');
-      return;
-    }
-    
-    await this.setupSpatialForUser(userId, audioElement.srcObject as MediaStream);
-  }
-
-  /**
    * Remove user from spatial audio and cleanup resources
    */
   removeUser(userId: string): void {

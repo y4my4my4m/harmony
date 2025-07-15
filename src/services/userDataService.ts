@@ -716,7 +716,7 @@ class UserDataService extends EventTarget {
     if (missingUserIds.length === 0) return
     
     console.log(`🔄 Loading user data for ${missingUserIds.length} users`)
-    
+
     try {
       const { data: profiles } = await supabase
         .from('profiles')
@@ -725,13 +725,6 @@ class UserDataService extends EventTarget {
       
       if (profiles) {
         profiles.forEach((profile: any) => {
-          console.log('🔧 Batch profile data for isLocal check:', {
-            userId: profile.id,
-            username: profile.username,
-            is_local: profile.is_local,
-            domain: profile.domain
-          });
-          
           const userData: UserData = {
             id: profile.id,
             username: profile.username || 'Unknown',

@@ -40,8 +40,9 @@
 
 24. implement "collections" for posts, this is a way to group posts together, similar to how threads work but more flexible, see https://www.w3.org/TR/activitypub/#collections (probably reowrk conversations to be collections, both DMs and threads maybe?)
 
+25. rework loadUsersData() so that it's efficient and also probably use whatever the solution to know if the user is local on the activitypub, DRY approach
 
-
+26.
 > https://codeberg.org/fediverse/fep/src/branch/main/fep
 > important site to see suggested protocols and features for the fediverse
 > could add stuff you need or self implement in regards to voicechat/videochat, reactions, etc.
