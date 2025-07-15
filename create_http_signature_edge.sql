@@ -38,7 +38,7 @@ BEGIN
     END IF;
     
     -- Build edge function URL
-    v_edge_function_url := 'http://localhost:8000/functions/v1/sign-http-request';
+    v_edge_function_url := 'http://kong:8000/functions/v1/sign-http-request';
     
     -- Build request body for edge function
     v_request_body := jsonb_build_object(

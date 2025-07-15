@@ -17,7 +17,8 @@
 13. we need to have rate limits so that users don't spam updates, don't want people creating scripts that rainbows their color or something
 14. cleanup posts, we have metadata for "reblog_of/original_author" but we have all that info in reblog and reblog_author already...
 15. ~~we should simply be creating posts and let the backend handle if is_local false to do the federation (create the ap_activities and properly send via http for direct or fallback to federation queue)~~ handle_post_federation and handle_post_federation_trigger
-
+16. our self signing implementation was wrong, we NEED sha-rsa256 not just sha256, i'm currently using an edge-function to do the signing but this is very bad and slow, must do something about that.
+17. same with the public/private keys, now its all edge functions lol
 ---
 
 Please create a professional, clean, scalable and DRY code resembling what discord is doing.

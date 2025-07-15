@@ -9,7 +9,6 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Function to generate real RSA key pairs
 CREATE OR REPLACE FUNCTION generate_rsa_keypair()
 RETURNS TABLE(
     private_key TEXT,
@@ -19,81 +18,30 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    v_private_key TEXT;
-    v_public_key TEXT;
-    v_random_seed TEXT;
-    v_key_id TEXT;
+    v_url TEXT := 'http://kong:8000/functions/v1/generate-keys'; -- Update to your edge function endpoint if needed
+    v_status INTEGER;
+    v_response TEXT;
+    v_data JSONB;
 BEGIN
-    -- Generate a unique key identifier for this key pair
-    v_key_id := encode(gen_random_bytes(16), 'hex');
-    v_random_seed := encode(gen_random_bytes(32), 'hex');
-    
-    -- Method 1: Try to use openssl via shell (if available and secure)
-    -- This would be the most secure method but requires shell access
-    BEGIN
-        -- Note: This requires plsh extension or similar, which may not be available
-        -- Commented out for security and availability reasons
-        -- SELECT into v_private_key, v_public_key FROM generate_rsa_via_openssl();
-        RAISE EXCEPTION 'OpenSSL method not implemented';
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Continue to fallback methods
-            NULL;
-    END;
-    
-    -- Method 2: Try to use pgcrypto with custom RSA implementation
-    -- This is a simplified approach that creates valid-looking keys
-    BEGIN
-        -- Generate deterministic but unique keys based on random seed
-        -- Note: This is NOT cryptographically secure for production use!
-        v_private_key := format('-----BEGIN RSA PRIVATE KEY-----
-MIIEowIBAAKCAQEA%sABCDEFGHIJKLMNOPQRSTUVWXYZ
-abcdefghijklmnopqrstuvwxyz0123456789+/AAAAAAAA
-%s
-MIIEowIBAAKCAQEA%sXYZ123ABC456DEF789GHI012JKL
-345MNO678PQR901STU234VWX567YZ890ABC123DEF456
-%s
------END RSA PRIVATE KEY-----',
-            substring(v_random_seed, 1, 32),
-            substring(v_key_id, 1, 16),
-            substring(encode(digest(v_random_seed, 'sha256'), 'base64'), 1, 32),
-            substring(v_key_id, 17, 16)
-        );
-        
-        v_public_key := format('-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA%s
-ABCDEFGHIJKLMNOPQRSTUVWXYZ+/abcdefghijklmnopqr
-%s
-QIDAQAB
------END PUBLIC KEY-----',
-            substring(v_random_seed, 1, 32),
-            substring(encode(digest(v_random_seed || v_key_id, 'sha256'), 'base64'), 1, 32)
-        );
-        
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Final fallback: Basic template with random elements
-            v_private_key := format('-----BEGIN RSA PRIVATE KEY-----
-MIIEowIBAAKCAQEA0vx7agoebGcQSuuPiLJXZptN9nndrQmbPFRP6gPiw+AlyRaC
-%s
-%s
------END RSA PRIVATE KEY-----',
-                v_key_id,
-                v_random_seed
-            );
-            
-            v_public_key := format('-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0vx7agoebGcQSuuPiLJX
-%s
-%s
------END PUBLIC KEY-----',
-                v_key_id,
-                substring(v_random_seed, 1, 16)
-            );
-    END;
-    
-    -- Return the generated key pair
-    RETURN QUERY SELECT v_private_key, v_public_key;
+    -- Call the edge function to generate real keys
+    SELECT status, content INTO v_status, v_response
+      FROM http((
+        'POST',
+        v_url,
+        ARRAY[ ('Content-Type','application/json') ]::http_header[],
+        'application/json',
+        '{}' -- empty POST body
+      )::http_request);
+
+    IF v_status != 200 THEN
+      RAISE EXCEPTION 'Failed to fetch keys: HTTP %: %', v_status, v_response;
+    END IF;
+
+    v_data := v_response::jsonb;
+
+    RETURN QUERY SELECT
+      v_data->>'private_key',
+      v_data->>'public_key';
 END;
 $$;
 
