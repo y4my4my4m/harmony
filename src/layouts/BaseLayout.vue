@@ -27,6 +27,25 @@
     
     <!-- Server List Sidebar (Always Visible) -->
     <div class="server-sidebar-container">
+      <!-- TODO: fix for mobile -->
+
+      <!-- Mobile Profile Component -->
+      <div 
+        v-if="isMobile"
+        class="user-profile-section"
+      >
+        <Teleport :to="mobileProfileOpen ? '#app' : undefined" :disabled="!mobileProfileOpen">
+          <div 
+            :class="{ 'mobile-profile-overlay': mobileProfileOpen }"
+            @click="mobileProfileOpen ? closeMobileSidebars() : null"
+          >
+            <UserProfileComponent 
+              :toggle-mobile-profile="toggleMobileProfile" 
+              @click.stop
+            />
+          </div>
+        </Teleport>
+      </div>
       <ServerSidebar
         :servers="servers"
         @showPublicServers="$emit('showPublicServers')"
@@ -79,11 +98,14 @@ const {
   rightSidebarOpen, 
   isMobile, 
   voicePanelOpen,
+  mobileProfileOpen,
   toggleLeftSidebar,
   toggleRightSidebar,
   toggleVoicePanel,
+  toggleMobileProfile,
   closeMobileSidebars
 } = useLayoutState()
+
 
 // Emit events
 const emit = defineEmits<{
@@ -166,6 +188,8 @@ const initializeApp = async () => {
     hasServersLoaded.value = true
   }
 }
+
+
 
 // Watch for auth changes to reinitialize
 watch(() => authStore.session, async (newSession, oldSession) => {
@@ -264,6 +288,8 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(4px);
 }
 
+
+
 .edge-indicators {
   position: fixed;
   top: 0;
@@ -333,6 +359,38 @@ onBeforeUnmount(() => {
     z-index: 200;
     transform: translateX(-100%);
     transition: transform 0.3s ease;
+  }
+
+  .mobile-profile-overlay {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mobile-profile-overlay .user-profile-section {
+    width: 100%;
+    height: auto;
+    padding: 10px;
+    left: 0px;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  .user-profile-section {
+    position: absolute;
+    left: 6px;
+    bottom: 10px;
+    width: 64px;
+    z-index: 101;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 }
 </style>

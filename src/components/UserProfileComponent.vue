@@ -1,10 +1,12 @@
 <template>
   <div class="user-profile" ref="targetRef">
-    <Avatar 
-      :src="getUserAvatarUrlCurrent"
-      size="md"
-      :status="currentUser.id ? getUserStatusForAvatar(currentUser.id).value : 'offline'"
-    />
+    <div @click.stop="handleAvatarClick">
+      <Avatar 
+        :src="getUserAvatarUrlCurrent"
+        size="md"
+        :status="currentUser.id ? getUserStatusForAvatar(currentUser.id).value : 'offline'"
+      />
+    </div>
     <div class="user-info">
       <p class="user-name">{{ currentUser.displayName }}</p>
       <div class="user-status-container" @click="toggleStatusDropdown">
@@ -67,6 +69,7 @@ import { useThemeStore } from '@/stores/useTheme'
 import { useRouter } from 'vue-router'
 import { UserStatus, type UserData } from '@/types'
 import { useUserData } from '@/composables/useUserData'
+import { useLayoutState } from '@/composables/useLayoutState'
 import MicIcon from '@/components/icons/Mic.vue'
 import MicMutedIcon from '@/components/icons/MicMuted.vue'
 import HeadphonesIcon from '@/components/icons/Headphones.vue'
@@ -79,6 +82,12 @@ const themeStore = useThemeStore()
 const router = useRouter()
 const showStatusDropdown = ref(false)
 const targetRef = ref<HTMLElement | null>(null)
+const { isMobile } = useLayoutState()
+
+// add the optional prop toggle-mobile-profile
+const props = defineProps<{
+  toggleMobileProfile?: () => void
+}>()
 
 // Use new clean user data system - ONE source of truth with full reactivity
 const { 
@@ -206,6 +215,19 @@ const onClickOutside = (event: any) => {
 
 const goToSettings = () => {
   router.push({ name: 'UserSettings' })
+}
+
+const handleAvatarClick = () => {
+  console.log('🔘 Avatar clicked!')
+  console.log('📱 isMobile:', isMobile.value)
+  console.log('🔧 toggleMobileProfile prop:', props.toggleMobileProfile)
+  
+  if (isMobile.value && props.toggleMobileProfile) {
+    console.log('✅ Calling toggleMobileProfile')
+    props.toggleMobileProfile()
+  } else {
+    console.log('❌ Not calling toggleMobileProfile - conditions not met')
+  }
 }
 
 onMounted(async () => {
@@ -430,11 +452,100 @@ onBeforeUnmount(() => {
 }
 
 @media screen and (max-width: 768px) {
-  .user-profile {
-    width: 100%;
-    padding: 8px;
+
+  .user-profile-section .user-info,
+  .user-profile-section .buttons {
+    display: none;
   }
-  
+
+  .user-profile {
+    padding: 0;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-profile-overlay .user-profile {
+    position: fixed;
+    width: calc(100% - 16px);
+    height: 64px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    left: 6px;
+    bottom: 10px;
+  }
+  .mobile-profile-overlay .user-profile-section .user-info,
+  .mobile-profile-overlay .user-profile-section .buttons {
+    display: flex;
+    align-items: center;
+  }
+  .mobile-profile-overlay .user-profile-section .user-info {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+  }
+  .mobile-profile-overlay .user-profile-section .buttons {
+    gap: 8px;
+  }
+  .mobile-profile-overlay .user-profile-section .buttons .icon-button {
+    width: 32px;
+    height: 32px;
+  }
+  .mobile-profile-overlay .user-profile-section .user-status-container {
+    margin-right: 0;
+  }
+  .mobile-profile-overlay .user-profile-section .user-name {
+    font-size: 1em;
+    color: white;
+    margin: 0;
+    width: 100%;
+    position: relative;
+    left: -12px;
+  }
+  .mobile-profile-overlay .user-profile-section .status-dropdown {
+    position: fixed;
+    width: 95vw;
+    bottom: 100px;
+    margin-top: 8px;
+    box-shadow: none;
+    border: 1px solid #202225;
+    animation: none;
+    left: 10px;
+  }
+  .mobile-profile-overlay .user-profile-section .status-option {
+    padding: 8px 12px;
+    font-size: 0.875rem;
+  }
+  .mobile-profile-overlay .user-profile-section .status-option .status-dot {
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+  }
+  .mobile-profile-overlay .user-profile-section .status-option .status-text {
+    font-size: 0.875rem;
+    flex-grow: 1;
+  }
+  .mobile-profile-overlay .user-profile-section .status-option .checkmark {
+    font-size: 0.8rem;
+  }
+  .mobile-profile-overlay .user-profile-section .status-text {
+    font-size: 0.875rem;
+    color: #dcddde;
+    width: 92px;
+  }
+  .mobile-profile-overlay .user-profile-section .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
   .user-name {
     font-size: 0.8em;
   }

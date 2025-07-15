@@ -313,6 +313,7 @@ const handleMoreClick = () => {
   
   .dm-header {
     padding: 12px;
+    height: 64px;
   }
   
   .action-btn {

@@ -4,6 +4,8 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 const leftSidebarOpen = ref(false)
 const rightSidebarOpen = ref(false)
 const voicePanelOpen = ref(false)
+const profileOpen = ref(false)
+const mobileProfileOpen = ref(false)
 const isMobile = ref(false)
 
 // Mobile detection
@@ -14,6 +16,8 @@ const checkMobileDevice = () => {
   if (isMobile.value) {
     leftSidebarOpen.value = false
     rightSidebarOpen.value = false
+    profileOpen.value = false
+    mobileProfileOpen.value = false
   } else {
     if (!wasMobile || !leftSidebarOpen.value) {
       leftSidebarOpen.value = true
@@ -48,6 +52,10 @@ export function useLayoutState() {
       rightSidebarOpen.value = false
     }
     leftSidebarOpen.value = !leftSidebarOpen.value
+    // Close mobile profile when left sidebar is closed
+    if (!leftSidebarOpen.value) {
+      mobileProfileOpen.value = false
+    }
   }
 
   const toggleRightSidebar = () => {
@@ -61,9 +69,16 @@ export function useLayoutState() {
     voicePanelOpen.value = !voicePanelOpen.value
   }
 
+  const toggleMobileProfile = () => {
+    console.log('🔄 toggleMobileProfile called, current state:', mobileProfileOpen.value)
+    mobileProfileOpen.value = !mobileProfileOpen.value
+    console.log('🔄 toggleMobileProfile new state:', mobileProfileOpen.value)
+  }
+
   const closeMobileSidebars = () => {
     leftSidebarOpen.value = false
     rightSidebarOpen.value = false
+    mobileProfileOpen.value = false
   }
 
   const openLeftSidebar = () => {
@@ -82,6 +97,8 @@ export function useLayoutState() {
 
   const closeLeftSidebar = () => {
     leftSidebarOpen.value = false
+    // Close mobile profile when left sidebar is closed
+    mobileProfileOpen.value = false
   }
 
   const closeRightSidebar = () => {
@@ -93,12 +110,14 @@ export function useLayoutState() {
     leftSidebarOpen: computed(() => leftSidebarOpen.value),
     rightSidebarOpen: computed(() => rightSidebarOpen.value),
     voicePanelOpen: computed(() => voicePanelOpen.value),
+    mobileProfileOpen: computed(() => mobileProfileOpen.value),
     isMobile: computed(() => isMobile.value),
 
     // Toggle functions
     toggleLeftSidebar,
     toggleRightSidebar,
     toggleVoicePanel,
+    toggleMobileProfile,
     closeMobileSidebars,
     openLeftSidebar,
     openRightSidebar,

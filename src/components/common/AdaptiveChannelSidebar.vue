@@ -790,11 +790,6 @@ onUnmounted(() => {
   margin: 0;
 }
 
-.user-profile-section {
-  border-top: 1px solid var(--border-color);
-  background: var(--background-secondary);
-}
-
 /* Mobile responsive */
 @media (max-width: 768px) {
   .adaptive-channel-sidebar {
