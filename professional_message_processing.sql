@@ -53,11 +53,11 @@ BEGIN
     
     -- Generate digest header (SHA-256 of body)
     BEGIN
-        v_digest := 'SHA-256=' || encode(digest(p_body::bytea, 'sha256'::text), 'base64');
+        v_digest := 'SHA-256=' || encode(digest(convert_to(p_body, 'UTF8'), 'sha256'::text), 'base64');
     EXCEPTION 
         WHEN OTHERS THEN
             -- Fallback if pgcrypto is not available
-            v_digest := 'SHA-256=' || encode(sha256(p_body::bytea), 'base64');
+            v_digest := 'SHA-256=' || encode(sha256(convert_to(p_body, 'UTF8')), 'base64');
     END;
     
     -- Build key ID
@@ -65,23 +65,13 @@ BEGIN
     
     -- Get private key for the actor
     SELECT private_key INTO v_private_key 
-    FROM ap_actors 
+    FROM profiles 
     WHERE username = p_actor_username 
-      AND domain = p_instance_domain
+      AND is_local = true
     LIMIT 1;
     
     IF v_private_key IS NULL THEN
-        -- Try to get from profiles table as fallback
-        SELECT ap_private_key INTO v_private_key
-        FROM profiles 
-        WHERE username = p_actor_username 
-          AND (domain = p_instance_domain OR domain IS NULL)
-          AND is_local = true
-        LIMIT 1;
-    END IF;
-    
-    IF v_private_key IS NULL THEN
-        RAISE EXCEPTION 'No private key found for actor: %@%', p_actor_username, p_instance_domain;
+        RAISE EXCEPTION 'No private key found for actor: %', p_actor_username;
     END IF;
     
     -- Define headers to sign
@@ -98,18 +88,18 @@ BEGIN
     BEGIN
         -- Try to use pgcrypto extension for signing (if available)
         SELECT encode(
-            pgp_pub_encrypt(v_string_to_sign::bytea, v_private_key, 'cipher-algo=cast5'),
+            pgp_pub_encrypt(convert_to(v_string_to_sign, 'UTF8'), v_private_key, 'cipher-algo=cast5'),
             'base64'
         ) INTO v_signature;
     EXCEPTION 
         WHEN OTHERS THEN
             -- Fallback: Use a hash as placeholder (MUST be replaced with proper RSA signing)
             BEGIN
-                v_signature := encode(digest((v_string_to_sign || v_private_key)::bytea, 'sha256'::text), 'base64');
+                v_signature := encode(digest(convert_to(v_string_to_sign || v_private_key, 'UTF8'), 'sha256'::text), 'base64');
             EXCEPTION
                 WHEN OTHERS THEN
                     -- Final fallback if digest is also not available
-                    v_signature := encode(sha256((v_string_to_sign || v_private_key)::bytea), 'base64');
+                    v_signature := encode(sha256(convert_to(v_string_to_sign || v_private_key, 'UTF8')), 'base64');
             END;
             RAISE WARNING 'Using fallback signature method - implement proper RSA-SHA256 signing!';
     END;
@@ -299,8 +289,8 @@ BEGIN
     
     -- Only federate DM messages
     IF NEW.conversation_id IS NOT NULL AND sender_profile.is_local THEN
-        -- Get instance domain from config
-        SELECT config_value INTO v_instance_domain 
+        -- Get instance domain from config (cast JSONB to TEXT and remove quotes if present)
+        SELECT trim(both '"' from config_value::text) INTO v_instance_domain 
         FROM instance_config 
         WHERE config_key = 'domain' 
         LIMIT 1;
