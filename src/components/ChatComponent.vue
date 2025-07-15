@@ -22,6 +22,7 @@
     />
     <MessageInput 
       ref="messageInputRef"
+      v-if="messages.length !== 0 || !isDM"
       v-model="messageContent"
       :giphyOpen="giphyOpen"
       :emojiListOpen="emojiListOpen"
