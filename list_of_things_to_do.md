@@ -21,6 +21,22 @@
 17. same with the public/private keys, now its all edge functions lol
 18. implement "update" to announce when a user updates their profile, this is needed for federation and to update the user profile in other instances, both incoming and outgoing updates
 
+19. reactions should be federated to be compatible with misskey reactions 
+{
+  "type": "EmojiReaction",
+  "actor": "https://misskey.io/users/example",
+  "object": "https://misskey.io/notes/xxxx",
+  "content": ":smile:"
+}
+ ^^ above might be wrong, see how misskey does it, but we should be able to do this with our current federation system
+
+
+
+> https://codeberg.org/fediverse/fep/src/branch/main/fep
+> important site to see suggested protocols and features for the fediverse
+> could add stuff you need or self implement in regards to voicechat/videochat, reactions, etc.
+
+
 ---
 
 Please create a professional, clean, scalable and DRY code resembling what discord is doing.
