@@ -150,7 +150,7 @@ const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions()
 const handleFavoritePost = async (post: TimelinePost) => {
   try {
     const result = await toggleFavorite(post.id)
-    if (!result.error) {
+    if (result.success) {
       emit('favoritePost', post)
     }
   } catch (error) {
@@ -161,7 +161,7 @@ const handleFavoritePost = async (post: TimelinePost) => {
 const handleReblogPost = async (post: TimelinePost) => {
   try {
     const result = await toggleReblog(post.id)
-    if (!result.error) {
+    if (result.success) {
       emit('reblogPost', post)
     }
   } catch (error) {
@@ -172,7 +172,7 @@ const handleReblogPost = async (post: TimelinePost) => {
 const handleBookmarkPost = async (post: TimelinePost) => {
   try {
     const result = await toggleBookmark(post.id)
-    if (!result.error) {
+    if (result.success) {
       emit('bookmarkPost', post)
     }
   } catch (error) {

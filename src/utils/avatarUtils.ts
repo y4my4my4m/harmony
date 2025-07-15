@@ -24,19 +24,16 @@ export function getAvatarUrl(avatarUrl: string | null | undefined): string {
     const { data } = supabase.storage
       .from('avatars')
       .getPublicUrl(avatarUrl)
-    
-    console.log('Generated Supabase public URL:', data.publicUrl, 'from path:', avatarUrl)
+
     return data.publicUrl
   }
 
   // If it's a local path (starts with /), return as-is
   if (avatarUrl.startsWith('/')) {
-    console.log('Returning local path:', avatarUrl)
     return avatarUrl
   }
 
   // If it's just a filename or doesn't match expected patterns, return default
-  console.log('Returning default avatar for unrecognized format:', avatarUrl)
   return '/default_avatar.png'
 }
 

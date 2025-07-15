@@ -138,7 +138,6 @@ const handleImageError = () => {
 }
 
 const handleImageLoad = () => {
-  console.log('Avatar image loaded for URL:', avatarUrl.value)
   // Only reset error if we weren't already in error state
   if (imageError.value) {
     imageError.value = false

@@ -83,7 +83,7 @@ const handleRefresh = () => {
 
 const handleFavoritePost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.favoritePost(post.id)
+    await activityPubStore.toggleFavorite(post.id)
     emit('favoritePost', post)
   } catch (error) {
     console.error('Failed to favorite post:', error)
@@ -92,7 +92,7 @@ const handleFavoritePost = async (post: TimelinePost) => {
 
 const handleReblogPost = async (post: TimelinePost) => {
   try {
-    await activityPubStore.reblogPost(post.id)
+    await activityPubStore.toggleReblog(post.id)
     emit('reblogPost', post)
   } catch (error) {
     console.error('Failed to reblog post:', error)

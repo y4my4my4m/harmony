@@ -106,25 +106,25 @@ export function usePostInteractions() {
 
   /**
    * Toggle favorite status for a post
+   * Note: Does not return immediate state - UI should read from store reactively
    */
-  const toggleFavorite = async (post: TimelinePost | string): Promise<{ favorited: boolean; error?: string }> => {
+  const toggleFavorite = async (post: TimelinePost | string): Promise<{ success: boolean; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
       console.error('❌ toggleFavorite: Invalid post ID:', post)
-      return { favorited: false, error: 'Invalid post ID' }
+      return { success: false, error: 'Invalid post ID' }
     }
 
     isFavoriteLoading.value = true
     try {
       await activityPubStore.toggleFavorite(postId)
-      const newState = activityPubStore.homeFeed.posts.find(p => p.id === postId)?.is_favorited || false
-      console.log(`✅ Favorite toggled for post ${postId}:`, newState ? 'Favorited' : 'Unfavorited')
-      return { favorited: newState }
+      console.log(`✅ Favorite toggle requested for post ${postId} - waiting for realtime update`)
+      return { success: true }
     } catch (error) {
       console.error('❌ Failed to toggle favorite:', error)
       return { 
-        favorited: false, 
+        success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
       }
     } finally {
@@ -134,25 +134,25 @@ export function usePostInteractions() {
 
   /**
    * Toggle reblog status for a post
+   * Note: Does not return immediate state - UI should read from store reactively
    */
-  const toggleReblog = async (post: TimelinePost | string): Promise<{ reblogged: boolean; error?: string }> => {
+  const toggleReblog = async (post: TimelinePost | string): Promise<{ success: boolean; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
       console.error('❌ toggleReblog: Invalid post ID:', post)
-      return { reblogged: false, error: 'Invalid post ID' }
+      return { success: false, error: 'Invalid post ID' }
     }
 
     isReblogLoading.value = true
     try {
       await activityPubStore.toggleReblog(postId)
-      const newState = activityPubStore.homeFeed.posts.find(p => p.id === postId)?.is_reblogged || false
-      console.log(`✅ Reblog toggled for post ${postId}:`, newState ? 'Reblogged' : 'Unreblogged')
-      return { reblogged: newState }
+      console.log(`✅ Reblog toggle requested for post ${postId} - waiting for realtime update`)
+      return { success: true }
     } catch (error) {
       console.error('❌ Failed to toggle reblog:', error)
       return { 
-        reblogged: false, 
+        success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
       }
     } finally {
@@ -162,25 +162,25 @@ export function usePostInteractions() {
 
   /**
    * Toggle bookmark status for a post
+   * Note: Does not return immediate state - UI should read from store reactively
    */
-  const toggleBookmark = async (post: TimelinePost | string): Promise<{ bookmarked: boolean; error?: string }> => {
+  const toggleBookmark = async (post: TimelinePost | string): Promise<{ success: boolean; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
       console.error('❌ toggleBookmark: Invalid post ID:', post)
-      return { bookmarked: false, error: 'Invalid post ID' }
+      return { success: false, error: 'Invalid post ID' }
     }
 
     isBookmarkLoading.value = true
     try {
       await activityPubStore.toggleBookmark(postId)
-      const newState = activityPubStore.bookmarks.some(p => p.id === postId)
-      console.log(`✅ Bookmark toggled for post ${postId}:`, newState ? 'Bookmarked' : 'Unbookmarked')
-      return { bookmarked: newState }
+      console.log(`✅ Bookmark toggle requested for post ${postId} - waiting for realtime update`)
+      return { success: true }
     } catch (error) {
       console.error('❌ Failed to toggle bookmark:', error)
       return { 
-        bookmarked: false, 
+        success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
       }
     } finally {

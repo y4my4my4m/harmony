@@ -227,36 +227,36 @@
           :title="'Reply to ' + author.display_name"
         >
           <Icon name="message-circle" />
-          <span v-if="post.replies_count > 0">{{ formatCount(post.replies_count) }}</span>
+          <span v-if="displayInteractionCounts.replies_count > 0">{{ formatCount(displayInteractionCounts.replies_count) }}</span>
         </button>
 
         <button 
           class="action-button reblog-button"
-          :class="{ active: post.is_reblogged }"
+          :class="{ active: displayInteractionCounts.is_reblogged }"
           @click="toggleReblog(post.id)"
-          :title="post.is_reblogged ? 'Undo reblog' : 'Reblog'"
+          :title="displayInteractionCounts.is_reblogged ? 'Undo reblog' : 'Reblog'"
         >
           <Icon name="reblog" />
-          <span v-if="post.reblogs_count > 0">{{ formatCount(post.reblogs_count) }}</span>
+          <span v-if="displayInteractionCounts.reblogs_count > 0">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
         </button>
 
         <button 
           class="action-button favorite-button"
-          :class="{ active: post.is_favorited }"
+          :class="{ active: displayInteractionCounts.is_favorited }"
           @click="toggleFavorite(post.id)"
-          :title="post.is_favorited ? 'Unfavorite' : 'Favorite'"
+          :title="displayInteractionCounts.is_favorited ? 'Unfavorite' : 'Favorite'"
         >
-          <Icon :name="post.is_favorited ? 'heart-filled' : 'heart'" />
-          <span v-if="post.favorites_count > 0">{{ formatCount(post.favorites_count) }}</span>
+          <Icon :name="displayInteractionCounts.is_favorited ? 'heart-filled' : 'heart'" />
+          <span v-if="displayInteractionCounts.favorites_count > 0 || displayInteractionCounts.is_favorited">{{ formatCount(displayInteractionCounts.favorites_count || 1) }}</span>
         </button>
 
         <button 
           class="action-button bookmark-button"
-          :class="{ active: post.is_bookmarked }"
+          :class="{ active: displayInteractionCounts.is_bookmarked }"
           @click="toggleBookmark(post.id)"
-          :title="post.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
+          :title="displayInteractionCounts.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
         >
-          <Icon :name="post.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
+          <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
         <div class="action-menu">
           <button 
