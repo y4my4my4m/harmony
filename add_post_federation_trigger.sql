@@ -191,7 +191,7 @@ BEGIN
             v_inbox_url := 'https://' || v_domain || '/inbox';
             
             BEGIN
-                -- Generate HTTP signature
+                -- Generate HTTP signature using edge function
                 SELECT 
                     signature_header,
                     date_header,
@@ -210,6 +210,8 @@ BEGIN
                     'POST'
                 );
                 
+                RAISE NOTICE 'Generated HTTP signature using edge function for post to domain: %', v_domain;
+                
                 -- Attempt immediate delivery
                 RAISE NOTICE 'Attempting post delivery to: % with signature: %', v_inbox_url, LEFT(v_signature_header, 100);
                 
@@ -218,17 +220,17 @@ BEGIN
                 FROM http((
                     'POST',
                     v_inbox_url,
-                    http_headers(
-                        'Content-Type', 'application/activity+json',
-                        'User-Agent', 'Harmony/1.0.0',
-                        'Host', v_domain,
-                        'Date', v_date_header,
-                        'Digest', v_digest_header,
-                        'Signature', v_signature_header
-                    ),
+                    ARRAY[
+                        ('Content-Type', 'application/activity+json'),
+                        ('User-Agent', 'Harmony/1.0.0'),
+                        ('Host', v_domain),
+                        ('Date', v_date_header),
+                        ('Digest', v_digest_header),
+                        ('Signature', v_signature_header)
+                    ]::http_header[],
                     'application/activity+json',
                     v_activity::text
-                )::extensions.http_request);
+                )::http_request);
                 
                 -- Check delivery success
                 v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);

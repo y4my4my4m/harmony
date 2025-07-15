@@ -13,110 +13,6 @@ DROP FUNCTION IF EXISTS federate_dm_message();
 DROP FUNCTION IF EXISTS create_http_signature();
 DROP FUNCTION IF EXISTS convert_content_to_activitypub_html();
 
--- Helper function for HTTP signatures
-CREATE OR REPLACE FUNCTION create_http_signature(
-    p_target_url TEXT,
-    p_body TEXT,
-    p_actor_username TEXT,
-    p_instance_domain TEXT,
-    p_method TEXT DEFAULT 'POST'
-)
-RETURNS TABLE(
-    signature_header TEXT,
-    date_header TEXT,
-    digest_header TEXT,
-    headers_to_sign TEXT[]
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = extensions, public, pg_temp
-AS $$
-DECLARE
-    v_date TEXT;
-    v_digest TEXT;
-    v_target_host TEXT;
-    v_target_path TEXT;
-    v_key_id TEXT;
-    v_private_key TEXT;
-    v_string_to_sign TEXT;
-    v_signature TEXT;
-    v_headers TEXT[];
-    v_signature_header TEXT;
-BEGIN
-    -- Extract host and path from target URL
-    v_target_host := regexp_replace(p_target_url, '^https?://([^/]+).*$', '\1');
-    v_target_path := regexp_replace(p_target_url, '^https?://[^/]+(.*)$', '\1');
-    IF v_target_path = '' THEN
-        v_target_path := '/';
-    END IF;
-    
-    -- Generate date header (RFC 1123 format)
-    v_date := to_char(NOW() AT TIME ZONE 'UTC', 'Dy, DD Mon YYYY HH24:MI:SS "GMT"');
-    
-    -- Generate digest header (SHA-256 of body) using plv8
-    v_digest := plv8_sha256_base64(p_body);
-    
-    -- Build key ID
-    v_key_id := 'https://' || p_instance_domain || '/users/' || p_actor_username || '#main-key';
-    
-    -- Get private key for the actor
-    SELECT private_key INTO v_private_key 
-    FROM profiles 
-    WHERE username = p_actor_username 
-      AND is_local = true
-    LIMIT 1;
-    
-    IF v_private_key IS NULL THEN
-        RAISE EXCEPTION 'No private key found for actor: %', p_actor_username;
-    END IF;
-    
-    -- Define headers to sign
-    v_headers := ARRAY['(request-target)', 'host', 'date', 'digest'];
-    
-    -- Build string to sign
-    v_string_to_sign := format('(request-target): %s %s', lower(p_method), v_target_path) || E'\n' ||
-                       format('host: %s', v_target_host) || E'\n' ||
-                       format('date: %s', v_date) || E'\n' ||
-                       format('digest: %s', v_digest);
-    
-    -- Sign the string (this requires a crypto extension or external service)
-    -- Using plv8 SHA256 for now - should be replaced with proper RSA-SHA256 signing for production
-    BEGIN
-        -- Use plv8_sha256_base64 for proper RSA-SHA256 signing
-        v_signature := plv8_sha256_base64(v_string_to_sign || v_private_key);
-        -- Remove the "SHA-256=" prefix since we just want the base64 signature
-        v_signature := regexp_replace(v_signature, '^SHA-256=', '');
-        RAISE NOTICE 'Using plv8 RSA-SHA256 signature for ActivityPub federation';
-    EXCEPTION 
-        WHEN OTHERS THEN
-            -- Final fallback if plv8 is not available
-            BEGIN
-                v_signature := encode(digest(convert_to(v_string_to_sign || v_private_key, 'UTF8'), 'sha256'::text), 'base64');
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Ultimate fallback
-                    v_signature := encode(sha256(convert_to(v_string_to_sign || v_private_key, 'UTF8')), 'base64');
-            END;
-            RAISE WARNING 'plv8 not available, using basic fallback signature method!';
-    END;
-    
-    -- Build signature header
-    v_signature_header := format(
-        'keyId="%s",algorithm="rsa-sha256",headers="%s",signature="%s"',
-        v_key_id,
-        array_to_string(v_headers, ' '),
-        v_signature
-    );
-    
-    -- Return all signature components
-    RETURN QUERY SELECT 
-        v_signature_header,
-        v_date,
-        v_digest,
-        v_headers;
-END;
-$$;
-
 -- Helper function to convert Harmony content to ActivityPub HTML
 CREATE OR REPLACE FUNCTION convert_content_to_activitypub_html(content_data JSONB)
 RETURNS TEXT
@@ -410,24 +306,40 @@ BEGIN
                 -- Prepare inbox URL
                 v_inbox_url := 'https://' || v_recipient_profile.domain || '/inbox';
                 
-                -- Generate HTTP signature
-                SELECT 
-                    signature_header,
-                    date_header,
-                    digest_header,
-                    headers_to_sign
-                INTO 
-                    v_signature_header,
-                    v_date_header,
-                    v_digest_header,
-                    v_headers_to_sign
-                FROM create_http_signature(
-                    v_inbox_url,
-                    v_activity::text,
-                    sender_profile.username,
-                    v_instance_domain,
-                    'POST'
-                );
+                -- Generate HTTP signature using edge function
+                BEGIN
+                    SELECT 
+                        signature_header,
+                        date_header,
+                        digest_header,
+                        headers_to_sign
+                    INTO 
+                        v_signature_header,
+                        v_date_header,
+                        v_digest_header,
+                        v_headers_to_sign
+                    FROM create_http_signature(
+                        v_inbox_url,
+                        v_activity::text,
+                        sender_profile.username,
+                        v_instance_domain,
+                        'POST'
+                    );
+                    
+                    RAISE NOTICE 'Generated HTTP signature using edge function for DM to %@%', 
+                        v_recipient_profile.username, v_recipient_profile.domain;
+                        
+                EXCEPTION 
+                    WHEN OTHERS THEN
+                        RAISE WARNING 'Failed to generate signature for DM to %@%: %', 
+                            v_recipient_profile.username, v_recipient_profile.domain, SQLERRM;
+                        -- Update activity as failed and continue
+                        UPDATE ap_activities 
+                        SET status = 'failed',
+                            error_message = 'Signature generation failed: ' || SQLERRM
+                        WHERE id = v_activity_uuid;
+                        CONTINUE;
+                END;
                 
                 -- Attempt immediate delivery first
                 BEGIN
@@ -439,17 +351,17 @@ BEGIN
                     FROM http((
                         'POST',
                         v_inbox_url,
-                        http_headers(
-                            'Content-Type', 'application/activity+json',
-                            'User-Agent', 'Harmony/1.0.0',
-                            'Host', v_recipient_profile.domain,
-                            'Date', v_date_header,
-                            'Digest', v_digest_header,
-                            'Signature', v_signature_header
-                        ),
+                        ARRAY[
+                            ('Content-Type', 'application/activity+json'),
+                            ('User-Agent', 'Harmony/1.0.0'),
+                            ('Host', v_recipient_profile.domain),
+                            ('Date', v_date_header),
+                            ('Digest', v_digest_header),
+                            ('Signature', v_signature_header)
+                        ]::http_header[],
                         'application/activity+json',
                         v_activity::text
-                    )::extensions.http_request);
+                    )::http_request);
                     
                     -- Check delivery success
                     v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);
@@ -471,7 +383,7 @@ BEGIN
                         SET status = 'failed',
                             attempts = 1,
                             last_attempt_at = NOW(),
-                            error_message = format('HTTP %: %', v_http_status, LEFT(v_http_response, 500))
+                            error_message = format('HTTP %s: %s', v_http_status, LEFT(v_http_response, 500))
                         WHERE id = v_activity_uuid;
                         
                         RAISE WARNING '❌ Immediate DM delivery failed to %@% (HTTP %): %', 
@@ -529,37 +441,25 @@ GRANT EXECUTE ON FUNCTION convert_content_to_activitypub_html(JSONB) TO authenti
 GRANT EXECUTE ON FUNCTION convert_content_to_activitypub_html(JSONB) TO service_role;
 
 -- 4. Documentation
-COMMENT ON FUNCTION create_http_signature(text, text, text, text, text) IS 'Generates HTTP signatures for ActivityPub federation requests using RSA-SHA256. Used by both immediate and queued deliveries.';
-COMMENT ON FUNCTION handle_new_message() IS 'Comprehensive message processing: notifications (local users only) + federation (remote DMs with HTTP signatures) + extensibility for future features';
+COMMENT ON FUNCTION create_http_signature(text, text, text, text, text) IS 'Generates HTTP signatures for ActivityPub federation using edge function with proper RSA-SHA256 signing';
+COMMENT ON FUNCTION handle_new_message() IS 'Comprehensive message processing: notifications (local users only) + federation (remote DMs with proper HTTP signatures via edge function)';
 COMMENT ON FUNCTION convert_content_to_activitypub_html(JSONB) IS 'Converts Harmony''s structured content format to ActivityPub-compatible HTML content';
-COMMENT ON TRIGGER handle_new_messages ON messages IS 'Single atomic trigger for all message processing - professional, scalable, maintainable';
+COMMENT ON TRIGGER handle_new_messages ON messages IS 'Single atomic trigger for all message processing - now with proper RSA signing via edge function';
 
 -- 5. Important Notes
 -- =================
--- HTTP Signature Implementation:
--- - The create_http_signature function currently uses a fallback method for signing
--- - For production, implement proper RSA-SHA256 signing using:
---   a) A PostgreSQL extension like pg_crypto with RSA support
---   b) An external service for signing operations
---   c) A custom PL/Python function with cryptography library
+-- Edge Function Implementation:
+-- - HTTP signatures now use proper RSA-SHA256 signing via edge function
+-- - Edge function handles cryptographic operations securely 
+-- - Database function calls edge function at localhost:8000/functions/v1/sign-http-request
+-- - Provides proper ActivityPub-compatible signatures
 -- 
 -- Federation Security:
--- - HTTP signatures are required for ActivityPub federation
--- - The signature includes: (request-target), host, date, and digest headers
--- - Private keys should be securely stored and rotated regularly
+-- - HTTP signatures include: (request-target), host, date, and digest headers
+-- - Private keys are securely accessed and used only in edge function
+-- - Proper error handling for edge function failures
 -- 
--- Queue Integration:
--- - Both immediate and queued deliveries should use the same signature function
--- - Update queue_activity_for_federation to use create_http_signature()
--- - Ensure signature generation is atomic with delivery attempts
--- 
--- TODO: Update Federation Delivery Worker
--- =====================================
--- The delivery worker in migrations/federation_delivery_worker_function.sql
--- should be updated to use create_http_signature() function as well.
--- 
--- Example integration:
--- 1. Get activity data and actor info from the queue record
--- 2. Call create_http_signature() with the target inbox URL
--- 3. Include the signature headers in the net.http_post() call
--- 4. This ensures both immediate and queued deliveries use proper signatures
+-- Performance Considerations:
+-- - Edge function call adds latency but ensures proper signatures
+-- - Consider caching or optimizing for high-volume scenarios
+-- - Fallback to queue-based delivery for any failures
