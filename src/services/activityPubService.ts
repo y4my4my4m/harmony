@@ -1,7 +1,6 @@
-// ActivityPub Service - Core federation functionality
-// Professional, scalable, and DRY implementation
+// ActivityPub Service - Database operations for posts, interactions, and follows
+// Triggers handle federation automatically - no client-side federation needed
 import { supabase } from '@/supabase';
-import { federationService } from './FederationService';
 import { trendingService } from './TrendingService';
 import type { 
   Post, 
@@ -13,13 +12,12 @@ import type {
   ActivityPubActivityType,
   ActivityPubObjectType,
   ConversationContext,
-  ConversationThread,
-  ReplyContext
+  ConversationThread
 } from '@/types';
 
 /**
- * Core ActivityPub service for federation functionality
- * Handles posts, follows, and ActivityPub protocol compliance
+ * Core ActivityPub service for database operations
+ * Handles posts, follows, and interactions - federation is automatic via triggers
  */
 export class ActivityPubService {
   private static instance: ActivityPubService;
@@ -657,15 +655,7 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // 🌐 FEDERATION: Queue delete activity for federation using new FederationService
-    if (originalPost.is_local && originalPost.visibility === 'public') {
-      try {
-        const activityId = await federationService.federatePostDelete(postId, originalPost.author);
-        console.log(`🗑️ Post deletion ${postId} queued for federation: ${activityId}`);
-      } catch (federationError) {
-        console.error('❌ Federation failed for post deletion:', federationError);
-      }
-    }
+    // Federation is handled automatically by database triggers
   }
 
   // =============================================
@@ -712,12 +702,7 @@ export class ActivityPubService {
       throw error;
     }
 
-    // 🌐 FEDERATION: Queue follow activity
-    try {
-      await federationService.federateFollow(user.id, targetUserId, true);
-    } catch (federationError) {
-      console.error('❌ Federation failed for follow:', federationError);
-    }
+    // Federation is handled automatically by database triggers
 
     return data as Follow;
   }
@@ -737,12 +722,7 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    // 🌐 FEDERATION: Queue unfollow activity
-    try {
-      await federationService.federateFollow(user.id, targetUserId, false);
-    } catch (federationError) {
-      console.error('❌ Federation failed for unfollow:', federationError);
-    }
+    // Federation is handled automatically by database triggers
   }
 
   /**
@@ -846,26 +826,14 @@ export class ActivityPubService {
       // Remove favorite
       await this.unfavoritePost(postId);
       
-      // 🚀 HYBRID FEDERATION: Try immediate delivery, fallback to queue
-      try {
-        const result = await federationService.federateLike(postId, user.id, false);
-        console.log(`📤 Unlike federation: ${result?.deliveryMethod || 'completed'}`);
-      } catch (federationError) {
-        console.error('❌ Federation failed for unlike:', federationError);
-      }
+      // Federation is handled automatically by database triggers
       
       return { favorited: false };
     } else {
       // Add favorite
       const interaction = await this.favoritePost(postId);
       
-      // 🚀 HYBRID FEDERATION: Try immediate delivery, fallback to queue
-      try {
-        const result = await federationService.federateLike(postId, user.id, true);
-        console.log(`📤 Like federation: ${result?.deliveryMethod || 'completed'}`);
-      } catch (federationError) {
-        console.error('❌ Federation failed for like:', federationError);
-      }
+      // Federation is handled automatically by database triggers
       
       return { favorited: true, interaction };
     }
@@ -954,13 +922,7 @@ export class ActivityPubService {
         await this.unreblogPost(reblogPost.id);
       }
 
-      // 🌐 FEDERATION: Undo announce activity
-      try {
-        const { federationService } = await import('@/services/FederationService');
-        await federationService.federateAnnounce(postId, user.id, false);
-      } catch (federationError) {
-        console.error('❌ Federation failed for undo reblog:', federationError);
-      }
+      // Federation is handled automatically by database triggers
 
       return { reblogged: false };
     } else {
@@ -978,13 +940,7 @@ export class ActivityPubService {
       // Create reblog post
       const reblogPost = await this.reblogPost(postId);
 
-      // 🌐 FEDERATION: Announce activity
-      try {
-        const { federationService } = await import('@/services/FederationService');
-        await federationService.federateAnnounce(postId, user.id, true);
-      } catch (federationError) {
-        console.error('❌ Federation failed for reblog:', federationError);
-      }
+      // Federation is handled automatically by database triggers
 
       return { reblogged: true, reblogPost };
     }
@@ -1693,7 +1649,7 @@ export class ActivityPubService {
   /**
    * Undo an action (unfollow, unfavorite, etc.)
    */
-  async undoActivity(originalActivityId: string, undoType: 'Follow' | 'Like' | 'Announce'): Promise<void> {
+  async undoActivity(originalActivityId: string): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
@@ -2091,7 +2047,6 @@ export class ActivityPubService {
         domain: post.author.domain || 'har.mony.lol',
         bio: post.author.bio || '',
         is_local: post.author.is_local !== false,
-        verified: post.author.verified || false,
         followers_count: 0, // Would need separate query
         following_count: 0, // Would need separate query
         posts_count: 0, // Would need separate query
@@ -2105,7 +2060,6 @@ export class ActivityPubService {
         domain: 'har.mony.lol',
         bio: '',
         is_local: true,
-        verified: false,
         followers_count: 0,
         following_count: 0,
         posts_count: 0,
@@ -2169,7 +2123,6 @@ export class ActivityPubService {
           domain: data.author.domain || 'har.mony.lol',
           bio: data.author.bio || '',
           is_local: !data.author.domain || data.author.domain === 'har.mony.lol',
-          verified: data.author.verified || false,
           followers_count: 0,
           following_count: 0,
           posts_count: 0,

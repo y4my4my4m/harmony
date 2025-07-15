@@ -30,6 +30,7 @@
 }
  ^^ above might be wrong, see how misskey does it, but we should be able to do this with our current federation system
 
+20. change all federation to be "Always Queue, Trigger Delivery ASAP, Fallback to Cron", right now a bunch of them are "attempt to deliver, if fail bring to queue" which could fail
 
 
 > https://codeberg.org/fediverse/fep/src/branch/main/fep
