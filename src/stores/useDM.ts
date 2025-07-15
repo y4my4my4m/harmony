@@ -13,6 +13,11 @@ export interface DMUser {
   avatar_url?: string
   is_online?: boolean
   last_seen?: string
+  // Federated user support
+  domain?: string
+  is_local?: boolean
+  federated_id?: string
+  handle?: string
 }
 
 export interface DMConversation {
@@ -304,7 +309,7 @@ export const useDMStore = defineStore('dm', () => {
       // Get other user's profile for the conversation
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url')
+        .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
         .eq('id', otherUserId)
         .single()
 
@@ -316,11 +321,14 @@ export const useDMStore = defineStore('dm', () => {
       // Get last message for conversation
       const { data: lastMessageData } = await supabase
         .from('messages')
-        .select('id, user_id, content, created_at')
+        .select('id, user_id, content, created_at, metadata')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
         .limit(1)
         .single()
+
+      // Determine if this is a federated conversation
+      const isFederated = !profileData.is_local && profileData.domain
 
       const processedConv: DMConversation = {
         id: convData.id,
@@ -335,7 +343,8 @@ export const useDMStore = defineStore('dm', () => {
           created_at: new Date(lastMessageData.created_at),
           channel_id: '', // Empty string for DMs
           conversation_id: conversationId,
-          reactions: []
+          reactions: [],
+          metadata: lastMessageData.metadata || {}
         } : undefined,
         unread_count: 0,
         other_user: {
@@ -343,7 +352,11 @@ export const useDMStore = defineStore('dm', () => {
           username: profileData.username,
           display_name: profileData.display_name,
           avatar_url: profileData.avatar_url,
-          is_online: false // Will be updated by global presence system in UI
+          is_online: false, // Will be updated by global presence system in UI
+          domain: profileData.domain,
+          is_local: profileData.is_local,
+          federated_id: profileData.federated_id,
+          handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
         }
       }
 
@@ -431,10 +444,10 @@ export const useDMStore = defineStore('dm', () => {
       for (const conv of conversationsData) {
         const otherUserId = conv.user1 === userId ? conv.user2 : conv.user1
         
-        // Get other user's profile
+        // Get other user's profile - enhanced to handle federated users
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('id, username, display_name, avatar_url')
+          .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
           .eq('id', otherUserId)
           .single()
 
@@ -446,7 +459,7 @@ export const useDMStore = defineStore('dm', () => {
         // Get last message for conversation
         const { data: lastMessageData } = await supabase
           .from('messages')
-          .select('id, user_id, content, created_at')
+          .select('id, user_id, content, created_at, metadata')
           .eq('conversation_id', conv.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -454,6 +467,9 @@ export const useDMStore = defineStore('dm', () => {
 
         // Count unread messages (messages after user's last read)
         const unreadCount = 0 // TODO: Implement proper unread counting
+
+        // Determine if this is a federated conversation
+        const isFederated = !profileData.is_local && profileData.domain
 
         const processedConv: DMConversation = {
           id: conv.id,
@@ -468,7 +484,8 @@ export const useDMStore = defineStore('dm', () => {
             created_at: new Date(lastMessageData.created_at),
             channel_id: '', // Empty string for DMs
             conversation_id: conv.id,
-            reactions: []
+            reactions: [],
+            metadata: lastMessageData.metadata || {}
           } : undefined,
           unread_count: unreadCount,
           other_user: {
@@ -476,7 +493,12 @@ export const useDMStore = defineStore('dm', () => {
             username: profileData.username,
             display_name: profileData.display_name,
             avatar_url: profileData.avatar_url,
-            is_online: false // Will be updated by global presence system in UI
+            is_online: false, // Will be updated by global presence system in UI
+            // Add federated user information
+            domain: profileData.domain,
+            is_local: profileData.is_local,
+            federated_id: profileData.federated_id,
+            handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
           }
         }
 
@@ -640,10 +662,45 @@ export const useDMStore = defineStore('dm', () => {
         return
       }
 
+      // Check if query looks like a federated handle (@user@domain.com or user@domain.com)
+      const federatedMatch = query.match(/^@?([^@]+)@([^@]+\.[^@]+)$/)
+      
+      if (federatedMatch) {
+        // Search for federated user by handle
+        const [, username, domain] = federatedMatch
+        
+        const { data: federatedUsers, error: fedError } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
+          .eq('username', username)
+          .eq('domain', domain)
+          .eq('is_local', false)
+          .limit(5)
+
+        if (fedError) {
+          console.error('Error searching federated users:', fedError)
+        } else if (federatedUsers && federatedUsers.length > 0) {
+          searchResults.value = federatedUsers.map(user => ({
+            id: user.id,
+            username: user.username,
+            display_name: user.display_name,
+            avatar_url: user.avatar_url,
+            domain: user.domain,
+            is_local: user.is_local,
+            federated_id: user.federated_id,
+            handle: `${user.username}@${user.domain}`,
+            is_online: false
+          }))
+          return
+        }
+      }
+
+      // Search local users
       const { data: users, error } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url')
+        .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
         .neq('id', currentUserId) // Exclude current user
+        .eq('is_local', true) // Only search local users for now
         .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
         .limit(10)
 
@@ -658,6 +715,10 @@ export const useDMStore = defineStore('dm', () => {
         username: user.username,
         display_name: user.display_name,
         avatar_url: user.avatar_url,
+        domain: user.domain,
+        is_local: user.is_local,
+        federated_id: user.federated_id,
+        handle: user.is_local ? user.username : `${user.username}@${user.domain}`,
         is_online: false // Will be updated by global presence system in UI
       }))
       
@@ -748,6 +809,51 @@ export const useDMStore = defineStore('dm', () => {
 
       console.log('✅ DM message sent successfully to database:', newMessage)
       
+      // Check if this conversation involves federated users
+      try {
+        const { data: conversation, error: convError } = await supabase
+          .from('conversations')
+          .select(`
+            id,
+            user1_id,
+            user2_id,
+            user1:profiles!conversations_user1_id_fkey(id, username, domain, is_local),
+            user2:profiles!conversations_user2_id_fkey(id, username, domain, is_local)
+          `)
+          .eq('id', conversationId)
+          .single()
+
+        if (!convError && conversation) {
+          const otherUser = conversation.user1_id === userId ? conversation.user2 : conversation.user1
+          
+          // Type assertion for the joined profile data
+          const otherUserProfile = otherUser as any
+          
+          // If the other user is federated, queue federation delivery
+          if (otherUserProfile && !otherUserProfile.is_local && otherUserProfile.domain) {
+            console.log('🌐 Queuing federated DM delivery to:', `${otherUserProfile.username}@${otherUserProfile.domain}`)
+            
+            const { error: federationError } = await supabase.rpc('create_outgoing_dm_activity', {
+              p_message_id: newMessage.id,
+              p_conversation_id: conversationId,
+              p_sender_id: userId,
+              p_content: content,
+              p_recipient_domains: [otherUserProfile.domain]
+            })
+
+            if (federationError) {
+              console.error('❌ Failed to queue federated DM delivery:', federationError)
+              // Don't fail the entire message send for federation errors
+            } else {
+              console.log('✅ Federated DM delivery queued successfully')
+            }
+          }
+        }
+      } catch (federationError) {
+        console.error('❌ Error checking federation requirements:', federationError)
+        // Don't fail the entire message send for federation errors
+      }
+      
       // 🔔 Database triggers now handle DM notifications automatically
       // No need for manual notification creation - the database trigger will detect
       // the new message insert and create appropriate notifications based on conversation participants
@@ -795,7 +901,7 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // Smart conversation switching that loads cached messages instantly when available
+  // Smart conversation switching that loads cached messages instantly
   const switchToConversation = async (conversationId: string) => {
     // Set the current conversation first (this sets up subscriptions)
     setCurrentConversation(conversationId)

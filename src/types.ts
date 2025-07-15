@@ -178,6 +178,7 @@ export interface Message {
   reply_to?: string;
   reactions?: Reaction[]; // doesn't exist in the database, we're transforming it
   is_system?: boolean; // for system messages like join/leave announcements
+  metadata?: Record<string, any>; // for federated messages and other metadata
 }
 
 // should probably start to put these in their own files

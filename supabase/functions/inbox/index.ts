@@ -239,7 +239,15 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
 
   const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol'
   
-  // Check if this post mentions any of our local users
+  // Check if this is a direct/private message
+  const isDirectMessage = isActivityPubDirectMessage(object, ourDomain)
+  
+  if (isDirectMessage) {
+    await processDirectMessage(supabase, activity, object, ourDomain)
+    return
+  }
+  
+  // Check if this post mentions any of our local users (for public posts)
   const mentionTags = object.tag?.filter((tag: any) => tag.type === 'Mention') || []
   const localMentions = mentionTags.filter((tag: any) => 
     tag.href && tag.href.includes(`https://${ourDomain}/users/`)
@@ -699,4 +707,251 @@ function parseActivityPubHTMLToJSONB(htmlContent: string, mentionTags: any[] = [
   console.log('✅ Final parsed result:', finalResult);
 
   return finalResult.length > 0 ? finalResult : [{ type: 'text', text: '' }];
+}
+
+// Helper function to determine if an ActivityPub Note is a direct message
+function isActivityPubDirectMessage(object: any, ourDomain: string): boolean {
+  // Method 1: Check visibility property (Mastodon style)
+  if (object.visibility === 'direct') {
+    return true
+  }
+  
+  // Method 2: Check addressing - direct messages are typically sent only to specific recipients
+  // without including public collections
+  const to = Array.isArray(object.to) ? object.to : (object.to ? [object.to] : [])
+  const cc = Array.isArray(object.cc) ? object.cc : (object.cc ? [object.cc] : [])
+  
+  const hasPublicAudience = [...to, ...cc].some(recipient => 
+    recipient === 'https://www.w3.org/ns/activitystreams#Public' ||
+    recipient === 'as:Public' ||
+    recipient.includes('/followers')
+  )
+  
+  // If it's not public and has specific recipients from our domain, it's likely a DM
+  if (!hasPublicAudience) {
+    const hasLocalRecipients = [...to, ...cc].some(recipient => 
+      recipient.includes(`https://${ourDomain}/users/`)
+    )
+    
+    if (hasLocalRecipients) {
+      return true
+    }
+  }
+  
+  // Method 3: Check mention tags - if only mentioned users are from our domain
+  // and there's no public audience, treat as DM
+  const mentionTags = object.tag?.filter((tag: any) => tag.type === 'Mention') || []
+  const localMentions = mentionTags.filter((tag: any) => 
+    tag.href && tag.href.includes(`https://${ourDomain}/users/`)
+  )
+  
+  return !hasPublicAudience && localMentions.length > 0
+}
+
+// Process direct messages from ActivityPub
+async function processDirectMessage(supabase: any, activity: ActivityPubActivity, object: any, ourDomain: string) {
+  console.log('🔒 Processing direct message:', activity.id)
+  
+  try {
+    // Get or create the author profile
+    const author = await getOrCreateRemoteProfile(supabase, activity.actor)
+    if (!author) {
+      console.error('Failed to resolve DM author')
+      return
+    }
+
+    console.log(`📧 Direct message from ${author.username}@${author.domain}`)
+
+    // Extract mentioned local users
+    const mentionTags = object.tag?.filter((tag: any) => tag.type === 'Mention') || []
+    const localMentions = mentionTags.filter((tag: any) => 
+      tag.href && tag.href.includes(`https://${ourDomain}/users/`)
+    )
+
+    // Also check direct addressing
+    const to = Array.isArray(object.to) ? object.to : (object.to ? [object.to] : [])
+    const cc = Array.isArray(object.cc) ? object.cc : (object.cc ? [object.cc] : [])
+    
+    const directlyAddressed = [...to, ...cc]
+      .filter(recipient => recipient.includes(`https://${ourDomain}/users/`))
+      .map(recipient => {
+        const match = recipient.match(`https://${ourDomain}/users/([^/]+)`)
+        return match ? match[1] : null
+      })
+      .filter(Boolean)
+
+    // Combine mentioned and directly addressed users
+    const mentionedUsernames = new Set([
+      ...localMentions.map((tag: any) => {
+        const match = tag.href.match(`https://${ourDomain}/users/([^/]+)`)
+        return match ? match[1] : null
+      }).filter(Boolean),
+      ...directlyAddressed
+    ])
+
+    if (mentionedUsernames.size === 0) {
+      console.log('Direct message has no local recipients')
+      return
+    }
+
+    console.log(`📧 DM mentions ${mentionedUsernames.size} local users:`, Array.from(mentionedUsernames))
+
+    // Convert ActivityPub HTML content to our standard JSONB format
+    const contentArray = parseActivityPubHTMLToJSONB(object.content || '', mentionTags)
+
+    // Process each mentioned user - create conversations and messages
+    for (const username of mentionedUsernames) {
+      // Get the local user
+      const { data: localUser } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .eq('username', username)
+        .eq('domain', ourDomain)
+        .eq('is_local', true)
+        .single()
+
+      if (!localUser) {
+        console.error(`Local user not found: ${username}`)
+        continue
+      }
+
+      // Find or create conversation between the federated user and local user
+      const conversationId = await findOrCreateDMConversation(supabase, author.id, localUser.id)
+      
+      if (!conversationId) {
+        console.error(`Failed to create/find conversation between ${author.id} and ${localUser.id}`)
+        continue
+      }
+
+      // Store the DM message
+      const messageData = {
+        conversation_id: conversationId,
+        user_id: author.id,
+        content: contentArray,
+        created_at: object.published || new Date().toISOString(),
+        is_system: false,
+        // Add federation metadata
+        metadata: {
+          federated: true,
+          ap_id: object.id,
+          ap_type: 'Note',
+          from_domain: author.domain,
+          original_url: object.url || object.id
+        }
+      }
+
+      const { data: savedMessage, error: messageError } = await supabase
+        .from('messages')
+        .insert(messageData)
+        .select()
+        .single()
+
+      if (messageError) {
+        console.error(`Failed to save federated DM for ${username}:`, messageError)
+        continue
+      }
+
+      console.log(`✅ Saved federated DM ${savedMessage.id} from ${author.username}@${author.domain} to ${username}`)
+
+      // Create DM notification for the local user
+      let contentPreview = ''
+      if (Array.isArray(contentArray) && contentArray.length > 0) {
+        const textContent = contentArray[0]?.text || ''
+        if (typeof textContent === 'string') {
+          contentPreview = textContent
+            .replace(/<[^>]*>/g, '') // Remove HTML tags
+            .replace(/&lt;/g, '<')   // Decode HTML entities
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&hellip;/g, '...')
+            .trim()
+            .substring(0, 120)
+        }
+      }
+
+      const avatarUrl = author.avatar_url 
+        ? (author.avatar_url.startsWith('http') ? author.avatar_url : `https://${author.domain}${author.avatar_url}`)
+        : null
+
+      const notificationData = {
+        conversation_id: conversationId,
+        message_id: savedMessage.id,
+        sender: {
+          user_id: author.id,
+          username: author.username,
+          display_name: author.display_name,
+          avatar_url: avatarUrl,
+          domain: author.domain,
+          handle: `@${author.username}@${author.domain}`
+        },
+        message: {
+          content_preview: contentPreview,
+          federated: true
+        }
+      }
+
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: localUser.id,
+          type: 'dm',
+          data: notificationData,
+          is_read: false,
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+        })
+
+      if (notificationError) {
+        console.error('Failed to create DM notification:', notificationError)
+      } else {
+        console.log(`📩 Created federated DM notification for @${username}`)
+      }
+    }
+
+  } catch (error) {
+    console.error('Error processing direct message:', error)
+    throw error
+  }
+}
+
+// Find or create a DM conversation between two users
+async function findOrCreateDMConversation(supabase: any, user1Id: string, user2Id: string): Promise<string | null> {
+  try {
+    // Check if conversation already exists (regardless of user order)
+    const { data: existingConversation } = await supabase
+      .from('conversations')
+      .select('id')
+      .or(`and(user1.eq.${user1Id},user2.eq.${user2Id}),and(user1.eq.${user2Id},user2.eq.${user1Id})`)
+      .single()
+
+    if (existingConversation) {
+      console.log(`📝 Found existing conversation: ${existingConversation.id}`)
+      return existingConversation.id
+    }
+
+    // Create new conversation
+    const { data: newConversation, error } = await supabase
+      .from('conversations')
+      .insert({
+        user1: user1Id,
+        user2: user2Id,
+        created_at: new Date().toISOString()
+      })
+      .select('id')
+      .single()
+
+    if (error) {
+      console.error('Failed to create conversation:', error)
+      return null
+    }
+
+    console.log(`🆕 Created new conversation: ${newConversation.id}`)
+    return newConversation.id
+
+  } catch (error) {
+    console.error('Error finding/creating conversation:', error)
+    return null
+  }
 }

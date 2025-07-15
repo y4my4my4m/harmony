@@ -19,13 +19,25 @@
             size="sm"
             :status="otherUserStatus"
           />
+          <!-- Federated user indicator -->
+          <div 
+            v-if="isFederatedUser" 
+            class="federated-indicator"
+            :title="`Federated user from ${conversation.other_user?.domain}`"
+          >
+            <Icon name="globe" />
+          </div>
         </div>
         <div class="conversation-details">
           <h2 class="conversation-name">
             {{ getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}
           </h2>
           <div class="conversation-status">
-            <span v-if="isOtherUserOnline" class="status online">
+            <!-- Show federated handle for remote users -->
+            <span v-if="isFederatedUser" class="federated-handle">
+              {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
+            </span>
+            <span v-else-if="isOtherUserOnline" class="status online">
               Online
             </span>
             <span v-else class="status offline">
@@ -73,6 +85,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
+import Icon from '@/components/common/Icon.vue'
 import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 
@@ -85,6 +98,7 @@ interface Props {
 const props = defineProps<Props>()
 
 // Emits
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
@@ -106,6 +120,10 @@ const isOtherUserOnline = computed(() => {
 const otherUserStatus = computed(() => {
   if (!props.conversation.other_user?.id) return 'offline'
   return getUserStatusForAvatar(props.conversation.other_user.id).value
+})
+
+const isFederatedUser = computed(() => {
+  return props.conversation.other_user?.domain && props.conversation.other_user?.domain !== 'local'
 })
 
 // Methods
@@ -185,9 +203,10 @@ const handleMoreClick = () => {
 }
 
 .conversation-avatar {
-  display: flex;
-  align-items: center;
+  position: relative;
+  flex-shrink: 0;
 }
+
 .conversation-details {
   flex: 1;
   min-width: 0;
@@ -251,6 +270,39 @@ const handleMoreClick = () => {
 .more-icon {
   width: 20px;
   height: 20px;
+}
+
+.federated-indicator {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 16px;
+  height: 16px;
+  background: #5865f2;
+  border: 2px solid var(--background-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.federated-indicator svg {
+  width: 10px;
+  height: 10px;
+  color: white;
+}
+
+.federated-handle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: 'Roboto Mono', monospace;
+  background: rgba(88, 101, 242, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 /* Mobile styles */
