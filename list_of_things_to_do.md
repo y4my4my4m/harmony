@@ -49,17 +49,4 @@
 
 27.   .social-sidebar-container and .channel-sidebar-container should be consolidated into the same styling
 
----
-
-Please create a professional, clean, scalable and DRY code resembling what discord is doing.
-You may refactor and change almost everything but don't lose functionality
-
----
-
-I'd like to redo the following features: the profile view modal, a better invite system,
-the one when you click on another user, it looks amateurish, I want it to have a professional and fun look, gamer/internaut ish, something modern that you'd see on dribbble.com or something, good UI/UX.
-
-Please create a professional, clean, scalable and DRY code resembling what discord is doing.
-You may refactor and change almost everything but don't lose functionality
-
-Do not name things "discord"
+28. implement rollUp build so that vendor (vite/vue other libraries) get bundled into the same chunks and my own components into others, so caching for libraries will remain longer, meaning faster loadings for users when i change stuff in components

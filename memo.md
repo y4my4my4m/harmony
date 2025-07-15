@@ -73,3 +73,19 @@ Please create a professional, clean, scalable and DRY code resembling what disco
 You may refactor and change almost everything but don't lose functionality
 
 Do not name things "discord"
+
+
+---
+
+Please create a professional, clean, scalable and DRY code resembling what discord is doing.
+You may refactor and change almost everything but don't lose functionality
+
+---
+
+I'd like to redo the following features: the profile view modal, a better invite system,
+the one when you click on another user, it looks amateurish, I want it to have a professional and fun look, gamer/internaut ish, something modern that you'd see on dribbble.com or something, good UI/UX.
+
+Please create a professional, clean, scalable and DRY code resembling what discord is doing.
+You may refactor and change almost everything but don't lose functionality
+
+Do not name things "discord"
