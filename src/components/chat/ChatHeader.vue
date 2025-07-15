@@ -51,6 +51,7 @@
       
       <button 
         class="action-btn members-btn"
+        :class="{ active: props.rightSidebarOpen }"
         @click="handleMembersClick"
         title="Show member list"
       >
@@ -81,6 +82,7 @@ interface Props {
   channel: Channel
   server?: Server
   isMobile?: boolean
+  rightSidebarOpen?: boolean
 }
 
 const props = defineProps<Props>()
@@ -89,6 +91,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
+  'toggle-right-sidebar': []
 }>()
 
 // State
@@ -103,6 +106,7 @@ const handleSearchClick = () => {
 
 const handleMembersClick = () => {
   showMembersList.value = !showMembersList.value
+  emit('toggle-right-sidebar')
 }
 
 const handleMoreClick = () => {

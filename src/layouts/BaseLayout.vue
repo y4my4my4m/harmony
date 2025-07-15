@@ -50,7 +50,8 @@
     </div>
 
     <!-- User Profile at Bottom -->
-    <div class="user-profile-section">
+    <!-- TODO: fix for mobile -->
+    <div v-if="!isMobile" class="user-profile-section">
       <UserProfileComponent />
     </div>
   </div>

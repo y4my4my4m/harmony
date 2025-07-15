@@ -656,25 +656,6 @@ const formatNumber = (num: number): string => {
   .context-bar-container {
     display: none;
   }
-  .social-sidebar-container,
-  .right-sidebar-container {
-    position: fixed;
-    top: 48px;
-    height: calc(100vh - 48px);
-    z-index: 200;
-    transform: translateX(0%);
-    transition: transform 0.3s ease;
-  }
-  
-  .social-sidebar-container.mobile-open {
-    transform: translateX(0);
-    left: 72px;
-  }
-  
-  .right-sidebar-container.mobile-open {
-    transform: translateX(0);
-    right: 0;
-  }
   
   .main-content-area {
     width: 100%;

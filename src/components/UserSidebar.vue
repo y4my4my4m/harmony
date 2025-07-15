@@ -1,5 +1,5 @@
 <template>
-  <div class="user-sidebar" :class="{ 'sidebar-hidden': !sidebarVisible }">
+  <div class="user-sidebar" :class="{ 'sidebar-hidden': !props.visible }">
     <!-- Header Section -->
     <div class="sidebar-header">
       <div class="search-container">
@@ -63,7 +63,7 @@
     </div>
 
     <!-- User Groups -->
-    <div class="user-groups" v-if="sidebarVisible">
+    <div class="user-groups" v-if="props.visible">
       <!-- Online Users -->
       <div v-if="groupedUsers.online.length > 0" class="user-group">
         <button 
@@ -246,6 +246,15 @@ import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
 import { useUserData } from '@/composables/useUserData';
 
+// Props
+interface Props {
+  visible?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  visible: true
+})
+
 const serverChannelStore = useServerChannelStore();
 
 // Debug: Track duplicate calls
@@ -268,7 +277,6 @@ const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
 const searchQuery = ref('');
-const sidebarVisible = ref(true);
 const showServerSettings = ref(false);
 const showRolesView = ref(false);
 
@@ -375,10 +383,6 @@ const currentServerData = computed(() => {
 });
 
 // Methods
-const toggleSidebar = () => {
-  sidebarVisible.value = !sidebarVisible.value;
-};
-
 const toggleServerSettings = () => {
   showServerSettings.value = !showServerSettings.value;
   console.log('Server settings toggled:', showServerSettings.value);
@@ -447,24 +451,6 @@ const closeInviteModal = () => {
 </script>
 
 <style scoped>
-.user-sidebar {
-  width: 240px;
-  min-width: 240px;
-  background-color: var(--background-quinary);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  transition: width 0.2s ease, margin-right 0.2s ease;
-  border-left: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.sidebar-hidden {
-  width: 0;
-  min-width: 0;
-  margin-right: -240px;
-  overflow: hidden;
-}
-
 /* Header Section */
 .sidebar-header {
   padding: 16px 8px 8px 16px;
@@ -765,17 +751,6 @@ const closeInviteModal = () => {
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .user-sidebar {
-    width: 100%;
-    max-width: 320px;
-    min-width: 280px;
-    background: linear-gradient(135deg, var(--h-sidebar, #2b2d31) 0%, #252830 100%);
-    border-left: 1px solid rgba(88, 101, 242, 0.2);
-  }
-  
-  .sidebar-hidden {
-    margin-right: -320px;
-  }
 
   /* Enhanced mobile touch targets */
   .control-btn {

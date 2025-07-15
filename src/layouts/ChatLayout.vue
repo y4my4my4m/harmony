@@ -55,6 +55,7 @@
             :is-mobile="isMobile"
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
             @toggle-voice-panel="$emit('toggleVoicePanel')"
+            @toggle-right-sidebar="$emit('toggleRightSidebar')"
           />
           <div v-else class="chat-placeholder-header">
             <div class="header-content">
@@ -91,8 +92,8 @@
           </div>
 
           <!-- Right Sidebar (User List) -->
-          <div v-if="!isDM" class="right-sidebar-container" :class="{ 'mobile-open': rightSidebarOpen }">
-            <UserSidebar />
+          <div v-if="!isDM" class="right-sidebar-container" :class="{ 'sidebar-open': rightSidebarOpen }">
+            <UserSidebar :visible="rightSidebarOpen" />
           </div>
         </div>
       </div>
@@ -395,10 +396,18 @@ onMounted(() => {
 }
 
 .right-sidebar-container {
-  width: 240px;
   flex-shrink: 0;
   background: var(--background-tertiary);
-  z-index: 40;
+  transition: transform 0.3s ease, width 0.3s ease;
+  transform: translateX(100%);
+  width: 0px;
+}
+
+
+.right-sidebar-container.sidebar-open {
+  transform: translateX(0);
+  height: 100vh;
+  width: 240px;
 }
 
 /* Mobile responsiveness */
@@ -410,24 +419,24 @@ onMounted(() => {
   .channel-sidebar-container,
   .right-sidebar-container {
     position: fixed;
-    top: 48px;
-    height: calc(100vh - 48px);
-    z-index: 200;
-    transform: translateX(-120%);
-    transition: transform 0.3s ease;
-  }
-  
-  .channel-sidebar-container.mobile-open {
-    transform: translateX(0);
-    left: 72px;
     top: 0;
-    height: 100vh;
-    width: 260px;
-    border-right: 1px solid var(--border-color);
+    height: 100%;
+    z-index: 200;
+    transition: transform 0.3s ease, width 0.1s ease;
   }
-  
-  .right-sidebar-container.mobile-open {
-    transform: translateX(0);
+  .channel-sidebar-container.mobile-open {
+    transform: translateX(72px);
+    width: 240px;
+    left: 0;
+  }
+  .channel-sidebar-container {
+    transform: translateX(-150%);
+    width: 0;
+    left: 0;
+  }
+  .right-sidebar-container {
+    transform: translateX(150%);
+    width: 0px;
     right: 0;
   }
   
