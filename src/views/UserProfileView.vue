@@ -233,7 +233,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
-import { federationService } from '@/services/FederationService';
+
 import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';
@@ -356,10 +356,10 @@ const loadUserProfile = async (handle: string) => {
     
     console.log(`🔍 Processing handle: ${handle}`);
     
-    // Check if it's a federated handle (contains @)
+    // Check if it's a federated handle (contains @) or local handle
     if (handle.includes('@')) {
       console.log('🌐 Resolving federated user...');
-      user.value = await federationService.resolveRemoteUser(handle);
+      user.value = await activityPubService.getUserByHandle(handle);
     } else {
       console.log('👤 Looking up local user...');
       

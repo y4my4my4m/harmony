@@ -149,7 +149,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
-import { federationService } from '@/services/FederationService';
+import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import UserCard from './UserCard.vue';
@@ -234,7 +234,7 @@ const performSearch = async () => {
       // Direct handle lookup
       const [, username, domain] = handleMatch;
       try {
-        const user = await federationService.resolveRemoteUser(`${username}@${domain}`);
+        const user = await activityPubService.getUserByHandle(`${username}@${domain}`);
         if (user) {
           searchResults.value = [user];
           addToRecentSearches(user);
@@ -256,31 +256,10 @@ const performSearch = async () => {
 
 const performRegularSearch = async (query: string) => {
   try {
-    // TODO: Implement proper search API call
-    // For now, use mock data
-    const mockResults: FederatedUser[] = [
-      {
-        id: 'mock1',
-        username: 'alice',
-        domain: 'mastodon.social',
-        handle: '@alice@mastodon.social',
-        display_name: 'Alice Smith',
-        avatar_url: '/default_avatar.png',
-        bio: 'Federated user from Mastodon',
-        is_local: false,
-        followers_count: 150,
-        following_count: 89,
-        posts_count: 234,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-    ].filter(user => 
-      user.username.includes(query.toLowerCase()) ||
-      user.display_name?.toLowerCase().includes(query.toLowerCase())
-    );
-
-    searchResults.value = mockResults;
-    hasMoreResults.value = false;
+    // Use the activityPubService to search for users
+    const results = await activityPubService.searchUsers(query, 20);
+    searchResults.value = results;
+    hasMoreResults.value = results.length >= 20; // More results might be available if we got the full limit
   } catch (error) {
     console.error('Regular search failed:', error);
     searchResults.value = [];
