@@ -35,7 +35,7 @@ export class ServiceWorkerManager {
 
       console.log('✅ ServiceWorker: Registered successfully')
 
-      // Handle service worker updates with better UX
+      // Handle service worker updates with better UX - Mobile friendly
       this.registration.addEventListener('updatefound', () => {
         console.log('🔄 ServiceWorker: Update found')
         const newWorker = this.registration!.installing
@@ -43,10 +43,17 @@ export class ServiceWorkerManager {
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('🆕 ServiceWorker: New version available')
-              // Emit custom event for update notification
+              console.log('🆕 ServiceWorker: New version available - waiting for user action')
+              // Don't force immediate activation - let user control updates
+              // Emit custom event for update notification (non-intrusive)
               window.dispatchEvent(new CustomEvent('sw-update-available', {
-                detail: this.registration
+                detail: { 
+                  registration: this.registration,
+                  newWorker: newWorker,
+                  skipWaiting: () => {
+                    newWorker.postMessage({ type: 'SKIP_WAITING' })
+                  }
+                }
               }))
             }
           })
@@ -317,6 +324,27 @@ export class ServiceWorkerManager {
   }
 
   /**
+   * Manually activate waiting service worker - User controlled updates
+   */
+  async activateWaitingServiceWorker(): Promise<void> {
+    if (!this.registration?.waiting) {
+      console.warn('⚠️ No waiting service worker to activate')
+      return
+    }
+
+    console.log('⏭️ Manually activating waiting service worker')
+    
+    // Send skip waiting message to the waiting service worker
+    this.registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+    
+    // Listen for the controlling change
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('🔄 Service worker controller changed - reloading page')
+      window.location.reload()
+    })
+  }
+
+  /**
    * Check if service worker is supported and ready
    */
   get isSupported(): boolean {
@@ -393,6 +421,7 @@ export class ServiceWorkerManager {
       return false
     }
   }
+
 }
 
 // Export singleton instance

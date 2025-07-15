@@ -1,10 +1,10 @@
 // Enhanced Service Worker for Discord-like Notifications and PWA Features
-// Version: 3.1 - Improved update handling and caching strategies
+// Version: 3.2 - Mobile optimized to prevent aggressive reloading
 
-const CACHE_NAME = 'harmony-v3'
-const NOTIFICATION_CACHE = 'harmony-notifications-v1'
-const STATIC_CACHE = 'harmony-static-v1'
-const API_CACHE = 'harmony-api-v1'
+const CACHE_NAME = 'harmony-v4-mobile'
+const NOTIFICATION_CACHE = 'harmony-notifications-v2'
+const STATIC_CACHE = 'harmony-static-v2'
+const API_CACHE = 'harmony-api-v2'
 
 // Cache strategies
 const STATIC_RESOURCES = [
@@ -24,10 +24,9 @@ self.addEventListener('install', (event) => {
     caches.open(STATIC_CACHE).then((cache) => {
       console.log('📦 Service Worker: Precaching static resources')
       return cache.addAll(STATIC_RESOURCES)
-    }).then(() => {
-      // Skip waiting to activate immediately
-      return self.skipWaiting()
     })
+    // Don't skip waiting - let the user control updates
+    // This prevents aggressive takeover on mobile
   )
 })
 
@@ -49,8 +48,11 @@ self.addEventListener('activate', (event) => {
         })
       )
     }).then(() => {
-      // Take control of all clients
-      return self.clients.claim()
+      // Only claim clients if explicitly requested - prevents aggressive takeover
+      // This helps with mobile reload issues
+      if (self.registration?.waiting) {
+        return self.clients.claim()
+      }
     })
   )
 })
@@ -159,6 +161,40 @@ self.addEventListener('sync', (event) => {
   
   if (event.tag === 'send-notification') {
     event.waitUntil(processPendingNotifications())
+  }
+})
+
+// Handle messages from main app - Mobile friendly update control
+self.addEventListener('message', (event) => {
+  console.log('📧 Service Worker: Received message', event.data)
+  
+  switch (event.data.type) {
+    case 'SKIP_WAITING':
+      // Only skip waiting when explicitly requested by user
+      console.log('⏭️ Service Worker: Manual skip waiting requested')
+      self.skipWaiting()
+      break
+    case 'GET_VERSION':
+      // Handle version requests
+      event.ports[0]?.postMessage({
+        version: '3.2',
+        updated: new Date().toISOString()
+      })
+      break
+    case 'PREFETCH_CRITICAL':
+      // Handle prefetch requests
+      console.log('📦 Service Worker: Prefetch critical resources requested')
+      break
+    case 'UPDATE_NOTIFICATION_SETTINGS':
+      // Handle notification settings
+      console.log('⚙️ Service Worker: Notification settings updated')
+      break
+    case 'CLEAR_NOTIFICATIONS':
+      // Handle notification clearing
+      console.log('🗑️ Service Worker: Clearing notifications')
+      break
+    default:
+      console.log('⚠️ Service Worker: Unknown message type:', event.data.type)
   }
 })
 
@@ -305,7 +341,7 @@ async function processNotification(data) {
 
 // Note: Install and activate event listeners are defined at the top of the file
 
-// Enhanced fetch handling with offline support
+// Enhanced fetch handling with offline support - Mobile optimized
 self.addEventListener('fetch', (event) => {
   // Skip unsupported schemes
   const requestUrl = new URL(event.request.url)
@@ -339,37 +375,56 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Enhanced request categorization (images are skipped above)
+  // MOBILE FIX: Skip navigation requests to prevent aggressive reloading
+  // Only handle specific resource types, not page navigation
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+    return // Let the browser handle navigation naturally
+  }
+
+  // Enhanced request categorization (more selective for mobile)
   const url = new URL(event.request.url)
   const isAPIRequest = url.pathname.startsWith('/api/')
   const isAuthRequest = url.pathname.includes('/auth/')
   const isCSSRequest = url.pathname.endsWith('.css')
-  const isJSRequest = url.pathname.endsWith('.js')
+  const isJSRequest = url.pathname.endsWith('.js') || url.pathname.endsWith('.ts')
 
+  // Only intercept specific types of requests
   if (isAPIRequest || isAuthRequest) {
     // Critical API requests - network first with enhanced error handling
     event.respondWith(enhancedNetworkFirst(event.request, API_CACHE))
   } else if (isCSSRequest || isJSRequest) {
-    // Static assets - stale while revalidate
+    // Static assets - stale while revalidate (better for mobile)
     event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE))
-  } else {
-    // HTML pages - network first with offline fallback
-    event.respondWith(enhancedNetworkFirst(event.request, CACHE_NAME))
   }
+  // Remove the 'else' case that was intercepting ALL other requests
 })
 
-// Enhanced caching strategies
+// Enhanced caching strategies - Mobile optimized
 async function enhancedNetworkFirst(request, cacheName) {
   try {
-    const networkResponse = await fetch(request)
+    // Add timeout for mobile connections
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+    
+    const networkResponse = await fetch(request, {
+      signal: controller.signal
+    })
+    
+    clearTimeout(timeoutId)
     
     if (networkResponse.status === 200 && networkResponse.ok) {
-      const cache = await caches.open(cacheName)
-      // Clone response before caching
-      const responseClone = networkResponse.clone()
-      cache.put(request, responseClone).catch(err => {
-        console.warn('Failed to cache response:', err)
-      })
+      // Only cache if response is good and not too large (mobile friendly)
+      const contentLength = networkResponse.headers.get('content-length')
+      const isSmallResponse = !contentLength || parseInt(contentLength) < 1024 * 1024 // 1MB limit
+      
+      if (isSmallResponse) {
+        const cache = await caches.open(cacheName)
+        // Clone response before caching
+        const responseClone = networkResponse.clone()
+        cache.put(request, responseClone).catch(err => {
+          console.warn('Failed to cache response:', err)
+        })
+      }
     }
     
     return networkResponse
@@ -381,67 +436,8 @@ async function enhancedNetworkFirst(request, cacheName) {
       return cachedResponse
     }
     
-    // Enhanced offline fallback
-    if (request.destination === 'document') {
-      const offlineResponse = await caches.match('/offline.html')
-      if (offlineResponse) {
-        return offlineResponse
-      }
-      
-      // Create a simple offline page if none exists
-      return new Response(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Harmony - Offline</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-              body { 
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                background: #1e1f22; 
-                color: white; 
-                text-align: center; 
-                padding: 50px 20px;
-                margin: 0;
-              }
-              .offline-container {
-                max-width: 400px;
-                margin: 0 auto;
-              }
-              .offline-icon {
-                font-size: 48px;
-                margin-bottom: 20px;
-              }
-              h1 { color: #5865f2; margin-bottom: 10px; }
-              p { color: #b5bac1; line-height: 1.5; }
-              button {
-                background: #5865f2;
-                color: white;
-                border: none;
-                padding: 12px 24px;
-                border-radius: 8px;
-                font-size: 16px;
-                cursor: pointer;
-                margin-top: 20px;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="offline-container">
-              <div class="offline-icon">📱</div>
-              <h1>You're Offline</h1>
-              <p>Check your internet connection and try again.</p>
-              <button onclick="window.location.reload()">Try Again</button>
-            </div>
-          </body>
-        </html>
-      `, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html' }
-      })
-    }
-    
-    return new Response('Offline', { 
+    // Simplified offline fallback for mobile
+    return new Response('Network unavailable', { 
       status: 503,
       headers: { 'Content-Type': 'text/plain' }
     })
