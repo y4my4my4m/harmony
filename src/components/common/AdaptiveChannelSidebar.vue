@@ -522,6 +522,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 20px;
   padding: 16px;
+  padding-top: 0;
 }
 
 .social-title {
@@ -802,6 +803,10 @@ onUnmounted(() => {
     border-top: 0;
   }
   
+  .social-sidebar-content {
+    padding: 12px;
+    padding-top: 0;
+  }
   .social-sidebar {
     gap: 12px;
   }

@@ -690,8 +690,6 @@ const formatNumber = (num: number): string => {
     transform: translateX(-150%);
     width: 0;
     left: 0;
-    padding: 12px;
-    gap: 16px;
   }
   .right-sidebar-container {
     transform: translateX(150%);
