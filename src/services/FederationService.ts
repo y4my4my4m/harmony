@@ -189,11 +189,14 @@ export class FederationService {
     const deliveries = targets.map(target => ({
       activity_id: activityId,
       target_domain: target.domain,
-      target_inbox: target.inboxUrl,
-      activity_data: activity,
+      target_inbox_url: target.inboxUrl,
       status: 'pending' as const,
+      attempts: 0,
+      max_attempts: 5,
       next_attempt_at: new Date().toISOString(),
-      attempt_count: 0
+      priority: 5,
+      actor_username: null, // Will be populated from activity if needed
+      actor_domain: this.config.domain
     }));
 
     const { error } = await supabase
@@ -785,34 +788,65 @@ export class FederationService {
   }
 
   /**
-   * Deliver ActivityPub activity to remote inboxs
+   * Queue ActivityPub activity for server-side delivery to remote inboxes
+   * Note: This queues for server-side delivery to avoid CORS issues
    */
   private async deliverActivity(activity: any, inboxUrls: string[]): Promise<void> {
-    console.log(`📡 Delivering activity to ${inboxUrls.length} inboxes:`, activity.type);
+    console.log(`📡 Queueing activity for server-side delivery to ${inboxUrls.length} inboxes:`, activity.type);
     
-    const deliveryPromises = inboxUrls.map(async (inboxUrl) => {
-      try {
-        const response = await fetch(inboxUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/activity+json',
-            'Accept': 'application/activity+json',
-            'User-Agent': `Harmony/${this.config.domain}`,
-          },
-          body: JSON.stringify(activity)
-        });
+    // Instead of making direct HTTP calls (which would fail due to CORS),
+    // we need to queue these for server-side delivery
+    
+    // Store activity in ap_activities table - let Supabase generate the ID
+    const { data: activityData, error: activityError } = await supabase
+      .from('ap_activities')
+      .insert({
+        ap_id: activity.id || `${this.config.instanceUrl}/activities/${crypto.randomUUID()}`,
+        ap_type: activity.type,
+        actor_id: await this.extractUserIdFromActor(activity.actor),
+        actor_ap_id: activity.actor,
+        activity_data: activity,
+        status: 'pending'
+      })
+      .select('id')
+      .single();
 
-        if (response.ok) {
-          console.log(`✅ Successfully delivered to ${inboxUrl}`);
-        } else {
-          console.error(`❌ Failed to deliver to ${inboxUrl}: ${response.status} ${response.statusText}`);
-        }
-      } catch (error) {
-        console.error(`❌ Network error delivering to ${inboxUrl}:`, error);
-      }
+    if (activityError || !activityData) {
+      console.error('❌ Failed to store activity for delivery:', activityError);
+      return;
+    }
+
+    const activityId = activityData.id;
+
+    // Queue deliveries for each inbox
+    const deliveries = inboxUrls.map(inboxUrl => {
+      const domain = new URL(inboxUrl).hostname;
+      return {
+        activity_id: activityId,
+        target_domain: domain,
+        target_inbox_url: inboxUrl,
+        status: 'pending' as const,
+        attempts: 0,
+        max_attempts: 5,
+        next_attempt_at: new Date().toISOString(),
+        priority: 5,
+        actor_domain: this.config.domain
+      };
     });
 
-    await Promise.allSettled(deliveryPromises);
+    const { error: deliveryError } = await supabase
+      .from('federation_delivery_queue')
+      .insert(deliveries);
+
+    if (deliveryError) {
+      console.error('❌ Failed to queue deliveries:', deliveryError);
+      return;
+    }
+
+    console.log(`✅ Queued ${deliveries.length} deliveries for server-side processing`);
+    
+    // Note: Actual HTTP delivery will happen server-side via cron job or API endpoint
+    // to avoid CORS issues that occur when making requests from the browser
   }
 
   // =============================================================================
@@ -881,15 +915,25 @@ export class FederationService {
       await supabase
         .from('federation_delivery_queue')
         .update({ 
-          status: 'processing',
-          last_attempt_at: new Date().toISOString()
+          status: 'processing'
         })
         .eq('id', deliveryId);
 
+      // Get the activity data from ap_activities table
+      const { data: activityData, error: activityError } = await supabase
+        .from('ap_activities')
+        .select('activity_data')
+        .eq('id', delivery.activity_id)
+        .single();
+
+      if (activityError || !activityData) {
+        throw new Error('Activity data not found');
+      }
+
       // Send HTTP request to target inbox
       const success = await this.sendActivityToInbox(
-        delivery.target_inbox,
-        delivery.activity_data,
+        delivery.target_inbox_url,
+        activityData.activity_data,
         delivery.target_domain
       );
 
@@ -901,9 +945,8 @@ export class FederationService {
           .from('federation_delivery_queue')
           .update({
             status: 'delivered',
-            delivered_at: new Date().toISOString(),
             delivery_duration_ms: duration,
-            last_error: null
+            error_message: null
           })
           .eq('id', deliveryId);
 
@@ -964,8 +1007,8 @@ export class FederationService {
    * Handle delivery failure with exponential backoff retry logic
    */
   private async handleDeliveryFailure(delivery: any, errorMessage: string): Promise<boolean> {
-    const maxAttempts = 5;
-    const newAttemptCount = (delivery.attempt_count || 0) + 1;
+    const maxAttempts = delivery.max_attempts || 5;
+    const newAttemptCount = (delivery.attempts || 0) + 1;
     
     if (newAttemptCount >= maxAttempts) {
       // Max attempts reached, mark as permanently failed
@@ -973,9 +1016,8 @@ export class FederationService {
         .from('federation_delivery_queue')
         .update({
           status: 'failed',
-          attempt_count: newAttemptCount,
-          last_error: errorMessage,
-          failed_at: new Date().toISOString()
+          attempts: newAttemptCount,
+          error_message: errorMessage
         })
         .eq('id', delivery.id);
 
@@ -991,9 +1033,9 @@ export class FederationService {
       .from('federation_delivery_queue')
       .update({
         status: 'pending',
-        attempt_count: newAttemptCount,
+        attempts: newAttemptCount,
         next_attempt_at: nextAttempt.toISOString(),
-        last_error: errorMessage
+        error_message: errorMessage
       })
       .eq('id', delivery.id);
 
@@ -1013,7 +1055,7 @@ export class FederationService {
         .from('federation_delivery_queue')
         .delete()
         .eq('status', 'delivered')
-        .lt('delivered_at', sevenDaysAgo.toISOString());
+        .lt('created_at', sevenDaysAgo.toISOString());
 
       if (error) throw error;
 
@@ -1057,7 +1099,7 @@ export class FederationService {
   }
 
   /**
-   * Get federation delivery status for monitoring
+   * Get recent delivery stats for monitoring
    */
   async getDeliveryStatus(): Promise<{
     pending: number;
