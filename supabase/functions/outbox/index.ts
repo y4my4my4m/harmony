@@ -98,14 +98,51 @@ serve(async (req: Request) => {
         })
       }
 
+      // Helper function to extract attachments and emoji tags from content
+      const extractMediaAndEmojis = (content: any) => {
+        const attachments: any[] = [];
+        const emojis: any[] = [];
+        
+        if (Array.isArray(content)) {
+          content.forEach(item => {
+            if (item.type === 'file') {
+              // ActivityPub standard attachment
+              const attachment: any = {
+                type: 'Document',
+                url: item.url,
+                mediaType: item.fileType === 'image' ? 'image/jpeg' : 
+                          item.fileType === 'video' ? 'video/mp4' : 
+                          item.fileType === 'audio' ? 'audio/mpeg' : 'application/octet-stream'
+              };
+              
+              if (item.fileName) {
+                attachment.name = item.fileName;
+              }
+              
+              attachments.push(attachment);
+            } else if (item.type === 'emoji' && item.emoji) {
+              // Misskey-compatible emoji tag
+              emojis.push({
+                id: item.emoji.url || `${baseUrl}/emojis/${item.emoji.id}`,
+                type: 'Emoji',
+                name: `:${item.emoji.name}:`,
+                icon: {
+                  type: 'Image',
+                  url: item.emoji.url || `${baseUrl}/emojis/${item.emoji.id}.png`
+                }
+              });
+            }
+          });
+        }
+        
+        return { attachments, emojis };
+      };
+
       // Convert posts to ActivityPub Create activities
-      const activities = posts?.map(post => ({
-        '@context': 'https://www.w3.org/ns/activitystreams',
-        id: `${baseUrl}/users/${username}/activities/create/${post.id}`,
-        type: 'Create',
-        actor: `${baseUrl}/users/${username}`,
-        published: post.created_at,
-        object: {
+      const activities = posts?.map(post => {
+        const { attachments, emojis } = extractMediaAndEmojis(post.content);
+        
+        const activityObject: any = {
           id: post.ap_id || `${baseUrl}/posts/${post.id}`,
           type: post.ap_type || 'Note',
           attributedTo: `${baseUrl}/users/${username}`,
@@ -114,12 +151,36 @@ serve(async (req: Request) => {
           to: post.visibility === 'public' ? ['https://www.w3.org/ns/activitystreams#Public'] : [],
           cc: [],
           ...(post.content_warning && { summary: post.content_warning }),
-          ...(post.in_reply_to && { inReplyTo: post.in_reply_to }),
-          ...(post.media_attachments && post.media_attachments.length > 0 && {
-            attachment: post.media_attachments
-          })
+          ...(post.in_reply_to && { inReplyTo: post.in_reply_to })
+        };
+        
+        // Add attachments if present
+        if (attachments.length > 0) {
+          activityObject.attachment = attachments;
         }
-      })) || []
+        
+        // Add emoji tags if present (Misskey compatibility)
+        if (emojis.length > 0) {
+          activityObject.tag = (activityObject.tag || []).concat(emojis);
+        }
+        
+        // Also add media_attachments for backward compatibility
+        if (post.media_attachments && post.media_attachments.length > 0) {
+          if (!activityObject.attachment) {
+            activityObject.attachment = [];
+          }
+          activityObject.attachment = activityObject.attachment.concat(post.media_attachments);
+        }
+        
+        return {
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: `${baseUrl}/users/${username}/activities/create/${post.id}`,
+          type: 'Create',
+          actor: `${baseUrl}/users/${username}`,
+          published: post.created_at,
+          object: activityObject
+        };
+      }) || []
 
       const outboxPage = {
         '@context': 'https://www.w3.org/ns/activitystreams',
@@ -190,6 +251,16 @@ function formatPostContent(content: any): string {
           return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
         } else if (item.type === 'url') {
           return `<a href="${item.url}" target="_blank" rel="noopener">${item.text || item.url}</a>`;
+        } else if (item.type === 'emoji') {
+          // Misskey-compatible emoji format
+          if (item.emoji && item.emoji.url) {
+            return `:${item.emoji.name}:`;
+          }
+          return `:${item.emoji?.name || 'emoji'}:`;
+        } else if (item.type === 'file') {
+          // Files should be handled as attachments in ActivityPub, not inline content
+          // Return empty string as files are added to the attachment array separately
+          return '';
         }
         return '';
       })

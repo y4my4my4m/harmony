@@ -172,16 +172,18 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         return `<a href="${part.url}" target="_blank" rel="noopener">${part.url}</a>`;
         
       case 'emoji': {
-        // Convert emoji to ActivityPub format
-        if (part.emoji.url) {
-          return `<img src="${part.emoji.url}" alt=":${part.emoji.name}:" class="custom-emoji" title=":${part.emoji.name}:" draggable="false" />`;
+        // Convert emoji to Misskey-compatible format (shortcode only in content)
+        // The actual emoji data will be in the ActivityPub tag array
+        if (part.emoji && part.emoji.name) {
+          return `:${part.emoji.name}:`;
         }
-        return `:${part.emoji.name}:`;
+        return `:emoji:`;
       }
       
       case 'file': {
-        // Files are typically handled as media attachments, not inline content
-        return `<a href="${part.url}" target="_blank" rel="noopener">📎 ${part.fileType} attachment</a>`;
+        // Files are handled as ActivityPub attachments, not inline content
+        // Return empty string as files are added to the attachment array separately
+        return '';
       }
       
       case 'system':
@@ -264,6 +266,41 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
   // For now, return as text - the inbox function handles proper HTML parsing
   // This can be enhanced later for more sophisticated parsing
   return [{ type: 'text', text: html }];
+}
+
+/**
+ * Extract ActivityPub attachments from MessagePart content
+ * Returns properly formatted ActivityPub attachment objects
+ */
+export function extractActivityPubAttachments(parts: MessagePart[]): any[] {
+  return parts
+    .filter((part): part is Extract<MessagePart, { type: 'file' }> => part.type === 'file')
+    .map(part => ({
+      type: 'Document',
+      url: part.url,
+      mediaType: part.fileType === 'image' ? 'image/jpeg' : 
+                part.fileType === 'video' ? 'video/mp4' : 
+                part.fileType === 'audio' ? 'audio/mpeg' : 'application/octet-stream',
+      ...(part.fileName && { name: part.fileName })
+    }));
+}
+
+/**
+ * Extract emoji tags for ActivityPub federation (Misskey compatibility)
+ * Returns properly formatted emoji tag objects
+ */
+export function extractActivityPubEmojiTags(parts: MessagePart[], baseUrl: string = 'https://har.mony.lol'): any[] {
+  return parts
+    .filter((part): part is Extract<MessagePart, { type: 'emoji' }> => part.type === 'emoji')
+    .map(part => ({
+      id: part.emoji.url || `${baseUrl}/emojis/${part.emoji.id}`,
+      type: 'Emoji',
+      name: `:${part.emoji.name}:`,
+      icon: {
+        type: 'Image',
+        url: part.emoji.url || `${baseUrl}/emojis/${part.emoji.id}.png`
+      }
+    }));
 }
 
 // Re-export for backward compatibility (during transition)

@@ -321,6 +321,38 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
 
     // Convert ActivityPub HTML content to our standard JSONB format
     const contentArray = parseActivityPubHTMLToJSONB(object.content || '', mentionTags);
+    
+    // Process attachments (ActivityPub standard)
+    const attachments = [];
+    if (object.attachment && Array.isArray(object.attachment)) {
+      for (const attachment of object.attachment) {
+        if (attachment.type === 'Document' && attachment.url) {
+          contentArray.push({
+            type: 'file',
+            url: attachment.url,
+            fileType: attachment.mediaType?.startsWith('image/') ? 'image' :
+                     attachment.mediaType?.startsWith('video/') ? 'video' :
+                     attachment.mediaType?.startsWith('audio/') ? 'audio' : 'file',
+            fileName: attachment.name || undefined
+          });
+          attachments.push(attachment);
+        }
+      }
+    }
+    
+    // Process emoji tags (Misskey compatibility)
+    const emojiTags = [];
+    if (object.tag && Array.isArray(object.tag)) {
+      for (const tag of object.tag) {
+        if (tag.type === 'Emoji' && tag.name && tag.icon?.url) {
+          // Store emoji information for potential future use
+          emojiTags.push(tag);
+          
+          // For now, emojis in content remain as :name: shortcodes
+          // They could be processed further if needed
+        }
+      }
+    }
 
     // Store the federated post with converted content in our standard JSONB array format
     const postData = {
@@ -334,8 +366,10 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
       is_federated: true,
       federation_status: 'received',
       created_at: object.published || new Date().toISOString(),
+      media_attachments: attachments.length > 0 ? attachments : null, // Store original ActivityPub attachments
       metadata: {
         mentions: mentionTags,
+        emoji_tags: emojiTags.length > 0 ? emojiTags : undefined,
         federated_from: new URL(activity.actor).hostname
       }
     }
