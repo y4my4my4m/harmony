@@ -47,6 +47,7 @@
          
         <article 
           class="root-post"
+          data-timeline
           :class="{ 'highlighted-post': conversationThread && isHighlighted(conversationThread.root_post.id) }"
           :ref="el => conversationThread && setPostRef(conversationThread.root_post.id, el)"
         >

@@ -89,7 +89,7 @@
             <Icon name="trending-up" />
             Trending Posts
           </h3>
-          <div v-if="trendingPosts.length > 0" class="posts-list">
+          <div v-if="trendingPosts.length > 0" data-timeline class="posts-list">
             <MonyPost
               v-for="trendingPost in trendingPosts"
               :key="trendingPost.post?.id || trendingPost.id"

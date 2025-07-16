@@ -12,6 +12,7 @@
     </div>
 
     <MessageDisplay 
+      data-chat-messages
       :messages="messages" 
       :isLoading="isLoading"
       :currentUserId="currentUserId"

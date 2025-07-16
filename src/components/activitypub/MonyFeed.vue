@@ -28,7 +28,7 @@
     </div>
 
     <!-- Feed Content -->
-    <div class="feed-content" ref="feedContainer" @scroll="handleScroll">
+    <div class="feed-content" ref="feedContainer" data-timeline @scroll="handleScroll">
       <!-- Loading Skeleton -->
       <div v-if="isLoadingAnyFeed && currentView.posts.length === 0" class="feed-loading">
         <PostSkeleton v-for="i in 3" :key="i" />

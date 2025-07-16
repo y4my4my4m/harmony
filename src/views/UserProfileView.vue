@@ -166,6 +166,7 @@
           <div v-else class="posts-list">
             <MonyPost
               v-for="post in userPosts"
+              data-timeline
               :key="post.id"
               :post="post"
               @reply="replyToPost"

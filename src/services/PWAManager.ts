@@ -367,7 +367,7 @@ export class PWAManager {
   }
 
   /**
-   * Enhanced pull-to-refresh with better UX
+   * Enhanced pull-to-refresh with better UX - only for timeline/chat contexts
    */
   private setupPullToRefresh(): void {
     let startY = 0
@@ -377,6 +377,52 @@ export class PWAManager {
     const maxPull = 120
     let isPulling = false
     let refreshIndicator: HTMLElement | null = null
+    let validScrollContainer: Element | null = null
+
+    // Define selectors for valid pull-to-refresh contexts
+    const validSelectors = [
+      '[data-timeline]',           // Timeline feeds
+      '[data-chat-messages]',      // Chat/DM messages
+      '.timeline-container',       // Timeline container
+      '.messages-container',       // Messages container
+      '.feed-container',          // Feed container
+      '#timeline',                // Timeline by ID
+      '#messages'                 // Messages by ID
+    ]
+
+    const isValidPullToRefreshContext = (target: Element): boolean => {
+      // Check if touch started on or within a valid container
+      for (const selector of validSelectors) {
+        if (target.matches?.(selector) || target.closest?.(selector)) {
+          return true
+        }
+      }
+      return false
+    }
+
+    const isAtTopOfScrollContainer = (container: Element): boolean => {
+      // Check if the container is scrolled to the very top
+      return container.scrollTop <= 0
+    }
+
+    const findScrollContainer = (target: Element): Element | null => {
+      // Find the scrollable container for the target element
+      let current: Element | null = target
+      
+      while (current && current !== document.documentElement) {
+        const computedStyle = window.getComputedStyle(current)
+        const overflowY = computedStyle.overflowY
+        
+        if ((overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight) {
+          return current
+        }
+        
+        current = current.parentElement
+      }
+      
+      // Fallback to window/document
+      return null
+    }
 
     const createRefreshIndicator = () => {
       if (refreshIndicator) return refreshIndicator
@@ -446,14 +492,41 @@ export class PWAManager {
     }
 
     document.addEventListener('touchstart', (e) => {
-      if (window.scrollY === 0) {
+      const target = e.target as Element
+      
+      // Only start pulling if:
+      // 1. We're in a valid context (timeline/chat)
+      // 2. The page/container is at the very top
+      if (!isValidPullToRefreshContext(target)) {
+        return
+      }
+
+      validScrollContainer = findScrollContainer(target)
+      
+      // Check if we're at the top
+      const isAtTop = validScrollContainer 
+        ? isAtTopOfScrollContainer(validScrollContainer)
+        : window.scrollY === 0
+
+      if (isAtTop) {
         startY = e.touches[0].clientY
         isPulling = true
       }
     }, { passive: true })
 
     document.addEventListener('touchmove', (e) => {
-      if (!isPulling || window.scrollY > 0) return
+      if (!isPulling) return
+
+      // Double-check we're still at the top during the move
+      const isAtTop = validScrollContainer 
+        ? isAtTopOfScrollContainer(validScrollContainer)
+        : window.scrollY === 0
+
+      if (!isAtTop) {
+        isPulling = false
+        hideRefreshIndicator()
+        return
+      }
 
       currentY = e.touches[0].clientY
       pullDistance = Math.max(0, Math.min(maxPull, currentY - startY))
@@ -475,6 +548,7 @@ export class PWAManager {
       startY = 0
       currentY = 0
       pullDistance = 0
+      validScrollContainer = null
     })
   }
 
