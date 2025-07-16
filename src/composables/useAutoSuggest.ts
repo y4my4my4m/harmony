@@ -1,6 +1,7 @@
 import { ref, computed, nextTick, watch } from 'vue';
 import type { Ref } from 'vue';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 import { userDataService } from '@/services/userDataService';
 import { activityPubService } from '@/services/activityPubService';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
@@ -44,6 +45,7 @@ export function useAutoSuggest(
   config: AutoSuggestConfig = { mode: 'chat' }
 ) {
   const emojiCacheStore = useEmojiCacheStore();
+  const serverChannelStore = useServerChannelStore();
 
   // Merge config with defaults
   const finalConfig = {
@@ -144,14 +146,27 @@ export function useAutoSuggest(
     const query = state.value.query.toLowerCase();
 
     if (finalConfig.mode === 'chat') {
-      // Chat mode: Use userDataService (single source of truth)
+      // Chat mode: Use server context-aware user filtering
       const suggestions: SuggestionItem[] = [];
+      let usersToSearch: any[] = [];
 
-      // Search through all users from userDataService
-      const allUsers = userDataService.getAllUsers();
+      // Get current server ID to filter users by server membership
+      const currentServerId = serverChannelStore.currentServerId;
+      
+      if (currentServerId) {
+        // Get users only from the current server context
+        usersToSearch = userDataService.getUsersInContext(currentServerId);
+        console.log(`🎯 AutoSuggest: Using server context ${currentServerId}, found ${usersToSearch.length} server members`);
+      } else {
+        // Fallback to all users only if no server context is available
+        // This should rarely happen in normal chat usage
+        usersToSearch = userDataService.getAllUsers();
+        console.log(`⚠️ AutoSuggest: No server context, falling back to all users (${usersToSearch.length} total)`);
+      }
+
       const seenUsers = new Set<string>(); // Track already processed users
       
-      for (const userData of allUsers) {
+      for (const userData of usersToSearch) {
         // Skip if we've already seen this user
         if (seenUsers.has(userData.id)) {
           continue;
@@ -182,7 +197,7 @@ export function useAutoSuggest(
         }
       }
 
-      // Additional final deduplication check based on multiple criteria
+      // Additional final deduplication check based on user ID (should be unnecessary now but kept for safety)
       const uniqueSuggestions = suggestions.filter((item, index, self) => 
         index === self.findIndex(s => s.id === item.id)
       );
@@ -207,7 +222,7 @@ export function useAutoSuggest(
         .slice(0, finalConfig.maxSuggestions);
         
     } else if (finalConfig.mode === 'activitypub') {
-      // ActivityPub mode: Use dynamic search results
+      // ActivityPub mode: Use dynamic search results (no server filtering needed)
       return activityPubUsers.value.map(user => ({
         id: user.id,
         display_name: user.display_name,
@@ -239,7 +254,11 @@ export function useAutoSuggest(
       case 'emoji':
         return 'Emojis';
       case 'mention':
-        return finalConfig.mode === 'chat' ? 'Server Users' : 'Users';
+        if (finalConfig.mode === 'chat') {
+          const currentServerId = serverChannelStore.currentServerId;
+          return currentServerId ? 'Server Members' : 'Users';
+        }
+        return 'Users';
       default:
         return '';
     }
