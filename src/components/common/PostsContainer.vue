@@ -87,6 +87,7 @@ defineEmits<{
   width: 100%;
   overflow-y: auto;
   padding: 20px 0;
+  height: calc(100% - 140px);
 }
 
 .loading-state,
