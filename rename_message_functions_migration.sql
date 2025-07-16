@@ -323,6 +323,7 @@ BEGIN
                 
                 RAISE WARNING '🏷️ Generated tags for DM: %', v_tags;
                 RAISE WARNING '📝 Generated HTML content: %', v_html_content;
+                RAISE WARNING '✨ Using clean ActivityPub format (no invalid properties on Create activity)';
                 
                 -- Create ActivityPub Note object with proper field ordering and compatibility fields
                 v_note_object := jsonb_build_object(
@@ -343,13 +344,13 @@ BEGIN
                     v_note_object := v_note_object || jsonb_build_object('attachment', v_attachments);
                 END IF;
                 
-                -- Create ActivityPub Create activity with @context first (using text concatenation for guaranteed ordering)
+                -- Create ActivityPub Create activity with @context first (clean standard format)
+                -- Remove attributedTo, visibility, directMessage, visibleUserIds from Create activity
                 v_activity := (
                     '{"@context":"https://www.w3.org/ns/activitystreams",' ||
                     '"id":"' || v_activity_id || '",' ||
                     '"type":"Create",' ||
                     '"actor":"' || v_sender_url || '",' ||
-                    '"attributedTo":"' || v_sender_url || '",' ||
                     '"to":' || jsonb_build_array(v_recipient_url)::text || ',' ||
                     '"cc":[],' ||
                     '"published":"' || to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') || '",' ||

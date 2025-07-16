@@ -210,7 +210,52 @@ async function processFollowActivity(supabase: any, activity: ActivityPubActivit
     return false
   }
 
-  console.log(`Valid follow activity for user: ${followingMatch[1]}`)
+  const username = followingMatch[1]
+  console.log(`Valid follow activity for user: ${username}`)
+
+  // Auto-accept the follow using the new database function
+  try {
+    // Get our user's profile
+    const { data: ourProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('username', username)
+      .eq('is_local', true)
+      .single()
+
+    if (profileError || !ourProfile) {
+      console.error(`Could not find local user ${username}:`, profileError)
+      return true // Still valid follow, just can't auto-accept
+    }
+
+    // Get the stored Follow activity ID
+    const { data: followActivity, error: followError } = await supabase
+      .from('ap_activities')
+      .select('id')
+      .eq('ap_id', activity.id)
+      .single()
+
+    if (followError || !followActivity) {
+      console.error('Could not find stored Follow activity:', followError)
+      return true
+    }
+
+    // Call the database function to send Accept activity with proper federation
+    const { error: acceptError } = await supabase.rpc('send_accept_activity_for_follow', {
+      follow_activity_id: followActivity.id,
+      local_user_id: ourProfile.id
+    })
+
+    if (acceptError) {
+      console.error('Failed to send Accept activity:', acceptError)
+    } else {
+      console.log(`✅ Auto-sent Accept activity for follow ${activity.id}`)
+    }
+
+  } catch (error) {
+    console.error('Error auto-accepting follow:', error)
+  }
+
   return true
 }
 
