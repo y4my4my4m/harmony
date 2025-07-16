@@ -34,3 +34,6 @@ coverage
 .env.dev
 .env.stg
 .env.prod
+
+
+docs/.vitepress/cache
