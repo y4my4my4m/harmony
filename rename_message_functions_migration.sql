@@ -7,8 +7,9 @@
 -- - Removes redundant create_outgoing_dm_activity* functions
 -- ============================================================================
 
--- Step 1: Drop the old trigger first
+-- Step 1: Drop triggers first (they depend on functions)
 DROP TRIGGER IF EXISTS handle_new_messages ON public.messages;
+DROP TRIGGER IF EXISTS handle_outgoing_messages ON public.messages;
 
 -- Step 2: Drop old functions that are no longer needed
 DROP FUNCTION IF EXISTS public.create_outgoing_dm_activity(uuid, uuid, uuid, text);
@@ -18,7 +19,84 @@ DROP FUNCTION IF EXISTS public.create_outgoing_dm_activity_unified(uuid, uuid, u
 -- Step 3: Drop the old handle_new_message function (if it exists with old name)
 DROP FUNCTION IF EXISTS public.handle_new_message();
 
--- Step 4: Create the new handle_outgoing_messages function with corrected ActivityPub logic
+-- Step 4: Drop functions we're going to recreate/modify (triggers already dropped)
+DROP FUNCTION IF EXISTS public.handle_outgoing_messages();
+DROP FUNCTION IF EXISTS public.handle_incoming_messages(uuid, jsonb, record, text);
+DROP FUNCTION IF EXISTS public.process_create_activity(uuid, jsonb, record, text);
+
+-- Step 4.5: Improve convert_content_to_activitypub_html for better Mastodon/Misskey compatibility
+DROP FUNCTION IF EXISTS public.convert_content_to_activitypub_html(jsonb);
+
+CREATE OR REPLACE FUNCTION public.convert_content_to_activitypub_html(content_data jsonb) 
+RETURNS text
+LANGUAGE plpgsql IMMUTABLE
+SET search_path TO 'extensions', 'public', 'pg_temp'
+AS $$
+DECLARE
+    html_content TEXT := '';
+    item JSONB;
+    escaped_text TEXT;
+BEGIN
+    -- Handle array content (Harmony's structured format)
+    IF jsonb_typeof(content_data) = 'array' THEN
+        FOR item IN SELECT * FROM jsonb_array_elements(content_data)
+        LOOP
+            CASE item->>'type'
+                WHEN 'text' THEN
+                    -- Escape HTML entities in text content
+                    escaped_text := replace(replace(replace(item->>'text', '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
+                    html_content := html_content || escaped_text;
+                WHEN 'mention' THEN
+                    -- Use /users/ format for better ActivityPub compatibility (not /@)
+                    html_content := html_content || format(
+                        '<span class="h-card"><a href="https://%s/users/%s" class="u-url mention">@<span>%s</span></a></span>',
+                        item->>'domain',
+                        item->>'username', 
+                        item->>'username'
+                    );
+                WHEN 'link' THEN
+                    -- Escape URL and link text for safety
+                    html_content := html_content || format(
+                        '<a href="%s" target="_blank" rel="nofollow noopener noreferrer">%s</a>',
+                        replace(replace(item->>'url', '"', '&quot;'), '''', '&#39;'),
+                        replace(replace(COALESCE(item->>'text', item->>'url'), '<', '&lt;'), '>', '&gt;')
+                    );
+                WHEN 'hashtag' THEN
+                    -- Handle hashtags properly for ActivityPub
+                    html_content := html_content || format(
+                        '<a href="https://%s/tags/%s" class="mention hashtag" rel="tag">#<span>%s</span></a>',
+                        COALESCE(current_setting('app.domain', true), 'har.mony.lol'),
+                        lower(item->>'tag'),
+                        item->>'tag'
+                    );
+                ELSE
+                    -- Unknown type, treat as escaped text
+                    escaped_text := replace(replace(replace(COALESCE(item->>'text', item::text), '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
+                    html_content := html_content || escaped_text;
+            END CASE;
+        END LOOP;
+    ELSE
+        -- Handle simple text content
+        html_content := content_data::text;
+        html_content := trim(both '"' from html_content); -- Remove JSON quotes
+        -- Escape HTML entities
+        html_content := replace(replace(replace(html_content, '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
+    END IF;
+    
+    -- Wrap entire content in <p> tags for proper HTML structure
+    -- Only add <p> tags if content doesn't already start with HTML tags
+    IF html_content !~ '^<(p|div|h[1-6]|blockquote|pre|ul|ol|li)' THEN
+        html_content := '<p>' || html_content || '</p>';
+    END IF;
+    
+    RETURN html_content;
+END;
+$$;
+
+COMMENT ON FUNCTION public.convert_content_to_activitypub_html(jsonb) IS 
+'Converts Harmony''s structured content format to ActivityPub-compatible HTML with proper escaping, /users/ mention URLs, and <p> tag wrapping for Mastodon/Misskey compatibility';
+
+-- Step 5: Create the new handle_outgoing_messages function with corrected ActivityPub logic
 CREATE OR REPLACE FUNCTION public.handle_outgoing_messages() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'extensions', 'public', 'pg_temp'
@@ -213,22 +291,22 @@ BEGIN
                 v_message_url := 'https://' || v_instance_domain || '/messages/' || NEW.id::TEXT;
                 v_activity_id := v_sender_url || '#dm-' || NEW.id::TEXT;
                 
-                -- Use unified content processing functions
-                v_html_content := convert_unified_content_to_activitypub_html(NEW.content);
+                -- Use improved HTML content processing function (now includes <p> wrapping)
+                v_html_content := convert_content_to_activitypub_html(NEW.content);
                 v_attachments := extract_activitypub_attachments(NEW.content);
                 v_tags := extract_all_activitypub_tags(NEW.content);
                 
-                -- Create ActivityPub Note object with proper field ordering and no CC for DMs
+                -- Create ActivityPub Note object with proper field ordering and compatibility fields
                 v_note_object := jsonb_build_object(
                     'id', v_message_url,
                     'type', 'Note',
-                    'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
                     'attributedTo', v_sender_url,
+                    'to', jsonb_build_array(v_recipient_url),
+                    'cc', jsonb_build_array(),
                     'content', v_html_content,
                     'contentMap', jsonb_build_object('en', v_html_content),
-                    'to', jsonb_build_array(v_recipient_url),
-                    'tag', v_tags,
-                    'inReplyTo', NULL,
+                    'tag', COALESCE(v_tags, '[]'::jsonb),
+                    'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
                     'sensitive', false
                 );
                 
@@ -237,16 +315,19 @@ BEGIN
                     v_note_object := v_note_object || jsonb_build_object('attachment', v_attachments);
                 END IF;
                 
-                -- Create ActivityPub Create activity with @context first
-                v_activity := jsonb_build_object(
-                    '@context', 'https://www.w3.org/ns/activitystreams',
-                    'id', v_activity_id,
-                    'type', 'Create',
-                    'actor', v_sender_url,
-                    'to', jsonb_build_array(v_recipient_url),
-                    'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-                    'object', v_note_object
-                );
+                -- Create ActivityPub Create activity with @context first (using text concatenation for guaranteed ordering)
+                v_activity := (
+                    '{"@context":"https://www.w3.org/ns/activitystreams",' ||
+                    '"id":"' || v_activity_id || '",' ||
+                    '"type":"Create",' ||
+                    '"actor":"' || v_sender_url || '",' ||
+                    '"attributedTo":"' || v_sender_url || '",' ||
+                    '"to":' || jsonb_build_array(v_recipient_url)::text || ',' ||
+                    '"cc":[],' ||
+                    '"published":"' || to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') || '",' ||
+                    '"object":' || v_note_object::text ||
+                    '}'
+                )::jsonb;
                 
                 -- Create the ActivityPub activity record
                 INSERT INTO ap_activities (
@@ -397,7 +478,7 @@ BEGIN
 END;
 $$;
 
--- Step 5: Rename process_activitypub_direct_message to handle_incoming_messages
+-- Step 6: Rename process_activitypub_direct_message to handle_incoming_messages
 -- Drop the old function and create the new one with the exact same functionality
 
 DROP FUNCTION IF EXISTS public.process_activitypub_direct_message(uuid, jsonb, record, text);
@@ -547,7 +628,7 @@ BEGIN
 END;
 $$;
 
--- Step 5.5: Update the call to the renamed function in process_create_activity
+-- Step 7: Update the call to the renamed function in process_create_activity
 -- The process_create_activity function calls process_activitypub_direct_message and needs to be updated
 CREATE OR REPLACE FUNCTION public.process_create_activity(activity_id uuid, activity_data jsonb, actor_profile record, instance_domain text) 
 RETURNS void
@@ -579,13 +660,13 @@ BEGIN
 END;
 $$;
 
--- Step 6: Create the new trigger with updated name
+-- Step 8: Create the new trigger with updated name
 CREATE TRIGGER handle_outgoing_messages 
     AFTER INSERT ON public.messages 
     FOR EACH ROW 
     EXECUTE FUNCTION public.handle_outgoing_messages();
 
--- Step 7: Add comments to document the new functions
+-- Step 9: Add comments to document the new functions
 COMMENT ON FUNCTION public.handle_outgoing_messages() IS 
 'Processes outgoing messages: creates notifications for local users and federates DMs to remote users via ActivityPub with proper HTTP signatures. Replaces the old handle_new_message function.';
 
@@ -595,7 +676,7 @@ COMMENT ON FUNCTION public.handle_incoming_messages(uuid, jsonb, record, text) I
 COMMENT ON TRIGGER handle_outgoing_messages ON public.messages IS 
 'Triggers on message insert to handle notifications and federation delivery. Renamed from handle_new_messages for clarity.';
 
--- Step 8: Log migration completion
+-- Step 10: Log migration completion
 DO $log$
 BEGIN
     RAISE NOTICE '============================================================================';
@@ -607,8 +688,8 @@ BEGIN
     RAISE NOTICE '✅ Renamed process_activitypub_direct_message() → handle_incoming_messages()';
     RAISE NOTICE '✅ Updated process_create_activity() to call handle_incoming_messages()';
     RAISE NOTICE '✅ Updated trigger: handle_new_messages → handle_outgoing_messages'; 
-    RAISE NOTICE '✅ Applied ActivityPub fixes: @context ordering, mention href format, no CC for DMs';
-    RAISE NOTICE '✅ Added unified content processing integration';
+    RAISE NOTICE '✅ Applied ActivityPub fixes: @context first, HTML content, cc fields, attributedTo on activity';
+    RAISE NOTICE '✅ Using convert_content_to_activitypub_html for proper HTML formatting';
     RAISE NOTICE '============================================================================';
     RAISE NOTICE 'Function consolidation complete - fewer, clearer functions for message processing';
     RAISE NOTICE '============================================================================';
