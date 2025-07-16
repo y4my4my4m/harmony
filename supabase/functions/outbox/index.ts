@@ -101,20 +101,29 @@ serve(async (req: Request) => {
       // Convert posts to ActivityPub Create activities using unified database functions
       const activities = await Promise.all(posts?.map(async post => {
         // Get properly formatted content and tags from unified database functions
-        const { data: htmlContent } = await supabase.rpc(
+        const { data: htmlContent, error: htmlContentError } = await supabase.rpc(
           'convert_unified_content_to_activitypub_html', 
           { content: post.content }
-        )
+        );
+        if (htmlContentError) {
+          console.error('Failed to convert content to ActivityPub HTML:', htmlContentError);
+        }
 
-        const { data: allTags } = await supabase.rpc(
+        const { data: allTags, error: allTagsError } = await supabase.rpc(
           'extract_all_activitypub_tags',
           { content: post.content }
-        )
+        );
+        if (allTagsError) {
+          console.error('Failed to extract ActivityPub tags:', allTagsError);
+        }
 
-        const { data: attachments } = await supabase.rpc(
+        const { data: attachments, error: attachmentsError } = await supabase.rpc(
           'extract_activitypub_attachments',
           { content: post.content }
-        )
+        );
+        if (attachmentsError) {
+          console.error('Failed to extract ActivityPub attachments:', attachmentsError);
+        }
         
         const activityObject: any = {
           id: post.ap_id || `${baseUrl}/posts/${post.id}`,
