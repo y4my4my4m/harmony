@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'Harmony Documentation',
   description: 'Federated Social Platform with Chat - Complete Developer Guide',
   base: '/harmony/',
@@ -9,6 +10,11 @@ export default defineConfig({
     ['link', { rel: 'icon', href: '/harmony/favicon.ico' }],
     ['meta', { name: 'theme-color', content: '#646cff' }]
   ],
+  
+  // Mermaid configuration
+  mermaid: {
+    theme: 'default'
+  },
 
   themeConfig: {
     logo: '/logo.png',
@@ -25,7 +31,7 @@ export default defineConfig({
       '/guide/': [
         {
           text: 'Getting Started',
-          collapsible: true,
+          collapsed: true,
           items: [
             { text: 'Introduction', link: '/guide/' },
             { text: 'Installation', link: '/guide/installation' },
@@ -35,7 +41,7 @@ export default defineConfig({
         },
         {
           text: 'Architecture',
-          collapsible: true,
+          collapsed: true,
           items: [
             { text: 'System Overview', link: '/guide/architecture/' },
             { text: 'Data Flow', link: '/guide/architecture/data-flow' },
@@ -46,7 +52,7 @@ export default defineConfig({
         },
         {
           text: 'Core Features',
-          collapsible: true,
+          collapsed: true,
           items: [
             { text: 'Chat System', link: '/guide/features/chat' },
             { text: 'Social Features', link: '/guide/features/social' },
@@ -58,7 +64,7 @@ export default defineConfig({
         },
         {
           text: 'Development',
-          collapsible: true,
+          collapsed: true,
           items: [
             { text: 'Development Workflow', link: '/guide/development/' },
             { text: 'Testing', link: '/guide/development/testing' },
@@ -69,7 +75,7 @@ export default defineConfig({
         },
         {
           text: 'Deployment',
-          collapsible: true,
+          collapsed: true,
           items: [
             { text: 'Production Setup', link: '/guide/deployment/' },
             { text: 'Docker', link: '/guide/deployment/docker' },
@@ -83,7 +89,7 @@ export default defineConfig({
       '/api/': [
         {
           text: 'Core Services',
-          collapsible: true,
+          collapsed: true,
           items: [
             { text: 'Overview', link: '/api/' },
             { text: 'Authentication Service', link: '/api/services/auth' },
@@ -95,7 +101,7 @@ export default defineConfig({
         },
         {
           text: 'Pinia Stores',
-          collapsible: true,
+          collapsed: true,
           items: [
             { text: 'Auth Store', link: '/api/stores/auth' },
             { text: 'Chat Store', link: '/api/stores/chat' },
@@ -107,7 +113,7 @@ export default defineConfig({
         },
         {
           text: 'Vue Composables',
-          collapsible: true,
+          collapsed: true,
           items: [
             { text: 'Layout State', link: '/api/composables/layout' },
             { text: 'User Data', link: '/api/composables/userdata' },
@@ -117,7 +123,7 @@ export default defineConfig({
         },
         {
           text: 'Types & Interfaces',
-          collapsible: true,
+          collapsed: true,
           items: [
             { text: 'Core Types', link: '/api/types/core' },
             { text: 'Chat Types', link: '/api/types/chat' },
@@ -129,42 +135,70 @@ export default defineConfig({
       
       '/components/': [
         {
-          text: 'Layout Components',
-          collapsible: true,
+          text: 'Overview',
           items: [
-            { text: 'Base Layout', link: '/components/layouts/base' },
-            { text: 'Chat Layout', link: '/components/layouts/chat' },
-            { text: 'Social Layout', link: '/components/layouts/social' }
+            { text: 'Component Library', link: '/components/' }
+          ]
+        },
+        {
+          text: 'Core Components',
+          collapsed: true,
+          items: [
+            { text: 'Main Navigation', link: '/components/core/main-navigation' },
+            { text: 'Sidebar Component', link: '/components/core/sidebar' },
+            { text: 'Content Header', link: '/components/core/content-header' }
           ]
         },
         {
           text: 'Chat Components',
-          collapsible: true,
+          collapsed: true,
           items: [
-            { text: 'Message Display', link: '/components/chat/message' },
-            { text: 'Message Input', link: '/components/chat/input' },
-            { text: 'Channel Sidebar', link: '/components/chat/sidebar' },
-            { text: 'Voice Panel', link: '/components/chat/voice' }
+            { text: 'Chat Component', link: '/components/chat/chat-component' },
+            { text: 'Message Display', link: '/components/chat/message-display' },
+            { text: 'Message Input', link: '/components/chat/message-input' },
+            { text: 'Message Content', link: '/components/chat/message-content' },
+            { text: 'Message Reactions', link: '/components/chat/message-reactions' },
+            { text: 'Rich Text Editor', link: '/components/chat/rich-text-editor' }
           ]
         },
         {
-          text: 'Social Components',
-          collapsible: true,
+          text: 'Server Management',
+          collapsed: true,
           items: [
-            { text: 'Post Composer', link: '/components/social/composer' },
-            { text: 'Timeline', link: '/components/social/timeline' },
-            { text: 'User Card', link: '/components/social/usercard' },
-            { text: 'Notification Bell', link: '/components/social/notifications' }
+            { text: 'Server Sidebar', link: '/components/server/server-sidebar' },
+            { text: 'Channel Sidebar', link: '/components/server/channel-sidebar' },
+            { text: 'Create Server', link: '/components/server/create-server' },
+            { text: 'Create Channel', link: '/components/server/create-channel' },
+            { text: 'Server Dropdown', link: '/components/server/server-dropdown' }
           ]
         },
         {
-          text: 'Shared Components',
-          collapsible: true,
+          text: 'User Interface',
+          collapsed: true,
           items: [
-            { text: 'Avatar', link: '/components/shared/avatar' },
-            { text: 'Modal', link: '/components/shared/modal' },
-            { text: 'Button', link: '/components/shared/button' },
-            { text: 'Form Controls', link: '/components/shared/forms' }
+            { text: 'User Profile', link: '/components/user/user-profile' },
+            { text: 'User Profile Modal', link: '/components/user/user-profile-modal' },
+            { text: 'Auth Component', link: '/components/user/auth-component' },
+            { text: 'User Sidebar', link: '/components/user/user-sidebar' }
+          ]
+        },
+        {
+          text: 'Media & Content',
+          collapsed: true,
+          items: [
+            { text: 'Emoji UI', link: '/components/media/emoji-ui' },
+            { text: 'File Preview', link: '/components/media/file-preview' },
+            { text: 'GIF Component', link: '/components/media/gif-component' },
+            { text: 'Markdown Content', link: '/components/media/markdown-content' }
+          ]
+        },
+        {
+          text: 'Modals & Dialogs',
+          collapsed: true,
+          items: [
+            { text: 'Confirmation Modal', link: '/components/modals/confirmation-modal' },
+            { text: 'Invite Modal', link: '/components/modals/invite-modal' },
+            { text: 'Context Menus', link: '/components/modals/context-menus' }
           ]
         }
       ],
@@ -236,4 +270,4 @@ export default defineConfig({
       port: 3001
     }
   }
-})
+}))
