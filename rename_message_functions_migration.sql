@@ -145,6 +145,9 @@ BEGIN
     -- Get sender profile (used by both notifications and federation)
     SELECT * INTO sender_profile FROM profiles WHERE id = NEW.user_id;
     
+    -- DEBUG: Log that the new function is running
+    RAISE WARNING '🔧 NEW handle_outgoing_messages() function called for message %', NEW.id;
+    
     -- Extract content preview for notifications
     IF jsonb_typeof(NEW.content) = 'array' THEN
         SELECT LEFT(string_agg(
@@ -291,10 +294,35 @@ BEGIN
                 v_message_url := 'https://' || v_instance_domain || '/messages/' || NEW.id::TEXT;
                 v_activity_id := v_sender_url || '#dm-' || NEW.id::TEXT;
                 
+                RAISE WARNING '🎯 Recipient URL: %', v_recipient_url;
+                
                 -- Use improved HTML content processing function (now includes <p> wrapping)
                 v_html_content := convert_content_to_activitypub_html(NEW.content);
                 v_attachments := extract_activitypub_attachments(NEW.content);
                 v_tags := extract_all_activitypub_tags(NEW.content);
+                
+                -- For DMs, ensure the recipient is always included as a mention tag
+                -- This is REQUIRED for Mastodon to recognize it as a direct message
+                IF v_tags IS NULL OR jsonb_array_length(v_tags) = 0 THEN
+                    v_tags := jsonb_build_array();
+                END IF;
+                
+                -- Add recipient as mention tag if not already present
+                IF NOT EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(v_tags) as tag 
+                    WHERE tag->>'href' = v_recipient_url
+                ) THEN
+                    v_tags := v_tags || jsonb_build_array(
+                        jsonb_build_object(
+                            'type', 'Mention',
+                            'href', v_recipient_url,
+                            'name', '@' || v_recipient_profile.username || '@' || v_recipient_profile.domain
+                        )
+                    );
+                END IF;
+                
+                RAISE WARNING '🏷️ Generated tags for DM: %', v_tags;
+                RAISE WARNING '📝 Generated HTML content: %', v_html_content;
                 
                 -- Create ActivityPub Note object with proper field ordering and compatibility fields
                 v_note_object := jsonb_build_object(
@@ -356,8 +384,14 @@ BEGIN
                     v_instance_domain
                 ) RETURNING id INTO v_activity_uuid;
                 
-                -- Prepare inbox URL - try user-specific inbox first, fall back to domain inbox
-                v_inbox_url := COALESCE(v_recipient_profile.inbox_url, 'https://' || v_recipient_profile.domain || '/inbox');
+                -- Prepare inbox URL - for DMs, MUST use user-specific inbox, not domain inbox
+                IF v_recipient_profile.inbox_url IS NOT NULL THEN
+                    v_inbox_url := v_recipient_profile.inbox_url;
+                    RAISE WARNING '📮 Using stored inbox URL: %', v_inbox_url;
+                ELSE
+                    v_inbox_url := 'https://' || v_recipient_profile.domain || '/users/' || v_recipient_profile.username || '/inbox';
+                    RAISE WARNING '📮 Constructed inbox URL: %', v_inbox_url;
+                END IF;
                 
                 -- Generate HTTP signature using edge function
                 BEGIN
@@ -397,8 +431,8 @@ BEGIN
                 -- Attempt immediate delivery
                 BEGIN
                     -- Log delivery attempt
-                    RAISE NOTICE 'Attempting DM delivery to: %', v_inbox_url;
-                    
+                    RAISE WARNING '🚀 NEW FUNCTION: Attempting DM delivery to: %', v_inbox_url;
+
                     -- Try to deliver immediately using Supabase HTTP extension
                     SELECT status, content INTO v_http_status, v_http_response
                     FROM http((
@@ -419,7 +453,7 @@ BEGIN
                     -- Check delivery success
                     v_delivery_success := (v_http_status >= 200 AND v_http_status < 300);
                     
-                    RAISE NOTICE 'HTTP Response: Status=%, Body=%', v_http_status, LEFT(v_http_response, 200);
+                    RAISE WARNING 'HTTP Response: Status=%, Body=%', v_http_status, LEFT(v_http_response, 200);
                     
                     IF v_delivery_success THEN
                         -- Immediate delivery succeeded
@@ -453,7 +487,7 @@ BEGIN
                             error_message = 'HTTP delivery failed: ' || SQLERRM
                         WHERE id = v_activity_uuid;
                         
-                        RAISE WARNING '💥 HTTP delivery exception for DM to %@% - SQLSTATE: %, Error: %', 
+                        RAISE WARNING '💥 HTTP delivery exception for (NEWCODE) DM to %@% - SQLSTATE: %, Error: %', 
                             v_recipient_profile.username, v_recipient_profile.domain, SQLSTATE, SQLERRM;
                         RAISE NOTICE 'Queuing DM for retry delivery due to exception';
                         PERFORM queue_activity_for_federation(v_activity_uuid, ARRAY[v_recipient_profile.domain], 8, true);
