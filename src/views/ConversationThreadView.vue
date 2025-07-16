@@ -465,7 +465,7 @@ watch(() => props.postId, () => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--h-chat, #313338);
+  background: var(--bg-primary);
   color: white;
 }
 
@@ -474,7 +474,7 @@ watch(() => props.postId, () => {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--bg-primary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
