@@ -1122,36 +1122,15 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async formatPostContent(content: string): Promise<any> {
       // Use the centralized unified content processing utility
-      const { parseContentToMessageParts } = await import('@/utils/unifiedContentProcessing');
+      const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } = await import('@/utils/unifiedContentProcessing');
       
-      // Build username to user ID map for mention resolution
-      // Extract potential usernames from content first
-      const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
-      const usernameToUserIdMap: Record<string, string> = {};
+      // Efficiently resolve all mention and emoji data in batch
+      const [usernameToUserDataMap, emojiDataMap] = await Promise.all([
+        resolveMentionsUserData(content),
+        resolveEmojisData(content)
+      ]);
       
-      let match;
-      while ((match = mentionRegex.exec(content)) !== null) {
-        const username = match[1];
-        const domain = match[2];
-        const mentionKey = domain ? `${username}@${domain}`.toLowerCase() : username.toLowerCase();
-        
-        // For local mentions, try to resolve username to user ID
-        if (!domain || domain === 'har.mony.lol') {
-          // TODO: Add proper user lookup by username
-          // For now, we'll let the parser handle it with temp IDs
-        }
-      }
-      
-      return parseContentToMessageParts(content, usernameToUserIdMap);
-    },
-
-    /**
-     * Federate a post to remote instances (handled by database triggers)
-     */
-    async federatePost(postId: string) {
-      // Federation is now handled automatically by database triggers
-      // This method is kept for backwards compatibility but does nothing
-      console.log(`🌐 Federation for post ${postId} is handled by database triggers`);
+      return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap);
     },
 
     /**

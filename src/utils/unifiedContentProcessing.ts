@@ -8,7 +8,125 @@
 
 import type { MessagePart } from '@/types';
 import { getEmoji } from '@/services/emojiService';
+import { supabase } from '@/supabase';
 const emojiRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
+
+/**
+ * Helper function to efficiently resolve mention user data in batch
+ * This should be called before parseContentToMessageParts for optimal performance
+ */
+export async function resolveMentionsUserData(content: string): Promise<Record<string, { userId: string; isLocal: boolean; displayName?: string }>> {
+  const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
+  const userDataMap: Record<string, { userId: string; isLocal: boolean; displayName?: string }> = {};
+  
+  let match;
+  const uniqueUsernames = new Set<string>();
+  
+  // Extract all unique usernames from content
+  while ((match = mentionRegex.exec(content)) !== null) {
+    const username = match[1];
+    const domain = match[2];
+    const mentionKey = domain ? `${username}@${domain}` : username;
+    uniqueUsernames.add(mentionKey);
+  }
+  
+  // If no mentions, return empty map
+  if (uniqueUsernames.size === 0) return userDataMap;
+  
+  try {
+    // Build a single query to get all mentioned users at once
+    const usernameList = Array.from(uniqueUsernames);
+    const localUsernames = usernameList.filter(u => !u.includes('@'));
+    const remoteUsernames = usernameList.filter(u => u.includes('@'));
+    
+    // Query for local users
+    if (localUsernames.length > 0) {
+      const { data: localUsers } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, is_local')
+        .in('username', localUsernames);
+      
+      if (localUsers) {
+        localUsers.forEach(user => {
+          userDataMap[user.username] = {
+            userId: user.id,
+            isLocal: user.is_local,
+            displayName: user.display_name || user.username
+          };
+        });
+      }
+    }
+    
+    // Query for remote users (username@domain format)
+    if (remoteUsernames.length > 0) {
+      const conditions = remoteUsernames.map(usernameDomain => {
+        const [username, domain] = usernameDomain.split('@');
+        return `(username.eq.${username} AND domain.eq.${domain})`;
+      }).join(',');
+      
+      const { data: remoteUsers } = await supabase
+        .from('profiles')
+        .select('id, username, domain, display_name, is_local')
+        .or(conditions);
+      
+      if (remoteUsers) {
+        remoteUsers.forEach(user => {
+          const key = `${user.username}@${user.domain}`;
+          userDataMap[key] = {
+            userId: user.id,
+            isLocal: user.is_local,
+            displayName: user.display_name || user.username
+          };
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('Error resolving mention user data:', error);
+  }
+  
+  return userDataMap;
+}
+
+/**
+ * Helper function to efficiently resolve emoji data in batch
+ * This should be called before parseTextForEmojis for optimal performance
+ */
+export async function resolveEmojisData(content: string): Promise<Record<string, any>> {
+  const emojiDataMap: Record<string, any> = {};
+  
+  let match;
+  const uniqueEmojiIds = new Set<string>();
+  
+  // Extract all unique emoji IDs from content
+  emojiRegex.lastIndex = 0; // Reset regex state
+  while ((match = emojiRegex.exec(content)) !== null) {
+    const emojiId = match[1];
+    if (emojiId) {
+      uniqueEmojiIds.add(emojiId);
+    }
+  }
+  
+  // If no emojis, return empty map
+  if (uniqueEmojiIds.size === 0) return emojiDataMap;
+  
+  try {
+    // Batch query all emojis at once
+    const { data: emojis } = await supabase
+      .from('emojis')
+      .select('*')
+      .in('id', Array.from(uniqueEmojiIds));
+    
+    if (emojis) {
+      emojis.forEach(emoji => {
+        emojiDataMap[emoji.id] = emoji;
+      });
+    }
+  } catch (error) {
+    console.warn('Error resolving emoji data:', error);
+  }
+  
+  return emojiDataMap;
+}
 
 /**
  * Parse content string into unified MessagePart format
@@ -17,7 +135,8 @@ const emojiRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
  */
 export async function parseContentToMessageParts(
   content: string,
-  _usernameToUserIdMap: any = {}
+  usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean; displayName?: string }> = {},
+  emojiDataMap: Record<string, any> = {}
 ): Promise<MessagePart[]> {
   if (!content) return [{ type: 'text', text: '' }];
 
@@ -32,23 +151,29 @@ export async function parseContentToMessageParts(
     // Add text before mention (if any)
     if (match.index > lastIndex) {
       const textBefore = content.substring(lastIndex, match.index);
-      parts.push(...await parseTextForUrls(textBefore));
+      parts.push(...await parseTextForUrls(textBefore, emojiDataMap));
     }
     
     // Process the mention
     const username = match[1];
     const domain = match[2];
     
-    // Create mention object
-    const isLocal = !domain || domain === 'har.mony.lol';
+    // Look up user data from provided map (efficient batch lookup)
+    const mentionKey = domain ? `${username}@${domain}` : username;
+    const userData = usernameToUserDataMap[mentionKey] || usernameToUserDataMap[username];
+    
+    // Fall back to domain-based logic if user data not available
+    const isLocal = userData?.isLocal ?? (!domain || domain === 'har.mony.lol');
+    const userId = userData?.userId ?? `unresolved-${username}${domain ? '@' + domain : ''}`;
+    const displayName = userData?.displayName ?? username;
     
     parts.push({
       type: 'mention',
-      userId: `unresolved-${username}${domain ? '@' + domain : ''}`,
+      userId: userId,
       username: username,
-      domain: domain || 'har.mony.lol',
+      domain: domain,
       isLocal: isLocal,
-      displayName: username
+      displayName: displayName
     });
     
     lastIndex = match.index + match[0].length;
@@ -57,7 +182,7 @@ export async function parseContentToMessageParts(
   // Add remaining text (if any)
   if (lastIndex < content.length) {
     const remainingText = content.substring(lastIndex);
-    parts.push(...await parseTextForUrls(remainingText));
+    parts.push(...await parseTextForUrls(remainingText, emojiDataMap));
   }
   
   return parts;
@@ -66,7 +191,7 @@ export async function parseContentToMessageParts(
 /**
  * Parse text for URLs and emojis
  */
-async function parseTextForUrls(text: string): Promise<MessagePart[]> {
+async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
   
   const urlRegex = /(\bhttps?:\/\/\S+)/g;
@@ -78,7 +203,7 @@ async function parseTextForUrls(text: string): Promise<MessagePart[]> {
     // Add text before URL
     if (match.index > lastIndex) {
       const textBefore = text.substring(lastIndex, match.index);
-      parts.push(...await parseTextForEmojis(textBefore));
+      parts.push(...await parseTextForEmojis(textBefore, emojiDataMap));
     }
     
     // Add URL
@@ -89,12 +214,12 @@ async function parseTextForUrls(text: string): Promise<MessagePart[]> {
   // Add remaining text
   if (lastIndex < text.length) {
     const remainingText = text.substring(lastIndex);
-    parts.push(...await parseTextForEmojis(remainingText));
+    parts.push(...await parseTextForEmojis(remainingText, emojiDataMap));
   }
   
   // If no URLs found, just parse for emojis
   if (parts.length === 0) {
-    return await parseTextForEmojis(text);
+    return await parseTextForEmojis(text, emojiDataMap);
   }
   
   return parts;
@@ -103,7 +228,7 @@ async function parseTextForUrls(text: string): Promise<MessagePart[]> {
 /**
  * Parse text for emoji shortcodes and return MessageParts
  */
-async function parseTextForEmojis(text: string): Promise<MessagePart[]> {
+async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
 
   const parts: MessagePart[] = [];
@@ -124,7 +249,7 @@ async function parseTextForEmojis(text: string): Promise<MessagePart[]> {
     
     // Add emoji
     const emojiId = emojiMatch[1];
-    const emojiData = emojiId ? await getEmoji(emojiId) : undefined;
+    const emojiData = emojiId ? emojiDataMap[emojiId] || await getEmoji(emojiId) : undefined;
     if (emojiData) {
       parts.push({ type: 'emoji', emoji: emojiData });
     } else {

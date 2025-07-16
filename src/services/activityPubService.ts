@@ -1974,13 +1974,15 @@ export class ActivityPubService {
    */
   private async formatPostContent(content: string): Promise<any> {
     // Use the centralized unified content processing utility
-    const { parseContentToMessageParts } = await import('@/utils/unifiedContentProcessing');
+    const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } = await import('@/utils/unifiedContentProcessing');
     
-    // Build username to user ID map for mention resolution
-    const usernameToUserIdMap: Record<string, string> = {};
-    // TODO: Add proper user lookup logic for mentions
+    // Efficiently resolve all mention and emoji data in batch
+    const [usernameToUserDataMap, emojiDataMap] = await Promise.all([
+      resolveMentionsUserData(content),
+      resolveEmojisData(content)
+    ]);
     
-    return parseContentToMessageParts(content, usernameToUserIdMap);
+    return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap);
   }
 
   /**
