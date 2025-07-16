@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
+import { useReactionsStore } from './useReactions'
 import { userDataService } from '@/services/userDataService'
 import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessing'
 
@@ -929,7 +930,36 @@ export const useDMStore = defineStore('dm', () => {
           console.log('📡 DM conversations subscription status:', status)
         })
 
+      // Get reactions store for handling real-time updates
+      const reactionsStore = useReactionsStore()
+
+      // Set up GLOBAL DM reactions subscription (similar to chat)
+      // This ensures reactions work even when switching between conversations
+      const reactionsChannel = supabase
+        .channel(`dm-reactions-${userId}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'reactions'
+        }, async (payload) => {
+          console.log('🎯 Global DM reaction INSERT received:', payload)
+          reactionsStore.handleRealtimeUpdate(payload)
+        })
+        .on('postgres_changes', {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'reactions'
+        }, async (payload) => {
+          console.log('🎯 Global DM reaction DELETE received:', payload)
+          reactionsStore.handleRealtimeUpdate(payload)
+        })
+        .subscribe((status) => {
+          console.log('📡 Global DM reactions subscription status:', status)
+        })
+
+      // Store the subscriptions
       dmSubscriptions.value.set(`dm-conversations-${userId}`, conversationsChannel)
+      dmSubscriptions.value.set(`dm-reactions-${userId}`, reactionsChannel)
 
     } catch (error) {
       console.error('❌ Error setting up DM realtime subscriptions:', error)

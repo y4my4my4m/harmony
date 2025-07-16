@@ -320,7 +320,7 @@ const typeIcon = computed(() => {
     reply: ReplyIcon,
     server_invite: ServerInviteIcon,
     voice_channel_activity: VoiceIcon,
-    emoji_added: EmojiIcon
+    emoji_added: EmojiIcon,
   } as const
 
   type IconMapKey = keyof typeof iconMap
@@ -383,19 +383,23 @@ const typeIcon = computed(() => {
   opacity: 1;
 }
 
-.indicator--mention {
+.indicator--mention,
+.indicator--activitypub_mention  {
   background: linear-gradient(180deg, #f04747, #d63031);
 }
 
-.indicator--dm {
+.indicator--dm,
+.indicator--activitypub_dm {
   background: linear-gradient(180deg, #7289da, #5865f2);
 }
 
-.indicator--reaction {
+.indicator--reaction,
+.indicator--activitypub_reaction {
   background: linear-gradient(180deg, #faa61a, #f39c12);
 }
 
-.indicator--reply {
+.indicator--reply,
+.indicator--activitypub_reply {
   background: linear-gradient(180deg, #43b581, #00b894);
 }
 
@@ -409,6 +413,10 @@ const typeIcon = computed(() => {
 
 .indicator--emoji_added {
   background: linear-gradient(180deg, #fd79a8, #e84393);
+}
+
+.indicator--activitypub_follow {
+  background: linear-gradient(180deg, #117dd6, #30a2ff);
 }
 
 /* Avatar section */
@@ -438,10 +446,10 @@ const typeIcon = computed(() => {
 
 .type-icon-overlay {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 18px;
-  height: 18px;
+  bottom: -4px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -449,21 +457,26 @@ const typeIcon = computed(() => {
   border: 2px solid var(--h-chat);
   font-size: 8px;
   color: #ffffff;
+  z-index: 4;
 }
 
-.overlay--mention {
-  background: linear-gradient(135deg, #f04747, #d63031);
+.overlay--mention,
+.overlay--activitypub_mention {
+  background: linear-gradient(135deg, #9647f0, #5a1c7e);
 }
 
-.overlay--dm {
+.overlay--dm,
+.overlay--activitypub_dm {
   background: linear-gradient(135deg, #7289da, #5865f2);
 }
 
-.overlay--reaction {
+.overlay--reaction,
+.overlay--activitypub_reaction {
   background: linear-gradient(135deg, #faa61a, #f39c12);
 }
 
-.overlay--reply {
+.overlay--reply,
+.overlay--activitypub_reply {
   background: linear-gradient(135deg, #43b581, #00b894);
 }
 
@@ -479,9 +492,24 @@ const typeIcon = computed(() => {
   background: linear-gradient(135deg, #fd79a8, #e84393);
 }
 
+.overlay--activitypub_favorite {
+  background: linear-gradient(135deg, #d6a811, #ff8d30);
+}
+
+.overlay--activitypub_follow {
+  background: linear-gradient(180deg, #117dd6, #30a2ff);
+}
+
 .type-icon {
-  width: 10px;
-  height: 10px;
+  position: relative;
+  top: 2px;
+  left: 2px;
+  height: 24px;
+  width: 24px;
+  stroke-width: 1px;
+  z-index: 5;
+  color: #fff;
+  stroke: #fff;
 }
 
 .unread-pulse {
