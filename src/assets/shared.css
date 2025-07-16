@@ -114,7 +114,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid var(--h-black-dark);
+  border: 2px solid var(--background-quinary);
   position: absolute;
   bottom: 0;
   right: 0;

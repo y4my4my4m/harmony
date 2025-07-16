@@ -982,13 +982,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 480px) {
-  .notification-panel {
-    width: calc(100vw - 16px);
-    right: 8px;
-    left: -48vw;
-    border-radius: 12px;
-  }
-  
   .panel-header {
     padding: 16px;
   }

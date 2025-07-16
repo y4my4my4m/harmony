@@ -563,6 +563,10 @@ const closeInviteModal = () => {
   height: 16px;
 }
 
+.user-sidebar {
+  height: 100%;
+}
+
 /* Member Count */
 .member-count {
   color: #72767d;
@@ -580,6 +584,8 @@ const closeInviteModal = () => {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 8px 8px 16px 8px;
+  height:100%;
+  background-color: var(--background-primary-alpha);
 }
 
 .user-groups::-webkit-scrollbar {

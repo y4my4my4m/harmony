@@ -158,6 +158,7 @@ const handleMoreClick = () => {
 .channel-icon {
   color: var(--text-secondary);
   flex-shrink: 0;
+  display: flex;
 }
 
 .hash-icon {

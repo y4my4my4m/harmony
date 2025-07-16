@@ -252,7 +252,9 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   width: 345px;
-  background: var(--h-black-dark);
+  background: var(--background-quinary);
+
+  backdrop-filter: blur(10px);
   padding: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   height: 72px;
@@ -275,7 +277,7 @@ onBeforeUnmount(() => {
   position: absolute;
   bottom: 0;
   right: 0;
-  border: 2px solid var(--h-black-dark);
+  border: 2px solid var(--background-quinary);
   border-radius: 50%;
 }
 
