@@ -654,12 +654,11 @@ function parseActivityPubHTMLToJSONB(htmlContent: string, mentionTags: any[] = [
 
   const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol';
 
-  // Create a map of mention URLs to usernames for easy lookup
+  // Create a map of mention URLs to tag data for easy lookup
   const mentionMap = new Map();
   mentionTags.forEach((tag: any) => {
     if (tag.type === 'Mention' && tag.href && tag.name) {
-      const username = tag.name.replace('@', '').split('@')[0]; // Extract just the username part
-      mentionMap.set(tag.href, username);
+      mentionMap.set(tag.href, tag);
     }
   });
 
@@ -701,18 +700,31 @@ function parseActivityPubHTMLToJSONB(htmlContent: string, mentionTags: any[] = [
       result.push({ type: 'text', text: textBefore });
     }
     
-    // Process the mention
-    const username = mentionMap.get(href) || linkText.replace('@', '').trim();
-    const domain = href ? new URL(href).hostname : null;
+    // Get mention details from the map or parse from href
+    const mentionTag = mentionMap.get(href);
+    let username, domain;
+    
+    if (mentionTag && mentionTag.name) {
+      // Parse from the name field: @username or @username@domain
+      const nameParts = mentionTag.name.replace('@', '').split('@');
+      username = nameParts[0];
+      domain = nameParts[1] || (href ? new URL(href).hostname : ourDomain);
+    } else {
+      // Fallback: parse from link text and href
+      username = linkText.replace('@', '').trim();
+      domain = href ? new URL(href).hostname : ourDomain;
+    }
     
     console.log(`🔍 Processing mention: href=${href}, linkText=${linkText}, username=${username}, domain=${domain}`);
     
+    // Use unified mention format (same as chat system)
     result.push({
       type: 'mention',
       username: username,
       domain: domain,
       isLocal: domain === ourDomain,
       url: href
+      // Note: userId will be resolved later if needed
     });
     
     lastIndex = match.index + fullMatch.length;

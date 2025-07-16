@@ -125,12 +125,26 @@ serve(async (req: Request) => {
   }
 })
 
-// Helper function to format post content
+// Helper function to format post content for ActivityPub federation
 function formatPostContent(content: any): string {
   if (Array.isArray(content)) {
     return content
-      .map(item => item.type === 'text' ? item.text : '')
-      .join('')
+      .map(item => {
+        if (item.type === 'text') {
+          return item.text || '';
+        } else if (item.type === 'mention') {
+          // Convert unified mention format to ActivityPub HTML with proper h-card structure
+          const username = item.username || '';
+          const domain = item.domain || 'har.mony.lol';
+          const href = item.url || `https://${domain}/@${username}`;
+          const displayName = item.isLocal ? `@${username}` : `@${username}@${domain}`;
+          return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
+        } else if (item.type === 'url') {
+          return `<a href="${item.url}" target="_blank" rel="noopener">${item.text || item.url}</a>`;
+        }
+        return '';
+      })
+      .join('');
   }
-  return String(content || '')
+  return String(content || '');
 }

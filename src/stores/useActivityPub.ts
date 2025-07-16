@@ -1060,7 +1060,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         // Use activityPubService to create the post
         const post = await activityPubService.createPost({
-          content: this.formatPostContent(content),
+          content: await this.formatPostContent(content),
           visibility: visibility,
           content_warning: contentWarning,
           in_reply_to: replyTo,
@@ -1118,33 +1118,31 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Format post content for storage with mention detection
+     * Format post content for storage with mention detection and unified format
      */
-    formatPostContent(content: string): any {
-      // Extract mentions to validate they exist before storing
-      const mentionRegex = /@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+))?/g;
-      const mentions = [];
+    async formatPostContent(content: string): Promise<any> {
+      // Use the centralized unified content processing utility
+      const { parseContentToMessageParts } = await import('@/utils/unifiedContentProcessing');
+      
+      // Build username to user ID map for mention resolution
+      // Extract potential usernames from content first
+      const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
+      const usernameToUserIdMap: Record<string, string> = {};
+      
       let match;
-
       while ((match = mentionRegex.exec(content)) !== null) {
-        mentions.push({
-          username: match[1],
-          domain: match[2] || 'har.mony.lol',
-          full: match[0],
-          startIndex: match.index,
-          endIndex: match.index + match[0].length
-        });
-      }
-
-      // For now, store as simple text content
-      // The federation service will handle mention processing
-      return [
-        {
-          type: 'text',
-          text: content,
-          ...(mentions.length > 0 && { mentions })
+        const username = match[1];
+        const domain = match[2];
+        const mentionKey = domain ? `${username}@${domain}`.toLowerCase() : username.toLowerCase();
+        
+        // For local mentions, try to resolve username to user ID
+        if (!domain || domain === 'har.mony.lol') {
+          // TODO: Add proper user lookup by username
+          // For now, we'll let the parser handle it with temp IDs
         }
-      ];
+      }
+      
+      return parseContentToMessageParts(content, usernameToUserIdMap);
     },
 
     /**
@@ -2051,7 +2049,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      } = {}) {
        try {
          const replyData = {
-           content: this.formatPostContent(content),
+           content: await this.formatPostContent(content),
            visibility: options.visibility || 'public',
            content_warning: options.content_warning,
            in_reply_to: postId,
