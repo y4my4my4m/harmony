@@ -23,15 +23,28 @@ DROP FUNCTION IF EXISTS handle_federated_activity_processing();
 -- REMOVE LEGACY NOTIFICATION FUNCTIONS AND TRIGGERS
 -- =====================================================
 
--- Drop legacy notification triggers first (before functions)
-DROP TRIGGER IF EXISTS simple_activitypub_follow_notifications ON follows;
-DROP TRIGGER IF EXISTS simple_activitypub_interaction_notifications ON post_interactions;
-DROP TRIGGER IF EXISTS simple_activitypub_post_notifications ON posts;
+-- NOTE: We KEEP the following functions as they handle LOCAL-to-LOCAL notifications:
+-- ✅ KEEP: handle_simple_follow_notifications() - for local follow notifications
+-- ✅ KEEP: handle_simple_interaction_notifications() - for local interaction notifications  
+-- ✅ KEEP: handle_simple_post_notifications() - for local reply notifications
+-- ✅ KEEP: create_simple_activitypub_notification() - used by all notification functions
+-- ✅ KEEP: Local notification triggers - still needed for local interactions
 
--- Drop legacy notification functions (now handled by unified trigger)
-DROP FUNCTION IF EXISTS handle_simple_follow_notifications();
-DROP FUNCTION IF EXISTS handle_simple_interaction_notifications();
-DROP FUNCTION IF EXISTS handle_simple_post_notifications();
+-- The unified ActivityPub trigger only handles FEDERATED activities (remote-to-local)
+-- Local activities (local-to-local) still need the existing notification system
+
+-- Drop only truly legacy/duplicate functions that are no longer used
+DROP FUNCTION IF EXISTS handle_activitypub_follow_notification();
+DROP FUNCTION IF EXISTS handle_activitypub_favorite_notification();
+DROP FUNCTION IF EXISTS handle_activitypub_reblog_notification();
+DROP FUNCTION IF EXISTS handle_activitypub_mention_notification();
+DROP FUNCTION IF EXISTS handle_activitypub_reply_notification();
+DROP FUNCTION IF EXISTS create_activitypub_notification(UUID, VARCHAR(50), JSONB, INTEGER);
+
+-- Drop any old/conflicting trigger names (if they exist)
+DROP TRIGGER IF EXISTS old_activitypub_follow_notifications ON follows;
+DROP TRIGGER IF EXISTS old_activitypub_interaction_notifications ON post_interactions;
+DROP TRIGGER IF EXISTS old_activitypub_post_notifications ON posts;
 
 -- =====================================================
 -- REMOVE LEGACY TRIGGERS ON AP_ACTIVITIES
@@ -180,15 +193,20 @@ DO $$
 BEGIN
     RAISE NOTICE '🧹 LEGACY ACTIVITYPUB CLEANUP COMPLETE';
     RAISE NOTICE '✅ Removed any conflicting legacy functions and triggers';
-    RAISE NOTICE '✅ Removed legacy notification functions and triggers (handle_simple_*_notifications)';
+    RAISE NOTICE '✅ PRESERVED local notification functions (handle_simple_*_notifications)';
+    RAISE NOTICE '✅ PRESERVED local notification triggers - still needed for local-to-local interactions';
     RAISE NOTICE '✅ Kept outbound federation triggers (handle_unified_interaction_processing, etc.)';
     RAISE NOTICE '✅ Kept user management functions (setup_activitypub_federation, etc.)';
     RAISE NOTICE '✅ Kept conversation management functions';
     RAISE NOTICE '✅ Verified unified trigger system is properly deployed';
     RAISE NOTICE '🚀 ActivityPub system is ready for production';
     RAISE NOTICE '';
+    RAISE NOTICE 'IMPORTANT: The unified trigger handles FEDERATED activities only';
+    RAISE NOTICE 'LOCAL notifications still use the existing notification system';
+    RAISE NOTICE '';
     RAISE NOTICE 'NEXT STEPS:';
-    RAISE NOTICE '1. Set up cron job: SELECT process_failed_activities_retry(); (every 5 minutes)';
-    RAISE NOTICE '2. Monitor: SELECT status, count(*) FROM ap_activities GROUP BY status;';
-    RAISE NOTICE '3. Test federation flow end-to-end';
+    RAISE NOTICE '1. Apply fix_local_post_mention_notifications.sql to ensure mentions work';
+    RAISE NOTICE '2. Set up cron job: SELECT process_failed_activities_retry(); (every 5 minutes)';
+    RAISE NOTICE '3. Monitor: SELECT status, count(*) FROM ap_activities GROUP BY status;';
+    RAISE NOTICE '4. Test federation flow end-to-end';
 END $$;
