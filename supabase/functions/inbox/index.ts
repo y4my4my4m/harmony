@@ -143,8 +143,8 @@ serve(async (req: Request) => {
           isValid = await processAnnounceActivity(supabase, activity)
           break
         default:
-          console.log(`Unhandled activity type: ${activity.type}`)
-          isValid = true // Store it anyway, triggers might handle it
+          console.log(`Unhandled activity type: ${activity.type}. Marking as invalid.`)
+          isValid = false // Reject unrecognized activity types
       }
 
       if (isValid) {
