@@ -54,3 +54,9 @@
 29. improve the PWA scroll-up to refresh data-chat-messages/data-timeline
 
 30. fix RLS for server privacy (select is all? should be owner/admin/members if private)
+
+31. the user search is bad now, it's doing full queries every time. Instead we ought to prioritize cache, then if nothing is found do a fetch. Need a global cache for the user (all the servers/users encountered), then use that cache by context. Then fetch. We also need to use supabase vector search for better results. Don't forget about federation users, they should be cached too and we can search for them too when a domain is entered, only then.
+
+32. ok, make sure it's fully compatible with both mastodon and misskey
+misskey has stuff like status updates (online/away/offline) which we could embed with our own profiles.status
+they also have reactions on posts, which we should embed with our own reactions logic to messages and posts (since we plan to federate messages (we already do for DMs!))

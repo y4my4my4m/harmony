@@ -32,7 +32,7 @@
           <div class="suggest-item-content">
             <img 
               v-if="suggestion.url || suggestion.avatar" 
-              :src="suggestion.url || suggestion.avatar" 
+              :src="getEmojiUrl(suggestion.url, 48) || suggestion.avatar" 
               :alt="suggestion.name || suggestion.display_name"
               class="suggest-icon"
             />
@@ -79,7 +79,7 @@
           v-else-if="part && typeof part === 'object' && part.type === 'emoji'"
           class="emoji-icon"
           :class="{ 'single': isSingleEmoji }"
-          :src="part.emoji.url"
+          :src="getEmojiUrl(part.emoji.url, 48)"
           :alt="part.emoji.name"
           :title="`:${part.emoji.name}:`"
           draggable="false"
@@ -212,6 +212,7 @@ import CodeBlock from '@/components/common/CodeBlock.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { userDataService } from '@/services/userDataService';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -555,7 +556,8 @@ export default defineComponent({
       emit('cancel-edit');
     };
 
-    return { 
+    return {
+      getEmojiUrl,
       localEditableContent,
       editTextarea,
       handleSaveEdit, 

@@ -195,7 +195,7 @@
     <div class="tooltip-header">
       <img 
         v-if="tooltip.emoji?.url"
-        :src="tooltip.emoji.url"
+        :src="getEmojiUrl(tooltip.emoji.url, 48)"
         :alt="tooltip.emoji.name || 'emoji'"
         class="tooltip-emoji"
       />
@@ -234,6 +234,7 @@ import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 
 export default defineComponent({
   props: {
@@ -1265,6 +1266,7 @@ export default defineComponent({
       messagePartsToMarkdown,
       messagePartsToPlainText,
       checkSingleEmoji,
+      getEmojiUrl,
     };
   }
 });

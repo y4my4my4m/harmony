@@ -36,7 +36,7 @@
               @mouseover="hoveredEmojiId = emoji.id"
               @mouseleave="hoveredEmojiId = null"
             >
-              <img :src="emoji.url" :alt="emoji.name" />
+              <img :src="getEmojiUrl(emoji.url, 24)" :alt="emoji.name" />
             </div>
           </div>
         </div>
@@ -50,6 +50,7 @@ import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { usePopupPositioning } from '@/composables/usePopupPositioning';
 import type { Emoji, ResolvedEmoji } from '@/types';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 
 // --- Types ---
 
