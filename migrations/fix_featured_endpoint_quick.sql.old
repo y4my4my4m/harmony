@@ -1,0 +1,221 @@
+-- Complete Fix for Featured Endpoint - Both Database Schema and Smart Query
+-- This addresses the immediate issue and adds future pinned posts support
+
+-- =====================================================
+-- STEP 1: ADD IS_PINNED COLUMN AND INDEX
+-- =====================================================
+
+-- Add is_pinned column to support pinned posts
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
+
+-- Create optimized index for pinned posts queries
+CREATE INDEX IF NOT EXISTS idx_posts_pinned 
+ON posts(author_id, is_pinned, created_at DESC) 
+WHERE is_pinned = true;
+
+-- Create general index for featured posts (popular content)
+CREATE INDEX IF NOT EXISTS idx_posts_featured 
+ON posts(author_id, interactions_count DESC, created_at DESC) 
+WHERE interactions_count > 0;
+
+-- =====================================================
+-- STEP 2: SMART FEATURED POSTS QUERY (BEST OF BOTH)
+-- =====================================================
+
+-- Use this hybrid query in your featured endpoint:
+-- It shows pinned posts first, then fills with popular posts
+
+/*
+-- SMART FEATURED POSTS QUERY (Hybrid Approach)
+-- This query prioritizes pinned posts, then fills with popular posts
+
+WITH pinned_posts AS (
+    SELECT 
+        id, content, created_at, updated_at, author_id,
+        interactions_count, replies_count,
+        1 as priority,
+        created_at as sort_date
+    FROM posts
+    WHERE author_id = $1 AND is_pinned = true
+    ORDER BY created_at DESC
+    LIMIT 5
+),
+popular_posts AS (
+    SELECT 
+        id, content, created_at, updated_at, author_id,
+        interactions_count, replies_count,
+        2 as priority,
+        created_at as sort_date
+    FROM posts
+    WHERE author_id = $1 
+    AND is_pinned = false
+    AND interactions_count > 0
+    AND id NOT IN (SELECT id FROM pinned_posts)
+    ORDER BY interactions_count DESC, created_at DESC
+    LIMIT (5 - (SELECT COUNT(*) FROM pinned_posts))
+)
+SELECT 
+    id, content, created_at, updated_at, author_id,
+    interactions_count, replies_count
+FROM (
+    SELECT * FROM pinned_posts
+    UNION ALL
+    SELECT * FROM popular_posts
+) combined
+ORDER BY priority, sort_date DESC
+LIMIT 5;
+*/
+
+-- SIMPLIFIED VERSION (easier to implement in TypeScript):
+/*
+-- First try to get pinned posts
+SELECT 
+    id, content, created_at, updated_at, author_id,
+    interactions_count, replies_count,
+    'pinned' as source
+FROM posts
+WHERE author_id = $1 AND is_pinned = true
+ORDER BY created_at DESC
+LIMIT 5;
+
+-- If fewer than 5 pinned posts, fill with popular posts:
+SELECT 
+    id, content, created_at, updated_at, author_id,
+    interactions_count, replies_count,
+    'popular' as source
+FROM posts
+WHERE author_id = $1 
+AND is_pinned = false
+AND interactions_count > 0
+ORDER BY interactions_count DESC, created_at DESC
+LIMIT $2; -- Where $2 = (5 - number_of_pinned_posts)
+*/
+
+-- =====================================================
+-- STEP 3: CREATE HELPER FUNCTION (OPTIONAL)
+-- =====================================================
+
+-- Create a database function for easy featured posts retrieval
+CREATE OR REPLACE FUNCTION get_featured_posts(user_id UUID, max_posts INT DEFAULT 5)
+RETURNS TABLE (
+    id UUID,
+    content JSONB,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    author_id UUID,
+    interactions_count INT,
+    replies_count INT,
+    is_pinned BOOLEAN,
+    source TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    pinned_count INT;
+    remaining_slots INT;
+BEGIN
+    -- Get pinned posts first
+    RETURN QUERY
+    SELECT 
+        p.id, p.content, p.created_at, p.updated_at, p.author_id,
+        p.interactions_count, p.replies_count, p.is_pinned,
+        'pinned'::TEXT as source
+    FROM posts p
+    WHERE p.author_id = user_id AND p.is_pinned = true
+    ORDER BY p.created_at DESC
+    LIMIT max_posts;
+    
+    -- Count how many pinned posts we got
+    GET DIAGNOSTICS pinned_count = ROW_COUNT;
+    remaining_slots := max_posts - pinned_count;
+    
+    -- Fill remaining slots with popular posts if needed
+    IF remaining_slots > 0 THEN
+        RETURN QUERY
+        SELECT 
+            p.id, p.content, p.created_at, p.updated_at, p.author_id,
+            p.interactions_count, p.replies_count, p.is_pinned,
+            'popular'::TEXT as source
+        FROM posts p
+        WHERE p.author_id = user_id 
+        AND p.is_pinned = false
+        AND p.interactions_count > 0
+        ORDER BY p.interactions_count DESC, p.created_at DESC
+        LIMIT remaining_slots;
+    END IF;
+END;
+$$;
+
+-- =====================================================
+-- STEP 4: TYPESCRIPT IMPLEMENTATION OPTIONS
+-- =====================================================
+
+-- OPTION A: Use the database function (recommended)
+/*
+const { data: featuredPosts, error } = await supabase
+  .rpc('get_featured_posts', { 
+    user_id: user.id, 
+    max_posts: 5 
+  })
+*/
+
+-- OPTION B: Two-query approach in TypeScript
+/*
+// First get pinned posts
+const { data: pinnedPosts } = await supabase
+  .from('posts')
+  .select('*')
+  .eq('author_id', user.id)
+  .eq('is_pinned', true)
+  .order('created_at', { ascending: false })
+  .limit(5)
+
+const remainingSlots = 5 - (pinnedPosts?.length || 0)
+
+let popularPosts = []
+if (remainingSlots > 0) {
+  const { data } = await supabase
+    .from('posts')  
+    .select('*')
+    .eq('author_id', user.id)
+    .eq('is_pinned', false)
+    .gt('interactions_count', 0)
+    .order('interactions_count', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(remainingSlots)
+  
+  popularPosts = data || []
+}
+
+const featuredPosts = [...(pinnedPosts || []), ...popularPosts]
+*/
+
+-- =====================================================
+-- STEP 5: VERIFICATION AND COMPLETION
+-- =====================================================
+
+-- Grant permissions on the new function
+GRANT EXECUTE ON FUNCTION get_featured_posts(UUID, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_featured_posts(UUID, INT) TO anon;
+
+-- Test the function (optional)
+-- SELECT * FROM get_featured_posts('your-user-uuid'::UUID, 5);
+
+DO $$
+BEGIN
+    RAISE NOTICE '✅ FEATURED POSTS SYSTEM SETUP COMPLETE';
+    RAISE NOTICE '✅ Added is_pinned column to posts table';
+    RAISE NOTICE '✅ Created optimized indexes for performance';
+    RAISE NOTICE '✅ Created get_featured_posts() helper function';
+    RAISE NOTICE '';
+    RAISE NOTICE 'IMPLEMENTATION OPTIONS:';
+    RAISE NOTICE '1. Use database function: SELECT * FROM get_featured_posts(user_id, 5)';
+    RAISE NOTICE '2. Use two-query approach in TypeScript (see comments above)';
+    RAISE NOTICE '3. Pin posts by setting: UPDATE posts SET is_pinned = true WHERE id = ?';
+    RAISE NOTICE '';
+    RAISE NOTICE 'BENEFITS:';
+    RAISE NOTICE '• Pinned posts appear first when available';
+    RAISE NOTICE '• Falls back to popular posts when no pinned posts';
+    RAISE NOTICE '• Always returns up to 5 posts as featured content';
+    RAISE NOTICE '• Optimized with proper indexes for performance';
+END $$;

@@ -157,7 +157,7 @@
           </div>
           
           <div class="emoji-preview">
-            <img :src="emoji.url" :alt="emoji.name" class="emoji-image" />
+            <img :src="getEmojiUrl(emoji.url, 48)" :alt="emoji.name" class="emoji-image" />
           </div>
           
           <div class="emoji-details">
@@ -238,6 +238,7 @@ import { ref, nextTick } from 'vue'
 import { useToast } from 'vue-toastification'
 import { uploadEmoji, deleteEmoji, renameEmoji, bulkUploadEmojis, bulkDeleteEmojis } from '@/services/emojiService'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
+import { getEmojiUrl } from '@/utils/emojiUtils'
 import type { Emoji } from '@/types'
 
 interface EmojiPermissions {
@@ -346,8 +347,8 @@ const handleEmojiFile = async (file: File) => {
     return
   }
 
-  if (file.size > 256 * 1024) {
-    toast.error('File size must be less than 256KB')
+  if (file.size > 1024 * 1024) {
+    toast.error('File size must be less than 1MB')
     return
   }
 
@@ -414,8 +415,8 @@ const handleBulkEmojiUpload = async (files: File[]) => {
       toast.warning(`${file.name} is not an image file and will be skipped`)
       return false
     }
-    if (file.size > 256 * 1024) {
-      toast.warning(`${file.name} is too large (over 256KB) and will be skipped`)
+    if (file.size > 1024 * 1024) {
+      toast.warning(`${file.name} is too large (over 1MB) and will be skipped`)
       return false
     }
     return true

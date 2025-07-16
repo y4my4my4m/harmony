@@ -78,8 +78,15 @@ const MESSAGE_TEMPLATES = {
 
   // ActivityPub notification templates
   activitypub_follow: {
-    title: (data: any) => `${data.follower.display_name || data.follower.username} started following you`,
-    message: (data: any) => `${data.follower.handle || '@' + data.follower.username} is now following you`,
+    title: (data: any) => {
+      const displayName = data.follower.display_name || data.follower.username
+      const handle = data.follower.handle || `@${data.follower.username}${!data.follower.is_local ? '@' + data.follower.domain : ''}`
+      return `${displayName} (${handle}) started following you`
+    },
+    message: (data: any) => {
+      const handle = data.follower.handle || `@${data.follower.username}${!data.follower.is_local ? '@' + data.follower.domain : ''}`
+      return `${handle} is now following you`
+    },
     shortTitle: (data: any) => `New follower`
   },
 
@@ -187,14 +194,34 @@ export class NotificationFormatter {
   }
   
   /**
-   * Get username from notification data
+   * Get username from notification data (includes domain for remote users)
    */
   static getUsername(notification: Notification): string {
     const data = notification.data
+    
+    // For ActivityPub notifications, prioritize the handle (includes domain)
+    if (notification.type.startsWith('activitypub_')) {
+      if (data.follower?.handle) return data.follower.handle
+      if (data.actor?.handle) return data.actor.handle
+      if (data.user?.handle) return data.user.handle
+      if (data.author?.handle) return data.author.handle
+      
+      // Fallback to constructing handle for ActivityPub users
+      const user = data.follower || data.actor || data.user || data.author
+      if (user) {
+        const username = user.display_name || user.username
+        if (!user.is_local && user.domain) {
+          return `@${user.username}@${user.domain}`
+        }
+        return username
+      }
+    }
+    
+    // For non-ActivityPub notifications, use standard display name/username
     return data.sender?.display_name || data.sender?.username || 
            data.reactor?.display_name || data.reactor?.username || 
            data.inviter?.display_name || data.inviter?.username ||
-           // ActivityPub notifications
+           // ActivityPub fallback (should not reach here due to above check)
            data.actor?.display_name || data.actor?.username ||
            data.follower?.display_name || data.follower?.username ||
            data.user?.display_name || data.user?.username ||

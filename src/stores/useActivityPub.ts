@@ -1060,7 +1060,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         // Use activityPubService to create the post
         const post = await activityPubService.createPost({
-          content: this.formatPostContent(content),
+          content: await this.formatPostContent(content),
           visibility: visibility,
           content_warning: contentWarning,
           in_reply_to: replyTo,
@@ -1118,42 +1118,19 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Format post content for storage with mention detection
+     * Format post content for storage with mention detection and unified format
      */
-    formatPostContent(content: string): any {
-      // Extract mentions to validate they exist before storing
-      const mentionRegex = /@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+))?/g;
-      const mentions = [];
-      let match;
-
-      while ((match = mentionRegex.exec(content)) !== null) {
-        mentions.push({
-          username: match[1],
-          domain: match[2] || 'har.mony.lol',
-          full: match[0],
-          startIndex: match.index,
-          endIndex: match.index + match[0].length
-        });
-      }
-
-      // For now, store as simple text content
-      // The federation service will handle mention processing
-      return [
-        {
-          type: 'text',
-          text: content,
-          ...(mentions.length > 0 && { mentions })
-        }
-      ];
-    },
-
-    /**
-     * Federate a post to remote instances (handled by database triggers)
-     */
-    async federatePost(postId: string) {
-      // Federation is now handled automatically by database triggers
-      // This method is kept for backwards compatibility but does nothing
-      console.log(`🌐 Federation for post ${postId} is handled by database triggers`);
+    async formatPostContent(content: string): Promise<any> {
+      // Use the centralized unified content processing utility
+      const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } = await import('@/utils/unifiedContentProcessing');
+      
+      // Efficiently resolve all mention and emoji data in batch
+      const [usernameToUserDataMap, emojiDataMap] = await Promise.all([
+        resolveMentionsUserData(content),
+        resolveEmojisData(content)
+      ]);
+      
+      return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap);
     },
 
     /**
@@ -2051,7 +2028,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      } = {}) {
        try {
          const replyData = {
-           content: this.formatPostContent(content),
+           content: await this.formatPostContent(content),
            visibility: options.visibility || 'public',
            content_warning: options.content_warning,
            in_reply_to: postId,

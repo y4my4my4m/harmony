@@ -67,7 +67,7 @@
         <label class="form-label">Server Icon</label>
         <div class="icon-upload-container">
           <div class="current-icon">
-            <img
+            <ServerIcon
               v-if="server.icon"
               :src="server.icon"
               alt="Server icon"
@@ -124,6 +124,7 @@
 import { ref } from 'vue'
 import type { Server } from '@/types'
 import { useNotificationStore } from '@/stores/useNotification'
+import ServerIcon from '@/components/common/ServerIcon.vue'
 
 const notificationStore = useNotificationStore()
 

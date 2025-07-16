@@ -124,7 +124,7 @@ const otherUserStatus = computed(() => {
 })
 
 const isFederatedUser = computed(() => {
-  return props.conversation.other_user?.domain && props.conversation.other_user?.domain !== 'local'
+  return !props.conversation.other_user?.is_local
 })
 
 // Methods

@@ -1529,7 +1529,7 @@ export class ActivityPubService {
     };
 
     if (updates.content !== undefined) {
-      updateData.content = this.formatPostContent(updates.content);
+      updateData.content = await this.formatPostContent(updates.content);
     }
     if (updates.content_warning !== undefined) {
       updateData.content_warning = updates.content_warning;
@@ -1939,7 +1939,7 @@ export class ActivityPubService {
       type: post.ap_type || 'Note',
       id: post.ap_id || `${this.instanceUrl}/posts/${post.id}`,
       attributedTo: author,
-      content: this.contentToHtml(post.content),
+      content: await this.contentToHtml(post.content),
       published: post.created_at,
       updated: post.updated_at !== post.created_at ? post.updated_at : undefined,
       to: this.getPostAudience(post.visibility),
@@ -1970,38 +1970,31 @@ export class ActivityPubService {
   }
 
   /**
-   * Format post content for storage
+   * Format post content for storage with mention detection and unified format
    */
-  private formatPostContent(content: string): any {
-    // Format content as JSONB structure similar to messages
-    // This matches the expected database schema
-    return [
-      {
-        type: 'text',
-        text: content
-      }
-    ];
+  private async formatPostContent(content: string): Promise<any> {
+    // Use the centralized unified content processing utility
+    const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } = await import('@/utils/unifiedContentProcessing');
+    
+    // Efficiently resolve all mention and emoji data in batch
+    const [usernameToUserDataMap, emojiDataMap] = await Promise.all([
+      resolveMentionsUserData(content),
+      resolveEmojisData(content)
+    ]);
+    
+    return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap);
   }
 
   /**
-   * Helper: Convert MessagePart[] content to HTML
+   * Helper: Convert MessagePart[] content to HTML for federation
    */
-  private contentToHtml(content: any): string {
+  private async contentToHtml(content: any): Promise<string> {
     if (typeof content === 'string') return content;
     if (!Array.isArray(content)) return '';
     
-    return content.map(part => {
-      switch (part.type) {
-        case 'text':
-          return part.text;
-        case 'mention':
-          return `<a href="${this.instanceUrl}/users/${part.mention}" class="mention">@${part.mention}</a>`;
-        case 'url':
-          return `<a href="${part.url}" target="_blank" rel="noopener">${part.url}</a>`;
-        default:
-          return '';
-      }
-    }).join('');
+    // Use the centralized unified content processing utility
+    const { convertMessagePartsToActivityPubHTML } = await import('@/utils/unifiedContentProcessing');
+    return convertMessagePartsToActivityPubHTML(content);
   }
 
   /**

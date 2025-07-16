@@ -82,7 +82,7 @@ serve(async (req: Request) => {
         .from('posts')
         .select(`
           id, content, visibility, created_at, ap_id, ap_type,
-          media_attachments, content_warning, in_reply_to
+          content_warning, in_reply_to
         `)
         .eq('author_id', user.id)
         .eq('is_local', true)
@@ -98,27 +98,64 @@ serve(async (req: Request) => {
         })
       }
 
-      // Convert posts to ActivityPub Create activities
-      const activities = posts?.map(post => ({
-        '@context': 'https://www.w3.org/ns/activitystreams',
-        id: `${baseUrl}/users/${username}/activities/create/${post.id}`,
-        type: 'Create',
-        actor: `${baseUrl}/users/${username}`,
-        published: post.created_at,
-        object: {
+      // Convert posts to ActivityPub Create activities using unified database functions
+      const activities = await Promise.all(posts?.map(async post => {
+        // Get properly formatted content and tags from unified database functions
+        const { data: htmlContent, error: htmlContentError } = await supabase.rpc(
+          'convert_unified_content_to_activitypub_html', 
+          { content: post.content }
+        );
+        if (htmlContentError) {
+          console.error('Failed to convert content to ActivityPub HTML:', htmlContentError);
+        }
+
+        const { data: allTags, error: allTagsError } = await supabase.rpc(
+          'extract_all_activitypub_tags',
+          { content: post.content }
+        );
+        if (allTagsError) {
+          console.error('Failed to extract ActivityPub tags:', allTagsError);
+        }
+
+        const { data: attachments, error: attachmentsError } = await supabase.rpc(
+          'extract_activitypub_attachments',
+          { content: post.content }
+        );
+        if (attachmentsError) {
+          console.error('Failed to extract ActivityPub attachments:', attachmentsError);
+        }
+        
+        const activityObject: any = {
           id: post.ap_id || `${baseUrl}/posts/${post.id}`,
           type: post.ap_type || 'Note',
           attributedTo: `${baseUrl}/users/${username}`,
-          content: formatPostContent(post.content),
+          content: htmlContent || '',
           published: post.created_at,
           to: post.visibility === 'public' ? ['https://www.w3.org/ns/activitystreams#Public'] : [],
           cc: [],
+          ...(allTags && allTags.length > 0 && { tag: allTags }),
+          ...(attachments && attachments.length > 0 && { attachment: attachments }),
           ...(post.content_warning && { summary: post.content_warning }),
-          ...(post.in_reply_to && { inReplyTo: post.in_reply_to }),
-          ...(post.media_attachments && post.media_attachments.length > 0 && {
-            attachment: post.media_attachments
-          })
-        }
+          ...(post.in_reply_to && { inReplyTo: post.in_reply_to })
+        };
+        
+        return {
+          '@context': [
+            'https://www.w3.org/ns/activitystreams',
+            'https://w3id.org/security/v1',
+            {
+              'Hashtag': 'as:Hashtag',
+              'sensitive': 'as:sensitive',
+              'toot': 'http://joinmastodon.org/ns#',
+              'Emoji': 'toot:Emoji'
+            }
+          ],
+          id: `${baseUrl}/users/${username}/activities/create/${post.id}`,
+          type: 'Create',
+          actor: `${baseUrl}/users/${username}`,
+          published: post.created_at,
+          object: activityObject
+        };
       })) || []
 
       const outboxPage = {
@@ -173,13 +210,3 @@ serve(async (req: Request) => {
     })
   }
 })
-
-// Helper function to format post content
-function formatPostContent(content: any): string {
-  if (Array.isArray(content)) {
-    return content
-      .map(item => item.type === 'text' ? item.text : '')
-      .join('')
-  }
-  return String(content || '')
-}

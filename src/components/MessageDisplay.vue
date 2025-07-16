@@ -121,7 +121,7 @@
         
         <!-- Compact message (no header, just content aligned with previous messages) -->
         <div v-else class="message-content-only">
-          <div class="message-gutter"></div>
+          <div class="message-gutter" :data-timestamp="formatTimestamp(message.created_at)"></div>
           <div class="message-main">
             <UnifiedMessageContent 
               :content="message.content"
@@ -195,7 +195,7 @@
     <div class="tooltip-header">
       <img 
         v-if="tooltip.emoji?.url"
-        :src="tooltip.emoji.url"
+        :src="getEmojiUrl(tooltip.emoji.url, 48)"
         :alt="tooltip.emoji.name || 'emoji'"
         class="tooltip-emoji"
       />
@@ -234,6 +234,7 @@ import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
+import { getEmojiUrl } from '@/utils/emojiUtils';
 
 export default defineComponent({
   props: {
@@ -1265,6 +1266,7 @@ export default defineComponent({
       messagePartsToMarkdown,
       messagePartsToPlainText,
       checkSingleEmoji,
+      getEmojiUrl,
     };
   }
 });
@@ -1428,10 +1430,8 @@ export default defineComponent({
   position: absolute;
   right: 8px;
   top: 50%;
-  transform: translateY(-50%);
   font-size: 0.6875rem;
   color: #a3a6aa;
-  background-color: var(--background-primary);
   padding: 0 4px;
   border-radius: 3px;
   white-space: nowrap;

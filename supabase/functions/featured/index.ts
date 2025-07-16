@@ -68,36 +68,66 @@ serve(async (req: Request) => {
     const baseUrl = `https://${ourDomain}`
     const featuredId = `${baseUrl}/users/${username}/featured`
 
-    // Get pinned/featured posts
-    // For now, we'll return empty collection since we don't have pinned posts implemented
-    // TODO: Add pinned posts functionality to the posts table
+    // Get featured posts using the corrected database function
     const { data: featuredPosts, error: postsError } = await supabase
-      .from('posts')
-      .select(`
-        id, content, visibility, created_at, ap_id, ap_type,
-        media_attachments, content_warning, in_reply_to
-      `)
-      .eq('author_id', user.id)
-      .eq('is_local', true)
-      .eq('is_pinned', true) // This column doesn't exist yet, so this will return empty
-      .in('visibility', ['public', 'unlisted'])
-      .order('created_at', { ascending: false })
-      .limit(10)
+      .rpc('get_user_featured_posts', {
+        p_author_id: user.id,
+        p_limit: 10
+      })
+
+    if (postsError) {
+      console.error('Failed to fetch featured posts:', postsError)
+      return new Response('Failed to fetch featured posts', { 
+        status: 500, 
+        headers: corsHeaders 
+      })
+    }
 
     // Convert posts to ActivityPub Note objects
-    const featuredItems = featuredPosts?.map(post => ({
-      id: post.ap_id || `${baseUrl}/posts/${post.id}`,
-      type: post.ap_type || 'Note',
-      attributedTo: `${baseUrl}/users/${username}`,
-      content: formatPostContent(post.content),
-      published: post.created_at,
-      to: post.visibility === 'public' ? ['https://www.w3.org/ns/activitystreams#Public'] : [],
-      cc: [],
-      ...(post.content_warning && { summary: post.content_warning }),
-      ...(post.in_reply_to && { inReplyTo: post.in_reply_to }),
-      ...(post.media_attachments && post.media_attachments.length > 0 && {
-        attachment: post.media_attachments
-      })
+    const featuredItems = await Promise.all(featuredPosts?.map(async post => {
+      // Get properly formatted content and tags from database
+      const { data: htmlContent } = await supabase.rpc(
+        'convert_unified_content_to_activitypub_html', 
+        { content: post.content }
+      )
+
+      const { data: allTags } = await supabase.rpc(
+        'extract_all_activitypub_tags',
+        { content: post.content }
+      )
+      
+      const noteObject: any = {
+        '@context': [
+          'https://www.w3.org/ns/activitystreams',
+          'https://w3id.org/security/v1',
+          {
+            'Hashtag': 'as:Hashtag',
+            'sensitive': 'as:sensitive',
+            'toot': 'http://joinmastodon.org/ns#',
+            'Emoji': 'toot:Emoji'
+          }
+        ],
+        id: post.ap_id || `${baseUrl}/posts/${post.id}`,
+        type: post.ap_type || 'Note',
+        attributedTo: `${baseUrl}/users/${username}`,
+        content: htmlContent || '',
+        published: post.created_at,
+        to: post.visibility === 'public' ? ['https://www.w3.org/ns/activitystreams#Public'] : [],
+        cc: [],
+        tag: allTags || [],
+        ...(post.content_warning && { summary: post.content_warning }),
+        ...(post.in_reply_to && { inReplyTo: post.in_reply_to })
+      };
+      
+      // Add legacy media_attachments for backward compatibility
+      if (post.media_attachments && post.media_attachments.length > 0) {
+        if (!noteObject.attachment) {
+          noteObject.attachment = [];
+        }
+        noteObject.attachment = noteObject.attachment.concat(post.media_attachments);
+      }
+      
+      return noteObject;
     })) || []
 
     const featured: ActivityPubFeatured = {
@@ -124,13 +154,3 @@ serve(async (req: Request) => {
     })
   }
 })
-
-// Helper function to format post content
-function formatPostContent(content: any): string {
-  if (Array.isArray(content)) {
-    return content
-      .map(item => item.type === 'text' ? item.text : '')
-      .join('')
-  }
-  return String(content || '')
-}

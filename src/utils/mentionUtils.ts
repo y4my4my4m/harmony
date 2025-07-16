@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/supabase';
-import type { FederatedUser } from '@/types';
+import type { UserData } from '@/types';
 
 export interface MentionMatch {
   full: string;          // "@tester004@mastodon.social"
@@ -16,7 +16,7 @@ export interface MentionMatch {
 
 export interface ResolvedMention {
   mention: MentionMatch;
-  user?: FederatedUser;
+  user?: UserData;
   inboxUrl?: string;
   actorUrl?: string;
 }

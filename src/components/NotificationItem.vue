@@ -152,6 +152,7 @@ import { ref, computed, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
 import type { Notification } from '@/types'
+import { getEmojiUrl } from '@/utils/emojiUtils'
 import Avatar from '@/components/common/Avatar.vue'
 
 // Icons - using dynamic imports for better performance
@@ -228,7 +229,7 @@ const reactionEmoji = computed(() => {
     const reactionData = props.notification.data.reaction
     return {
       name: reactionData?.emoji_name || '👍',
-      url: reactionData?.emoji_url || null
+      url: getEmojiUrl(reactionData?.emoji_url, 48) || null
     }
   }
   return null

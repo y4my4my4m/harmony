@@ -4,6 +4,7 @@ import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
 import { userDataService } from '@/services/userDataService'
+import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessing'
 
 // Types for DM functionality
 export interface DMUser {
@@ -1146,22 +1147,7 @@ export const useDMStore = defineStore('dm', () => {
     )
   }
   
-  // Extract mentions from message content for federation
-  const extractMentionsForFederation = (content: MessagePart[]): Array<{username: string, domain?: string, url?: string}> => {
-    const mentions: Array<{username: string, domain?: string, url?: string}> = []
-    
-    content.forEach(part => {
-      if (part.type === 'mention' && part.username) {
-        mentions.push({
-          username: part.username,
-          domain: part.domain,
-          url: part.url
-        })
-      }
-    })
-    
-    return mentions
-  }
+
   
   // Generate proper ActivityPub mention tags for outgoing DMs
   const generateActivityPubMentionTags = (
@@ -1266,7 +1252,7 @@ export const useDMStore = defineStore('dm', () => {
     // Federation Support
     processFederatedDM,
     validateMentionTag,
-    extractMentionsForFederation,
+    extractMentionsFromMessageParts,
     generateActivityPubMentionTags
   }
 })
