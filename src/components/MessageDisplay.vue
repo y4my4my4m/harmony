@@ -212,8 +212,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+<script setup lang="ts">
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { PropType, Ref } from 'vue';
 import type { Message, User, Emoji, Reaction, MessagePart } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -236,420 +236,313 @@ import MessageReactions from '@/components/MessageReactions.vue';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 
-export default defineComponent({
-  props: {
-    messages: {
-      type: Array as PropType<Message[]>,
-      required: true
-    },
-    loadMoreMessages: Function as PropType<() => void>,
-    isAtBottom: Boolean,
-    currentUserId: String,
-    // Add the missing isLoading prop
-    isLoading: {
-      type: Boolean,
-      default: false
-    },
+// --- PROPS & EMITS ---
+const props = defineProps({
+  messages: {
+    type: Array as PropType<Message[]>,
+    required: true
   },
-  // Add the missing emits declaration
-  emits: ['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom'],
-  components: { 
-    UserProfileModal,
-    InviteModal,
-    ReplyIcon,
-    EditIcon,
-    ReactionIcon,
-    DeleteIcon,
-    MoreIcon,
-    UnifiedMessageContent,
-    Avatar,
-    MessageReactions
+  loadMoreMessages: Function as PropType<() => void>,
+  isAtBottom: Boolean,
+  currentUserId: String,
+  isLoading: {
+    type: Boolean,
+    default: false
   },
-  setup(props, { emit }) {
-    const messageDisplayContainer = ref<HTMLDivElement | null>(null);
-    const serverUsersStore = useServerUsersStore();
-    const serverChannelStore = useServerChannelStore();
-    const useChat = useChatStore();
-    const authStore = useAuthStore();
-    const { isCurrentUserServerOwner } = useServerPermissions();
+});
+
+const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom']);
+
+// --- STORES & COMPOSABLES ---
+const serverUsersStore = useServerUsersStore();
+const serverChannelStore = useServerChannelStore();
+const chatStore = useChatStore();
+const authStore = useAuthStore();
+const { isCurrentUserServerOwner } = useServerPermissions();
+const { 
+  getUserDisplayName, 
+  getUserColor, 
+  getUserAvatarUrl, 
+  ensureProfilesAvailable,
+  fetchUserProfile,
+  getUserProfile
+} = useUserData();
+
+// --- REFS ---
+const messageDisplayContainer = ref<HTMLDivElement | null>(null);
+const imageLoaded: Ref<Record<string, boolean>> = ref({});
+const replyMessages = ref<Record<string, Message>>({});
+const tooltip = ref({
+  visible: false,
+  content: [] as { id: string; displayName: string; avatarUrl: string; userColor: string; }[],
+  x: 0,
+  y: 0,
+  emoji: null as Emoji | null,
+});
+const tooltipTimer: Ref<NodeJS.Timeout | null> = ref(null);
+const editableMessageId = ref<string | null>(null);
+const editableMessageContent = ref('');
+const hoveredMessageId = ref<string | null>(null);
+const isAtTop = ref(false);
+const hasScrollbar = ref(false);
+const bufferDistance = ref(0);
+const selectedUser = ref<User | null>(null);
+const showProfileModal = ref(false);
+const showInviteModal = ref(false);
+const isLightboxOpen = ref(false);
+const indexRef = ref(0);
+
+// --- CONSTANTS ---
+const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
+
+// --- COMPUTED PROPERTIES ---
+const lightboxImages = computed(() => {
+  let urls: Array<string> = [];
+  if (!props.messages || !Array.isArray(props.messages)) {
+    return urls;
+  }
+  
+  props.messages.forEach(message => {
+    if (!message?.content || !Array.isArray(message.content)) {
+      return;
+    }
     
-    // Use reactive user data system for real-time updates
-    const { 
-      getUserDisplayName, 
-      getUserColor, 
-      getUserAvatarUrl, 
-      ensureProfilesAvailable,
-      fetchUserProfile,
-      getUserProfile
-    } = useUserData();
-    
-    // Initialize imageLoaded early to prevent initialization order issues
-    const imageLoaded: Ref<Record<string, boolean>> = ref({});
-    
-    // Cache for reply messages
-    const replyMessages = ref<Record<string, Message>>({});
-    
-    const tooltip = ref({
-      visible: false,
-      content: [] as { id: string; displayName: string; avatarUrl: string; userColor: string; }[],
-      x: 0,
-      y: 0,
-      emoji: null as Emoji | null,
-    });
-    const tooltipTimer: Ref<NodeJS.Timeout | null> = ref(null);
-
-    // Initialize scroll position tracking and event listeners
-    onMounted(() => {
-      if (messageDisplayContainer.value) {
-        isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
-        checkScrollable();
-        
-        // Add wheel event listener for buffer effect
-        messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
-      }
-    });
-
-    // Clean up event listeners
-    onUnmounted(() => {
-      if (messageDisplayContainer.value) {
-        messageDisplayContainer.value.removeEventListener('wheel', handleWheel);
-      }
-    });
-
-    const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
-      // Cancel any existing timer to prevent unwanted tooltip behavior
-      if (tooltipTimer.value) {
-        clearTimeout(tooltipTimer.value);
-      }
-      
-      // Pre-fetch any missing user profiles using the unified system
-      const userIds = reaction.reactions.map(r => r.user_id)
-      
-      try {
-        await ensureProfilesAvailable(userIds)
-      } catch (error) {
-        console.error("Error ensuring user profiles are available for tooltip:", error)
-      }
-      
-      const usersDetails = reaction.reactions.map(r => ({
-        id: r.user_id,
-        displayName: getUserDisplayName(r.user_id).value,
-        avatarUrl: getUserAvatarUrl(r.user_id).value,
-        userColor: getUserColor(r.user_id).value,
-      }));
-      
-      // Set a timer to delay showing the tooltip
-      tooltipTimer.value = setTimeout(() => {
-        tooltip.value = {
-          visible: true,
-          content: usersDetails,
-          x: event.clientX,
-          y: event.clientY,
-          emoji: reaction.emoji
-        };
-      }, 500); // 500 milliseconds delay
-    };
-
-    const hideTooltip = () => {
-      if (tooltipTimer.value) {
-        clearTimeout(tooltipTimer.value);
-        tooltipTimer.value = null;
-      }
-      tooltip.value.visible = false;
-    };
-
-    const lightboxImages = computed(() => {
-      let urls: Array<string> = [];
-      if (!props.messages || !Array.isArray(props.messages)) {
-        return urls;
-      }
-      
-      props.messages.forEach(message => {
-        if (!message?.content || !Array.isArray(message.content)) {
-          return;
-        }
-        
-        message.content.forEach(part => {
-          if (!part || typeof part !== 'object') {
-            return;
-          }
-          
-          if (part.type === 'file' && part.fileType === 'image' && part.url) {
-            urls.push(part.url);
-          }
-          else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) {
-            urls.push(part.url);
-          }
-        });
-      });
-      return urls;
-    });
-
-    // Helper function to get user ID from reply message
-    const getReplyUserId = (replyMessageId: string) => {
-      // First check if message is in current messages
-      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
-      if (currentMessage) {
-        return currentMessage.user_id;
-      }
-
-      // Check if message is in reply cache
-      const cachedMessage = replyMessages.value[replyMessageId];
-      if (cachedMessage) {
-        return cachedMessage.user_id;
-      }
-
-      return 'unknown';
-    };
-
-    // Watch for changes in messages for parsing
-    watch(() => props.messages, (newMessages) => {
-      if (!newMessages || !Array.isArray(newMessages)) {
+    message.content.forEach(part => {
+      if (!part || typeof part !== 'object') {
         return;
       }
-
-      const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
-
-      // Process message content and initialize image loading states
-      newMessages.forEach(message => {
-        if (!message?.content || !Array.isArray(message.content)) {
-          return;
-        }
-        
-        message.content.forEach(part => {
-          if (!part || typeof part !== 'object') {
-            return;
-          }
-          // initialize image "loading" state
-          if (part.type === 'file' && part.fileType === 'image' && part.url && !(part.url in imageLoaded.value)) {
-            imageLoaded.value[part.url] = false;
-          }
-          else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')) && !(part.url in imageLoaded.value)) {
-            imageLoaded.value[part.url] = false;
-          }
-        });
-      });
-
-      // Extract user IDs and ensure profiles are available (debounced)
-      const userIds = new Set<string>();
-      newMessages.forEach(message => {
-        if (message?.user_id) {
-          userIds.add(message.user_id);
-        }
-        
-        // Also collect user IDs from reply messages
-        if (message?.reply_to) {
-          const replyUserId = getReplyUserId(message.reply_to);
-          if (replyUserId && replyUserId !== 'unknown') {
-            userIds.add(replyUserId);
-          }
-        }
-        
-        // Collect user IDs from reactions
-        if (message?.reactions) {
-          message.reactions.forEach(reaction => {
-            if (reaction?.reactions) {
-              reaction.reactions.forEach(r => {
-                if (r?.user_id) {
-                  userIds.add(r.user_id);
-                }
-              });
-            }
-          });
-        }
-
-        // ...existing message content processing...
-        if (!message?.content || !Array.isArray(message.content)) {
-          return;
-        }
-        
-        message.content.forEach(part => {
-          if (!part || typeof part !== 'object') {
-            return;
-          }
-          // initialize image "loading" state
-          if (part.type === 'file' && part.fileType === 'image' && part.url && !(part.url in imageLoaded.value)) {
-            imageLoaded.value[part.url] = false;
-          }
-          else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')) && !(part.url in imageLoaded.value)) {
-            imageLoaded.value[part.url] = false;
-          }
-        });
-      });
-
-      // Ensure all user profiles are available using unified system
-      if (userIds.size > 0) {
-        // Use setTimeout to prevent blocking the main thread and avoid recursion
-        setTimeout(() => {
-          ensureProfilesAvailable(Array.from(userIds)).catch(error => {
-            console.error('Error ensuring user profiles are available:', error);
-          });
-        }, 0);
-      }
-
-      if (newMessages && newMessages.length > 0) {
-        // Recalculate scroll height and maintain scroll position
-        nextTick(() => {
-          if (messageDisplayContainer.value) {
-            const newScrollHeight = messageDisplayContainer.value.scrollHeight;
-            const scrollOffset = newScrollHeight - oldScrollHeight;
-            
-            // Only adjust scroll position if we have new content
-            if (scrollOffset > 0) {
-              messageDisplayContainer.value.scrollTop += scrollOffset;
-            }
-            
-            // Update scroll state without triggering handleScroll recursion
-            const currentScrollTop = messageDisplayContainer.value.scrollTop;
-            isAtTop.value = currentScrollTop === 0;
-            checkScrollable();
-            
-            // Update isAtBottom prop based on current scroll position
-            const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-            const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5; // 5px tolerance
-            emit('update:isAtBottom', isAtBottom);
-          }
-        });
-      }
-    }, { immediate: true, deep: true });
-
-    // Watch for reaction changes to hide tooltip when reactions become empty
-    watch(() => props.messages, (newMessages, oldMessages) => {
-      if (!newMessages || !oldMessages) return;
       
-      // Check if any message had its reactions removed completely
-      newMessages.forEach((newMessage) => {
-        const oldMessage = oldMessages.find(old => old.id === newMessage.id);
-        if (oldMessage && oldMessage.reactions && oldMessage.reactions.length > 0) {
-          const newReactions = getValidReactions(newMessage);
-          
-          if (newReactions.length === 0) {
-            // All reactions were removed, hide tooltip if it was showing
-            hideTooltip();
-          }
-        }
-      });
-    }, { deep: true });
-
-    // Additional watch specifically for reactions to ensure tooltip is hidden
-    watch(() => props.messages.map(msg => msg.reactions), (newReactions, oldReactions) => {
-      if (!newReactions || !oldReactions) return;
-      
-      // Check if any reactions array became empty
-      for (let i = 0; i < newReactions.length; i++) {
-        const newMsgReactions = newReactions[i];
-        const oldMsgReactions = oldReactions[i];
-        
-        if (oldMsgReactions && oldMsgReactions.length > 0 && 
-            (!newMsgReactions || newMsgReactions.length === 0)) {
-          hideTooltip();
-          break;
-        }
+      if (part.type === 'file' && part.fileType === 'image' && part.url) {
+        urls.push(part.url);
       }
-    }, { deep: true });
-
-    const isSingleEmojiMessage = computed(() => {
-      if (!props.messages || !Array.isArray(props.messages)) {
-        return [];
+      else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) {
+        urls.push(part.url);
       }
-      
-      return props.messages.map(message => {
-        if (!message?.content || !Array.isArray(message.content)) {
-          return false;
-        }
-        // Check if the message content has only one part and that part is an emoji
-        return message.content.length === 1 && 
-               message.content[0] && 
-               typeof message.content[0] === 'object' && 
-               Object.prototype.hasOwnProperty.call(message.content[0], 'emoji');
-      });
     });
+  });
+  return urls;
+});
 
-    const editableMessageId = ref<string | null>(null);
-    const editableMessageContent = ref('');
-    const hoveredMessageId = ref<string | null>(null);
-    const isAtTop = ref(false);
-    const hasScrollbar = ref(false);
-    const bufferDistance = ref(0);
+const currentServerData = computed(() => {
+  const serverId = serverChannelStore.currentServerId;
+  if (!serverId) return null;
+  
+  const currentServer = serverChannelStore.currentServer;
+  return {
+    id: serverId,
+    name: currentServer?.name || 'Unknown Server',
+    icon_url: currentServer?.icon || '',
+    member_count: Object.keys(serverUsersStore.userProfiles).length
+  };
+});
 
-    const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
+// --- WATCHERS ---
+watch(() => props.messages, (newMessages) => {
+  if (!newMessages || !Array.isArray(newMessages)) {
+    return;
+  }
 
-    // Check if content is scrollable and update scroll state
-    const checkScrollable = () => {
+  const oldScrollHeight = messageDisplayContainer.value ? messageDisplayContainer.value.scrollHeight : 0;
+
+  const userIds = new Set<string>();
+  newMessages.forEach(message => {
+    if (message?.user_id) userIds.add(message.user_id);
+    if (message?.reply_to) {
+      const replyUserId = getReplyUserId(message.reply_to);
+      if (replyUserId && replyUserId !== 'unknown') userIds.add(replyUserId);
+    }
+    if (message?.reactions) {
+      message.reactions.forEach(reaction => reaction.reactions?.forEach(r => {
+        if (r?.user_id) userIds.add(r.user_id);
+      }));
+    }
+
+    if (Array.isArray(message.content)) {
+      message.content.forEach(part => {
+        if (part && typeof part === 'object' && 'url' in part && part.url && !(part.url in imageLoaded.value)) {
+          if ((part.type === 'file' && part.fileType === 'image') || (part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')))) {
+            imageLoaded.value[part.url] = false;
+          }
+        }
+      });
+    }
+  });
+
+  if (userIds.size > 0) {
+    setTimeout(() => {
+      ensureProfilesAvailable(Array.from(userIds)).catch(error => {
+        console.error('Error ensuring user profiles are available:', error);
+      });
+    }, 0);
+  }
+
+  if (newMessages.length > 0) {
+    nextTick(() => {
       if (messageDisplayContainer.value) {
-        hasScrollbar.value = messageDisplayContainer.value.scrollHeight > messageDisplayContainer.value.clientHeight;
+        const newScrollHeight = messageDisplayContainer.value.scrollHeight;
+        const scrollOffset = newScrollHeight - oldScrollHeight;
+        if (scrollOffset > 0) messageDisplayContainer.value.scrollTop += scrollOffset;
+        
+        checkScrollable();
+        isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
+        const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+        emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
       }
-    };
-    
-    const shouldShowHeader = (message: Message, index: number): boolean => {
-      // Always show header for first message
-      if (index === 0) return true;
-      
-      // Show header if previous message is from different user
-      const prevMessage = props.messages[index - 1];
-      if (!prevMessage || prevMessage.user_id !== message.user_id) return true;
-      
-      // Show header if message has a reply
-      if (message.reply_to) return true;
-      
-      // Show header if there's a significant time gap (e.g., 5+ minutes)
-      const timeDiff = new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime();
-      const fiveMinutes = 5 * 60 * 1000;
-      if (timeDiff > fiveMinutes) return true;
-      
-      return false;
-    };
+    });
+  }
+}, { immediate: true, deep: true });
 
-    const openEmojiReactor = (message: Message, event: MouseEvent) => {
-      // set true if not an emoji for the input but a reaction
-      emit('toggleEmojiList', true, message, event.target as HTMLElement);
-    }
+watch(() => props.messages.map(msg => msg.reactions?.length), () => {
+  const hasVisibleReactions = props.messages.some(msg => msg.reactions && msg.reactions.length > 0);
+  if (!hasVisibleReactions && tooltip.value.visible) {
+    hideTooltip();
+  }
+}, { deep: true });
 
-    const toggleReaction = (messageId: string, emoji: Emoji) => {
-      // console.log('toggleReaction called for messageId:', messageId, 'emoji:', emoji.id);
-      
-      // Always hide tooltip when any reaction is toggled to prevent stale tooltips
-      if (tooltip.value.visible) {
-        // console.log('Hiding tooltip due to reaction toggle');
-        hideTooltip();
+
+// --- LIFECYCLE HOOKS ---
+onMounted(() => {
+  if (messageDisplayContainer.value) {
+    isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
+    checkScrollable();
+    messageDisplayContainer.value.addEventListener('wheel', handleWheel, { passive: false });
+  }
+  // Implement highlight message functionality on the chat store
+  chatStore.highlightMessage = (messageId: string) => {
+    nextTick(() => {
+      const messageElement = document.getElementById(`message-${messageId}`);
+      if (messageElement) {
+        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        messageElement.classList.add('highlighted');
+        setTimeout(() => messageElement.classList.remove('highlighted'), 3000);
       }
-      
-      emit('sendReaction', messageId, emoji);
-    }
+    });
+  };
+});
 
-    const handleToggleReaction = (messageId: string, emoji: Emoji) => {
-      // This is called from the MessageReactions component
-      toggleReaction(messageId, emoji);
-    }
+onUnmounted(() => {
+  if (messageDisplayContainer.value) {
+    messageDisplayContainer.value.removeEventListener('wheel', handleWheel);
+  }
+});
 
-    // Utility function to convert structured message content to editable text
-    const contentToEditableText = (content: MessagePart[]): string => {
-      if (!content || !Array.isArray(content)) {
-        return '';
-      }
+// --- METHODS ---
 
-      return content.map(part => {
-        if (!part || typeof part !== 'object') {
-          return '';
-        }
+// Tooltip Handling
+const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  const userIds = reaction.reactions.map(r => r.user_id);
+  await ensureProfilesAvailable(userIds).catch(error => console.error("Error ensuring profiles for tooltip:", error));
 
-        switch (part.type) {
-          case 'text':
-            return part.text || '';
-          case 'emoji':
-            return part.emoji?.name ? `:${part.emoji.name}:` : '';
-          case 'mention':
-            return part.mention || '';
-          case 'url':
-            return part.url || '';
-          case 'file':
-            // For files, we'll show a placeholder text that can't be edited
-            return `[${part.fileType || 'file'}: ${part.url ? 'attachment' : 'file'}]`;
-          default:
-            return '';
-        }
-      }).join('');
-    };
+  const usersDetails = reaction.reactions.map(r => ({
+    id: r.user_id,
+    displayName: getUserDisplayName(r.user_id).value,
+    avatarUrl: getUserAvatarUrl(r.user_id).value,
+    userColor: getUserColor(r.user_id).value,
+  }));
+  
+  tooltipTimer.value = setTimeout(() => {
+    tooltip.value = { visible: true, content: usersDetails, x: event.clientX, y: event.clientY, emoji: reaction.emoji };
+  }, 500);
+};
+
+const hideTooltip = () => {
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  tooltipTimer.value = null;
+  tooltip.value.visible = false;
+};
+
+// Scroll & UI State
+const checkScrollable = () => {
+  if (messageDisplayContainer.value) {
+    hasScrollbar.value = messageDisplayContainer.value.scrollHeight > messageDisplayContainer.value.clientHeight;
+  }
+};
+
+const handleScroll = () => {
+  if (!messageDisplayContainer.value) return;
+  
+  const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+  checkScrollable();
+  isAtTop.value = scrollTop === 0;
+  
+  if (!isAtTop.value || !hasScrollbar.value) bufferDistance.value = 0;
+  if (isAtTop.value && props.loadMoreMessages) props.loadMoreMessages();
+
+  emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
+};
+
+const handleWheel = (event: WheelEvent) => {
+  if (messageDisplayContainer.value && hasScrollbar.value && isAtTop.value && event.deltaY < 0) {
+    event.preventDefault();
+    bufferDistance.value = Math.min(bufferDistance.value + Math.abs(event.deltaY) * 0.5, BUFFER_THRESHOLD * 2);
+  } else if (event.deltaY > 0) {
+    bufferDistance.value = 0;
+  }
+};
+
+// Message Display Logic
+const shouldShowHeader = (message: Message, index: number): boolean => {
+  if (index === 0) return true;
+  const prevMessage = props.messages[index - 1];
+  if (!prevMessage || prevMessage.user_id !== message.user_id) return true;
+  if (message.reply_to) return true;
+  const timeDiff = new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime();
+  return timeDiff > 5 * 60 * 1000;
+};
+
+const shouldShowDateSeparator = (message: Message, index: number): boolean => {
+  if (index === 0) return false;
+  const prevMessage = props.messages[index - 1];
+  return !isSameDay(new Date(message.created_at), new Date(prevMessage.created_at));
+};
+
+const getIndicatorStyle = () => {
+  if (!hasScrollbar.value || bufferDistance.value <= 0) {
+    return { opacity: 0, transform: 'translateY(-20px)', pointerEvents: 'none' as const };
+  }
+  const progress = Math.min(bufferDistance.value / BUFFER_THRESHOLD, 1);
+  return {
+    opacity: progress,
+    transform: `translateY(${-20 + progress * 20}px)`,
+    pointerEvents: progress > 0.5 ? ('auto' as const) : ('none' as const),
+    transition: 'opacity 0.2s ease-out, transform 0.2s ease-out'
+  };
+};
+
+// Formatting
+const formatTimestamp = (timestamp: Date) => {
+  const date = new Date(timestamp);
+  if (!isValid(date)) return '';
+  if (isToday(date)) return format(date, 'p');
+  if (isYesterday(date)) return `Yesterday at ${format(date, 'p')}`;
+  return format(date, 'MMM d, yyyy \'at\' p');
+};
+
+const formatSystemTimestamp = (timestamp: Date) => {
+  const date = new Date(timestamp);
+  if (!isValid(date)) return '';
+  if (isToday(date)) return format(date, 'p');
+  if (isYesterday(date)) return `Yesterday at<br/>${format(date, 'p')}`;
+  return `${format(date, 'MMM d, yyyy')}<br/>${format(date, 'p')}`;
+};
+
+const formatDateSeparator = (timestamp: Date): string => {
+  const date = new Date(timestamp);
+  if (!isValid(date)) return '';
+  if (isToday(date)) return 'Today';
+  if (isYesterday(date)) return 'Yesterday';
+  return format(date, 'MMMM d, yyyy');
+};
+
+// Message Actions (Edit, Delete, React)
+const canEditMessage = (message: Message) => {
+  return authStore.session?.user && (message.user_id === authStore.session.user.id || isCurrentUserServerOwner.value);
+};
+
+const canDeleteMessage = (message: Message) => {
+  return authStore.session?.user && (message.user_id === authStore.session.user.id || isCurrentUserServerOwner.value);
+};
 
     // Parse edited text back to structured content (reuse existing parsing logic)
     const parseEditedText = (text: string): MessagePart[] => {
@@ -761,516 +654,148 @@ export default defineComponent({
       }
       return undefined;
     };
-
-    // Implement proper startEdit function
     const startEdit = (message: Message) => {
-      if (!canEditMessage(message)) {
-        return;
+    if (!canEditMessage(message)) return;
+    editableMessageId.value = message.id;
+    editableMessageContent.value = messagePartsToMarkdown(message.content);
+    nextTick(() => {
+      const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
+      if (editInput) {
+        editInput.focus();
+        const textLength = editInput.value.length;
+        editInput.setSelectionRange(textLength, textLength);
       }
-
-      // Set the message as editable
-      editableMessageId.value = message.id;
-      
-      // Convert structured content to editable text
-      editableMessageContent.value = contentToEditableText(message.content);
-      
-      // Focus the edit input after DOM update
-      nextTick(() => {
-        const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
-        if (editInput) {
-          editInput.focus();
-          // Remove the .select() call to prevent automatic text selection
-          // Position cursor at the end instead
-          const textLength = editInput.value.length;
-          editInput.setSelectionRange(textLength, textLength);
-        }
-      });
-    };
-
-    // Enhanced saveEdit function
-    const saveEdit = async (messageId: string, newContent?: string) => {
-      console.log('saveEdit called with messageId:', messageId, 'newContent:', newContent, 'editableMessageId:', editableMessageId.value);
-      
-      if (!editableMessageId.value) {
-        console.log('No editable message ID, returning');
-        return;
-      }
-
-      try {
-        const textContent = newContent ?? editableMessageContent.value;
-        console.log('Using textContent:', textContent);
-        
-        // Don't save if content is empty
-        if (!textContent.trim()) {
-          console.log('Content is empty, canceling edit');
-          cancelEdit();
-          return;
-        }
-
-        // Parse the edited text back to structured content
-        const parsedContent = parseEditedText(textContent);
-        console.log('Parsed content:', parsedContent);
-        
-        // Update the message with structured content
-        console.log('Calling useChat.editMessage with messageId:', messageId, 'parsedContent:', parsedContent);
-        await useChat.editMessage(messageId, parsedContent);
-        
-        // Reset edit state
-        editableMessageId.value = null;
-        editableMessageContent.value = '';
-        console.log('Edit state reset');
-      } catch (error) {
-        console.error('Error saving message edit:', error);
-        // Show user-friendly error message
-        // TODO: Implement proper error notification system
-      }
-    };
-
-    const cancelEdit = () => {
-      editableMessageId.value = null;
-      editableMessageContent.value = '';
-    };
-
-    const deleteMessage = (messageId: string) => {
-      useChat.deleteMessage(messageId);
-    };
-
-    const selectedUser = ref<User | null>(null);
-    const showProfileModal = ref(false);
-    const showInviteModal = ref(false);
-    const showUserProfile = async (userId: string, event?: MouseEvent) => {
-      // Try to get user from unified system first
-      let user = getUserProfile(userId).value
-      
-      if (!user) {
-        console.log("User not found in unified cache, fetching profile for ID:", userId);
-        try {
-          const fetchedUser = await fetchUserProfile(userId);
-          if (!fetchedUser) {
-            console.error("Failed to fetch user profile for ID:", userId);
-            return;
-          }
-          user = fetchedUser;
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          return;
-        }
-      }
-
-      selectedUser.value = user;
-      showProfileModal.value = true;
-      event?.stopPropagation();
-    };
-
-    const closeProfile = () => {
-      showProfileModal.value = false;
-      selectedUser.value = null;
-    };
-
-    const openInviteModal = () => {
-      showProfileModal.value = false;
-      showInviteModal.value = true;
-    };
-
-    const closeInviteModal = () => {
-      showInviteModal.value = false;
-    };
-
-    // Current server data for invite modal
-    const currentServerData = computed(() => {
-      const serverId = serverChannelStore.currentServerId;
-      if (!serverId) return null;
-      
-      // Get server data from the server store
-      const currentServer = serverChannelStore.currentServer;
-      return {
-        id: serverId,
-        name: currentServer?.name || 'Unknown Server',
-        icon_url: currentServer?.icon || '',
-        member_count: Object.keys(serverUsersStore.userProfiles).length
-      };
     });
+  };
 
-    const getUserIdFromMessage = (messageId:string) => {
-      return useChat.messages.find(message => message.id === messageId)?.user_id || 'Unknown Message Id';
-    };
-    
-    const formatTimestamp = (timestamp: Date) => {
-      const date = new Date(timestamp);
-      if (!isValid(date)) return '';
-      
-      if (isToday(date)) {
-        return format(date, 'p'); // Time only for today
-      } else if (isYesterday(date)) {
-        return `Yesterday at ${format(date, 'p')}`;
-      } else {
-        return format(date, 'MMM d, yyyy \'at\' p'); // Full date and time for older messages
-      }
-    };
-
-    const formatSystemTimestamp = (timestamp: Date) => {
-      const date = new Date(timestamp);
-      if (!isValid(date)) return '';
-      
-      if (isToday(date)) {
-        return format(date, 'p'); // Time only for today
-      } else if (isYesterday(date)) {
-        return `Yesterday at<br/>${format(date, 'p')}`;
-      } else {
-        return `${format(date, 'MMM d, yyyy')}<br/>${format(date, 'p')}`; // Full date and time for older messages
-      }
-    };
-
-    // Check if a date separator should be shown before this message
-    const shouldShowDateSeparator = (message: Message, index: number): boolean => {
-      if (index === 0) return false; // Don't show date separator for first message
-      
-      const currentDate = new Date(message.created_at);
-      const prevMessage = props.messages[index - 1];
-      const prevDate = new Date(prevMessage.created_at);
-      
-      return !isSameDay(currentDate, prevDate);
-    };
-
-    // Calculate the indicator's opacity and transform based on buffer distance
-    const getIndicatorStyle = () => {
-      if (!hasScrollbar.value || bufferDistance.value <= 0) {
-        return { 
-          opacity: 0, 
-          transform: 'translateY(-20px)',
-          pointerEvents: 'none' as 'none'
-        };
-      }
-      
-      // Calculate progress from 0 to 1 based on buffer distance
-      const progress = Math.min(bufferDistance.value / BUFFER_THRESHOLD, 1);
-      const opacity = progress;
-      const translateY = -20 + (progress * 20); // Start at -20px, end at 0px
-      
-      return {
-        opacity: opacity,
-        transform: `translateY(${translateY}px)`,
-        pointerEvents: progress > 0.5 ? ('auto' as 'auto') : ('none' as 'none'), // Enable interactions when mostly visible
-        transition: 'opacity 0.2s ease-out, transform 0.2s ease-out' // Add smooth CSS transition
-      };
-    };
-
-    // Format date for the separator display
-    const formatDateSeparator = (timestamp: Date): string => {
-      const date = new Date(timestamp);
-      if (!isValid(date)) return '';
-      
-      if (isToday(date)) {
-        return 'Today';
-      } else if (isYesterday(date)) {
-        return 'Yesterday';
-      } else {
-        return format(date, 'MMMM d, yyyy');
-      }
-    };
-
-    const isLightboxOpen = ref(false);
-    const indexRef = ref(0);
-
-    const handleImageLoaded = (url: string) => {
-      imageLoaded.value[url] = true;
-    };
-
-    const handleOpenLightbox = (url: string) => {
-      const index = lightboxImages.value.indexOf(url);
-      if (index !== -1) {
-        indexRef.value = index;
-        isLightboxOpen.value = true;
-      }
-    };
-
-    const closeLightbox = () => {
-      isLightboxOpen.value = false;
-    };
-
-    const handleScroll = () => {
-      if (!messageDisplayContainer.value) return;
-      
-      const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-      
-      // Check if content is scrollable
-      checkScrollable();
-      
-      // Update isAtTop reactive property
-      const isCurrentlyAtTop = scrollTop === 0;
-      isAtTop.value = isCurrentlyAtTop;
-      
-      // Reset buffer when not at top or no scrollbar
-      if (!isCurrentlyAtTop || !hasScrollbar.value) {
-        bufferDistance.value = 0;
-      }
-      
-      // Load more messages when at top
-      if (isCurrentlyAtTop && props.loadMoreMessages) {
-        props.loadMoreMessages();
-      }
-
-      // Calculate if we're at bottom with small tolerance
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5;
-      emit('update:isAtBottom', isAtBottom);
-    };
-
-    // Handle wheel events to detect scroll attempts beyond top
-    const handleWheel = (event: WheelEvent) => {
-      if (!messageDisplayContainer.value || !hasScrollbar.value) return;
-      
-      // Only handle when at top and scrolling up
-      if (isAtTop.value && event.deltaY < 0) {
-        event.preventDefault();
-        
-        // Accumulate buffer distance
-        bufferDistance.value += Math.abs(event.deltaY) * 0.5; // Dampen the effect
-        
-        // Cap the buffer distance to prevent excessive accumulation
-        bufferDistance.value = Math.min(bufferDistance.value, BUFFER_THRESHOLD * 2);
-      } else if (event.deltaY > 0) {
-        // Reset when scrolling down
-        bufferDistance.value = 0;
-      }
-    };
-
-    // Enhanced reply message handling
-    const getReplyMessageContent = (replyMessageId: string) => {
-      // First check if message is in current messages
-      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
-      if (currentMessage) {
-        return currentMessage.content;
-      }
-
-      // Check if message is in reply cache
-      const cachedMessage = replyMessages.value[replyMessageId];
-      if (cachedMessage) {
-        return cachedMessage.content;
-      }
-
-      // Fetch the message if not found
-      fetchReplyMessageIfNeeded(replyMessageId);
-      
-      // Return empty array while loading
-      return [];
-    };
-
-    // Handle clicking on reply messages - implement jump functionality
-    const handleReplyClick = async (replyMessageId: string) => {
-      // Get current channel ID from store
-      const currentChannelId = useChat.currentChannelId;
-      if (!currentChannelId) return;
-
-      // Attempt to jump to the message
-      const success = await useChat.jumpToMessage(replyMessageId, currentChannelId);
-      if (!success) {
-        console.warn(`Could not jump to message: ${replyMessageId}`);
-      }
-    };
-
-    // Implement highlight message functionality
-    useChat.highlightMessage = (messageId: string) => {
-      nextTick(() => {
-        const messageElement = document.getElementById(`message-${messageId}`);
-        if (messageElement) {
-          messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          messageElement.classList.add('highlighted');
-          
-          // Remove highlight after 3 seconds
-          setTimeout(() => {
-            messageElement.classList.remove('highlighted');
-          }, 3000);
-        }
-      });
-    };
-
-    const highlightMessage = (messageId: string) => {
-      // scroll up to message id
-      const messageElement = document.getElementById(`message-${messageId}`);
-      if (messageElement) {
-        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        messageElement.classList.add('highlighted');
-        
-        // Remove highlight after 3 seconds
-        setTimeout(() => {
-          messageElement.classList.remove('highlighted');
-        }, 3000);
-      }
-    }
-
-    const replyTo = (message: Message) => {
-      // Get display name synchronously from unified system
-      const displayName = getUserDisplayName(message.user_id).value || 'Unknown User';
-      emit('replyingTo', message.id, displayName);
-    }
-
-    // Permission checks for message editing/deletion
-    const canEditMessage = (message: Message) => {
-      if (!authStore.session?.user) return false;
-      
-      // Users can edit their own messages
-      if (message.user_id === authStore.session.user.id) {
-        return true;
-      }
-      
-      // Server owners can edit any message (including system messages)
-      if (isCurrentUserServerOwner.value) {
-        return true;
-      }
-      
-      return false;
-    };
-
-    const canDeleteMessage = (message: Message) => {
-      if (!authStore.session?.user) return false;
-      
-      // Users can delete their own messages
-      if (message.user_id === authStore.session.user.id) {
-        return true;
-      }
-      
-      // Server owners can delete any message (including system messages)
-      if (isCurrentUserServerOwner.value) {
-        return true;
-      }
-      
-      return false;
-    };
-
-    const getReplyUserDisplayName = (replyMessageId: string) => {
-      const userId = getReplyUserId(replyMessageId);
-      if (userId === 'unknown') return 'Unknown User';
-      return getUserDisplayName(userId).value;
-    };
-
-    const getReplyUserColor = (replyMessageId: string) => {
-      const userId = getReplyUserId(replyMessageId);
-      if (userId === 'unknown') return '#dddddd';
-      return getUserColor(userId).value;
-    };
-
-    const getReplyUserAvatar = (replyMessageId: string) => {
-      const userId = getReplyUserId(replyMessageId);
-      if (userId === 'unknown') return '/default_avatar.png';
-      return getUserAvatarUrl(userId).value;
-    };
-
-    const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
-      // Don't fetch if already exists or is being fetched
-      if (replyMessages.value[replyMessageId] || 
-          props.messages.find(msg => msg.id === replyMessageId)) {
-        return;
-      }
-
-      try {
-        const message = await useChat.fetchReplyMessage(replyMessageId);
-        if (message) {
-          replyMessages.value[replyMessageId] = message;
-        }
-      } catch (error) {
-        console.error('Error fetching reply message:', error);
-      }
-    };
-
-    // Get reply message preview as plain text
-    const getReplyMessagePreview = (replyMessageId: string) => {
-      // First check if message is in current messages
-      const currentMessage = props.messages.find(msg => msg.id === replyMessageId);
-      if (currentMessage) {
-        return messagePartsToPlainText(currentMessage.content);
-      }
-
-      // Check if message is in reply cache
-      const cachedMessage = replyMessages.value[replyMessageId];
-      if (cachedMessage) {
-        return messagePartsToPlainText(cachedMessage.content);
-      }
-
-      // Fetch the message if not found
-      fetchReplyMessageIfNeeded(replyMessageId);
-      
-      // Return loading text while fetching
-      return 'Loading...';
-    };
-
-    // Computed property to filter reactions with valid emoji data
-    const getValidReactions = (message: Message) => {
-      if (!message.reactions) return [];
-      return message.reactions.filter(reaction => reaction.emoji && reaction.emoji.id);
-    };
-
-    return { 
-      getUserDisplayName, 
-      getUserColor, 
-      getUserAvatarUrl,
-      getUserIdFromMessage,
-      formatTimestamp,
-      formatSystemTimestamp,
-      shouldShowDateSeparator,
-      getIndicatorStyle,
-      formatDateSeparator,
-      closeLightbox,
-      lightboxImages, 
-      isLightboxOpen,
-      indexRef,
-      imageLoaded,
-      handleImageLoaded,
-      handleOpenLightbox,
-      messageDisplayContainer,
-      handleScroll,
-      hoveredMessageId,
-      isAtTop,
-      hasScrollbar,
-      checkScrollable,
-      handleWheel,
-      deleteMessage,
-      toggleReaction,
-      handleToggleReaction,
-      startEdit,
-      saveEdit,
-      cancelEdit,
-      editableMessageId,
-      editableMessageContent,
-      showUserProfile,
-      selectedUser,
-      showProfileModal,
-      showInviteModal,
-      currentServerData,
-      serverChannelStore,
-      openInviteModal,
-      closeInviteModal, 
-      closeProfile,
-      isSingleEmojiMessage,
-      openEmojiReactor,
-      replyTo,
-      highlightMessage,
-      tooltip,
-      showTooltip,
-      hideTooltip,
-      shouldShowHeader,
-      // Add missing functions to return
-      getReplyMessageContent,
-      getReplyMessagePreview,
-      handleReplyClick,
-      canEditMessage,
-      canDeleteMessage,
-      getValidReactions,
-      getReplyUserDisplayName,
-      getReplyUserColor,
-      getReplyUserAvatar,
-      contentToEditableText,
-      parseEditedText,
-      findEmojiByName,
-      chatStore: useChat, // Expose chat store for template
-      // Add utility functions
-      messagePartsToMarkdown,
-      messagePartsToPlainText,
-      checkSingleEmoji,
-      getEmojiUrl,
-    };
+const saveEdit = async (messageId: string, newContent?: string) => {
+  if (!editableMessageId.value) return;
+  const textContent = newContent ?? editableMessageContent.value;
+  if (!textContent.trim()) {
+    cancelEdit();
+    return;
   }
-});
+  try {
+    await chatStore.editMessage(messageId, textContent);
+    cancelEdit();
+  } catch (error) {
+    console.error('Error saving message edit:', error);
+  }
+};
+
+const cancelEdit = () => {
+  editableMessageId.value = null;
+  editableMessageContent.value = '';
+};
+
+const deleteMessage = (messageId: string) => {
+  chatStore.deleteMessage(messageId);
+};
+
+const openEmojiReactor = (message: Message, event: MouseEvent) => {
+  emit('toggleEmojiList', true, message, event.target as HTMLElement);
+};
+
+const handleToggleReaction = (messageId: string, emoji: Emoji) => {
+  if (tooltip.value.visible) hideTooltip();
+  emit('sendReaction', messageId, emoji);
+};
+
+// Reply Logic
+const replyTo = (message: Message) => {
+  const displayName = getUserDisplayName(message.user_id).value || 'Unknown User';
+  emit('replyingTo', message.id, displayName);
+};
+
+const handleReplyClick = async (replyMessageId: string) => {
+  if (!chatStore.currentChannelId) return;
+  const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
+  if (!success) console.warn(`Could not jump to message: ${replyMessageId}`);
+};
+
+const getReplyUserId = (replyMessageId: string) => {
+  const message = props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId];
+  return message?.user_id || 'unknown';
+};
+
+const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
+  if (replyMessages.value[replyMessageId] || props.messages.some(msg => msg.id === replyMessageId)) return;
+  try {
+    const message = await chatStore.fetchReplyMessage(replyMessageId);
+    if (message) replyMessages.value[replyMessageId] = message;
+  } catch (error) {
+    console.error('Error fetching reply message:', error);
+  }
+};
+
+const getReplyUserDisplayName = (replyMessageId: string) => {
+  const userId = getReplyUserId(replyMessageId);
+  return userId === 'unknown' ? 'Unknown User' : getUserDisplayName(userId).value;
+};
+
+const getReplyUserColor = (replyMessageId: string) => {
+  const userId = getReplyUserId(replyMessageId);
+  return userId === 'unknown' ? '#dddddd' : getUserColor(userId).value;
+};
+
+const getReplyUserAvatar = (replyMessageId: string) => {
+  const userId = getReplyUserId(replyMessageId);
+  return userId === 'unknown' ? '/default_avatar.png' : getUserAvatarUrl(userId).value;
+};
+
+const getReplyMessagePreview = (replyMessageId: string) => {
+  const message = props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId];
+  if (message) return messagePartsToPlainText(message.content);
+  fetchReplyMessageIfNeeded(replyMessageId);
+  return 'Loading...';
+};
+
+
+// Lightbox and Media
+const handleImageLoaded = (url: string) => {
+  imageLoaded.value[url] = true;
+};
+
+const handleOpenLightbox = (url: string) => {
+  const index = lightboxImages.value.indexOf(url);
+  if (index !== -1) {
+    indexRef.value = index;
+    isLightboxOpen.value = true;
+  }
+};
+
+const closeLightbox = () => {
+  isLightboxOpen.value = false;
+};
+
+
+// Modals (User Profile, Invite)
+const showUserProfile = async (userId: string, event?: MouseEvent) => {
+  event?.stopPropagation();
+  let user = getUserProfile(userId).value || await fetchUserProfile(userId).catch(e => console.error(e));
+  if (user) {
+    selectedUser.value = user;
+    showProfileModal.value = true;
+  } else {
+    console.error("Failed to fetch user profile for ID:", userId);
+  }
+};
+
+const closeProfile = () => {
+  showProfileModal.value = false;
+  selectedUser.value = null;
+};
+
+const openInviteModal = () => {
+  showProfileModal.value = false;
+  showInviteModal.value = true;
+};
+
+const closeInviteModal = () => {
+  showInviteModal.value = false;
+};
 </script>
+
 <style scoped>
 /* Modern message display styles */
 .message-display {
@@ -1434,7 +959,6 @@ export default defineComponent({
   color: #a3a6aa;
   padding: 0 4px;
   border-radius: 3px;
-  white-space: nowrap;
 }
 
 /* Message actions */
