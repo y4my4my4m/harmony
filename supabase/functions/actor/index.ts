@@ -29,7 +29,8 @@ interface ActivityPubActor {
   endpoints?: {
     sharedInbox?: string
   }
-  url?: string
+  url?: string,
+  published?: string
 }
 
 const corsHeaders = {
@@ -196,7 +197,8 @@ serve(async (req: Request) => {
       endpoints: {
         sharedInbox: `${baseUrl}/api/activitypub/inbox` // This exists in nginx config
       },
-      url: `${baseUrl}/social/profile/${username}`
+      url: `${baseUrl}/social/profile/${username}`,
+      published: user.created_at
     }
 
     // Remove undefined fields
