@@ -149,7 +149,15 @@ export function useAutoSuggest(
 
       // Search through all users from userDataService
       const allUsers = userDataService.getAllUsers();
+      const seenUsers = new Set<string>(); // Track already processed users
+      
       for (const userData of allUsers) {
+        // Skip if we've already seen this user
+        if (seenUsers.has(userData.id)) {
+          continue;
+        }
+        seenUsers.add(userData.id);
+        
         const displayName = userData.displayName?.toLowerCase() || '';
         const usernameStr = userData.username?.toLowerCase() || '';
 
@@ -174,7 +182,12 @@ export function useAutoSuggest(
         }
       }
 
-      return suggestions
+      // Additional final deduplication check based on multiple criteria
+      const uniqueSuggestions = suggestions.filter((item, index, self) => 
+        index === self.findIndex(s => s.id === item.id)
+      );
+
+      return uniqueSuggestions
         .sort((a, b) => {
           const aDisplay = (a.display_name || '').toLowerCase();
           const bDisplay = (b.display_name || '').toLowerCase();

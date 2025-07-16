@@ -527,24 +527,24 @@ export default defineComponent({
     };
 
     const handleSaveEdit = () => {
-      console.log('handleSaveEdit called');
+      // console.log('handleSaveEdit called');
       autoSuggest.closeSuggestions();
       
       const content = localEditableContent.value.trim();
-      console.log('handleSaveEdit called with content:', content);
-      console.log('messageId:', props.messageId);
-      console.log('editableMessageId:', props.editableMessageId);
+      // console.log('handleSaveEdit called with content:', content);
+      // console.log('messageId:', props.messageId);
+      // console.log('editableMessageId:', props.editableMessageId);
       
       if (!content) {
-        console.log('Content is empty, canceling edit');
+        // console.log('Content is empty, canceling edit');
         handleCancelEdit();
         return;
       }
       
       try {
-        console.log('Emitting update:message with messageId:', props.messageId, 'content:', content);
+        // console.log('Emitting update:message with messageId:', props.messageId, 'content:', content);
         emit('update:message', props.messageId, content);
-        console.log('update:message emitted successfully');
+        // console.log('update:message emitted successfully');
       } catch (e) {
         console.error('Error in handleSaveEdit:', e);
       }

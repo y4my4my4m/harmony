@@ -121,7 +121,7 @@
         
         <!-- Compact message (no header, just content aligned with previous messages) -->
         <div v-else class="message-content-only">
-          <div class="message-gutter"></div>
+          <div class="message-gutter" :data-timestamp="formatTimestamp(message.created_at)"></div>
           <div class="message-main">
             <UnifiedMessageContent 
               :content="message.content"
@@ -1428,10 +1428,8 @@ export default defineComponent({
   position: absolute;
   right: 8px;
   top: 50%;
-  transform: translateY(-50%);
   font-size: 0.6875rem;
   color: #a3a6aa;
-  background-color: var(--background-primary);
   padding: 0 4px;
   border-radius: 3px;
   white-space: nowrap;
