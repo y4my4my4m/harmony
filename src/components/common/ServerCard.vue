@@ -1,5 +1,8 @@
 <template>
-  <div class="server-card" :class="{ 'server-card--featured': server.is_featured }">
+  <div class="server-card" :class="{ 
+    'server-card--featured': server.is_featured,
+    'server-card--compact': compact 
+  }">
     <div class="server-card__header">
       <div class="server-card__icon">
         <ServerIcon
@@ -88,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watchEffect, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useUserData } from '@/composables/useUserData'
 import Avatar from '@/components/common/Avatar.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
@@ -98,6 +101,7 @@ interface Props {
   server: PublicServerWithStats
   isJoined: boolean
   isLoading?: boolean
+  compact?: boolean
 }
 
 interface Emits {
@@ -107,7 +111,8 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isLoading: false
+  isLoading: false,
+  compact: false
 })
 
 const emit = defineEmits<Emits>()
@@ -214,6 +219,59 @@ const handleOwnerClick = (event: Event) => {
     0 8px 32px rgba(255, 215, 0, 0.2),
     0 0 0 1px rgba(255, 215, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Compact Mode */
+.server-card--compact {
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+
+.server-card--compact .server-card__header {
+  margin-bottom: 8px;
+}
+
+.server-card--compact .server-card__content {
+  margin-bottom: 12px;
+}
+
+.server-card--compact .server-card__name {
+  font-size: 16px;
+  margin-bottom: 4px;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+.server-card--compact .server-card__description {
+  font-size: 13px;
+  margin-bottom: 8px;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.server-card--compact .server-card__owner {
+  display: none;
+}
+
+.server-card--compact .server-card__info {
+  gap: 8px;
+}
+
+.server-card--compact .server-card__stats {
+  gap: 12px;
+}
+
+.server-card--compact .stat-item {
+  font-size: 12px;
+}
+
+.server-card--compact .btn--server-action {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.server-card--compact:hover {
+  transform: translateY(-2px);
 }
 
 .server-card__header {

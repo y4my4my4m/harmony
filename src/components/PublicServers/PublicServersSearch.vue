@@ -13,27 +13,57 @@
     <!-- Category Filter -->
     <div class="category-section">
       <div class="category-header">
-        <h3 class="category-title">Categories</h3>
         <button 
-          v-if="selectedCategory"
-          @click="clearCategory"
-          class="clear-category-btn"
+          @click="toggleCategories"
+          class="category-toggle-btn"
+          :class="{ 'category-toggle-btn--expanded': showCategories }"
         >
-          Clear
+          <div class="category-toggle-content">
+            <div class="category-toggle-icon">
+              <svg viewBox="0 0 24 24" class="toggle-chevron" :class="{ 'rotated': showCategories }">
+                <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z" fill="currentColor"/>
+              </svg>
+              <svg viewBox="0 0 24 24" class="category-icon">
+                <path d="M4,6H20V8H4V6M4,11H20V13H4V11M4,16H20V18H4V16Z" fill="currentColor"/>
+              </svg>
+            </div>
+            <div class="category-toggle-text">
+              <span class="category-title">Categories</span>
+              <span v-if="selectedCategory && !showCategories" class="selected-category-preview">
+                {{ selectedCategory }}
+              </span>
+            </div>
+          </div>
+          <div v-if="selectedCategory" class="category-actions">
+            <button 
+              @click.stop="clearCategory"
+              class="clear-category-btn"
+              title="Clear category filter"
+            >
+              <svg viewBox="0 0 24 24" class="clear-icon">
+                <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
         </button>
       </div>
       
-      <div class="category-pills">
-        <button
-          v-for="category in categories"
-          :key="category"
-          @click="selectCategory(category)"
-          class="category-pill"
-          :class="{ 'category-pill--active': category === selectedCategory }"
-        >
-          {{ category }}
-        </button>
-      </div>
+      <Transition name="categories-expand">
+        <div v-show="showCategories" class="category-pills-container">
+          <div class="category-pills">
+            <button
+              v-for="category in categories"
+              :key="category"
+              @click="selectCategory(category)"
+              class="category-pill"
+              :class="{ 'category-pill--active': category === selectedCategory }"
+            >
+              <span class="category-pill-text">{{ category }}</span>
+              <div v-if="category === selectedCategory" class="category-pill-indicator"></div>
+            </button>
+          </div>
+        </div>
+      </Transition>
     </div>
 
     <!-- Stats -->
@@ -65,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 
 interface Props {
@@ -85,10 +115,17 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+// Local state
+const showCategories = ref(false)
+
 const localSearchQuery = computed({
   get: () => props.searchQuery,
   set: (value) => emit('update:searchQuery', value)
 })
+
+const toggleCategories = () => {
+  showCategories.value = !showCategories.value
+}
 
 const selectCategory = (category: string) => {
   if (category === props.selectedCategory) {
@@ -133,75 +170,253 @@ const formatStats = (filtered: number, total: number): string => {
 .category-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .category-header {
+  margin-bottom: 0;
+}
+
+.category-toggle-btn {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(32, 34, 37, 0.8), rgba(47, 49, 54, 0.6));
+  border: 1px solid rgba(88, 101, 242, 0.2);
+  border-radius: 12px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
+.category-toggle-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(88, 101, 242, 0.1), transparent);
+  transition: left 0.4s ease;
+}
+
+.category-toggle-btn:hover::before {
+  left: 100%;
+}
+
+.category-toggle-btn:hover {
+  border-color: rgba(88, 101, 242, 0.4);
+  background: linear-gradient(135deg, rgba(47, 49, 54, 0.9), rgba(54, 57, 63, 0.7));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(88, 101, 242, 0.15);
+}
+
+.category-toggle-btn--expanded {
+  border-color: rgba(88, 101, 242, 0.6);
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.1), rgba(114, 137, 218, 0.05));
+  box-shadow: 0 4px 20px rgba(88, 101, 242, 0.2);
+}
+
+.category-toggle-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.category-toggle-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle-chevron {
+  width: 20px;
+  height: 20px;
+  color: rgba(88, 101, 242, 0.8);
+  transition: transform 0.2s ease;
+}
+
+.toggle-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.category-icon {
+  width: 18px;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.category-toggle-text {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  flex: 1;
+  align-items: center;
+}
+
 .category-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
   margin: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.selected-category-preview {
+  font-size: 12px;
+  color: rgba(88, 101, 242, 0.9);
+  font-weight: 600;
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  background: rgba(88, 101, 242, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(88, 101, 242, 0.2);
+  display: inline-block;
+}
+
+.category-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .clear-category-btn {
-  background: transparent;
-  border: none;
-  color: rgba(88, 101, 242, 0.8);
-  font-size: 12px;
-  font-weight: 500;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 8px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .clear-category-btn:hover {
-  color: #5865f2;
-  background: rgba(88, 101, 242, 0.1);
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: scale(1.1);
+}
+
+.clear-icon {
+  width: 14px;
+  height: 14px;
+  color: rgba(239, 68, 68, 0.8);
+}
+
+.category-pills-container {
+  padding: 20px;
+  background: rgba(32, 34, 37, 0.4);
+  border-radius: 12px;
+  border: 1px solid rgba(88, 101, 242, 0.1);
+  margin-top: 16px;
 }
 
 .category-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .category-pill {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
-  padding: 8px 16px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+  padding: 10px 18px;
   font-size: 13px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.category-pill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.3s ease;
+}
+
+.category-pill:hover::before {
+  left: 100%;
 }
 
 .category-pill:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  border-color: rgba(255, 255, 255, 0.2);
   color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(88, 101, 242, 0.15);
 }
 
 .category-pill--active {
   background: linear-gradient(135deg, #5865f2, #7289da);
   border-color: #5865f2;
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+  box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .category-pill--active:hover {
   background: linear-gradient(135deg, #4752c4, #5b6ecd);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(88, 101, 242, 0.4);
+}
+
+.category-pill-text {
+  position: relative;
+  z-index: 1;
+}
+
+.category-pill-indicator {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+/* Transition animations */
+.categories-expand-enter-active,
+.categories-expand-leave-active {
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+
+.categories-expand-enter-from,
+.categories-expand-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+}
+
+.categories-expand-enter-to,
+.categories-expand-leave-from {
+  opacity: 1;
+  max-height: 200px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  margin-top: 16px;
 }
 
 .search-stats {
@@ -252,12 +467,25 @@ const formatStats = (filtered: number, total: number): string => {
     gap: 16px;
   }
   
+  .category-toggle-btn {
+    padding: 14px 16px;
+  }
+  
+  .category-title {
+    font-size: 15px;
+  }
+  
+  .category-pills-container {
+    padding: 16px;
+    margin-top: 12px;
+  }
+  
   .category-pills {
-    gap: 6px;
+    gap: 8px;
   }
   
   .category-pill {
-    padding: 6px 12px;
+    padding: 8px 14px;
     font-size: 12px;
   }
 }
@@ -267,10 +495,34 @@ const formatStats = (filtered: number, total: number): string => {
     padding: 16px 20px;
   }
   
-  .category-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+  .category-toggle-btn {
+    padding: 12px 14px;
+  }
+  
+  .category-toggle-content {
+    gap: 10px;
+  }
+  
+  .category-title {
+    font-size: 14px;
+  }
+  
+  .selected-category-preview {
+    font-size: 11px;
+  }
+  
+  .category-pills-container {
+    padding: 12px;
+    margin-top: 10px;
+  }
+  
+  .category-pills {
+    gap: 6px;
+  }
+  
+  .category-pill {
+    padding: 6px 12px;
+    font-size: 11px;
   }
   
   .stats-content {

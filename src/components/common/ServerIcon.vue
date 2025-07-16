@@ -1,5 +1,5 @@
 <template>
-  <div class="server-container" :class="[sizeClass, { 'interactive': interactive }]">
+  <div class="server-container" :title="alt" :class="[sizeClass, { 'interactive': interactive }]">
     <!-- server Image -->
     <img
       :src="imgSrc"
@@ -167,13 +167,13 @@ const handleFileSelect = (event: Event) => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  max-width: 100%;
-  max-height: 100%;
+  /* max-width: 100%; */
+  max-height: calc(100% + 5px);
   width: auto;
   height: auto;
   background: rgba(88, 101, 242, 0.1);
   display: block;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 /* Shape variants */

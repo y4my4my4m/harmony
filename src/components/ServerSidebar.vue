@@ -3,6 +3,7 @@
     <div
       :style="{ backgroundImage: 'url(/icon16.png)' }"
       class="portal"
+      title="Harmony Portal"
       @click="togglePublicServers"
     >
     </div>
@@ -38,6 +39,7 @@
       :key="server.id"
       :id="server.id"
       :src="server.icon"
+      :alt="server.name"
       size="md"
       class="server-item"
       shape="round"

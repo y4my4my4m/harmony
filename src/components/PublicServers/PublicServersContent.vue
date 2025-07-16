@@ -84,6 +84,7 @@
           :server="server"
           :is-joined="joinedServerIds.has(server.id)"
           :is-loading="loadingServerIds.has(server.id)"
+          :compact="true"
           @join="$emit('joinServer', $event)"
           @leave="$emit('leaveServer', $event)"
           @view-owner-profile="$emit('viewOwnerProfile', $event)"
@@ -332,8 +333,8 @@ const loadMore = () => {
 
 .featured-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
 }
 
 .featured-card {
