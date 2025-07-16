@@ -14,7 +14,7 @@
       <div class="conversation-info">
         <div class="conversation-avatar">
           <Avatar
-            :src="getUserAvatarUrl(conversation.other_user?.id || '').value || conversation.other_user?.avatar_url || '/default_avatar.png'"
+            :src="getAvatarUrl(conversation.other_user?.avatar_url)"
             :alt="getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'User'"
             size="sm"
             :status="otherUserStatus"
@@ -88,6 +88,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
+import { getAvatarUrl } from '@/utils/avatarUtils'
 
 // Props
 interface Props {
@@ -105,7 +106,7 @@ const emit = defineEmits<{
 }>()
 
 // Use clean status system
-const { isUserOnline, getUserStatusForAvatar, getUserDisplayName, getUserAvatarUrl } = useUserData()
+const { isUserOnline, getUserStatusForAvatar, getUserDisplayName } = useUserData()
 
 // State
 const showSearchModal = ref(false)

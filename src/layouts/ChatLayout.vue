@@ -399,7 +399,6 @@ onMounted(() => {
 
 .right-sidebar-container {
   flex-shrink: 0;
-  background: var(--background-tertiary);
   transition: transform 0.3s ease, width 0.3s ease;
   transform: translateX(100%);
   width: 0px;
@@ -410,6 +409,7 @@ onMounted(() => {
   transform: translateX(0);
   height: 100vh;
   width: 240px;
+  border-left: 1px solid var(--border-color);
 }
 
 /* Mobile responsiveness */

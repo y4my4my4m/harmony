@@ -2,10 +2,10 @@
   <div class="server-card" :class="{ 'server-card--featured': server.is_featured }">
     <div class="server-card__header">
       <div class="server-card__icon">
-        <img 
-          :src="server.icon || '/default_server_icon.png'" 
+        <ServerIcon
+          :src="server.icon" 
           :alt="`${server.name} icon`"
-          class="server-card__icon-image"
+          size="lg"
           @error="handleImageError"
         />
         <div v-if="server.is_featured" class="server-card__featured-badge">
@@ -87,10 +87,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, watchEffect, ref } from 'vue'
 import { useUserData } from '@/composables/useUserData'
 import Avatar from '@/components/common/Avatar.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
+import ServerIcon from './ServerIcon.vue'
 
 interface Props {
   server: PublicServerWithStats
@@ -110,10 +111,49 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-const { getUserAvatarUrl, getUserDisplayName } = useUserData()
+const { getUserAvatarUrl, getUserDisplayName, getUser, fetchUserProfile } = useUserData()
 
-const ownerAvatar = computed(() => getUserAvatarUrl(props.server.owner).value)
-const ownerName = computed(() => getUserDisplayName(props.server.owner).value)
+// Local state to track if we're loading owner data
+const loadingOwnerData = ref(false)
+
+// Fetch owner profile when component mounts
+onMounted(async () => {
+  if (!getUser(props.server.owner).value) {
+    console.log('ServerCard: Owner not in cache, fetching from database...')
+    loadingOwnerData.value = true
+    try {
+      await fetchUserProfile(props.server.owner, true) // Force refresh
+      console.log('ServerCard: Owner profile fetched successfully')
+    } catch (error) {
+      console.error('ServerCard: Failed to fetch owner profile:', error)
+    } finally {
+      loadingOwnerData.value = false
+    }
+  }
+})
+
+const ownerAvatar = computed(() => {
+  const user = getUser(props.server.owner).value
+  const avatarUrl = getUserAvatarUrl(props.server.owner).value
+  
+  console.log('ServerCard: Owner user:', user)
+  console.log('ServerCard: Owner avatar URL:', avatarUrl)
+  console.log('ServerCard: Loading state:', loadingOwnerData.value)
+  
+  // Return actual avatar URL if available and not default
+  if (avatarUrl && avatarUrl !== '/default_avatar.png') {
+    return avatarUrl
+  }
+  
+  // Return null to let Avatar component handle defaults
+  return null
+})
+
+const ownerName = computed(() => {
+  const displayName = getUserDisplayName(props.server.owner).value
+  console.log('ServerCard: Owner display name:', displayName)
+  return displayName || 'Loading...'
+})
 
 const formatMemberCount = (count?: number): string => {
   if (!count) return '0 members'
@@ -183,25 +223,6 @@ const handleOwnerClick = (event: Event) => {
   margin-bottom: 16px;
 }
 
-.server-card__icon {
-  position: relative;
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  overflow: hidden;
-  background: rgba(88, 101, 242, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: visible;
-}
-
-.server-card__icon-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 16px;
-}
 
 .server-card__featured-badge {
   position: absolute;

@@ -9,7 +9,6 @@ export const useServerStore = defineStore('server', {
         .from('servers')
         .select('*')
         .eq('id', serverId)
-        .select()
         .single();
 
       if (error) throw error;
@@ -20,20 +19,22 @@ export const useServerStore = defineStore('server', {
       try {
         if (file && serverData.id) {
           // Define file path
-          const filePath = `${serverData.id}/${file.name}`;
-          
+          const ext = file.name.split('.').pop();
+          if (!ext) throw new Error('File must have an extension');
+          const filePath = `${serverData.id}/${serverData.id}.${ext}`;
+
+          console.log('Uploading server icon to:', filePath);
           // Upload to Supabase storage
           const { error: uploadError } = await supabase.storage
             .from('server_icons')
-            .upload(filePath, file);
+            .upload(filePath, file, {
+              upsert: true
+            });
 
           if (uploadError) throw uploadError;
 
-          // Construct public URL for the uploaded file
-          const response = supabase.storage.from('server_icons').getPublicUrl(filePath);
-
           // Update serverData with the new icon URL
-          serverData.icon = response.data.publicUrl;
+          serverData.icon = filePath;
         }
 
         // Update server data in database

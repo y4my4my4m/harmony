@@ -23,7 +23,9 @@ export function getAvatarUrl(avatarUrl: string | null | undefined): string {
     // Use public URL since avatars bucket is now public
     const { data } = supabase.storage
       .from('avatars')
-      .getPublicUrl(avatarUrl)
+      .getPublicUrl(avatarUrl, {
+        transform: { width: 256, height: 256, resize: 'contain', quality: 80 }
+      })
 
     return data.publicUrl
   }
@@ -35,13 +37,6 @@ export function getAvatarUrl(avatarUrl: string | null | undefined): string {
 
   // If it's just a filename or doesn't match expected patterns, return default
   return '/default_avatar.png'
-}
-
-/**
- * Gets the proper avatar URL for a user, with fallback to default
- */
-export function getUserAvatarUrl(user: { avatar_url?: string | null } | null | undefined): string {
-  return getAvatarUrl(user?.avatar_url)
 }
 
 /**
@@ -66,12 +61,4 @@ export function normalizeAvatarForStorage(avatarUrl: string | null | undefined):
   
   // If it's an external URL, return as-is (we'll store the full URL)
   return avatarUrl
-}
-
-/**
- * Gets avatar URL for federated/external use (ActivityPub, WebFinger)
- * Since the bucket is now public, this just uses the main getAvatarUrl function
- */
-export function getFederatedAvatarUrl(avatarUrl: string | null | undefined): string {
-  return getAvatarUrl(avatarUrl)
 }

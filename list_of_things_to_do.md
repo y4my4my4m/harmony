@@ -50,3 +50,7 @@
 27.   .social-sidebar-container and .channel-sidebar-container should be consolidated into the same styling
 
 28. implement rollUp build so that vendor (vite/vue other libraries) get bundled into the same chunks and my own components into others, so caching for libraries will remain longer, meaning faster loadings for users when i change stuff in components
+
+29. improve the PWA scroll-up to refresh data-chat-messages/data-timeline
+
+30. fix RLS for server privacy (select is all? should be owner/admin/members if private)

@@ -50,6 +50,11 @@ DECLARE
     v_mention_domains TEXT[];
     v_domain TEXT;
     v_inbox_url TEXT;
+    v_mention_tags JSONB;
+    v_mentioned_actor_urls TEXT[];
+    v_to_addresses JSONB;
+    v_cc_addresses JSONB;
+    v_followers_url TEXT;
 BEGIN
     -- Only process local posts that should be federated
     -- Now supports: public, unlisted, followers, mentioned
@@ -83,116 +88,108 @@ BEGIN
     v_activity_id := v_sender_url || '#create-' || NEW.id::TEXT;
     
     -- Create ActivityPub Note object with proper content format and mention tags
-    DECLARE
-        v_mention_tags JSONB;
-        v_mentioned_actor_urls TEXT[];
-        v_to_addresses JSONB;
-        v_cc_addresses JSONB;
-        v_followers_url TEXT;
-    BEGIN
-        -- Build followers collection URL
-        v_followers_url := v_sender_url || '/followers';
-        
-        -- Extract mentions from content and generate proper ActivityPub Mention tags
-        WITH mentioned_users AS (
-            -- Handle both mention object types and mentions metadata
-            SELECT DISTINCT 
-                p.domain,
-                p.username,
-                p.federated_id,
-                'https://' || p.domain || '/users/' || p.username as actor_url
-            FROM (
-                -- Extract mentions from mentions metadata within text objects
-                SELECT 
-                    mention_data->>'username' as username,
-                    mention_data->>'domain' as domain
-                FROM jsonb_array_elements(NEW.content) AS content_item,
-                     jsonb_array_elements(content_item->'mentions') AS mention_data
-                WHERE content_item->>'type' = 'text'
-                  AND content_item->'mentions' IS NOT NULL
-                  AND mention_data->>'username' IS NOT NULL
-                
-                UNION
-                
-                -- Extract mentions from separate mention objects
-                SELECT 
-                    content_item->>'username' as username,
-                    content_item->>'domain' as domain
-                FROM jsonb_array_elements(NEW.content) AS content_item
-                WHERE content_item->>'type' = 'mention'
-                  AND content_item->>'username' IS NOT NULL
-            ) AS all_mentions
-            LEFT JOIN profiles p ON p.username = all_mentions.username 
-                                 AND (p.domain = all_mentions.domain OR (all_mentions.domain IS NULL AND p.is_local))
-            WHERE p.username IS NOT NULL
-        )
-        SELECT 
-            jsonb_agg(
-                jsonb_build_object(
-                    'type', 'Mention',
-                    'href', actor_url,
-                    'name', CASE 
-                        WHEN domain IS NULL OR domain = v_instance_domain THEN '@' || username
-                        ELSE '@' || username || '@' || domain
-                    END
-                )
-            ) FILTER (WHERE actor_url IS NOT NULL),
-            array_agg(actor_url) FILTER (WHERE actor_url IS NOT NULL)
-        INTO v_mention_tags, v_mentioned_actor_urls
-        FROM mentioned_users;
-        
-        -- Set default empty arrays if no mentions
-        v_mention_tags := COALESCE(v_mention_tags, '[]'::jsonb);
-        v_mentioned_actor_urls := COALESCE(v_mentioned_actor_urls, ARRAY[]::TEXT[]);
-        
-        -- Build to/cc addresses based on visibility according to ActivityStreams spec
-        CASE NEW.visibility
-            WHEN 'public' THEN
-                -- public: Public statuses have the as:Public magic collection in to
-                v_to_addresses := jsonb_build_array('https://www.w3.org/ns/activitystreams#Public');
-                v_cc_addresses := jsonb_build_array(v_followers_url) || 
-                                  COALESCE(jsonb_agg_text_array(v_mentioned_actor_urls), '[]'::jsonb);
-                                  
-            WHEN 'unlisted' THEN
-                -- unlisted: Unlisted statuses have the as:Public magic collection in cc
-                v_to_addresses := jsonb_build_array(v_followers_url) || 
-                                  COALESCE(jsonb_agg_text_array(v_mentioned_actor_urls), '[]'::jsonb);
-                v_cc_addresses := jsonb_build_array('https://www.w3.org/ns/activitystreams#Public');
-                
-            WHEN 'followers' THEN
-                -- private: Followers-only statuses have an actor's follower collection in to or cc, but do not include the as:Public magic collection
-                v_to_addresses := jsonb_build_array(v_followers_url) || 
-                                  COALESCE(jsonb_agg_text_array(v_mentioned_actor_urls), '[]'::jsonb);
-                v_cc_addresses := '[]'::jsonb;
-                
-            WHEN 'mentioned' THEN
-                -- limited: Limited-audience statuses have actors in to or cc, at least one of which is not Mentioned in tag
-                -- For "mentioned only" posts, we put mentioned actors in 'to' but don't include followers
-                v_to_addresses := COALESCE(jsonb_agg_text_array(v_mentioned_actor_urls), '[]'::jsonb);
-                v_cc_addresses := '[]'::jsonb;
-                
-            ELSE
-                -- Default to followers-only for unknown visibility
-                v_to_addresses := jsonb_build_array(v_followers_url);
-                v_cc_addresses := '[]'::jsonb;
-        END CASE;
-        
-        -- Create the Note object
-        v_note_object := jsonb_build_object(
-            'id', v_post_url,
-            'type', 'Note',
-            'content', convert_content_to_activitypub_html(NEW.content),
-            'contentMap', jsonb_build_object('en', convert_content_to_activitypub_html(NEW.content)),
-            'attributedTo', v_sender_url,
-            'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-            'to', v_to_addresses,
-            'cc', v_cc_addresses,
-            'tag', v_mention_tags,  -- Proper ActivityPub Mention tags
-            'url', v_post_url,
-            'mediaType', 'text/html',
-            'sensitive', COALESCE(NEW.is_sensitive, false)
-        );
-    END;
+    -- Build followers collection URL
+    v_followers_url := v_sender_url || '/followers';
+    
+    -- Extract mentions from content and generate proper ActivityPub Mention tags
+    WITH mentioned_users AS (
+        -- Handle both mention object types and mentions metadata
+        SELECT DISTINCT 
+            p.domain,
+            p.username,
+            p.federated_id,
+            'https://' || COALESCE(p.domain, v_instance_domain) || '/users/' || p.username as actor_url
+        FROM (
+            -- Extract mentions from mentions metadata within text objects
+            SELECT 
+                mention_data->>'username' as username,
+                mention_data->>'domain' as domain
+            FROM jsonb_array_elements(NEW.content) AS content_item,
+                 jsonb_array_elements(content_item->'mentions') AS mention_data
+            WHERE content_item->>'type' = 'text'
+              AND content_item->'mentions' IS NOT NULL
+              AND mention_data->>'username' IS NOT NULL
+            
+            UNION
+            
+            -- Extract mentions from separate mention objects
+            SELECT 
+                content_item->>'username' as username,
+                content_item->>'domain' as domain
+            FROM jsonb_array_elements(NEW.content) AS content_item
+            WHERE content_item->>'type' = 'mention'
+              AND content_item->>'username' IS NOT NULL
+        ) AS all_mentions
+        LEFT JOIN profiles p ON p.username = all_mentions.username 
+                             AND (p.domain = all_mentions.domain OR (all_mentions.domain IS NULL AND p.is_local))
+        WHERE p.username IS NOT NULL
+    )
+    SELECT 
+        jsonb_agg(
+            jsonb_build_object(
+                'type', 'Mention',
+                'href', actor_url,
+                'name', CASE 
+                    WHEN domain IS NULL OR domain = v_instance_domain THEN '@' || username
+                    ELSE '@' || username || '@' || domain
+                END
+            )
+        ) FILTER (WHERE actor_url IS NOT NULL),
+        array_agg(actor_url) FILTER (WHERE actor_url IS NOT NULL)
+    INTO v_mention_tags, v_mentioned_actor_urls
+    FROM mentioned_users;
+    
+    -- Set default empty arrays if no mentions
+    v_mention_tags := COALESCE(v_mention_tags, '[]'::jsonb);
+    v_mentioned_actor_urls := COALESCE(v_mentioned_actor_urls, ARRAY[]::TEXT[]);
+    
+    -- Build to/cc addresses based on visibility according to ActivityStreams spec
+    CASE NEW.visibility
+        WHEN 'public' THEN
+            -- public: Public statuses have the as:Public magic collection in to
+            v_to_addresses := jsonb_build_array('https://www.w3.org/ns/activitystreams#Public');
+            v_cc_addresses := jsonb_build_array(v_followers_url) || 
+                              COALESCE(jsonb_agg_text_array(v_mentioned_actor_urls), '[]'::jsonb);
+                              
+        WHEN 'unlisted' THEN
+            -- unlisted: Unlisted statuses have the as:Public magic collection in cc
+            v_to_addresses := jsonb_build_array(v_followers_url) || 
+                              COALESCE(jsonb_agg_text_array(v_mentioned_actor_urls), '[]'::jsonb);
+            v_cc_addresses := jsonb_build_array('https://www.w3.org/ns/activitystreams#Public');
+            
+        WHEN 'followers' THEN
+            -- private: Followers-only statuses have an actor's follower collection in to or cc, but do not include the as:Public magic collection
+            v_to_addresses := jsonb_build_array(v_followers_url) || 
+                              COALESCE(jsonb_agg_text_array(v_mentioned_actor_urls), '[]'::jsonb);
+            v_cc_addresses := '[]'::jsonb;
+            
+        WHEN 'mentioned' THEN
+            -- limited: Limited-audience statuses have actors in to or cc, at least one of which is not Mentioned in tag
+            -- For "mentioned only" posts, we put mentioned actors in 'to' but don't include followers
+            v_to_addresses := COALESCE(jsonb_agg_text_array(v_mentioned_actor_urls), '[]'::jsonb);
+            v_cc_addresses := '[]'::jsonb;
+            
+        ELSE
+            -- Default to followers-only for unknown visibility
+            v_to_addresses := jsonb_build_array(v_followers_url);
+            v_cc_addresses := '[]'::jsonb;
+    END CASE;
+    
+    -- Create the Note object
+    v_note_object := jsonb_build_object(
+        'id', v_post_url,
+        'type', 'Note',
+        'content', convert_content_to_activitypub_html(NEW.content),
+        'contentMap', jsonb_build_object('en', convert_content_to_activitypub_html(NEW.content)),
+        'attributedTo', v_sender_url,
+        'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'to', v_to_addresses,
+        'cc', v_cc_addresses,
+        'tag', v_mention_tags,  -- Proper ActivityPub Mention tags
+        'url', v_post_url,
+        'mediaType', 'text/html',
+        'sensitive', COALESCE(NEW.is_sensitive, false)
+    );
     
     -- Add content warning if present
     IF NEW.content_warning IS NOT NULL AND NEW.content_warning != '' THEN

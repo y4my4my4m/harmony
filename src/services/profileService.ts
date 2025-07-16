@@ -111,7 +111,9 @@ const downloadAvatar = async (avatarPath: string): Promise<string> => {
 };
 
 const uploadAvatar = async (userId: string, file: File): Promise<string> => {
-  const filePath = `${userId}/${file.name}`;
+  const ext = file.name.split('.').pop();
+  if (!ext) throw new Error('File must have an extension');
+  const filePath = `${userId}/${userId}.${ext}`;
   const { error } = await supabase.storage.from('avatars').upload(filePath, file, {
     upsert: true
   });

@@ -454,7 +454,7 @@ const closeInviteModal = () => {
 /* Header Section */
 .sidebar-header {
   padding: 16px 8px 8px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-color);
   background-color: var(--background-quinary);
 }
 

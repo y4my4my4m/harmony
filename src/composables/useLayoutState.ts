@@ -22,7 +22,7 @@ const checkMobileDevice = () => {
     if (!wasMobile || !leftSidebarOpen.value) {
       leftSidebarOpen.value = true
     }
-    rightSidebarOpen.value = false
+    rightSidebarOpen.value = true
   }
 }
 
