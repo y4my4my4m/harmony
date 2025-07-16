@@ -6,6 +6,7 @@
           :src="server.icon" 
           :alt="`${server.name} icon`"
           size="lg"
+          shape="big-rounded"
           @error="handleImageError"
         />
         <div v-if="server.is_featured" class="server-card__featured-badge">
@@ -190,7 +191,6 @@ const handleOwnerClick = (event: Event) => {
   padding: 20px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
   backdrop-filter: blur(10px);
 }
 

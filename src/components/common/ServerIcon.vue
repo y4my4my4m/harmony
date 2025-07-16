@@ -5,6 +5,7 @@
       :src="imgSrc"
       :alt="alt"
       class="server-image"
+      :class="[classes, `shape-${shape}`]"
       @click="handleClick"
       @error="onImgError"
     />
@@ -51,17 +52,20 @@ import CameraIcon from '@/components/icons/Camera.vue'
 // Types
 type serverSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline'
+type ImageShape = 'square' | 'rounded' | 'big-rounded' | 'round'
 
 // Props
 interface Props {
   id?: string
   src?: string | null
   alt?: string
+  classes?: string[]
   size?: serverSize
   status?: UserStatus
   editable?: boolean
   interactive?: boolean
   loading?: boolean
+  shape?: ImageShape
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -69,7 +73,8 @@ const props = withDefaults(defineProps<Props>(), {
   size: 'md',
   editable: false,
   interactive: false,
-  loading: false
+  loading: false,
+  shape: 'rounded'
 })
 
 // Emits
@@ -150,7 +155,6 @@ const handleFileSelect = (event: Event) => {
   position: relative;
   display: inline-block;
   flex-shrink: 0;
-  border-radius: 16px;
   contain: content;
 }
 
@@ -169,8 +173,24 @@ const handleFileSelect = (event: Event) => {
   height: auto;
   background: rgba(88, 101, 242, 0.1);
   display: block;
-  border-radius: 16px;
   object-fit: contain;
+}
+
+/* Shape variants */
+.server-image.shape-square {
+  border-radius: 0;
+}
+
+.server-image.shape-rounded {
+  border-radius: 6px;
+}
+
+.server-image.shape-big-rounded {
+  border-radius: 16px;
+}
+
+.server-image.shape-round {
+  border-radius: 50%;
 }
 
 /* Size classes - following voice overlay pattern */

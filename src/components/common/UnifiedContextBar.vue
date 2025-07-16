@@ -16,11 +16,12 @@
         
         <div class="context-title">
           <div class="server-info" v-if="!isDM && currentServer">
-            <img 
+            <ServerIcon 
+              :id="currentServer.id"
+              :src="currentServer.icon"
+              :class="'rounded'"
+              size="xs"
               v-if="currentServer.icon" 
-              :src="currentServer.icon" 
-              :alt="currentServer.name"
-              class="server-icon"
             />
             <div class="server-details">
               <h2 class="server-name">{{ currentServer.name }}</h2>
@@ -142,6 +143,7 @@
 import { computed } from 'vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Server, Channel } from '@/types';
+import ServerIcon from './ServerIcon.vue';
 
 interface Props {
   mode: 'chat' | 'activitypub';
@@ -264,7 +266,7 @@ const currentViewTitle = computed(() => {
   gap: 12px;
 }
 
-.server-icon {
+.server-icon{
   width: 24px;
   height: 24px;
   border-radius: 4px;
