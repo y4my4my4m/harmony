@@ -1,13 +1,13 @@
 <template>
   <div class="server-sidebar">
-    <div 
+    <div
       :style="{ backgroundImage: 'url(/icon16.png)' }"
       class="portal"
       @click="togglePublicServers"
     >
     </div>
     <!-- DM Button at the top -->
-    <div 
+    <div
       class="dm-button"
       :class="{ 'selected': isDMSelected }"
       @click="goToDMs"
@@ -19,7 +19,7 @@
     </div>
 
     <!-- Monyverse Button -->
-    <div 
+    <div
       class="monyverse-button"
       :class="{ 'selected': isMonyverseSelected }"
       @click="goToMonyverse"
@@ -30,117 +30,117 @@
         {{ unreadCount > 99 ? '99+' : unreadCount }}
       </div>
     </div>
-    
+
     <div class="separator"></div>
-    <div v-for="server in servers" 
-      :key="server.id" 
+
+    <!-- The component ServerIcon is automatically available in the template -->
+    <ServerIcon v-for="server in props.servers"
+      :key="server.id"
+      :id="server.id"
+      :src="server.icon"
+      size="md"
       class="server-item"
-      :style="{ backgroundImage: 'url(' + server.icon + ')' }" 
+      :interactive="true"
+      @click="selectServer"
       :class="[{ 'selected': server.id === serverChannelStore.currentServerId && !isDMSelected && !isMonyverseSelected }]"
-      @click="selectServer(server.id)">
-    </div>
+    />
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, computed, ref, watch } from 'vue';
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { isActivityPubRoute } from '@/types/viewTypes';
+import ServerIcon from '@/components/common/ServerIcon.vue';
 import type { Server } from '@/types';
 
-export default defineComponent({
-  props: {
-    servers: {
-      type: Array as () => Server[],
-      required: true
-    }
-  },
-  emits: ['show-public-servers', 'switch-to-activitypub', 'switch-to-chat'],
-  setup(props, { emit }) {
-    const showPublicServers = ref(false);
-    const serverChannelStore = useServerChannelStore();
-    const activityPubStore = useActivityPubStore();
-    const router = useRouter();
-    const route = useRoute();
+// Define Props
+const props = defineProps<{
+  servers: Server[];
+}>();
 
-    // Check if we're currently in DM mode
-    const isDMSelected = computed(() => {
-      return route.name === 'DM' || route.name === 'DMHome' || route.name === 'DMConversation';
-    });
+// Define Emits for type safety
+const emit = defineEmits<{
+  (e: 'show-public-servers', value: boolean): void;
+  (e: 'switch-to-activitypub'): void;
+  (e: 'switch-to-chat'): void;
+}>();
 
-    // Check if we're currently in Monyverse/Social (ActivityPub)
-    const isMonyverseSelected = computed(() => {
-      return isActivityPubRoute(route.name as string);
-    });
+// Reactive state
+const showPublicServers = ref(false);
 
-    // Get unread count from ActivityPub store
-    const unreadCount = computed(() => {
-      return activityPubStore.unreadCount;
-    });
+// Composables and Stores
+const serverChannelStore = useServerChannelStore();
+const activityPubStore = useActivityPubStore();
+const router = useRouter();
+const route = useRoute();
 
-    const togglePublicServers = () => {
-      showPublicServers.value = !showPublicServers.value;
-    };
+// Computed properties
+const isDMSelected = computed(() => {
+  return route.name === 'DM' || route.name === 'DMHome' || route.name === 'DMConversation';
+});
 
-    watch(showPublicServers, (value) => {
-      if (value) {
-        emit('show-public-servers', value); 
-      }
-    });
+const isMonyverseSelected = computed(() => {
+  return isActivityPubRoute(route.name as string);
+});
 
-    const selectServer = async (serverId: string) => {
-      emit('switch-to-chat');
-      
-      // Set the current server first
-      serverChannelStore.setCurrentServer(serverId);
-      
-      // Fetch channels for this server
-      await serverChannelStore.fetchCategoriesAndChannels(serverId);
-      
-      // Get the default channel for this server
-      const defaultChannelId = serverChannelStore.getDefaultChannel();
-      
-      if (defaultChannelId) {
-        // Navigate to the specific server and channel
-        router.push({ 
-          name: 'ChatChannel', 
-          params: { 
-            serverId: serverId, 
-            channelId: defaultChannelId 
-          } 
-        });
-      } else {
-        // Fallback to base chat route if no channels available
-        router.push({ name: 'Chat' });
-      }
-    };
+const unreadCount = computed(() => {
+  return activityPubStore.unreadCount;
+});
 
-    const goToDMs = () => {
-      emit('switch-to-chat');
-      router.push({ name: 'DMHome' });
-    };
-
-    const goToMonyverse = () => {
-      activityPubStore.clearUnreadCount();
-      emit('switch-to-activitypub');
-      router.push({ name: 'SocialHome' });
-    };
-
-    return {
-      showPublicServers,
-      selectServer,
-      goToDMs,
-      goToMonyverse,
-      isDMSelected,
-      isMonyverseSelected,
-      unreadCount,
-      serverChannelStore,
-      togglePublicServers
-    };
+// Watchers
+watch(showPublicServers, (value) => {
+  if (value) {
+    emit('show-public-servers', value);
   }
 });
+
+// Methods
+const togglePublicServers = () => {
+  showPublicServers.value = !showPublicServers.value;
+};
+
+const selectServer = async (serverId?: string) => {
+  if (!serverId) return;
+  
+  emit('switch-to-chat');
+  
+  // Set the current server first
+  serverChannelStore.setCurrentServer(serverId);
+  
+  // Fetch channels for this server
+  await serverChannelStore.fetchCategoriesAndChannels(serverId);
+  
+  // Get the default channel for this server
+  const defaultChannelId = serverChannelStore.getDefaultChannel();
+  
+  if (defaultChannelId) {
+    // Navigate to the specific server and channel
+    router.push({ 
+      name: 'ChatChannel', 
+      params: { 
+        serverId: serverId, 
+        channelId: defaultChannelId 
+      } 
+    });
+  } else {
+    // Fallback to base chat route if no channels available
+    router.push({ name: 'Chat' });
+  }
+};
+
+const goToDMs = () => {
+  emit('switch-to-chat');
+  router.push({ name: 'DMHome' });
+};
+
+const goToMonyverse = () => {
+  activityPubStore.clearUnreadCount();
+  emit('switch-to-activitypub');
+  router.push({ name: 'SocialHome' });
+};
 </script>
 
 <style scoped>

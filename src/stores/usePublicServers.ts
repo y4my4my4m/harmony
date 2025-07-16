@@ -169,7 +169,7 @@ export const usePublicServersStore = defineStore('publicServers', {
               id: 'demo-2', 
               name: 'Gaming Hub',
               description: 'A place for gamers to connect, share, and play together across all platforms.',
-              icon: '/default_server_icon.png',
+              icon: '/default_server.png',
               owner: 'system',
               public: true,
               allow_cross_server_emojis: false,

@@ -2,12 +2,11 @@
   <div class="server-container" :class="[sizeClass, { 'interactive': interactive }]">
     <!-- server Image -->
     <img
-      :src="serverUrl"
+      :src="imgSrc"
       :alt="alt"
       class="server-image"
       @click="handleClick"
-      @error="handleImageError"
-      @load="handleImageLoad"
+      @error="onImgError"
     />
 
     <!-- Loading State -->
@@ -45,8 +44,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { getServerUrl } from '../../utils/serverUtils'
+import { ref, computed, watch } from 'vue'
+import { getServerIconUrl } from '../../utils/serverUtils'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 // Types
@@ -55,6 +54,7 @@ type UserStatus = 'online' | 'away' | 'busy' | 'offline'
 
 // Props
 interface Props {
+  id?: string
   src?: string | null
   alt?: string
   size?: serverSize
@@ -74,29 +74,42 @@ const props = withDefaults(defineProps<Props>(), {
 
 // Emits
 const emit = defineEmits<{
-  'click': []
+  'click': [id?: string]
   'upload': [file: File]
   'edit': []
 }>()
-
-// State
-const imageError = ref(false)
 
 // Refs
 const fileInput = ref<HTMLInputElement>()
 
 // Computed
-const serverUrl = computed(() => {
-  if (imageError.value) return '/default_server.png'
-  return getServerUrl(props.src)
-})
-
 const sizeClass = computed(() => `server-${props.size}`)
+
+// --- Fallback image logic ---
+const fallbackImage = '/default_server.png'
+
+// Use a local ref for the img src, initialized to computed value or fallback
+const imgSrc = ref(getServerIconUrl(props.src) || fallbackImage)
+
+// Watch for prop changes and update imgSrc
+watch(
+  () => props.src,
+  (newVal) => {
+    imgSrc.value = getServerIconUrl(newVal) || fallbackImage
+  }
+)
+
+// Error handler for <img>
+const onImgError = () => {
+  if (imgSrc.value !== fallbackImage) {
+    imgSrc.value = fallbackImage
+  }
+}
 
 // Methods
 const handleClick = () => {
   if (props.interactive) {
-    emit('click')
+    emit('click', props.id)
   }
 }
 
@@ -130,19 +143,6 @@ const handleFileSelect = (event: Event) => {
   // Reset input
   target.value = ''
 }
-
-const handleImageError = () => {
-  console.log('server image error for URL:', serverUrl.value)
-  imageError.value = true
-  // Don't attempt to reload the URL on error to prevent infinite loops
-}
-
-const handleImageLoad = () => {
-  // Only reset error if we weren't already in error state
-  if (imageError.value) {
-    imageError.value = false
-  }
-}
 </script>
 
 <style scoped>
@@ -151,6 +151,7 @@ const handleImageLoad = () => {
   display: inline-block;
   flex-shrink: 0;
   border-radius: 16px;
+  contain: content;
 }
 
 .server-container.interactive {
@@ -158,15 +159,19 @@ const handleImageLoad = () => {
 }
 
 .server-image {
-  position: relative;
-  overflow: hidden;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
   background: rgba(88, 101, 242, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: visible;
+  display: block;
+  border-radius: 16px;
+  object-fit: contain;
 }
-
 
 /* Size classes - following voice overlay pattern */
 .server-mini {
@@ -218,7 +223,6 @@ const handleImageLoad = () => {
   justify-content: center;
   z-index: 0;
 }
-
 
 /* Edit button */
 .server-edit-btn {

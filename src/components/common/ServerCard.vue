@@ -165,7 +165,7 @@ const formatMemberCount = (count?: number): string => {
 
 const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement
-  img.src = '/default_server_icon.png'
+  img.src = '/default_server.png'
 }
 
 const handleJoin = () => {

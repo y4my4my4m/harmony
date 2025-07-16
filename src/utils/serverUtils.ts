@@ -5,7 +5,7 @@ import { supabase } from '@/supabase'
  * Handles both full URLs and path-only formats
  * Always returns the proper public URL for Supabase storage paths
  */
-export function getServerUrl(serverUrl: string | null | undefined): string {
+export function getServerIconUrl(serverUrl: string | null | undefined): string {
   // Return default server if no URL provided or if it's not a string
   if (!serverUrl || typeof serverUrl !== 'string') {
     return '/default_server.png'
@@ -14,20 +14,18 @@ export function getServerUrl(serverUrl: string | null | undefined): string {
   // If it's already a full URL (starts with http/https), return as-is
   // This handles external URLs and already-processed Supabase URLs
   if (serverUrl.startsWith('http://') || serverUrl.startsWith('https://')) {
-    console.log('Returning existing full URL:', serverUrl)
     return serverUrl
   }
 
   // If it's a Supabase storage path (contains user ID folder structure)
   if (serverUrl.includes('/') && !serverUrl.startsWith('/')) {
-    console.log('Processing Supabase storage path:', serverUrl)
-    // Use public URL since servers bucket is now public
+    console.log('Supabase storage path detected:', serverUrl)
     const { data } = supabase.storage
       .from('server_icons')
       .getPublicUrl(serverUrl, {
-        transform: { width: 256, height: 256, resize: 'contain', quality: 80 }
+        transform: { width: 96, height: 96, resize: 'contain', quality: 80 }
       })
-    console.log('Returning processed Supabase URL:', data.publicUrl)
+
     return data.publicUrl
   }
 
