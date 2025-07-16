@@ -72,3 +72,5 @@ they also have reactions on posts, which we should embed with our own reactions 
 
 
 34. sometimes it's called federated_id (like in profiles table), sometimes it's ap_id, rename to ap_id and stay standardized
+
+35. eventually i want to display tiny 2 or 4px indicators when the message is locally send, then federated read, and then slowly fade out... that way we can insta-display (optimistic update) and show if failed and have the user retry themselves
