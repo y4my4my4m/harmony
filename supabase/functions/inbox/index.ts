@@ -152,8 +152,7 @@ serve(async (req: Request) => {
         await supabase
           .from('ap_activities')
           .update({ 
-            status: 'processing', 
-            processed_at: new Date().toISOString() 
+            status: 'processing'
           })
           .eq('ap_id', activity.id)
 
@@ -164,8 +163,7 @@ serve(async (req: Request) => {
           .from('ap_activities')
           .update({ 
             status: 'failed', 
-            error_message: 'Failed validation',
-            processed_at: new Date().toISOString() 
+            error_message: 'Failed validation'
           })
           .eq('ap_id', activity.id)
       }
@@ -179,7 +177,6 @@ serve(async (req: Request) => {
         .update({ 
           status: 'failed', 
           error_message: processingError instanceof Error ? processingError.message : 'Unknown error',
-          processed_at: new Date().toISOString(),
           attempts: 1,
           last_attempt_at: new Date().toISOString()
         })

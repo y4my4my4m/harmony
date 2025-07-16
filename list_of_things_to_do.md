@@ -71,3 +71,4 @@ they also have reactions on posts, which we should embed with our own reactions 
 33. is_pinned post should be added to posts table, make work with outbox function
 
 
+34. sometimes it's called federated_id (like in profiles table), sometimes it's ap_id, rename to ap_id and stay standardized
