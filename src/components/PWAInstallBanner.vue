@@ -3,7 +3,7 @@
     <div v-if="showBanner" class="pwa-install-banner">
       <div class="banner-content">
         <div class="banner-icon">
-          <img src="/harmony_icon1.png" alt="Harmony" />
+          <img src="/img/app_icon_square.png" alt="Harmony" />
         </div>
         <div class="banner-text">
           <h3>Install Harmony</h3>

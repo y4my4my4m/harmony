@@ -464,7 +464,7 @@ const testNotification = async (type: NotificationType) => {
       new Notification(testData.title, {
         body: testData.message,
         icon: testData.data.avatar_url,
-        badge: '/harmony_icon1.png'
+        badge: '/img/app_icon_square.png'
       });
     }
     

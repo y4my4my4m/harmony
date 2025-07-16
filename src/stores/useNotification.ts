@@ -491,7 +491,7 @@ export const useNotificationStore = defineStore('notification', {
         const desktopNotification = new Notification(formatted.title, {
           body: formatted.message,
           icon: NotificationFormatter.getAvatarUrl(notification),
-          badge: '/harmony_icon1.png',
+          badge: '/img/app_icon_square.png',
           tag: `harmony-${notification.type}-${notification.id}`,
           // requireInteraction: notification.type === 'mention' || notification.type === 'dm', // Add this if you want critical notifications to stay open
           silent: false

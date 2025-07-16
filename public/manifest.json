@@ -139,13 +139,13 @@
       "purpose": "maskable"
     },
     {
-      "src": "/icon_3d.png",
+      "src": "/img/app_icon_square.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon_3d.png",
+      "src": "/img/app_icon_square.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

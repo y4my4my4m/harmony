@@ -155,7 +155,7 @@ export const usePublicServersStore = defineStore('publicServers', {
               id: 'demo-1',
               name: 'Harmony Official',
               description: 'Welcome to the official Harmony community! Join us for updates, help, and general chat.',
-              icon: '/harmony_icon1.png',
+              icon: '/img/app_icon_square.png',
               owner: 'system',
               public: true,
               allow_cross_server_emojis: true,

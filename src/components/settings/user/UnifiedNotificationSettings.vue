@@ -575,8 +575,8 @@ const testNotification = async (type: NotificationType) => {
     if (hasNotificationPermission.value) {
       new Notification(testData.title, {
         body: testData.message,
-        icon: testData.avatar || '/harmony_icon1.png',
-        badge: '/harmony_icon1.png'
+        icon: testData.avatar || '/img/app_icon_square.png',
+        badge: '/img/app_icon_square.png'
       })
     }
     

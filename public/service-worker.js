@@ -10,7 +10,7 @@ const API_CACHE = 'harmony-api-v2'
 const STATIC_RESOURCES = [
   '/',
   '/manifest.json',
-  '/harmony_icon1.png',
+  '/img/app_icon_square.png',
   '/favicon/android-icon-192x192.png',
   '/src/main.ts',
   '/src/App.vue'
@@ -77,8 +77,8 @@ self.addEventListener('push', async (event) => {
     // Discord-like notification logic
     const notificationOptions = {
       body: data.message || data.body,
-      icon: data.data?.avatar_url || '/harmony_icon1.png',
-      badge: '/harmony_icon1.png',
+      icon: data.data?.avatar_url || '/img/app_icon_square.png',
+      badge: '/img/app_icon_square.png',
       tag: `harmony-${data.type}-${data.data?.user_id || 'unknown'}`,
       data: data.data || {},
       requireInteraction: data.type === 'mention' || data.type === 'dm',

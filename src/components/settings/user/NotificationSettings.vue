@@ -419,7 +419,7 @@ const requestNotificationPermission = async () => {
       // Show a test notification
       new Notification('Notifications Enabled!', {
         body: 'You will now receive desktop notifications from Harmony.',
-        icon: '/harmony_icon1.png'
+        icon: '/img/app_icon_square.png'
       })
     }
   } catch (error) {
@@ -500,7 +500,7 @@ const testNotification = async (type: NotificationType) => {
         new Notification(test.title, {
           body: test.message,
           icon: test.data.avatar_url,
-          badge: '/harmony_icon1.png'
+          badge: '/img/app_icon_square.png'
         })
       }
     }

@@ -100,25 +100,6 @@ onMounted(() => {
 </script>
 
 <style>
-
-  /* @font-face {
-    font-family: 'NEC';
-    src:  url('/assets/fonts/Web437_NEC_APC3_8x8.woff') format('woff')
-  } */
-  /* @font-face {
-    font-family: 'Montserrat', sans-serif;
-    src: url('/assets/fonts/Montserrat-Regular.ttf') format('truetype');
-    font-weight: normal;
-    font-style: normal;
-  }
-  @font-face {
-    font-family: 'Montserrat', sans-serif;
-    src: url('/assets/fonts/Montserrat-Italic.ttf') format('truetype');
-    font-weight: normal;
-    font-style: italic;
-  } */
-
-
   @font-face {
     font-family: 'gg sans';
     font-style: normal;

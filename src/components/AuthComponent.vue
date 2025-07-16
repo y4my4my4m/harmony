@@ -390,7 +390,7 @@ const onAuthPanelHover = (isHovered: boolean) => {
 
 // Lifecycle
 onMounted(async () => {
-  randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 64) + 1}.png')`
+  randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 64) + 1}.webp')`
   initializeParticles()
   await initializeLetterElements()
 })
