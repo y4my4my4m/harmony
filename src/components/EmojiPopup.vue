@@ -218,12 +218,11 @@ watch(
 </script>
 
 <style scoped>
-/* NOTE: The CSS was already quite good and well-structured. No major changes were needed. */
 .emoji-popup {
   width: 320px;
   height: 400px;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
+  background: var(--background-secondary-alpha);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   z-index: 1000;
@@ -234,7 +233,7 @@ watch(
 
 .emoji-search {
   padding: 12px;
-  border-bottom: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 

@@ -646,7 +646,7 @@ const vClickOutside = {
 }
 
 .composer-modal {
-  background-color: var(--bg-primary);
+  background-color: var(--background-primary);
   border-radius: 1rem;
   max-width: 600px;
   width: 100%;

@@ -200,7 +200,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 .btn-secondary {
-  background: var(--bg-secondary);
+  background: var(--background-secondary);
   color: var(--text-primary);
   border-color: var(--border-primary);
 }

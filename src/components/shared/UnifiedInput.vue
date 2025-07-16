@@ -321,7 +321,7 @@ defineExpose({
   position: relative;
   display: flex;
   align-items: center;
-  background: var(--bg-secondary);
+  background: var(--background-secondary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-base);
   transition: all var(--transition-base);

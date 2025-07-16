@@ -40,6 +40,7 @@
       :src="server.icon"
       size="md"
       class="server-item"
+      shape="round"
       :interactive="true"
       @click="selectServer"
       :class="[{ 'selected': server.id === serverChannelStore.currentServerId && !isDMSelected && !isMonyverseSelected }]"

@@ -25,13 +25,15 @@
   --info: #5bc0de;
   
   /* Background Colors */
-  --bg-primary: #1e1f22;
-  --bg-secondary: #2b2d31;
-  --bg-tertiary: #36393f;
-  --bg-quaternary: #40444b;
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active: rgba(255, 255, 255, 0.08);
-  --bg-modal: rgba(0, 0, 0, 0.85);
+  --background-primary: #1a1a1e;
+  --background-secondary: #17181a;
+  --background-tertiary: #121214;
+  --background-quaternary: #222327;
+  --background-quinary: #202024;
+  --background-senary: #0a0b0d;
+  --background-septenary: #070809;
+
+  --background-secondary-alpha: #1a1a1eaa;
   
   /* Text Colors */
   --text-primary: #f2f3f5;

@@ -14,24 +14,10 @@
     
     <!-- ActivityPub Mode Content -->
     <div v-else-if="mode === ViewMode.ACTIVITYPUB" class="content-section social-content">
-      <!-- Profile View -->
-      <ProfileDisplay 
-        v-if="viewType === ViewType.PROFILE"
-        :user="profileUser"
-        :posts="[]"
-        :loading="false"
-      />
-      
-      <!-- Post Detail View -->
-      <PostDetailDisplay
-        v-else-if="viewType === ViewType.POST"
-        :post-id="postId || ''"
-        @back="$emit('back-to-timeline')"
-      />
-      
+
       <!-- Explore View -->
       <ExploreContent
-        v-else-if="viewType === ViewType.EXPLORE"
+        v-if="viewType === ViewType.EXPLORE"
         :current-view="currentView || 'trending'"
       />
       
@@ -82,11 +68,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import ChatComponent from '@/components/ChatComponent.vue'
 import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
-import ProfileDisplay from './ProfileDisplay.vue'
 import PostDetailDisplay from './PostDetailDisplay.vue'
 import PostsContainer from './PostsContainer.vue'
 import ViewHeader from './ViewHeader.vue'

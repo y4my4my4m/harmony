@@ -828,7 +828,7 @@ document.addEventListener('click', handleClickOutside);
 }
 .user-profile-view {
   height: 100vh;
-  background: var(--h-chat, #313338);
+  background: var(--background-primary);
   color: white;
   overflow-y: auto;
   overflow-x: hidden;
@@ -844,16 +844,6 @@ document.addEventListener('click', handleClickOutside);
   text-align: center;
   color: #80848e;
   padding: 2rem;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.08);
-  border-top: 3px solid var(--h-brand, #5865f2);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
 }
 
 .error-state h2 {
@@ -1250,7 +1240,6 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .tab-content {
-  background: var(--h-chat, #313338);
   min-height: 400px;
   flex: 1;
   overflow-y: auto;

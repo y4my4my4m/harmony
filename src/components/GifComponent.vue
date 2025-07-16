@@ -161,8 +161,8 @@ onUnmounted(() => {
 </script>
 <style scoped>
 .gif-popup {
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
+  background: var(--background-secondary-alpha);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   width: 400px;
@@ -181,10 +181,10 @@ onUnmounted(() => {
 .search-input {
   width: 100%;
   padding: 8px 12px;
-  background: var(--color-bg-primary);
-  border: 1px solid var(--color-border);
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   font-size: 14px;
   outline: none;
 }
