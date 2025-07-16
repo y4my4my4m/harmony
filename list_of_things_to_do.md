@@ -60,3 +60,14 @@
 32. ok, make sure it's fully compatible with both mastodon and misskey
 misskey has stuff like status updates (online/away/offline) which we could embed with our own profiles.status
 they also have reactions on posts, which we should embed with our own reactions logic to messages and posts (since we plan to federate messages (we already do for DMs!))
+
+- `[{"text": "No!... ", "type": "text"}, {"type": "emoji", "emoji": {...}}]` → HTML + Emoji tags
+- `[{"url": "https://media.tenor.com/...", "type": "file", "fileType": "image"}]` → Document attachments  
+- `[{"type": "mention", "userId": "...", "mention": "@user@domain"}]` → Mention tags + HTML
+- `[{"url": "https://text-adventure.ai", "type": "url", "preview": true}]` → HTML links
+- `[{"text": "test", "type": "text"}
+- ...more...
+
+33. is_pinned post should be added to posts table, make work with outbox function
+
+

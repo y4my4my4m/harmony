@@ -50,6 +50,7 @@ serve(async (req: Request) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
     const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol'
+    const baseUrl = `https://${ourDomain}`
 
     // Look up user
     const { data: user, error: userError } = await supabase
@@ -67,7 +68,31 @@ serve(async (req: Request) => {
       })
     }
 
-    const baseUrl = `https://${ourDomain}`
+    // Check privacy settings
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('privacy_settings')
+      .eq('id', user.id)
+      .single()
+
+    // Check if following should be hidden
+    if (profile?.privacy_settings?.hide_following) {
+      return new Response(JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${baseUrl}/users/${username}/following`,
+        type: 'OrderedCollection',
+        totalItems: 0,
+        orderedItems: []
+      }), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/activity+json; charset=utf-8',
+          'Cache-Control': 'public, max-age=300'
+        }
+      })
+    }
+
     const followingId = `${baseUrl}/users/${username}/following`
 
     // Check if requesting paginated results

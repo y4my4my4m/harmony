@@ -67,6 +67,31 @@ serve(async (req: Request) => {
       })
     }
 
+    // Check privacy settings
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('privacy_settings')
+      .eq('id', user.id)
+      .single()
+
+    // Check if followers should be hidden
+    if (profile?.privacy_settings?.hide_followers) {
+      return new Response(JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${baseUrl}/users/${username}/followers`,
+        type: 'OrderedCollection',
+        totalItems: 0,
+        orderedItems: []
+      }), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/activity+json; charset=utf-8',
+          'Cache-Control': 'public, max-age=300'
+        }
+      })
+    }
+
     const baseUrl = `https://${ourDomain}`
     const followersId = `${baseUrl}/users/${username}/followers`
 
