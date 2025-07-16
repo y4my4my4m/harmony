@@ -84,7 +84,6 @@
           :server="server"
           :is-joined="joinedServerIds.has(server.id)"
           :is-loading="loadingServerIds.has(server.id)"
-          :compact="true"
           @join="$emit('joinServer', $event)"
           @leave="$emit('leaveServer', $event)"
           @view-owner-profile="$emit('viewOwnerProfile', $event)"
