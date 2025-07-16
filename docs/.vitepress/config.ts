@@ -454,66 +454,102 @@ export default withMermaid(defineConfig({
           items: [
             { text: 'Component Library', link: '/components/' }
           ]
-        },
+        }
+,
         {
           text: 'Core Components',
           collapsed: true,
           items: [
-            { text: 'Main Navigation', link: '/components/core/main-navigation' },
-            { text: 'Sidebar Component', link: '/components/core/sidebar' },
-            { text: 'Content Header', link: '/components/core/content-header' }
+            { text: 'Dmsidebar', link: '/components/dmsidebar' },
+            { text: 'Maincontentareaheader', link: '/components/maincontentareaheader' },
+            { text: 'Mainnavigation', link: '/components/mainnavigation' },
+            { text: 'Sidebarcomponent', link: '/components/sidebarcomponent' }
           ]
-        },
+        }
+,
         {
           text: 'Chat Components',
           collapsed: true,
           items: [
-            { text: 'Chat Component', link: '/components/chat/chat-component' },
-            { text: 'Message Display', link: '/components/chat/message-display' },
-            { text: 'Message Input', link: '/components/chat/message-input' },
-            { text: 'Message Content', link: '/components/chat/message-content' },
-            { text: 'Message Reactions', link: '/components/chat/message-reactions' },
-            { text: 'Rich Text Editor', link: '/components/chat/rich-text-editor' }
+            { text: 'Chatcomponent', link: '/components/chatcomponent' },
+            { text: 'Messagecontent', link: '/components/messagecontent' },
+            { text: 'Messagedisplay', link: '/components/messagedisplay' },
+            { text: 'Messageinput', link: '/components/messageinput' },
+            { text: 'Messagereactions', link: '/components/messagereactions' },
+            { text: 'Messagereply', link: '/components/messagereply' },
+            { text: 'Richtexteditor', link: '/components/richtexteditor' },
+            { text: 'Unifiedmessagecontent', link: '/components/unifiedmessagecontent' }
           ]
-        },
+        }
+,
         {
           text: 'Server Management',
           collapsed: true,
           items: [
-            { text: 'Server Sidebar', link: '/components/server/server-sidebar' },
-            { text: 'Channel Sidebar', link: '/components/server/channel-sidebar' },
-            { text: 'Create Server', link: '/components/server/create-server' },
-            { text: 'Create Channel', link: '/components/server/create-channel' },
-            { text: 'Server Dropdown', link: '/components/server/server-dropdown' }
+            { text: 'Channelcontextmenu', link: '/components/channelcontextmenu' },
+            { text: 'Channeleditmodal', link: '/components/channeleditmodal' },
+            { text: 'Channelsidebar', link: '/components/channelsidebar' },
+            { text: 'Createchannel', link: '/components/createchannel' },
+            { text: 'Createserver', link: '/components/createserver' },
+            { text: 'Noserverssplash', link: '/components/noserverssplash' },
+            { text: 'Publicservers', link: '/components/publicservers' },
+            { text: 'Serverdropdown', link: '/components/serverdropdown' },
+            { text: 'Serversidebar', link: '/components/serversidebar' }
           ]
-        },
+        }
+,
         {
           text: 'User Interface',
           collapsed: true,
           items: [
-            { text: 'User Profile', link: '/components/user/user-profile' },
-            { text: 'User Profile Modal', link: '/components/user/user-profile-modal' },
-            { text: 'Auth Component', link: '/components/user/auth-component' },
-            { text: 'User Sidebar', link: '/components/user/user-sidebar' }
+            { text: 'Authcomponent', link: '/components/authcomponent' },
+            { text: 'Userpreviewcomponent', link: '/components/userpreviewcomponent' },
+            { text: 'Userprofilecomponent', link: '/components/userprofilecomponent' },
+            { text: 'Userprofilemodal', link: '/components/userprofilemodal' },
+            { text: 'Usersidebar', link: '/components/usersidebar' }
           ]
-        },
+        }
+,
         {
           text: 'Media & Content',
           collapsed: true,
           items: [
-            { text: 'Emoji UI', link: '/components/media/emoji-ui' },
-            { text: 'File Preview', link: '/components/media/file-preview' },
-            { text: 'GIF Component', link: '/components/media/gif-component' },
-            { text: 'Markdown Content', link: '/components/media/markdown-content' }
+            { text: 'Emojipopup', link: '/components/emojipopup' },
+            { text: 'Emojiui', link: '/components/emojiui' },
+            { text: 'Filepreview', link: '/components/filepreview' },
+            { text: 'Fileuploadmenu', link: '/components/fileuploadmenu' },
+            { text: 'Gifcomponent', link: '/components/gifcomponent' },
+            { text: 'Markdowncontent', link: '/components/markdowncontent' }
           ]
-        },
+        }
+,
         {
           text: 'Modals & Dialogs',
           collapsed: true,
           items: [
-            { text: 'Confirmation Modal', link: '/components/modals/confirmation-modal' },
-            { text: 'Invite Modal', link: '/components/modals/invite-modal' },
-            { text: 'Context Menus', link: '/components/modals/context-menus' }
+            { text: 'Categorycontextmenu', link: '/components/categorycontextmenu' },
+            { text: 'Categoryeditmodal', link: '/components/categoryeditmodal' },
+            { text: 'Confirmationmodal', link: '/components/confirmationmodal' },
+            { text: 'Inviteaccept', link: '/components/inviteaccept' },
+            { text: 'Invitemodal', link: '/components/invitemodal' }
+          ]
+        }
+,
+        {
+          text: 'Other Components',
+          collapsed: true,
+          items: [
+            { text: 'Autosuggest', link: '/components/autosuggest' },
+            { text: 'Categorycreator', link: '/components/categorycreator' },
+            { text: 'Generated-index', link: '/components/generated-index' },
+            { text: 'Notificationbell', link: '/components/notificationbell' },
+            { text: 'Notificationitem', link: '/components/notificationitem' },
+            { text: 'Notificationtoast', link: '/components/notificationtoast' },
+            { text: 'Persistentvoiceconnection', link: '/components/persistentvoiceconnection' },
+            { text: 'Pwainstallbanner', link: '/components/pwainstallbanner' },
+            { text: 'Pwainstallprompt', link: '/components/pwainstallprompt' },
+            { text: 'Pwaupdatenotification', link: '/components/pwaupdatenotification' },
+            { text: 'Spacetimegrid', link: '/components/spacetimegrid' }
           ]
         }
       ],
