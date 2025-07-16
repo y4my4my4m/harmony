@@ -88,49 +88,364 @@ export default withMermaid(defineConfig({
       
       '/api/': [
         {
-          text: 'Core Services',
-          collapsed: true,
+          text: 'Overview',
           items: [
-            { text: 'Overview', link: '/api/' },
-            { text: 'Authentication Service', link: '/api/services/auth' },
-            { text: 'Chat Service', link: '/api/services/chat' },
-            { text: 'ActivityPub Service', link: '/api/services/activitypub' },
-            { text: 'User Data Service', link: '/api/services/userdata' },
-            { text: 'Admin Service', link: '/api/services/admin' }
+            { text: 'API Reference', link: '/api/' }
           ]
         },
         {
-          text: 'Pinia Stores',
-          collapsed: true,
-          items: [
-            { text: 'Auth Store', link: '/api/stores/auth' },
-            { text: 'Chat Store', link: '/api/stores/chat' },
-            { text: 'DM Store', link: '/api/stores/dm' },
-            { text: 'ActivityPub Store', link: '/api/stores/activitypub' },
-            { text: 'Server Channel Store', link: '/api/stores/serverchannel' },
-            { text: 'Notification Store', link: '/api/stores/notification' }
-          ]
+                'text': 'Vue Composables',
+                'collapsed': true,
+                'items': [
+                        {
+                                'text': 'Useactivitypubusersearch',
+                                'link': '/api/composables/useactivitypubusersearch'
+                        },
+                        {
+                                'text': 'Useapplicationstate',
+                                'link': '/api/composables/useapplicationstate'
+                        },
+                        {
+                                'text': 'Useaudiothemecommon',
+                                'link': '/api/composables/useaudiothemecommon'
+                        },
+                        {
+                                'text': 'Useautosuggest',
+                                'link': '/api/composables/useautosuggest'
+                        },
+                        {
+                                'text': 'Usechannelpermissions',
+                                'link': '/api/composables/usechannelpermissions'
+                        },
+                        {
+                                'text': 'Usecleanuserstatus',
+                                'link': '/api/composables/usecleanuserstatus'
+                        },
+                        {
+                                'text': 'Usecommonui',
+                                'link': '/api/composables/usecommonui'
+                        },
+                        {
+                                'text': 'Usedebounce',
+                                'link': '/api/composables/usedebounce'
+                        },
+                        {
+                                'text': 'Uselayoutstate',
+                                'link': '/api/composables/uselayoutstate'
+                        },
+                        {
+                                'text': 'Usemessagereactions',
+                                'link': '/api/composables/usemessagereactions'
+                        },
+                        {
+                                'text': 'Usemobilegestures',
+                                'link': '/api/composables/usemobilegestures'
+                        },
+                        {
+                                'text': 'Usepopuppositioning',
+                                'link': '/api/composables/usepopuppositioning'
+                        },
+                        {
+                                'text': 'Usepostinteractions',
+                                'link': '/api/composables/usepostinteractions'
+                        },
+                        {
+                                'text': 'Useprofilepresence',
+                                'link': '/api/composables/useprofilepresence'
+                        },
+                        {
+                                'text': 'Useserverpermissions',
+                                'link': '/api/composables/useserverpermissions'
+                        },
+                        {
+                                'text': 'Useuserdata',
+                                'link': '/api/composables/useuserdata'
+                        },
+                        {
+                                'text': 'Useuserstate',
+                                'link': '/api/composables/useuserstate'
+                        }
+                ]
         },
         {
-          text: 'Vue Composables',
-          collapsed: true,
-          items: [
-            { text: 'Layout State', link: '/api/composables/layout' },
-            { text: 'User Data', link: '/api/composables/userdata' },
-            { text: 'Presence', link: '/api/composables/presence' },
-            { text: 'Voice Channel', link: '/api/composables/voice' }
-          ]
+                'text': 'Configuration',
+                'collapsed': true,
+                'items': [
+                        {
+                                'text': 'Activitypub',
+                                'link': '/api/config/activitypub'
+                        }
+                ]
         },
         {
-          text: 'Types & Interfaces',
-          collapsed: true,
-          items: [
-            { text: 'Core Types', link: '/api/types/core' },
-            { text: 'Chat Types', link: '/api/types/chat' },
-            { text: 'ActivityPub Types', link: '/api/types/activitypub' },
-            { text: 'User Types', link: '/api/types/user' }
-          ]
+                'text': 'Directives',
+                'collapsed': true,
+                'items': [
+                        {
+                                'text': 'Clickoutsidedirective',
+                                'link': '/api/directives/clickoutsidedirective'
+                        }
+                ]
+        },
+        {
+                'text': 'Router',
+                'collapsed': true,
+                'items': [
+                        {
+                                'text': 'Index',
+                                'link': '/api/router/index'
+                        }
+                ]
+        },
+        {
+                'text': 'Core Services',
+                'collapsed': true,
+                'items': [
+                        {
+                                'text': 'Activitypubservice',
+                                'link': '/api/services/activitypubservice'
+                        },
+                        {
+                                'text': 'Activitytracker',
+                                'link': '/api/services/activitytracker'
+                        },
+                        {
+                                'text': 'Adminservice',
+                                'link': '/api/services/adminservice'
+                        },
+                        {
+                                'text': 'Audiothemeservice',
+                                'link': '/api/services/audiothemeservice'
+                        },
+                        {
+                                'text': 'Auth',
+                                'link': '/api/services/auth'
+                        },
+                        {
+                                'text': 'Conversationservice',
+                                'link': '/api/services/conversationservice'
+                        },
+                        {
+                                'text': 'Emojiservice',
+                                'link': '/api/services/emojiservice'
+                        },
+                        {
+                                'text': 'Fileservice',
+                                'link': '/api/services/fileservice'
+                        },
+                        {
+                                'text': 'Inviteservice',
+                                'link': '/api/services/inviteservice'
+                        },
+                        {
+                                'text': 'Membershipservice',
+                                'link': '/api/services/membershipservice'
+                        },
+                        {
+                                'text': 'Notificationformatter',
+                                'link': '/api/services/notificationformatter'
+                        },
+                        {
+                                'text': 'Permissionsservice',
+                                'link': '/api/services/permissionsservice'
+                        },
+                        {
+                                'text': 'Profileservice',
+                                'link': '/api/services/profileservice'
+                        },
+                        {
+                                'text': 'Pwamanager',
+                                'link': '/api/services/pwamanager'
+                        },
+                        {
+                                'text': 'Servermembershipservice',
+                                'link': '/api/services/servermembershipservice'
+                        },
+                        {
+                                'text': 'Serviceworkermanager',
+                                'link': '/api/services/serviceworkermanager'
+                        },
+                        {
+                                'text': 'Spatialaudio',
+                                'link': '/api/services/spatialaudio'
+                        },
+                        {
+                                'text': 'Statepersistence',
+                                'link': '/api/services/statepersistence'
+                        },
+                        {
+                                'text': 'Statuslifecycledebugger',
+                                'link': '/api/services/statuslifecycledebugger'
+                        },
+                        {
+                                'text': 'Trendingservice',
+                                'link': '/api/services/trendingservice'
+                        },
+                        {
+                                'text': 'Unifiedwebrtc',
+                                'link': '/api/services/unifiedwebrtc'
+                        },
+                        {
+                                'text': 'Userdataservice',
+                                'link': '/api/services/userdataservice'
+                        },
+                        {
+                                'text': 'Usersservice',
+                                'link': '/api/services/usersservice'
+                        },
+                        {
+                                'text': 'Viewcontexttracker',
+                                'link': '/api/services/viewcontexttracker'
+                        }
+                ]
+        },
+        {
+                'text': 'Pinia Stores',
+                'collapsed': true,
+                'items': [
+                        {
+                                'text': 'Auth',
+                                'link': '/api/stores/auth'
+                        },
+                        {
+                                'text': 'Server',
+                                'link': '/api/stores/server'
+                        },
+                        {
+                                'text': 'Spatialaudio',
+                                'link': '/api/stores/spatialaudio'
+                        },
+                        {
+                                'text': 'Unifiedvoicechannel',
+                                'link': '/api/stores/unifiedvoicechannel'
+                        },
+                        {
+                                'text': 'Useactivitypub',
+                                'link': '/api/stores/useactivitypub'
+                        },
+                        {
+                                'text': 'Usechat',
+                                'link': '/api/stores/usechat'
+                        },
+                        {
+                                'text': 'Usedm',
+                                'link': '/api/stores/usedm'
+                        },
+                        {
+                                'text': 'Useemojicache',
+                                'link': '/api/stores/useemojicache'
+                        },
+                        {
+                                'text': 'Usenotification',
+                                'link': '/api/stores/usenotification'
+                        },
+                        {
+                                'text': 'Useprofile',
+                                'link': '/api/stores/useprofile'
+                        },
+                        {
+                                'text': 'Usepublicservers',
+                                'link': '/api/stores/usepublicservers'
+                        },
+                        {
+                                'text': 'Usereactions',
+                                'link': '/api/stores/usereactions'
+                        },
+                        {
+                                'text': 'Useserverchannel',
+                                'link': '/api/stores/useserverchannel'
+                        },
+                        {
+                                'text': 'Useserverusers',
+                                'link': '/api/stores/useserverusers'
+                        },
+                        {
+                                'text': 'Usetheme',
+                                'link': '/api/stores/usetheme'
+                        }
+                ]
+        },
+        {
+                'text': 'Types & Interfaces',
+                'collapsed': true,
+                'items': [
+                        {
+                                'text': 'Viewtypes',
+                                'link': '/api/types/viewtypes'
+                        }
+                ]
+        },
+        {
+                'text': 'Utilities',
+                'collapsed': true,
+                'items': [
+                        {
+                                'text': 'Avatarutils',
+                                'link': '/api/utils/avatarutils'
+                        },
+                        {
+                                'text': 'Emojiutils',
+                                'link': '/api/utils/emojiutils'
+                        },
+                        {
+                                'text': 'Fileupload',
+                                'link': '/api/utils/fileupload'
+                        },
+                        {
+                                'text': 'Getfromuser',
+                                'link': '/api/utils/getfromuser'
+                        },
+                        {
+                                'text': 'Hapticfeedback',
+                                'link': '/api/utils/hapticfeedback'
+                        },
+                        {
+                                'text': 'Markdownparser',
+                                'link': '/api/utils/markdownparser'
+                        },
+                        {
+                                'text': 'Markdownrenderer',
+                                'link': '/api/utils/markdownrenderer'
+                        },
+                        {
+                                'text': 'Mentionmigration',
+                                'link': '/api/utils/mentionmigration'
+                        },
+                        {
+                                'text': 'Mentionutils',
+                                'link': '/api/utils/mentionutils'
+                        },
+                        {
+                                'text': 'Messagecontentutils',
+                                'link': '/api/utils/messagecontentutils'
+                        },
+                        {
+                                'text': 'Messageparser',
+                                'link': '/api/utils/messageparser'
+                        },
+                        {
+                                'text': 'Reactioncachemanager',
+                                'link': '/api/utils/reactioncachemanager'
+                        },
+                        {
+                                'text': 'Serverutils',
+                                'link': '/api/utils/serverutils'
+                        },
+                        {
+                                'text': 'Settingsutils',
+                                'link': '/api/utils/settingsutils'
+                        },
+                        {
+                                'text': 'Syntaxhighlighter',
+                                'link': '/api/utils/syntaxhighlighter'
+                        },
+                        {
+                                'text': 'Unifiedcontentprocessing',
+                                'link': '/api/utils/unifiedcontentprocessing'
+                        }
+                ]
         }
+
       ],
       
       '/components/': [
@@ -218,17 +533,17 @@ export default withMermaid(defineConfig({
     },
     
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/your-org/harmony' }
+      { icon: 'github', link: 'https://github.com/y4my4my4m/harmony' }
     ],
     
     editLink: {
-      pattern: 'https://github.com/your-org/harmony/edit/main/docs/:path',
+      pattern: 'https://github.com/y4my4my4m/harmony/edit/main/docs/:path',
       text: 'Edit this page on GitHub'
     },
     
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2025 Harmony Team'
+      copyright: 'Copyright © 2025 y4my4my4m'
     },
     
     search: {

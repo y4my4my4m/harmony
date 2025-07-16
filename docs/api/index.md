@@ -1,15 +1,80 @@
 # API Reference
 
-Welcome to the Harmony API documentation. This section provides comprehensive documentation for all services, stores, composables, and types used in the Harmony application.
+Welcome to the Harmony API documentation. This documentation is **automatically generated** from the TypeScript source code.
 
-## Overview
+> 🤖 **Auto-Generated Documentation**: All API documentation is automatically extracted from TypeScript services, stores, composables, and types. JSDoc comments, function signatures, and type information are parsed directly from the source code.
 
-Harmony's API is organized into several key areas:
+## 📊 Quick Stats
 
-- **[Services](/api/services/auth)** - Business logic and external integrations
-- **[Pinia Stores](/api/stores/auth)** - State management with reactive data
-- **[Vue Composables](/api/composables/layout)** - Reusable composition functions
-- **[TypeScript Types](/api/types/core)** - Type definitions and interfaces
+**Total Services:** 23 auto-discovered services  
+**Total Stores:** 15 Pinia stores  
+**Total Composables:** 17 Vue composables  
+**Total Type Files:** 1 type definitions  
+**Coverage:** All TypeScript files in `src/services/`, `src/stores/`, `src/composables/`, `src/types/`
+
+## 🚀 Auto-Generated API Documentation
+
+### Services (23 files)
+**Business logic and external integrations**
+
+Key auto-generated service documentation:
+- **[usersService](./services/usersservice.md)** - User management and profiles
+- **[userDataService](./services/userdataservice.md)** - User data operations
+- **[activityPubService](./services/activitypubservice.md)** - ActivityPub federation
+- **[fileService](./services/fileservice.md)** - File upload and management
+- **[emojiService](./services/emojiservice.md)** - Emoji and reactions
+- **[inviteService](./services/inviteservice.md)** - Server invitations
+- **[AdminService](./services/adminservice.md)** - Administrative functions
+
+### Pinia Stores (15 files)
+**State management with reactive data**
+
+Key auto-generated store documentation:
+- **[auth](./stores/auth.md)** - Authentication state management
+- **[useChat](./stores/usechat.md)** - Chat state and messages
+- **[useDM](./stores/usedm.md)** - Direct message state
+- **[useActivityPub](./stores/useactivitypub.md)** - ActivityPub state
+- **[useServerChannel](./stores/useserverchannel.md)** - Server and channel state
+- **[useNotification](./stores/usenotification.md)** - Notification management
+- **[useTheme](./stores/usetheme.md)** - Theme and appearance
+
+### Vue Composables (17 files)
+**Reusable composition functions**
+
+Key auto-generated composable documentation:
+- **[useUserData](./composables/useuserdata.md)** - User data management
+- **[useLayoutState](./composables/uselayoutstate.md)** - Layout state management
+- **[useMessageReactions](./composables/usemessagereactions.md)** - Message reaction handling
+- **[useServerPermissions](./composables/useserverpermissions.md)** - Server permission logic
+- **[usePostInteractions](./composables/usepostinteractions.md)** - Post interaction handling
+- **[useAudioThemeCommon](./composables/useaudiothemecommon.md)** - Audio theme utilities
+
+### Type Definitions (1 file)
+**TypeScript interfaces and types**
+
+- **[viewTypes](./types/viewtypes.md)** - View and layout type definitions
+
+## 🔄 How API Documentation is Generated
+
+The API documentation is automatically generated using:
+
+1. **TypeScript AST Parsing** - Analyzes TypeScript source code structure
+2. **JSDoc Extraction** - Parses JSDoc comments for descriptions
+3. **Function Signature Analysis** - Extracts parameters, return types, exports
+4. **Interface & Type Detection** - Documents TypeScript interfaces and types
+5. **Mermaid Diagrams** - Auto-generates API relationship diagrams
+
+### Regenerate API Documentation
+
+To update the API documentation after code changes:
+
+```bash
+# Generate API docs from TypeScript files
+npm run docs:generate-api
+
+# Generate everything (components + API + TypeDoc)
+npm run docs:generate-all
+```
 
 ## Architecture
 

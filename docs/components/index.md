@@ -1,6 +1,72 @@
 # Component Documentation
 
-Welcome to the Harmony component library. This section documents all Vue 3 components used throughout the application.
+Welcome to the Harmony component library. This documentation is **automatically generated** from the Vue component source code.
+
+> 🤖 **Auto-Generated Documentation**: This page and all component documentation is automatically extracted from the actual Vue components in the codebase. Components are parsed for props, events, slots, and methods to provide up-to-date documentation.
+
+## 📊 Quick Stats
+
+**Total Components:** 158 auto-discovered components  
+**Last Generated:** Live from source code  
+**Coverage:** All Vue components in `src/components/`
+
+## 🚀 Auto-Generated Documentation
+
+### [📋 Complete Component Index](./generated-index.md)
+View all 158 auto-generated component documentation pages organized by category.
+
+### Key Components (Auto-Generated)
+
+Here are some of the most important components with links to their auto-generated documentation:
+
+#### Core Application
+- **[ChatComponent](./chatcomponent.md)** - Main chat interface with message display and input
+- **[MainNavigation](./mainnavigation.md)** - Primary application navigation sidebar  
+- **[SidebarComponent](./sidebarcomponent.md)** - Main sidebar container
+- **[MainContentAreaHeader](./maincontentareaheader.md)** - Content area header component
+
+#### Chat System
+- **[MessageDisplay](./messagedisplay.md)** - Message list and rendering
+- **[MessageInput](./messageinput.md)** - Message composition and sending
+- **[MessageContent](./messagecontent.md)** - Individual message content rendering
+- **[UnifiedMessageContent](./unifiedmessagecontent.md)** - Unified message content handler
+- **[MessageReactions](./messagereactions.md)** - Message reactions and emojis
+
+#### Server Management  
+- **[ServerSidebar](./serversidebar.md)** - Server navigation and management
+- **[ChannelSidebar](./channelsidebar.md)** - Channel list and navigation
+- **[CreateServer](./createserver.md)** - Server creation interface
+- **[CreateChannel](./createchannel.md)** - Channel creation modal
+
+#### User Interface
+- **[UserProfileComponent](./userprofilecomponent.md)** - User profile display
+- **[AuthComponent](./authcomponent.md)** - Authentication interface
+- **[NotificationBell](./notificationbell.md)** - Notification system
+- **[EmojiUI](./emojiui.md)** - Emoji picker and management
+
+## 🔄 How Documentation is Generated
+
+The component documentation is automatically generated using:
+
+1. **vue-docgen-api** - Parses Vue components for props, events, slots
+2. **TypeScript Analysis** - Extracts type information and JSDoc comments  
+3. **Mermaid Diagrams** - Auto-generates component relationship diagrams
+4. **Live Source Parsing** - Directly reads from your component files
+
+### Regenerate Documentation
+
+To update the documentation after code changes:
+
+```bash
+# Generate component docs
+npm run docs:generate-components
+
+# Generate API docs  
+npm run docs:generate-api
+
+# Generate everything
+npm run docs:generate-all
+```
 
 ## Component Architecture
 

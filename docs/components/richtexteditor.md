@@ -1,0 +1,189 @@
+# RichTextEditor
+
+No description available.
+
+**File:** `src/components/RichTextEditor.vue`
+
+## Overview
+
+```mermaid
+graph TB
+    PROPS[Props] --> COMPONENT[RichTextEditor]
+    COMPONENT --> EVENTS[Events]
+    COMPONENT --> SLOTS[Slots]
+    EVENTS --> PARENT[Parent Component]
+    SLOTS --> CONTENT[Slot Content]
+```
+
+## Props
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `modelValue` | `string` | `undefined` | ✅ | No description |
+| `placeholder` | `string` | `'Type a message...'` | ❌ | No description |
+| `maxHeight` | `number` | `200` | ❌ | No description |
+| `minHeight` | `number` | `44` | ❌ | No description |
+
+### Props Details
+
+#### `modelValue`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** Yes
+- **Default:** `undefined`
+
+
+
+#### `placeholder`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `'Type a message...'`
+
+
+
+#### `maxHeight`
+
+No description available.
+
+- **Type:** `number`
+- **Required:** No
+- **Default:** `200`
+
+
+
+#### `minHeight`
+
+No description available.
+
+- **Type:** `number`
+- **Required:** No
+- **Default:** `44`
+
+
+
+
+## Events
+
+| Name | Parameters | Description |
+|------|------------|-------------|
+| `update:modelValue` | string | No description |
+| `input` | Event | No description |
+| `keydown` | KeyboardEvent | No description |
+| `focus` | FocusEvent | No description |
+| `blur` | FocusEvent | No description |
+| `cursor-position-changed` | number | No description |
+
+### Event Details
+
+#### `update:modelValue`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `input`
+
+No description available.
+
+**Parameters:** `Event`
+
+
+
+#### `keydown`
+
+No description available.
+
+**Parameters:** `KeyboardEvent`
+
+
+
+#### `focus`
+
+No description available.
+
+**Parameters:** `FocusEvent`
+
+
+
+#### `blur`
+
+No description available.
+
+**Parameters:** `FocusEvent`
+
+
+
+#### `cursor-position-changed`
+
+No description available.
+
+**Parameters:** `number`
+
+
+
+
+## Slots
+
+This component has no slots.
+
+## Methods
+
+This component exposes no public methods.
+
+## Usage Example
+
+```vue
+<template>
+  <RichTextEditor
+    :modelValue=""example""
+    @update:modelValue="handleUpdate:modelValue"
+    @input="handleInput"
+    @keydown="handleKeydown"
+    @focus="handleFocus"
+    @blur="handleBlur"
+    @cursor-position-changed="handleCursor-position-changed" />
+</template>
+
+<script setup lang="ts">
+const handleUpdate:modelValue = (string) => {
+  // Handle update:modelValue event
+}
+
+const handleInput = (Event) => {
+  // Handle input event
+}
+
+const handleKeydown = (KeyboardEvent) => {
+  // Handle keydown event
+}
+
+const handleFocus = (FocusEvent) => {
+  // Handle focus event
+}
+
+const handleBlur = (FocusEvent) => {
+  // Handle blur event
+}
+
+const handleCursor-position-changed = (number) => {
+  // Handle cursor-position-changed event
+}
+</script>
+```
+
+
+
+## File Location
+
+`src/components/RichTextEditor.vue`
+
+---
+
+*This documentation was automatically generated from the component source code.*

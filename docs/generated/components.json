@@ -1,0 +1,8718 @@
+[
+  {
+    "name": "UserSidebar",
+    "path": "usersidebar.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UserSidebar",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "visible",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/UserSidebar.vue"
+      ]
+    }
+  },
+  {
+    "name": "UserProfileModal",
+    "path": "userprofilemodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UserProfileModal",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "show",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "user",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "User"
+              },
+              {
+                "name": "FederatedUser"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "invite"
+        },
+        {
+          "name": "follow"
+        },
+        {
+          "name": "unfollow"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/UserProfileModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "UserProfileComponent",
+    "path": "userprofilecomponent.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UserProfileComponent",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "toggleMobileProfile",
+          "required": false,
+          "type": {
+            "name": "TSFunctionType"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/UserProfileComponent.vue"
+      ]
+    }
+  },
+  {
+    "name": "UserPreviewComponent",
+    "path": "userpreviewcomponent.md",
+    "info": {
+      "displayName": "UserPreviewComponent",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "user",
+          "type": {
+            "name": "User"
+          },
+          "required": true
+        },
+        {
+          "name": "closeProfile",
+          "type": {
+            "name": "func"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/UserPreviewComponent.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedMessageContent",
+    "path": "unifiedmessagecontent.md",
+    "info": {
+      "displayName": "UnifiedMessageContent",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "content",
+          "type": {
+            "name": "MessagePart[]"
+          },
+          "required": true
+        },
+        {
+          "name": "editableMessageId",
+          "type": {
+            "name": "string | null"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "null"
+          }
+        },
+        {
+          "name": "messageId",
+          "type": {
+            "name": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "imageLoaded",
+          "type": {
+            "name": "Record<string, boolean>"
+          },
+          "defaultValue": {
+            "func": true,
+            "value": "() => ({})"
+          }
+        },
+        {
+          "name": "isSingleEmoji",
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "editableContent",
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        },
+        {
+          "name": "isSystem",
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "show-user-profile"
+        },
+        {
+          "name": "image-loaded"
+        },
+        {
+          "name": "open-lightbox"
+        },
+        {
+          "name": "update:message"
+        },
+        {
+          "name": "update:content"
+        },
+        {
+          "name": "cancel-edit"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/UnifiedMessageContent.vue"
+      ]
+    }
+  },
+  {
+    "name": "SpaceTimeGrid",
+    "path": "spacetimegrid.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "SpaceTimeGrid",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "width",
+          "required": true,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "height",
+          "required": true,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "avatars",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "Avatar"
+              }
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/SpaceTimeGrid.vue"
+      ]
+    }
+  },
+  {
+    "name": "SidebarComponent",
+    "path": "sidebarcomponent.md",
+    "info": {
+      "displayName": "SidebarComponent",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/SidebarComponent.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerSidebar",
+    "path": "serversidebar.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerSidebar",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "servers",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "Server"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "show-public-servers",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "switch-to-activitypub"
+        },
+        {
+          "name": "switch-to-chat"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/ServerSidebar.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerDropdown",
+    "path": "serverdropdown.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerDropdown",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "serverId",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "isVisible",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "toggle"
+        },
+        {
+          "name": "showCategoryCreator",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "createChannel",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "openInviteModal"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/ServerDropdown.vue"
+      ]
+    }
+  },
+  {
+    "name": "RichTextEditor",
+    "path": "richtexteditor.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "RichTextEditor",
+      "description": "",
+      "tags": {},
+      "expose": [
+        {
+          "name": "focus"
+        },
+        {
+          "name": "clear"
+        },
+        {
+          "name": "insertTextAtCursor"
+        },
+        {
+          "name": "getCursorPosition"
+        },
+        {
+          "name": "setCursorPosition"
+        }
+      ],
+      "props": [
+        {
+          "name": "modelValue",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "placeholder",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Type a message...'"
+          }
+        },
+        {
+          "name": "maxHeight",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "200"
+          }
+        },
+        {
+          "name": "minHeight",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "44"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:modelValue",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "input",
+          "type": {
+            "names": [
+              "Event"
+            ]
+          }
+        },
+        {
+          "name": "keydown",
+          "type": {
+            "names": [
+              "KeyboardEvent"
+            ]
+          }
+        },
+        {
+          "name": "focus",
+          "type": {
+            "names": [
+              "FocusEvent"
+            ]
+          }
+        },
+        {
+          "name": "blur",
+          "type": {
+            "names": [
+              "FocusEvent"
+            ]
+          }
+        },
+        {
+          "name": "cursor-position-changed",
+          "type": {
+            "names": [
+              "number"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/RichTextEditor.vue"
+      ]
+    }
+  },
+  {
+    "name": "PublicServers",
+    "path": "publicservers.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PublicServers",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "forceRefresh",
+          "description": "Force refresh data when modal opens",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/PublicServers.vue"
+      ]
+    }
+  },
+  {
+    "name": "PersistentVoiceConnection",
+    "path": "persistentvoiceconnection.md",
+    "info": {
+      "displayName": "PersistentVoiceConnection",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/PersistentVoiceConnection.vue"
+      ]
+    }
+  },
+  {
+    "name": "PWAUpdateNotification",
+    "path": "pwaupdatenotification.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PWAUpdateNotification",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/PWAUpdateNotification.vue"
+      ]
+    }
+  },
+  {
+    "name": "PWAInstallPrompt",
+    "path": "pwainstallprompt.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PWAInstallPrompt",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "variant",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"banner\""
+              },
+              {
+                "name": "\"button\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'banner'"
+          }
+        },
+        {
+          "name": "isInSettings",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/PWAInstallPrompt.vue"
+      ]
+    }
+  },
+  {
+    "name": "PWAInstallBanner",
+    "path": "pwainstallbanner.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PWAInstallBanner",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/PWAInstallBanner.vue"
+      ]
+    }
+  },
+  {
+    "name": "NotificationToast",
+    "path": "notificationtoast.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "NotificationToast",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/NotificationToast.vue"
+      ]
+    }
+  },
+  {
+    "name": "NotificationItem",
+    "path": "notificationitem.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "NotificationItem",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "notification",
+          "required": true,
+          "type": {
+            "name": "Notification"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "click",
+          "type": {
+            "names": [
+              "Notification"
+            ]
+          }
+        },
+        {
+          "name": "mark-read",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "dismiss",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/NotificationItem.vue"
+      ]
+    }
+  },
+  {
+    "name": "NotificationBell",
+    "path": "notificationbell.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "NotificationBell",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/NotificationBell.vue"
+      ]
+    }
+  },
+  {
+    "name": "NoServersSplash",
+    "path": "noserverssplash.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "NoServersSplash",
+      "description": "",
+      "tags": {},
+      "events": [
+        {
+          "name": "showPublicServers"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/NoServersSplash.vue"
+      ]
+    }
+  },
+  {
+    "name": "MessageReply",
+    "path": "messagereply.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MessageReply",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "replyMessageId",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "replyUserDisplayName",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Deleted User'"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:replyMessageId",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/MessageReply.vue"
+      ]
+    }
+  },
+  {
+    "name": "MessageReactions",
+    "path": "messagereactions.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MessageReactions",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "message",
+          "required": true,
+          "type": {
+            "name": "Message"
+          }
+        },
+        {
+          "name": "showReactions",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "toggle-reaction",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "show-reaction-tooltip",
+          "type": {
+            "names": [
+              "MouseEvent"
+            ]
+          }
+        },
+        {
+          "name": "hide-reaction-tooltip"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/MessageReactions.vue"
+      ]
+    }
+  },
+  {
+    "name": "MessageInput",
+    "path": "messageinput.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MessageInput",
+      "description": "",
+      "tags": {},
+      "expose": [
+        {
+          "name": "gifTriggerRef"
+        },
+        {
+          "name": "emojiTriggerRef"
+        }
+      ],
+      "props": [
+        {
+          "name": "giphyOpen",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "emojiListOpen",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "modelValue",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        },
+        {
+          "name": "replyMessageId",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        },
+        {
+          "name": "replyUserDisplayName",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:modelValue",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "sendMessage",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "toggleGiphy"
+        },
+        {
+          "name": "toggleEmojiList",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "update:replyMessageId",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "files-attached",
+          "type": {
+            "names": [
+              "Array"
+            ],
+            "elements": [
+              {
+                "name": "FilePreviewData"
+              }
+            ]
+          }
+        },
+        {
+          "name": "upload-status-changed",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/MessageInput.vue"
+      ]
+    }
+  },
+  {
+    "name": "MessageDisplay",
+    "path": "messagedisplay.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MessageDisplay",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "messages",
+          "type": {
+            "name": "Message[]"
+          },
+          "required": true
+        },
+        {
+          "name": "loadMoreMessages",
+          "type": {
+            "name": "() => void"
+          }
+        },
+        {
+          "name": "isAtBottom",
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "currentUserId",
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "isLoading",
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "loadMoreMessages"
+        },
+        {
+          "name": "toggleEmojiList"
+        },
+        {
+          "name": "sendReaction"
+        },
+        {
+          "name": "replyingTo"
+        },
+        {
+          "name": "update:isAtBottom"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/MessageDisplay.vue"
+      ]
+    }
+  },
+  {
+    "name": "MessageContent",
+    "path": "messagecontent.md",
+    "info": {
+      "displayName": "MessageContent",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "content",
+          "type": {
+            "name": "MessagePart[]"
+          },
+          "required": true
+        },
+        {
+          "name": "editableMessageId",
+          "type": {
+            "name": "string | null"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "null"
+          }
+        },
+        {
+          "name": "messageId",
+          "type": {
+            "name": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "imageLoaded",
+          "type": {
+            "name": "Record<string, boolean>"
+          }
+        },
+        {
+          "name": "isSingleEmojiMessage",
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "editableMessageContent",
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        },
+        {
+          "name": "saveEdit",
+          "type": {
+            "name": "func"
+          }
+        },
+        {
+          "name": "cancelEdit",
+          "type": {
+            "name": "func"
+          }
+        },
+        {
+          "name": "showUserProfile",
+          "type": {
+            "name": "func"
+          }
+        },
+        {
+          "name": "reply",
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "show-user-profile"
+        },
+        {
+          "name": "image-loaded"
+        },
+        {
+          "name": "open-lightbox"
+        },
+        {
+          "name": "update:message"
+        },
+        {
+          "name": "update:content"
+        },
+        {
+          "name": "cancel-edit"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/MessageContent.vue"
+      ]
+    }
+  },
+  {
+    "name": "MarkdownContent",
+    "path": "markdowncontent.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MarkdownContent",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "content",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "singleLine",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "isReplyPreview",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "showMarkers",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/MarkdownContent.vue"
+      ]
+    }
+  },
+  {
+    "name": "MainNavigation",
+    "path": "mainnavigation.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MainNavigation",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "servers",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "Server"
+              }
+            ]
+          }
+        },
+        {
+          "name": "showAddServerModal",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "showPublicServers"
+        },
+        {
+          "name": "update:showAddServerModal",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/MainNavigation.vue"
+      ]
+    }
+  },
+  {
+    "name": "MainContentAreaHeader",
+    "path": "maincontentareaheader.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MainContentAreaHeader",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "mode",
+          "required": true,
+          "type": {
+            "name": "ViewMode"
+          }
+        },
+        {
+          "name": "currentView",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "isMobile",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "currentChannel",
+          "required": false,
+          "type": {
+            "name": "Channel"
+          }
+        },
+        {
+          "name": "viewType",
+          "required": false,
+          "type": {
+            "name": "ViewType"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "switch-feed",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/MainContentAreaHeader.vue"
+      ]
+    }
+  },
+  {
+    "name": "InviteModal",
+    "path": "invitemodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "InviteModal",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "show",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "serverId",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "serverData",
+          "required": false,
+          "type": {
+            "name": "{\n  id: string\n  name: string\n  icon_url?: string\n  member_count?: number\n}"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/InviteModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "InviteAccept",
+    "path": "inviteaccept.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "InviteAccept",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/InviteAccept.vue"
+      ]
+    }
+  },
+  {
+    "name": "GifComponent",
+    "path": "gifcomponent.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "GifComponent",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "closeGiphy",
+          "required": false,
+          "type": {
+            "name": "TSFunctionType"
+          }
+        },
+        {
+          "name": "gifIconClicked",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "position",
+          "required": false,
+          "type": {
+            "name": "PopupPosition"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'above'"
+          }
+        },
+        {
+          "name": "triggerElement",
+          "required": false,
+          "type": {
+            "name": "HTMLElement"
+          }
+        },
+        {
+          "name": "customPosition",
+          "required": false,
+          "type": {
+            "name": "{ x: number; y: number }"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "sendGif",
+          "type": {
+            "names": [
+              "Gif"
+            ]
+          }
+        },
+        {
+          "name": "resetGifIconClicked"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/GifComponent.vue"
+      ]
+    }
+  },
+  {
+    "name": "FileUploadMenu",
+    "path": "fileuploadmenu.md",
+    "info": {
+      "displayName": "FileUploadMenu",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "isVisible",
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "files-selected"
+        },
+        {
+          "name": "close"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/FileUploadMenu.vue"
+      ]
+    }
+  },
+  {
+    "name": "FilePreview",
+    "path": "filepreview.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "FilePreview",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "files",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "FilePreviewData"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "remove-file",
+          "type": {
+            "names": [
+              "number"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/FilePreview.vue"
+      ]
+    }
+  },
+  {
+    "name": "EmojiUI",
+    "path": "emojiui.md",
+    "info": {
+      "displayName": "EmojiUI",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/EmojiUI.vue"
+      ]
+    }
+  },
+  {
+    "name": "EmojiPopup",
+    "path": "emojipopup.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "EmojiPopup",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "closeEmojiList",
+          "description": "Function to call to close the popup.",
+          "required": false,
+          "type": {
+            "name": "TSFunctionType"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => {}"
+          }
+        },
+        {
+          "name": "emojiIconClicked",
+          "description": "Flag indicating if the popup was opened via the icon click.",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "isReaction",
+          "description": "Determines if the emoji is for a reaction (future use).",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "triggerElement",
+          "description": "The element that triggers the popup for positioning.",
+          "required": false,
+          "type": {
+            "name": "HTMLElement"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "undefined"
+          }
+        },
+        {
+          "name": "position",
+          "description": "The desired position relative to the trigger element.",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"above\""
+              },
+              {
+                "name": "\"below\""
+              },
+              {
+                "name": "\"left\""
+              },
+              {
+                "name": "\"right\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'above'"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "sendEmoji",
+          "type": {
+            "names": [
+              "Emoji"
+            ]
+          },
+          "description": "Emits the selected emoji object."
+        },
+        {
+          "name": "resetEmojiIconClicked",
+          "description": "Notifies the parent to reset the emojiIconClicked flag."
+        }
+      ],
+      "sourceFiles": [
+        "src/components/EmojiPopup.vue"
+      ]
+    }
+  },
+  {
+    "name": "DMSidebar",
+    "path": "dmsidebar.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "DMSidebar",
+      "description": "",
+      "tags": {},
+      "events": [
+        {
+          "name": "conversationSelected",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/DMSidebar.vue"
+      ]
+    }
+  },
+  {
+    "name": "CreateServer",
+    "path": "createserver.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "CreateServer",
+      "description": "",
+      "tags": {},
+      "events": [
+        {
+          "name": "close"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/CreateServer.vue"
+      ]
+    }
+  },
+  {
+    "name": "CreateChannel",
+    "path": "createchannel.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "CreateChannel",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "serverId",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "show",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "categoryId",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "channelCreated",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/CreateChannel.vue"
+      ]
+    }
+  },
+  {
+    "name": "ConfirmationModal",
+    "path": "confirmationmodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ConfirmationModal",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "show",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "message",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "secondaryMessage",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "confirmButtonText",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Delete'"
+          }
+        },
+        {
+          "name": "requireConfirmation",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "confirmationText",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'DELETE'"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:modelValue",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "confirm"
+        },
+        {
+          "name": "close"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/ConfirmationModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "ChatComponent",
+    "path": "chatcomponent.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ChatComponent",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "messages",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "Message"
+              }
+            ]
+          }
+        },
+        {
+          "name": "isLoading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "loadMoreMessages",
+          "required": false,
+          "type": {
+            "name": "TSFunctionType"
+          }
+        },
+        {
+          "name": "isDM",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "loadMoreMessages"
+        },
+        {
+          "name": "sendMessage",
+          "type": {
+            "names": [
+              "Array"
+            ],
+            "elements": [
+              {
+                "name": "MessagePart"
+              }
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/ChatComponent.vue"
+      ]
+    }
+  },
+  {
+    "name": "ChannelSidebar",
+    "path": "channelsidebar.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ChannelSidebar",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "currentServer",
+          "type": {
+            "name": "object"
+          },
+          "required": true
+        },
+        {
+          "name": "channels",
+          "type": {
+            "name": "Channel[]"
+          },
+          "required": true
+        },
+        {
+          "name": "categories",
+          "type": {
+            "name": "Category[]"
+          }
+        },
+        {
+          "name": "categoryChannels",
+          "type": {
+            "name": "{ [key: string]: Channel[] }"
+          },
+          "required": true
+        },
+        {
+          "name": "currentChannelId",
+          "type": {
+            "name": "string"
+          },
+          "required": true
+        }
+      ],
+      "events": [
+        {
+          "name": "createChannel",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/ChannelSidebar.vue"
+      ]
+    }
+  },
+  {
+    "name": "ChannelEditModal",
+    "path": "channeleditmodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ChannelEditModal",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "show",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "channel",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "Channel"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "updated",
+          "type": {
+            "names": [
+              "Channel"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/ChannelEditModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "ChannelContextMenu",
+    "path": "channelcontextmenu.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ChannelContextMenu",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "isVisible",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "position",
+          "required": true,
+          "type": {
+            "name": "{ x: number; y: number }"
+          }
+        },
+        {
+          "name": "channel",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "Channel"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "invite-users"
+        },
+        {
+          "name": "edit-channel",
+          "type": {
+            "names": [
+              "Channel"
+            ]
+          }
+        },
+        {
+          "name": "delete-channel",
+          "type": {
+            "names": [
+              "Channel"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/ChannelContextMenu.vue"
+      ]
+    }
+  },
+  {
+    "name": "CategoryEditModal",
+    "path": "categoryeditmodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "CategoryEditModal",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "show",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "category",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "Category"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "updated",
+          "type": {
+            "names": [
+              "Category"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/CategoryEditModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "CategoryCreator",
+    "path": "categorycreator.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "CategoryCreator",
+      "description": "",
+      "tags": {},
+      "events": [
+        {
+          "name": "showCategoryCreator",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "createCategory",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/CategoryCreator.vue"
+      ]
+    }
+  },
+  {
+    "name": "CategoryContextMenu",
+    "path": "categorycontextmenu.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "CategoryContextMenu",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "isVisible",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "position",
+          "required": true,
+          "type": {
+            "name": "{ x: number; y: number }"
+          }
+        },
+        {
+          "name": "category",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "Category"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "create-channel",
+          "type": {
+            "names": [
+              "Category"
+            ]
+          }
+        },
+        {
+          "name": "edit-category",
+          "type": {
+            "names": [
+              "Category"
+            ]
+          }
+        },
+        {
+          "name": "delete-category",
+          "type": {
+            "names": [
+              "Category"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/CategoryContextMenu.vue"
+      ]
+    }
+  },
+  {
+    "name": "AutoSuggest",
+    "path": "autosuggest.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AutoSuggest",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "isVisible",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "suggestions",
+          "required": false,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "SuggestionItem"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => []"
+          }
+        },
+        {
+          "name": "position",
+          "required": false,
+          "type": {
+            "name": "SuggestionPosition"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => ({ x: 0, y: 0 })"
+          }
+        },
+        {
+          "name": "selectedIndex",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "0"
+          }
+        },
+        {
+          "name": "headerText",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        },
+        {
+          "name": "maxHeight",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "200"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "select",
+          "type": {
+            "names": [
+              "SuggestionItem"
+            ]
+          }
+        },
+        {
+          "name": "update:selectedIndex",
+          "type": {
+            "names": [
+              "number"
+            ]
+          }
+        }
+      ],
+      "slots": [
+        {
+          "name": "default",
+          "scoped": true,
+          "bindings": [
+            {
+              "name": "suggestion",
+              "title": "binding"
+            },
+            {
+              "name": "selected",
+              "title": "binding"
+            }
+          ]
+        }
+      ],
+      "sourceFiles": [
+        "src/components/AutoSuggest.vue"
+      ]
+    }
+  },
+  {
+    "name": "AuthComponent",
+    "path": "authcomponent.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AuthComponent",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "isLogin",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/AuthComponent.vue"
+      ]
+    }
+  },
+  {
+    "name": "VoiceSettingsPanel",
+    "path": "voice/voicesettingspanel.md",
+    "info": {
+      "displayName": "VoiceSettingsPanel",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "update-settings"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/voice/VoiceSettingsPanel.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedVoiceUserCard",
+    "path": "voice/unifiedvoiceusercard.md",
+    "info": {
+      "displayName": "UnifiedVoiceUserCard",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "userState",
+          "type": {
+            "name": "UserMediaState"
+          },
+          "required": true
+        },
+        {
+          "name": "userProfile",
+          "type": {
+            "name": "object"
+          },
+          "required": true
+        },
+        {
+          "name": "userStream",
+          "type": {
+            "name": "MediaStream"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "null"
+          }
+        },
+        {
+          "name": "isSelf",
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "connectionState",
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'connected'"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "toggle-video"
+        },
+        {
+          "name": "toggle-screen-share"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/voice/UnifiedVoiceUserCard.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedVoiceOverlay",
+    "path": "voice/unifiedvoiceoverlay.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedVoiceOverlay",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "channelName",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Voice Channel'"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "minimize"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/voice/UnifiedVoiceOverlay.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedVoiceDock",
+    "path": "voice/unifiedvoicedock.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedVoiceDock",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/voice/UnifiedVoiceDock.vue"
+      ]
+    }
+  },
+  {
+    "name": "SpatialAudioPanel",
+    "path": "voice/spatialaudiopanel.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "SpatialAudioPanel",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "isUnderOverlay",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "isUnderDock",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/voice/SpatialAudioPanel.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerPrivacySettings",
+    "path": "settings/serverprivacysettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerPrivacySettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "isPublic",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "permissions",
+          "required": true,
+          "type": {
+            "name": "ServerPermissions"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:isPublic",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/ServerPrivacySettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerEmojiManagement",
+    "path": "settings/serveremojimanagement.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerEmojiManagement",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "emojis",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "Emoji"
+              }
+            ]
+          }
+        },
+        {
+          "name": "allowCrossServer",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "serverId",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "ownerId",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "permissions",
+          "required": true,
+          "type": {
+            "name": "EmojiPermissions"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:emojis",
+          "type": {
+            "names": [
+              "Array"
+            ],
+            "elements": [
+              {
+                "name": "Emoji"
+              }
+            ]
+          }
+        },
+        {
+          "name": "update:allowCrossServer",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "emoji-uploaded",
+          "type": {
+            "names": [
+              "Emoji"
+            ]
+          }
+        },
+        {
+          "name": "emoji-deleted",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/ServerEmojiManagement.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerBasicInfo",
+    "path": "settings/serverbasicinfo.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerBasicInfo",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "server",
+          "required": true,
+          "type": {
+            "name": "Server"
+          }
+        },
+        {
+          "name": "selectedFile",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "File"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ownerName",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "permissions",
+          "required": true,
+          "type": {
+            "name": "ServerPermissions"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:server",
+          "type": {
+            "names": [
+              "Server"
+            ]
+          }
+        },
+        {
+          "name": "update:selectedFile",
+          "type": {
+            "names": [
+              "union"
+            ],
+            "elements": [
+              {
+                "name": "File"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "file-change",
+          "type": {
+            "names": [
+              "union"
+            ],
+            "elements": [
+              {
+                "name": "File"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/ServerBasicInfo.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerAdvancedSettings",
+    "path": "settings/serveradvancedsettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerAdvancedSettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "serverId",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "serverName",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "createdAt",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "undefined"
+              }
+            ]
+          }
+        },
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "permissions",
+          "required": true,
+          "type": {
+            "name": "ServerAdvancedPermissions"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/ServerAdvancedSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "ContentFilterSettings",
+    "path": "settings/contentfiltersettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ContentFilterSettings",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/settings/ContentFilterSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "AudioThemePicker",
+    "path": "settings/audiothemepicker.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AudioThemePicker",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "showTestButton",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showVolumeControl",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "compact",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/AudioThemePicker.vue"
+      ]
+    }
+  },
+  {
+    "name": "AudioThemeManager",
+    "path": "settings/audiothememanager.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AudioThemeManager",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "showTestButton",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showVolumeControl",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showStatus",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showCacheButton",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "showAdvanced",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "compact",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "categorized",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "themeChanged",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "volumeChanged",
+          "type": {
+            "names": [
+              "number"
+            ]
+          }
+        },
+        {
+          "name": "tested",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/AudioThemeManager.vue"
+      ]
+    }
+  },
+  {
+    "name": "VoiceIcon",
+    "path": "icons/voiceicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "VoiceIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/VoiceIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "User",
+    "path": "icons/user.md",
+    "info": {
+      "displayName": "User",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/User.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnreadIcon",
+    "path": "icons/unreadicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnreadIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/UnreadIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "Trash",
+    "path": "icons/trash.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "Trash",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Trash.vue"
+      ]
+    }
+  },
+  {
+    "name": "Speaker",
+    "path": "icons/speaker.md",
+    "info": {
+      "displayName": "Speaker",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Speaker.vue"
+      ]
+    }
+  },
+  {
+    "name": "Shield",
+    "path": "icons/shield.md",
+    "info": {
+      "displayName": "Shield",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Shield.vue"
+      ]
+    }
+  },
+  {
+    "name": "Settings",
+    "path": "icons/settings.md",
+    "info": {
+      "displayName": "SettingsIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Settings.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerInviteIcon",
+    "path": "icons/serverinviteicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerInviteIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/ServerInviteIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "Reply",
+    "path": "icons/reply.md",
+    "info": {
+      "displayName": "ReplyIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Reply.vue"
+      ]
+    }
+  },
+  {
+    "name": "ReactionIcon",
+    "path": "icons/reactionicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ReactionIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/ReactionIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "Reaction",
+    "path": "icons/reaction.md",
+    "info": {
+      "displayName": "ReactionIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Reaction.vue"
+      ]
+    }
+  },
+  {
+    "name": "Plus",
+    "path": "icons/plus.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "Plus",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Plus.vue"
+      ]
+    }
+  },
+  {
+    "name": "Palette",
+    "path": "icons/palette.md",
+    "info": {
+      "displayName": "Palette",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Palette.vue"
+      ]
+    }
+  },
+  {
+    "name": "More",
+    "path": "icons/more.md",
+    "info": {
+      "displayName": "ReplyIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/More.vue"
+      ]
+    }
+  },
+  {
+    "name": "MicMuted",
+    "path": "icons/micmuted.md",
+    "info": {
+      "displayName": "MicIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/MicMuted.vue"
+      ]
+    }
+  },
+  {
+    "name": "Mic",
+    "path": "icons/mic.md",
+    "info": {
+      "displayName": "MicIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Mic.vue"
+      ]
+    }
+  },
+  {
+    "name": "MentionIcon",
+    "path": "icons/mentionicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MentionIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/MentionIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "MarkReadIcon",
+    "path": "icons/markreadicon.md",
+    "info": {
+      "displayName": "MarkReadIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "type": {
+            "name": "number|string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/MarkReadIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "Logout",
+    "path": "icons/logout.md",
+    "info": {
+      "displayName": "Logout",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Logout.vue"
+      ]
+    }
+  },
+  {
+    "name": "Keyboard",
+    "path": "icons/keyboard.md",
+    "info": {
+      "displayName": "KeyboardIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Keyboard.vue"
+      ]
+    }
+  },
+  {
+    "name": "JumpIcon",
+    "path": "icons/jumpicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "JumpIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/JumpIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "Headphones",
+    "path": "icons/headphones.md",
+    "info": {
+      "displayName": "HeadphonesIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "isHeadphonesActive",
+          "type": {
+            "name": "boolean"
+          },
+          "required": true
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/Headphones.vue"
+      ]
+    }
+  },
+  {
+    "name": "HashTag",
+    "path": "icons/hashtag.md",
+    "info": {
+      "displayName": "HashTag",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/HashTag.vue"
+      ]
+    }
+  },
+  {
+    "name": "Globe",
+    "path": "icons/globe.md",
+    "info": {
+      "displayName": "GlobeIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Globe.vue"
+      ]
+    }
+  },
+  {
+    "name": "Gif",
+    "path": "icons/gif.md",
+    "info": {
+      "displayName": "GifIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Gif.vue"
+      ]
+    }
+  },
+  {
+    "name": "EmojiIcon",
+    "path": "icons/emojiicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "EmojiIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/EmojiIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "Edit",
+    "path": "icons/edit.md",
+    "info": {
+      "displayName": "EditIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Edit.vue"
+      ]
+    }
+  },
+  {
+    "name": "DismissIcon",
+    "path": "icons/dismissicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "DismissIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/DismissIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "Delete",
+    "path": "icons/delete.md",
+    "info": {
+      "displayName": "DeleteIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Delete.vue"
+      ]
+    }
+  },
+  {
+    "name": "DeclineIcon",
+    "path": "icons/declineicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "DeclineIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/DeclineIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "DMIcon",
+    "path": "icons/dmicon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "DMIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/DMIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "Copy",
+    "path": "icons/copy.md",
+    "info": {
+      "displayName": "CopyIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Copy.vue"
+      ]
+    }
+  },
+  {
+    "name": "Cog",
+    "path": "icons/cog.md",
+    "info": {
+      "displayName": "Cog",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Cog.vue"
+      ]
+    }
+  },
+  {
+    "name": "Close",
+    "path": "icons/close.md",
+    "info": {
+      "displayName": "CloseIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Close.vue"
+      ]
+    }
+  },
+  {
+    "name": "ChevronDown",
+    "path": "icons/chevrondown.md",
+    "info": {
+      "displayName": "ChevronDownIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/ChevronDown.vue"
+      ]
+    }
+  },
+  {
+    "name": "Check",
+    "path": "icons/check.md",
+    "info": {
+      "displayName": "CheckIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Check.vue"
+      ]
+    }
+  },
+  {
+    "name": "Camera",
+    "path": "icons/camera.md",
+    "info": {
+      "displayName": "Camera",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Camera.vue"
+      ]
+    }
+  },
+  {
+    "name": "Bell",
+    "path": "icons/bell.md",
+    "info": {
+      "displayName": "Bell",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/Bell.vue"
+      ]
+    }
+  },
+  {
+    "name": "ArrowDown",
+    "path": "icons/arrowdown.md",
+    "info": {
+      "displayName": "ArrowDownIcon",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/icons/ArrowDown.vue"
+      ]
+    }
+  },
+  {
+    "name": "AcceptIcon",
+    "path": "icons/accepticon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AcceptIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "16"
+          }
+        },
+        {
+          "name": "className",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/icons/AcceptIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "DMHeader",
+    "path": "dm/dmheader.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "DMHeader",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "conversation",
+          "required": true,
+          "type": {
+            "name": "DMConversation"
+          }
+        },
+        {
+          "name": "isMobile",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "toggle-left-sidebar"
+        },
+        {
+          "name": "toggle-voice-panel"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/dm/DMHeader.vue"
+      ]
+    }
+  },
+  {
+    "name": "RichTextDemo",
+    "path": "demo/richtextdemo.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "RichTextDemo",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/demo/RichTextDemo.vue"
+      ]
+    }
+  },
+  {
+    "name": "AudioThemeShowcase",
+    "path": "demo/audiothemeshowcase.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AudioThemeShowcase",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/demo/AudioThemeShowcase.vue"
+      ]
+    }
+  },
+  {
+    "name": "UserDataDebugPanel",
+    "path": "debug/userdatadebugpanel.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UserDataDebugPanel",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/debug/UserDataDebugPanel.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedModal",
+    "path": "shared/unifiedmodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedModal",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "modelValue",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "title",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "icon",
+          "required": false,
+          "type": {
+            "name": "any"
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"sm\""
+              },
+              {
+                "name": "\"md\""
+              },
+              {
+                "name": "\"lg\""
+              },
+              {
+                "name": "\"xl\""
+              },
+              {
+                "name": "\"full\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'md'"
+          }
+        },
+        {
+          "name": "fullHeight",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "hideHeader",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "showCloseButton",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "closeOnOverlay",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "closeOnEscape",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "persistent",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "containerClass",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "actions",
+          "required": false,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "ModalAction"
+              }
+            ]
+          }
+        },
+        {
+          "name": "closeButtonLabel",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Close modal'"
+          }
+        },
+        {
+          "name": "isProfile",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "noPadding",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:modelValue",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "close"
+        },
+        {
+          "name": "open"
+        },
+        {
+          "name": "action",
+          "type": {
+            "names": [
+              "ModalAction"
+            ]
+          }
+        }
+      ],
+      "slots": [
+        {
+          "name": "customHeader"
+        },
+        {
+          "name": "icon"
+        },
+        {
+          "name": "header-content"
+        },
+        {
+          "name": "default"
+        },
+        {
+          "name": "footer"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/shared/UnifiedModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedInput",
+    "path": "shared/unifiedinput.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedInput",
+      "description": "",
+      "tags": {},
+      "expose": [
+        {
+          "name": "focus"
+        },
+        {
+          "name": "blur"
+        },
+        {
+          "name": "select"
+        },
+        {
+          "name": "inputRef"
+        }
+      ],
+      "props": [
+        {
+          "name": "modelValue",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "number"
+              },
+              {
+                "name": "null"
+              },
+              {
+                "name": "undefined"
+              }
+            ]
+          }
+        },
+        {
+          "name": "type",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'text'"
+          }
+        },
+        {
+          "name": "placeholder",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "label",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "hint",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "errorMessage",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "disabled",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "readonly",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "required",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "autocomplete",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "maxLength",
+          "required": false,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "minLength",
+          "required": false,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "min",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          }
+        },
+        {
+          "name": "step",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "number"
+              },
+              {
+                "name": "string"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rows",
+          "required": false,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "cols",
+          "required": false,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "resize",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"sm\""
+              },
+              {
+                "name": "\"md\""
+              },
+              {
+                "name": "\"lg\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'md'"
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"default\""
+              },
+              {
+                "name": "\"filled\""
+              },
+              {
+                "name": "\"outlined\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'default'"
+          }
+        },
+        {
+          "name": "prefixIcon",
+          "required": false,
+          "type": {
+            "name": "any"
+          }
+        },
+        {
+          "name": "suffixIcon",
+          "required": false,
+          "type": {
+            "name": "any"
+          }
+        },
+        {
+          "name": "clearable",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "clearButtonLabel",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Clear input'"
+          }
+        },
+        {
+          "name": "showCharCount",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "passwordToggle",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "id",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:modelValue",
+          "type": {
+            "names": [
+              "union"
+            ],
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "number"
+              }
+            ]
+          }
+        },
+        {
+          "name": "input",
+          "type": {
+            "names": [
+              "Event"
+            ]
+          }
+        },
+        {
+          "name": "change",
+          "type": {
+            "names": [
+              "Event"
+            ]
+          }
+        },
+        {
+          "name": "blur",
+          "type": {
+            "names": [
+              "FocusEvent"
+            ]
+          }
+        },
+        {
+          "name": "focus",
+          "type": {
+            "names": [
+              "FocusEvent"
+            ]
+          }
+        },
+        {
+          "name": "keydown",
+          "type": {
+            "names": [
+              "KeyboardEvent"
+            ]
+          }
+        },
+        {
+          "name": "keypress",
+          "type": {
+            "names": [
+              "KeyboardEvent"
+            ]
+          }
+        },
+        {
+          "name": "keyup",
+          "type": {
+            "names": [
+              "KeyboardEvent"
+            ]
+          }
+        },
+        {
+          "name": "clear"
+        }
+      ],
+      "slots": [
+        {
+          "name": "prefix"
+        },
+        {
+          "name": "suffix"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/shared/UnifiedInput.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedConfirmationModal",
+    "path": "shared/unifiedconfirmationmodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedConfirmationModal",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "modelValue",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "message",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "secondaryMessage",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "confirmButtonText",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Confirm'"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "requireConfirmation",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "confirmationText",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'DELETE'"
+          }
+        },
+        {
+          "name": "dangerAction",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:modelValue",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "confirm"
+        },
+        {
+          "name": "cancel"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/shared/UnifiedConfirmationModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedButton",
+    "path": "shared/unifiedbutton.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedButton",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "text",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "ariaLabel",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"primary\""
+              },
+              {
+                "name": "\"secondary\""
+              },
+              {
+                "name": "\"success\""
+              },
+              {
+                "name": "\"danger\""
+              },
+              {
+                "name": "\"warning\""
+              },
+              {
+                "name": "\"ghost\""
+              },
+              {
+                "name": "\"link\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'secondary'"
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"xs\""
+              },
+              {
+                "name": "\"sm\""
+              },
+              {
+                "name": "\"md\""
+              },
+              {
+                "name": "\"lg\""
+              },
+              {
+                "name": "\"xl\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'md'"
+          }
+        },
+        {
+          "name": "iconLeft",
+          "required": false,
+          "type": {
+            "name": "any"
+          }
+        },
+        {
+          "name": "iconRight",
+          "required": false,
+          "type": {
+            "name": "any"
+          }
+        },
+        {
+          "name": "iconOnly",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "disabled",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "loading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "active",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "rounded",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "fullWidth",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "outline",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "tag",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"button\""
+              },
+              {
+                "name": "\"a\""
+              },
+              {
+                "name": "\"router-link\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'button'"
+          }
+        },
+        {
+          "name": "type",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"button\""
+              },
+              {
+                "name": "\"submit\""
+              },
+              {
+                "name": "\"reset\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'button'"
+          }
+        },
+        {
+          "name": "href",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "to",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "object"
+              }
+            ]
+          }
+        },
+        {
+          "name": "badge",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "number"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tooltip",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "click",
+          "type": {
+            "names": [
+              "Event"
+            ]
+          }
+        }
+      ],
+      "slots": [
+        {
+          "name": "default"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/shared/UnifiedButton.vue"
+      ]
+    }
+  },
+  {
+    "name": "ViewHeader",
+    "path": "common/viewheader.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ViewHeader",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "viewType",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "dataCount",
+          "required": false,
+          "type": {
+            "name": "number"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "clear-all"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/ViewHeader.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedProfileCard",
+    "path": "common/unifiedprofilecard.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedProfileCard",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "user",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "User"
+              },
+              {
+                "name": "FederatedUser"
+              }
+            ]
+          }
+        },
+        {
+          "name": "isCompact",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "isInteractive",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showActions",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showFollowBtn",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showMoreActions",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showInstanceBadge",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "hasStats",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "maxBioLength",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "120"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "click",
+          "type": {
+            "names": [
+              "union"
+            ],
+            "elements": [
+              {
+                "name": "User"
+              },
+              {
+                "name": "FederatedUser"
+              }
+            ]
+          }
+        },
+        {
+          "name": "follow",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "unfollow",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "message",
+          "type": {
+            "names": [
+              "union"
+            ],
+            "elements": [
+              {
+                "name": "User"
+              },
+              {
+                "name": "FederatedUser"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mention",
+          "type": {
+            "names": [
+              "FederatedUser"
+            ]
+          }
+        },
+        {
+          "name": "mute",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "unmute",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "block",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "unblock",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/UnifiedProfileCard.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedContextBar",
+    "path": "common/unifiedcontextbar.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedContextBar",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "mode",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"chat\""
+              },
+              {
+                "name": "\"activitypub\""
+              }
+            ]
+          }
+        },
+        {
+          "name": "isMobile",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "leftSidebarOpen",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "rightSidebarOpen",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "voicePanelOpen",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "currentServer",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "Server"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "currentChannel",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "Channel"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "isDM",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "currentView",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"home\""
+              },
+              {
+                "name": "\"local\""
+              },
+              {
+                "name": "\"public\""
+              },
+              {
+                "name": "\"trending\""
+              },
+              {
+                "name": "\"instances\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'home'"
+          }
+        },
+        {
+          "name": "instanceDomain",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "toggle-left-sidebar"
+        },
+        {
+          "name": "toggle-voice-panel"
+        },
+        {
+          "name": "toggle-search"
+        },
+        {
+          "name": "toggle-right-sidebar"
+        },
+        {
+          "name": "refresh-timeline"
+        },
+        {
+          "name": "open-search"
+        },
+        {
+          "name": "open-composer"
+        },
+        {
+          "name": "switch-feed",
+          "type": {
+            "names": [
+              "union"
+            ],
+            "elements": [
+              {
+                "name": "\"home\""
+              },
+              {
+                "name": "\"local\""
+              },
+              {
+                "name": "\"public\""
+              },
+              {
+                "name": "\"trending\""
+              },
+              {
+                "name": "\"instances\""
+              }
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/UnifiedContextBar.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedContentArea",
+    "path": "common/unifiedcontentarea.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedContentArea",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "mode",
+          "required": true,
+          "type": {
+            "name": "ViewMode"
+          }
+        },
+        {
+          "name": "chatMessages",
+          "required": false,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "Message"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => []"
+          }
+        },
+        {
+          "name": "isLoading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "isDM",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "viewType",
+          "required": false,
+          "type": {
+            "name": "ViewType"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "ViewType.TIMELINE"
+          }
+        },
+        {
+          "name": "currentView",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'home'"
+          }
+        },
+        {
+          "name": "posts",
+          "required": false,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "TimelinePost"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => []"
+          }
+        },
+        {
+          "name": "isLoadingFeed",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "hasMorePosts",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "profileUser",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "FederatedUser"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "null"
+          }
+        },
+        {
+          "name": "profileHandle",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "undefined"
+          }
+        },
+        {
+          "name": "specialViewData",
+          "required": false,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "TimelinePost"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => []"
+          }
+        },
+        {
+          "name": "hasMoreSpecialData",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "postId",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "load-more-messages"
+        },
+        {
+          "name": "update:is-at-bottom",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "send-message",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        },
+        {
+          "name": "clear-all-bookmarks"
+        },
+        {
+          "name": "load-more-special-data"
+        },
+        {
+          "name": "switch-feed",
+          "type": {
+            "names": [
+              "union"
+            ],
+            "elements": [
+              {
+                "name": "\"home\""
+              },
+              {
+                "name": "\"local\""
+              },
+              {
+                "name": "\"public\""
+              }
+            ]
+          }
+        },
+        {
+          "name": "post-created",
+          "type": {
+            "names": [
+              "TimelinePost"
+            ]
+          }
+        },
+        {
+          "name": "load-more-posts"
+        },
+        {
+          "name": "back-to-timeline"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/UnifiedContentArea.vue"
+      ]
+    }
+  },
+  {
+    "name": "ToggleSwitch",
+    "path": "common/toggleswitch.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ToggleSwitch",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "modelValue",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "disabled",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:modelValue",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        },
+        {
+          "name": "change",
+          "type": {
+            "names": [
+              "boolean"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/ToggleSwitch.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerIcon",
+    "path": "common/servericon.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerIcon",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "id",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "src",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "alt",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'server'"
+          }
+        },
+        {
+          "name": "classes",
+          "required": false,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "string"
+              }
+            ]
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "serverSize"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'md'"
+          }
+        },
+        {
+          "name": "status",
+          "required": false,
+          "type": {
+            "name": "UserStatus"
+          }
+        },
+        {
+          "name": "editable",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "interactive",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "loading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "shape",
+          "required": false,
+          "type": {
+            "name": "ImageShape"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'rounded'"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "click",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "upload",
+          "type": {
+            "names": [
+              "File"
+            ]
+          }
+        },
+        {
+          "name": "edit"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/ServerIcon.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerCardSkeleton",
+    "path": "common/servercardskeleton.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerCardSkeleton",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "count",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "6"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/ServerCardSkeleton.vue"
+      ]
+    }
+  },
+  {
+    "name": "ServerCard",
+    "path": "common/servercard.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ServerCard",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "server",
+          "required": true,
+          "type": {
+            "name": "PublicServerWithStats"
+          }
+        },
+        {
+          "name": "isJoined",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "isLoading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "join",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "leave",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "viewOwnerProfile",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/ServerCard.vue"
+      ]
+    }
+  },
+  {
+    "name": "SearchInput",
+    "path": "common/searchinput.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "SearchInput",
+      "description": "",
+      "tags": {},
+      "expose": [
+        {
+          "name": "focus"
+        }
+      ],
+      "props": [
+        {
+          "name": "modelValue",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "placeholder",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Search...'"
+          }
+        },
+        {
+          "name": "isLoading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "disabled",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "showClearButton",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:modelValue",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "clear"
+        },
+        {
+          "name": "escape"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/SearchInput.vue"
+      ]
+    }
+  },
+  {
+    "name": "PostsContainer",
+    "path": "common/postscontainer.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PostsContainer",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "posts",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "TimelinePost"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => []"
+          }
+        },
+        {
+          "name": "isLoading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "hasMore",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "loadingMessage",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Loading posts...'"
+          }
+        },
+        {
+          "name": "emptyTitle",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'No posts yet'"
+          }
+        },
+        {
+          "name": "emptyMessage",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Posts will appear here when available.'"
+          }
+        },
+        {
+          "name": "emptyIcon",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'users'"
+          }
+        },
+        {
+          "name": "emptyAction",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "undefined"
+          }
+        },
+        {
+          "name": "postProps",
+          "required": false,
+          "type": {
+            "name": "Record",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "any"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => ({})"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "empty-action"
+        },
+        {
+          "name": "load-more"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/PostsContainer.vue"
+      ]
+    }
+  },
+  {
+    "name": "PostDetailDisplay",
+    "path": "common/postdetaildisplay.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PostDetailDisplay",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "postId",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "back"
+        },
+        {
+          "name": "reply",
+          "type": {
+            "names": [
+              "TimelinePost"
+            ]
+          }
+        },
+        {
+          "name": "favorite",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "reblog",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "bookmark",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "delete",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "user-click",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/PostDetailDisplay.vue"
+      ]
+    }
+  },
+  {
+    "name": "ModernInput",
+    "path": "common/moderninput.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ModernInput",
+      "description": "",
+      "tags": {},
+      "expose": [
+        {
+          "name": "focus"
+        },
+        {
+          "name": "blur"
+        }
+      ],
+      "props": [
+        {
+          "name": "modelValue",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "label",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "placeholder",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "type",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'text'"
+          }
+        },
+        {
+          "name": "required",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "disabled",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "maxLength",
+          "required": false,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "showCharCount",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "errorMessage",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "successMessage",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "hint",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "autofocus",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "validateOnInput",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:modelValue",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "focus",
+          "type": {
+            "names": [
+              "FocusEvent"
+            ]
+          }
+        },
+        {
+          "name": "blur",
+          "type": {
+            "names": [
+              "FocusEvent"
+            ]
+          }
+        },
+        {
+          "name": "keydown",
+          "type": {
+            "names": [
+              "KeyboardEvent"
+            ]
+          }
+        },
+        {
+          "name": "enter",
+          "type": {
+            "names": [
+              "KeyboardEvent"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/ModernInput.vue"
+      ]
+    }
+  },
+  {
+    "name": "ModernButton",
+    "path": "common/modernbutton.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ModernButton",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "variant",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"primary\""
+              },
+              {
+                "name": "\"secondary\""
+              },
+              {
+                "name": "\"success\""
+              },
+              {
+                "name": "\"danger\""
+              },
+              {
+                "name": "\"ghost\""
+              },
+              {
+                "name": "\"link\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'primary'"
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"small\""
+              },
+              {
+                "name": "\"medium\""
+              },
+              {
+                "name": "\"large\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'medium'"
+          }
+        },
+        {
+          "name": "type",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"button\""
+              },
+              {
+                "name": "\"submit\""
+              },
+              {
+                "name": "\"reset\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'button'"
+          }
+        },
+        {
+          "name": "disabled",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "loading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "showTextWhileLoading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "iconLeft",
+          "required": false,
+          "type": {
+            "name": "any"
+          }
+        },
+        {
+          "name": "iconRight",
+          "required": false,
+          "type": {
+            "name": "any"
+          }
+        },
+        {
+          "name": "text",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "fullWidth",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "rounded",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "click",
+          "type": {
+            "names": [
+              "MouseEvent"
+            ]
+          }
+        }
+      ],
+      "slots": [
+        {
+          "name": "default"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/ModernButton.vue"
+      ]
+    }
+  },
+  {
+    "name": "Icon",
+    "path": "common/icon.md",
+    "info": {
+      "displayName": "IconComponent",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "name",
+          "type": {
+            "name": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "size",
+          "type": {
+            "name": "string|number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'md'"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/Icon.vue"
+      ]
+    }
+  },
+  {
+    "name": "ColorPicker",
+    "path": "common/colorpicker.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ColorPicker",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "color",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'#5865f2'"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:color",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "change",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/ColorPicker.vue"
+      ]
+    }
+  },
+  {
+    "name": "CodeBlock",
+    "path": "common/codeblock.md",
+    "info": {
+      "displayName": "CodeBlock",
+      "exportName": "default",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "code",
+          "type": {
+            "name": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "language",
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'text'"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/CodeBlock.vue"
+      ]
+    }
+  },
+  {
+    "name": "BaseModal",
+    "path": "common/basemodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "BaseModal",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "show",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "title",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "icon",
+          "required": false,
+          "type": {
+            "name": "any"
+          }
+        },
+        {
+          "name": "compact",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "showHeader",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showCloseButton",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "closeOnOverlay",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        }
+      ],
+      "slots": [
+        {
+          "name": "default"
+        },
+        {
+          "name": "footer"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/BaseModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "Avatar",
+    "path": "common/avatar.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "Avatar",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "src",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "alt",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'Avatar'"
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "type": {
+            "name": "AvatarSize"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'md'"
+          }
+        },
+        {
+          "name": "status",
+          "required": false,
+          "type": {
+            "name": "UserStatus"
+          }
+        },
+        {
+          "name": "editable",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "interactive",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "loading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "click"
+        },
+        {
+          "name": "upload",
+          "type": {
+            "names": [
+              "File"
+            ]
+          }
+        },
+        {
+          "name": "edit"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/Avatar.vue"
+      ]
+    }
+  },
+  {
+    "name": "AdaptiveChannelSidebar",
+    "path": "common/adaptivechannelsidebar.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AdaptiveChannelSidebar",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "mode",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"chat\""
+              },
+              {
+                "name": "\"activitypub\""
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'chat'"
+          }
+        },
+        {
+          "name": "currentServer",
+          "required": false,
+          "type": {
+            "name": "Server"
+          }
+        },
+        {
+          "name": "channels",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "Channel"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => []"
+          }
+        },
+        {
+          "name": "currentChannelId",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "''"
+          }
+        },
+        {
+          "name": "categories",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "Category"
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => []"
+          }
+        },
+        {
+          "name": "categoryChannels",
+          "required": true,
+          "type": {
+            "name": "Record",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "Array",
+                "elements": [
+                  {
+                    "name": "Channel"
+                  }
+                ]
+              }
+            ]
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "() => ({})"
+          }
+        },
+        {
+          "name": "isDM",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "followingCount",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "0"
+          }
+        },
+        {
+          "name": "followersCount",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "0"
+          }
+        },
+        {
+          "name": "instanceDomain",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'har.mony.lol'"
+          }
+        },
+        {
+          "name": "instanceUserCount",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "0"
+          }
+        },
+        {
+          "name": "instancePostCount",
+          "required": false,
+          "type": {
+            "name": "number"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "0"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "channel-selected",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "create-channel",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "switch-mode",
+          "type": {
+            "names": [
+              "union"
+            ],
+            "elements": [
+              {
+                "name": "\"chat\""
+              },
+              {
+                "name": "\"activitypub\""
+              }
+            ]
+          }
+        },
+        {
+          "name": "conversation-selected",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "profile-click"
+        },
+        {
+          "name": "compose-post"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/common/AdaptiveChannelSidebar.vue"
+      ]
+    }
+  },
+  {
+    "name": "ChatHeader",
+    "path": "chat/chatheader.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ChatHeader",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "channel",
+          "required": true,
+          "type": {
+            "name": "Channel"
+          }
+        },
+        {
+          "name": "server",
+          "required": false,
+          "type": {
+            "name": "Server"
+          }
+        },
+        {
+          "name": "isMobile",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "rightSidebarOpen",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "toggle-left-sidebar"
+        },
+        {
+          "name": "toggle-voice-panel"
+        },
+        {
+          "name": "toggle-right-sidebar"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/chat/ChatHeader.vue"
+      ]
+    }
+  },
+  {
+    "name": "UserSearchModal",
+    "path": "activitypub/usersearchmodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UserSearchModal",
+      "description": "",
+      "tags": {},
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "user-selected",
+          "type": {
+            "names": [
+              "FederatedUser"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/UserSearchModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "UserCard",
+    "path": "activitypub/usercard.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UserCard",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "user",
+          "required": true,
+          "type": {
+            "name": "FederatedUser"
+          }
+        },
+        {
+          "name": "isCompact",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "showFollowBtn",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showMoreActions",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showInstanceBadge",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        },
+        {
+          "name": "showActions",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "true"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "follow",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "unfollow",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "mention",
+          "type": {
+            "names": [
+              "FederatedUser"
+            ]
+          }
+        },
+        {
+          "name": "block",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "unblock",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "mute",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "unmute",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "report",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "user-click",
+          "type": {
+            "names": [
+              "FederatedUser"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/UserCard.vue"
+      ]
+    }
+  },
+  {
+    "name": "ThreadedPost",
+    "path": "activitypub/threadedpost.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ThreadedPost",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "post",
+          "required": true,
+          "type": {
+            "name": "ActivityPubPost"
+          }
+        },
+        {
+          "name": "threadDepth",
+          "required": true,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "maxDepth",
+          "required": true,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "highlightedPostId",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "replyingToPostId",
+          "required": false,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "showReplyComposer",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "favorite",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "reblog",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "bookmark",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "delete",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "user-click",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        },
+        {
+          "name": "reply",
+          "type": {
+            "names": [
+              "ActivityPubPost"
+            ]
+          }
+        },
+        {
+          "name": "post-created",
+          "type": {
+            "names": [
+              "ActivityPubPost"
+            ]
+          }
+        },
+        {
+          "name": "cancel-reply"
+        },
+        {
+          "name": "ref",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/ThreadedPost.vue"
+      ]
+    }
+  },
+  {
+    "name": "MonyPost",
+    "path": "activitypub/monypost.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MonyPost",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "post",
+          "required": true,
+          "type": {
+            "name": "TimelinePost"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "reply",
+          "type": {
+            "names": [
+              "TimelinePost"
+            ]
+          }
+        },
+        {
+          "name": "delete",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "edit",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "click",
+          "type": {
+            "names": [
+              "TimelinePost"
+            ]
+          }
+        },
+        {
+          "name": "user-mention-click",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "hashtag-click",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "user-click",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        },
+        {
+          "name": "show-conversation",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/MonyPost.vue"
+      ]
+    }
+  },
+  {
+    "name": "MonyMediaUpload",
+    "path": "activitypub/monymediaupload.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MonyMediaUpload",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "attachments",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "MediaAttachment"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "remove",
+          "type": {
+            "names": [
+              "number"
+            ]
+          }
+        },
+        {
+          "name": "update-description",
+          "type": {
+            "names": [
+              "number"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/MonyMediaUpload.vue"
+      ]
+    }
+  },
+  {
+    "name": "MonyMediaGallery",
+    "path": "activitypub/monymediagallery.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MonyMediaGallery",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "mediaAttachments",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "MediaAttachment"
+              }
+            ]
+          }
+        },
+        {
+          "name": "isSensitive",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/MonyMediaGallery.vue"
+      ]
+    }
+  },
+  {
+    "name": "MonyHeader",
+    "path": "activitypub/monyheader.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MonyHeader",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "currentView",
+          "required": false,
+          "type": {
+            "name": "string"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "'home'"
+          }
+        },
+        {
+          "name": "isMobile",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        },
+        {
+          "name": "rightSidebarOpen",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "toggle-left-sidebar"
+        },
+        {
+          "name": "switch-feed",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "open-search"
+        },
+        {
+          "name": "open-composer"
+        },
+        {
+          "name": "refresh-timeline"
+        },
+        {
+          "name": "toggle-right-sidebar"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/MonyHeader.vue"
+      ]
+    }
+  },
+  {
+    "name": "MonyFeed",
+    "path": "activitypub/monyfeed.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MonyFeed",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/activitypub/MonyFeed.vue"
+      ]
+    }
+  },
+  {
+    "name": "MonyContent",
+    "path": "activitypub/monycontent.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MonyContent",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "content",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "Array",
+                "elements": [
+                  {
+                    "name": "any"
+                  }
+                ]
+              },
+              {
+                "name": "any"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "user-mention-click",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "hashtag-click",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/MonyContent.vue"
+      ]
+    }
+  },
+  {
+    "name": "MonyComposerInline",
+    "path": "activitypub/monycomposerinline.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MonyComposerInline",
+      "description": "",
+      "tags": {},
+      "events": [
+        {
+          "name": "post-created",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/MonyComposerInline.vue"
+      ]
+    }
+  },
+  {
+    "name": "MonyComposer",
+    "path": "activitypub/monycomposer.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "MonyComposer",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "isOpen",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "composerState",
+          "required": true,
+          "type": {
+            "name": "PostComposerState"
+          }
+        },
+        {
+          "name": "isPosting",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "replyToPost",
+          "required": false,
+          "type": {
+            "name": "any"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "submit"
+        },
+        {
+          "name": "update-content",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "update-visibility",
+          "type": {
+            "names": [
+              "TSIndexedAccessType"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/MonyComposer.vue"
+      ]
+    }
+  },
+  {
+    "name": "InstanceDetailModal",
+    "path": "activitypub/instancedetailmodal.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "InstanceDetailModal",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "instance",
+          "required": true,
+          "type": {
+            "name": "FederatedInstance"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "close"
+        },
+        {
+          "name": "view-posts",
+          "type": {
+            "names": [
+              "FederatedInstance"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/InstanceDetailModal.vue"
+      ]
+    }
+  },
+  {
+    "name": "InlineReplyComposer",
+    "path": "activitypub/inlinereplycomposer.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "InlineReplyComposer",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "replyToPost",
+          "required": true,
+          "type": {
+            "name": "TimelinePost"
+          }
+        },
+        {
+          "name": "isVisible",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "reply-sent",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        },
+        {
+          "name": "cancel"
+        },
+        {
+          "name": "close"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/InlineReplyComposer.vue"
+      ]
+    }
+  },
+  {
+    "name": "ExploreContent",
+    "path": "activitypub/explorecontent.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ExploreContent",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "currentView",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "\"trending\""
+              },
+              {
+                "name": "\"instances\""
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "reply-to-post",
+          "type": {
+            "names": [
+              "TimelinePost"
+            ]
+          }
+        },
+        {
+          "name": "favorite-post",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "reblog-post",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "bookmark-post",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "delete-post",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "show-user-profile",
+          "type": {
+            "names": [
+              "FederatedUser"
+            ]
+          }
+        },
+        {
+          "name": "show-conversation",
+          "type": {
+            "names": [
+              "TimelinePost"
+            ]
+          }
+        },
+        {
+          "name": "follow-user",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "switch-feed",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "refresh-timeline"
+        },
+        {
+          "name": "unfollow-user",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/activitypub/ExploreContent.vue"
+      ]
+    }
+  },
+  {
+    "name": "PublicServersSearch",
+    "path": "publicservers/publicserverssearch.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PublicServersSearch",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "searchQuery",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "selectedCategory",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "isSearching",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "categories",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "string"
+              }
+            ]
+          }
+        },
+        {
+          "name": "totalServers",
+          "required": true,
+          "type": {
+            "name": "number"
+          }
+        },
+        {
+          "name": "filteredCount",
+          "required": true,
+          "type": {
+            "name": "number"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update:searchQuery",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "update:selectedCategory",
+          "type": {
+            "names": [
+              "union"
+            ],
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/PublicServers/PublicServersSearch.vue"
+      ]
+    }
+  },
+  {
+    "name": "PublicServersHeader",
+    "path": "publicservers/publicserversheader.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PublicServersHeader",
+      "description": "",
+      "tags": {},
+      "events": [
+        {
+          "name": "close"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/PublicServers/PublicServersHeader.vue"
+      ]
+    }
+  },
+  {
+    "name": "PublicServersFooter",
+    "path": "publicservers/publicserversfooter.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PublicServersFooter",
+      "description": "",
+      "tags": {},
+      "events": [
+        {
+          "name": "createServer"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/PublicServers/PublicServersFooter.vue"
+      ]
+    }
+  },
+  {
+    "name": "PublicServersContent",
+    "path": "publicservers/publicserverscontent.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PublicServersContent",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "servers",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "PublicServerWithStats"
+              }
+            ]
+          }
+        },
+        {
+          "name": "featuredServers",
+          "required": true,
+          "type": {
+            "name": "Array",
+            "elements": [
+              {
+                "name": "PublicServerWithStats"
+              }
+            ]
+          }
+        },
+        {
+          "name": "isLoading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "isEmpty",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "isEmptySearch",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "name": "searchQuery",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        },
+        {
+          "name": "joinedServerIds",
+          "required": true,
+          "type": {
+            "name": "Set",
+            "elements": [
+              {
+                "name": "string"
+              }
+            ]
+          }
+        },
+        {
+          "name": "loadingServerIds",
+          "required": true,
+          "type": {
+            "name": "Set",
+            "elements": [
+              {
+                "name": "string"
+              }
+            ]
+          }
+        },
+        {
+          "name": "error",
+          "required": false,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "string"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "refresh"
+        },
+        {
+          "name": "joinServer",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "leaveServer",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        },
+        {
+          "name": "viewOwnerProfile",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/PublicServers/PublicServersContent.vue"
+      ]
+    }
+  },
+  {
+    "name": "VoiceVideoSettings",
+    "path": "settings/user/voicevideosettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "VoiceVideoSettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update-voice-settings",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/user/VoiceVideoSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "UserAccountSettings",
+    "path": "settings/user/useraccountsettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UserAccountSettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "profile",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "User"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update-profile",
+          "type": {
+            "names": [
+              "Partial"
+            ],
+            "elements": [
+              {
+                "name": "User"
+              }
+            ]
+          }
+        },
+        {
+          "name": "upload-avatar",
+          "type": {
+            "names": [
+              "File"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/user/UserAccountSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "UnifiedNotificationSettings",
+    "path": "settings/user/unifiednotificationsettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "UnifiedNotificationSettings",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/settings/user/UnifiedNotificationSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "PrivacySettings",
+    "path": "settings/user/privacysettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "PrivacySettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "profile",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "User"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update-privacy",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/user/PrivacySettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "NotificationSettings",
+    "path": "settings/user/notificationsettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "NotificationSettings",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/settings/user/NotificationSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "LanguageSettings",
+    "path": "settings/user/languagesettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "LanguageSettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update-language",
+          "type": {
+            "names": [
+              "string"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/user/LanguageSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "KeybindSettings",
+    "path": "settings/user/keybindsettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "KeybindSettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update-keybinds",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/user/KeybindSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "AudioThemeSettings",
+    "path": "settings/user/audiothemesettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AudioThemeSettings",
+      "description": "",
+      "tags": {},
+      "sourceFiles": [
+        "src/components/settings/user/AudioThemeSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "AppearanceSettings",
+    "path": "settings/user/appearancesettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AppearanceSettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "profile",
+          "required": true,
+          "type": {
+            "name": "union",
+            "elements": [
+              {
+                "name": "User"
+              },
+              {
+                "name": "null"
+              }
+            ]
+          }
+        },
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update-appearance",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/user/AppearanceSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "AdvancedSettings",
+    "path": "settings/user/advancedsettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "AdvancedSettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "loading",
+          "required": true,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update-advanced",
+          "type": {
+            "names": [
+              "any"
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/user/AdvancedSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "ActivityPubNotificationSettings",
+    "path": "settings/user/activitypubnotificationsettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "ActivityPubNotificationSettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "loading",
+          "required": false,
+          "type": {
+            "name": "boolean"
+          },
+          "defaultValue": {
+            "func": false,
+            "value": "false"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "update-preferences",
+          "type": {
+            "names": [
+              "Partial"
+            ],
+            "elements": [
+              {
+                "name": "NotificationPreferences"
+              }
+            ]
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/user/ActivityPubNotificationSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "InviteSettings",
+    "path": "settings/server/invitesettings.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "InviteSettings",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "serverId",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/server/InviteSettings.vue"
+      ]
+    }
+  },
+  {
+    "name": "InviteManagement",
+    "path": "settings/server/invitemanagement.md",
+    "info": {
+      "exportName": "default",
+      "displayName": "InviteManagement",
+      "description": "",
+      "tags": {},
+      "props": [
+        {
+          "name": "serverId",
+          "required": true,
+          "type": {
+            "name": "string"
+          }
+        }
+      ],
+      "events": [
+        {
+          "name": "create-invite"
+        }
+      ],
+      "sourceFiles": [
+        "src/components/settings/server/InviteManagement.vue"
+      ]
+    }
+  }
+]

@@ -1,0 +1,280 @@
+# AdaptiveChannelSidebar
+
+No description available.
+
+**File:** `src/components/common/AdaptiveChannelSidebar.vue`
+
+## Overview
+
+```mermaid
+graph TB
+    PROPS[Props] --> COMPONENT[AdaptiveChannelSidebar]
+    COMPONENT --> EVENTS[Events]
+    COMPONENT --> SLOTS[Slots]
+    EVENTS --> PARENT[Parent Component]
+    SLOTS --> CONTENT[Slot Content]
+```
+
+## Props
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `mode` | `union` | `'chat'` | ✅ | No description |
+| `currentServer` | `Server` | `undefined` | ❌ | No description |
+| `channels` | `Array` | `() => []` | ✅ | No description |
+| `currentChannelId` | `string` | `''` | ❌ | No description |
+| `categories` | `Array` | `() => []` | ✅ | No description |
+| `categoryChannels` | `Record` | `() => ({})` | ✅ | No description |
+| `isDM` | `boolean` | `false` | ❌ | No description |
+| `followingCount` | `number` | `0` | ❌ | No description |
+| `followersCount` | `number` | `0` | ❌ | No description |
+| `instanceDomain` | `string` | `'har.mony.lol'` | ❌ | No description |
+| `instanceUserCount` | `number` | `0` | ❌ | No description |
+| `instancePostCount` | `number` | `0` | ❌ | No description |
+
+### Props Details
+
+#### `mode`
+
+No description available.
+
+- **Type:** `union`
+- **Required:** Yes
+- **Default:** `'chat'`
+
+
+
+#### `currentServer`
+
+No description available.
+
+- **Type:** `Server`
+- **Required:** No
+- **Default:** `undefined`
+
+
+
+#### `channels`
+
+No description available.
+
+- **Type:** `Array`
+- **Required:** Yes
+- **Default:** `() => []`
+
+
+
+#### `currentChannelId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `''`
+
+
+
+#### `categories`
+
+No description available.
+
+- **Type:** `Array`
+- **Required:** Yes
+- **Default:** `() => []`
+
+
+
+#### `categoryChannels`
+
+No description available.
+
+- **Type:** `Record`
+- **Required:** Yes
+- **Default:** `() => ({})`
+
+
+
+#### `isDM`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
+
+
+
+#### `followingCount`
+
+No description available.
+
+- **Type:** `number`
+- **Required:** No
+- **Default:** `0`
+
+
+
+#### `followersCount`
+
+No description available.
+
+- **Type:** `number`
+- **Required:** No
+- **Default:** `0`
+
+
+
+#### `instanceDomain`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `'har.mony.lol'`
+
+
+
+#### `instanceUserCount`
+
+No description available.
+
+- **Type:** `number`
+- **Required:** No
+- **Default:** `0`
+
+
+
+#### `instancePostCount`
+
+No description available.
+
+- **Type:** `number`
+- **Required:** No
+- **Default:** `0`
+
+
+
+
+## Events
+
+| Name | Parameters | Description |
+|------|------------|-------------|
+| `channel-selected` | string | No description |
+| `create-channel` | string | No description |
+| `switch-mode` | union | No description |
+| `conversation-selected` | string | No description |
+| `profile-click` | unknown | No description |
+| `compose-post` | unknown | No description |
+
+### Event Details
+
+#### `channel-selected`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `create-channel`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `switch-mode`
+
+No description available.
+
+**Parameters:** `union`
+
+
+
+#### `conversation-selected`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `profile-click`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `compose-post`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+
+## Slots
+
+This component has no slots.
+
+## Methods
+
+This component exposes no public methods.
+
+## Usage Example
+
+```vue
+<template>
+  <AdaptiveChannelSidebar
+    :mode="'chat'"
+    :channels="[]"
+    :categories="[]"
+    :categoryChannels="() => ({})"
+    @channel-selected="handleChannel-selected"
+    @create-channel="handleCreate-channel"
+    @switch-mode="handleSwitch-mode"
+    @conversation-selected="handleConversation-selected"
+    @profile-click="handleProfile-click"
+    @compose-post="handleCompose-post" />
+</template>
+
+<script setup lang="ts">
+const handleChannel-selected = (string) => {
+  // Handle channel-selected event
+}
+
+const handleCreate-channel = (string) => {
+  // Handle create-channel event
+}
+
+const handleSwitch-mode = (union) => {
+  // Handle switch-mode event
+}
+
+const handleConversation-selected = (string) => {
+  // Handle conversation-selected event
+}
+
+const handleProfile-click = (data) => {
+  // Handle profile-click event
+}
+
+const handleCompose-post = (data) => {
+  // Handle compose-post event
+}
+</script>
+```
+
+
+
+## File Location
+
+`src/components/common/AdaptiveChannelSidebar.vue`
+
+---
+
+*This documentation was automatically generated from the component source code.*

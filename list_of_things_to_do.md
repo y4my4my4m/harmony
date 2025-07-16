@@ -74,3 +74,45 @@ they also have reactions on posts, which we should embed with our own reactions 
 34. sometimes it's called federated_id (like in profiles table), sometimes it's ap_id, rename to ap_id and stay standardized
 
 35. eventually i want to display tiny 2 or 4px indicators when the message is locally send, then federated read, and then slowly fade out... that way we can insta-display (optimistic update) and show if failed and have the user retry themselves
+
+
+36. 
+supabase-edge-functions  | [Info] Received activity: {
+supabase-edge-functions  |   "@context": [
+supabase-edge-functions  |     "https://www.w3.org/ns/activitystreams",
+supabase-edge-functions  |     "https://w3id.org/security/v1",
+supabase-edge-functions  |     {
+supabase-edge-functions  |       "Key": "sec:Key",
+supabase-edge-functions  |       "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+supabase-edge-functions  |       "sensitive": "as:sensitive",
+supabase-edge-functions  |       "Hashtag": "as:Hashtag",
+supabase-edge-functions  |       "quoteUrl": "as:quoteUrl",
+supabase-edge-functions  |       "toot": "http://joinmastodon.org/ns#",
+supabase-edge-functions  |       "Emoji": "toot:Emoji",
+supabase-edge-functions  |       "featured": "toot:featured",
+supabase-edge-functions  |       "discoverable": "toot:discoverable",
+supabase-edge-functions  |       "schema": "http://schema.org#",
+supabase-edge-functions  |       "PropertyValue": "schema:PropertyValue",
+supabase-edge-functions  |       "value": "schema:value",
+supabase-edge-functions  |       "misskey": "https://misskey-hub.net/ns#",
+supabase-edge-functions  |       "_misskey_content": "misskey:_misskey_content",
+supabase-edge-functions  |       "_misskey_quote": "misskey:_misskey_quote",
+supabase-edge-functions  |       "_misskey_reaction": "misskey:_misskey_reaction",
+supabase-edge-functions  |       "_misskey_votes": "misskey:_misskey_votes",
+supabase-edge-functions  |       "_misskey_summary": "misskey:_misskey_summary",
+supabase-edge-functions  |       "isCat": "misskey:isCat",
+supabase-edge-functions  |       "vcard": "http://www.w3.org/2006/vcard/ns#"
+supabase-edge-functions  |     }
+supabase-edge-functions  |   ],
+supabase-edge-functions  |   "type": "Like",
+supabase-edge-functions  |   "id": "https://misskey.io/likes/aa9i60nva32r0euc",
+supabase-edge-functions  |   "actor": "https://misskey.io/users/aa9hh3eoz0kz0apv",
+supabase-edge-functions  |   "object": "https://misskey.io/notes/aa9i52dts1jw06ev",
+supabase-edge-functions  |   "content": "👍",
+supabase-edge-functions  |   "_misskey_reaction": "👍"
+supabase-edge-functions  | }
+supabase-edge-functions  | 
+
+
+
+^ make these misskey reactions work for messages and posts

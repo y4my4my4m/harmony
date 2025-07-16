@@ -1,0 +1,226 @@
+# ExploreContent
+
+No description available.
+
+**File:** `src/components/activitypub/ExploreContent.vue`
+
+## Overview
+
+```mermaid
+graph TB
+    PROPS[Props] --> COMPONENT[ExploreContent]
+    COMPONENT --> EVENTS[Events]
+    COMPONENT --> SLOTS[Slots]
+    EVENTS --> PARENT[Parent Component]
+    SLOTS --> CONTENT[Slot Content]
+```
+
+## Props
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `currentView` | `union` | `undefined` | ✅ | No description |
+
+### Props Details
+
+#### `currentView`
+
+No description available.
+
+- **Type:** `union`
+- **Required:** Yes
+- **Default:** `undefined`
+
+
+
+
+## Events
+
+| Name | Parameters | Description |
+|------|------------|-------------|
+| `reply-to-post` | TimelinePost | No description |
+| `favorite-post` | string | No description |
+| `reblog-post` | string | No description |
+| `bookmark-post` | string | No description |
+| `delete-post` | string | No description |
+| `show-user-profile` | FederatedUser | No description |
+| `show-conversation` | TimelinePost | No description |
+| `follow-user` | string | No description |
+| `switch-feed` | string | No description |
+| `refresh-timeline` | unknown | No description |
+| `unfollow-user` | string | No description |
+
+### Event Details
+
+#### `reply-to-post`
+
+No description available.
+
+**Parameters:** `TimelinePost`
+
+
+
+#### `favorite-post`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `reblog-post`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `bookmark-post`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `delete-post`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `show-user-profile`
+
+No description available.
+
+**Parameters:** `FederatedUser`
+
+
+
+#### `show-conversation`
+
+No description available.
+
+**Parameters:** `TimelinePost`
+
+
+
+#### `follow-user`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `switch-feed`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `refresh-timeline`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `unfollow-user`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+
+## Slots
+
+This component has no slots.
+
+## Methods
+
+This component exposes no public methods.
+
+## Usage Example
+
+```vue
+<template>
+  <ExploreContent
+    :currentView="undefined"
+    @reply-to-post="handleReply-to-post"
+    @favorite-post="handleFavorite-post"
+    @reblog-post="handleReblog-post"
+    @bookmark-post="handleBookmark-post"
+    @delete-post="handleDelete-post"
+    @show-user-profile="handleShow-user-profile"
+    @show-conversation="handleShow-conversation"
+    @follow-user="handleFollow-user"
+    @switch-feed="handleSwitch-feed"
+    @refresh-timeline="handleRefresh-timeline"
+    @unfollow-user="handleUnfollow-user" />
+</template>
+
+<script setup lang="ts">
+const handleReply-to-post = (TimelinePost) => {
+  // Handle reply-to-post event
+}
+
+const handleFavorite-post = (string) => {
+  // Handle favorite-post event
+}
+
+const handleReblog-post = (string) => {
+  // Handle reblog-post event
+}
+
+const handleBookmark-post = (string) => {
+  // Handle bookmark-post event
+}
+
+const handleDelete-post = (string) => {
+  // Handle delete-post event
+}
+
+const handleShow-user-profile = (FederatedUser) => {
+  // Handle show-user-profile event
+}
+
+const handleShow-conversation = (TimelinePost) => {
+  // Handle show-conversation event
+}
+
+const handleFollow-user = (string) => {
+  // Handle follow-user event
+}
+
+const handleSwitch-feed = (string) => {
+  // Handle switch-feed event
+}
+
+const handleRefresh-timeline = (data) => {
+  // Handle refresh-timeline event
+}
+
+const handleUnfollow-user = (string) => {
+  // Handle unfollow-user event
+}
+</script>
+```
+
+
+
+## File Location
+
+`src/components/activitypub/ExploreContent.vue`
+
+---
+
+*This documentation was automatically generated from the component source code.*

@@ -1,0 +1,295 @@
+# emojiService Service
+
+**File:** `src/services/emojiService.ts`
+
+## Overview
+
+```mermaid
+graph TB
+    subgraph "emojiService Service"
+        EMPTY[No exports]
+    end
+    
+    subgraph "Functions"
+        RECORDEMOJIUSAGE[recordEmojiUsage()]
+        GETDETAILEDEMOJIANALYTICS[getDetailedEmojiAnalytics()]
+        GETUSEREMOJISTATS[getUserEmojiStats()]
+        GETEMOJI[getEmoji()]
+        UPLOADEMOJI[uploadEmoji()]
+        DELETEEMOJI[deleteEmoji()]
+        RENAMEEMOJI[renameEmoji()]
+        BULKDELETEEMOJIS[bulkDeleteEmojis()]
+        DOESEMOJINAMEEXIST[doesEmojiNameExist()]
+        BULKUPLOADEMOJIS[bulkUploadEmojis()]
+        SEARCHEMOJIS[searchEmojis()]
+        GETSERVEREMOJIANALYTICS[getServerEmojiAnalytics()]
+        PRELOADFREQUENTEMOJIS[preloadFrequentEmojis()]
+        CLEANFILENAME[cleanFileName()]
+    end
+    
+    
+```
+
+
+
+## Functions
+
+### `recordEmojiUsage(emojiId: string, userId: string, serverId: string, contextType: 'message' | 'reaction', contextId?: string)`
+
+No description available.
+
+**Parameters:**
+- `emojiId: string`
+- `userId: string`
+- `serverId: string`
+- `contextType: 'message' | 'reaction'`
+- `contextId?: string`
+
+**Returns:** Unknown
+
+```typescript
+async function recordEmojiUsage(
+    emojiId: string, 
+    userId: string, 
+    serverId: string, 
+    contextType: 'message' | 'reaction', 
+    contextId?: string
+): Promise<void> {
+```
+
+### `getDetailedEmojiAnalytics(serverId: string, userId?: string, limit = 10)`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+- `userId?: string`
+- `limit = 10`
+
+**Returns:** Unknown
+
+```typescript
+async function getDetailedEmojiAnalytics(serverId: string, userId?: string, limit = 10) {
+```
+
+### `getUserEmojiStats(userId: string, serverId?: string, limit = 20)`
+
+No description available.
+
+**Parameters:**
+- `userId: string`
+- `serverId?: string`
+- `limit = 20`
+
+**Returns:** Unknown
+
+```typescript
+async function getUserEmojiStats(userId: string, serverId?: string, limit = 20) {
+```
+
+### `getEmoji(emojiId: string, trackUsage?: {
+    userId: string;
+    serverId: string;
+    contextType: 'message' | 'reaction';
+    contextId?: string;
+})`
+
+No description available.
+
+**Parameters:**
+- `emojiId: string`
+- `trackUsage?: {
+    userId: string;
+    serverId: string;
+    contextType: 'message' | 'reaction';
+    contextId?: string;
+}`
+
+**Returns:** Unknown
+
+```typescript
+async function getEmoji(emojiId: string, trackUsage?: {
+    userId: string;
+    serverId: string;
+    contextType: 'message' | 'reaction';
+    contextId?: string;
+}): Promise<Emoji | null> {
+```
+
+### `uploadEmoji(serverId: string, userId: string, file: File)`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+- `userId: string`
+- `file: File`
+
+**Returns:** Unknown
+
+```typescript
+async function uploadEmoji(serverId: string, userId: string, file: File): Promise<Emoji | null> {
+```
+
+### `deleteEmoji(emojiId: string)`
+
+No description available.
+
+**Parameters:**
+- `emojiId: string`
+
+**Returns:** Unknown
+
+```typescript
+async function deleteEmoji(emojiId: string): Promise<boolean> {
+```
+
+### `renameEmoji(emojiId: string, newName: string, serverId: string)`
+
+No description available.
+
+**Parameters:**
+- `emojiId: string`
+- `newName: string`
+- `serverId: string`
+
+**Returns:** Unknown
+
+```typescript
+async function renameEmoji(emojiId: string, newName: string, serverId: string): Promise<boolean> {
+```
+
+### `bulkDeleteEmojis(emojiIds: string[])`
+
+No description available.
+
+**Parameters:**
+- `emojiIds: string[]`
+
+**Returns:** Unknown
+
+```typescript
+async function bulkDeleteEmojis(emojiIds: string[]): Promise<{
+```
+
+### `doesEmojiNameExist(serverId: string, name: string)`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+- `name: string`
+
+**Returns:** Unknown
+
+```typescript
+async function doesEmojiNameExist(serverId: string, name: string): Promise<boolean> {
+```
+
+### `bulkUploadEmojis(serverId: string, userId: string, files: File[])`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+- `userId: string`
+- `files: File[]`
+
+**Returns:** Unknown
+
+```typescript
+async function bulkUploadEmojis(serverId: string, userId: string, files: File[]): Promise<(Emoji | null)[]> {
+```
+
+### `searchEmojis(query: string, options: {
+    serverId?: string;
+    limit?: number;
+    includeServerName?: boolean;
+} = {})`
+
+No description available.
+
+**Parameters:**
+- `query: string`
+- `options: {
+    serverId?: string;
+    limit?: number;
+    includeServerName?: boolean;
+} = {}`
+
+**Returns:** Unknown
+
+```typescript
+async function searchEmojis(query: string, options: {
+    serverId?: string;
+    limit?: number;
+    includeServerName?: boolean;
+} = {}): Promise<any[]> {
+```
+
+### `getServerEmojiAnalytics(serverId: string)`
+
+No description available.
+
+**Parameters:**
+- `serverId: string`
+
+**Returns:** Unknown
+
+```typescript
+async function getServerEmojiAnalytics(serverId: string) {
+```
+
+### `preloadFrequentEmojis(serverIds: string[] = [])`
+
+No description available.
+
+**Parameters:**
+- `serverIds: string[] = []`
+
+**Returns:** Unknown
+
+```typescript
+async function preloadFrequentEmojis(serverIds: string[] = []) {
+```
+
+### `cleanFileName(originalName: string)`
+
+No description available.
+
+**Parameters:**
+- `originalName: string`
+
+**Returns:** Unknown
+
+```typescript
+const cleanFileName = (originalName: string) =>
+```
+
+
+
+
+
+
+
+
+
+
+## Source Code Insights
+
+**File Size:** 16939 characters
+**Lines of Code:** 529
+**Imports:** 4
+
+## Usage Example
+
+```typescript
+import { emojiService } from '@/services/emojiService.ts'
+
+// Example usage
+recordEmojiUsage()
+```
+
+---
+
+*This documentation was automatically generated from the source code.*

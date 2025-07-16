@@ -1,0 +1,214 @@
+# MessageInput
+
+No description available.
+
+**File:** `src/components/MessageInput.vue`
+
+## Overview
+
+```mermaid
+graph TB
+    PROPS[Props] --> COMPONENT[MessageInput]
+    COMPONENT --> EVENTS[Events]
+    COMPONENT --> SLOTS[Slots]
+    EVENTS --> PARENT[Parent Component]
+    SLOTS --> CONTENT[Slot Content]
+```
+
+## Props
+
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| `giphyOpen` | `boolean` | `false` | ❌ | No description |
+| `emojiListOpen` | `boolean` | `false` | ❌ | No description |
+| `modelValue` | `string` | `''` | ❌ | No description |
+| `replyMessageId` | `string` | `''` | ❌ | No description |
+| `replyUserDisplayName` | `string` | `''` | ❌ | No description |
+
+### Props Details
+
+#### `giphyOpen`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
+
+
+
+#### `emojiListOpen`
+
+No description available.
+
+- **Type:** `boolean`
+- **Required:** No
+- **Default:** `false`
+
+
+
+#### `modelValue`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `''`
+
+
+
+#### `replyMessageId`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `''`
+
+
+
+#### `replyUserDisplayName`
+
+No description available.
+
+- **Type:** `string`
+- **Required:** No
+- **Default:** `''`
+
+
+
+
+## Events
+
+| Name | Parameters | Description |
+|------|------------|-------------|
+| `update:modelValue` | string | No description |
+| `sendMessage` | string | No description |
+| `toggleGiphy` | unknown | No description |
+| `toggleEmojiList` | boolean | No description |
+| `update:replyMessageId` | string | No description |
+| `files-attached` | Array | No description |
+| `upload-status-changed` | boolean | No description |
+
+### Event Details
+
+#### `update:modelValue`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `sendMessage`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `toggleGiphy`
+
+No description available.
+
+**Parameters:** `unknown`
+
+
+
+#### `toggleEmojiList`
+
+No description available.
+
+**Parameters:** `boolean`
+
+
+
+#### `update:replyMessageId`
+
+No description available.
+
+**Parameters:** `string`
+
+
+
+#### `files-attached`
+
+No description available.
+
+**Parameters:** `Array`
+
+
+
+#### `upload-status-changed`
+
+No description available.
+
+**Parameters:** `boolean`
+
+
+
+
+## Slots
+
+This component has no slots.
+
+## Methods
+
+This component exposes no public methods.
+
+## Usage Example
+
+```vue
+<template>
+  <MessageInput
+    
+    @update:modelValue="handleUpdate:modelValue"
+    @sendMessage="handleSendMessage"
+    @toggleGiphy="handleToggleGiphy"
+    @toggleEmojiList="handleToggleEmojiList"
+    @update:replyMessageId="handleUpdate:replyMessageId"
+    @files-attached="handleFiles-attached"
+    @upload-status-changed="handleUpload-status-changed" />
+</template>
+
+<script setup lang="ts">
+const handleUpdate:modelValue = (string) => {
+  // Handle update:modelValue event
+}
+
+const handleSendMessage = (string) => {
+  // Handle sendMessage event
+}
+
+const handleToggleGiphy = (data) => {
+  // Handle toggleGiphy event
+}
+
+const handleToggleEmojiList = (boolean) => {
+  // Handle toggleEmojiList event
+}
+
+const handleUpdate:replyMessageId = (string) => {
+  // Handle update:replyMessageId event
+}
+
+const handleFiles-attached = (Array) => {
+  // Handle files-attached event
+}
+
+const handleUpload-status-changed = (boolean) => {
+  // Handle upload-status-changed event
+}
+</script>
+```
+
+
+
+## File Location
+
+`src/components/MessageInput.vue`
+
+---
+
+*This documentation was automatically generated from the component source code.*
