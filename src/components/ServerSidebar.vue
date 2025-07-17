@@ -42,10 +42,10 @@
       :alt="server.name"
       size="md"
       class="server-item"
-      shape="round"
+      :shape="isSelected(server.id) ? 'round' : 'rounded'"
       :interactive="true"
       @click="selectServer"
-      :class="[{ 'selected': server.id === serverChannelStore.currentServerId && !isDMSelected && !isMonyverseSelected }]"
+      :class="[{ 'selected': isSelected(server.id)}]"
     />
   </div>
 </template>
@@ -92,6 +92,10 @@ const isMonyverseSelected = computed(() => {
 const unreadCount = computed(() => {
   return activityPubStore.unreadCount;
 });
+
+const isSelected = (serverId: string) => {
+  return serverId === serverChannelStore.currentServerId && !isDMSelected.value && !isMonyverseSelected.value
+};
 
 // Watchers
 watch(showPublicServers, (value) => {
@@ -270,18 +274,15 @@ const goToMonyverse = () => {
   height: 48px;
   background-color:var(--h-black-light);
   margin: 10px;
-  padding: 4px;
-  border-radius: 50%;
-  text-align:center;
-  vertical-align: middle;
-  background-size: cover;
-  background-position: center;
+  border-radius: 16px;
   cursor:pointer;
   position:relative;
   left:0;
   transition: border 0.6s ease-in-out, all 0.2s ease-in-out;
-  border: 3px solid transparent;
-  background-origin: border-box;
+  /* border: 2px solid transparent; */
+  background-origin: content-box;
+  background-position: center;
+  background-size: cover;
 }
 .portal {
   border-radius: 12px;
@@ -326,7 +327,7 @@ const goToMonyverse = () => {
 .monyverse-button.selected,
 .portal.selected,
 .server-item.selected {
-  border: 3px solid var(--h-primary);
+  border: 2px solid var(--h-primary);
   border-radius: 50%;
 }
 </style>

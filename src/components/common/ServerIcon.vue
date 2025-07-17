@@ -155,7 +155,7 @@ const handleFileSelect = (event: Event) => {
   position: relative;
   display: inline-block;
   flex-shrink: 0;
-  contain: content;
+  /* contain: content; */
 }
 
 .server-container.interactive {
@@ -163,17 +163,8 @@ const handleFileSelect = (event: Event) => {
 }
 
 .server-image {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  /* max-width: 100%; */
-  max-height: calc(100% + 5px);
-  width: auto;
-  height: auto;
-  background: rgba(88, 101, 242, 0.1);
-  display: block;
-  object-fit: cover;
+  width: 100%;
+  height: 100%;
 }
 
 /* Shape variants */
