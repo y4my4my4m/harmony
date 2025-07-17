@@ -8,7 +8,8 @@ import {
   getPrivateKey, 
   getActivityData,
   updateDeliveryStatus,
-  logDeliveryMetrics 
+  logDeliveryMetrics,
+  normalizeActivityUrls
 } from '../common/index.ts'
 
 /**
@@ -26,8 +27,13 @@ export async function deliverActivity(
 
     // Get activity data from ap_activities table
     console.log(`📄 Getting activity data for ${item.activity_id}...`)
-    const activityData = await getActivityData(supabase, item.activity_id)
-    console.log(`✅ Got activity data: type=${activityData.type}, actor=${activityData.actor}`)
+    const rawActivityData = await getActivityData(supabase, item.activity_id)
+    console.log(`✅ Got activity data: type=${rawActivityData.type}, actor=${rawActivityData.actor}`)
+    
+    // Normalize URLs to ensure avatars and banners use optimized public URLs
+    console.log(`🔧 Normalizing activity URLs for federation delivery...`)
+    const activityData = normalizeActivityUrls(supabase, rawActivityData)
+    console.log(`✅ Normalized activity URLs`)
     
     // Get private key for signing
     console.log(`🔑 Getting private key for ${item.actor_username}...`)

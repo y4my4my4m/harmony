@@ -240,6 +240,129 @@ export async function updateDeliveryStatus(
 }
 
 /**
+ * Convert avatar storage path to public URL (federation-compatible)
+ */
+export function getAvatarPublicUrl(supabase: any, avatarPath: string | null | undefined): string | null {
+  // Return null if no path provided
+  if (!avatarPath || typeof avatarPath !== 'string') {
+    return null
+  }
+
+  // If it's already a full URL, return as-is
+  if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+    return avatarPath
+  }
+
+  // If it's a local path (starts with /), return as-is for default avatars
+  if (avatarPath.startsWith('/')) {
+    return avatarPath
+  }
+
+  // If it's a Supabase storage path, construct clean public URL (no transformations for federation compatibility)
+  if (avatarPath.includes('/') && !avatarPath.startsWith('/')) {
+    const supabaseRemoteUrl = 'https://db.mony.lol'
+    return `${supabaseRemoteUrl}/storage/v1/object/public/avatars/${avatarPath}`
+  }
+
+  return null
+}
+
+/**
+ * Convert banner storage path to public URL (federation-compatible)
+ */
+export function getBannerPublicUrl(supabase: any, bannerPath: string | null | undefined): string | null {
+  // Return null if no path provided
+  if (!bannerPath || typeof bannerPath !== 'string') {
+    return null
+  }
+
+  // If it's already a full URL, return as-is
+  if (bannerPath.startsWith('http://') || bannerPath.startsWith('https://')) {
+    return bannerPath
+  }
+
+  // If it's a local path (starts with /), return as-is for default banners
+  if (bannerPath.startsWith('/')) {
+    return bannerPath
+  }
+
+  // If it's a Supabase storage path, construct clean public URL (no transformations for federation compatibility)
+  if (bannerPath.includes('/') && !bannerPath.startsWith('/')) {
+    const supabaseRemoteUrl = 'https://db.mony.lol'
+    return `${supabaseRemoteUrl}/storage/v1/object/public/banners/${bannerPath}`
+  }
+
+  return null
+}
+
+/**
+ * Process ActivityPub activity data to ensure avatar/banner URLs are federation-compatible public URLs
+ */
+export function normalizeActivityUrls(supabase: any, activityData: any): any {
+  if (!activityData || typeof activityData !== 'object') {
+    return activityData
+  }
+
+  // Create a deep copy to avoid mutating the original
+  const normalized = JSON.parse(JSON.stringify(activityData))
+
+  // Handle Update activities with Person objects
+  if (normalized.type === 'Update' && normalized.object && normalized.object.type === 'Person') {
+    const person = normalized.object
+
+    // Process avatar (icon field)
+    if (person.icon && person.icon.url) {
+      const avatarUrl = getAvatarPublicUrl(supabase, person.icon.url)
+      if (avatarUrl) {
+        person.icon.url = avatarUrl
+      } else {
+        // Remove icon if we can't generate a proper URL
+        delete person.icon
+      }
+    }
+
+    // Process banner (image field)
+    if (person.image && person.image.url) {
+      const bannerUrl = getBannerPublicUrl(supabase, person.image.url)
+      if (bannerUrl) {
+        person.image.url = bannerUrl
+      } else {
+        // Remove image if we can't generate a proper URL
+        delete person.image
+      }
+    }
+  }
+
+  // Handle other activity types that might contain profile data
+  // This covers Create/Announce activities that might embed Person objects
+  if (normalized.object && typeof normalized.object === 'object') {
+    if (normalized.object.attributedTo && typeof normalized.object.attributedTo === 'object') {
+      const actor = normalized.object.attributedTo
+      
+      if (actor.icon && actor.icon.url) {
+        const avatarUrl = getAvatarPublicUrl(supabase, actor.icon.url)
+        if (avatarUrl) {
+          actor.icon.url = avatarUrl
+        } else {
+          delete actor.icon
+        }
+      }
+
+      if (actor.image && actor.image.url) {
+        const bannerUrl = getBannerPublicUrl(supabase, actor.image.url)
+        if (bannerUrl) {
+          actor.image.url = bannerUrl
+        } else {
+          delete actor.image
+        }
+      }
+    }
+  }
+
+  return normalized
+}
+
+/**
  * Log delivery metrics to federation_delivery_stats
  */
 export async function logDeliveryMetrics(

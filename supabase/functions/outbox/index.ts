@@ -28,16 +28,18 @@ serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Create Supabase client once for all operations
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const supabase = createClient(supabaseUrl, supabaseKey)
+  const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol'
+
   try {
     const url = new URL(req.url)
     
     // Route: POST /delivery - process federation delivery queue
     if (req.method === 'POST' && url.pathname.endsWith('/delivery')) {
       try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        const supabase = createClient(supabaseUrl, supabaseKey)
-        
         const result = await processDeliveryQueue(supabase)
         
         return new Response(JSON.stringify({
@@ -81,11 +83,6 @@ serve(async (req: Request) => {
         headers: corsHeaders 
       })
     }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseKey)
-    const ourDomain = Deno.env.get('DOMAIN') || 'har.mony.lol'
 
     // Look up user
     const { data: user, error: userError } = await supabase
