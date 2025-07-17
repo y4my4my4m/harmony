@@ -11,6 +11,11 @@ export function getServerIconUrl(serverUrl: string | null | undefined): string {
     return '/default_server.png'
   }
 
+  // If it's a blob URL (from file selection preview), return as-is
+  if (serverUrl.startsWith('blob:')) {
+    return serverUrl
+  }
+
   // If it's already a full URL (starts with http/https), return as-is
   // This handles external URLs and already-processed Supabase URLs
   if (serverUrl.startsWith('http://') || serverUrl.startsWith('https://')) {
@@ -44,6 +49,11 @@ export function getServerIconUrl(serverUrl: string | null | undefined): string {
  */
 export function normalizeServerForStorage(serverUrl: string | null | undefined): string | null {
   if (!serverUrl) return null
+  
+  // Blob URLs should never be stored - they're temporary preview URLs
+  if (serverUrl.startsWith('blob:')) {
+    return null
+  }
   
   // If it's already a path (not a full URL), return as-is
   if (!serverUrl.startsWith('http://') && !serverUrl.startsWith('https://')) {

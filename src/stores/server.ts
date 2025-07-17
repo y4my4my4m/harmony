@@ -18,6 +18,9 @@ export const useServerStore = defineStore('server', {
 
     async updateServer(serverData: Partial<Server>, file?: File): Promise<boolean> {
       try {
+        // Create a copy of serverData to avoid mutating the original
+        const dataToUpdate = { ...serverData }
+        
         if (file && serverData.id) {
           // Define file path
           const ext = file.name.split('.').pop();
@@ -35,14 +38,20 @@ export const useServerStore = defineStore('server', {
           if (uploadError) throw uploadError;
 
           // Update serverData with the new icon URL
-          serverData.icon = filePath;
+          dataToUpdate.icon = filePath;
+        } else if (dataToUpdate.icon && dataToUpdate.icon.startsWith('blob:')) {
+          // If we have a blob URL but no file, remove it (it's just a preview)
+          delete dataToUpdate.icon;
+        } else if (dataToUpdate.icon === '') {
+          // If icon is explicitly set to empty string (removed), ensure it's saved as empty
+          dataToUpdate.icon = '';
         }
 
         // Update server data in database
         const { error } = await supabase
           .from('servers')
-          .upsert(serverData)
-          .eq('id', serverData.id);
+          .upsert(dataToUpdate)
+          .eq('id', dataToUpdate.id);
 
         if (error) throw error;
 

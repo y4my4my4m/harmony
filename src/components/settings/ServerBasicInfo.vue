@@ -13,7 +13,7 @@
         <input
           id="server-name"
           :value="server.name"
-          @input="permissions.canChangeServerName ? updateServerName : null"
+          @input="updateServerName"
           type="text"
           class="form-input"
           :class="{ 'read-only': !permissions.canChangeServerName }"
@@ -32,7 +32,7 @@
         <textarea
           id="server-description"
           :value="server.description"
-          @input="permissions.canChangeServerDescription ? updateServerDescription : null"
+          @input="updateServerDescription"
           class="form-textarea"
           :class="{ 'read-only': !permissions.canChangeServerDescription }"
           placeholder="Tell people what your server is about"
@@ -68,8 +68,8 @@
         <div class="icon-upload-container">
           <div class="current-icon">
             <ServerIcon
-              v-if="server.icon"
-              :src="server.icon"
+              v-if="iconPreviewUrl"
+              :src="iconPreviewUrl"
               alt="Server icon"
               class="server-icon-preview"
             />
@@ -89,7 +89,7 @@
               Upload Image
             </button>
             <button
-              v-if="server.icon"
+              v-if="server.icon || props.selectedFile"
               type="button"
               class="btn btn-danger-outline"
               @click="removeIcon"
@@ -98,7 +98,7 @@
               Remove
             </button>
           </div>
-          <div v-else-if="!server.icon" class="no-icon-info">
+          <div v-else-if="!server.icon && !props.selectedFile" class="no-icon-info">
             <p class="read-only-hint">No server icon set</p>
           </div>
         </div>
@@ -121,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import type { Server } from '@/types'
 import { useNotificationStore } from '@/stores/useNotification'
 import ServerIcon from '@/components/common/ServerIcon.vue'
@@ -154,6 +154,22 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const fileInput = ref<HTMLInputElement>()
+let currentBlobUrl: string | null = null
+
+// Computed property for icon preview - shows selected file preview or current server icon
+const iconPreviewUrl = computed(() => {
+  // Clean up previous blob URL
+  if (currentBlobUrl) {
+    URL.revokeObjectURL(currentBlobUrl)
+    currentBlobUrl = null
+  }
+  
+  if (props.selectedFile) {
+    currentBlobUrl = URL.createObjectURL(props.selectedFile)
+    return currentBlobUrl
+  }
+  return props.server.icon || null
+})
 
 const triggerFileInput = () => {
   if (!props.permissions.canChangeServerIcon) return

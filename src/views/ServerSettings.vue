@@ -253,6 +253,7 @@ const hasChanges = computed(() => {
   return (
     server.value.name !== originalServer.value.name ||
     server.value.description !== originalServer.value.description ||
+    server.value.icon !== originalServer.value.icon ||
     server.value.allow_cross_server_emojis !== originalServer.value.allow_cross_server_emojis ||
     server.value.public !== originalServer.value.public ||
     selectedFile.value !== null
@@ -321,9 +322,8 @@ const fetchEmojis = async () => {
 const handleFileChange = (file: File | null) => {
   if (!permissions.value.canChangeServerIcon) return
   selectedFile.value = file
-  if (file) {
-    server.value.icon = URL.createObjectURL(file)
-  }
+  // Don't modify server.value.icon here - let the component handle the preview
+  // The preview will be handled by ServerBasicInfo component
 }
 
 const handleEmojiUploaded = (newEmoji: Emoji) => {
