@@ -145,3 +145,5 @@ supabase-edge-functions  |
 50. ~~users appear as "Unknown" until their first refresh after creating a new profile, this should be fixed.~~
 
 51. in some places the color picker is only picking up semi-transparent colors, something to do with z-index maybe?
+
+52. the username still appears as "unknown user" in the discover communities if you dont know the server owner

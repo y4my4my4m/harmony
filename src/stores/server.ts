@@ -91,8 +91,8 @@ export const useServerStore = defineStore('server', {
           throw error;
         }
 
-        console.log("Server joined successfully", data);
-        toast.success("Successfully joined the server!");
+        // console.log("Server joined successfully", data);
+        // toast.success("Successfully joined the server!");
         return true;
       } catch (error) {
         console.error('Error joining server:', error);
