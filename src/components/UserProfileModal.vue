@@ -812,14 +812,18 @@ onMounted(() => {
   height: 16px;
   border-radius: 50%;
   border: 3px solid #2b2d31;
+  background: #23a55a; /* Default online status */
+}
+
+.status-indicator.online {
   background: #23a55a;
 }
 
-.status-indicator.idle {
+.status-indicator.away {
   background: #f0b232;
 }
 
-.status-indicator.dnd {
+.status-indicator.busy {
   background: #ed4245;
 }
 

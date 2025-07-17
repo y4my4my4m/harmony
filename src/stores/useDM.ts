@@ -20,6 +20,7 @@ export interface DMUser {
   is_local?: boolean
   federated_id?: string
   handle?: string
+  color?: string // Optional color for UI
 }
 
 export interface DMConversation {

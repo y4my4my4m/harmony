@@ -202,7 +202,7 @@ const authStore = useAuthStore()
 const activityPubStore = useActivityPubStore()
 
 // Professional presence system
-const { getUserStatusForAvatar, isUserOnline } = useUserData()
+const { getPresenceAwareStatus, isUserOnline } = useUserData()
 
 // State
 const isFollowLoading = ref(false)
@@ -259,8 +259,8 @@ const specialBadgeIcon = computed(() => {
 
 const chatUserStatus = computed(() => {
   if (isFederatedUser(props.user)) return undefined
-  // Use clean status system for chat users
-  return getUserStatusForAvatar(props.user.id).value
+  // Use presence-aware status for real-time accuracy
+  return getPresenceAwareStatus(props.user.id).value
 })
 
 const isFollowing = computed(() => {

@@ -92,7 +92,8 @@ export function useUserData() {
   })
   
   /**
-   * Get user status for avatar display
+   * @deprecated Use getPresenceAwareStatus instead - this only shows persistent DB status
+   * Get user status for avatar display (legacy - not presence-aware)
    */
   const getUserStatusForAvatar = (userId: string) => computed(() => {
     forceUpdate.value // Force reactivity

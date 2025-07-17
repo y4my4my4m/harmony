@@ -34,13 +34,13 @@
           </h2>
           <div class="conversation-status">
             <!-- Show federated handle for remote users -->
-            <span v-if="isFederatedUser" class="federated-handle">
+            <span v-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#5865F2' }">
               {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
             </span>
-            <span v-else-if="otherUserStatus !== 'offline'" class="status" :class="otherUserStatus">
+            <span v-else-if="otherUserStatus !== 'offline'" class="status">
               {{ getStatusText(otherUserStatus) }}
             </span>
-            <span v-else class="status offline">
+            <span v-else class="status">
               Last seen {{ formatLastSeen(conversation.other_user?.last_seen) }}
             </span>
           </div>
@@ -319,9 +319,11 @@ const handleMoreClick = () => {
 
 .status {
   font-weight: 500;
+  color: var(--text-secondary);
 }
 
-.status.online {
+/* if you want to color the status text with the status color */
+/* .status.online {
   color: var(--success-color, #3ba55c);
 }
 
@@ -336,6 +338,7 @@ const handleMoreClick = () => {
 .status.offline {
   color: var(--text-secondary);
 }
+*/
 
 .header-actions {
   display: flex;
