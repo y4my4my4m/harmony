@@ -36,7 +36,7 @@
               @mouseover="hoveredEmojiId = emoji.id"
               @mouseleave="hoveredEmojiId = null"
             >
-              <img :src="getEmojiUrl(emoji.url, 24)" :alt="emoji.name" />
+              <img :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" />
             </div>
           </div>
         </div>

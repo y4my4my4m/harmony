@@ -149,3 +149,7 @@ supabase-edge-functions  |
 52. the username still appears as "unknown user" in the discover communities if you dont know the server owner
 
 53. somehow the server thinks the server messages are the person the message it's about (so things like if the person who just joined sends a messages right after the server message, it wont show their avatar because it thinks its not the first message)
+
+54. multi emojis upload fine but the progress bar isnt moving (when multi emojis)
+
+55. emojis dual naming :emoji~1: is broken...

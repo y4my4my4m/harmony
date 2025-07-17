@@ -32,7 +32,7 @@
           <div class="suggest-item-content">
             <img 
               v-if="suggestion.url || suggestion.avatar" 
-              :src="getEmojiUrl(suggestion.url, 48) || suggestion.avatar" 
+              :src="getEmojiUrl(suggestion.url, 64) || suggestion.avatar" 
               :alt="suggestion.name || suggestion.display_name"
               class="suggest-icon"
             />
@@ -79,7 +79,7 @@
           v-else-if="part && typeof part === 'object' && part.type === 'emoji'"
           class="emoji-icon"
           :class="{ 'single': isSingleEmoji }"
-          :src="getEmojiUrl(part.emoji.url, 48)"
+          :src="getEmojiUrl(part.emoji.url, 96)"
           :alt="part.emoji.name"
           :title="`:${part.emoji.name}:`"
           draggable="false"
