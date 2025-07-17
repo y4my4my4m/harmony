@@ -147,3 +147,5 @@ supabase-edge-functions  |
 51. in some places the color picker is only picking up semi-transparent colors, something to do with z-index maybe?
 
 52. the username still appears as "unknown user" in the discover communities if you dont know the server owner
+
+53. somehow the server thinks the server messages are the person the message it's about (so things like if the person who just joined sends a messages right after the server message, it wont show their avatar because it thinks its not the first message)
