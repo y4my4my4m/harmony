@@ -531,6 +531,33 @@ const createProfile = async () => {
       }
     }
 
+    // Update userDataService with the new profile data to prevent "Unknown" user display
+    try {
+      const { useUserData } = await import('@/composables/useUserData');
+      const userData = useUserData();
+      
+      // Force refresh the user profile from database to get the latest data
+      await userData.fetchUserProfile(authStore.session.user.id, true);
+      
+      // Re-initialize userDataService with the new profile data to ensure proper state
+      await userData.initialize(
+        authStore.session.user.id,
+        username.value,
+        avatarFile.value ? undefined : '/default_avatar.png'
+      );
+      
+      // Also update with the current form data to ensure immediate UI updates
+      await userData.updateCurrentUserProfile({
+        displayName: displayName.value.trim(),
+        bio: bio.value.trim() || undefined,
+        color: selectedColor.value
+      });
+      
+      console.log('✅ UserDataService updated and re-initialized with new profile data');
+    } catch (updateError) {
+      console.warn('⚠️ Failed to update userDataService, but profile was created successfully:', updateError);
+    }
+
     toast.success('Welcome to Harmony! Your profile has been created.');
     console.log('Navigating to /chat...');
     await router.push('/chat');

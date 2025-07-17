@@ -141,3 +141,7 @@ supabase-edge-functions  |
 48. improve the richtexteditor
 
 49. fix the autosuggestion focus on the input, it's not working properly
+
+50. ~~users appear as "Unknown" until their first refresh after creating a new profile, this should be fixed.~~
+
+51. in some places the color picker is only picking up semi-transparent colors, something to do with z-index maybe?
