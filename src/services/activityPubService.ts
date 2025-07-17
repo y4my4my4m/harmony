@@ -55,6 +55,9 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID (cached from userDataService)
+    const profileId = await this.getCurrentUserProfileId();
+
     // Validate and normalize content format
     let normalizedContent = postData.content;
     if (!Array.isArray(normalizedContent)) {
@@ -63,7 +66,7 @@ export class ActivityPubService {
     }
 
     const post = {
-      author_id: user.id,
+      author_id: profileId,
       content: normalizedContent,
       visibility: postData.visibility,
       content_warning: postData.content_warning,
@@ -900,11 +903,14 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     // Check if we already have a reblog interaction for this post
     const { data: existingInteraction } = await supabase
       .from('post_interactions')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .eq('post_id', postId)
       .eq('interaction_type', 'reblog')
       .maybeSingle();
@@ -920,7 +926,7 @@ export class ActivityPubService {
       const { data: reblogPost } = await supabase
         .from('posts')
         .select('id')
-        .eq('author_id', user.id)
+        .eq('author_id', profileId)
         .eq('metadata->>reblog_of', postId)
         .maybeSingle();
 
@@ -936,7 +942,7 @@ export class ActivityPubService {
       await supabase
         .from('post_interactions')
         .insert({
-          user_id: user.id,
+          user_id: profileId,
           post_id: postId,
           interaction_type: 'reblog',
           is_local: true,
@@ -959,6 +965,9 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     // Get the original post to reblog
     const { data: originalPost, error: postError } = await supabase
       .from('timeline_posts')
@@ -972,7 +981,7 @@ export class ActivityPubService {
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
     
     const reblogPost = {
-      author_id: user.id,
+      author_id: profileId,
       content: originalPost.content,
       visibility: originalPost.visibility,
       is_local: true,
@@ -1027,6 +1036,9 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     const { error } = await supabase
       .from('posts')
       .update({ 
@@ -1034,7 +1046,7 @@ export class ActivityPubService {
         deleted_at: new Date().toISOString() 
       })
       .eq('id', reblogPostId)
-      .eq('author_id', user.id);
+      .eq('author_id', profileId);
 
     if (error) throw error;
   }
@@ -1046,11 +1058,14 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     // Check if already bookmarked
     const { data: existing } = await supabase
       .from('post_interactions')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .eq('post_id', postId)
       .eq('interaction_type', 'bookmark')
       .single();
@@ -1073,10 +1088,13 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
     
     const interaction = {
-      user_id: user.id,
+      user_id: profileId,
       post_id: postId,
       interaction_type: 'bookmark' as const,
       ap_id: ap_id,
@@ -1107,10 +1125,13 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     const { error } = await supabase
       .from('post_interactions')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .eq('post_id', postId)
       .eq('interaction_type', 'bookmark');
 
@@ -1493,6 +1514,36 @@ export class ActivityPubService {
   // =============================================
 
   /**
+   * Get the user's profile ID from their auth user ID
+   * Uses cached data from userDataService for efficiency
+   */
+  private async getCurrentUserProfileId(): Promise<string> {
+    // First try to get from userDataService cache
+    const { userDataService } = await import('@/services/userDataService');
+    const currentUser = userDataService.getCurrentUser();
+    
+    if (currentUser?.id) {
+      return currentUser.id;
+    }
+    
+    // Fallback to database query only if cache miss
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+    
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (error || !profile) {
+      throw new Error('User profile not found');
+    }
+
+    return profile.id;
+  }
+
+  /**
    * Format user handle consistently
    */
   formatUserHandle(username: string, domain: string): string {
@@ -1627,10 +1678,13 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { is_favorited: false, is_reblogged: false, is_bookmarked: false };
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     const { data: interactions } = await supabase
       .from('post_interactions')
       .select('interaction_type')
-      .eq('user_id', user.id)
+      .eq('user_id', profileId)
       .eq('post_id', postId);
 
     const state = {
@@ -1664,12 +1718,15 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     // Get original post to verify ownership
     const { data: originalPost, error: fetchError } = await supabase
       .from('posts')
       .select('*')
       .eq('id', postId)
-      .eq('author_id', user.id)
+      .eq('author_id', profileId)
       .single();
 
     if (fetchError || !originalPost) {
@@ -1731,6 +1788,9 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     // Update follow status
     const { data: follow, error } = await supabase
       .from('follows')
@@ -1739,7 +1799,7 @@ export class ActivityPubService {
         accepted_at: new Date().toISOString()
       })
       .eq('id', followId)
-      .eq('following_id', user.id)
+      .eq('following_id', profileId)
       .eq('status', 'pending')
       .select()
       .single();
@@ -1776,12 +1836,15 @@ export class ActivityPubService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
     // Update follow status
     const { data: follow, error } = await supabase
       .from('follows')
       .update({ status: 'rejected' })
       .eq('id', followId)
-      .eq('following_id', user.id)
+      .eq('following_id', profileId)
       .eq('status', 'pending')
       .select()
       .single();

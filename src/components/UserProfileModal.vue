@@ -303,6 +303,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'  
 import { useUserData } from '@/composables/useUserData'
+import { getBannerUrl } from '@/utils/bannerUtils'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import type { User, FederatedUser } from '../types'
@@ -408,8 +409,10 @@ const bannerUrl = computed(() => {
 const bannerStyle = computed(() => {
   const banner = bannerUrl.value
   if (banner) {
+    // Get optimized banner URL with proper resize (640x350 at 80% quality)
+    const optimizedBanner = getBannerUrl(banner, { width: 640, height: 350, quality: 80 })
     return {
-      backgroundImage: `url(${banner})`,
+      backgroundImage: `url(${optimizedBanner || banner})`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat'

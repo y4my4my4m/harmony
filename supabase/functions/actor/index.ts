@@ -128,25 +128,25 @@ serve(async (req: Request) => {
     const baseUrl = `https://${ourDomain}`
     const actorId = `${baseUrl}/users/${username}`
     
-    // Helper function to get proper avatar URL
-    const getProperAvatarUrl = (avatarUrl: string | null | undefined): string | undefined => {
-      if (!avatarUrl || typeof avatarUrl !== 'string') {
+    // Helper function to get proper URL for assets (avatars, banners, etc.)
+    const getProperUrl = (assetUrl: string | null | undefined, bucketName: string): string | undefined => {
+      if (!assetUrl || typeof assetUrl !== 'string') {
         return undefined
       }
 
       // If it's already a full URL, return as-is
-      if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
-        return avatarUrl
+      if (assetUrl.startsWith('http://') || assetUrl.startsWith('https://')) {
+        return assetUrl
       }
 
       // If it's a Supabase storage path, construct proper public URL
-      if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
-        return `${supabaseRemoteUrl}/storage/v1/object/public/avatars/${avatarUrl}`
+      if (assetUrl.includes('/') && !assetUrl.startsWith('/')) {
+        return `${supabaseRemoteUrl}/storage/v1/object/public/${bucketName}/${assetUrl}`
       }
 
       // If it's a local path, convert to full URL
-      if (avatarUrl.startsWith('/')) {
-        return `${baseUrl}${avatarUrl}`
+      if (assetUrl.startsWith('/')) {
+        return `${baseUrl}${assetUrl}`
       }
 
       return undefined
@@ -172,8 +172,8 @@ serve(async (req: Request) => {
       }
     }
     
-    const avatarUrl = getProperAvatarUrl(user.avatar_url)
-    const bannerUrl = getProperAvatarUrl(user.banner_url) // Reuse the same URL processing logic
+    const avatarUrl = getProperUrl(user.avatar_url, 'avatars')
+    const bannerUrl = getProperUrl(user.banner_url, 'banners')
     
     const actor: ActivityPubActor = {
       '@context': [
