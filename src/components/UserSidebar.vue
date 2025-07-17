@@ -408,12 +408,18 @@ const fetchAndSetUsers = async (serverId: string | null) => {
   console.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
   
   if (serverId) {
-    const userIds = await getUserIdsForServer(serverId);
+    // Check if context is already subscribed (global presence may have already done this)
+    const users = getUsersInContext(serverId).value;
     
-    // Subscribe to context using new system
+    if (users.length > 0) {
+      console.log(`📋 Server context already initialized: ${serverId} (${users.length} members) - using existing subscription`);
+      return;
+    }
+    
+    // Context not initialized, subscribe to it
+    const userIds = await getUserIdsForServer(serverId);
     await subscribeToContext(serverId, 'server', userIds);
     console.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
-    console.log(`🎯 User Data system handles all user loading and presence tracking automatically`);
   }
 };
 

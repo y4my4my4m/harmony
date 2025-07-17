@@ -37,8 +37,8 @@
             <span v-if="isFederatedUser" class="federated-handle">
               {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
             </span>
-            <span v-else-if="isOtherUserOnline" class="status online">
-              Online
+            <span v-else-if="otherUserStatus !== 'offline'" class="status" :class="otherUserStatus">
+              {{ getStatusText(otherUserStatus) }}
             </span>
             <span v-else class="status offline">
               Last seen {{ formatLastSeen(conversation.other_user?.last_seen) }}
@@ -83,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import { useUserData } from '@/composables/useUserData'
@@ -106,21 +106,95 @@ const emit = defineEmits<{
 }>()
 
 // Use clean status system
-const { isUserOnline, getUserStatusForAvatar, getUserDisplayName } = useUserData()
+const { 
+  getUserDisplayName,
+  subscribeToProfilePresence,
+  unsubscribeFromProfilePresence,
+  getPresenceAwareStatus
+} = useUserData()
 
 // State
 const showSearchModal = ref(false)
 const showOptionsMenu = ref(false)
+const presenceInitialized = ref(false)
 
-// Computed
-const isOtherUserOnline = computed(() => {
-  if (!props.conversation.other_user?.id) return false
-  return isUserOnline(props.conversation.other_user.id).value
+// Professional presence management for DM header
+// Always ensure the conversation partner is tracked for presence
+let profileContextId: string | null = null
+
+const initializePresenceTracking = async () => {
+  if (props.conversation.other_user?.id && !profileContextId) {
+    try {
+      const userId = props.conversation.other_user.id
+      
+      // Always subscribe to profile presence to ensure real-time updates
+      // The userDataService will handle deduplication if user is already tracked globally
+      profileContextId = await subscribeToProfilePresence(userId)
+      presenceInitialized.value = true
+      console.log(`🗨️ DMHeader: Tracking presence for user ${userId}`)
+    } catch (error) {
+      console.error('Failed to subscribe to profile presence:', error)
+    }
+  }
+}
+
+const cleanupPresenceTracking = async () => {
+  if (props.conversation.other_user?.id && profileContextId) {
+    try {
+      await unsubscribeFromProfilePresence(props.conversation.other_user.id)
+      profileContextId = null
+      presenceInitialized.value = false
+      console.log(`🗨️ DMHeader: Stopped tracking presence for user ${props.conversation.other_user.id}`)
+    } catch (error) {
+      console.error('Failed to unsubscribe from profile presence:', error)
+    }
+  }
+}
+
+// Initialize presence tracking when component loads
+onMounted(() => {
+  initializePresenceTracking()
 })
 
+// Watch for conversation changes to update presence tracking
+watch(
+  () => props.conversation.other_user?.id,
+  async (newUserId, oldUserId) => {
+    if (newUserId !== oldUserId) {
+      console.log(`🔄 DMHeader: Conversation changed from ${oldUserId} to ${newUserId}`)
+      // Clean up old tracking
+      await cleanupPresenceTracking()
+      // Initialize new tracking
+      if (newUserId) {
+        await initializePresenceTracking()
+      }
+    }
+  },
+  { immediate: true } // Initialize immediately when component is created
+)
+
+// Cleanup when component unmounts
+onUnmounted(() => {
+  cleanupPresenceTracking()
+})
+
+// Computed
 const otherUserStatus = computed(() => {
   if (!props.conversation.other_user?.id) return 'offline'
-  return getUserStatusForAvatar(props.conversation.other_user.id).value
+  
+  // Use presence-aware status for real-time accuracy
+  const status = getPresenceAwareStatus(props.conversation.other_user.id).value
+  
+  // Debug logging to help identify issues
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🔍 DMHeader status for ${props.conversation.other_user.id}:`, {
+      status,
+      presenceInitialized: presenceInitialized.value,
+      profileContextId: profileContextId
+    })
+  }
+  
+  return status
 })
 
 const isFederatedUser = computed(() => {
@@ -128,6 +202,20 @@ const isFederatedUser = computed(() => {
 })
 
 // Methods
+const getStatusText = (status: string): string => {
+  switch (status) {
+    case 'online':
+      return 'Online'
+    case 'away':
+      return 'Away'
+    case 'busy':
+      return 'Do Not Disturb'
+    case 'offline':
+    default:
+      return 'Offline'
+  }
+}
+
 const formatLastSeen = (lastSeen?: string): string => {
   if (!lastSeen) return 'some time ago'
   
@@ -235,6 +323,14 @@ const handleMoreClick = () => {
 
 .status.online {
   color: var(--success-color, #3ba55c);
+}
+
+.status.away {
+  color: var(--warning-color, #faa61a);
+}
+
+.status.busy {
+  color: var(--danger-color, #ed4245);
 }
 
 .status.offline {

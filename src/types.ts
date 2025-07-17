@@ -102,7 +102,7 @@ export interface UserData {
 
 export interface UserContext {
   id: string
-  type: 'server' | 'dm' | 'global'
+  type: 'server' | 'dm' | 'global' | 'profile' | 'friends'
   userIds: Set<string>
   channel?: RealtimeChannel
   lastSync: Date

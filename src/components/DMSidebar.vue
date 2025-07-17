@@ -149,7 +149,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
 import type { Message, MessagePart } from '@/types'
@@ -162,7 +162,14 @@ const emit = defineEmits<{
 const dmStore = useDMStore()
 
 // Use professional presence system
-const { getUserStatusForAvatar, getUserDisplayName, getUserAvatarUrl, getCurrentUser } = useUserData()
+const { 
+  getUserDisplayName, 
+  getUserAvatarUrl, 
+  getCurrentUser,
+  subscribeToDMPresence,
+  updateDMPresence,
+  getPresenceAwareStatus
+} = useUserData()
 
 // State
 const showUserSearch = ref(false)
@@ -172,10 +179,10 @@ const searchTimeout = ref<NodeJS.Timeout | null>(null)
 // Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
 
-// Get user status for avatar display
+// Get user status for avatar display (presence-aware)
 const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
   try {
-    const status = getUserStatusForAvatar(userId).value;
+    const status = getPresenceAwareStatus(userId).value;
     console.log('DMSidebar - Status for user', userId, ':', status);
     return status;
   } catch (error) {
@@ -290,11 +297,26 @@ const getMessagePreviewText = (message: Message): string => {
 }
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
   const currentUser = getCurrentUser.value
   if (currentUser?.id) {
     // Use the enhanced initialization that ensures user profiles are loaded
-    dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id)
+    await dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id)
+    
+    // Professional DM presence management
+    // Get all conversation partner IDs and subscribe to their presence
+    const conversationUserIds = sortedConversations.value
+      .map(conv => conv.other_user?.id)
+      .filter((id): id is string => !!id)
+    
+    if (conversationUserIds.length > 0) {
+      try {
+        await subscribeToDMPresence(conversationUserIds)
+        console.log(`🗨️ DMSidebar: Tracking presence for ${conversationUserIds.length} conversation partners`)
+      } catch (error) {
+        console.error('Failed to subscribe to DM presence:', error)
+      }
+    }
   }
 })
 
@@ -303,6 +325,22 @@ onUnmounted(() => {
     clearTimeout(searchTimeout.value)
   }
 })
+
+// Watch for conversation changes and update DM presence
+watch(sortedConversations, async (newConversations) => {
+  const conversationUserIds = newConversations
+    .map(conv => conv.other_user?.id)
+    .filter((id): id is string => !!id)
+  
+  if (conversationUserIds.length > 0) {
+    try {
+      await updateDMPresence(conversationUserIds)
+      console.log(`🗨️ DMSidebar: Updated presence tracking for ${conversationUserIds.length} conversation partners`)
+    } catch (error) {
+      console.error('Failed to update DM presence:', error)
+    }
+  }
+}, { deep: true })
 </script>
 
 <style scoped>

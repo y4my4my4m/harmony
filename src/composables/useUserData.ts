@@ -5,7 +5,7 @@
  * Provides reactive user data without the complexity of the old system.
  */
 
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref } from 'vue'
 import { userDataService } from '@/services/userDataService'
 import { UserStatus } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
@@ -13,9 +13,6 @@ import { getAvatarUrl } from '@/utils/avatarUtils'
 export function useUserData() {
   const isInitialized = ref(false)
   const forceUpdate = ref(0)
-  
-  // Event listener references
-  let eventListeners: Array<{ type: string; listener: EventListener }> = []
   
   // Force reactivity by updating the counter
   const triggerUpdate = () => {
@@ -35,16 +32,6 @@ export function useUserData() {
     listeners.forEach(({ type, listener }) => {
       userDataService.addEventListener(type, listener)
     })
-    
-    eventListeners = listeners
-  }
-  
-  // Cleanup event listeners
-  const cleanupEventListeners = () => {
-    eventListeners.forEach(({ type, listener }) => {
-      userDataService.removeEventListener(type, listener)
-    })
-    eventListeners = []
   }
   
   // Initialize if not already done
@@ -287,7 +274,7 @@ export function useUserData() {
   /**
    * Subscribe to a context
    */
-  const subscribeToContext = async (contextId: string, type: 'server' | 'dm', userIds: string[]) => {
+  const subscribeToContext = async (contextId: string, type: 'server' | 'dm' | 'profile' | 'friends', userIds: string[]) => {
     await ensureInitialized()
     await userDataService.subscribeToContext(contextId, type, userIds)
   }
@@ -359,6 +346,167 @@ export function useUserData() {
     return userDataService.getAllUsers()
   })
 
+  /**
+   * Context-Aware Presence Management
+   * Professional approach: Only track users we actually need to see
+   */
+  
+  /**
+   * Subscribe to DM presence context
+   * Tracks users we have active conversations with
+   */
+  const subscribeToDMPresence = async (conversationUserIds: string[]) => {
+    await ensureInitialized()
+    
+    // Create DM context with unique ID
+    const contextId = 'dm-conversations'
+    await userDataService.subscribeToContext(contextId, 'dm', conversationUserIds)
+    
+    console.log(`🗨️ DM Presence: Tracking ${conversationUserIds.length} conversation partners`)
+    return contextId
+  }
+  
+  /**
+   * Subscribe to profile presence context  
+   * Tracks a single user when viewing their profile
+   */
+  const subscribeToProfilePresence = async (userId: string) => {
+    await ensureInitialized()
+    
+    // Create profile context with user-specific ID
+    const contextId = `profile-${userId}`
+    await userDataService.subscribeToContext(contextId, 'profile', [userId])
+    
+    console.log(`👤 Profile Presence: Tracking user ${userId}`)
+    return contextId
+  }
+  
+  /**
+   * Subscribe to friends presence context
+   * Tracks users on our friends list
+   */
+  const subscribeToFriendsPresence = async (friendUserIds: string[]) => {
+    await ensureInitialized()
+    
+    // Create friends context
+    const contextId = 'friends-list'
+    await userDataService.subscribeToContext(contextId, 'friends', friendUserIds)
+    
+    console.log(`👥 Friends Presence: Tracking ${friendUserIds.length} friends`)
+    return contextId
+  }
+  
+  /**
+   * Get presence-aware status for avatar (replaces getUserStatusForAvatar)
+   * Uses real-time presence if available, falls back to database status
+   */
+  const getPresenceAwareStatus = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    
+    console.log(`🔍 getPresenceAwareStatus for ${userId}:`, {
+      user: user ? 'found' : 'not found',
+      isOnline: user?.isOnline,
+      status: user?.status ? UserStatus[user.status] : 'undefined'
+    })
+    
+    if (!user) return 'offline'
+    
+    // Check if user is actually present in real-time
+    const isPresent = user.isOnline || false
+    
+    if (!isPresent) {
+      // User is not present - always show as offline
+      console.log(`🔍 User ${userId} not present, showing offline`)
+      return 'offline'
+    }
+    
+    // User is present - return their preferred status
+    console.log(`🔍 User ${userId} present with status:`, UserStatus[user.status])
+    switch (user.status) {
+      case UserStatus.Online:
+        return 'online'
+      case UserStatus.Away:
+        return 'away'
+      case UserStatus.Busy:
+        return 'busy'
+      default:
+        // Present but status unknown - show as online
+        return 'online'
+    }
+  })
+
+  /**
+   * Context Management Utilities
+   * Professional methods for managing presence subscriptions
+   */
+  
+  /**
+   * Unsubscribe from specific profile presence
+   */
+  const unsubscribeFromProfilePresence = async (userId: string) => {
+    const contextId = `profile-${userId}`
+    await unsubscribeFromContext(contextId)
+    console.log(`👤 Profile Presence: Stopped tracking user ${userId}`)
+  }
+  
+  /**
+   * Update DM conversations presence
+   * Call this when DM list changes (new conversations, removed conversations)
+   */
+  const updateDMPresence = async (conversationUserIds: string[]) => {
+    // Unsubscribe from old DM context
+    await unsubscribeFromContext('dm-conversations')
+    
+    // Subscribe to new DM context if there are conversations
+    if (conversationUserIds.length > 0) {
+      return await subscribeToDMPresence(conversationUserIds)
+    }
+    
+    console.log(`🗨️ DM Presence: No active conversations to track`)
+    return null
+  }
+  
+  /**
+   * Update friends list presence
+   * Call this when friends list changes
+   */
+  const updateFriendsPresence = async (friendUserIds: string[]) => {
+    // Unsubscribe from old friends context
+    await unsubscribeFromContext('friends-list')
+    
+    // Subscribe to new friends context if there are friends
+    if (friendUserIds.length > 0) {
+      return await subscribeToFriendsPresence(friendUserIds)
+    }
+    
+    console.log(`👥 Friends Presence: No friends to track`)
+    return null
+  }
+  
+  /**
+   * Get active contexts (for debugging)
+   */
+  const getActiveContexts = computed(() => {
+    forceUpdate.value // Force reactivity
+    return userDataService.getStats().contexts || 0
+  })
+  
+  /**
+   * Get presence statistics (for debugging and monitoring)
+   */
+  const getPresenceStats = computed(() => {
+    forceUpdate.value // Force reactivity
+    const stats = userDataService.getStats()
+    return {
+      totalUsers: stats.totalUsers,
+      onlineUsers: stats.onlineUsers,
+      activeContexts: stats.contexts,
+      initialized: stats.initialized,
+      globalChannelConnected: stats.globalChannelConnected
+    }
+  })
+
   // // Lifecycle
   // onMounted(async () => {
   //   await ensureInitialized()
@@ -411,6 +559,21 @@ export function useUserData() {
     ensureProfilesAvailable,
     
     // State
-    isInitialized
+    isInitialized,
+    
+    // Presence Management
+    subscribeToDMPresence,
+    subscribeToProfilePresence,
+    subscribeToFriendsPresence,
+    getPresenceAwareStatus,
+    
+    // Context Management
+    unsubscribeFromProfilePresence,
+    updateDMPresence,
+    updateFriendsPresence,
+    
+    // Debugging
+    getActiveContexts,
+    getPresenceStats
   }
 }

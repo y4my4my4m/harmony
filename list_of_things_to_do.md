@@ -131,3 +131,13 @@ supabase-edge-functions  |
 43. should federation_delivery_queue have a "federation_type" column to indicate if it's a post, follow, like, etc. so that we can filter and handle them accordingly?
 
 44. clean console.logs in edge-functions, add debug environment variable to enable/disable them
+
+45. editing removes mentions
+
+46. fix mention parsing in posts, it's kinda broken for receiving messages
+
+47. fix mention parsing in incoming DMs, it's adding two mentions but it shouldn't.
+
+48. improve the richtexteditor
+
+49. fix the autosuggestion focus on the input, it's not working properly

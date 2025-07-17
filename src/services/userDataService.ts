@@ -302,6 +302,14 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
+    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION
+    // If user has set status to Offline (0), they should be invisible to others
+    // Don't track global presence at all
+    if (userData.status === UserStatus.Offline) {
+      console.log(`👻 User ${this.currentUserId} is invisible (status: Offline) - not tracking global presence`)
+      return
+    }
+    
     // Just maintain basic connectivity, detailed presence handled by context channels
     await this.globalChannel.track({
       user_id: this.currentUserId,
@@ -391,9 +399,9 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Subscribe to a context (server, DM)
+   * Subscribe to a context (server, DM, profile, friends)
    */
-  async subscribeToContext(contextId: string, type: 'server' | 'dm', userIds: string[]): Promise<void> {
+  async subscribeToContext(contextId: string, type: 'server' | 'dm' | 'profile' | 'friends', userIds: string[]): Promise<void> {
     // Check if already subscribed to this context
     if (this.contexts.has(contextId)) {
       console.log(`⚠️ Already subscribed to ${type} context:`, contextId, '- skipping duplicate subscription')
@@ -508,6 +516,14 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
+    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION
+    // If user has set status to Offline (0), they should be invisible to others
+    // Don't track presence at all - this is the cleanest approach
+    if (userData.status === UserStatus.Offline) {
+      console.log(`👻 User ${this.currentUserId} is invisible (status: Offline) - not tracking presence in server ${serverId}`)
+      return
+    }
+    
     await channel.track({
       user_id: this.currentUserId,
       username: userData.username,
@@ -518,6 +534,8 @@ class UserDataService extends EventTarget {
       server_id: serverId,
       online_at: new Date().toISOString()
     })
+    
+    console.log(`✅ User ${this.currentUserId} presence tracked in server ${serverId} with status: ${UserStatus[userData.status]}`)
   }
   
   /**
@@ -959,7 +977,23 @@ class UserDataService extends EventTarget {
    * Update status in context-specific presence channels only
    */
   private async updatePresenceStatus(status: UserStatus): Promise<void> {
-    // Only update context-specific presence channels (servers, DMs)
+    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION
+    // If user sets status to Offline (0), they should become invisible to others
+    if (status === UserStatus.Offline) {
+      console.log(`👻 User going invisible - untracking from all presence channels`)
+      await this.untrackFromAllPresenceChannels()
+      return
+    }
+    
+    // User is setting a visible status - ensure they're tracked in all relevant contexts
+    console.log(`🌟 User becoming visible with status: ${UserStatus[status]}`)
+    
+    // Track in global presence if available
+    if (this.globalChannel) {
+      await this.trackCurrentUser()
+    }
+    
+    // Track in all context-specific presence channels (servers, DMs)
     for (const context of this.contexts.values()) {
       if (context.channel && context.userIds.has(this.currentUserId!)) {
         const userData = this.users.get(this.currentUserId!)
@@ -974,6 +1008,7 @@ class UserDataService extends EventTarget {
             server_id: context.id,
             online_at: new Date().toISOString()
           })
+          console.log(`🌟 Tracking in ${context.type} context: ${context.id}`)
         }
       }
     }
@@ -1245,6 +1280,37 @@ class UserDataService extends EventTarget {
     const offline = users.filter(user => !user.isOnline)
     
     return { online, offline }
+  }
+  
+  /**
+   * Untrack current user from all presence channels (for invisible status)
+   */
+  private async untrackFromAllPresenceChannels(): Promise<void> {
+    if (!this.currentUserId) return
+    
+    // Untrack from global presence
+    if (this.globalChannel) {
+      try {
+        await this.globalChannel.untrack()
+        console.log('👻 Untracked from global presence channel')
+      } catch (error) {
+        console.warn('⚠️ Failed to untrack from global presence:', error)
+      }
+    }
+    
+    // Untrack from all context channels
+    for (const context of this.contexts.values()) {
+      if (context.channel) {
+        try {
+          await context.channel.untrack()
+          console.log(`👻 Untracked from ${context.type} context: ${context.id}`)
+        } catch (error) {
+          console.warn(`⚠️ Failed to untrack from ${context.type} context ${context.id}:`, error)
+        }
+      }
+    }
+    
+    console.log('👻 User is now invisible to all other users')
   }
 }
 

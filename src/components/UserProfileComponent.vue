@@ -4,7 +4,7 @@
       <Avatar 
         :src="getUserAvatarUrlCurrent"
         size="md"
-        :status="currentUser.id ? getUserStatusForAvatar(currentUser.id).value : 'offline'"
+        :status="currentStatusForAvatar"
       />
     </div>
     <div class="user-info">
@@ -93,11 +93,24 @@ const props = defineProps<{
 const { 
   getCurrentUser,
   getCurrentUserStatus,
-  getUserStatusForAvatar,
   getUserAvatarUrlCurrent,
   updateCurrentUserStatus,
   getStats
 } = useUserData()
+
+// Add a local reactive status for immediate UI updates
+const localStatus = ref<UserStatus>(UserStatus.Offline)
+
+// Initialize local status from unified system
+const initializeLocalStatus = async () => {
+  try {
+    localStatus.value = getCurrentUserStatus.value
+    console.log('🎬 UserProfileComponent - initialized local status:', UserStatus[localStatus.value])
+  } catch (error) {
+    console.error('Error initializing local status:', error)
+    localStatus.value = UserStatus.Offline
+  }
+}
 
 // Reactive current user from unified system - this will update in real-time
 const currentUser = computed(() => {
@@ -107,13 +120,13 @@ const currentUser = computed(() => {
   }
   return user
 })
-// Get current status reactively from the unified system
+// Get current status reactively - use local status for immediate updates
 const currentStatus = computed(() => {
   try {
-    // Always use the unified system as source of truth
-    const unifiedStatus = getCurrentUserStatus.value
-    console.log('UserProfileComponent - Current status from unified system:', UserStatus[unifiedStatus])
-    return unifiedStatus
+    // Use local status for immediate UI responsiveness
+    const status = localStatus.value
+    console.log('UserProfileComponent - Current status from local state:', UserStatus[status])
+    return status
     
   } catch (error) {
     console.error('Error getting current user status:', error)
@@ -134,6 +147,22 @@ const currentStatusDisplay = computed(() => {
     case UserStatus.Offline:
     default:
       return { class: 'status-offline', text: 'Offline' }
+  }
+})
+
+// Status for avatar display (current user's actual status)
+const currentStatusForAvatar = computed(() => {
+  const status = currentStatus.value
+  switch (status) {
+    case UserStatus.Online:
+      return 'online'
+    case UserStatus.Away:
+      return 'away'
+    case UserStatus.Busy:
+      return 'busy'
+    case UserStatus.Offline:
+    default:
+      return 'offline'
   }
 })
 
@@ -187,21 +216,27 @@ const toggleStatusDropdown = () => {
 
 const selectStatus = async (status: UserStatus) => {
   console.log('🔄 Attempting to change status to:', UserStatus[status])
-  console.log('🔄 Current status before change:', UserStatus[currentStatus.value])
+  console.log('🔄 Current local status before change:', UserStatus[localStatus.value])
   
   try {
-    // Update via unified user data system - clean and simple
+    // Update local status immediately for instant UI feedback
+    localStatus.value = status
+    console.log('✅ Local status updated immediately to:', UserStatus[status])
+    
+    // Update via unified user data system in background
     await updateCurrentUserStatus(status)
-    
-    console.log('✅ Status updated successfully to:', UserStatus[status])
-    
-    // Verify the update
-    const newStatus = getCurrentUserStatus.value
-    console.log('✅ Verified new status from unified system:', UserStatus[newStatus])
+    console.log('✅ Backend status updated successfully to:', UserStatus[status])
     
   } catch (error) {
     console.error('❌ Failed to change status:', error)
-    // Note: Removed legacy fallback - useUserData system is the single source of truth
+    
+    // Revert local status on error
+    try {
+      localStatus.value = getCurrentUserStatus.value
+      console.log('🔄 Reverted local status due to error')
+    } catch (revertError) {
+      console.error('Failed to revert status:', revertError)
+    }
   } finally {
     showStatusDropdown.value = false
   }
@@ -231,6 +266,9 @@ const handleAvatarClick = () => {
 }
 
 onMounted(async () => {
+  // Initialize local status for immediate UI updates
+  await initializeLocalStatus()
+  
   // 🎯 Component now uses ONLY useUserData for real-time profile updates
   // All profile changes (avatar, display name, status, etc.) are handled reactively
   // via the unified user data system - no auth store dependency needed!

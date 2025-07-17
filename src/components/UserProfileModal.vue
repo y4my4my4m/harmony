@@ -298,7 +298,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'  
@@ -323,12 +323,14 @@ const activityPubStore = useActivityPubStore()
 
 // Use professional presence system
 const { 
-  getUserStatusForAvatar, 
   getUserStatusText,
   getUserDisplayName,
   getUserAvatarUrl,
   getUserColor,
-  getUserBannerUrl
+  getUserBannerUrl,
+  subscribeToProfilePresence,
+  unsubscribeFromProfilePresence,
+  getPresenceAwareStatus
 } = useUserData()
 
 // Reactive state
@@ -375,8 +377,8 @@ const socialStats = computed(() => {
 
 const userStatus = computed(() => {
   if (!props.user) return 'offline'
-  // Use clean status system
-  const status = getUserStatusForAvatar(props.user.id).value
+  // Use presence-aware status for real-time accuracy
+  const status = getPresenceAwareStatus(props.user.id).value
   return status || 'offline'
 })
 
@@ -600,6 +602,49 @@ const loadUserNote = () => {
   const notes = JSON.parse(localStorage.getItem('userNotes') || '{}')
   userNote.value = notes[props.user.id] || ''
 }
+
+// Professional presence management for profile modal
+let profileContextId: string | null = null
+
+const initializeProfilePresence = async () => {
+  if (props.user?.id && props.show && !profileContextId) {
+    try {
+      profileContextId = await subscribeToProfilePresence(props.user.id)
+      console.log(`👤 ProfileModal: Tracking presence for user ${props.user.id}`)
+    } catch (error) {
+      console.error('Failed to subscribe to profile presence:', error)
+    }
+  }
+}
+
+const cleanupProfilePresence = async () => {
+  if (props.user?.id && profileContextId) {
+    try {
+      await unsubscribeFromProfilePresence(props.user.id)
+      profileContextId = null
+      console.log(`👤 ProfileModal: Stopped tracking presence for user ${props.user.id}`)
+    } catch (error) {
+      console.error('Failed to unsubscribe from profile presence:', error)
+    }
+  }
+}
+
+// Watch for modal show/hide and user changes
+watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVal) => {
+  if (!newVal.show || !newVal.userId) {
+    // Modal closed or no user - cleanup
+    await cleanupProfilePresence()
+  } else if (newVal.show && newVal.userId && (newVal.userId !== oldVal?.userId || !oldVal?.show)) {
+    // Modal opened with user or user changed - cleanup old and setup new
+    await cleanupProfilePresence()
+    await initializeProfilePresence()
+  }
+}, { immediate: true })
+
+// Cleanup on unmount
+onUnmounted(() => {
+  cleanupProfilePresence()
+})
 
 // Lifecycle
 onMounted(() => {

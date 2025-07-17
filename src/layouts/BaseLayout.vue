@@ -169,16 +169,68 @@ const initializeApp = async () => {
       )
       console.log('✅ User data system initialized')
       
+      // Note: Essential presence contexts will be initialized in the global presence system below
+      
       // Initialize integration between userDataService and serverUsersStore
       // This ensures all UI views using serverUsersStore get real-time profile updates
       const { useServerUsersStore } = await import('@/stores/useServerUsers')
       const serverUsersStore = useServerUsersStore()
       serverUsersStore.initializeUserDataIntegration()
       console.log('✅ Server users store integration initialized')
+      
+      // 🎯 CRITICAL: Initialize Global Presence System
+      // This ensures user appears online everywhere, regardless of which page they start on
+      try {
+        console.log('🌐 Initializing global presence system...')
+        
+        // Get all servers user is a member of
+        const serverIds = serverChannelStore.servers.map(server => server.id)
+        
+        // Get all DM conversation partners
+        const { useDMStore } = await import('@/stores/useDM')
+        const dmStore = useDMStore()
+        
+        // Initialize DM environment to load conversations
+        await dmStore.initializeDMEnvironment(userId, false)
+        
+        // Extract conversation partner IDs correctly
+        const conversationUserIds = dmStore.conversations
+          .map(conv => conv.user1 === userId ? conv.user2 : conv.user1)
+          .filter(id => id !== userId)
+        
+        // Subscribe to all user's server contexts immediately
+        for (const serverId of serverIds) {
+          try {
+            const { getUserIdsForServer } = await import('@/services/usersService')
+            const serverUserIds = await getUserIdsForServer(serverId)
+            await userData.subscribeToContext(serverId, 'server', serverUserIds)
+            console.log(`🏠 Server presence initialized: ${serverId} (${serverUserIds.length} members)`)
+          } catch (error) {
+            console.error(`Failed to initialize server presence for ${serverId}:`, error)
+          }
+        }
+        
+        // Subscribe to all DM conversations immediately
+        if (conversationUserIds.length > 0) {
+          await userData.subscribeToDMPresence(conversationUserIds)
+          console.log(`🗨️ DM presence initialized: ${conversationUserIds.length} conversations`)
+        }
+        
+        // TODO: Initialize friends presence when friends system is implemented
+        // const friendIds = await getFriendsListFromAPI()
+        // if (friendIds.length > 0) {
+        //   await userData.subscribeToFriendsPresence(friendIds)
+        // }
+        
+        console.log('✅ Global presence system initialized')
+        console.log(`📊 Presence tracking: ${serverIds.length} servers, ${conversationUserIds.length} DM partners`)
+      } catch (presenceError) {
+        console.error('❌ Failed to initialize global presence system:', presenceError)
+      }
     } catch (error) {
       console.error('❌ Failed to initialize user data system:', error)
     }
-    
+
     hasServersLoaded.value = true
     isAppInitialized.value = true
     console.log('✅ App initialization complete')
@@ -202,10 +254,11 @@ watch(() => authStore.session, async (newSession, oldSession) => {
   else if (oldSession && !newSession) {
     console.log('👋 User logged out, cleaning up presence and resetting app state')
     
-    // Clean up user data service
+    // Clean up user data service and all presence subscriptions
     try {
       const { userDataService } = await import('@/services/userDataService')
       await userDataService.cleanup()
+      console.log('✅ Global presence cleanup completed')
     } catch (error) {
       console.error('Failed to cleanup user data:', error)
     }
