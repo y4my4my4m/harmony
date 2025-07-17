@@ -84,20 +84,20 @@ serve(async (req: Request) => {
     // TODO: Verify HTTP signature for security
     // For now, we'll accept all activities (development only)
     
-    // Store the activity
+    // Store the activity with idempotent handling using database function
     const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id || ''
-    const { error: storeError } = await supabase
-      .from('ap_activities')
-      .insert({
-        ap_id: activity.id,
-        ap_type: activity.type,
-        actor_ap_id: actorUrl,
-        activity_data: activity,
-        origin_domain: actorUrl ? new URL(actorUrl).hostname : null,
-        status: 'received',
-        is_local: false,
-        to_addresses: activity.to || [],
-        cc_addresses: activity.cc || []
+    const originDomain = actorUrl ? new URL(actorUrl).hostname : null
+    
+    const { data: insertResult, error: storeError } = await supabase
+      .rpc('upsert_ap_activity', {
+        p_ap_id: activity.id,
+        p_ap_type: activity.type,
+        p_actor_ap_id: actorUrl,
+        p_activity_data: activity,
+        p_origin_domain: originDomain,
+        p_to_addresses: activity.to || [],
+        p_cc_addresses: activity.cc || [],
+        p_is_local: false
       })
 
     if (storeError) {
@@ -106,8 +106,14 @@ serve(async (req: Request) => {
         status: 500, 
         headers: corsHeaders 
       })
+    }
+
+    const wasUpdated = insertResult?.[0]?.was_updated
+    
+    if (wasUpdated) {
+      console.log('Updated existing activity for retry:', activity.id)
     } else {
-      console.log('Successfully stored activity:', activity.id)
+      console.log('Successfully stored activity (new or idempotent):', activity.id)
     }
 
     // Process the activity based on type - VALIDATION ONLY
