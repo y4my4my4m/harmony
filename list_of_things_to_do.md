@@ -119,3 +119,5 @@ supabase-edge-functions  |
 
 
 37. URGENT: PRIVATE KEY LEAKS when doing profiles.select('*'), would probably be best to put it in a different table and only have service role have access to it?
+
+38. profileService is probably not needed anymore, we should use the new userDataService and ensure all components use the same source of truth for user, it's doing weird things like signing avatar URLs, and its not using the optmized versions, no cache either? etc...
