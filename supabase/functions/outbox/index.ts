@@ -219,7 +219,7 @@ serve(async (req: Request) => {
       .select('*', { count: 'exact', head: true })
       .eq('author_id', user.id)
       .eq('is_local', true)
-      .in('visibility', ['public', 'unlisted'])
+      .in('visibility', ['public', 'unlisted']) // why is unlisted included here?
 
     const outbox: ActivityPubOutbox = {
       '@context': 'https://www.w3.org/ns/activitystreams',

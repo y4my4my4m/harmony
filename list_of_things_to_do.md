@@ -122,3 +122,6 @@ supabase-edge-functions  |
 39. add a limit of "unique" reactions per post/message, like max 20 different reactions (with unlimited counters on each)
 
 40. notification should be smart in case a user spams a reaction, it should only show the first one and then ignore the rest, so that we don't spam the user with notifications, until a time threshold is reached (like  2min) and then it can show the next one, but not more than 3 in a row or something like that
+
+
+41. send_accept_activity_for_follow is still using the automatic and returning http_sign_ stuff with edge functions, clean up.
