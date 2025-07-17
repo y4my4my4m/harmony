@@ -395,7 +395,7 @@ onMounted(() => {
 }
 
 .profile-banner {
-  height: 80px;
+  height: 120px;
   background: linear-gradient(135deg, var(--color) 0%, var(--color) 100%);
   position: relative;
   cursor: pointer;

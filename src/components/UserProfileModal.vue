@@ -244,7 +244,7 @@
           <template v-if="isCurrentUser">
             <button 
               @click="openSettings"
-              class="primary-action-btn"
+              class="primary-action-btn single-action-btn"
             >
               <Icon name="pencil" :size="16" />
               Edit Profile
@@ -1222,6 +1222,16 @@ onMounted(() => {
 .primary-action-btn.following:hover {
   background: linear-gradient(135deg, #f04747, #d73c3c);
   box-shadow: 0 4px 12px rgba(240, 71, 71, 0.4);
+}
+
+.profile-actions:has(.single-action-btn) {
+  grid-template-columns: 1fr !important;
+  justify-items: center;
+}
+
+.single-action-btn {
+  width: 100%;
+  box-shadow: none;
 }
 
 .secondary-action-btn {

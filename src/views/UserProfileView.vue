@@ -930,7 +930,7 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .profile-banner {
-  height: 200px;
+  height: 300px;
   background: linear-gradient(135deg, #5865f2, #7289da);
   background-size: cover;
   background-position: center;
