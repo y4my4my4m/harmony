@@ -122,3 +122,12 @@ supabase-edge-functions  |
 39. add a limit of "unique" reactions per post/message, like max 20 different reactions (with unlimited counters on each)
 
 40. notification should be smart in case a user spams a reaction, it should only show the first one and then ignore the rest, so that we don't spam the user with notifications, until a time threshold is reached (like  2min) and then it can show the next one, but not more than 3 in a row or something like that
+
+
+41. send_accept_activity_for_follow is still using the automatic and returning http_sign_ stuff with edge functions, clean up.
+
+42. we have ap_activities and federation_delivery_queue, we should merge them into one table, federation_delivery_queue should be the main table and ap_activities should be a view or something, so that we can have all activities in one place and not have to query two tables for federation
+
+43. should federation_delivery_queue have a "federation_type" column to indicate if it's a post, follow, like, etc. so that we can filter and handle them accordingly?
+
+44. clean console.logs in edge-functions, add debug environment variable to enable/disable them
