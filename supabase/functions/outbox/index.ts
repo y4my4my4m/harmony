@@ -216,7 +216,7 @@ serve(async (req: Request) => {
       .select('*', { count: 'exact', head: true })
       .eq('author_id', user.id)
       .eq('is_local', true)
-      .in('visibility', ['public', 'unlisted']) // why is unlisted included here?
+      .in('visibility', ['public', 'unlisted']) // "Unlisted" posts are publicly accessible and included in outbox collections as per ActivityPub's behavior, even though they are not shown in public timelines.
 
     const outbox: ActivityPubOutbox = {
       '@context': 'https://www.w3.org/ns/activitystreams',
