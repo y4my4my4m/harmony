@@ -150,7 +150,7 @@
 
           <div class="customization-section">
             <div class="profile-preview-card">
-              <div class="preview-banner" :style="{ background: selectedColor }"></div>
+              <div class="preview-banner" :style="bannerPreviewStyle"></div>
               <div class="preview-content">
                 <div class="preview-avatar">
                   <img v-if="avatarPreview" :src="avatarPreview" alt="Preview" />
@@ -197,6 +197,41 @@
                 class="hidden-color-input"
                 @change="onColorChange"
               />
+            </div>
+
+            <div class="banner-upload-section">
+              <label class="input-label">Profile Banner <span class="optional">(Optional)</span></label>
+              <div class="banner-upload-container">
+                <div class="banner-preview" @click="triggerBannerUpload">
+                  <img v-if="bannerPreview" :src="bannerPreview" alt="Banner preview" />
+                  <div v-else class="default-banner">
+                    <svg viewBox="0 0 24 24" class="banner-icon">
+                      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" fill="currentColor"/>
+                    </svg>
+                  </div>
+                  <div class="upload-overlay">
+                    <svg viewBox="0 0 24 24" class="upload-icon">
+                      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" fill="currentColor"/>
+                    </svg>
+                    <span>{{ bannerPreview ? 'Change Banner' : 'Upload Banner' }}</span>
+                  </div>
+                </div>
+                <input 
+                  ref="bannerInput" 
+                  type="file" 
+                  accept="image/*" 
+                  @change="handleBannerUpload" 
+                  class="file-input"
+                />
+              </div>
+              <div class="banner-options">
+                <button class="option-btn" :class="{ active: !bannerFile }" @click="useDefaultBanner">
+                  Use Color Only
+                </button>
+                <button class="option-btn primary" @click="triggerBannerUpload">
+                  Upload Image
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -245,6 +280,8 @@ const bio = ref('');
 const currentStep = ref(1);
 const avatarFile = ref<File | null>(null);
 const avatarPreview = ref<string | null>(null);
+const bannerFile = ref<File | null>(null);
+const bannerPreview = ref<string | null>(null);
 const selectedColor = ref('#5865f2');
 const usernameError = ref('');
 const displayNameError = ref('');
@@ -256,6 +293,7 @@ const router = useRouter();
 const toast = useToast();
 
 const avatarInput = ref<HTMLInputElement>();
+const bannerInput = ref<HTMLInputElement>();
 const colorInput = ref<HTMLInputElement>();
 
 const colorPresets = [
@@ -277,6 +315,20 @@ const canProceed = computed(() => {
     case 2: return displayName.value.trim() && username.value.trim() && !usernameError.value && !displayNameError.value;
     case 3: return true;
     default: return false;
+  }
+});
+
+const bannerPreviewStyle = computed(() => {
+  if (bannerPreview.value) {
+    return {
+      backgroundImage: `url(${bannerPreview.value})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    }
+  }
+  return {
+    background: selectedColor.value
   }
 });
 
@@ -318,6 +370,34 @@ const handleAvatarUpload = (event: Event) => {
 const useDefaultAvatar = () => {
   avatarFile.value = null;
   avatarPreview.value = null;
+};
+
+const triggerBannerUpload = () => {
+  bannerInput.value?.click();
+};
+
+const handleBannerUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  
+  if (file) {
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit for banners
+      toast.error('Banner file size must be less than 10MB');
+      return;
+    }
+    
+    bannerFile.value = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      bannerPreview.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+const useDefaultBanner = () => {
+  bannerFile.value = null;
+  bannerPreview.value = null;
 };
 
 const formatUsername = (event: Event) => {
@@ -422,6 +502,32 @@ const createProfile = async () => {
       } catch (uploadError) {
         console.error('Avatar upload error:', uploadError);
         toast.warning('Profile created but avatar upload failed. You can update it later in settings.');
+      }
+    }
+
+    // Handle banner upload if file exists
+    if (bannerFile.value && result) {
+      console.log('Uploading banner...');
+      try {
+        const { uploadBanner } = await import('@/utils/bannerUtils');
+        const uploadResult = await uploadBanner(bannerFile.value, authStore.session.user.id);
+        
+        if (uploadResult.success && uploadResult.url) {
+          // Update profile with banner URL
+          await profileStore.updateProfile({
+            id: authStore.session.user.id,
+            banner_url: uploadResult.url,
+            username: username.value,
+            display_name: displayName.value.trim(),
+          });
+          console.log('Banner uploaded successfully:', uploadResult.url);
+        } else {
+          console.error('Banner upload failed:', uploadResult.error);
+          toast.warning('Profile created but banner upload failed. You can update it later in settings.');
+        }
+      } catch (uploadError) {
+        console.error('Banner upload error:', uploadError);
+        toast.warning('Profile created but banner upload failed. You can update it later in settings.');
       }
     }
 
@@ -747,6 +853,99 @@ const createProfile = async () => {
 .option-btn.primary:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 25px rgba(88, 101, 242, 0.3);
+}
+
+/* Banner Upload Styles */
+.banner-upload-section {
+  margin-top: 32px;
+}
+
+.banner-upload-container {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.banner-preview {
+  width: 300px;
+  height: 100px;
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.banner-preview:hover {
+  border-color: #5865f2;
+  background: rgba(88, 101, 242, 0.1);
+}
+
+.banner-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.default-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.banner-icon {
+  width: 32px;
+  height: 32px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.banner-preview .upload-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.banner-preview:hover .upload-overlay {
+  opacity: 1;
+}
+
+.banner-preview .upload-overlay .upload-icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 8px;
+}
+
+.banner-options {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.optional {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: normal;
 }
 
 .form-section {

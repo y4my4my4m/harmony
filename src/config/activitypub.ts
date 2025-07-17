@@ -139,6 +139,11 @@ export function generateActorJson(user: FederatedUser): ActivityPubActor {
       mediaType: 'image/jpeg',
       url: user.avatar_url.startsWith('http') ? user.avatar_url : `${ACTIVITYPUB_CONFIG.baseUrl}${user.avatar_url}`
     } : undefined,
+    image: (user as any).banner_url ? {
+      type: 'Image',
+      mediaType: 'image/jpeg',
+      url: (user as any).banner_url.startsWith('http') ? (user as any).banner_url : `${ACTIVITYPUB_CONFIG.baseUrl}${(user as any).banner_url}`
+    } : undefined,
     inbox: `${actorId}/inbox`,
     outbox: `${actorId}/outbox`,
     following: `${actorId}/following`,

@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import type { User } from '@/types';
+import { getPublicBannerUrl } from '@/utils/bannerUtils';
 
 // Get profile by profile ID (for federated users and direct lookups)
 const getProfile = async (userId: string): Promise<User | null> => {
@@ -28,39 +29,61 @@ const getProfileByAuthUserId = async (authUserId: string): Promise<User | null> 
 // Get profile with avatar URL by profile ID
 const getProfileWithAvatarUrl = async (userId: string): Promise<User | null> => {
   const profile = await getProfile(userId);
-  if (!profile || !profile.avatar_url) return profile;
+  if (!profile) return profile;
 
-  try {
-    const { data, error } = await supabase.storage
-      .from('avatars')
-      .createSignedUrl(profile.avatar_url, 60); // 60 seconds validity for the URL
+  // Get signed avatar URL if avatar exists
+  if (profile.avatar_url) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .createSignedUrl(profile.avatar_url, 60); // 60 seconds validity for the URL
 
-    if (error) throw error;
-    profile.avatar_url = data.signedUrl;
-    return profile;
-  } catch (error) {
-    console.error('Error getting signed avatar URL:', error);
-    return profile; // Return the profile even if the URL fetch fails
+      if (error) throw error;
+      profile.avatar_url = data.signedUrl;
+    } catch (error) {
+      console.error('Error getting signed avatar URL:', error);
+    }
   }
+
+  // Get public banner URL if banner exists (for federation compatibility)
+  if (profile.banner_url) {
+    const bannerUrl = getPublicBannerUrl(profile.banner_url, { width: 1280, height: 720, quality: 80 });
+    if (bannerUrl) {
+      profile.banner_url = bannerUrl;
+    }
+  }
+
+  return profile;
 };
 
 // Get profile with avatar URL by auth user ID (for authenticated users)
 const getProfileWithAvatarUrlByAuthUserId = async (authUserId: string): Promise<User | null> => {
   const profile = await getProfileByAuthUserId(authUserId);
-  if (!profile || !profile.avatar_url) return profile;
+  if (!profile) return profile;
 
-  try {
-    const { data, error } = await supabase.storage
-      .from('avatars')
-      .createSignedUrl(profile.avatar_url, 60); // 60 seconds validity for the URL
+  // Get signed avatar URL if avatar exists
+  if (profile.avatar_url) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .createSignedUrl(profile.avatar_url, 60); // 60 seconds validity for the URL
 
-    if (error) throw error;
-    profile.avatar_url = data.signedUrl;
-    return profile;
-  } catch (error) {
-    console.error('Error getting signed avatar URL:', error);
-    return profile; // Return the profile even if the URL fetch fails
+      if (error) throw error;
+      profile.avatar_url = data.signedUrl;
+    } catch (error) {
+      console.error('Error getting signed avatar URL:', error);
+    }
   }
+
+  // Get public banner URL if banner exists (for federation compatibility)
+  if (profile.banner_url) {
+    const bannerUrl = getPublicBannerUrl(profile.banner_url, { width: 1280, height: 720, quality: 80 });
+    if (bannerUrl) {
+      profile.banner_url = bannerUrl;
+    }
+  }
+
+  return profile;
 };
 
 const updateProfile = async (userId: string, updates: Partial<User>): Promise<User | undefined> => {
@@ -82,6 +105,7 @@ const updateProfile = async (userId: string, updates: Partial<User>): Promise<Us
       if (updates.username !== undefined) profileData.username = updates.username
       if (updates.display_name !== undefined) profileData.displayName = updates.display_name
       if (updates.avatar_url !== undefined) profileData.avatarUrl = updates.avatar_url
+      if (updates.banner_url !== undefined) profileData.bannerUrl = updates.banner_url
       
       // Handle Profile-specific fields safely
       const profileUpdates = updates as any
@@ -122,6 +146,18 @@ const uploadAvatar = async (userId: string, file: File): Promise<string> => {
   return filePath;
 };
 
+const uploadBanner = async (userId: string, file: File): Promise<string> => {
+  const ext = file.name.split('.').pop();
+  if (!ext) throw new Error('File must have an extension');
+  const filePath = `${userId}/${userId}_banner.${ext}`;
+  const { error } = await supabase.storage.from('banners').upload(filePath, file, {
+    upsert: true
+  });
+
+  if (error) throw error;
+  return filePath;
+};
+
 const updateUserStatus = async (userId: string, status: number) => {
   const { data, error } = await supabase
     .from('profiles')
@@ -134,4 +170,4 @@ const updateUserStatus = async (userId: string, status: number) => {
   return data;
 };
 
-export { getProfile, getProfileWithAvatarUrl, updateProfile, downloadAvatar, uploadAvatar, updateUserStatus, getProfileByAuthUserId, getProfileWithAvatarUrlByAuthUserId };
+export { getProfile, getProfileWithAvatarUrl, updateProfile, downloadAvatar, uploadAvatar, uploadBanner, updateUserStatus, getProfileByAuthUserId, getProfileWithAvatarUrlByAuthUserId };

@@ -216,6 +216,7 @@ export async function resolveRemoteMention(username: string, domain: string): Pr
       display_name: actor.name || actor.preferredUsername,
       domain,
       avatar_url: actor.icon?.url,
+      banner_url: actor.image?.url, // Add banner support
       bio: actor.summary || '',
       federated_id: actor.id,
       public_key: actor.publicKey?.publicKeyPem,
@@ -248,6 +249,7 @@ export async function resolveRemoteMention(username: string, domain: string): Pr
       display_name: savedUser.display_name,
       domain: savedUser.domain,
       avatar_url: savedUser.avatar_url,
+      banner_url: savedUser.banner_url, // Include banner in return
       handle: `@${username}@${domain}`,
       is_local: false,
       bio: savedUser.bio || '',

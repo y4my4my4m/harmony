@@ -16,6 +16,11 @@ interface ActivityPubActor {
     mediaType: string
     url: string
   }
+  image?: {
+    type: 'Image'
+    mediaType: string
+    url: string
+  }
   inbox: string
   outbox: string
   following: string
@@ -168,6 +173,7 @@ serve(async (req: Request) => {
     }
     
     const avatarUrl = getProperAvatarUrl(user.avatar_url)
+    const bannerUrl = getProperAvatarUrl(user.banner_url) // Reuse the same URL processing logic
     
     const actor: ActivityPubActor = {
       '@context': [
@@ -183,6 +189,11 @@ serve(async (req: Request) => {
         type: 'Image',
         mediaType: getMediaType(avatarUrl),
         url: avatarUrl
+      } : undefined,
+      image: bannerUrl ? {
+        type: 'Image',
+        mediaType: getMediaType(bannerUrl),
+        url: bannerUrl
       } : undefined,
       inbox: `${actorId}/inbox`,
       outbox: `${actorId}/outbox`,

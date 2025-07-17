@@ -1,7 +1,14 @@
 <template>
   <div class="user-settings">
     <div class="user-settings-container">
-      <!-- Mobile Navigation Header -->
+      <!--          <UserAccountSettings 
+            v-if="activeSection === 'account'"
+            :profile="profile"
+            :loading="loading"
+            @update-profile="handleProfileUpdate"
+            @upload-avatar="handleAvatarUpload"
+            @upload-banner="handleBannerUpload"
+          /> Navigation Header -->
       <div class="mobile-nav" v-if="isMobile">
         <button class="mobile-menu-btn" @click="toggleSidebar" aria-label="Toggle navigation">
           <div class="hamburger-icon" :class="{ active: showSidebar }">
@@ -97,6 +104,7 @@
             :loading="loading"
             @update-profile="handleProfileUpdate"
             @upload-avatar="handleAvatarUpload"
+            @upload-banner="handleBannerUpload"
           />
 
           <!-- Privacy & Safety Section -->
@@ -175,8 +183,9 @@
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { getProfileWithAvatarUrl, updateProfile, uploadAvatar } from '@/services/profileService'
+import { getProfileWithAvatarUrl, updateProfile, uploadAvatar, uploadBanner } from '@/services/profileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
+import { normalizeBannerForStorage } from '@/utils/bannerUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
 import { useUserData } from '@/composables/useUserData'
 import type { User } from '@/types'
@@ -366,6 +375,44 @@ const handleAvatarUpload = async (file: File) => {
   } catch (error) {
     console.error('Error uploading avatar:', error)
     toast.error('Failed to upload avatar')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleBannerUpload = async (file: File) => {
+  console.log('🖼️ Banner upload started:', file.name, file.size)
+  
+  if (!authStore.session?.user) {
+    console.error('❌ No authenticated user for banner upload')
+    return
+  }
+  
+  try {
+    loading.value = true
+    console.log('📤 Uploading banner to storage...')
+    const filePath = await uploadBanner(authStore.session.user.id, file)
+    console.log('✅ Banner uploaded to:', filePath)
+    
+    // Ensure we normalize the banner URL for storage
+    const normalizedPath = normalizeBannerForStorage(filePath)
+    console.log('🔄 Normalized path:', normalizedPath)
+    
+    console.log('💾 Updating profile with banner...')
+    await updateProfile(authStore.session.user.id, { banner_url: normalizedPath || undefined })
+    profile.value = { ...profile.value, banner_url: normalizedPath } as User
+    
+    // Broadcast banner update to all connected clients for real-time updates
+    console.log('📡 Broadcasting banner update...')
+    await updateCurrentUserProfile({
+      bannerUrl: normalizedPath || undefined
+    })
+    
+    toast.success('Banner updated successfully')
+    console.log('🎉 Banner upload completed successfully')
+  } catch (error) {
+    console.error('❌ Error uploading banner:', error)
+    toast.error('Failed to upload banner')
   } finally {
     loading.value = false
   }

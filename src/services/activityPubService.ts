@@ -1177,6 +1177,7 @@ export class ActivityPubService {
       const username = parts[0];
       const domain = parts[1] || 'har.mony.lol';
       
+      // First, try to find the user locally
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -1184,39 +1185,191 @@ export class ActivityPubService {
         .eq('domain', domain)
         .single();
       
-      if (error) {
-        if (error.code === 'PGRST116') return null; // Not found
-        throw error;
+      if (!error && data) {
+        // User found locally
+        return {
+          id: data.id,
+          username: data.username,
+          display_name: data.display_name,
+          domain: data.domain,
+          avatar_url: data.avatar_url,
+          banner_url: data.banner_url, // Include banner
+          handle: domain === 'har.mony.lol' 
+            ? `@${username}`
+            : `@${username}@${domain}`,
+          is_local: data.is_local,
+          bio: data.bio,
+          verified: false,
+          followers_count: 0,
+          following_count: 0,
+          posts_count: 0,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          federated_id: data.federated_id,
+          public_key: data.public_key,
+          inbox_url: data.inbox_url,
+          outbox_url: data.outbox_url,
+          followers_url: data.followers_url,
+          following_url: data.following_url,
+          featured_url: data.featured_url,
+          last_synced_at: data.last_synced_at
+        } as FederatedUser;
       }
       
+      // If not found locally and it's a remote user, try to fetch
+      if (error?.code === 'PGRST116' && domain !== 'har.mony.lol') {
+        console.log(`User ${handle} not found locally, attempting to fetch from remote...`);
+        
+        // Try to resolve using the existing mentionUtils function
+        const { resolveRemoteMention } = await import('@/utils/mentionUtils');
+        const remoteUser = await resolveRemoteMention(username, domain);
+        
+        if (remoteUser) {
+          console.log(`Successfully fetched and created remote user: ${handle}`);
+          return remoteUser;
+        }
+      }
+      
+      // Not found locally or remotely
+      return null;
+    } catch (error) {
+      console.error('Failed to resolve user by handle:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch and create a remote actor profile by ActivityPub ID
+   */
+  async fetchRemoteActor(actorId: string): Promise<FederatedUser | null> {
+    try {
+      console.log(`Fetching remote actor: ${actorId}`);
+      
+      // Check if profile already exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('federated_id', actorId)
+        .single();
+      
+      if (existingProfile) {
+        console.log('Actor profile already exists');
+        return {
+          id: existingProfile.id,
+          username: existingProfile.username,
+          display_name: existingProfile.display_name,
+          domain: existingProfile.domain,
+          avatar_url: existingProfile.avatar_url,
+          banner_url: existingProfile.banner_url,
+          handle: existingProfile.domain === 'har.mony.lol' 
+            ? `@${existingProfile.username}`
+            : `@${existingProfile.username}@${existingProfile.domain}`,
+          is_local: existingProfile.is_local,
+          bio: existingProfile.bio,
+          verified: false,
+          followers_count: 0,
+          following_count: 0,
+          posts_count: 0,
+          created_at: existingProfile.created_at,
+          updated_at: existingProfile.updated_at,
+          federated_id: existingProfile.federated_id,
+          public_key: existingProfile.public_key,
+          inbox_url: existingProfile.inbox_url,
+          outbox_url: existingProfile.outbox_url,
+          followers_url: existingProfile.followers_url,
+          following_url: existingProfile.following_url,
+          featured_url: existingProfile.featured_url,
+          last_synced_at: existingProfile.last_synced_at
+        } as FederatedUser;
+      }
+      
+      // Fetch actor document
+      const actorResponse = await fetch(actorId, {
+        headers: {
+          'Accept': 'application/activity+json, application/ld+json',
+          'User-Agent': 'Harmony/1.0 (+https://har.mony.lol)'
+        }
+      });
+      
+      if (!actorResponse.ok) {
+        console.error(`Failed to fetch actor: ${actorResponse.status}`);
+        return null;
+      }
+      
+      const actor = await actorResponse.json();
+      
+      // Parse domain and username from actor ID
+      const actorUrl = new URL(actorId);
+      const domain = actorUrl.hostname;
+      const pathParts = actorUrl.pathname.split('/');
+      const username = actor.preferredUsername || pathParts[pathParts.length - 1];
+      
+      // Create federated profile using the database function
+      const { data: profileId, error: createError } = await supabase
+        .rpc('create_federated_profile', {
+          p_username: username,
+          p_display_name: actor.name || username,
+          p_domain: domain,
+          p_avatar_url: actor.icon?.url || null,
+          p_banner_url: actor.image?.url || null, // Include banner
+          p_bio: actor.summary || null,
+          p_federated_id: actor.id,
+          p_inbox_url: actor.inbox || null,
+          p_outbox_url: actor.outbox || null,
+          p_followers_url: actor.followers || null,
+          p_following_url: actor.following || null,
+          p_public_key: actor.publicKey?.publicKeyPem || null
+        });
+      
+      if (createError) {
+        console.error('Failed to create federated profile:', createError);
+        return null;
+      }
+      
+      // Fetch the created profile
+      const { data: newProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', profileId)
+        .single();
+      
+      if (fetchError || !newProfile) {
+        console.error('Failed to fetch created profile:', fetchError);
+        return null;
+      }
+      
+      console.log(`Successfully created federated profile for ${actorId}`);
+      
       return {
-        id: data.id,
-        username: data.username,
-        display_name: data.display_name,
-        domain: data.domain,
-        avatar_url: data.avatar_url,
-        handle: domain === 'har.mony.lol' 
-          ? `@${username}`
-          : `@${username}@${domain}`,
-        is_local: data.is_local,
-        bio: data.bio,
+        id: newProfile.id,
+        username: newProfile.username,
+        display_name: newProfile.display_name,
+        domain: newProfile.domain,
+        avatar_url: newProfile.avatar_url,
+        banner_url: newProfile.banner_url,
+        handle: newProfile.domain === 'har.mony.lol' 
+          ? `@${newProfile.username}`
+          : `@${newProfile.username}@${newProfile.domain}`,
+        is_local: newProfile.is_local,
+        bio: newProfile.bio,
         verified: false,
         followers_count: 0,
         following_count: 0,
         posts_count: 0,
-        created_at: data.created_at,
-        updated_at: data.updated_at,
-        federated_id: data.federated_id,
-        public_key: data.public_key,
-        inbox_url: data.inbox_url,
-        outbox_url: data.outbox_url,
-        followers_url: data.followers_url,
-        following_url: data.following_url,
-        featured_url: data.featured_url,
-        last_synced_at: data.last_synced_at
+        created_at: newProfile.created_at,
+        updated_at: newProfile.updated_at,
+        federated_id: newProfile.federated_id,
+        public_key: newProfile.public_key,
+        inbox_url: newProfile.inbox_url,
+        outbox_url: newProfile.outbox_url,
+        followers_url: newProfile.followers_url,
+        following_url: newProfile.following_url,
+        featured_url: newProfile.featured_url,
+        last_synced_at: newProfile.last_synced_at
       } as FederatedUser;
+      
     } catch (error) {
-      console.error('Failed to resolve user by handle:', error);
+      console.error(`Failed to fetch remote actor ${actorId}:`, error);
       return null;
     }
   }

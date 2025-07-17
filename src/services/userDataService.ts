@@ -163,7 +163,7 @@ class UserDataService extends EventTarget {
       // Try to load from database first - this is the primary source of truth
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, domain, is_local, updated_at, created_at')
+        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at')
         .eq('id', userId)
         .single()
       
@@ -225,6 +225,7 @@ class UserDataService extends EventTarget {
           username: profile.username || username,
           displayName: profile.display_name || profile.username || username,
           avatarUrl: profile.avatar_url || avatarUrl,
+          bannerUrl: profile.banner_url,
           bio: profile.bio,
           color: profile.color,
           domain: profile.domain || 'har.mony.lol',
@@ -323,6 +324,7 @@ class UserDataService extends EventTarget {
       username: presence.username || existing?.username || 'Unknown',
       displayName: presence.display_name || presence.username || existing?.displayName || 'Unknown',
       avatarUrl: presence.avatar_url || existing?.avatarUrl,
+      bannerUrl: presence.banner_url || existing?.bannerUrl,
       bio: existing?.bio,
       color: existing?.color,
       domain: existing?.domain || 'har.mony.lol',
@@ -496,6 +498,7 @@ class UserDataService extends EventTarget {
       username: userData.username,
       display_name: userData.displayName,
       avatar_url: userData.avatarUrl,
+      banner_url: userData.bannerUrl,
       status: userData.status,
       server_id: serverId,
       online_at: new Date().toISOString()
@@ -602,6 +605,7 @@ class UserDataService extends EventTarget {
     console.log(`🔄 Profile update received for user ${userId} in server ${serverId}:`, {
       display_name: updatedProfile.display_name,
       avatar_url: updatedProfile.avatar_url,
+      banner_url: updatedProfile.banner_url,
       color: updatedProfile.color
     })
     
@@ -614,6 +618,9 @@ class UserDataService extends EventTarget {
       }
       if (updatedProfile.avatar_url !== undefined) {
         userData.avatarUrl = updatedProfile.avatar_url
+      }
+      if (updatedProfile.banner_url !== undefined) {
+        userData.bannerUrl = updatedProfile.banner_url
       }
       if (updatedProfile.bio !== undefined) {
         userData.bio = updatedProfile.bio
@@ -720,7 +727,7 @@ class UserDataService extends EventTarget {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, display_name, avatar_url, bio, color, status, domain, updated_at, created_at, is_local')
+        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local')
         .in('id', missingUserIds)
       
       if (profiles) {
@@ -730,6 +737,7 @@ class UserDataService extends EventTarget {
             username: profile.username || 'Unknown',
             displayName: profile.display_name || profile.username || 'Unknown',
             avatarUrl: profile.avatar_url,
+            bannerUrl: profile.banner_url,
             bio: profile.bio,
             color: profile.color,
             domain: profile.domain || 'har.mony.lol',
@@ -767,6 +775,7 @@ class UserDataService extends EventTarget {
       username: userData.username,
       display_name: userData.displayName,
       avatar_url: userData.avatarUrl,
+      banner_url: userData.bannerUrl,
       bio: userData.bio,
       color: userData.color,
       created_at: userData.createdAt,
@@ -915,6 +924,7 @@ class UserDataService extends EventTarget {
             username: userData.username,
             display_name: userData.displayName,
             avatar_url: userData.avatarUrl,
+            banner_url: userData.bannerUrl,
             status: status,
             server_id: context.id,
             online_at: new Date().toISOString()
@@ -933,6 +943,7 @@ class UserDataService extends EventTarget {
   async updateCurrentUserProfile(profileData: {
     displayName?: string
     avatarUrl?: string
+    bannerUrl?: string
     bio?: string
     color?: string
     username?: string
@@ -947,6 +958,7 @@ class UserDataService extends EventTarget {
     // Update local data immediately for instant UI feedback
     if (profileData.displayName !== undefined) userData.displayName = profileData.displayName
     if (profileData.avatarUrl !== undefined) userData.avatarUrl = profileData.avatarUrl
+    if (profileData.bannerUrl !== undefined) userData.bannerUrl = profileData.bannerUrl
     if (profileData.bio !== undefined) userData.bio = profileData.bio
     if (profileData.color !== undefined) userData.color = profileData.color
     if (profileData.username !== undefined) userData.username = profileData.username
@@ -972,6 +984,7 @@ class UserDataService extends EventTarget {
   private async broadcastProfileToContexts(profileData: {
     displayName?: string
     avatarUrl?: string
+    bannerUrl?: string
     bio?: string
     color?: string
     username?: string

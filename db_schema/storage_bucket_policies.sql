@@ -405,6 +405,100 @@ USING (
 );
 
 -- ============================================================================
+-- BANNERS BUCKET POLICIES
+-- ============================================================================
+
+-- Policy 1: Anon and authenticated users can SELECT (view/download) banners
+CREATE POLICY "Anyone can view banners" ON storage.objects
+FOR SELECT
+TO anon, authenticated
+USING (bucket_id = 'banners');
+
+-- Policy 2: Users can INSERT their own banners, admins can insert any
+CREATE POLICY "Users can upload their own banners" ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'banners' AND (
+    -- Check if user is admin
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE profiles.auth_user_id = auth.uid() 
+      AND profiles.is_admin = true
+    )
+    OR
+    -- Check if user is uploading to their own folder
+    -- This assumes the path format is: user_id/filename.ext
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.auth_user_id = auth.uid()
+      AND p.id::text = (storage.foldername(objects.name))[1]
+    )
+  )
+);
+
+-- Policy 3: Users can UPDATE their own banners, admins can update any
+CREATE POLICY "Users can update their own banners" ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'banners' AND (
+    -- Check if user is admin
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE profiles.auth_user_id = auth.uid() 
+      AND profiles.is_admin = true
+    )
+    OR
+    -- Check if user owns this banner
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.auth_user_id = auth.uid()
+      AND p.id::text = (storage.foldername(objects.name))[1]
+    )
+  )
+)
+WITH CHECK (
+  bucket_id = 'banners' AND (
+    -- Check if user is admin
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE profiles.auth_user_id = auth.uid() 
+      AND profiles.is_admin = true
+    )
+    OR
+    -- Check if user owns this banner
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.auth_user_id = auth.uid()
+      AND p.id::text = (storage.foldername(objects.name))[1]
+    )
+  )
+);
+
+-- Policy 4: Users can DELETE their own banners, admins can delete any
+CREATE POLICY "Users can delete their own banners" ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'banners' AND (
+    -- Check if user is admin
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE profiles.auth_user_id = auth.uid() 
+      AND profiles.is_admin = true
+    )
+    OR
+    -- Check if user owns this banner
+    EXISTS (
+      SELECT 1 FROM profiles p
+      WHERE p.auth_user_id = auth.uid()
+      AND p.id::text = (storage.foldername(objects.name))[1]
+    )
+  )
+);
+
+-- ============================================================================
 -- VERIFICATION
 -- ============================================================================
 

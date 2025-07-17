@@ -35,6 +35,10 @@ export interface User {
   username?: string;
   display_name?: string;
   avatar_url?: string;
+  banner_url?: string;
+  bio?: string;
+  color?: string;
+  is_admin?: boolean;
   status: UserStatus;
   roles?: Role[]; // Added for compatibility
   created_at?: string;
@@ -49,9 +53,11 @@ export interface Profile {
   display_name?: string;
   bio?: string; // Include bio field
   avatar_url?: string;
+  banner_url?: string; // Banner/header image
   domain?: string;
   status?: UserStatus;
   color?: string;
+  is_admin?: boolean;
   // ActivityPub fields
   federated_id?: string;
   ap_id?: string;
@@ -72,6 +78,7 @@ export interface UserData {
   
   // Profile data
   avatarUrl?: string
+  bannerUrl?: string
   bio?: string
   color?: string
   domain?: string

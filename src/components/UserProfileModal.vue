@@ -7,7 +7,7 @@
   >
     <div class="profile-modal-content">
       <!-- Cover Banner -->
-      <div class="profile-banner" :style="{ background: userColor || '#5865f2' }">
+      <div class="profile-banner" :style="bannerStyle">
         <div class="banner-gradient"></div>
         <div class="banner-actions">
           <button 
@@ -326,7 +326,8 @@ const {
   getUserStatusText,
   getUserDisplayName,
   getUserAvatarUrl,
-  getUserColor
+  getUserColor,
+  getUserBannerUrl
 } = useUserData()
 
 // Reactive state
@@ -342,11 +343,6 @@ const isFederatedUser = (user: User | FederatedUser | null): user is FederatedUs
 // Computed properties
 const isCurrentUser = computed(() => {
   return props.user?.id === authStore.session?.user?.id
-})
-
-const canManageUser = computed(() => {
-  // Show management options for all non-current users
-  return !isCurrentUser.value && props.user !== null
 })
 
 const displayHandle = computed(() => {
@@ -402,6 +398,26 @@ const avatarUrl = computed(() => {
 const userColor = computed(() => {
   if (!props.user) return '#ffffff'
   return getUserColor(props.user.id).value || '#ffffff'
+})
+
+const bannerUrl = computed(() => {
+  if (!props.user) return null
+  return getUserBannerUrl(props.user.id).value || (props.user as any).banner_url || null
+})
+
+const bannerStyle = computed(() => {
+  const banner = bannerUrl.value
+  if (banner) {
+    return {
+      backgroundImage: `url(${banner})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    }
+  }
+  return {
+    background: userColor.value || '#5865f2'
+  }
 })
 
 // Methods

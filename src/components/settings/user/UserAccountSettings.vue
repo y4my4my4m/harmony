@@ -9,7 +9,23 @@
 
     <div class="settings-section">
       <div class="profile-preview">
-        <div class="profile-banner" :style="{ backgroundColor: profile?.color || '#5865f2' }"></div>
+        <div 
+          class="profile-banner" 
+          :style="bannerStyle"
+          @click="triggerBannerUpload"
+        >
+          <div class="banner-overlay">
+            <Icon name="camera" />
+            <span>Change Banner</span>
+          </div>
+          <input
+            ref="bannerInput"
+            type="file"
+            accept="image/*"
+            @change="handleBannerFileSelect"
+            style="display: none"
+          />
+        </div>
         <div class="profile-info">
           <div class="avatar-wrapper">
             <Avatar 
@@ -154,11 +170,13 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import type { User } from '@/types'
 import { format } from 'date-fns'
+import { getBannerUrl } from '@/utils/bannerUtils'
 
 // Components
 import { ColorPicker } from 'vue-color-kit'
 import 'vue-color-kit/dist/vue-color-kit.css'
 import Avatar from '@/components/common/Avatar.vue'
+import Icon from '@/components/common/Icon.vue'
 
 // Props
 interface Props {
@@ -172,6 +190,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'update-profile': [profile: Partial<User>]
   'upload-avatar': [file: File]
+  'upload-banner': [file: File]
 }>()
 
 // Composables
@@ -184,6 +203,7 @@ const showColorPicker = ref(false)
 // Refs
 const colorPickerRef = ref<InstanceType<typeof ColorPicker>>()
 const colorPreviewRef = ref<HTMLElement | null>(null)
+const bannerInput = ref<HTMLInputElement>()
 
 // Computed
 const userEmail = computed(() => authStore.session?.user?.email)
@@ -197,6 +217,20 @@ const hasChanges = computed(() => {
     localProfile.value.bio !== props.profile.bio ||
     localProfile.value.color !== props.profile.color
   )
+})
+
+const bannerStyle = computed(() => {
+  const bannerUrl = getBannerUrl(props.profile?.banner_url, { width: 1280, height: 720, quality: 80 })
+  if (bannerUrl) {
+    return {
+      backgroundImage: `url(${bannerUrl})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center'
+    }
+  }
+  return {
+    backgroundColor: props.profile?.color || '#5865f2'
+  }
 })
 
 // Methods
@@ -252,6 +286,23 @@ const handleAvatarUpload = (file: File) => {
   emit('upload-avatar', file)
 }
 
+const triggerBannerUpload = () => {
+  console.log('🖼️ Banner upload triggered')
+  bannerInput.value?.click()
+}
+
+const handleBannerFileSelect = (event: Event) => {
+  console.log('📁 Banner file selected')
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file) {
+    console.log('📤 Emitting banner upload event:', file.name, file.size)
+    emit('upload-banner', file)
+  } else {
+    console.log('❌ No file selected')
+  }
+}
+
 const saveChanges = () => {
   if (hasChanges.value) {
     emit('update-profile', localProfile.value)
@@ -269,7 +320,7 @@ const formatDate = (dateString?: string) => {
 
 // Click outside directive implementation
 const vClickOutside = {
-  beforeMount(el: HTMLElement, binding: any) {
+  beforeMount(el: HTMLElement & { __vueClickOutside__?: any }, binding: any) {
     const onClick = (event: MouseEvent) => {
       // Check if the click is outside the color picker and not on the color preview
       if (el && !el.contains(event.target as Node) &&
@@ -280,7 +331,7 @@ const vClickOutside = {
     el.__vueClickOutside__ = onClick
     document.addEventListener('click', onClick)
   },
-  unmounted(el: HTMLElement) {
+  unmounted(el: HTMLElement & { __vueClickOutside__?: any }) {
     document.removeEventListener('click', el.__vueClickOutside__)
     el.__vueClickOutside__ = null
   }
@@ -334,6 +385,33 @@ onMounted(() => {
 .profile-banner {
   height: 80px;
   background: linear-gradient(135deg, var(--color) 0%, var(--color) 100%);
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-banner:hover {
+  filter: brightness(0.9);
+}
+
+.banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.profile-banner:hover .banner-overlay {
+  opacity: 1;
 }
 
 .profile-info {

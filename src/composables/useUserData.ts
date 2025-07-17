@@ -241,6 +241,15 @@ export function useUserData() {
   })
 
   /**
+   * Get user banner URL
+   */
+  const getUserBannerUrl = (userId: string) => computed(() => {
+    forceUpdate.value // Force reactivity
+    const user = userDataService.getUser(userId)
+    return user?.bannerUrl || null
+  })
+
+  /**
    * Fetch user profile (with caching)
    */
   const fetchUserProfile = async (userId: string, forceRefresh: boolean = false) => {
@@ -304,6 +313,7 @@ export function useUserData() {
   const updateCurrentUserProfile = async (profileData: {
     displayName?: string
     avatarUrl?: string
+    bannerUrl?: string
     color?: string
     bio?: string
   }) => {
@@ -367,6 +377,7 @@ export function useUserData() {
     getUser,
     getCurrentUser,
     getUserAvatarUrl,
+    getUserBannerUrl,
     getUserDisplayName,
     getUserStatus,
     getUserStatusForAvatar,
