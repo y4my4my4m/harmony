@@ -316,7 +316,7 @@ const setActiveSection = (sectionId: string) => {
 }
 
 const closeSettings = () => {
-  router.push({ name: 'Chat' })
+  router.back()
 }
 
 const handleLogout = async () => {

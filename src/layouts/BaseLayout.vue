@@ -332,6 +332,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   background: var(--background-tertiary);
   z-index: 100;
+  padding-top: 26px;
 }
 
 .content-area {
