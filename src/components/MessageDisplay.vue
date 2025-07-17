@@ -121,7 +121,7 @@
         
         <!-- Compact message (no header, just content aligned with previous messages) -->
         <div v-else class="message-content-only">
-          <div class="message-gutter" :data-timestamp="formatTimestamp(message.created_at)"></div>
+          <div class="message-gutter" :data-timestamp="formatTimeOnly(message.created_at)"></div>
           <div class="message-main">
             <UnifiedMessageContent 
               :content="message.content"
@@ -517,6 +517,12 @@ const formatTimestamp = (timestamp: Date) => {
   if (isToday(date)) return format(date, 'p');
   if (isYesterday(date)) return `Yesterday at ${format(date, 'p')}`;
   return format(date, 'MMM d, yyyy \'at\' p');
+};
+
+const formatTimeOnly = (timestamp: Date) => {
+  const date = new Date(timestamp);
+  if (!isValid(date)) return '';
+  return format(date, 'p');
 };
 
 const formatSystemTimestamp = (timestamp: Date) => {
@@ -953,12 +959,13 @@ const closeInviteModal = () => {
 .message-content-only:hover .message-gutter::before {
   content: attr(data-timestamp);
   position: absolute;
-  right: 8px;
+  right: 2px;
   top: 50%;
   font-size: 0.6875rem;
   color: #a3a6aa;
   padding: 0 4px;
   border-radius: 3px;
+  width: calc(100% + 10px);
 }
 
 /* Message actions */
