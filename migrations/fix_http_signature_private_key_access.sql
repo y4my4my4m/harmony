@@ -41,7 +41,7 @@ BEGIN
     -- Get private key from the secure table (only accessible by service role)
     SELECT private_key INTO v_private_key 
     FROM user_private_keys 
-    WHERE profile_id = v_profile_id;
+    WHERE user_id = v_profile_id;
     
     IF v_private_key IS NULL THEN
         RAISE EXCEPTION 'No private key found for actor: %', p_actor_username;
@@ -131,9 +131,9 @@ BEGIN
     FROM generate_rsa_keypair() AS rsa;
     
     -- Store private key securely in user_private_keys table
-    INSERT INTO user_private_keys (profile_id, private_key, created_at)
+    INSERT INTO user_private_keys (user_id, private_key, created_at)
     VALUES (p_user_id, v_private_key, NOW())
-    ON CONFLICT (profile_id) DO UPDATE SET 
+    ON CONFLICT (user_id) DO UPDATE SET 
         private_key = EXCLUDED.private_key,
         created_at = EXCLUDED.created_at;
     
