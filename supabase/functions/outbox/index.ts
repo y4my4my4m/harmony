@@ -1,8 +1,10 @@
-// ActivityPub Outbox endpoint for user posts
-// /users/{username}/outbox
+// ActivityPub Outbox endpoint for user posts and federation delivery
+// GET /users/{username}/outbox - serves ActivityPub outbox collections
+// POST /delivery - processes federation delivery queue
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { processDeliveryQueue } from './delivery.ts'
 
 interface ActivityPubOutbox {
   '@context': string | string[]
@@ -17,7 +19,7 @@ interface ActivityPubOutbox {
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
 serve(async (req: Request) => {
@@ -26,15 +28,49 @@ serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  if (req.method !== 'GET') {
-    return new Response('Method not allowed', { 
-      status: 405, 
-      headers: corsHeaders 
-    })
-  }
-
   try {
     const url = new URL(req.url)
+    
+    // Route: POST /delivery - process federation delivery queue
+    if (req.method === 'POST' && url.pathname.endsWith('/delivery')) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        const supabase = createClient(supabaseUrl, supabaseKey)
+        
+        const result = await processDeliveryQueue(supabase)
+        
+        return new Response(JSON.stringify({
+          success: true,
+          ...result
+        }), {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        })
+      } catch (error) {
+        console.error('Federation delivery error:', error)
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }), {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        })
+      }
+    }
+    
+    // Route: GET /users/{username}/outbox - serve ActivityPub outbox collection
+    if (req.method !== 'GET') {
+      return new Response('Method not allowed', { 
+        status: 405, 
+        headers: corsHeaders 
+      })
+    }
     
     // Extract username from query parameter (passed by nginx rewrite)
     const username = url.searchParams.get('username')
