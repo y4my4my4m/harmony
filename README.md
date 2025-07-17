@@ -98,7 +98,6 @@
 - [x] remote db
 - [x] remote storage
 
-
 --- DB Functions
 
 -- Check current system health
@@ -110,7 +109,8 @@ SELECT run_trending_maintenance();
 -- Just clean up hashtags
 SELECT cleanup_inactive_hashtags();
 
+-- Stop CRON for trending
+SELECT pause_trending_cron_jobs();
 
---- TODO:
-Fix security issue in (http signature):
-supabase/functions/inbox/index.ts
+-- Start CRON for trending
+SELECT resume_trending_cron_jobs();
