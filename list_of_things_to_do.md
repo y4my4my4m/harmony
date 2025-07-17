@@ -129,3 +129,5 @@ supabase-edge-functions  |
 42. we have ap_activities and federation_delivery_queue, we should merge them into one table, federation_delivery_queue should be the main table and ap_activities should be a view or something, so that we can have all activities in one place and not have to query two tables for federation
 
 43. should federation_delivery_queue have a "federation_type" column to indicate if it's a post, follow, like, etc. so that we can filter and handle them accordingly?
+
+44. clean console.logs in edge-functions, add debug environment variable to enable/disable them
