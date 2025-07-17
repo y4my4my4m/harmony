@@ -16,8 +16,6 @@
         :show-cache-button="false"
         :show-advanced="false"
         @theme-changed="onThemeChanged"
-        @volume-changed="onVolumeChanged"
-        @tested="onThemeTested"
       />
     </div>
 
@@ -219,25 +217,6 @@ const onThemeChanged = (themeId: string): void => {
   )
 }
 
-const onVolumeChanged = (volume: number): void => {
-  // Only show notification for significant volume changes (every 10%)
-  const roundedVolume = Math.round(volume * 10) * 10
-  notificationStore.showToast(
-    'ui_success' as any,
-    'Volume Updated',
-    `Volume set to ${roundedVolume}%`,
-    1500
-  )
-}
-
-const onThemeTested = (actionId: string): void => {
-  notificationStore.showToast(
-    'ui_success' as any,
-    'Theme Tested',
-    `Tested ${actionId} sound`,
-    1500
-  )
-}
 
 // =============================================================================
 // LIFECYCLE
