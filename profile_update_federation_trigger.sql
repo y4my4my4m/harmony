@@ -42,10 +42,6 @@ BEGIN
     -- Get instance domain
     SELECT trim(both '"' from config_value::text) INTO instance_domain 
     FROM instance_config WHERE config_key = 'domain' LIMIT 1;
-    
-    IF instance_domain IS NULL THEN
-        instance_domain := 'har.mony.lol';  -- Fallback
-    END IF;
 
     -- Build actor URL
     profile_actor_url := 'https://' || instance_domain || '/users/' || NEW.username;
