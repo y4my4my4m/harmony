@@ -91,9 +91,9 @@
         
         <div class="context-title">
           <div class="feed-info">
-            <Icon name="globe" />
+            <Icon :name="currentTab.icon" />
             <div class="feed-details">
-              <div class="feed-name"><span>{{ currentViewTitle }}</span><span>|</span><span class="instance-name">{{ instanceDomain }}</span></div>
+              <div class="feed-name"><span>{{ currentTab.title }}</span><span>|</span><span class="instance-name">{{ instanceDomain }}</span></div>
             </div>
           </div>
         </div>
@@ -190,9 +190,11 @@ const feedTabs = [
   { id: 'instances', label: 'Instances', icon: 'server' }
 ];
 
-const currentViewTitle = computed(() => {
+const currentTab= computed(() => {
   const tab = feedTabs.find(t => t.id === props.currentView);
-  return tab ? `${tab.label}` : 'Timeline';
+  return tab
+    ? { id: tab.id, title: tab.label, icon: tab.icon }
+    : { id: 'unknown', title: 'Timeline', icon: 'globe' };
 });
 </script>
 
