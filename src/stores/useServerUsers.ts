@@ -134,162 +134,86 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
     },
 
-    // Professional approach: Use Supabase Presence with proper TypeScript
-    async initializePresence(serverId: string, userId: string, username: string, avatar?: string) {
-      // Remove old presence channel
-      if (this.presenceChannel) {
-        await this.presenceChannel.unsubscribe();
-        this.presenceChannel = null;
-      }
-
-      // Create presence channel
-      this.presenceChannel = supabase
-        .channel(`server:${serverId}:presence`)
-        .on('presence', { event: 'sync' }, () => {
-          const presenceState = this.presenceChannel?.presenceState();
-          if (presenceState) {
-            this.updateOnlineUsers(presenceState);
-          }
-        })
-        .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-          console.log('User joined:', key, newPresences);
-          this.onlineUsers.add(key);
-          this.setUserOnlineStatus(key, true);
-        })
-        .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-          console.log('User left:', key, leftPresences);
-          this.onlineUsers.delete(key);
-          this.setUserOnlineStatus(key, false);
-        })
-        .subscribe(async (status: string) => {
-          if (status === 'SUBSCRIBED') {
-            // Track current user's presence
-            const presenceData = {
-              user_id: userId,
-              display_name: username || 'Unknown User',
-              avatar_url: avatar,
-              online_at: new Date().toISOString(),
-            };
-            
-            await this.presenceChannel?.track(presenceData);
-          }
-        });
-
-      // Store cleanup function globally for immediate access during beforeunload
-      (window as any).__harmonyPresenceCleanup = () => {
-        console.log('Immediate presence cleanup triggered');
-        if (this.presenceChannel) {
-          // Immediate untrack and cleanup
-          this.presenceChannel.untrack();
-          // Force offline status update in local state
-          this.setUserOnlineStatus(userId, false);
-          // Broadcast offline status to other users immediately
-          this.broadcastOfflineStatus(userId);
-        }
-      };
-    },
 
     async updatePresence(status: 'online' | 'offline') {
       if (this.presenceChannel) {
-        const presenceData = {
-          user_id: 'current_user', // We'll track by channel topic instead
-          online_at: new Date().toISOString(),
-        };
-        
         if (status === 'online') {
-          await this.presenceChannel.track(presenceData);
+          // Re-track with current presence data to update heartbeat
+          await this.presenceChannel.track({
+            online_at: new Date().toISOString(),
+          });
         } else {
+          // Simply untrack - Supabase will handle the rest
           await this.presenceChannel.untrack();
         }
       }
     },
 
-    // New method to immediately broadcast offline status
-    broadcastOfflineStatus(userId: string) {
-      try {
-        // Create a temporary broadcast channel for immediate offline notification
-        const offlineChannel = supabase.channel(`offline-${userId}-${Date.now()}`, {
-          config: {
-            broadcast: { self: false }, // Don't broadcast to self
-          },
-        });
-
-        offlineChannel.subscribe((status: string) => {
-          if (status === 'SUBSCRIBED') {
-            // Broadcast immediate offline status
-            offlineChannel.send({
-              type: 'broadcast',
-              event: 'user-offline',
-              payload: { 
-                user_id: userId, 
-                timestamp: new Date().toISOString() 
-              }
-            });
-            
-            // Clean up the temporary channel after a short delay
-            setTimeout(() => {
-              supabase.removeChannel(offlineChannel);
-            }, 1000);
+    updateOnlineUsers(presenceState: Record<string, any>) {
+      console.log('📊 Updating online users from presence:', presenceState);
+      
+      // Extract user IDs from presence data, not from keys
+      const onlineUserIds = new Set<string>();
+      
+      Object.values(presenceState).forEach((presences: any) => {
+        presences.forEach((presence: any) => {
+          if (presence.user_id) {
+            onlineUserIds.add(presence.user_id);
           }
         });
-      } catch (error) {
-        console.error('Error broadcasting offline status:', error);
-      }
-    },
-
-    // Listen for immediate offline broadcasts from other users
-    subscribeToOfflineBroadcasts() {
-      const offlineChannel = supabase.channel('global-offline-status', {
-        config: {
-          broadcast: { self: false },
-        },
       });
-
-      offlineChannel
-        .on('broadcast', { event: 'user-offline' }, (payload) => {
-          const { user_id } = payload.payload;
-          console.log('Received immediate offline broadcast for user:', user_id);
-          this.setUserOnlineStatus(user_id, false);
-        })
-        .subscribe();
-    },
-
-    updateOnlineUsers(presenceState: Record<string, any>) {
-      const onlineUserIds = Object.keys(presenceState);
       
-      // Update online users set
+      console.log('👥 Online user IDs:', Array.from(onlineUserIds));
+      
+      // First, mark users who were previously online but are no longer in presence as offline
+      const previouslyOnlineUsers = Array.from(this.onlineUsers);
+      previouslyOnlineUsers.forEach((userId: string) => {
+        if (!onlineUserIds.has(userId)) {
+          console.log('🔴 User went offline:', userId);
+          this.setUserOnlineStatus(userId, false);
+        }
+      });
+      
+      // Update online users set with current presence
       this.onlineUsers.clear();
       onlineUserIds.forEach((userId: string) => {
         this.onlineUsers.add(userId);
         this.setUserOnlineStatus(userId, true);
       });
-
-      // Set offline users who are not in presence
-      Object.keys(this.userProfiles).forEach((userId: string) => {
-        if (!this.onlineUsers.has(userId)) {
-          this.setUserOnlineStatus(userId, false);
-        }
-      });
+      
+      console.log('✅ Online users updated:', this.onlineUsers.size, 'online');
     },
 
     setUserOnlineStatus(userId: string, isOnline: boolean) {
       // Update userDataService (single source of truth)
       const userData = userDataService.getUser(userId);
       if (userData) {
+        // ONLY update the isOnline flag, NOT the status
+        // Status should remain what the user manually set (Away, Busy, etc.)
         userData.isOnline = isOnline;
-        userData.status = isOnline ? UserStatus.Online : UserStatus.Offline;
+        userData.lastSeen = new Date().toISOString();
+        
+        // Only auto-set to Offline if user disconnects AND they were Online
+        // Don't override Away/Busy status
+        if (!isOnline && userData.status === UserStatus.Online) {
+          userData.status = UserStatus.Offline;
+        }
+        // When user comes back online, restore from their preferred status in database
+        else if (isOnline && userData.status === UserStatus.Offline) {
+          // Don't auto-set to Online - let them keep their preferred status
+          // The database status is the source of truth for preferred status
+        }
       }
       
       // Also update local state for backwards compatibility
       if (this.userProfiles[userId]) {
-        // Only update if it's actually changing the online/offline status
+        // Same logic - only update if going from Online to Offline
         const currentStatus = this.userProfiles[userId].status;
-        const newStatus = isOnline ? UserStatus.Online : UserStatus.Offline;
         
-        if ((isOnline && currentStatus === UserStatus.Offline) || 
-            (!isOnline && currentStatus !== UserStatus.Offline)) {
-          this.userProfiles[userId].status = newStatus;
+        if (!isOnline && currentStatus === UserStatus.Online) {
+          this.userProfiles[userId].status = UserStatus.Offline;
         }
+        // Don't auto-restore status when coming online - respect their database status
       }
     },
 

@@ -264,12 +264,13 @@ let fetchCallCounter = 0;
 const { 
   getUserAvatarUrl,
   getUserDisplayName,
-  getUserStatusForAvatar,
   getUserColor,
   getAllUsers,
   getUsersInContext,
   subscribeToContext,
   unsubscribeFromContext,
+  isUserOnline,
+  getUserStatus,
 } = useUserData();
 
 // Component state
@@ -277,8 +278,6 @@ const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
 const searchQuery = ref('');
-const showServerSettings = ref(false);
-const showRolesView = ref(false);
 
 // Group collapse state
 const collapsedGroups = ref({
@@ -332,7 +331,12 @@ const filteredUsers = computed(() => {
   });
 });
 
-// Group users by status
+// Group users by real-time presence first, then by status for present users
+// This ensures:
+// 1. Only users who are actually present (connected via Supabase Realtime) appear as Online/Away/Busy
+// 2. All non-present users appear as Offline, regardless of their persistent database status
+// 3. After page reload, only truly present users are shown as active
+// 4. Professional, scalable real-time presence behavior for modern chat apps
 const groupedUsers = computed(() => {
   const groups = {
     online: [] as User[],
@@ -342,21 +346,30 @@ const groupedUsers = computed(() => {
   };
 
   filteredUsers.value.forEach((user: User) => {
-    const status = user.status;
-    switch (status) {
-      case UserStatus.Online:
-        groups.online.push(user);
-        break;
-      case UserStatus.Away:
-        groups.away.push(user);
-        break;
-      case UserStatus.Busy:
-        groups.busy.push(user);
-        break;
-      case UserStatus.Offline:
-      default:
-        groups.offline.push(user);
-        break;
+    // Check if user is actually present in real-time
+    const isPresent = isUserOnline(user.id).value;
+    
+    if (isPresent) {
+      // User is present - group by their preferred status
+      const status = getUserStatus(user.id).value;
+      switch (status) {
+        case UserStatus.Online:
+          groups.online.push(user);
+          break;
+        case UserStatus.Away:
+          groups.away.push(user);
+          break;
+        case UserStatus.Busy:
+          groups.busy.push(user);
+          break;
+        default:
+          // Present but status is Offline? Treat as Online
+          groups.online.push(user);
+          break;
+      }
+    } else {
+      // User is not present - always show as offline
+      groups.offline.push(user);
     }
   });
 
@@ -383,16 +396,6 @@ const currentServerData = computed(() => {
 });
 
 // Methods
-const toggleServerSettings = () => {
-  showServerSettings.value = !showServerSettings.value;
-  console.log('Server settings toggled:', showServerSettings.value);
-};
-
-const toggleRolesView = () => {
-  showRolesView.value = !showRolesView.value;
-  console.log('Roles view toggled:', showRolesView.value);
-};
-
 const toggleGroup = (groupName: string) => {
   if (groupName in collapsedGroups.value) {
     collapsedGroups.value[groupName as keyof typeof collapsedGroups.value] = 
@@ -429,9 +432,29 @@ const showUserProfile = (user: User) => {
   showProfileModal.value = true;
 };
 
-// Helper to get status for avatar from composable
+// Helper to get status for avatar based on real-time presence
 const getStatusForAvatarValue = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
-  return getUserStatusForAvatar(userId).value;
+  // First check if user is actually present
+  const isPresent = isUserOnline(userId).value;
+  
+  if (!isPresent) {
+    // User is not present - always show as offline
+    return 'offline';
+  }
+  
+  // User is present - return their preferred status
+  const status = getUserStatus(userId).value;
+  switch (status) {
+    case UserStatus.Online:
+      return 'online';
+    case UserStatus.Away:
+      return 'away';
+    case UserStatus.Busy:
+      return 'busy';
+    default:
+      // Present but status unknown - show as online
+      return 'online';
+  }
 };
 
 const closeProfile = () => {

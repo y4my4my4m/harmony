@@ -442,10 +442,21 @@ class UserDataService extends EventTarget {
    */
   private async setupServerPresence(serverId: string, userIds: string[]): Promise<void> {
     const channelName = `server-presence:${serverId}`
+    console.log('🔄 Setting up presence for server:', serverId, 'with', userIds.length, 'users')
+    
     const channel = supabase.channel(channelName)
-      .on('presence', { event: 'sync' }, () => this.handleServerSync(serverId))
-      .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => this.handleServerUserJoin(serverId, newPresences))
-      .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => this.handleServerUserLeave(serverId, leftPresences))
+      .on('presence', { event: 'sync' }, () => {
+        console.log('🔄 Presence sync for server:', serverId)
+        this.handleServerSync(serverId)
+      })
+      .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => {
+        console.log('👋 User(s) joined presence in server:', serverId, newPresences)
+        this.handleServerUserJoin(serverId, newPresences)
+      })
+      .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
+        console.log('👋 User(s) left presence in server:', serverId, leftPresences)
+        this.handleServerUserLeave(serverId, leftPresences)
+      })
       // 🔥 Listen for profile update broadcasts (the correct way for real-time profile changes)
       .on('broadcast', { event: 'profile_update' }, (payload) => this.handleProfileUpdateBroadcast(serverId, payload))
       // Listen for real-time server membership changes
@@ -468,6 +479,7 @@ class UserDataService extends EventTarget {
         table: 'profiles'
       }, (payload) => this.handleProfileUpdate(serverId, payload))
       .subscribe(async (status: string) => {
+        console.log(`📡 Server presence subscription status for ${serverId}:`, status)
         if (status === 'SUBSCRIBED') {
           console.log(`✅ Server presence connected: ${serverId}`)
           
@@ -475,6 +487,9 @@ class UserDataService extends EventTarget {
           if (this.currentUserId && userIds.includes(this.currentUserId)) {
             await this.trackCurrentUserInServer(channel, serverId)
           }
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error(`❌ Server presence error for ${serverId}, retrying...`)
+          setTimeout(() => this.setupServerPresence(serverId, userIds), 5000)
         }
       })
     
@@ -510,17 +525,46 @@ class UserDataService extends EventTarget {
    */
   private handleServerSync(serverId: string): void {
     const context = this.contexts.get(serverId)
-    if (!context?.channel) return
+    if (!context?.channel) {
+      console.warn('⚠️ No context or channel found for server sync:', serverId)
+      return
+    }
     
     const state = context.channel.presenceState()
-    console.log(`📡 Server ${serverId} presence sync:`, Object.keys(state).length, 'users')
+    console.log(`📡 Server ${serverId} presence sync:`, Object.keys(state).length, 'presence keys')
+    console.log('📊 Full presence state:', state)
     
-    Object.entries(state).forEach(([userId, presences]) => {
+    // Track which users are online based on presence
+    const onlineUserIds = new Set<string>()
+    
+    Object.entries(state).forEach(([presenceKey, presences]) => {
+      console.log(`👤 Presence key ${presenceKey}:`, presences)
       if (Array.isArray(presences) && presences.length > 0) {
         const presence = presences[0] as any
-        this.updateUserFromPresence(userId, presence)
+        if (presence.user_id) {
+          onlineUserIds.add(presence.user_id)
+          this.updateUserFromPresence(presence.user_id, presence)
+        }
       }
     })
+    
+    // Mark users as offline if they're not in presence
+    const contextUsers = Array.from(context.userIds)
+    contextUsers.forEach(userId => {
+      if (!onlineUserIds.has(userId)) {
+        const userData = this.users.get(userId)
+        if (userData && userData.isOnline) {
+          console.log(`🔴 Marking user ${userId} as offline (not in presence)`)
+          userData.isOnline = false
+          userData.status = UserStatus.Offline
+          userData.lastSeen = new Date().toISOString()
+          userData.lastCacheUpdate = new Date().toISOString()
+          this.emitEvent('user-updated', { userId })
+        }
+      }
+    })
+    
+    console.log(`✅ Sync complete: ${onlineUserIds.size} online, ${contextUsers.length - onlineUserIds.size} offline`)
   }
   
   /**
@@ -543,6 +587,7 @@ class UserDataService extends EventTarget {
         userData.isOnline = false
         userData.lastSeen = new Date().toISOString()
         userData.lastCacheUpdate = new Date().toISOString()
+        userData.status = 0 // Set to Offline
         this.emitEvent('user-updated', { userId: presence.user_id })
       }
       console.log(`👋 User left server ${serverId}:`, presence.display_name || presence.username)
@@ -1163,6 +1208,43 @@ class UserDataService extends EventTarget {
     }
     
     return null;
+  }
+
+  /**
+   * Manually trigger presence sync for a server context (useful for debugging or forcing updates)
+   */
+  async triggerPresenceSync(contextId: string): Promise<void> {
+    console.log('🔄 Manually triggering presence sync for context:', contextId)
+    
+    const context = this.contexts.get(contextId)
+    if (!context?.channel) {
+      console.warn('⚠️ No context or channel found for manual sync:', contextId)
+      return
+    }
+    
+    // Force a presence sync
+    this.handleServerSync(contextId)
+    
+    console.log('✅ Manual presence sync completed for:', contextId)
+  }
+  
+  /**
+   * Get current online status for all users in a context
+   */
+  getOnlineUsersInContext(contextId: string): { online: UserData[], offline: UserData[] } {
+    const context = this.contexts.get(contextId)
+    if (!context) {
+      return { online: [], offline: [] }
+    }
+    
+    const users = Array.from(context.userIds)
+      .map(id => this.users.get(id))
+      .filter(Boolean) as UserData[]
+    
+    const online = users.filter(user => user.isOnline)
+    const offline = users.filter(user => !user.isOnline)
+    
+    return { online, offline }
   }
 }
 
