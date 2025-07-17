@@ -137,7 +137,24 @@ BEGIN
         'pending'
     ) RETURNING id INTO activity_id;
 
-    RAISE NOTICE '📝 Profile update activity created for %: %', NEW.username, activity_id;
+    -- Queue the activity for federation delivery directly
+    -- Get follower domains to send to
+    PERFORM queue_activity_for_federation(
+        activity_id,
+        ARRAY(
+            SELECT DISTINCT domain 
+            FROM follows f
+            JOIN profiles p ON f.follower_id = p.id
+            WHERE f.following_id = NEW.id
+            AND f.status = 'accepted'
+            AND NOT p.is_local
+            AND p.domain IS NOT NULL
+        ),
+        3, -- Priority 3 (profile updates are important but not urgent)
+        true -- Immediate processing
+    );
+
+    RAISE NOTICE '📝 Profile update activity created and queued for %: %', NEW.username, activity_id;
 
     RETURN NEW;
 END;

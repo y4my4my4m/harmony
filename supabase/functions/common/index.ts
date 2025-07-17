@@ -169,11 +169,13 @@ export async function updateDeliveryStatus(
   result: DeliveryResult,
   newAttempts: number
 ): Promise<void> {
+  console.log(`🔄 Updating delivery status for ${itemId}: success=${result.success}, attempts=${newAttempts}`)
   const now = new Date().toISOString()
   
   if (result.success) {
     // Mark as delivered
-    await supabase
+    console.log(`📝 Marking ${itemId} as delivered...`)
+    const { error } = await supabase
       .from('federation_delivery_queue')
       .update({
         status: 'delivered',
@@ -185,6 +187,11 @@ export async function updateDeliveryStatus(
         updated_at: now
       })
       .eq('id', itemId)
+
+    if (error) {
+      console.error(`❌ Failed to update delivery status for ${itemId}:`, error)
+      throw error
+    }
 
     console.log(`✅ Delivered ${itemId} (${result.delivery_duration_ms}ms)`)
   } else {
