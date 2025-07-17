@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase';
+import { useToast } from 'vue-toastification';
 import { canUserCreateInvites, getInviteConstraints } from './permissionsService';
 
 export interface InviteOptions {
@@ -108,6 +109,8 @@ async function generateInviteUrl(
   }
 }
 async function acceptInvite(code: string, userId: string): Promise<{ success: boolean; serverId?: string; error?: string }> {
+  const toast = useToast();
+  
   try {
     // Get invite details
     const { data: invite, error: inviteError } = await supabase
@@ -157,8 +160,16 @@ async function acceptInvite(code: string, userId: string): Promise<{ success: bo
       }]);
 
     if (userServerError) {
-      console.error('Error adding user to server:', userServerError);
-      return { success: false, error: 'Failed to join server' };
+      // Handle duplicate membership gracefully
+      if (userServerError.code === '23505') { // Unique constraint violation
+        console.log('User is already a member of this server');
+        toast.info("You're already a member of this server!");
+        // Still update invite usage since the invite was "used" even if they were already a member
+      } else {
+        console.error('Error adding user to server:', userServerError);
+        toast.error("Failed to join server. Please try again.");
+        return { success: false, error: 'Failed to join server' };
+      }
     }
 
     // Update invite usage

@@ -1,4 +1,5 @@
 import { supabase } from '@/supabase'
+import { useToast } from 'vue-toastification'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useServerUsersStore } from '@/stores/useServerUsers'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -203,6 +204,8 @@ export class ServerMembershipService {
    * Manually trigger a user join (for testing or manual invites)
    */
   async triggerUserJoin(serverId: string, userId: string): Promise<boolean> {
+    const toast = useToast();
+    
     try {
       const { error } = await supabase
         .from('user_servers')
@@ -212,12 +215,22 @@ export class ServerMembershipService {
           created_at: new Date().toISOString()
         }])
 
-      if (error) throw error
+      if (error) {
+        // Handle duplicate membership gracefully
+        if (error.code === '23505') { // Unique constraint violation
+          console.log(`✅ User ${userId} is already a member of server ${serverId}`)
+          toast.info("User is already a member of this server")
+          return true; // Consider it successful since the desired state is achieved
+        }
+        throw error
+      }
       
       console.log(`✅ User ${userId} manually added to server ${serverId}`)
+      toast.success("User successfully added to server")
       return true
     } catch (error) {
       console.error('❌ Error manually adding user to server:', error)
+      toast.error("Failed to add user to server")
       return false
     }
   }

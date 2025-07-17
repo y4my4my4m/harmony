@@ -1,7 +1,6 @@
 1. the sidebar profile view goes out of bound if the screen is too small
 2. the profile view on clicking a username might be out of bound (if too close to top or bottom of the screen)
 3. search
-4. currently there's a bug where users can be invited and join the same server multiple times (should probably be fixed in the backend)
 5. system messages aren't real time
 6. "accepting invitation" is bugged
 7. re-instore context based notifications so that you don't get a notification if currently viewing the channel or dm or whatever
@@ -118,6 +117,8 @@ supabase-edge-functions  |
 ^ make these misskey reactions work for messages and posts
 
 
-37. URGENT: PRIVATE KEY LEAKS when doing profiles.select('*'), would probably be best to put it in a different table and only have service role have access to it?
-
 38. profileService is probably not needed anymore, we should use the new userDataService and ensure all components use the same source of truth for user, it's doing weird things like signing avatar URLs, and its not using the optmized versions, no cache either? etc...
+
+39. add a limit of "unique" reactions per post/message, like max 20 different reactions (with unlimited counters on each)
+
+40. notification should be smart in case a user spams a reaction, it should only show the first one and then ignore the rest, so that we don't spam the user with notifications, until a time threshold is reached (like  2min) and then it can show the next one, but not more than 3 in a row or something like that

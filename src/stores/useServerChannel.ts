@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
+import { useToast } from 'vue-toastification';
 import type { Server, Category, Channel, ResolvedEmoji } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { statePersistence } from '@/services/StatePersistence';
@@ -471,12 +472,21 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async addUserToServer(serverId: string, userId: string) {
+      const toast = useToast();
+      
       const { error } = await supabase
         .from('user_servers')
         .insert([{ server_id: serverId, user_id: userId }]);
 
       if (error) {
+        // Handle duplicate membership gracefully
+        if (error.code === '23505') { // Unique constraint violation
+          console.log("User is already a member of this server");
+          // Don't show a toast here since this is typically called internally
+          return; // Consider it successful since the desired state is achieved
+        }
         console.error('Error adding user to server:', error);
+        toast.error("Failed to add user to server");
         throw error;
       }
     },

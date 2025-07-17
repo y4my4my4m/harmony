@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
+import { useToast } from 'vue-toastification';
 import type { Server, Emoji } from '@/types';
 
 export const useServerStore = defineStore('server', {
@@ -64,17 +65,29 @@ export const useServerStore = defineStore('server', {
     },
 
     async joinServer(serverId: string, userId: string): Promise<boolean> {
+      const toast = useToast();
+      
       try {
         const { data, error } = await supabase
           .from('user_servers')
           .insert([{ server_id: serverId, user_id: userId }]);
 
-        if (error) throw error;
+        if (error) {
+          // Handle duplicate membership gracefully
+          if (error.code === '23505') { // Unique constraint violation
+            console.log("User is already a member of this server");
+            toast.info("You're already a member of this server!");
+            return true; // Consider it successful since the desired state is achieved
+          }
+          throw error;
+        }
 
         console.log("Server joined successfully", data);
+        toast.success("Successfully joined the server!");
         return true;
       } catch (error) {
         console.error('Error joining server:', error);
+        toast.error("Failed to join server. Please try again.");
         return false;
       }
     },
