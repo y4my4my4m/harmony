@@ -117,15 +117,15 @@ export async function generateHttpSignature(
  * Get private key for actor from database
  */
 export async function getPrivateKey(supabase: any, actorUsername: string): Promise<string> {
-  // First get the user profile to get the user ID
-  const { data: profile } = await supabase
+  // Get the user profile to get the user ID
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id')
     .eq('username', actorUsername)
     .eq('is_local', true)
     .single()
 
-  if (!profile) {
+  if (profileError || !profile) {
     throw new Error(`Actor profile not found: ${actorUsername}`)
   }
 
@@ -186,7 +186,7 @@ export async function updateDeliveryStatus(
       })
       .eq('id', itemId)
 
-    console.log(`✅ Marked delivery ${itemId} as successful`)
+    console.log(`✅ Delivered ${itemId} (${result.delivery_duration_ms}ms)`)
   } else {
     // Handle failure with exponential backoff
     const maxAttempts = 5
@@ -207,7 +207,7 @@ export async function updateDeliveryStatus(
         })
         .eq('id', itemId)
 
-      console.log(`💀 Marked delivery ${itemId} as permanently failed after ${newAttempts} attempts`)
+      console.log(`💀 Failed ${itemId} permanently (${newAttempts} attempts)`)
     } else {
       // Schedule retry with exponential backoff
       const backoffMinutes = Math.pow(2, newAttempts)
@@ -227,7 +227,7 @@ export async function updateDeliveryStatus(
         })
         .eq('id', itemId)
 
-      console.log(`🔄 Scheduled retry for delivery ${itemId} in ${backoffMinutes} minutes (attempt ${newAttempts})`)
+      console.log(`🔄 Retry ${itemId} in ${backoffMinutes}min (attempt ${newAttempts})`)
     }
   }
 }
@@ -257,7 +257,7 @@ export async function logDeliveryMetrics(
         avg_delivery_time_ms: avgDuration
       })
 
-    console.log(`📊 Logged delivery metrics: ${successful}/${deliveries.length} successful (avg ${avgDuration.toFixed(0)}ms)`)
+    console.log(`📊 Delivery batch: ${successful}/${deliveries.length} successful (avg ${avgDuration.toFixed(0)}ms)`)
   } catch (error) {
     console.warn('Failed to log delivery metrics:', error)
   }
