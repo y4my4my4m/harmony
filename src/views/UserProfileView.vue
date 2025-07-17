@@ -36,7 +36,7 @@
       <!-- Profile Header -->
       <div class="profile-header">
         <!-- Banner with gradient overlay -->
-        <div class="profile-banner" :style="{ backgroundImage: (user as any).banner_url ? `url(${(user as any).banner_url})` : undefined }">
+        <div class="profile-banner" :style="bannerStyle">
           <div class="banner-gradient"></div>
           
           <!-- Action buttons overlay on banner -->
@@ -237,8 +237,10 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { useLayoutState } from '@/composables/useLayoutState'
+import { useUserData } from '@/composables/useUserData' 
 
 import { activityPubService } from '@/services/activityPubService';
+import { getBannerUrl } from '@/utils/bannerUtils';
 import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';
 
@@ -308,6 +310,9 @@ const profileStore = useProfileStore();
 const route = useRoute();
 const router = useRouter();
 
+// User data composable
+const { getUserColor, getUserBannerUrl } = useUserData()
+
 // State
 const user = ref<FederatedUser | null>(null);
 const isLoading = ref(true);
@@ -348,16 +353,59 @@ const profileTabs = computed(() => [
   }
 ]);
 
-// Debug active tab
-watch(activeTab, (newTab) => {
-  console.log(`🔄 Active tab changed to: ${newTab}`);
-  console.log(`📊 Current data lengths:`, {
-    posts: userPosts.value.length,
-    following: followingUsers.value.length,
-    followers: followerUsers.value.length
-  });
-});
+const bannerUrl = computed(() => {
+  if (!user.value) return null
+  return getUserBannerUrl(user.value.id).value || (user.value as any).banner_url || null
+})
 
+const userColor = computed(() => {
+  if (!user.value) return '#5865f2'
+  return getUserColor(user.value.id).value || '#5865f2'
+})
+
+const bannerStyle = computed(() => {
+  const banner = bannerUrl.value
+  if (banner) {
+    // Get optimized banner URL with proper resize (640x350 at 80% quality)
+    const optimizedBanner = getBannerUrl(banner, { width: 640, height: 350, quality: 80 })
+    return {
+      backgroundImage: `url(${optimizedBanner || banner})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    }
+  }
+  return {
+    background: userColor.value || '#5865f2'
+  }
+})
+
+
+//  someday i want to add this as an option, have the user choose
+// const bannerGradientStyle = computed(() => {
+//   const color = userColor.value || '#5865f2'
+  
+//   // Create a sophisticated gradient overlay using the user's color
+//   return {
+//     background: `
+//       linear-gradient(
+//         135deg,
+//         rgba(0, 0, 0, 0.75) 0%,
+//         ${color}40 15%,
+//         ${color}20 80%,
+//         rgba(0, 0, 0, 0.59) 100%
+//       ),
+//       linear-gradient(
+//         45deg,
+//         ${color}30 0%,
+//         transparent 70%,
+//         transparent 80%,
+//         ${color}25 100%
+//       )
+//     `,
+//     opacity: 1.0
+//   }
+// })
 const handleRefresh = () => {
   console.log('🔄 Refreshing profile data...');
   loadUserProfile(currentHandle.value);
@@ -934,13 +982,14 @@ document.addEventListener('click', handleClickOutside);
   background: var(--h-sidebar, #2b2d31);
   position: relative;
   padding: 0 1.5rem 1.5rem;
+  z-index: 2;
 }
 
 .avatar-container {
   position: relative;
   margin-top: -50px;
   margin-bottom: 1rem;
-  z-index: 1;
+  z-index: 3;
 }
 
 .avatar-wrapper {

@@ -8,7 +8,7 @@
     <div class="profile-modal-content">
       <!-- Cover Banner -->
       <div class="profile-banner" :style="bannerStyle">
-        <div class="banner-gradient"></div>
+        <div class="banner-gradient" :style="bannerStyle"></div>
         <div class="banner-actions">
           <button 
             v-if="!isCurrentUser" 
