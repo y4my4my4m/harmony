@@ -34,13 +34,16 @@ export function useUserData() {
     })
   }
   
-  // Initialize if not already done
-  const ensureInitialized = async () => {
+  // Initialize immediately when composable is used
+  const ensureInitialized = () => {
     if (!isInitialized.value) {
       setupEventListeners()
       isInitialized.value = true
     }
   }
+  
+  // Initialize immediately
+  ensureInitialized()
   
   // User Data Getters (all reactive)
   
@@ -246,7 +249,7 @@ export function useUserData() {
    * Initialize the service
    */
   const initialize = async (userId: string, username: string, avatarUrl?: string) => {
-    await ensureInitialized()
+    ensureInitialized()
     await userDataService.initialize(userId, username, avatarUrl)
   }
   
@@ -254,7 +257,7 @@ export function useUserData() {
    * Subscribe to a context
    */
   const subscribeToContext = async (contextId: string, type: 'server' | 'dm' | 'profile' | 'friends', userIds: string[]) => {
-    await ensureInitialized()
+    ensureInitialized()
     await userDataService.subscribeToContext(contextId, type, userIds)
   }
   
