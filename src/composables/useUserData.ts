@@ -92,28 +92,6 @@ export function useUserData() {
   })
   
   /**
-   * @deprecated Use getPresenceAwareStatus instead - this only shows persistent DB status
-   * Get user status for avatar display (legacy - not presence-aware)
-   */
-  const getUserStatusForAvatar = (userId: string) => computed(() => {
-    forceUpdate.value // Force reactivity
-    const user = userDataService.getUser(userId)
-    if (!user) return 'offline'
-    
-    switch (user.status) {
-      case UserStatus.Online:
-        return 'online'
-      case UserStatus.Away:
-        return 'away'
-      case UserStatus.Busy:
-        return 'busy'
-      case UserStatus.Offline:
-      default:
-        return 'offline'
-    }
-  })
-  
-  /**
    * Get user status text
    */
   const getUserStatusText = (userId: string) => computed(() => {
@@ -529,7 +507,6 @@ export function useUserData() {
     getUserBannerUrl,
     getUserDisplayName,
     getUserStatus,
-    getUserStatusForAvatar,
     getUserStatusText,
     getUserColor,
     isUserOnline,
