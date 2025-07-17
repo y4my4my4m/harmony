@@ -87,12 +87,16 @@ const getProfileWithAvatarUrlByAuthUserId = async (authUserId: string): Promise<
 };
 
 const updateProfile = async (userId: string, updates: Partial<User>): Promise<User | undefined> => {
+  
   const { data, error } = await supabase
     .from('profiles')
     .update(updates)
     .match({ id: userId });
 
-  if (error) throw error;
+  if (error) {
+    console.error('❌ Profile update error:', error);
+    throw error;
+  }
   
   // If the update was successful, broadcast profile changes to relevant contexts only
   if (data && data[0]) {
@@ -149,12 +153,20 @@ const uploadAvatar = async (userId: string, file: File): Promise<string> => {
 const uploadBanner = async (userId: string, file: File): Promise<string> => {
   const ext = file.name.split('.').pop();
   if (!ext) throw new Error('File must have an extension');
-  const filePath = `${userId}/${userId}_banner.${ext}`;
+  
+  // Add timestamp to ensure unique filenames and avoid cache issues
+  const timestamp = Date.now();
+  const filePath = `${userId}/${userId}_banner_${timestamp}.${ext}`;
+  
   const { error } = await supabase.storage.from('banners').upload(filePath, file, {
     upsert: true
   });
 
-  if (error) throw error;
+  if (error) {
+    console.error('❌ Banner upload error:', error);
+    throw error;
+  }
+  
   return filePath;
 };
 

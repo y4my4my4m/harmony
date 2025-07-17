@@ -199,6 +199,7 @@ const authStore = useAuthStore()
 // State
 const localProfile = ref<Partial<User>>({})
 const showColorPicker = ref(false)
+const bannerKey = ref(0) // For forcing banner reload
 
 // Refs
 const colorPickerRef = ref<InstanceType<typeof ColorPicker>>()
@@ -220,6 +221,8 @@ const hasChanges = computed(() => {
 })
 
 const bannerStyle = computed(() => {
+  // Include bannerKey to force reactivity when banner changes
+  bannerKey.value
   const bannerUrl = getBannerUrl(props.profile?.banner_url, { width: 1280, height: 720, quality: 80 })
   if (bannerUrl) {
     return {
@@ -298,6 +301,8 @@ const handleBannerFileSelect = (event: Event) => {
   if (file) {
     console.log('📤 Emitting banner upload event:', file.name, file.size)
     emit('upload-banner', file)
+    // Reset the input to allow re-uploading the same file
+    target.value = ''
   } else {
     console.log('❌ No file selected')
   }
@@ -339,6 +344,13 @@ const vClickOutside = {
 
 // Watchers
 watch(() => props.profile, syncLocalProfile, { immediate: true })
+
+// Watch for banner URL changes to trigger UI refresh
+watch(() => props.profile?.banner_url, (newBannerUrl, oldBannerUrl) => {
+  if (newBannerUrl !== oldBannerUrl) {
+    bannerKey.value++
+  }
+}, { immediate: false })
 
 onMounted(() => {
   syncLocalProfile()

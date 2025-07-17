@@ -116,3 +116,6 @@ supabase-edge-functions  |
 
 
 ^ make these misskey reactions work for messages and posts
+
+
+37. URGENT: PRIVATE KEY LEAKS when doing profiles.select('*'), would probably be best to put it in a different table and only have service role have access to it?
