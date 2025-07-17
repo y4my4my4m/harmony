@@ -1,228 +1,236 @@
 <!-- UserProfileView - Federated user profile page -->
 <template>
-  <!-- Mony Header -->
-  <div class="mony-header-container">
-    <MonyHeader
-      :current-view="currentView"
-      :is-mobile="isMobile"
-      @switch-feed="handleSwitchFeed"
-      @refresh-timeline="handleRefresh"
-      @open-composer="handleOpenComposer"
-      @open-search="handleOpenSearch"
-      @toggle-left-sidebar="$emit('toggleLeftSidebar')"
-      @toggle-right-sidebar="$emit('toggleRightSidebar')"
-    />
-  </div>
-    <div class="user-profile-view">
-    <!-- Loading State -->
-    <div v-if="isLoading" class="loading-state">
-      <div class="loading-spinner"></div>
-      <p>Loading profile...</p>
+  <div class="user-profile-wrapper">
+    <!-- Mony Header -->
+    <div class="mony-header-container">
+      <MonyHeader
+        :current-view="currentView"
+        :is-mobile="isMobile"
+        @switch-feed="handleSwitchFeed"
+        @refresh-timeline="handleRefresh"
+        @open-composer="handleOpenComposer"
+        @open-search="handleOpenSearch"
+        @toggle-left-sidebar="$emit('toggleLeftSidebar')"
+        @toggle-right-sidebar="$emit('toggleRightSidebar')"
+      />
     </div>
 
-    <!-- Error State -->
-    <div v-else-if="error" class="error-state">
-      <Icon name="user-x" :size="48" />
-      <h2>Profile not found</h2>
-      <p>{{ error }}</p>
-      <button @click="$router.go(-1)" class="back-btn">
-        <Icon name="arrow-left" />
-        Go back
-      </button>
-    </div>
-
-    <!-- Profile Content -->
-    <div v-else-if="user" class="profile-content">
-      <!-- Profile Header -->
-      <div class="profile-header">
-        <!-- Banner with gradient overlay -->
-        <div class="profile-banner" :style="bannerStyle">
-          <div class="banner-gradient"></div>
-          
-          <!-- Action buttons overlay on banner -->
-          <div class="banner-actions">
-            <button
-              @click="mentionUser"
-              class="banner-action-btn"
-              title="Mention user"
-            >
-              <Icon name="at-sign" />
-            </button>
-
-            <div class="more-actions">
-              <button
-                @click="showActionsMenu = !showActionsMenu"
-                class="banner-action-btn"
-                title="More actions"
-              >
-                <Icon name="more-horizontal" />
-              </button>
-              
-              <div v-if="showActionsMenu" class="actions-menu">
-                <button @click="handleMute" class="action-item" :class="{ active: isMuted }">
-                  <Icon name="volume-x" />
-                  <span>{{ isMuted ? 'Unmute' : 'Mute' }}</span>
-                </button>
-                
-                <button @click="handleBlock" class="action-item danger" :class="{ active: isBlocked }">
-                  <Icon name="user-x" />
-                  <span>{{ isBlocked ? 'Unblock' : 'Block' }}</span>
-                </button>
-                
-                <button v-if="!user.is_local" @click="handleReport" class="action-item danger">
-                  <Icon name="flag" />
-                  <span>Report</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Profile info container -->
-        <div class="profile-info-container">
-          <!-- Avatar section with status indicator -->
-          <div class="avatar-container">
-            <div class="avatar-wrapper">
-              <Avatar 
-                :src="user.avatar_url" 
-                :alt="user.display_name"
-                size="2xl" 
-                class="profile-avatar"
-              />
-              <div v-if="!user.is_local" class="federation-badge" :title="`From ${user.domain}`">
-                <Icon name="federation" size="12" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Main profile content -->
-          <div class="profile-main-content">
-            <!-- Top row: Name/handle + Follow button -->
-            <div class="profile-top-row">
-              <div class="name-handle-section">
-                <div class="display-name-row">
-                  <h1 class="display-name">{{ user.display_name || user.username }}</h1>
-                  <Icon v-if="(user as any).verified" name="verified" class="verified-icon" />
-                  <span v-if="!user.is_local" class="domain-tag">{{ user.domain }}</span>
-                </div>
-                <p class="user-handle">{{ user.handle }}</p>
-              </div>
-
-              <!-- Primary action button -->
-              <div class="primary-actions" v-if="!isCurrentUser">
-                <button
-                  @click="toggleFollow"
-                  :disabled="isFollowLoading"
-                  :class="['primary-action-btn', 'follow-btn', { following: isFollowing }]"
-                >
-                  <Icon v-if="isFollowLoading" name="loader" class="spinning" />
-                  <Icon v-else-if="isFollowing" name="user-check" />
-                  <Icon v-else name="user-plus" />
-                  <span>{{ followButtonText }}</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Bio section -->
-            <div v-if="user.bio" class="bio-section">
-              <MonyContent :content="user.bio" />
-            </div>
-
-            <!-- Meta info row -->
-            <div class="meta-info-row">
-              <div v-if="user.created_at" class="join-date">
-                <Icon name="calendar" :size="16" />
-                <span>Joined {{ formatJoinDate(user.created_at) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+    <!-- Main Content -->
+    <div 
+      ref="scrollContainerRef"
+      class="user-profile-view"
+      @scroll="handleScroll"
+    >
+      <!-- Loading State -->
+      <div v-if="isLoading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading profile...</p>
       </div>
 
-      <!-- Profile Tabs -->
-      <div class="profile-tabs">
-        <button
-          v-for="tab in profileTabs"
-          :key="tab.id"
-          @click="activeTab = tab.id"
-          :class="['tab-btn', { active: activeTab === tab.id }]"
-        >
-          <Icon :name="tab.icon" />
-          <span>{{ tab.label }}</span>
-          <span v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</span>
+      <!-- Error State -->
+      <div v-else-if="error" class="error-state">
+        <Icon name="user-x" :size="48" />
+        <h2>Profile not found</h2>
+        <p>{{ error }}</p>
+        <button @click="$router.go(-1)" class="back-btn">
+          <Icon name="arrow-left" />
+          Go back
         </button>
       </div>
 
-      <!-- Tab Content -->
-      <div class="tab-content">
-        <!-- Posts Tab -->
-        <div v-if="activeTab === 'posts'" class="posts-tab">
-          <div v-if="userPosts.length === 0 && !isLoadingPosts" class="empty-state">
-            <Icon name="message-circle" :size="48" />
-            <h3>No monies yet</h3>
-            <p>{{ isCurrentUser ? "You haven't" : `${(user?.display_name || user?.username) || 'Unknown User'} hasn't` }} posted anything yet.</p>
+      <!-- Profile Content -->
+      <div v-else-if="user" class="profile-content">
+        <!-- Profile Header -->
+        <div class="profile-header">
+          <!-- Banner with gradient overlay -->
+          <div class="profile-banner" :style="bannerStyle">
+            <div class="banner-gradient"></div>
+            
+            <!-- Action buttons overlay on banner -->
+            <div class="banner-actions">
+              <button
+                @click="mentionUser"
+                class="banner-action-btn"
+                title="Mention user"
+              >
+                <Icon name="at-sign" />
+              </button>
+
+              <div class="more-actions">
+                <button
+                  @click="showActionsMenu = !showActionsMenu"
+                  class="banner-action-btn"
+                  title="More actions"
+                >
+                  <Icon name="more-horizontal" />
+                </button>
+                
+                <div v-if="showActionsMenu" class="actions-menu">
+                  <button @click="handleMute" class="action-item" :class="{ active: isMuted }">
+                    <Icon name="volume-x" />
+                    <span>{{ isMuted ? 'Unmute' : 'Mute' }}</span>
+                  </button>
+                  
+                  <button @click="handleBlock" class="action-item danger" :class="{ active: isBlocked }">
+                    <Icon name="user-x" />
+                    <span>{{ isBlocked ? 'Unblock' : 'Block' }}</span>
+                  </button>
+                  
+                  <button v-if="!user.is_local" @click="handleReport" class="action-item danger">
+                    <Icon name="flag" />
+                    <span>Report</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           
-          <div v-else class="posts-list">
-            <MonyPost
-              v-for="post in userPosts"
-              data-timeline
-              :key="post.id"
-              :post="post"
-              @reply="replyToPost"
-              @favorite="handleFavorite"
-              @reblog="handleReblog"
-              @user-click="showUserProfile"
-            />
-            
-            <div v-if="hasMorePosts" class="load-more-container">
-              <button
-                @click="loadMorePosts"
-                :disabled="isLoadingPosts"
-                class="load-more-btn"
-              >
-                <Icon v-if="isLoadingPosts" name="loader" class="spinning" />
-                <span>{{ isLoadingPosts ? 'Loading...' : 'Load More' }}</span>
-              </button>
+          <!-- Profile info container -->
+          <div class="profile-info-container">
+            <!-- Avatar section with status indicator -->
+            <div class="avatar-container">
+              <div class="avatar-wrapper">
+                <Avatar 
+                  :src="user.avatar_url" 
+                  :alt="user.display_name"
+                  size="2xl" 
+                  class="profile-avatar"
+                />
+                <div v-if="!user.is_local" class="federation-badge" :title="`From ${user.domain}`">
+                  <Icon name="federation" size="12" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Main profile content -->
+            <div class="profile-main-content">
+              <!-- Top row: Name/handle + Follow button -->
+              <div class="profile-top-row">
+                <div class="name-handle-section">
+                  <div class="display-name-row">
+                    <h1 class="display-name">{{ user.display_name || user.username }}</h1>
+                    <Icon v-if="(user as any).verified" name="verified" class="verified-icon" />
+                    <span v-if="!user.is_local" class="domain-tag">{{ user.domain }}</span>
+                  </div>
+                  <p class="user-handle">{{ user.handle }}</p>
+                </div>
+
+                <!-- Primary action button -->
+                <div class="primary-actions" v-if="!isCurrentUser">
+                  <button
+                    @click="toggleFollow"
+                    :disabled="isFollowLoading"
+                    :class="['primary-action-btn', 'follow-btn', { following: isFollowing }]"
+                  >
+                    <Icon v-if="isFollowLoading" name="loader" class="spinning" />
+                    <Icon v-else-if="isFollowing" name="user-check" />
+                    <Icon v-else name="user-plus" />
+                    <span>{{ followButtonText }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Bio section -->
+              <div v-if="user.bio" class="bio-section">
+                <MonyContent :content="user.bio" />
+              </div>
+
+              <!-- Meta info row -->
+              <div class="meta-info-row">
+                <div v-if="user.created_at" class="join-date">
+                  <Icon name="calendar" :size="16" />
+                  <span>Joined {{ formatJoinDate(user.created_at) }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Following Tab -->
-        <div v-else-if="activeTab === 'following'" class="following-tab">
-          <div v-if="followingUsers.length === 0" class="empty-state">
-            <Icon name="users" :size="48" />
-            <h3>Not following anyone</h3>
-            <p>{{ isCurrentUser ? "You're" : `${user?.display_name || user?.username} is` }} not following anyone yet.</p>
-          </div>
-          
-          <div v-else class="users-grid">
-            <UserCard
-              v-for="followedUser in followingUsers"
-              :key="followedUser.id"
-              :user="followedUser"
-              :is-compact="true"
-              @user-click="showUserProfile"
-            />
-          </div>
+        <!-- Profile Tabs -->
+        <div class="profile-tabs">
+          <button
+            v-for="tab in profileTabs"
+            :key="tab.id"
+            @click="activeTab = tab.id"
+            :class="['tab-btn', { active: activeTab === tab.id }]"
+          >
+            <Icon :name="tab.icon" />
+            <span>{{ tab.label }}</span>
+            <span v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</span>
+          </button>
         </div>
 
-        <!-- Followers Tab -->
-        <div v-else-if="activeTab === 'followers'" class="followers-tab">
-          <div v-if="followerUsers.length === 0" class="empty-state">
-            <Icon name="users" :size="48" />
-            <h3>No followers</h3>
-            <p>{{ isCurrentUser ? "You don't" : `${user?.display_name || user?.username} doesn't` }} have any followers yet.</p>
+        <!-- Tab Content -->
+        <div class="tab-content">
+          <!-- Posts Tab -->
+          <div v-if="activeTab === 'posts'" class="posts-tab">
+            <div v-if="userPosts.length === 0 && !isLoadingPosts" class="empty-state">
+              <Icon name="message-circle" :size="48" />
+              <h3>No monies yet</h3>
+              <p>{{ isCurrentUser ? "You haven't" : `${(user?.display_name || user?.username) || 'Unknown User'} hasn't` }} posted anything yet.</p>
+            </div>
+            
+            <div v-else class="posts-list">
+              <MonyPost
+                v-for="post in userPosts"
+                data-timeline
+                :key="post.id"
+                :post="post"
+                @reply="replyToPost"
+                @favorite="handleFavorite"
+                @reblog="handleReblog"
+                @user-click="showUserProfile"
+              />
+              
+              <div v-if="hasMorePosts" class="load-more-container">
+                <button
+                  @click="loadMorePosts"
+                  :disabled="isLoadingPosts"
+                  class="load-more-btn"
+                >
+                  <Icon v-if="isLoadingPosts" name="loader" class="spinning" />
+                  <span>{{ isLoadingPosts ? 'Loading...' : 'Load More' }}</span>
+                </button>
+              </div>
+            </div>
           </div>
-          
-          <div v-else class="users-grid">
-            <UserCard
-              v-for="follower in followerUsers"
-              :key="follower.id"
-              :user="follower"
-              :is-compact="true"
-              @user-click="showUserProfile"
-            />
+
+          <!-- Following Tab -->
+          <div v-else-if="activeTab === 'following'" class="following-tab">
+            <div v-if="followingUsers.length === 0" class="empty-state">
+              <Icon name="users" :size="48" />
+              <h3>Not following anyone</h3>
+              <p>{{ isCurrentUser ? "You're" : `${user?.display_name || user?.username} is` }} not following anyone yet.</p>
+            </div>
+            
+            <div v-else class="users-grid">
+              <UserCard
+                v-for="followedUser in followingUsers"
+                :key="followedUser.id"
+                :user="followedUser"
+                :is-compact="true"
+                @user-click="showUserProfile"
+              />
+            </div>
+          </div>
+
+          <!-- Followers Tab -->
+          <div v-else-if="activeTab === 'followers'" class="followers-tab">
+            <div v-if="followerUsers.length === 0" class="empty-state">
+              <Icon name="users" :size="48" />
+              <h3>No followers</h3>
+              <p>{{ isCurrentUser ? "You don't" : `${user?.display_name || user?.username} doesn't` }} have any followers yet.</p>
+            </div>
+            
+            <div v-else class="users-grid">
+              <UserCard
+                v-for="follower in followerUsers"
+                :key="follower.id"
+                :user="follower"
+                :is-compact="true"
+                @user-click="showUserProfile"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -282,8 +290,8 @@ const props = withDefaults(defineProps<Props>(), {
   postId: undefined
 });
 
-// Emits
-const emit = defineEmits<{
+// Emits - Define the component events
+defineEmits<{
   toggleLeftSidebar: []
   toggleRightSidebar: []
   refreshTimeline: []
@@ -312,6 +320,10 @@ const router = useRouter();
 
 // User data composable
 const { getUserColor, getUserBannerUrl } = useUserData()
+
+// Header and scroll state
+const scrollContainerRef = ref<HTMLElement | null>(null);
+const isScrolled = ref(false);
 
 // State
 const user = ref<FederatedUser | null>(null);
@@ -380,32 +392,28 @@ const bannerStyle = computed(() => {
   }
 })
 
-
-//  someday i want to add this as an option, have the user choose
-// const bannerGradientStyle = computed(() => {
-//   const color = userColor.value || '#5865f2'
+// Scroll handling
+const handleScroll = () => {
+  if (!scrollContainerRef.value) return;
   
-//   // Create a sophisticated gradient overlay using the user's color
-//   return {
-//     background: `
-//       linear-gradient(
-//         135deg,
-//         rgba(0, 0, 0, 0.75) 0%,
-//         ${color}40 15%,
-//         ${color}20 80%,
-//         rgba(0, 0, 0, 0.59) 100%
-//       ),
-//       linear-gradient(
-//         45deg,
-//         ${color}30 0%,
-//         transparent 70%,
-//         transparent 80%,
-//         ${color}25 100%
-//       )
-//     `,
-//     opacity: 1.0
-//   }
-// })
+  const scrollTop = scrollContainerRef.value.scrollTop;
+  isScrolled.value = scrollTop > 50; // Trigger shrink after 50px scroll
+};
+
+// Header event handlers
+const handleSwitchFeed = (feed: string) => {
+  router.push({ name: 'Social', params: { timeline: feed } })
+}
+
+const handleOpenComposer = () => {
+  activityPubStore.openComposer()
+}
+
+const handleOpenSearch = () => {
+  // TODO: Implement search functionality
+  console.log('Open search')
+}
+
 const handleRefresh = () => {
   console.log('🔄 Refreshing profile data...');
   loadUserProfile(currentHandle.value);
@@ -776,12 +784,12 @@ const showUserProfile = (clickedUser: FederatedUser) => {
 };
 
 const replyToPost = (post: TimelinePost) => {
-  // activityPubStore.openComposer({
-  //   replyTo: post.id,
-  //   content: `${post.author.handle} `
-  // });
-  // router.push('/monyverse');
-  // emit('replyToPost', post);
+  // Open the composer with a reply
+  activityPubStore.openComposer({
+    replyTo: post.id,
+    content: `${post.author.handle} `
+  });
+  router.push('/social/home');
 };
 
 const handleFavorite = async (postId: string) => {
@@ -847,40 +855,32 @@ const handleClickOutside = (event: Event) => {
   }
 };
 
-// MonyHeader event handlers
-const handleSwitchFeed = (feed: string) => {
-  router.push({ name: 'Social', params: { timeline: feed } })
-}
-
-const handleOpenComposer = () => {
-  activityPubStore.openComposer()
-}
-
-const handleOpenSearch = () => {
-  // TODO: Implement search functionality
-  console.log('Open search')
-}
-
 document.addEventListener('click', handleClickOutside);
 </script>
 
 <style scoped>
+/* ===== MODERN PROFILE VIEW ===== */
+
 .user-profile-wrapper {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background: var(--background-primary);
 }
 
 .mony-header-container {
   flex-shrink: 0;
 }
+
+/* ===== MAIN CONTENT ===== */
+
 .user-profile-view {
-  height: 100vh;
-  background: var(--background-primary);
-  color: white;
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  scroll-behavior: smooth;
 }
+
 
 .loading-state,
 .error-state {
@@ -888,14 +888,14 @@ document.addEventListener('click', handleClickOutside);
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: calc(100vh - 64px);
   text-align: center;
-  color: #80848e;
+  color: var(--text-tertiary);
   padding: 2rem;
 }
 
 .error-state h2 {
-  color: white;
+  color: var(--text-primary);
   margin: 1rem 0 0.5rem;
 }
 
@@ -903,25 +903,25 @@ document.addEventListener('click', handleClickOutside);
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--h-brand, #5865f2);
+  background: var(--harmony-primary);
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   color: white;
   padding: 0.75rem 1.5rem;
   cursor: pointer;
   margin-top: 1rem;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
 }
 
 .back-btn:hover {
-  background: #4752c4;
+  background: var(--harmony-primary-hover);
+  transform: translateY(-1px);
 }
 
 .profile-content {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+  min-height: calc(100vh - 64px);
 }
 
 .profile-header {
@@ -931,7 +931,7 @@ document.addEventListener('click', handleClickOutside);
 
 .profile-banner {
   height: 300px;
-  background: linear-gradient(135deg, #5865f2, #7289da);
+  background: linear-gradient(135deg, var(--harmony-primary), var(--harmony-secondary));
   background-size: cover;
   background-position: center;
   position: relative;
@@ -961,7 +961,7 @@ document.addEventListener('click', handleClickOutside);
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: white;
@@ -979,7 +979,7 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .profile-info-container {
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-quaternary);
   position: relative;
   padding: 0 1.5rem 1.5rem;
   z-index: 2;
@@ -998,9 +998,9 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .profile-avatar {
-  border: 4px solid var(--h-sidebar, #2b2d31);
+  border: 8px solid var(--background-quaternary);
   border-radius: 50%;
-  background: var(--h-sidebar, #2b2d31);
+  background: var(--background-secondary);
 }
 
 .federation-badge {
@@ -1011,7 +1011,7 @@ document.addEventListener('click', handleClickOutside);
   height: 20px;
   border-radius: 50%;
   background: #1d9bf0;
-  border: 2px solid var(--h-sidebar, #2b2d31);
+  border: 2px solid var(--background-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1047,7 +1047,7 @@ document.addEventListener('click', handleClickOutside);
 .display-name {
   font-size: 1.5rem;
   font-weight: 800;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
   line-height: 1.2;
 }
@@ -1069,7 +1069,7 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .user-handle {
-  color: #b9bbbe;
+  color: var(--text-secondary);
   font-size: 1rem;
   margin: 0;
   font-weight: 400;
@@ -1125,7 +1125,7 @@ document.addEventListener('click', handleClickOutside);
   margin-bottom: 1rem;
   font-size: 0.95rem;
   line-height: 1.5;
-  color: #dcddde;
+  color: var(--text-secondary);
 }
 
 .meta-info-row {
@@ -1139,55 +1139,9 @@ document.addEventListener('click', handleClickOutside);
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #b9bbbe;
+  color: var(--text-tertiary);
   font-size: 0.875rem;
   width: 100%;
-}
-
-.stats-row {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-top: 0.5rem;
-}
-
-.stat-button {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  padding: 0.125rem 0.25rem;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.25rem;
-  transition: all 0.2s ease;
-  border-radius: 4px;
-  text-decoration: none;
-}
-
-.stat-button:hover {
-  text-decoration: underline;
-}
-
-.stat-button.active strong {
-  color: var(--h-brand, #5865f2);
-}
-
-.stat-button.active span {
-  color: var(--h-brand, #5865f2);
-}
-
-.stat-button strong {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: white;
-  line-height: 1.2;
-}
-
-.stat-button span {
-  font-size: 0.95rem;
-  color: #b9bbbe;
-  font-weight: 400;
 }
 
 .more-actions {
@@ -1199,12 +1153,12 @@ document.addEventListener('click', handleClickOutside);
   top: calc(100% + 0.5rem);
   right: 0;
   width: 200px;
-  background: var(--h-sidebar, #2b2d31);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
   border-radius: 12px;
   padding: 0.5rem;
   z-index: 100;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-modal);
   backdrop-filter: blur(8px);
 }
 
@@ -1215,7 +1169,7 @@ document.addEventListener('click', handleClickOutside);
   width: 100%;
   background: none;
   border: none;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem;
   border-radius: 8px;
   cursor: pointer;
@@ -1229,12 +1183,12 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .action-item.active {
-  color: var(--h-brand, #5865f2);
+  color: var(--harmony-primary);
   background: rgba(88, 101, 242, 0.1);
 }
 
 .action-item.danger {
-  color: #f23f42;
+  color: var(--error);
 }
 
 .action-item.danger:hover {
@@ -1243,12 +1197,9 @@ document.addEventListener('click', handleClickOutside);
 
 .profile-tabs {
   display: flex;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: var(--h-sidebar, #2b2d31);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--background-quaternary);
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 10;
 }
 
 .tab-btn {
@@ -1257,7 +1208,7 @@ document.addEventListener('click', handleClickOutside);
   gap: 0.5rem;
   background: none;
   border: none;
-  color: #80848e;
+  color: var(--text-tertiary);
   padding: 1rem 1.5rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -1265,18 +1216,18 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .tab-btn:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .tab-btn.active {
-  color: var(--h-brand, #5865f2);
-  border-bottom-color: var(--h-brand, #5865f2);
+  color: var(--harmony-primary);
+  border-bottom-color: var(--harmony-primary);
 }
 
 .tab-count {
   background: rgba(255, 255, 255, 0.1);
-  color: #80848e;
+  color: var(--text-tertiary);
   padding: 0.25rem 0.5rem;
   border-radius: 12px;
   font-size: 0.75rem;
@@ -1285,11 +1236,10 @@ document.addEventListener('click', handleClickOutside);
 
 .tab-btn.active .tab-count {
   background: rgba(88, 101, 242, 0.2);
-  color: var(--h-brand, #5865f2);
+  color: var(--harmony-primary);
 }
 
 .tab-content {
-  min-height: 400px;
   flex: 1;
   overflow-y: auto;
 }
@@ -1300,6 +1250,7 @@ document.addEventListener('click', handleClickOutside);
   padding: 1.5rem;
   padding-bottom: 100px;
 }
+
 .users-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -1312,12 +1263,12 @@ document.addEventListener('click', handleClickOutside);
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #80848e;
+  color: var(--text-tertiary);
   padding: 3rem 2rem;
 }
 
 .empty-state h3 {
-  color: white;
+  color: var(--text-primary);
   margin: 1rem 0 0.5rem;
   font-size: 1.25rem;
 }
@@ -1328,10 +1279,10 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .load-more-btn {
-  background: var(--h-chat, #313338);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.75rem 1.5rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -1343,7 +1294,7 @@ document.addEventListener('click', handleClickOutside);
 }
 
 .load-more-btn:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: var(--border-hover);
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -1361,11 +1312,9 @@ document.addEventListener('click', handleClickOutside);
   to { transform: rotate(360deg); }
 }
 
-/* Mobile responsiveness */
+/* ===== RESPONSIVE DESIGN ===== */
+
 @media (max-width: 768px) {
-  .profile-content {
-    height: auto;
-  }
   .profile-banner {
     height: 150px;
   }
@@ -1393,10 +1342,6 @@ document.addEventListener('click', handleClickOutside);
     justify-content: center;
   }
   
-  .stats-row {
-    gap: 1rem;
-  }
-  
   .banner-actions {
     top: 0.75rem;
     right: 0.75rem;
@@ -1411,6 +1356,7 @@ document.addEventListener('click', handleClickOutside);
   .users-grid {
     grid-template-columns: 1fr;
   }
+  
   .posts-tab, .following-tab, .followers-tab {
     padding: 0.75rem 1rem;
   }
@@ -1421,18 +1367,30 @@ document.addEventListener('click', handleClickOutside);
     justify-content: stretch;
     max-width: 100%;
   }
+  
   .tab-btn {
     flex: 1 1 0;
     padding: 0.75rem 1rem;
     font-size: 0.9rem;
     text-align: center;
     min-width: 0;
-    flex-direction:column
+    flex-direction: column;
   }
   
   .actions-menu {
     right: -0.5rem;
     width: 180px;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-content {
+    min-height: calc(100vh - 56px);
+  }
+  
+  .loading-state,
+  .error-state {
+    min-height: calc(100vh - 56px);
   }
 }
 </style>
