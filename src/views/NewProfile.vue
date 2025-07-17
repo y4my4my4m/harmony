@@ -273,6 +273,8 @@ import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
+import { uploadAvatar } from '@/utils/fileUpload';
+import { uploadBanner } from '@/utils/bannerUtils';
 
 const username = ref('');
 const displayName = ref('');
@@ -483,7 +485,6 @@ const createProfile = async () => {
     if (avatarFile.value && result) {
       console.log('Uploading avatar...');
       try {
-        const { uploadAvatar } = await import('@/utils/fileUpload');
         const uploadResult = await uploadAvatar(avatarFile.value, authStore.session.user.id);
         
         if (uploadResult.success && uploadResult.url) {
@@ -509,7 +510,6 @@ const createProfile = async () => {
     if (bannerFile.value && result) {
       console.log('Uploading banner...');
       try {
-        const { uploadBanner } = await import('@/utils/bannerUtils');
         const uploadResult = await uploadBanner(bannerFile.value, authStore.session.user.id);
         
         if (uploadResult.success && uploadResult.url) {
@@ -570,6 +570,7 @@ const createProfile = async () => {
   padding: 20px;
   position: relative;
   overflow: hidden;
+  width: 100%;
 }
 
 .background-overlay {

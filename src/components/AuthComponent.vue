@@ -1033,7 +1033,7 @@ onMounted(async () => {
   }
   
   .auth-panel {
-    padding: 20px;
+    padding: 10px;
   }
   
   .auth-form-container {
@@ -1042,6 +1042,10 @@ onMounted(async () => {
   
   .features-preview {
     display: none;
+  }
+  .brand-subtitle {
+    margin-bottom: 0;
+    padding-bottom: 0;
   }
 }
 
