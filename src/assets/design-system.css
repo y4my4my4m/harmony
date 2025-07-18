@@ -128,7 +128,7 @@
 
 /* Light mode overrides */
 @media (prefers-color-scheme: light) {
-  :root {
+  /* :root {
     --bg-primary: #ffffff;
     --bg-secondary: #f8f9fa;
     --bg-tertiary: #e9ecef;
@@ -138,7 +138,7 @@
     --text-tertiary: #6c757d;
     --text-muted: #adb5bd;
     --text-inverse: #ffffff;
-  }
+  } */
 }
 
 /* === BASE RESET & TYPOGRAPHY === */
