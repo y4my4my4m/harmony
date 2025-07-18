@@ -74,6 +74,14 @@
           @click="$emit('show-user-profile', part.userId, $event)"
         >{{ formatMentionDisplay(part) }}</span>
         
+        <!-- Hashtags -->
+        <span 
+          v-else-if="part && typeof part === 'object' && part.type === 'hashtag'" 
+          class="hashtag" 
+          @click="handleHashtagClick(part.name, $event)"
+          :title="`Used ${part.count || 0} times`"
+        >#{{ part.name }}</span>
+        
         <!-- Custom emojis -->
         <img 
           v-else-if="part && typeof part === 'object' && part.type === 'emoji'"
@@ -250,7 +258,7 @@ export default defineComponent({
       default: false
     }
   },
-  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile'],
+  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
@@ -556,6 +564,14 @@ export default defineComponent({
       emit('cancel-edit');
     };
 
+    const handleHashtagClick = (hashtag: string, event: MouseEvent) => {
+      event.stopPropagation();
+      // Emit an event or handle the hashtag click as needed
+      console.log('Hashtag clicked:', hashtag);
+      // For example, you might want to emit an event to notify the parent component
+      emit('hashtag-click', hashtag);
+    };
+
     return {
       getEmojiUrl,
       localEditableContent,
@@ -574,6 +590,7 @@ export default defineComponent({
       renderTextContent,
       renderTextSegments,
       getFileName,
+      handleHashtagClick,
     };
   }
 });
@@ -668,6 +685,27 @@ export default defineComponent({
 }
 
 .mention:hover {
+  background-color: #5865f2;
+  color: rgba(255,255,255,0.9);
+}
+
+/* Hashtag styling */
+.hashtag {
+  background-color: #3c4270;
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: pointer;
+  font-weight: 500;
+  color: #c9c9ee;
+  display: inline-block;
+  transition: background-color 0.2s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+.hashtag:hover {
   background-color: #5865f2;
   color: rgba(255,255,255,0.9);
 }

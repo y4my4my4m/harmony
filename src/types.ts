@@ -139,6 +139,15 @@ export interface EmojiContent {
   emoji: Emoji;
 }
 
+export interface HashtagContent {
+  type: 'hashtag';
+  name: string;        // hashtag name without #
+  id: string;          // database UUID
+  count?: number;      // usage count (optional for display)
+  last_updated?: string; // last usage timestamp (optional)
+  normalized?: string; // normalized name for searching (optional)
+}
+
 export interface FileContent {
   type: 'file';
   url: string;
@@ -164,7 +173,7 @@ export interface SystemContent {
   timestamp: string;
 }
 
-export type MessagePart = TextContent | UrlContent | MentionContent | EmojiContent | FileContent | SystemContent;
+export type MessagePart = TextContent | UrlContent | MentionContent | EmojiContent | HashtagContent | FileContent | SystemContent;
 
 export interface Reaction {
   id: string;

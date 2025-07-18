@@ -1122,15 +1122,16 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async formatPostContent(content: string): Promise<any> {
       // Use the centralized unified content processing utility
-      const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } = await import('@/utils/unifiedContentProcessing');
+      const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveHashtagsData } = await import('@/utils/unifiedContentProcessing');
       
-      // Efficiently resolve all mention and emoji data in batch
-      const [usernameToUserDataMap, emojiDataMap] = await Promise.all([
+      // Efficiently resolve all mention, emoji, and hashtag data in batch
+      const [usernameToUserDataMap, emojiDataMap, hashtagDataMap] = await Promise.all([
         resolveMentionsUserData(content),
-        resolveEmojisData(content)
+        resolveEmojisData(content),
+        resolveHashtagsData(content)
       ]);
       
-      return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap);
+      return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
     },
 
     /**

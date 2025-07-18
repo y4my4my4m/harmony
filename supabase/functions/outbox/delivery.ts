@@ -36,9 +36,9 @@ export async function deliverActivity(
     console.log(`✅ Normalized activity URLs`)
     
     // Get private key for signing
-    console.log(`🔑 Getting private key for ${item.actor_username}...`)
+    // console.log(`🔑 Getting private key for ${item.actor_username}...`)
     const privateKey = await getPrivateKey(supabase, item.actor_username)
-    console.log(`✅ Got private key (length: ${privateKey.length} chars)`)
+    // console.log(`✅ Got private key (length: ${privateKey.length} chars)`)
 
     // Generate HTTP signature
     console.log(`🔒 Generating HTTP signature...`)

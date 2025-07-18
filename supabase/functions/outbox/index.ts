@@ -172,15 +172,15 @@ serve(async (req: Request) => {
           ...(post.in_reply_to && { inReplyTo: post.in_reply_to })
         };
         
+        // 'https://w3id.org/security/v1',
+        // 'toot': 'http://joinmastodon.org/ns#Emoji',
         return {
           '@context': [
             'https://www.w3.org/ns/activitystreams',
-            'https://w3id.org/security/v1',
             {
               'Hashtag': 'as:Hashtag',
               'sensitive': 'as:sensitive',
-              'toot': 'http://joinmastodon.org/ns#',
-              'Emoji': 'toot:Emoji'
+              'Emoji': 'http://joinmastodon.org/ns#Emoji'
             }
           ],
           id: `${baseUrl}/users/${username}/activities/create/${post.id}`,

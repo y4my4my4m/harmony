@@ -164,3 +164,5 @@ supabase-edge-functions  |
     "url": "https://yourdomain/emoji/blobcat.png"
   }
 }
+
+57. is our outbox/index.ts really calling functions to convert into activitypub format? seems insane.

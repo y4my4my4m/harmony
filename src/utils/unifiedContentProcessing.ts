@@ -175,6 +175,51 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
 }
 
 /**
+ * Helper function to efficiently resolve hashtag data in batch
+ * This should be called before parseContentToMessageParts for optimal performance
+ */
+export async function resolveHashtagsData(content: string): Promise<Record<string, { id: string; count: number; last_updated: string; normalized: string }>> {
+  const hashtagRegex = /#([a-zA-Z0-9_-]+)/g;
+  const hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {};
+  
+  let match;
+  const uniqueHashtags = new Set<string>();
+  
+  // Extract all unique hashtags from content
+  while ((match = hashtagRegex.exec(content)) !== null) {
+    const hashtag = match[1].toLowerCase(); // normalize to lowercase
+    uniqueHashtags.add(hashtag);
+  }
+  
+  if (uniqueHashtags.size === 0) {
+    return hashtagDataMap;
+  }
+  
+  // Batch query for all hashtags
+  const { data, error } = await supabase
+    .from('hashtags')
+    .select('id, tag, normalized_tag, total_uses, last_used_at')
+    .in('normalized_tag', Array.from(uniqueHashtags));
+    
+  if (error) {
+    console.warn('Error fetching hashtag data:', error);
+    return hashtagDataMap;
+  }
+  
+  // Map results by normalized name for quick lookup
+  data?.forEach(hashtag => {
+    hashtagDataMap[hashtag.normalized_tag] = {
+      id: hashtag.id,
+      count: hashtag.total_uses || 0,
+      last_updated: hashtag.last_used_at || new Date().toISOString(),
+      normalized: hashtag.normalized_tag
+    };
+  });
+  
+  return hashtagDataMap;
+}
+
+/**
  * Parse content string into unified MessagePart format
  * This is the SINGLE source of truth for all content parsing
  * Used by: chat, DMs, ActivityPub posts, and any text input
@@ -182,49 +227,79 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
 export async function parseContentToMessageParts(
   content: string,
   usernameToUserDataMap: Record<string, { userId: string; isLocal: boolean; displayName?: string }> = {},
-  emojiDataMap: Record<string, any> = {}
+  emojiDataMap: Record<string, any> = {},
+  hashtagDataMap: Record<string, { id: string; count: number; last_updated: string; normalized: string }> = {}
 ): Promise<MessagePart[]> {
   if (!content) return [{ type: 'text', text: '' }];
 
-  // Simple approach: split on mentions first, then handle URLs and emojis within each part
-  const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
+  // Parse mentions, hashtags, URLs, and emojis in order of appearance
+  // Combined regex to match mentions, hashtags in one pass
+  const combinedRegex = /(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|#([a-zA-Z0-9_-]+)/g;
   const parts: MessagePart[] = [];
   
   let lastIndex = 0;
   let match;
   
-  while ((match = mentionRegex.exec(content)) !== null) {
-    // Add text before mention (if any)
+  while ((match = combinedRegex.exec(content)) !== null) {
+    // Add text before current match (if any)
     if (match.index > lastIndex) {
       const textBefore = content.substring(lastIndex, match.index);
       parts.push(...await parseTextForUrls(textBefore, emojiDataMap));
     }
     
-    // Process the mention
-    const username = match[1];
-    const domain = match[2];
-    
-    // Look up user data from provided map (efficient batch lookup)
-    const mentionKey = domain ? `${username}@${domain}` : username;
-    const userData = usernameToUserDataMap[mentionKey] || usernameToUserDataMap[username];
-    
-    // Fall back to domain-based logic if user data not available
-    const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
-    const isLocal = userData?.isLocal ?? (!domain || domain === currentDomain);
-    const userId = userData?.userId ?? `unresolved-${username}${domain ? '@' + domain : ''}`;
-    const displayName = userData?.displayName ?? username;
-    
-    // Always include domain for federation - use current domain for local users
-    const finalDomain = domain || currentDomain;
-    
-    parts.push({
-      type: 'mention',
-      userId: userId,
-      username: username,
-      domain: finalDomain,
-      isLocal: isLocal,
-      displayName: displayName
-    });
+    if (match[1]) {
+      // This is a mention (@username or @username@domain)
+      const username = match[2];
+      const domain = match[3];
+      
+      // Look up user data from provided map (efficient batch lookup)
+      const mentionKey = domain ? `${username}@${domain}` : username;
+      const userData = usernameToUserDataMap[mentionKey] || usernameToUserDataMap[username];
+      
+      // Fall back to domain-based logic if user data not available
+      const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+      const isLocal = userData?.isLocal ?? (!domain || domain === currentDomain);
+      const userId = userData?.userId ?? `unresolved-${username}${domain ? '@' + domain : ''}`;
+      const displayName = userData?.displayName ?? username;
+      
+      // Always include domain for federation - use current domain for local users
+      const finalDomain = domain || currentDomain;
+      
+      parts.push({
+        type: 'mention',
+        userId: userId,
+        username: username,
+        domain: finalDomain,
+        isLocal: isLocal,
+        displayName: displayName
+      });
+    } else if (match[4]) {
+      // This is a hashtag (#tagname)
+      const hashtagName = match[4];
+      const normalizedName = hashtagName.toLowerCase();
+      
+      // Look up hashtag data from provided map
+      const hashtagData = hashtagDataMap[normalizedName];
+      
+      if (hashtagData) {
+        parts.push({
+          type: 'hashtag',
+          name: hashtagName, // preserve original case
+          id: hashtagData.id,
+          count: hashtagData.count,
+          last_updated: hashtagData.last_updated,
+          normalized: hashtagData.normalized
+        });
+      } else {
+        // Hashtag not in database yet, create placeholder (will be created on post save)
+        parts.push({
+          type: 'hashtag',
+          name: hashtagName,
+          id: 'new', // placeholder for new hashtags
+          normalized: normalizedName
+        });
+      }
+    }
     
     lastIndex = match.index + match[0].length;
   }
@@ -373,6 +448,14 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
       case 'url':
         return `<a href="${part.url}" target="_blank" rel="noopener">${part.url}</a>`;
         
+      case 'hashtag': {
+        // Convert hashtag to ActivityPub-compatible format
+        // ActivityPub hashtags are usually rendered as clickable links
+        const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+        const href = `https://${currentDomain}/tags/${part.name}`;
+        return `<a href="${href}" class="mention hashtag" rel="tag">#<span>${part.name}</span></a>`;
+      }
+        
       case 'emoji': {
         // Convert emoji to Misskey-compatible format (shortcode only in content)
         // The actual emoji data will be in the ActivityPub tag array
@@ -410,6 +493,9 @@ export function convertMessagePartsToText(parts: MessagePart[]): string {
         
       case 'mention':
         return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
+        
+      case 'hashtag':
+        return `#${part.name}`;
         
       case 'url':
         return part.url;
@@ -514,3 +600,21 @@ export function extractActivityPubEmojiTags(parts: MessagePart[], baseUrl?: stri
 export const parseContentToUnifiedFormat = parseContentToMessageParts;
 export const convertUnifiedToActivityPubHTML = convertMessagePartsToActivityPubHTML;
 export const reconstructContentToText = convertMessagePartsToText;
+
+/**
+ * Extract hashtags from MessagePart[] for database processing
+ * Returns hashtag data needed for post_hashtags table insertion
+ */
+export function extractHashtagsFromMessageParts(parts: MessagePart[]): Array<{
+  name: string;
+  normalized: string;
+  id?: string;
+}> {
+  return parts
+    .filter((part): part is Extract<MessagePart, { type: 'hashtag' }> => part.type === 'hashtag')
+    .map(part => ({
+      name: part.name,
+      normalized: part.normalized || part.name.toLowerCase(),
+      id: part.id !== 'new' ? part.id : undefined, // exclude placeholder IDs
+    }));
+}
