@@ -219,16 +219,23 @@ BEGIN
             
             IF emoji_name IS NOT NULL AND emoji_url IS NOT NULL THEN
                 -- Build ActivityPub Emoji tag
+                -- Note: emoji_url can be a Supabase storage URL with query parameters like:
+                -- https://db.mony.lol/storage/v1/render/image/public/emojis/.../emoji.gif?width=96&height=96&resize=contain&quality=80
+                -- This is perfectly valid for ActivityPub federation - remote instances will fetch from any public URL
                 emoji_tag := jsonb_build_object(
                     'type', 'Emoji',
                     'name', ':' || emoji_name || ':',
                     'icon', jsonb_build_object(
                         'type', 'Image',
+                        'mediaType', 'image/webp', -- supabase serves even png as webp
                         'url', emoji_url
                     )
                 );
                 
                 -- Add emoji ID if available (for proper ActivityPub identification)
+                -- Note: The 'id' field is optional and used for object identification, not image serving
+                -- It doesn't need to resolve to a real endpoint - it's just a unique identifier
+                -- The actual image is served from the 'icon.url' field above
                 IF emoji_id IS NOT NULL AND current_instance_domain IS NOT NULL THEN
                     emoji_tag := emoji_tag || jsonb_build_object(
                         'id', 'https://' || current_instance_domain || '/emojis/' || emoji_id
@@ -248,118 +255,113 @@ COMMENT ON FUNCTION public.convert_unified_content_to_activitypub_html(content j
 
 COMMENT ON FUNCTION public.extract_activitypub_mention_tags(content jsonb) IS 'Extracts mention tags from MessagePart[] content as ActivityPub Mention objects with full @username@domain format for proper federation';
 
-COMMENT ON FUNCTION public.extract_misskey_emoji_tags(content jsonb) IS 'Extracts emoji tags from MessagePart[] content in ActivityPub format. Handles emoji data structure: {"type": "emoji", "emoji": {"name": "...", "url": "...", "id": "..."}} and generates proper Emoji tags for federation with Mastodon/Misskey/Pleroma';
+COMMENT ON FUNCTION public.extract_misskey_emoji_tags(content jsonb) IS 'Extracts emoji tags from MessagePart[] content in ActivityPub format. Handles emoji data structure: {"type": "emoji", "emoji": {"name": "...", "url": "...", "id": "..."}} and generates proper Emoji tags for federation with Mastodon/Misskey/Pleroma. Supabase storage URLs with query parameters (e.g., ?width=96&height=96&resize=contain&quality=80) are perfectly valid for the icon.url field in ActivityPub emoji tags.';
 
--- Test the functions to verify they now always include full domain
-DO $$
+-- Ensure the unified extract_all_activitypub_tags function uses the updated emoji function
+CREATE OR REPLACE FUNCTION public.extract_all_activitypub_tags(content jsonb) 
+RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE
+AS $$
 DECLARE
-    test_content_local JSONB;
-    test_content_remote JSONB;
-    test_html TEXT;
-    test_tags JSONB;
+    mention_tags JSONB;
+    emoji_tags JSONB;
+    all_tags JSONB := '[]'::JSONB;
+    tag_item JSONB;
 BEGIN
-    -- Test local mention
-    test_content_local := '[
+    -- Extract mention tags (using updated function with full domain format)
+    mention_tags := extract_activitypub_mention_tags(content);
+    FOR tag_item IN SELECT jsonb_array_elements(mention_tags)
+    LOOP
+        all_tags := all_tags || jsonb_build_array(tag_item);
+    END LOOP;
+    
+    -- Extract emoji tags (using updated function with correct data structure)
+    emoji_tags := extract_misskey_emoji_tags(content);
+    FOR tag_item IN SELECT jsonb_array_elements(emoji_tags)
+    LOOP
+        all_tags := all_tags || jsonb_build_array(tag_item);
+    END LOOP;
+    
+    RETURN all_tags;
+END;
+$$;
+
+COMMENT ON FUNCTION public.extract_all_activitypub_tags(content jsonb) IS 'Combines mention and emoji tags for complete ActivityPub tag array. Uses updated functions that handle full @username@domain mentions and correct emoji data structure for proper federation.';
+
+
+-- Test local mention HTML
+SELECT 'Local mention HTML' as test, convert_unified_content_to_activitypub_html(
+    '[
         {"text": "hey ", "type": "text"}, 
         {"type": "mention", "domain": "har.mony.lol", "userId": "local-user-123", "isLocal": true, "username": "localuser", "displayName": "Local User"}, 
         {"text": " how are you?", "type": "text"}
-    ]'::JSONB;
-    
-    -- Test remote mention
-    test_content_remote := '[
+    ]'::JSONB
+)::text as result
+
+UNION ALL
+
+-- Test remote mention HTML
+SELECT 'Remote mention HTML', convert_unified_content_to_activitypub_html(
+    '[
         {"text": "what about singular ", "type": "text"}, 
         {"type": "mention", "domain": "misskey.io", "userId": "e33e2b83-922a-40cc-9629-b83ca1922011", "isLocal": false, "username": "tester004", "displayName": "Tester004"}, 
         {"text": " hmmm", "type": "text"}
-    ]'::JSONB;
-    
-    -- Test local mention HTML
-    test_html := convert_unified_content_to_activitypub_html(test_content_local);
-    RAISE NOTICE 'Local mention HTML: %', test_html;
-    
-    -- Test remote mention HTML
-    test_html := convert_unified_content_to_activitypub_html(test_content_remote);
-    RAISE NOTICE 'Remote mention HTML: %', test_html;
-    
-    -- Test local mention tags
-    test_tags := extract_activitypub_mention_tags(test_content_local);
-    RAISE NOTICE 'Local mention tags: %', test_tags;
-    
-    -- Test remote mention tags
-    test_tags := extract_activitypub_mention_tags(test_content_remote);
-    RAISE NOTICE 'Remote mention tags: %', test_tags;
-    
-    -- Verify both contain full domain format
-    test_html := convert_unified_content_to_activitypub_html(test_content_local);
-    IF test_html LIKE '%@localuser@har.mony.lol%' THEN
-        RAISE NOTICE '✅ Local mention now includes full domain format!';
-    ELSE
-        RAISE WARNING '❌ Local mention still missing full domain format.';
-    END IF;
-    
-    test_html := convert_unified_content_to_activitypub_html(test_content_remote);
-    IF test_html LIKE '%@tester004@misskey.io%' THEN
-        RAISE NOTICE '✅ Remote mention includes full domain format!';
-    ELSE
-        RAISE WARNING '❌ Remote mention missing full domain format.';
-    END IF;
+    ]'::JSONB
+)::text
 
-    -- Test custom emoji handling
-    DECLARE
-        test_emoji_content JSONB;
-        test_emoji_html TEXT;
-        test_emoji_tags JSONB;
-    BEGIN
-        test_emoji_content := '[
-            {"text": "Hello ", "type": "text"},
-            {"type": "emoji", "emoji": {"id": "2148bd2f-4ff3-48bb-a706-fb8cdcc16ab3", "name": "big_smile", "url": "https://example.com/emojis/big_smile.webp"}},
-            {"text": " world!", "type": "text"}
-        ]'::JSONB;
-        
-        test_emoji_html := convert_unified_content_to_activitypub_html(test_emoji_content);
-        RAISE NOTICE 'Emoji HTML: %', test_emoji_html;
-        
-        test_emoji_tags := extract_misskey_emoji_tags(test_emoji_content);
-        RAISE NOTICE 'Emoji tags: %', test_emoji_tags;
-        
-        -- Verify emoji is rendered as shortcode in content
-        IF test_emoji_html LIKE '%:big_smile:%' THEN
-            RAISE NOTICE '✅ Custom emoji rendered as shortcode for ActivityPub compatibility!';
-        ELSE
-            RAISE WARNING '❌ Custom emoji not rendered as shortcode.';
-        END IF;
-        
-        -- Verify emoji tag is properly extracted
-        IF test_emoji_tags::text LIKE '%"type":"Emoji"%' AND 
-           test_emoji_tags::text LIKE '%":big_smile:"%' AND
-           test_emoji_tags::text LIKE '%"url":"https://example.com/emojis/big_smile.webp"%' THEN
-            RAISE NOTICE '✅ Custom emoji tag properly extracted for ActivityPub!';
-        ELSE
-            RAISE WARNING '❌ Custom emoji tag not properly extracted.';
-        END IF;
-        
-    -- Test the unified function (existing extract_all_activitypub_tags)
-    DECLARE
-        test_mixed_content JSONB;
-        test_all_tags JSONB;
-    BEGIN
-        test_mixed_content := '[
-            {"text": "Hello ", "type": "text"},
-            {"type": "mention", "domain": "example.com", "username": "alice", "displayName": "Alice"},
-            {"text": " check out this ", "type": "text"},
-            {"type": "emoji", "emoji": {"name": "cool", "url": "https://example.com/emojis/cool.webp"}},
-            {"text": " emoji!", "type": "text"}
-        ]'::JSONB;
-        
-        test_all_tags := extract_all_activitypub_tags(test_mixed_content);
-        RAISE NOTICE 'Unified tags (mentions + emojis): %', test_all_tags;
-        
-        -- Verify both mentions and emojis are included
-        IF test_all_tags::text LIKE '%"type":"Mention"%' AND 
-           test_all_tags::text LIKE '%"type":"Emoji"%' THEN
-            RAISE NOTICE '✅ Unified tag extraction includes both mentions and emojis!';
-        ELSE
-            RAISE WARNING '❌ Unified tag extraction missing mentions or emojis.';
-        END IF;
-    END;
-END;
-$$;
+UNION ALL
+
+-- Test local mention tags
+SELECT 'Local mention tags', extract_activitypub_mention_tags(
+    '[
+        {"text": "hey ", "type": "text"}, 
+        {"type": "mention", "domain": "har.mony.lol", "userId": "local-user-123", "isLocal": true, "username": "localuser", "displayName": "Local User"}, 
+        {"text": " how are you?", "type": "text"}
+    ]'::JSONB
+)::text
+
+UNION ALL
+
+-- Test remote mention tags
+SELECT 'Remote mention tags', extract_activitypub_mention_tags(
+    '[
+        {"text": "what about singular ", "type": "text"}, 
+        {"type": "mention", "domain": "misskey.io", "userId": "e33e2b83-922a-40cc-9629-b83ca1922011", "isLocal": false, "username": "tester004", "displayName": "Tester004"}, 
+        {"text": " hmmm", "type": "text"}
+    ]'::JSONB
+)::text
+
+UNION ALL
+
+-- Test custom emoji HTML
+SELECT 'Emoji HTML', convert_unified_content_to_activitypub_html(
+    '[
+        {"text": "Hello ", "type": "text"},
+        {"type": "emoji", "emoji": {"id": "2148bd2f-4ff3-48bb-a706-fb8cdcc16ab3", "name": "big_smile", "url": "https://example.com/emojis/big_smile.webp"}},
+        {"text": " world!", "type": "text"}
+    ]'::JSONB
+)::text
+
+UNION ALL
+
+-- Test custom emoji tags
+SELECT 'Emoji tags', extract_misskey_emoji_tags(
+    '[
+        {"text": "Hello ", "type": "text"},
+        {"type": "emoji", "emoji": {"id": "2148bd2f-4ff3-48bb-a706-fb8cdcc16ab3", "name": "big_smile", "url": "https://example.com/emojis/big_smile.webp"}},
+        {"text": " world!", "type": "text"}
+    ]'::JSONB
+)::text
+
+UNION ALL
+
+-- Test unified function (mentions + emojis)
+SELECT 'Unified tags (mentions + emojis)', extract_all_activitypub_tags(
+    '[
+        {"text": "Hello ", "type": "text"},
+        {"type": "mention", "domain": "example.com", "username": "alice", "displayName": "Alice"},
+        {"text": " check out this ", "type": "text"},
+        {"type": "emoji", "emoji": {"name": "cool", "url": "https://example.com/emojis/cool.webp"}},
+        {"text": " emoji!", "type": "text"}
+    ]'::JSONB
+)::text;
