@@ -45,36 +45,102 @@ BEGIN
         RETURN v_result;
     END IF;
 
-    -- Process tags sequentially, replacing them as we find them
-    -- Handle ActivityPub Emoji tags first since they're easier to match exactly
-    FOR v_tag IN SELECT * FROM jsonb_array_elements(tags)
-    LOOP
-        IF v_tag->>'type' = 'Emoji' THEN
-            -- Extract emoji name (remove colons if present)
-            v_emoji_name := v_tag->>'name';
-            IF v_emoji_name LIKE ':%' AND v_emoji_name LIKE '%:' THEN
-                v_emoji_name := substring(v_emoji_name from 2 for length(v_emoji_name) - 2);
-            END IF;
+    -- Process all tags in a single pass to maintain proper order
+    -- We need to find all tag positions first, then process them in order
+    DECLARE
+        tag_positions JSONB := '[]'::jsonb;
+        v_tag_data JSONB;
+        i INTEGER;
+    BEGIN
+        -- Find positions of all tags in content
+        FOR v_tag IN SELECT * FROM jsonb_array_elements(tags)
+        LOOP
+            v_mention_text := NULL;
+            v_pos := 0;
             
-            -- Get emoji URL from icon
-            v_emoji_url := COALESCE(v_tag->'icon'->>'url', v_tag->>'icon');
-            
-            -- Look for shortcode pattern in content
-            v_mention_text := ':' || v_emoji_name || ':';
-            v_pos := position(v_mention_text in v_working_content);
-            
-            IF v_pos > 0 THEN
-                v_before_text := substring(v_working_content from 1 for v_pos - 1);
-                v_after_text := substring(v_working_content from v_pos + length(v_mention_text));
-                
-                IF trim(v_before_text) != '' THEN
-                    v_result := v_result || jsonb_build_object(
-                        'type', 'text',
-                        'text', v_before_text
-                    );
+            IF v_tag->>'type' = 'Emoji' THEN
+                -- Extract emoji name (remove colons if present)
+                v_emoji_name := v_tag->>'name';
+                IF v_emoji_name LIKE ':%' AND v_emoji_name LIKE '%:' THEN
+                    v_emoji_name := substring(v_emoji_name from 2 for length(v_emoji_name) - 2);
                 END IF;
                 
-                -- Create emoji MessagePart with Harmony's expected structure
+                v_mention_text := ':' || v_emoji_name || ':';
+                v_pos := position(v_mention_text in v_working_content);
+                
+            ELSIF v_tag->>'type' = 'Mention' THEN
+                v_username := v_tag->>'name';
+                IF v_username LIKE '@%' THEN
+                    v_username := substring(v_username from 2);
+                END IF;
+                
+                -- Try @username@domain format first
+                IF v_username LIKE '%@%' THEN
+                    v_mention_text := '@' || v_username;
+                    v_pos := position(v_mention_text in v_working_content);
+                END IF;
+                
+                -- If not found, try @username format
+                IF v_pos = 0 THEN
+                    v_mention_text := '@' || split_part(v_username, '@', 1);
+                    v_pos := position(v_mention_text in v_working_content);
+                END IF;
+                
+                -- If still not found, try just username
+                IF v_pos = 0 THEN
+                    v_mention_text := split_part(v_username, '@', 1);
+                    v_pos := position(v_mention_text in v_working_content);
+                END IF;
+                
+            ELSIF v_tag->>'type' = 'Hashtag' THEN
+                v_mention_text := '#' || (v_tag->>'name');
+                v_pos := position(v_mention_text in v_working_content);
+            END IF;
+            
+            -- Store tag position and data if found
+            IF v_pos > 0 THEN
+                tag_positions := tag_positions || jsonb_build_object(
+                    'position', v_pos,
+                    'length', length(v_mention_text),
+                    'tag', v_tag,
+                    'text', v_mention_text
+                );
+            END IF;
+        END LOOP;
+        
+        -- Sort tags by position
+        SELECT jsonb_agg(value ORDER BY (value->>'position')::integer)
+        INTO tag_positions
+        FROM jsonb_array_elements(tag_positions);
+        
+        -- Process tags in order
+        i := 0;
+        FOR v_tag_data IN SELECT * FROM jsonb_array_elements(COALESCE(tag_positions, '[]'::jsonb))
+        LOOP
+            v_pos := (v_tag_data->>'position')::integer - i;
+            v_mention_text := v_tag_data->>'text';
+            v_tag := v_tag_data->'tag';
+            
+            -- Adjust position for previous removals
+            v_before_text := substring(v_working_content from 1 for v_pos - 1);
+            v_after_text := substring(v_working_content from v_pos + length(v_mention_text));
+            
+            -- Add text before this tag
+            IF trim(v_before_text) != '' THEN
+                v_result := v_result || jsonb_build_object(
+                    'type', 'text',
+                    'text', v_before_text
+                );
+            END IF;
+            
+            -- Add the tag based on its type
+            IF v_tag->>'type' = 'Emoji' THEN
+                v_emoji_name := v_tag->>'name';
+                IF v_emoji_name LIKE ':%' AND v_emoji_name LIKE '%:' THEN
+                    v_emoji_name := substring(v_emoji_name from 2 for length(v_emoji_name) - 2);
+                END IF;
+                v_emoji_url := COALESCE(v_tag->'icon'->>'url', v_tag->>'icon');
+                
                 v_result := v_result || jsonb_build_object(
                     'type', 'emoji',
                     'emoji', jsonb_build_object(
@@ -85,58 +151,12 @@ BEGIN
                     )
                 );
                 
-                v_working_content := v_after_text;
-            END IF;
-        END IF;
-    END LOOP;
-
-    -- Then process mentions
-    FOR v_tag IN SELECT * FROM jsonb_array_elements(tags)
-    LOOP
-        IF v_tag->>'type' = 'Mention' THEN
-            v_username := v_tag->>'name';
-            IF v_username LIKE '@%' THEN
-                v_username := substring(v_username from 2);
-            END IF;
-            
-            -- Try to find the mention text in various forms
-            v_mention_text := NULL;
-            v_pos := 0;
-            
-            -- Try @username@domain format first
-            IF v_username LIKE '%@%' THEN
-                v_mention_text := '@' || v_username;
-                v_pos := position(v_mention_text in v_working_content);
-            END IF;
-            
-            -- If not found, try @username format
-            IF v_pos = 0 THEN
-                v_mention_text := '@' || split_part(v_username, '@', 1);
-                v_pos := position(v_mention_text in v_working_content);
-            END IF;
-            
-            -- If still not found, try just username
-            IF v_pos = 0 THEN
-                v_mention_text := split_part(v_username, '@', 1);
-                v_pos := position(v_mention_text in v_working_content);
-            END IF;
-            
-            -- If we found the mention text, process it
-            IF v_pos > 0 THEN
-                -- Get text before the mention
-                v_before_text := substring(v_working_content from 1 for v_pos - 1);
-                -- Get text after the mention
-                v_after_text := substring(v_working_content from v_pos + length(v_mention_text));
-                
-                -- Add text before mention if it exists
-                IF trim(v_before_text) != '' THEN
-                    v_result := v_result || jsonb_build_object(
-                        'type', 'text',
-                        'text', v_before_text
-                    );
+            ELSIF v_tag->>'type' = 'Mention' THEN
+                v_username := v_tag->>'name';
+                IF v_username LIKE '@%' THEN
+                    v_username := substring(v_username from 2);
                 END IF;
                 
-                -- Add the mention with proper structure
                 v_result := v_result || jsonb_build_object(
                     'type', 'mention',
                     'username', split_part(v_username, '@', 1),
@@ -146,37 +166,19 @@ BEGIN
                     'userId', 'remote-' || v_username
                 );
                 
-                -- Update working content to the text after this mention
-                v_working_content := v_after_text;
-            END IF;
-        END IF;
-        
-        -- Handle hashtags
-        IF v_tag->>'type' = 'Hashtag' THEN
-            v_mention_text := '#' || (v_tag->>'name');
-            v_pos := position(v_mention_text in v_working_content);
-            
-            IF v_pos > 0 THEN
-                v_before_text := substring(v_working_content from 1 for v_pos - 1);
-                v_after_text := substring(v_working_content from v_pos + length(v_mention_text));
-                
-                IF trim(v_before_text) != '' THEN
-                    v_result := v_result || jsonb_build_object(
-                        'type', 'text',
-                        'text', v_before_text
-                    );
-                END IF;
-                
+            ELSIF v_tag->>'type' = 'Hashtag' THEN
                 v_result := v_result || jsonb_build_object(
                     'type', 'hashtag',
                     'tag', v_tag->>'name',
                     'url', v_tag->>'href'
                 );
-                
-                v_working_content := v_after_text;
             END IF;
-        END IF;
-    END LOOP;
+            
+            -- Update working content and position offset
+            v_working_content := v_after_text;
+            i := i + v_pos + length(v_mention_text) - 1;
+        END LOOP;
+    END;
 
     -- Handle standalone URLs in remaining content
     WHILE v_working_content ~ 'https?://[^\s]+' LOOP
