@@ -42,7 +42,7 @@
       :alt="server.name"
       size="md"
       class="server-item"
-      :shape="isSelected(server.id) ? 'round' : 'rounded'"
+      shape="round"
       :interactive="true"
       @click="selectServer"
       :class="[{ 'selected': isSelected(server.id)}]"
@@ -274,7 +274,7 @@ const goToMonyverse = () => {
   height: 48px;
   background-color:var(--h-black-light);
   margin: 10px;
-  border-radius: 16px;
+  border-radius: 50%;
   cursor:pointer;
   position:relative;
   left:0;

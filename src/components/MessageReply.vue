@@ -1,15 +1,13 @@
 <template>
     <div class="attachedBars">
-        <div class="container">
-            <div class="replyBar">
-                <div role="button" tabindex="0">
-                    <div class="text-sm-normal">Replying to <span class="user_display_name">{{ replyUserDisplayName }}</span>
-                    </div>
+        <div class="replyBar">
+            <div role="button" tabindex="0">
+                <div class="text-sm-normal">Replying to <span class="user_display_name">{{ replyUserDisplayName }}</span>
                 </div>
-                <div class="actions">
-                    <div class="closeButton" role="button" tabindex="0" @click="dontReply">
-                        <CloseIcon />
-                    </div>
+            </div>
+            <div class="actions">
+                <div class="closeButton" role="button" tabindex="0" @click="dontReply">
+                    <CloseIcon />
                 </div>
             </div>
         </div>
@@ -44,16 +42,11 @@ const dontReply = () => {
         border-top-right-radius: 8px;
     }
 
-    .container {
-        display:flex;
-        flex-direction: column;
-        padding: 4px 8px;
-    }
-
     .replyBar {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        padding: 4px 8px;
     }
 
     .user_display_name {
