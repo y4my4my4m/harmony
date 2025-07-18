@@ -24,7 +24,6 @@ export function getServerIconUrl(serverUrl: string | null | undefined): string {
 
   // If it's a Supabase storage path (contains user ID folder structure)
   if (serverUrl.includes('/') && !serverUrl.startsWith('/')) {
-    console.log('Supabase storage path detected:', serverUrl)
     const { data } = supabase.storage
       .from('server_icons')
       .getPublicUrl(serverUrl, {

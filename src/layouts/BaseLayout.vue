@@ -213,7 +213,6 @@ const initializeApp = async () => {
         // Subscribe to all DM conversations immediately
         if (conversationUserIds.length > 0) {
           await userData.subscribeToDMPresence(conversationUserIds)
-          console.log(`🗨️ DM presence initialized: ${conversationUserIds.length} conversations`)
         }
         
         // TODO: Initialize friends presence when friends system is implemented

@@ -171,7 +171,7 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
         let uniqueName = cleanedName;
         let counter = 1;
         while (await doesEmojiNameExist(serverId, uniqueName)) {
-            uniqueName = `${cleanedName}~${counter}`;
+            uniqueName = `${cleanedName}_${counter}`;
             counter++;
         }
 
@@ -268,11 +268,23 @@ async function renameEmoji(emojiId: string, newName: string, serverId: string): 
     const emojiCache = useEmojiCacheStore();
     
     try {
+        // Get current emoji to check if name is actually changing
+        const currentEmoji = await getEmoji(emojiId);
+        if (!currentEmoji) {
+            throw new Error('Emoji not found');
+        }
+        
         // Clean and validate the new name
         const { name: cleanedName } = cleanFileName(`${newName}.png`);
         
         if (!cleanedName || cleanedName.length === 0) {
             throw new Error('Invalid emoji name');
+        }
+        
+        // If the name isn't changing, just return success
+        if (currentEmoji.name === cleanedName) {
+            console.log('Emoji name unchanged:', cleanedName);
+            return true;
         }
         
         // Check if the new name already exists

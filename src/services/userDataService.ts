@@ -458,11 +458,11 @@ class UserDataService extends EventTarget {
         this.handleServerSync(serverId)
       })
       .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => {
-        console.log('👋 User(s) joined presence in server:', serverId, newPresences)
+        // console.log('👋 User(s) joined presence in server:', serverId, newPresences)
         this.handleServerUserJoin(serverId, newPresences)
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
-        console.log('👋 User(s) left presence in server:', serverId, leftPresences)
+        // console.log('👋 User(s) left presence in server:', serverId, leftPresences)
         this.handleServerUserLeave(serverId, leftPresences)
       })
       // 🔥 Listen for profile update broadcasts (the correct way for real-time profile changes)
@@ -489,7 +489,7 @@ class UserDataService extends EventTarget {
       .subscribe(async (status: string) => {
         console.log(`📡 Server presence subscription status for ${serverId}:`, status)
         if (status === 'SUBSCRIBED') {
-          console.log(`✅ Server presence connected: ${serverId}`)
+          // console.log(`✅ Server presence connected: ${serverId}`)
           
           // Track current user if they're in this server
           if (this.currentUserId && userIds.includes(this.currentUserId)) {

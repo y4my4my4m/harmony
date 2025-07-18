@@ -14,7 +14,6 @@ export function getAvatarUrl(avatarUrl: string | null | undefined): string {
   // If it's already a full URL (starts with http/https), return as-is
   // This handles external URLs and already-processed Supabase URLs
   if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
-    console.log('Returning existing full URL:', avatarUrl)
     return avatarUrl
   }
 
