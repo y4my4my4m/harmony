@@ -75,7 +75,6 @@ export async function createPostActivity(
   // Build @context dynamically based on what's actually in the content
   const context: (string | Record<string, string>)[] = [
     'https://www.w3.org/ns/activitystreams',
-    'https://w3id.org/security/v1'
   ];
   
   const extensions: Record<string, string> = {};
@@ -83,13 +82,13 @@ export async function createPostActivity(
   // Check if we have hashtags
   const hasHashtags = allTags && allTags.some((tag: any) => tag.type === 'Hashtag');
   if (hasHashtags) {
-    extensions['Hashtag'] = 'as:Hashtag';
+    extensions['Hashtag'] = 'https://www.w3.org/ns/activitystreams#Hashtag';
   }
   
   // Check if we have emojis - use standard ActivityStreams, not toot:Emoji
   const hasEmojis = allTags && allTags.some((tag: any) => tag.type === 'Emoji');
   if (hasEmojis) {
-    extensions['Emoji'] = 'as:Emoji';
+    extensions['Emoji'] = 'http://joinmastodon.org/ns#Emoji';
   }
   
   // Always include sensitive for content warnings
