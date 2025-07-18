@@ -215,7 +215,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { PropType, Ref } from 'vue';
-import type { Message, User, Emoji, Reaction, MessagePart } from '@/types';
+import type { Message, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useAuthStore } from '@/stores/auth';
@@ -234,6 +234,7 @@ import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
+import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 
 // --- PROPS & EMITS ---
@@ -550,116 +551,9 @@ const canDeleteMessage = (message: Message) => {
   return authStore.session?.user && (message.user_id === authStore.session.user.id || isCurrentUserServerOwner.value);
 };
 
-    // Parse edited text back to structured content (reuse existing parsing logic)
-    const parseEditedText = (text: string): MessagePart[] => {
-      console.log('parseEditedText called with text:', text);
-      
-      const emojiRegex = /:([\w\d_+-]+):/g;
-      const urlRegex = /(\bhttps?:\/\/\S+)/gi;
-      // Updated mention regex to match both @username/@username@domain (display format) and @uuid@domain (stored format)
-      const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
-      const fileRegex = /\[(?:image|video|file): [^\]]+\]/g;
-      
-      let lastIndex = 0;
-      const result: MessagePart[] = [];
-      const combinedRegex = new RegExp(
-        `${emojiRegex.source}|${urlRegex.source}|${mentionRegex.source}|${fileRegex.source}`, 
-        'gi'
-      );
 
-      let match;
-      while ((match = combinedRegex.exec(text)) !== null) {
-        // Add text before match
-        if (match.index > lastIndex) {
-          const textPart = text.slice(lastIndex, match.index);
-          if (textPart.trim()) {
-            result.push({ type: 'text', text: textPart });
-          }
-        }
 
-        const matchedText = match[0];
-        
-        // Handle emoji
-        if (matchedText.startsWith(':') && matchedText.endsWith(':')) {
-          const emojiName = matchedText.slice(1, -1);
-          const emoji = findEmojiByName(emojiName);
-          if (emoji) {
-            result.push({ type: 'emoji', emoji });
-          } else {
-            result.push({ type: 'text', text: matchedText });
-          }
-        }
-        // Handle URL
-        else if (matchedText.startsWith('http')) {
-          result.push({ type: 'url', url: matchedText, preview: true });
-        }
-        // Handle mention
-        else if (matchedText.startsWith('@')) {
-          // Handle mention parsing with new format
-          const username = match[1]; // First capture group: username or uuid
-          const domain = match[2]; // Second capture group: domain (optional)
-          
-          // Check if this is in @uuid@domain format (UUID pattern)
-          const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(username);
-          
-          if (isUuidFormat && domain) {
-            // Already in stored format @uuid@domain, store as-is for database
-            result.push({ type: 'mention', mention: matchedText, userId: username });
-          } else {
-            // Display format @username or @username@domain, convert to stored format
-            const mentionKey = domain ? `${username}@${domain}` : username;
-            
-            // Look up user ID using the mention key
-            const userId = serverUsersStore.usernameToUserIdMap[mentionKey.toLowerCase()];
-            
-            if (userId) {
-              // Get user profile to get domain
-              const userProfile = serverUsersStore.getUserProfile(userId);
-              const userDomain = (userProfile as any)?.domain || 'har.mony.lol';
-              
-              // Store in database format: @uuid@domain for all users
-              const storedMention = `@${userId}@${userDomain}`;
-              
-              result.push({ type: 'mention', mention: storedMention, userId });
-            } else {
-              // If user not found, store as plain text
-              result.push({ type: 'text', text: matchedText });
-            }
-          }
-        }
-        // Handle file placeholders (don't allow editing)
-        else if (matchedText.startsWith('[') && matchedText.endsWith(']')) {
-          // Skip file placeholders - they can't be edited
-          result.push({ type: 'text', text: matchedText });
-        }
 
-        lastIndex = match.index + matchedText.length;
-      }
-
-      // Add remaining text
-      if (lastIndex < text.length) {
-        const remainingText = text.slice(lastIndex);
-        if (remainingText.trim()) {
-          result.push({ type: 'text', text: remainingText });
-        }
-      }
-
-      console.log('parseEditedText result:', result);
-      return result;
-    };
-
-    // Find emoji by name (reuse existing logic)
-    const findEmojiByName = (name: string) => {
-      const resolvedEmojiList = (serverChannelStore as any).resolvedEmojiList;
-      for (const serverId in resolvedEmojiList) {
-        const server = resolvedEmojiList[serverId];
-        const emoji = server.emojis.find((e: any) => e.name === name);
-        if (emoji) {
-          return emoji;
-        }
-      }
-      return undefined;
-    };
     const startEdit = (message: Message) => {
     if (!canEditMessage(message)) return;
     editableMessageId.value = message.id;
@@ -682,7 +576,11 @@ const saveEdit = async (messageId: string, newContent?: string) => {
     return;
   }
   try {
-    await chatStore.editMessage(messageId, textContent);
+    // Use unified content parsing system for consistency
+    const userDataMap = await resolveMentionsUserData(textContent);
+    const parsedContent = await parseContentToMessageParts(textContent, userDataMap);
+    
+    await chatStore.editMessage(messageId, parsedContent);
     cancelEdit();
   } catch (error) {
     console.error('Error saving message edit:', error);

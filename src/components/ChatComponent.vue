@@ -64,10 +64,8 @@
   import { useAuthStore } from '@/stores/auth'; 
   import { useChatStore } from '@/stores/useChat';
   import { useServerChannelStore } from '@/stores/useServerChannel'; 
-  import { userDataService } from '@/services/userDataService'; 
   import { useDMStore } from '@/stores/useDM';
   import { useThemeStore } from '@/stores/useTheme';
-  import { useEmojiCacheStore } from '@/stores/useEmojiCache';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { listen } from '@tauri-apps/api/event';
@@ -75,6 +73,7 @@
   import GifComponent from '@/components/GifComponent.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
+  import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
@@ -104,7 +103,6 @@
   // Remove serverUsersStore as we now use userDataService
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
-  const emojiCacheStore = useEmojiCacheStore();
   
   const showDragDropArea = ref(false);
   const uploading = ref(false);
@@ -126,16 +124,6 @@
   const gifTriggerElement = computed(() => messageInputRef.value?.gifTriggerRef || null);
   const emojiTriggerElement = computed(() => messageInputRef.value?.emojiTriggerRef || null);
   
-  // Dynamic emoji list based on context (DM vs Server)
-  const resolvedEmojiList = computed(() => {
-    if (props.isDM) {
-      // For DMs, we might want to show emojis from all servers the user is in
-      // For now, return server emojis or a default set
-      return emojiCacheStore.resolvedEmojis;
-    }
-    return emojiCacheStore.resolvedEmojis;
-  });
-      
       const currentUserId = computed(() => authStore.session?.user?.id);
       const hasActiveUploads = ref(false);
       
@@ -270,162 +258,21 @@
         });
       });
 
-      const parseMessageInput = (input: string): MessagePart[] => {
-        const emojiRegex = /:([\w\d_+-]+):/g;
-        let lastIndex = 0;
-        const result: MessagePart[] = [];
-
-        let match;
-        while ((match = emojiRegex.exec(input)) !== null) {
-          // Add text before emoji
-          if (match.index > lastIndex) {
-            result.push({ type: 'text', text: input.slice(lastIndex, match.index) });
-          }
-
-          // Add emoji
-          const emojiName = match[1];
-          const emoji = findEmojiByName(emojiName);
-          if (emoji) {
-            result.push({ type: 'emoji', emoji });
-          } else {
-            // If emoji not found, add the text as is
-            result.push({ type: 'text', text: match[0] });
-          }
-
-          lastIndex = match.index + match[0].length;
-        }
-
-        // Process remaining text
-        const remainingText = input.slice(lastIndex);
-        console.log('🔧 Processing remaining text for mentions/URLs:', remainingText);
-        const textParts = parseTextForURLsAndMentions(remainingText);
-        result.push(...textParts);
+      // Use unified content parsing system (DRY)
+      const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
+        console.log('🔧 Using unified content parsing for:', input);
+        
+        // Use efficient batch mention resolution
+        const userDataMap = await resolveMentionsUserData(input);
+        
+        // Parse with unified system
+        const result = await parseContentToMessageParts(input, userDataMap);
         
         console.log('🔧 Final parsed message parts:', result);
         return result;
       };
 
-      const urlRegex = /(\bhttps?:\/\/\S+)/gi;
-      // Updated mention regex to match both @username/@username@domain and @uuid@domain (UUIDs contain hyphens)
-      const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
-      const parseTextForURLsAndMentions = (text: string): MessagePart[] => {
-        console.log('🔧 parseTextForURLsAndMentions called with:', text);
-        const parts: MessagePart[] = [];
-        let lastIndex = 0;
 
-        // Process URLs and mentions separately to avoid capture group issues
-        const matches: Array<{match: RegExpExecArray, type: 'url' | 'mention'}> = [];
-        
-        // Find all URL matches
-        let urlMatch;
-        urlRegex.lastIndex = 0; // Reset regex
-        while ((urlMatch = urlRegex.exec(text)) !== null) {
-          matches.push({match: urlMatch, type: 'url'});
-        }
-        
-        // Find all mention matches
-        let mentionMatch;
-        mentionRegex.lastIndex = 0; // Reset regex
-        while ((mentionMatch = mentionRegex.exec(text)) !== null) {
-          matches.push({match: mentionMatch, type: 'mention'});
-        }
-        
-        // Sort matches by position
-        matches.sort((a, b) => a.match.index! - b.match.index!);
-        
-        // Process matches in order
-        for (const {match, type} of matches) {
-          console.log('🔧 Found match in ChatComponent:', match, 'type:', type);
-          
-          if (match.index! > lastIndex) {
-            parts.push({ type: 'text', text: text.slice(lastIndex, match.index) });
-          }
-
-          if (type === 'url') {
-            parts.push({ type: 'url', url: match[0], preview: true });
-          } else if (type === 'mention') {
-            // Handle mention parsing - support both formats
-            const fullMatch = match[0]; // Full mention like @username or @uuid@domain
-            const firstPart = match[1]; // First capture group: username or uuid
-            const domain = match[2]; // Second capture group: domain (optional)
-            
-            // Check if this is already in @uuid@domain format (UUID pattern - flexible hex)
-            const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(firstPart);
-            
-            if (isUuidFormat && domain) {
-              // Already in storage format @uuid@domain, use as-is
-              console.log('🔧 Found UUID format mention:', fullMatch);
-              
-              // Get user profile for additional data
-              const userProfile = userDataService.getUserProfile(firstPart);
-              if (userProfile) {
-                console.log('🔧 UserProfile for UUID mention:', userProfile);
-                parts.push({ 
-                  type: 'mention', 
-                  userId: firstPart,
-                  username: userProfile.username,
-                  domain: userProfile.domain || domain,
-                  isLocal: userProfile.isLocal === true || (userProfile.domain || domain) === 'har.mony.lol',
-                  displayName: userProfile.displayName
-                });
-              } else {
-                // Fallback if user not found
-                parts.push({ type: 'text', text: fullMatch });
-              }
-            } else {
-              // Display format @username or @username@domain, convert to storage format
-              console.log('🔧 Found display format mention, looking up user:', firstPart, domain);
-              const userId = userDataService.findUserIdByUsername(firstPart, domain);
-              
-              if (userId) {
-                // Get user profile for complete data
-                const userProfile = userDataService.getUserProfile(userId);
-                if (userProfile) {
-                  const userDomain = userProfile.domain || 'har.mony.lol';
-                  
-                  const mentionObject = { 
-                    type: 'mention' as const, 
-                    userId,
-                    username: userProfile.username,
-                    domain: userDomain,
-                    isLocal: userProfile.isLocal === true || userDomain === 'har.mony.lol',
-                    displayName: userProfile.displayName
-                  };
-                  
-                  console.log('🔧 Final mention object:', mentionObject);
-                  parts.push(mentionObject);
-                } else {
-                  console.log('🔧 User profile not found, storing as text:', fullMatch);
-                  parts.push({ type: 'text', text: fullMatch });
-                }
-              } else {
-                // If user not found, store as plain text
-                console.log('🔧 User not found, storing as text:', fullMatch);
-                parts.push({ type: 'text', text: fullMatch });
-              }
-            }
-          }
-
-          lastIndex = match.index! + match[0].length;
-        }
-
-        if (lastIndex < text.length) {
-          parts.push({ type: 'text', text: text.slice(lastIndex) });
-        }
-
-        return parts;
-      };
-
-      const findEmojiByName = (name: string): Emoji | undefined => {
-        for (const serverId in resolvedEmojiList.value) {
-          const server = resolvedEmojiList.value[serverId];
-          const emoji = server.emojis.find((e: any) => e.name === name);
-          if (emoji) {
-            return emoji;
-          }
-        }
-        return undefined;
-      };
 
       // Updated handleSendMessage to support both DMs and server channels
       const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
@@ -466,7 +313,7 @@
           
           // Add text content if present
           if (content.trim()) {
-            const parsedMessage = parseMessageInput(content);
+            const parsedMessage = await parseMessageInput(content);
             messageParts.push(...parsedMessage);
           }
 

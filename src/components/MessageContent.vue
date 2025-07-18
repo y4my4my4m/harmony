@@ -1,52 +1,6 @@
 <template>
-  <div v-if="editableMessageId !== messageId" class="message-content">
-    <template v-for="(part, partIndex) in content" :key="partIndex">
-      <template v-if="part && typeof part === 'object'">
-        <span draggable="false" @dragstart.prevent class="selectableText" v-if="part.type === 'text'">{{ part.text }}</span>
-        <a v-else-if="part.type === 'url'" :href="part.url" target="_blank" rel="noopener noreferrer">{{ part.url }}</a>
-        <span v-else-if="part.type === 'mention'" class="mention" @click="$emit('show-user-profile', part.userId, $event)">{{ part.mention }}</span>
-        <img v-else-if="part.type === 'emoji'"
-          class="emoji-icon"
-          :class="{ 'single': isSingleEmojiMessage }"
-          :src="part.emoji.url"
-          :alt="part.emoji.name"
-          :title="`:${part.emoji.name}:`"
-          draggable="false"
-        />
-        <div v-if="(part.type === 'file' && part.fileType === 'image' && !reply) && imageLoaded" class="file-container">
-          <div v-if="!imageLoaded[part.url]" class="image-skeleton"></div>
-          <img
-            :src="part.url"
-            @load="$emit('image-loaded', part.url)"
-            @click="$emit('open-lightbox', part.url)"
-            v-show="imageLoaded[part.url]"
-            draggable="false"
-          />
-        </div>
-        <!-- maybe unsafe? -->
-        <div v-if="(part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) && imageLoaded && !reply" class="file-container">
-          <div v-if="!imageLoaded[part.url]" class="image-skeleton"></div>
-          <img
-            :src="part.url"
-            @load="$emit('image-loaded', part.url)"
-            @click="$emit('open-lightbox', part.url)"
-            v-show="imageLoaded[part.url]"
-            draggable="false"
-          />
-        </div>
-        <div v-if="(part.type === 'url' && part.url && (part.url.endsWith('.mp4') || part.url.endsWith('.webm'))) && !reply" class="file-container">
-          <video
-            :src="part.url"
-            controls
-          ></video>
-        </div>
-        <a v-if="reply && (part.type === 'url' || part.type === 'file') && part.url" :href="part.url" target="_blank" rel="noopener noreferrer">{{ part.url }}</a>
-      </template>
-    </template>
-  </div>
-  
-  <!-- Discord-like editing interface -->
-  <div v-else class="edit-container">
+  <!-- Edit mode -->
+  <div v-if="editableMessageId === messageId" class="edit-container">
     <textarea 
       :id="`edit-input-${messageId}`"
       v-model="localEditableContent" 
@@ -88,13 +42,29 @@
       </template>
     </AutoSuggest>
   </div>
+  
+  <!-- Display mode using unified renderer -->
+  <UnifiedContentRenderer
+    v-else
+    :content="content"
+    :mode="reply ? 'preview' : 'display'"
+    :show-images="!reply"
+    :show-videos="!reply"
+    :image-loaded="imageLoaded"
+    :is-single-emoji="isSingleEmojiMessage"
+    render-mode="components"
+    @show-user-profile="$emit('show-user-profile', $event)"
+    @image-loaded="$emit('image-loaded', $event)"
+    @open-lightbox="$emit('open-lightbox', $event)"
+    @user-mention-click="handleMentionClick"
+  />
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref, nextTick } from 'vue';
-import type { PropType } from 'vue';
+import { defineComponent, watch, ref, nextTick, type PropType } from 'vue';
 import type { MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
+import UnifiedContentRenderer from '@/components/UnifiedContentRenderer.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 
@@ -102,6 +72,7 @@ export default defineComponent({
   name: 'MessageContent',
   components: {
     AutoSuggest,
+    UnifiedContentRenderer,
   },
   props: {
     content: {
@@ -242,6 +213,10 @@ export default defineComponent({
       emit('cancel-edit');
     };
 
+    const handleMentionClick = (userId: string, event: Event) => {
+      emit('show-user-profile', userId, event);
+    };
+
     return { 
       localEditableContent,
       editTextarea,
@@ -252,6 +227,7 @@ export default defineComponent({
       autoResizeTextarea,
       autoSuggest,
       handleSuggestionSelect,
+      handleMentionClick,
     };
   }
 });

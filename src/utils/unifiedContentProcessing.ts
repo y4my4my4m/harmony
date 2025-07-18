@@ -62,24 +62,41 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
     
     // Query for remote users (username@domain format)
     if (remoteUsernames.length > 0) {
-      const conditions = remoteUsernames.map(usernameDomain => {
-        const [username, domain] = usernameDomain.split('@');
-        return `(username.eq.${username} AND domain.eq.${domain})`;
-      }).join(',');
+      // For remote users, we need to query each username@domain pair individually
+      // since PostgREST doesn't handle complex AND conditions well in OR clauses
+      const remoteUserPromises = remoteUsernames.map(async (usernameDomain) => {
+        try {
+          const [username, domain] = usernameDomain.split('@');
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, username, domain, display_name, is_local')
+            .eq('username', username)
+            .eq('domain', domain)
+            .single();
+          
+          if (error && error.code !== 'PGRST116') { // PGRST116 is "not found", which is ok
+            console.warn(`Error fetching remote user ${usernameDomain}:`, error);
+          }
+          
+          return data;
+        } catch (error) {
+          console.warn(`Error querying remote user ${usernameDomain}:`, error);
+          return null;
+        }
+      });
       
-      const { data: remoteUsers } = await supabase
-        .from('profiles')
-        .select('id, username, domain, display_name, is_local')
-        .or(conditions);
+      const remoteUsers = (await Promise.all(remoteUserPromises)).filter(Boolean);
       
       if (remoteUsers) {
         remoteUsers.forEach(user => {
-          const key = `${user.username}@${user.domain}`;
-          userDataMap[key] = {
-            userId: user.id,
-            isLocal: user.is_local,
-            displayName: user.display_name || user.username
-          };
+          if (user) {
+            const key = `${user.username}@${user.domain}`;
+            userDataMap[key] = {
+              userId: user.id,
+              isLocal: user.is_local,
+              displayName: user.display_name || user.username
+            };
+          }
         });
       }
     }
