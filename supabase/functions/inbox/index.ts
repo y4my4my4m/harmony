@@ -296,6 +296,21 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
 
 async function processUpdateActivity(supabase: any, activity: ActivityPubActivity) {
   console.log('Update activity stored, will be processed by database trigger:', activity.id)
+  
+  // Basic validation only - triggers handle all business logic
+  const object = typeof activity.object === 'string' ? null : activity.object as any
+  if (!object || !object.type) {
+    console.log('Update activity does not contain a valid object')
+    return false
+  }
+
+  // Accept both Note updates (post edits) and Person updates (profile updates)
+  if (object.type !== 'Note' && object.type !== 'Person') {
+    console.log(`Update activity contains unsupported object type: ${object.type}`)
+    return false
+  }
+
+  console.log(`✅ Update activity validated for ${object.type} object`)
   return true
 }
 
@@ -326,7 +341,7 @@ async function processAnnounceActivity(supabase: any, activity: ActivityPubActiv
 // - Remote profile fetching/creation -> Handled automatically by triggers
 // - ActivityPub content parsing -> Uses parse_activitypub_content_to_jsonb() in DB
 // - Direct message detection -> Uses is_activitypub_direct_message() in trigger
-// - Direct message processing -> Uses process_activitypub_direct_message() in trigger
+// - Direct message processing -> Uses handle_incoming_messages() in trigger
 // - Public post processing -> Uses process_activitypub_public_post() in trigger
 // - Mention notifications -> Created automatically by trigger functions
 // - All detailed business logic -> Handled by ap_activities triggers
