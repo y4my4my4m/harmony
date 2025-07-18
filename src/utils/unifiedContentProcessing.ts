@@ -192,15 +192,19 @@ export async function parseContentToMessageParts(
     const userData = usernameToUserDataMap[mentionKey] || usernameToUserDataMap[username];
     
     // Fall back to domain-based logic if user data not available
-    const isLocal = userData?.isLocal ?? (!domain || domain === 'har.mony.lol');
+    const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+    const isLocal = userData?.isLocal ?? (!domain || domain === currentDomain);
     const userId = userData?.userId ?? `unresolved-${username}${domain ? '@' + domain : ''}`;
     const displayName = userData?.displayName ?? username;
+    
+    // Always include domain for federation - use current domain for local users
+    const finalDomain = domain || currentDomain;
     
     parts.push({
       type: 'mention',
       userId: userId,
       username: username,
-      domain: domain,
+      domain: finalDomain,
       isLocal: isLocal,
       displayName: displayName
     });
@@ -342,7 +346,8 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         
       case 'mention': {
         // Build proper ActivityPub mention with h-card structure
-        const domain = part.domain || 'har.mony.lol';
+        const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+        const domain = part.domain || currentDomain;
         const href = `https://${domain}/@${part.username}`;
         const displayName = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
         return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
@@ -422,7 +427,8 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
   return parts
     .filter((part): part is Extract<MessagePart, { type: 'mention' }> => part.type === 'mention')
     .map(part => {
-      const domain = part.domain || 'har.mony.lol';
+      const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+      const domain = part.domain || currentDomain;
       const href = `https://${domain}/@${part.username}`;
       const name = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
       
@@ -469,16 +475,20 @@ export function extractActivityPubAttachments(parts: MessagePart[]): any[] {
  * Extract emoji tags for ActivityPub federation (Misskey compatibility)
  * Returns properly formatted emoji tag objects
  */
-export function extractActivityPubEmojiTags(parts: MessagePart[], baseUrl: string = 'https://har.mony.lol'): any[] {
+export function extractActivityPubEmojiTags(parts: MessagePart[], baseUrl?: string): any[] {
+  const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+  const defaultBaseUrl = `https://${currentDomain}`;
+  const finalBaseUrl = baseUrl || defaultBaseUrl;
+  
   return parts
     .filter((part): part is Extract<MessagePart, { type: 'emoji' }> => part.type === 'emoji')
     .map(part => ({
-      id: part.emoji.url || `${baseUrl}/emojis/${part.emoji.id}`,
+      id: part.emoji.url || `${finalBaseUrl}/emojis/${part.emoji.id}`,
       type: 'Emoji',
       name: `:${part.emoji.name}:`,
       icon: {
         type: 'Image',
-        url: part.emoji.url || `${baseUrl}/emojis/${part.emoji.id}.png`
+        url: part.emoji.url || `${finalBaseUrl}/emojis/${part.emoji.id}.png`
       }
     }));
 }

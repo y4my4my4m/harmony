@@ -143,6 +143,7 @@ export interface FileContent {
   type: 'file';
   url: string;
   fileType: string; // e.g., 'image', 'video'
+  fileName?: string; // Optional file name
 }
 
 export interface SystemContent {

@@ -179,7 +179,8 @@ export function useAutoSuggest(
         if (displayName.includes(query) || usernameStr.includes(query)) {
           // Create display format for text input (what user sees while typing)
           const isLocal = userData.isLocal;
-          const userDomain = userData.domain || 'har.mony.lol';
+          const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+          const userDomain = userData.domain || currentDomain;
           const displayText = isLocal ? `@${userData.username}` : `@${userData.username}@${userDomain}`;
           
           // Create storage format for database (always @uuid@domain)
