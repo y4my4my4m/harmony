@@ -153,3 +153,14 @@ supabase-edge-functions  |
 54. multi emojis upload fine but the progress bar isnt moving (when multi emojis)
 
 55. misskey sees some of my posts (featured?) as "pinned", although they're not pinned. Mastodon has a hard time seeing my outbox at all...or is it because im not following them?
+
+56. emojis should be saved like: {
+  "type": "Emoji",
+  "id": "https://yourdomain/emoji/blobcat.png",
+  "name": ":blobcat:",
+  "icon": {
+    "type": "Image",
+    "mediaType": "image/png",
+    "url": "https://yourdomain/emoji/blobcat.png"
+  }
+}
