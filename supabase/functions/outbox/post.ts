@@ -72,17 +72,36 @@ export async function createPostActivity(
     ...(post.in_reply_to && { inReplyTo: post.in_reply_to })
   };
   
+  // Build @context dynamically based on what's actually in the content
+  const context: (string | Record<string, string>)[] = [
+    'https://www.w3.org/ns/activitystreams',
+    'https://w3id.org/security/v1'
+  ];
+  
+  const extensions: Record<string, string> = {};
+  
+  // Check if we have hashtags
+  const hasHashtags = allTags && allTags.some((tag: any) => tag.type === 'Hashtag');
+  if (hasHashtags) {
+    extensions['Hashtag'] = 'as:Hashtag';
+  }
+  
+  // Check if we have emojis - use standard ActivityStreams, not toot:Emoji
+  const hasEmojis = allTags && allTags.some((tag: any) => tag.type === 'Emoji');
+  if (hasEmojis) {
+    extensions['Emoji'] = 'as:Emoji';
+  }
+  
+  // Always include sensitive for content warnings
+  extensions['sensitive'] = 'as:sensitive';
+  
+  // Only add extensions if we have any
+  if (Object.keys(extensions).length > 0) {
+    context.push(extensions);
+  }
+  
   return {
-    '@context': [
-      'https://www.w3.org/ns/activitystreams',
-      'https://w3id.org/security/v1',
-      {
-        'Hashtag': 'as:Hashtag',
-        'sensitive': 'as:sensitive',
-        'toot': 'http://joinmastodon.org/ns#',
-        'Emoji': 'toot:Emoji'
-      }
-    ],
+    '@context': context,
     id: `${baseUrl}/users/${username}/activities/create/${post.id}`,
     type: 'Create',
     actor: `${baseUrl}/users/${username}`,
