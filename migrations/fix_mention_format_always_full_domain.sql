@@ -219,15 +219,20 @@ BEGIN
             
             IF emoji_name IS NOT NULL AND emoji_url IS NOT NULL THEN
                 -- Build ActivityPub Emoji tag
-                -- Note: emoji_url can be a Supabase storage URL with query parameters like:
-                -- https://db.mony.lol/storage/v1/render/image/public/emojis/.../emoji.gif?width=96&height=96&resize=contain&quality=80
-                -- This is perfectly valid for ActivityPub federation - remote instances will fetch from any public URL
                 emoji_tag := jsonb_build_object(
                     'type', 'Emoji',
                     'name', ':' || emoji_name || ':',
                     'icon', jsonb_build_object(
                         'type', 'Image',
-                        'mediaType', 'image/webp', -- supabase serves even png as webp
+                        'mediaType', 
+                            CASE 
+                                WHEN right(lower(emoji_url), 4) = '.png' THEN 'image/png'
+                                WHEN right(lower(emoji_url), 5) = '.webp' THEN 'image/webp'
+                                WHEN right(lower(emoji_url), 4) = '.jpg' THEN 'image/jpeg'
+                                WHEN right(lower(emoji_url), 5) = '.jpeg' THEN 'image/jpeg'
+                                WHEN right(lower(emoji_url), 4) = '.gif' THEN 'image/gif'
+                                ELSE 'image/webp' -- fallback, most common for supabase
+                            END,
                         'url', emoji_url
                     )
                 );
