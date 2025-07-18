@@ -9,6 +9,8 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 
 interface Props {
   content: string | any[] | any; // Can be string, JSONB array, or other format
+  isPreview?: boolean; // For reply previews - truncate but preserve mentions
+  previewLength?: number; // Maximum length for previews
 }
 
 const props = defineProps<Props>();
@@ -21,13 +23,21 @@ const emit = defineEmits<{
 // Initialize emoji cache store for emoji lookup
 const emojiCacheStore = useEmojiCacheStore();
 
-// Get resolved emoji list (same as ChatComponent)
+// Track if the emoji cache is ready
+const isCacheReady = computed(() => emojiCacheStore.isInitialized);
+
+// Get resolved emoji list (same as ChatComponent) - reactive to cache changes
 const resolvedEmojiList = computed(() => {
   return emojiCacheStore.resolvedEmojis;
 });
 
-// Find emoji by name (exact same as ChatComponent)
+// Find emoji by name (exact same as ChatComponent) - now with cache readiness check
 const findEmojiByName = (name: string) => {
+  // If cache isn't ready, return undefined to prevent errors
+  if (!isCacheReady.value) {
+    return undefined;
+  }
+  
   for (const serverId in resolvedEmojiList.value) {
     const server = resolvedEmojiList.value[serverId];
     const emoji = server.emojis.find((e: any) => e.name === name);
@@ -40,9 +50,18 @@ const findEmojiByName = (name: string) => {
 
 // Helper to handle both ActivityPub converted content and our internal JSON format  
 const flattenContentToString = (content: any): string => {
-  // Handle string content (shouldn't happen anymore with our new system)
+  // Handle string content - could be JSON string or plain text
   if (typeof content === 'string') {
-    return content;
+    // Try to parse as JSON first
+    try {
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) {
+        return flattenContentToString(parsed);
+      }
+    } catch {
+      // If not JSON, treat as plain text
+      return content;
+    }
   }
   
   // Our internal format is JSON array - convert to text for processing
@@ -99,94 +118,267 @@ const isSingleEmoji = computed(() => {
   return false;
 });
 
-const formattedContent = computed(() => {
-  // If content is not an array, fallback to string processing
-  if (!Array.isArray(props.content)) {
-    let formatted = flattenContentToString(props.content);
-    
-    // Format hashtags FIRST
-    formatted = formatted.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
-    
-    // Format mentions SECOND  
-    formatted = formatted.replace(/@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g, (match, username, domain) => {
-      const handle = domain ? `@${username}@${domain}` : `@${username}`;
-      return `<span class="mention" data-handle="${handle}">${handle}</span>`;
-    });
-    
-    // Format URLs THIRD (before emojis to avoid conflicts)
-    formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="url-link">$1</a>');
-    
-    // Format line breaks
-    formatted = formatted.replace(/\n/g, '<br>');
-    
-    // Format custom emojis LAST to avoid URL conflicts
-    formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
-      const emoji = findEmojiByName(emojiName);
-      if (emoji && emoji.url) {
-        const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
-        return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
+// Calculate visual length of content (counting emojis, mentions, URLs as 1 each)
+const calculateVisualLength = (content: any): number => {
+  if (Array.isArray(content)) {
+    return content.reduce((total, item) => {
+      if (!item || typeof item !== 'object') {
+        return total + String(item || '').length;
       }
-      return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
-    });
+      
+      switch (item.type) {
+        case 'text':
+          return total + (item.text || '').length;
+        case 'emoji':
+        case 'mention':
+        case 'url':
+          return total + 1; // Count non-text items as 1 character each
+        default:
+          return total + String(item.text || item || '').length;
+      }
+    }, 0);
+  }
+  
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) {
+        return calculateVisualLength(parsed);
+      }
+    } catch {
+      // If not JSON, count actual string length
+      return content.length;
+    }
+  }
+  
+  return String(content || '').length;
+};
+
+const formattedContent = computed(() => {
+  // Standardized content processing: handle all JSONB content the same way
+  const processedContent = processJsonbContent(props.content);
+  
+  // Apply preview truncation based on visual length, not raw HTML length
+  if (props.isPreview) {
+    const visualLength = calculateVisualLength(props.content);
+    const maxLength = props.previewLength || 100;
     
-    return formatted;
+    if (visualLength > maxLength) {
+      const truncated = applyVisualTruncation(props.content, maxLength);
+      return processJsonbContent(truncated);
+    }
+  }
+  
+  return processedContent;
+});
+
+// Standardized JSONB content processor - ONE function to rule them all!
+const processJsonbContent = (content: any): string => {
+  // Handle arrays (standard JSONB format)
+  if (Array.isArray(content)) {
+    return content.map(item => processContentItem(item)).join('');
+  }
+  
+  // Handle string content (try to parse as JSON first)
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) {
+        return processJsonbContent(parsed);
+      }
+    } catch {
+      // If not JSON, process as plain text
+      return processPlainText(content);
+    }
+  }
+  
+  // Fallback
+  return String(content || '');
+};
+
+// Process individual content items from JSONB array
+const processContentItem = (item: any): string => {
+  if (!item || typeof item !== 'object') {
+    return String(item || '');
   }
 
-  // Process JSONB array directly (our new standard format)
-  return props.content
-    .map(item => {
-      if (!item || typeof item !== 'object') {
-        return String(item || '');
-      }
+  switch (item.type) {
+    case 'text': {
+      let text = item.text || '';
+      
+      // Format hashtags
+      text = text.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
+      
+      // Format line breaks
+      text = text.replace(/\n/g, '<br>');
+      
+      // Format custom emojis
+      text = text.replace(/:([a-zA-Z0-9_+-]+):/g, (match: string, emojiName: string) => {
+        const emoji = findEmojiByName(emojiName);
+        if (emoji && emoji.url) {
+          const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
+          return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
+        }
+        return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
+      });
+      
+      return text;
+    }
 
+    case 'mention': {
+      const username = item.username || 'unknown';
+      const isLocal = item.isLocal ?? true;
+      
+      // For local users, show just @username
+      // For remote users, show @username@domain
+      const handle = isLocal ? `@${username}` : `@${username}@${item.domain || ''}`;
+      const displayHandle = isLocal ? `@${username}` : `@${username}@${item.domain || ''}`;
+      
+      return `<span class="mention" data-handle="${handle}">${displayHandle}</span>`;
+    }
+
+    case 'url': {
+      const url = item.url || '';
+      const linkText = item.text || url;
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="url-link">${linkText}</a>`;
+    }
+
+    case 'emoji': {
+      // Handle emoji objects directly from structured content
+      const emoji = item.emoji;
+      
+      if (emoji && emoji.url) {
+        const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
+        return `<img src="${emoji.url}" alt=":${emoji.name}:" class="${emojiClass}" title=":${emoji.name}:" draggable="false" />`;
+      }
+      // Fallback to shortcode if emoji data is incomplete
+      return `<span class="emoji-shortcode" title="${emoji?.name || 'emoji'}">${emoji?.name ? `:${emoji.name}:` : ':emoji:'}</span>`;
+    }
+
+    default:
+      return String(item.text || item || '');
+  }
+};
+
+// Process plain text content (fallback for non-JSONB content)
+const processPlainText = (text: string): string => {
+  let formatted = text;
+  
+  // Format hashtags FIRST
+  formatted = formatted.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
+  
+  // Format mentions SECOND  
+  formatted = formatted.replace(/@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g, (match, username, domain) => {
+    const handle = domain ? `@${username}@${domain}` : `@${username}`;
+    return `<span class="mention" data-handle="${handle}">${handle}</span>`;
+  });
+  
+  // Format URLs THIRD (before emojis to avoid conflicts)
+  formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="url-link">$1</a>');
+  
+  // Format line breaks
+  formatted = formatted.replace(/\n/g, '<br>');
+  
+  // Format custom emojis LAST to avoid URL conflicts
+  formatted = formatted.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
+    const emoji = findEmojiByName(emojiName);
+    if (emoji && emoji.url) {
+      const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
+      return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
+    }
+    return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
+  });
+  
+  return formatted;
+};
+
+// Visual truncation that works on raw content before HTML processing
+const applyVisualTruncation = (content: any, maxLength: number): any => {
+  if (Array.isArray(content)) {
+    const result = [];
+    let currentLength = 0;
+    
+    for (const item of content) {
+      if (currentLength >= maxLength) break;
+      
+      if (!item || typeof item !== 'object') {
+        const str = String(item || '');
+        const remainingLength = maxLength - currentLength;
+        if (str.length <= remainingLength) {
+          result.push(item);
+          currentLength += str.length;
+        } else {
+          // Truncate text and add ellipsis
+          result.push(str.substring(0, remainingLength) + '...');
+          break;
+        }
+        continue;
+      }
+      
       switch (item.type) {
         case 'text': {
-          let text = item.text || '';
+          const textLength = (item.text || '').length;
+          const remainingLength = maxLength - currentLength;
           
-          // Format hashtags
-          text = text.replace(/#(\w+)/g, '<span class="hashtag" data-tag="$1">#$1</span>');
-          
-          // Format line breaks
-          text = text.replace(/\n/g, '<br>');
-          
-          // Format custom emojis
-          text = text.replace(/:([a-zA-Z0-9_+-]+):/g, (match: string, emojiName: string) => {
-            const emoji = findEmojiByName(emojiName);
-            if (emoji && emoji.url) {
-              const emojiClass = isSingleEmoji.value ? 'custom-emoji single' : 'custom-emoji';
-              return `<img src="${emoji.url}" alt=":${emojiName}:" class="${emojiClass}" title=":${emojiName}:" draggable="false" />`;
-            }
-            return `<span class="emoji-shortcode" title="${emojiName}">${match}</span>`;
-          });
-          
-          return text;
+          if (textLength <= remainingLength) {
+            result.push(item);
+            currentLength += textLength;
+          } else {
+            // Truncate text and add ellipsis
+            result.push({
+              ...item,
+              text: (item.text || '').substring(0, remainingLength) + '...'
+            });
+            currentLength = maxLength;
+            break;
+          }
+          break;
         }
-
-        case 'mention': {
-          const username = item.username || 'unknown';
-          const domain = item.domain;
-          const isLocal = item.isLocal;
-          
-          // For local users, show just @username
-          // For remote users, show @username@domain
-          const displayName = isLocal ? `@${username}` : `@${username}@${domain}`;
-          const handle = isLocal ? `@${username}` : `@${username}@${domain}`;
-          
-          return `<span class="mention" data-handle="${handle}">${displayName}</span>`;
+        case 'emoji':
+        case 'mention':
+        case 'url':
+          // These count as 1 character each
+          if (currentLength < maxLength) {
+            result.push(item);
+            currentLength += 1;
+          }
+          break;
+        default: {
+          const defaultLength = String(item.text || item || '').length;
+          const remainingLength = maxLength - currentLength;
+          if (defaultLength <= remainingLength) {
+            result.push(item);
+            currentLength += defaultLength;
+          } else {
+            result.push(String(item.text || item || '').substring(0, remainingLength) + '...');
+            currentLength = maxLength;
+            break;
+          }
+          break;
         }
-
-        case 'url': {
-          const url = item.url || '';
-          const linkText = item.text || url;
-          return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="url-link">${linkText}</a>`;
-        }
-
-        default:
-          return String(item.text || item || '');
       }
-    })
-    .join('');
-});
+      
+      if (currentLength >= maxLength) break;
+    }
+    
+    return result;
+  }
+  
+  // For non-array content, fall back to string truncation
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) {
+        return JSON.stringify(applyVisualTruncation(parsed, maxLength));
+      }
+    } catch {
+      // Not JSON, truncate as string
+      return content.length > maxLength ? content.substring(0, maxLength) + '...' : content;
+    }
+  }
+  
+  return content;
+};
 
 // Add click event handling for mentions and hashtags
 const handleClick = (event: Event) => {

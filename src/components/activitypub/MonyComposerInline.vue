@@ -409,8 +409,10 @@ const handleMentionInsertion = (mention: SuggestionItem) => {
   }
 };
 
-// Handle emoji insertion
+// Handle emoji insertion - store full emoji object, not just shortcode
 const insertEmoji = (emoji: any) => {
+  // TODO: For now, we'll still use shortcode approach until we refactor the content system
+  // to handle structured content with emoji objects during composition
   const emojiText = `:${emoji.name}:`;
   const currentContent = content.value;
   content.value = currentContent + emojiText;

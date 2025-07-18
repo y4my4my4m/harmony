@@ -9,7 +9,10 @@
 import type { MessagePart } from '@/types';
 import { getEmoji } from '@/services/emojiService';
 import { supabase } from '@/supabase';
-const emojiRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
+
+// Support both UUID-based emojis (legacy) and shortcode emojis (new)
+const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
+const emojiShortcodeRegex = /:([a-zA-Z0-9_+-]+):/g;
 
 /**
  * Helper function to efficiently resolve mention user data in batch
@@ -89,37 +92,63 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
 
 /**
  * Helper function to efficiently resolve emoji data in batch
- * This should be called before parseTextForEmojis for optimal performance
+ * Supports both UUID-based emojis and shortcode emojis
  */
 export async function resolveEmojisData(content: string): Promise<Record<string, any>> {
   const emojiDataMap: Record<string, any> = {};
   
   let match;
   const uniqueEmojiIds = new Set<string>();
+  const uniqueEmojiNames = new Set<string>();
   
-  // Extract all unique emoji IDs from content
-  emojiRegex.lastIndex = 0; // Reset regex state
-  while ((match = emojiRegex.exec(content)) !== null) {
+  // Extract UUID-based emojis (legacy format)
+  emojiUuidRegex.lastIndex = 0;
+  while ((match = emojiUuidRegex.exec(content)) !== null) {
     const emojiId = match[1];
     if (emojiId) {
       uniqueEmojiIds.add(emojiId);
     }
   }
   
+  // Extract shortcode emojis (current format)
+  emojiShortcodeRegex.lastIndex = 0;
+  while ((match = emojiShortcodeRegex.exec(content)) !== null) {
+    const emojiName = match[1];
+    if (emojiName) {
+      uniqueEmojiNames.add(emojiName);
+    }
+  }
+  
   // If no emojis, return empty map
-  if (uniqueEmojiIds.size === 0) return emojiDataMap;
+  if (uniqueEmojiIds.size === 0 && uniqueEmojiNames.size === 0) return emojiDataMap;
   
   try {
-    // Batch query all emojis at once
-    const { data: emojis } = await supabase
-      .from('emojis')
-      .select('*')
-      .in('id', Array.from(uniqueEmojiIds));
+    // Query emojis by ID (UUID-based)
+    if (uniqueEmojiIds.size > 0) {
+      const { data: emojisByIds } = await supabase
+        .from('emojis')
+        .select('*')
+        .in('id', Array.from(uniqueEmojiIds));
+      
+      if (emojisByIds) {
+        emojisByIds.forEach(emoji => {
+          emojiDataMap[emoji.id] = emoji;
+        });
+      }
+    }
     
-    if (emojis) {
-      emojis.forEach(emoji => {
-        emojiDataMap[emoji.id] = emoji;
-      });
+    // Query emojis by name (shortcode-based)
+    if (uniqueEmojiNames.size > 0) {
+      const { data: emojisByNames } = await supabase
+        .from('emojis')
+        .select('*')
+        .in('name', Array.from(uniqueEmojiNames));
+      
+      if (emojisByNames) {
+        emojisByNames.forEach(emoji => {
+          emojiDataMap[emoji.name] = emoji;
+        });
+      }
     }
   } catch (error) {
     console.warn('Error resolving emoji data:', error);
@@ -227,6 +256,7 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
 
 /**
  * Parse text for emoji shortcodes and return MessageParts
+ * Handles both UUID-based emojis and shortcode emojis
  */
 async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any> = {}): Promise<MessagePart[]> {
   if (!text) return [];
@@ -234,9 +264,11 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
   const parts: MessagePart[] = [];
   let lastIndex = 0;
 
-  emojiRegex.lastIndex = 0;
+  // Create a combined regex to match both UUID and shortcode patterns
+  const combinedEmojiRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_+-]+):/g;
+  
   let emojiMatch;
-  while ((emojiMatch = emojiRegex.exec(text)) !== null) {
+  while ((emojiMatch = combinedEmojiRegex.exec(text)) !== null) {
     const emojiIndex = emojiMatch.index;
     
     // Add text before emoji
@@ -248,8 +280,31 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     }
     
     // Add emoji
-    const emojiId = emojiMatch[1];
-    const emojiData = emojiId ? emojiDataMap[emojiId] || await getEmoji(emojiId) : undefined;
+    const emojiIdentifier = emojiMatch[1];
+    
+    // Try to get emoji from data map (by ID or name)
+    let emojiData = emojiDataMap[emojiIdentifier];
+    
+    // If not in map, try to fetch directly (fallback)
+    if (!emojiData) {
+      // Check if it's a UUID or shortcode
+      if (emojiIdentifier.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+        emojiData = await getEmoji(emojiIdentifier);
+      } else {
+        // For shortcode, we need to query by name
+        try {
+          const { data } = await supabase
+            .from('emojis')
+            .select('*')
+            .eq('name', emojiIdentifier)
+            .single();
+          emojiData = data;
+        } catch (error) {
+          console.warn('Failed to fetch emoji by shortcode:', emojiIdentifier, error);
+        }
+      }
+    }
+    
     if (emojiData) {
       parts.push({ type: 'emoji', emoji: emojiData });
     } else {

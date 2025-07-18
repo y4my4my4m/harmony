@@ -588,6 +588,10 @@ export interface ActivityPubPost {
   is_sensitive: boolean;
   is_deleted: boolean;
   deleted_at?: string;
+  // Interaction state properties (for enhanced posts)
+  is_favorited?: boolean;
+  is_reblogged?: boolean;
+  is_bookmarked?: boolean;
 }
 
 export interface MediaAttachment {
@@ -688,7 +692,8 @@ export interface DeliveryQueueItem {
 // Reply context for conversation threading
 export interface ReplyContext {
   id: string;
-  content_preview: string;
+  content_preview: string; // Legacy field - for backward compatibility
+  content: any; // Full JSONB content for proper parsing
   author: {
     id: string;
     username: string;
@@ -720,6 +725,23 @@ export interface EnhancedActivityPubPost extends ActivityPubPost {
   is_favorited: boolean;
   is_reblogged: boolean;
   is_bookmarked?: boolean;
+  // Reblog properties for quote posts and pure reblogs
+  reblog?: ActivityPubPost;
+  reblog_author?: {
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url?: string;
+    domain: string;
+    bio?: string;
+    is_local?: boolean;
+    followers_count?: number;
+    following_count?: number;
+    posts_count?: number;
+    created_at?: string;
+    updated_at?: string;
+    handle?: string;
+  };
 }
 
 // Federation timeline types

@@ -89,7 +89,11 @@
           <div class="reply-details">
             <span class="reply-author">@{{ displayReplyContext.author.username }}</span>
             <span class="reply-content-preview">
-              <MonyContent :content="replyContentText" />
+              <MonyContent 
+                :content="replyContentText" 
+                :isPreview="true" 
+                :previewLength="100" 
+              />
             </span>
           </div>
         </div>
@@ -381,8 +385,9 @@ const handleTimeClick = () => {
 const author = computed(() => {
   return props.post.author;
 });
-const viewProfile = (author: { username: string; domain: string, is_local: boolean }) => {
-  const profileHandle = author.is_local ? `@${author.username}` : `@${author.username}@${author.domain}`;
+const viewProfile = (author: { username: string; domain: string, is_local?: boolean }) => {
+  const isLocal = author.is_local ?? true; // Default to local if not specified
+  const profileHandle = isLocal ? `@${author.username}` : `@${author.username}@${author.domain}`;
   router.push({ name: 'UserProfile', params: { handle: profileHandle } });
 };
 
@@ -407,38 +412,23 @@ const isQuotePost = computed(() => {
       part.type === 'text' && part.text && part.text.trim().length > 0
     );
   }
-  if (typeof content === 'string') {
-    try {
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed)) {
-        return parsed.length > 0 && parsed.some(part => 
-          part.type === 'text' && part.text && part.text.trim().length > 0
-        );
-      }
-    } catch {
-      // Ignore JSON parsing errors
-    }
-    return content.trim().length > 0;
-  }
+  
+  // Fallback: if content exists but is not array (shouldn't happen per interface)
   return false;
 });
 
-const isPureReblog = computed(() => {
-  return isReblog.value && !isQuotePost.value;
-});
-
 const displayAuthor = computed(() => {
-  return isReblog.value ? props.post.reblog_author : props.post.author;
+  return (isReblog.value && props.post.reblog_author) ? props.post.reblog_author : props.post.author;
 });
 
 const originalInstanceDomain = computed(() => {
-  if (!isReblog.value) return instanceDomain.value;
+  if (!isReblog.value || !props.post.reblog_author) return instanceDomain.value;
   const { domain } = props.post.reblog_author;
   return domain || 'har.mony.lol';
 });
 
 const originalCreatedAt = computed(() => {
-  return isReblog.value ? props.post.reblog.created_at : props.post.created_at;
+  return (isReblog.value && props.post.reblog) ? props.post.reblog.created_at : props.post.created_at;
 });
 
 // For quote posts, we show both the user's content AND the quoted content
@@ -449,23 +439,25 @@ const userQuoteContent = computed(() => {
 const displayContent = computed(() => {
   // For pure reblogs, show the original content
   // For quote posts, we'll show the original content in a quoted block
-  return isReblog.value ? props.post.reblog.content : props.post.content;
+  return (isReblog.value && props.post.reblog) ? props.post.reblog.content : props.post.content;
 });
 
 const displayMediaAttachments = computed(() => {
-  return isReblog.value ? props.post.reblog.media_attachments : props.post.media_attachments;
+  return (isReblog.value && props.post.reblog) ? props.post.reblog.media_attachments : props.post.media_attachments;
 });
 
 const displayContentWarning = computed(() => {
-  return isReblog.value ? props.post.reblog.content_warning : props.post.content_warning;
+  return (isReblog.value && props.post.reblog) ? props.post.reblog.content_warning : props.post.content_warning;
 });
 
 const displayIsSensitive = computed(() => {
-  return isReblog.value ? props.post.reblog.is_sensitive : props.post.is_sensitive;
+  return (isReblog.value && props.post.reblog) ? props.post.reblog.is_sensitive : props.post.is_sensitive;
 });
 
 const displayReplyContext = computed(() => {
-  return isReblog.value ? props.post.reblog.reply_context : props.post.reply_context;
+  // For now, ignore reblog logic and focus on regular posts
+  const context = props.post.reply_context;
+  return context;
 });
 
 const displayInteractionCounts = computed(() => {
@@ -489,44 +481,17 @@ const displayInteractionCounts = computed(() => {
   };
 });
 
-// Helper to flatten MessagePart[] or JSON string to plain text
-const flattenMessageParts = (content: any): string => {
-  if (Array.isArray(content)) {
-    return content
-      .map(part => {
-        if (part.type === 'text') return part.text;
-        if (part.type === 'mention') {
-          // Handle new structured mention format
-          if (part.username && part.domain) {
-            return part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
-          }
-          // Fallback to legacy format if needed
-          return part.mention || `@${part.username || 'unknown'}`;
-        }
-        if (part.type === 'url') return part.url;
-        return '';
-      })
-      .join('');
-  }
-  if (typeof content === 'string') {
-    // Try to parse as JSON array if it looks like it
-    try {
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed)) {
-        return flattenMessageParts(parsed);
-      }
-    } catch {
-      // Ignore JSON parsing errors
-    }
-    return content;
-  }
-  return '';
-};
-
 const replyContentText = computed(() => {
-  if (displayReplyContext.value && displayReplyContext.value.content_preview !== undefined) {
-    return flattenMessageParts(displayReplyContext.value.content_preview);
+  // Return the full JSONB content from reply_context
+  if (displayReplyContext.value && displayReplyContext.value.content) {
+    return displayReplyContext.value.content;
   }
+  
+  // Fallback to content_preview if content is not available (backward compatibility)
+  if (displayReplyContext.value && displayReplyContext.value.content_preview) {
+    return displayReplyContext.value.content_preview;
+  }
+  
   return '';
 });
 
@@ -652,9 +617,6 @@ const handleDeleteCancel = () => {
 };
 
 const showReplyTarget = async () => {
-  console.log('🔗 Show thread clicked for post:', props.post.id);
-  console.log('📝 Reply context:', displayReplyContext.value);
-  
   if (displayReplyContext.value) {
     try {
       // Get conversation navigation data from service
@@ -663,11 +625,8 @@ const showReplyTarget = async () => {
       });
       
       if (navigationData.success && navigationData.route) {
-        console.log('✅ Got conversation navigation data:', navigationData);
-        
         // Handle navigation in the component
         await router.push(navigationData.route);
-        console.log('✅ Successfully navigated to conversation thread');
       } else {
         console.error('❌ Failed to get conversation navigation data:', navigationData.error);
         
@@ -679,7 +638,6 @@ const showReplyTarget = async () => {
       console.error('❌ Failed to navigate to conversation:', error);
       
       // Fallback: emit the event as before
-      console.log('� Using fallback event emission');
       emit('show-conversation', props.post.id);
     }
   } else {
