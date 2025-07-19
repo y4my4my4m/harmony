@@ -623,6 +623,40 @@ activity_type := 'EmojiReact';  -- ❌ NOT in allowed types
 
 ---
 
+## **Phase 9.5: Multi-Participant Conversations Migration** 🚨 **CRITICAL**
+
+### **Priority**: **URGENT** (Fixes broken DM functionality) 🔥
+
+**Scope**: Fix missing `conversation_participants` table and upgrade to group chat support
+
+#### **Critical Issue**: 
+- **Problem**: Service layer expects `conversation_participants` table but it doesn't exist
+- **Error**: `relation "conversation_participants" does not exist`
+- **Impact**: **All DM sending is broken** 🚨
+
+#### **Solution Created**:
+- [x] **CREATED**: `db_migrations/013_multi_participant_conversations.sql` ✅
+  - [x] Creates `conversation_participants` table ✅
+  - [x] Migrates existing user1/user2 conversations to participant system ✅
+  - [x] Adds group chat support (name, type, participants management) ✅
+  - [x] Creates helper functions for service layer integration ✅
+  - [x] Zero data loss migration with verification ✅
+
+#### **Next Steps**:
+- [ ] **APPLY**: Migration 013 to fix DM functionality immediately
+- [ ] **UPDATE**: Service layer to fully use participant system
+- [ ] **IMPLEMENT**: Group chat UI features
+- [ ] **ENHANCE**: ActivityPub group DM federation
+
+#### **Benefits**:
+- **✅ Fixes broken DMs**: Service layer will work immediately
+- **✅ Enables group chats**: Multi-participant conversations 
+- **✅ Federation ready**: ActivityPub group DM support
+- **✅ Preserves data**: All existing conversations migrated safely
+- **✅ Performance optimized**: Proper indexes and RLS policies
+
+---
+
 ## **Phase 10: Core/Federation Architecture Migration** 🏗️
 
 ### **Priority**: High (Professional architecture upgrade)

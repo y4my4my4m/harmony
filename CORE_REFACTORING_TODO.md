@@ -284,6 +284,46 @@ src/services/
 
 ---
 
+### **Phase 3.5: Multi-Participant Conversations Migration** 🚨 **CRITICAL**
+
+**Priority**: **URGENT** (Blocking DM functionality) 🔥
+
+**Scope**: Fix missing `conversation_participants` table and upgrade to multi-participant system
+
+#### **Phase 3.5A: Database Migration (Migration 013)** 
+- [x] **CREATED**: `db_migrations/013_multi_participant_conversations.sql` ✅
+  - [x] Creates `conversation_participants` table for flexible participant management ✅
+  - [x] Migrates all existing user1/user2 conversations to participant system ✅
+  - [x] Adds group chat columns (`name`, `type`, `created_by`, etc.) ✅
+  - [x] Creates helper functions (`create_or_get_direct_conversation`, etc.) ✅
+  - [x] Sets up proper RLS policies for security ✅
+  - [x] Preserves 100% of existing conversation data ✅
+
+#### **Phase 3.5B: Service Layer Updates**
+- [ ] **UPDATE**: `CoreMessageService.sendDMMessage()` to use `conversation_participants` 
+- [ ] **UPDATE**: Conversation creation logic to use `create_or_get_direct_conversation()`
+- [ ] **UPDATE**: `useDM.ts` store to handle participant-based conversations
+- [ ] **ENHANCE**: Support for group conversation creation
+- [ ] **PRESERVE**: All existing DM functionality during migration
+
+#### **Phase 3.5C: Group Chat Features**
+- [ ] **IMPLEMENT**: Group conversation creation UI
+- [ ] **ADD**: Add/remove participants functionality  
+- [ ] **ENHANCE**: Group conversation naming and management
+- [ ] **SUPPORT**: ActivityPub group DM federation (multi-participant)
+
+#### **Phase 3.5D: Testing & Verification**
+- [ ] **TEST**: Existing DMs work after migration
+- [ ] **TEST**: New DM creation uses participant system
+- [ ] **TEST**: Group conversation creation
+- [ ] **VERIFY**: Federation works with multi-participant conversations
+
+**🚨 BLOCKING ISSUE**: Service layer expects `conversation_participants` table but it doesn't exist
+**✅ SOLUTION**: Migration 013 creates the table and migrates all existing data
+**⏰ TIMELINE**: Should be completed immediately before continuing with Phase 4
+
+---
+
 ### **Phase 4: Migration Verification & Cleanup** ✅
 
 **Priority**: Critical (Ensure no regressions)
