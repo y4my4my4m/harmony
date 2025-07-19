@@ -356,8 +356,7 @@ export class CoreMessageService {
           emoji: {
             id: reaction.emoji_id,
             name: reaction.emoji_name,
-            url: reaction.emoji_url,
-            category: reaction.emoji_category
+            url: reaction.emoji_url
           },
           count: reaction.reaction_count,
           users: reaction.users
