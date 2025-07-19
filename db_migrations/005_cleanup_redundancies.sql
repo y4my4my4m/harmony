@@ -346,7 +346,10 @@ DROP FUNCTION IF EXISTS public.check_federation_blocks(uuid, uuid, text);
 
 -- Update trigger comments to clarify they are OUTGOING ONLY
 COMMENT ON FUNCTION public.handle_unified_content_federation() IS 'OUTGOING ONLY: Unified trigger for federating local posts and messages to remote instances. Not bidirectional.';
-COMMENT ON FUNCTION public.handle_unified_interaction_federation() IS 'OUTGOING ONLY: Unified trigger for federating local follows, likes, and reactions to remote instances. Not bidirectional.';
+-- Updated comments for the new separate federation functions
+COMMENT ON FUNCTION public.handle_follows_federation() IS 'OUTGOING ONLY: Trigger for federating local follows to remote instances. Not bidirectional.';
+COMMENT ON FUNCTION public.handle_post_interactions_federation() IS 'OUTGOING ONLY: Trigger for federating local post interactions (likes/reblogs) to remote instances. Not bidirectional.';
+COMMENT ON FUNCTION public.handle_reactions_federation() IS 'OUTGOING ONLY: Trigger for federating local reactions to remote instances. Not bidirectional.';
 COMMENT ON FUNCTION public.handle_unified_profile_federation() IS 'OUTGOING ONLY: Unified trigger for federating local profile updates to remote instances. Not bidirectional.';
 COMMENT ON FUNCTION public.handle_unified_notification_processing() IS 'LOCAL ONLY: Unified trigger for processing notifications locally. Does not involve federation.';
 
