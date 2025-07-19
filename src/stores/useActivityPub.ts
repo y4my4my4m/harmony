@@ -1122,6 +1122,8 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Format post content for storage with mention detection and unified format
      */
     async formatPostContent(content: string): Promise<any> {
+      console.log('🔧 DEBUG: formatPostContent input:', content, typeof content);
+      
       // Use the centralized unified content processing utility
       const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveHashtagsData } = await import('@/utils/unifiedContentProcessing');
       
@@ -1132,7 +1134,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         resolveHashtagsData(content)
       ]);
       
-      return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
+      const result = parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
+      console.log('🔧 DEBUG: formatPostContent result:', result);
+      return result;
     },
 
     /**
