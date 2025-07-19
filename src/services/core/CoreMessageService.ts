@@ -66,7 +66,6 @@ export class CoreMessageService {
         channel_id: channelId,
         content: content,
         reply_to: replyTo || null,
-        is_local: true,
         metadata: { created_via: 'harmony_client' }
       }
 
@@ -106,7 +105,6 @@ export class CoreMessageService {
         conversation_id: conversationId,
         content: content,
         reply_to: replyTo || null,
-        is_local: true,
         metadata: { created_via: 'harmony_client' }
       }
 
