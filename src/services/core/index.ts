@@ -22,8 +22,14 @@ export type { SendMessageData, CoreMessageServiceError } from './CoreMessageServ
 export { CorePostService, corePostService } from './CorePostService'
 export type { CreatePostData, UpdatePostData, CorePostServiceError } from './CorePostService'
 
-// Phase 1C: Core Profile Service (COMING)
-// export { CoreProfileService, coreProfileService } from './CoreProfileService'
+// Phase 1C: Core Profile Service ✅ COMPLETED (ENTERPRISE SECURITY)
+export { CoreProfileService, coreProfileService } from './CoreProfileService'
+export type { 
+  ProfileData, 
+  CoreProfileServiceError, 
+  ProfileSearchOptions, 
+  UserStats 
+} from './CoreProfileService'
 
 // Phase 1D: Core Interaction Service (COMING)
 // export { CoreInteractionService, coreInteractionService } from './CoreInteractionService'
