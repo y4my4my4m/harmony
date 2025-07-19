@@ -328,6 +328,7 @@ export class MessageService {
     before?: string
   ): Promise<{ messages: Message[]; hasMore: boolean }> {
     try {
+      console.log('🔄 MessageService: Loading channel messages:', { channelId, limit, before })
       let query = supabase
         .from('messages')
         .select(`
@@ -342,7 +343,7 @@ export class MessageService {
           )
         `)
         .eq('channel_id', channelId)
-        .eq('is_deleted', false)
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
         .limit(limit + 1) // +1 to check if there are more
 
@@ -353,7 +354,12 @@ export class MessageService {
 
       const { data: messages, error } = await query
 
-      if (error) throw this.createError('LOAD_FAILED', error.message, error)
+      if (error) {
+        console.error('❌ Channel query failed:', { channel: channelId, error: error.message })
+        throw this.createError('LOAD_FAILED', error.message, error)
+      } else {
+        console.log('✅ Channel query success:', { channel: channelId, count: messages?.length || 0 })
+      }
 
       const hasMore = messages.length > limit
       const resultMessages = hasMore ? messages.slice(0, limit) : messages
@@ -361,8 +367,11 @@ export class MessageService {
       // Reverse to get chronological order (oldest first)
       resultMessages.reverse()
 
+      const transformedMessages = resultMessages.map(msg => this.transformDatabaseMessage(msg))
+      console.log('✅ Channel messages processed:', { count: transformedMessages.length, hasMore })
+
       return {
-        messages: resultMessages.map(msg => this.transformDatabaseMessage(msg)),
+        messages: transformedMessages,
         hasMore
       }
     } catch (error) {
@@ -547,7 +556,7 @@ export class MessageService {
           )
         `)
         .eq('id', messageId)
-        .eq('is_deleted', false)
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .single()
 
       if (error) {
@@ -610,7 +619,6 @@ export class MessageService {
       conversation_id: message.conversation_id,
       reply_to: message.reply_to,
       is_system: message.is_system || false,
-      edited_at: message.edited_at,
       is_deleted: message.is_deleted || false,
       deleted_at: message.deleted_at,
       metadata: message.metadata || {},
