@@ -629,7 +629,7 @@ export class FederationActivityService {
 
   private async getEmojiData(emojiId: string) {
     const { data, error } = await supabase
-      .from('custom_emojis')
+      .from('emojis')
       .select('id, shortcode, url')
       .eq('id', emojiId)
       .single()
