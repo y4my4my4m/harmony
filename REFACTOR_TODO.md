@@ -127,24 +127,50 @@
 - [x] **ADD**: `log_federation_health()` - health monitoring integration
 - [x] **ADD**: `get_federation_config()` - configuration access
 
-## Phase 5: Service Layer Implementation 🏗️ **NEXT PRIORITY**
+## Phase 5: Cleanup & Missing Features ✅ **COMPLETED**
+
+### Removed Redundancies
+- [x] **REMOVE**: Redundant `federation_health` table (use existing `federation_stats`)
+- [x] **REMOVE**: Redundant `federation_errors` table  
+- [x] **REMOVE**: Redundant `log_federation_health()` function
+- [x] **REMOVE**: Duplicate helper functions for edge functions
+
+### Unified Notification System (Properly This Time)
+- [x] **CREATE**: `create_notification_unified()` - ONE true function
+- [x] **UPDATE**: Old functions as compatibility wrappers with deprecation notices
+- [x] **ADD**: Notification spam prevention with rate limiting
+- [x] **ADD**: Smart suppression (max 3 notifications per source per 2 minutes)
+
+### Added Missing Features
+- [x] **ADD**: Misskey-style emoji reactions for posts (extend `post_interactions`)
+- [x] **ADD**: Reaction limits (max 20 unique emoji types per post/message)
+- [x] **ADD**: `federation_type` column to delivery queue for filtering
+- [x] **CLARIFY**: Trigger comments (OUTGOING ONLY federation)
+
+### Actually Missing Features (Now Added)
+- [x] **POST EMOJI REACTIONS**: `add_post_emoji_reaction()`, `remove_post_emoji_reaction()`, `get_post_emoji_reactions()`
+- [x] **NOTIFICATION LIMITS**: Rate limiting table and spam prevention logic
+- [x] **REACTION LIMITS**: Max 20 different emoji types per post/message
+
+## Phase 6: Service Layer Implementation 🏗️ **NEXT PRIORITY**
 
 ### Local-First Services  
 - [ ] **CREATE**: `PostService` class
-  - [ ] `createPost()` - Create posts locally first
-  - [ ] `editPost()` - Edit posts with federation
-  - [ ] `deletePost()` - Delete posts with federation
-  - [ ] `likePost()` / `unlikePost()` - Local-first interactions
-  - [ ] `reblogPost()` / `unreblogPost()` - Local-first reblogs
+  - [ ] `createPost()` - Create posts
+  - [ ] `editPost()` - Edit post
+  - [ ] `deletePost()` - Delete posts
+  - [ ] `likePost()` / `unlikePost()` - Local-first
+  - [ ] `reblogPost()` / `unreblogPost()` - Local-first
+  - [ ] `featurePost()` / `unfeaturePost()` - Local-first (featuring means like pinning a post)
 - [ ] **CREATE**: `MessageService` class  
-  - [ ] `sendMessage()` - Send channel messages
-  - [ ] `sendDM()` - Send direct messages (local and federated)
-  - [ ] `editMessage()` - Edit messages with federation
-  - [ ] `deleteMessage()` - Delete messages with federation
+  - [ ] `sendMessage()` - Send channel or DM messages, (local and federated)
+  - [ ] `editMessage()` - Edit messages (local and federated)
+  - [ ] `deleteMessage()` - Delete messages (local and federated)
 - [ ] **CREATE**: `InteractionService` class
   - [ ] `followUser()` / `unfollowUser()` - Local-first follows
   - [ ] `blockUser()` / `unblockUser()` - Local-first blocks
   - [ ] `acceptFollow()` / `rejectFollow()` - Handle follow requests
+  - [ ] `addReaction()` / `removeReaction()` - Local-first reactions
 
 ### Federation Services
 - [ ] **CREATE**: `FederationManager` class
