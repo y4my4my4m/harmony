@@ -1059,8 +1059,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Upload media attachments if any
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
 
-        // Use activityPubService to create the post
-        const post = await activityPubService.createPost({
+        // Use new service layer for post creation
+        const post = await services.posts.createPost({
           content: await this.formatPostContent(content),
           visibility: visibility,
           content_warning: contentWarning,
@@ -2065,7 +2065,7 @@ export const useActivityPubStore = defineStore('activitypub', {
            language: 'en'
          };
 
-         const reply = await activityPubService.createPost(replyData);
+         const reply = await services.posts.createPost(replyData);
          
          // Clear conversation cache to force refresh
          this.conversationContexts.clear();

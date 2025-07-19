@@ -242,7 +242,100 @@ $$;
 COMMENT ON FUNCTION public.create_comprehensive_timeline_entries() IS 'FIXED: SECURITY DEFINER function bypasses RLS for timeline entry creation';
 
 -- =====================================================
--- STEP 4: Verification
+-- STEP 4: Fix ActivityPub Function with Wrong Table Reference
+-- =====================================================
+
+-- Fix the create_activitypub_note_activity function that references 'users' instead of 'profiles'
+CREATE OR REPLACE FUNCTION public.create_activitypub_note_activity(post_id uuid) 
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_post posts%ROWTYPE;
+    v_sender_url text;
+    v_post_url text;
+    v_activity_id text;
+    v_mentioned_actor_urls text[];
+    v_note_object jsonb;
+    v_activity jsonb;
+    v_followers_url text;
+BEGIN
+    -- Get post data
+    SELECT * INTO v_post FROM posts WHERE id = post_id;
+    
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Build sender and post URLs (FIXED: profiles instead of users)
+    SELECT 'https://' || trim(both '"' from config_value::text) || '/users/' || p.id
+    INTO v_sender_url
+    FROM profiles p, instance_config 
+    WHERE p.id = v_post.author_id AND config_key = 'domain';
+    
+    SELECT 'https://' || trim(both '"' from config_value::text) || '/posts/' || v_post.id
+    INTO v_post_url
+    FROM instance_config 
+    WHERE config_key = 'domain';
+    
+    v_activity_id := v_post_url || '#activity';
+    v_followers_url := v_sender_url || '/followers';
+    
+    -- Extract mentioned actor URLs for addressing
+    SELECT array_agg(mention->>'href') 
+    INTO v_mentioned_actor_urls
+    FROM jsonb_array_elements(v_post.content) content_item,
+         jsonb_array_elements(COALESCE(content_item->'mentions', '[]'::jsonb)) mention
+    WHERE mention->>'href' IS NOT NULL;
+    
+    -- Create Note object with unified content processing
+    SELECT convert_jsonb_to_ap(v_post.content) INTO v_note_object;
+    
+    -- Add standard ActivityPub Note fields
+    v_note_object := v_note_object || jsonb_build_object(
+        'id', v_post_url,
+        'type', 'Note',
+        'published', v_post.created_at::text,
+        'attributedTo', v_sender_url,
+        'content', v_note_object->>'content',
+        'url', v_post_url,
+        'to', CASE 
+            WHEN v_post.visibility = 'public' THEN '["https://www.w3.org/ns/activitystreams#Public"]'::jsonb
+            WHEN v_post.visibility = 'followers' THEN jsonb_build_array(v_followers_url)
+            ELSE '[]'::jsonb
+        END,
+        'cc', CASE 
+            WHEN v_post.visibility = 'public' THEN jsonb_build_array(v_followers_url)
+            ELSE '[]'::jsonb
+        END || COALESCE(to_jsonb(v_mentioned_actor_urls), '[]'::jsonb)
+    );
+    
+    -- Add reply context if this is a reply
+    IF v_post.in_reply_to IS NOT NULL THEN
+        v_note_object := v_note_object || jsonb_build_object(
+            'inReplyTo', (SELECT 'https://' || trim(both '"' from config_value::text) || '/posts/' || v_post.in_reply_to FROM instance_config WHERE config_key = 'domain')
+        );
+    END IF;
+    
+    -- Create Activity wrapper
+    v_activity := jsonb_build_object(
+        'id', v_activity_id,
+        'type', 'Create',
+        'actor', v_sender_url,
+        'published', v_post.created_at::text,
+        'object', v_note_object,
+        'to', v_note_object->'to',
+        'cc', v_note_object->'cc'
+    );
+    
+    RETURN v_activity;
+END;
+$$;
+
+COMMENT ON FUNCTION public.create_activitypub_note_activity(uuid) IS 'FIXED: Creates a complete ActivityPub Create activity for a post with unified mention and emoji tag support. Now uses profiles table instead of users.';
+
+-- =====================================================
+-- STEP 5: Verification
 -- =====================================================
 
 DO $$
@@ -252,5 +345,6 @@ BEGIN
     RAISE NOTICE '  ✅ DM reactions follower_id error resolved';
     RAISE NOTICE '  ✅ Timeline entries RLS policies fixed';
     RAISE NOTICE '  ✅ Timeline function now runs with SECURITY DEFINER';
-    RAISE NOTICE '  ✅ Post creation should work without RLS errors';
+    RAISE NOTICE '  ✅ ActivityPub function now uses profiles table instead of users';
+    RAISE NOTICE '  ✅ Post creation should work without database errors';
 END $$;
