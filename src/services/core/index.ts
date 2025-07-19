@@ -31,5 +31,15 @@ export type {
   UserStats 
 } from './CoreProfileService'
 
-// Phase 1D: Core Interaction Service (COMING)
-// export { CoreInteractionService, coreInteractionService } from './CoreInteractionService'
+// Phase 1D: Core Interaction Service ✅ COMPLETED (ENTERPRISE SECURITY)
+export { CoreInteractionService, coreInteractionService } from './CoreInteractionService'
+export type { 
+  FollowResult, 
+  BlockResult, 
+  MuteResult, 
+  UserRelationship, 
+  CoreInteractionServiceError, 
+  BasicUser, 
+  FollowRequestUser, 
+  PaginatedUsers 
+} from './CoreInteractionService'
