@@ -401,5 +401,3 @@ BEGIN
     END IF;
 END;
 $$;
-
-RAISE NOTICE '✅ Phase 5 Cleanup Complete: Removed redundancies, unified notifications, added missing features!';
