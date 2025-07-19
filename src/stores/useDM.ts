@@ -672,7 +672,7 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       // Use activityPubService for federated user search (includes local users)
-      const users = await activityPubService.searchUsers(query, 10)
+      const users = await services.activityPub.searchUsers(query, 10)
       
       // Filter out current user and convert to DMUser format
       const filteredUsers = users

@@ -9,7 +9,15 @@
  * - Type-safe service interfaces
  */
 
-// Core services
+// Import service instances first
+import { postService, PostService } from './PostService'
+import { messageService, MessageService } from './MessageService'
+import { interactionService, InteractionService } from './InteractionService'
+import { profileService, ProfileService } from './ProfileService'
+import { notificationService, NotificationService } from './NotificationService'
+import { activityPubService, ActivityPubService } from './activityPubService'
+
+// Re-export services and types
 export { postService, PostService } from './PostService'
 export type { CreatePostData, UpdatePostData, PostServiceError } from './PostService'
 
