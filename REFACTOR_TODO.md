@@ -473,7 +473,37 @@ The useServerChannel store is now **enterprise-ready** with robust error handlin
 
 ---
 
-### **Phase 8E: Validation & Performance Testing** 🧪
+### **Phase 8E: Frontend Post Reactions Implementation** 🎭
+
+**Priority**: High (complete the custom emoji reactions feature)
+
+**Scope**: Add frontend UI for post emoji reactions with modular components
+- [ ] **CREATE**: Modular reaction components (reuse from message reactions)
+  - [ ] `PostReactionPicker.vue` → Reuse `EmojiPicker` component from messages
+  - [ ] `PostReactionDisplay.vue` → Reuse `ReactionGroup` component from messages  
+  - [ ] `PostReactionButton.vue` → Unified reaction button for all content types
+  - [ ] Ensure components work for both posts and messages seamlessly
+- [ ] **INTEGRATE**: Post reaction UI into post components
+  - [ ] Update `MonyPost.vue` to show reaction picker and display
+  - [ ] Update `PostDetailDisplay.vue` for detailed reaction view
+  - [ ] Add reaction UI to timeline posts and individual post views
+  - [ ] Maintain consistent UX between message and post reactions
+- [ ] **ENHANCE**: Service layer integration
+  - [ ] Update `usePostInteractions.ts` to use `services.posts.toggleReaction()`
+  - [ ] Add optimistic updates for post reactions
+  - [ ] Implement consistent error handling and loading states
+  - [ ] Ensure federation works seamlessly with UI interactions
+- [ ] **TEST**: Post reaction functionality
+  - [ ] Verify emoji picker works with custom emojis
+  - [ ] Test reaction federation to Pleroma/Misskey instances  
+  - [ ] Confirm optimistic updates provide immediate feedback
+  - [ ] Validate reaction limits (max 20 emoji types per post)
+
+**Components Affected**: `MonyPost.vue`, `PostDetailDisplay.vue`, `usePostInteractions.ts`, emoji picker components
+
+---
+
+### **Phase 8F: Validation & Performance Testing** 🧪
 
 **Priority**: Critical (ensure everything works correctly)
 
@@ -483,16 +513,19 @@ The useServerChannel store is now **enterprise-ready** with robust error handlin
   - [ ] Send channel messages → Verify `services.messages` integration
   - [ ] Send DMs → Verify federation and service layer work together
   - [ ] Follow/unfollow users → Verify `services.interactions` work
+  - [ ] **Test post reactions** → Verify custom emoji reactions work end-to-end
   - [ ] Real-time updates work across all content types
 - [ ] **TEST**: Performance & UX
   - [ ] Verify optimistic updates provide immediate feedback
   - [ ] Confirm caching still provides fast navigation
   - [ ] Check that loading states enhance (not hinder) UX
   - [ ] Validate error handling provides helpful feedback
+  - [ ] **Test reaction performance** → Ensure emoji picker is responsive
 - [ ] **TEST**: Edge Function Integration  
   - [ ] Verify inbox edge function works with new database structure
   - [ ] Test ActivityPub JSON generation using database helpers
   - [ ] Confirm federation delivery queue processes correctly
+  - [ ] **Test reaction federation** → Verify emoji reactions federate properly
 - [ ] **VERIFY**: No Regressions
   - [ ] All existing functionality still works
   - [ ] Realtime subscriptions remain active and performant
