@@ -64,19 +64,25 @@ export class CorePostService {
 
       const profileId = await this.getCurrentUserProfileId()
 
-      // Validate content format
+      // Enterprise-grade content validation
       if (!Array.isArray(data.content)) {
         throw this.createError('INVALID_CONTENT', 'Content must be an array of MessageParts')
       }
 
-      console.log('🔧 DEBUG: CorePostService received data.content:', data.content);
-      console.log('🔧 DEBUG: CorePostService content type:', typeof data.content);
-      console.log('🔧 DEBUG: CorePostService content is array:', Array.isArray(data.content));
-      console.log('🔧 DEBUG: CorePostService content JSON:', JSON.stringify(data.content));
+      if (data.content.length === 0) {
+        throw this.createError('EMPTY_CONTENT', 'Content cannot be empty')
+      }
+
+      // Validate each MessagePart
+      for (const part of data.content) {
+        if (!part || typeof part !== 'object' || !part.type) {
+          throw this.createError('INVALID_MESSAGE_PART', 'Each content part must be a valid MessagePart object')
+        }
+      }
 
       const postData = {
         author_id: profileId,
-        content: data.content,
+        content: data.content, // Direct JSONB insertion - Supabase handles serialization
         visibility: data.visibility,
         content_warning: data.content_warning || null,
         in_reply_to: data.in_reply_to || null,
@@ -85,11 +91,8 @@ export class CorePostService {
         language: data.language || 'en',
         is_local: true,
         is_federated: true, // Keep for compatibility, federation handled by orchestrator
-        metadata: { created_via: 'harmony_client' }
+        metadata: { created_via: 'harmony_client', content_format: 'message_parts_v1' }
       }
-      
-      console.log('🔧 DEBUG: CorePostService postData before insert:', postData);
-      console.log('🔧 DEBUG: CorePostService postData.content before insert:', postData.content);
 
       const { data: post, error } = await supabase
         .from('posts')

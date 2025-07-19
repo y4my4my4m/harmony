@@ -513,8 +513,6 @@ const handleSubmit = async () => {
     const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveHashtagsData } = await import('@/utils/unifiedContentProcessing');
     
     const rawContent = content.value.trim();
-    console.log('🔧 DEBUG: MonyComposer rawContent:', rawContent);
-    console.log('🔧 DEBUG: MonyComposer rawContent type:', typeof rawContent);
     
     const [usernameToUserDataMap, emojiDataMap, hashtagDataMap] = await Promise.all([
       resolveMentionsUserData(rawContent),
@@ -522,11 +520,7 @@ const handleSubmit = async () => {
       resolveHashtagsData(rawContent)
     ]);
     
-    console.log('🔧 DEBUG: MonyComposer resolved data:', { usernameToUserDataMap, emojiDataMap, hashtagDataMap });
-    
     const parsedContent = await parseContentToMessageParts(rawContent, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
-    console.log('🔧 DEBUG: MonyComposer parsedContent:', parsedContent);
-    console.log('🔧 DEBUG: MonyComposer parsedContent JSON:', JSON.stringify(parsedContent));
 
     await activityPubStore.createPost({
       content: parsedContent,
