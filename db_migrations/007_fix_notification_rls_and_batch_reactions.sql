@@ -215,7 +215,6 @@ RETURNS TABLE (
     emoji_id uuid,
     emoji_name varchar,
     emoji_url text,
-    emoji_category varchar,
     reaction_count bigint,
     users jsonb
 )
@@ -229,7 +228,6 @@ BEGIN
         r.emoji_id,
         e.name as emoji_name,
         e.url as emoji_url,
-        e.category as emoji_category,
         COUNT(r.user_id) as reaction_count,
         jsonb_agg(
             jsonb_build_object(
@@ -243,7 +241,7 @@ BEGIN
     INNER JOIN emojis e ON r.emoji_id = e.id
     INNER JOIN profiles p ON r.user_id = p.id
     WHERE r.message_id = ANY(message_ids)
-    GROUP BY r.message_id, r.emoji_id, e.name, e.url, e.category
+    GROUP BY r.message_id, r.emoji_id, e.name, e.url
     ORDER BY r.message_id, MIN(r.created_at);
 END;
 $$;
@@ -257,7 +255,6 @@ RETURNS TABLE (
     emoji_id uuid,
     emoji_name varchar,
     emoji_url text,
-    emoji_category varchar,
     reaction_count bigint,
     users jsonb
 )
@@ -271,7 +268,6 @@ BEGIN
         pi.emoji_id,
         e.name as emoji_name,
         e.url as emoji_url,
-        e.category as emoji_category,
         COUNT(pi.user_id) as reaction_count,
         jsonb_agg(
             jsonb_build_object(
@@ -285,8 +281,8 @@ BEGIN
     INNER JOIN emojis e ON pi.emoji_id = e.id
     INNER JOIN profiles p ON pi.user_id = p.id
     WHERE pi.post_id = ANY(post_ids)
-    AND pi.interaction_type = 'reaction'
-    GROUP BY pi.post_id, pi.emoji_id, e.name, e.url, e.category
+    AND pi.interaction_type = 'emoji_reaction'
+    GROUP BY pi.post_id, pi.emoji_id, e.name, e.url
     ORDER BY pi.post_id, MIN(pi.created_at);
 END;
 $$;
