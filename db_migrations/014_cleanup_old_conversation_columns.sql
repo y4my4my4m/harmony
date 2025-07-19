@@ -220,13 +220,13 @@ CREATE POLICY "Users can view post interactions on posts they can see"
   USING (
     post_id IN (
       SELECT p.id FROM posts p
-      WHERE p.user_id = auth.uid() 
+      WHERE p.author_id = auth.uid() 
         OR p.visibility = 'public'
         OR (p.visibility = 'followers' AND EXISTS (
-          SELECT 1 FROM user_relationships ur 
-          WHERE ur.follower_id = auth.uid() 
-            AND ur.following_id = p.user_id 
-            AND ur.status = 'accepted'
+          SELECT 1 FROM follows f 
+          WHERE f.follower_id = auth.uid() 
+            AND f.following_id = p.author_id 
+            AND f.status = 'accepted'
         ))
     )
   );
@@ -237,13 +237,13 @@ CREATE POLICY "Users can create post interactions on posts they can see"
     user_id = auth.uid()
     AND post_id IN (
       SELECT p.id FROM posts p
-      WHERE p.user_id = auth.uid() 
+      WHERE p.author_id = auth.uid() 
         OR p.visibility = 'public'
         OR (p.visibility = 'followers' AND EXISTS (
-          SELECT 1 FROM user_relationships ur 
-          WHERE ur.follower_id = auth.uid() 
-            AND ur.following_id = p.user_id 
-            AND ur.status = 'accepted'
+          SELECT 1 FROM follows f 
+          WHERE f.follower_id = auth.uid() 
+            AND f.following_id = p.author_id 
+            AND f.status = 'accepted'
         ))
     )
   );
