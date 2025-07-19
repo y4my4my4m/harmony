@@ -12,6 +12,18 @@
 BEGIN;
 
 -- =====================================================
+-- STEP 0: CLEANUP EXISTING PROBLEMATIC TRIGGERS
+-- =====================================================
+
+-- Drop any existing triggers that might conflict or have scope issues
+DROP TRIGGER IF EXISTS update_post_counts_trigger ON post_interactions;
+DROP TRIGGER IF EXISTS trigger_update_post_counts ON post_interactions;
+DROP TRIGGER IF EXISTS post_interactions_update_counts ON post_interactions;
+
+-- Drop any existing update_post_counts function that might have scope issues
+DROP FUNCTION IF EXISTS public.update_post_counts() CASCADE;
+
+-- =====================================================
 -- STEP 1: UNIFIED FEDERATION TRIGGER FUNCTIONS
 -- =====================================================
 
@@ -24,6 +36,7 @@ DECLARE
     user_federation_enabled boolean;
     instance_federation_enabled boolean;
     current_instance_domain text;
+    target_user_id uuid;
     is_dm boolean := false;
     conversation_participants uuid[];
     remote_participants uuid[];
@@ -34,19 +47,15 @@ BEGIN
     END IF;
 
     -- Get the user ID based on table
-    DECLARE
-        target_user_id uuid;
-    BEGIN
-        IF TG_TABLE_NAME = 'posts' THEN
-            target_user_id := COALESCE(NEW.author_id, OLD.author_id);
-        ELSIF TG_TABLE_NAME = 'messages' THEN
-            target_user_id := COALESCE(NEW.user_id, OLD.user_id);
-            -- Check if this is a DM
-            is_dm := (NEW.conversation_id IS NOT NULL AND NEW.channel_id IS NULL);
-        ELSE
-            RETURN COALESCE(NEW, OLD);
-        END IF;
-    END;
+    IF TG_TABLE_NAME = 'posts' THEN
+        target_user_id := COALESCE(NEW.author_id, OLD.author_id);
+    ELSIF TG_TABLE_NAME = 'messages' THEN
+        target_user_id := COALESCE(NEW.user_id, OLD.user_id);
+        -- Check if this is a DM
+        is_dm := (NEW.conversation_id IS NOT NULL AND NEW.channel_id IS NULL);
+    ELSE
+        RETURN COALESCE(NEW, OLD);
+    END IF;
 
     -- Check if federation is enabled for this user
     SELECT is_federation_enabled_for_user(target_user_id) INTO user_federation_enabled;
@@ -416,6 +425,7 @@ DECLARE
     mentioned_users uuid[];
     server_members uuid[];
     followers uuid[];
+    single_target_id uuid;
 BEGIN
     -- Process based on table and determine notification recipients
     IF TG_TABLE_NAME = 'posts' AND TG_OP = 'INSERT' THEN
@@ -444,10 +454,10 @@ BEGIN
 
         -- Handle reply notifications
         IF NEW.in_reply_to IS NOT NULL THEN
-            SELECT author_id INTO target_user_id 
+            SELECT author_id INTO single_target_id 
             FROM posts WHERE id = NEW.in_reply_to;
             
-            IF target_user_id IS NOT NULL AND target_user_id != NEW.author_id THEN
+            IF single_target_id IS NOT NULL AND single_target_id != NEW.author_id THEN
                 notification_data := jsonb_build_object(
                     'type', 'reply',
                     'post_id', NEW.id,
@@ -458,7 +468,7 @@ BEGIN
                 
                 PERFORM send_notification_to_user(
                     'reply',
-                    target_user_id,
+                    single_target_id,
                     notification_data,
                     NULL,
                     NULL,
@@ -529,9 +539,9 @@ BEGIN
 
     ELSIF TG_TABLE_NAME = 'post_interactions' AND TG_OP = 'INSERT' THEN
         -- Handle like/reblog notifications
-        SELECT author_id INTO target_user_id FROM posts WHERE id = NEW.post_id;
+        SELECT author_id INTO single_target_id FROM posts WHERE id = NEW.post_id;
         
-        IF target_user_id IS NOT NULL AND target_user_id != NEW.user_id THEN
+        IF single_target_id IS NOT NULL AND single_target_id != NEW.user_id THEN
             notification_data := jsonb_build_object(
                 'type', NEW.interaction_type,
                 'post_id', NEW.post_id,
@@ -540,7 +550,7 @@ BEGIN
             
             PERFORM send_notification_to_user(
                 NEW.interaction_type,
-                target_user_id,
+                single_target_id,
                 notification_data,
                 NULL,
                 NULL,
@@ -570,9 +580,9 @@ BEGIN
 
     ELSIF TG_TABLE_NAME = 'reactions' AND TG_OP = 'INSERT' THEN
         -- Handle reaction notifications
-        SELECT user_id INTO target_user_id FROM messages WHERE id = NEW.message_id;
+        SELECT user_id INTO single_target_id FROM messages WHERE id = NEW.message_id;
         
-        IF target_user_id IS NOT NULL AND target_user_id != NEW.user_id THEN
+        IF single_target_id IS NOT NULL AND single_target_id != NEW.user_id THEN
             notification_data := jsonb_build_object(
                 'type', 'reaction',
                 'message_id', NEW.message_id,
@@ -582,7 +592,7 @@ BEGIN
             
             PERFORM send_notification_to_user(
                 'reaction',
-                target_user_id,
+                single_target_id,
                 notification_data,
                 (SELECT s.id FROM messages m JOIN channels c ON m.channel_id = c.id JOIN servers s ON c.server_id = s.id WHERE m.id = NEW.message_id),
                 (SELECT channel_id FROM messages WHERE id = NEW.message_id),
