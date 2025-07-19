@@ -471,6 +471,42 @@ export const useDMStore = defineStore('dm', () => {
   // Helper: Service-like method to fetch raw conversation data using participant system
   const _fetchRawConversations = async (userId: string) => {
     try {
+      console.log('🔍 DEBUG: Fetching conversations for user:', userId)
+      
+      // First, let's check if the conversation_participants table exists and has data
+      const { data: participantCheck, error: participantCheckError } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .limit(1)
+      
+      if (participantCheckError) {
+        console.error('❌ conversation_participants table not accessible:', participantCheckError)
+        // Fallback: This means the migration hasn't been applied yet
+        return []
+      }
+      
+      console.log('✅ conversation_participants table is accessible')
+      
+      // DEBUGGING: Let's manually test a specific conversation
+      const testConversationId = '06008d5f-7491-47ed-a038-24c323c7d97e' // One from your data
+      console.log('🧪 DEBUG: Testing specific conversation query for:', testConversationId)
+      
+      const { data: testParticipants, error: testError } = await supabase
+        .from('conversation_participants')
+        .select('*')
+        .eq('conversation_id', testConversationId)
+      
+      console.log('🧪 DEBUG: All participants for test conversation:', testParticipants)
+      
+      const { data: testOthers, error: testOthersError } = await supabase
+        .from('conversation_participants')
+        .select('user_id, role, joined_at')
+        .eq('conversation_id', testConversationId)
+        .neq('user_id', userId)
+        .is('left_at', null)
+        
+      console.log('🧪 DEBUG: Other participants (excluding', userId, '):', testOthers)
+      
       // Simple approach: Query conversations where user is a participant
       const { data: participations, error: participationError } = await supabase
         .from('conversation_participants')
@@ -495,20 +531,54 @@ export const useDMStore = defineStore('dm', () => {
         return null
       }
 
-      if (!participations) return []
+      if (!participations || participations.length === 0) {
+        console.log('🔍 DEBUG: No participations found for user')
+        return []
+      }
+
+      console.log('🔍 DEBUG: Found participations:', participations.length)
 
       // Transform to the expected format
       const conversationsData = await Promise.all(
         participations.map(async (participation) => {
           const conversation = participation.conversations
 
-          // Get other participants (excluding current user)
-          const { data: otherParticipants, error: othersError } = await supabase
+          console.log('🔍 DEBUG: Processing conversation:', conversation.id)
+
+          // Get other participants (excluding current user) - try both with and without left_at check
+          let { data: otherParticipants, error: othersError } = await supabase
             .from('conversation_participants')
             .select('user_id, role, joined_at')
             .eq('conversation_id', conversation.id)
             .neq('user_id', userId)
             .is('left_at', null)
+
+          console.log('🔍 DEBUG: Other participants query result (with left_at IS NULL) for conversation', conversation.id, ':', {
+            data: otherParticipants,
+            error: othersError,
+            expectedConversationId: conversation.id,
+            excludingUserId: userId
+          })
+
+          // If no participants found with left_at IS NULL, try without that condition
+          if ((!otherParticipants || otherParticipants.length === 0) && !othersError) {
+            console.log('🔍 DEBUG: Trying without left_at condition...')
+            const { data: otherParticipantsAlt, error: othersErrorAlt } = await supabase
+              .from('conversation_participants')
+              .select('user_id, role, joined_at')
+              .eq('conversation_id', conversation.id)
+              .neq('user_id', userId)
+
+            console.log('🔍 DEBUG: Other participants query result (without left_at) for conversation', conversation.id, ':', {
+              data: otherParticipantsAlt,
+              error: othersErrorAlt
+            })
+
+            if (otherParticipantsAlt && otherParticipantsAlt.length > 0) {
+              otherParticipants = otherParticipantsAlt
+              othersError = othersErrorAlt
+            }
+          }
 
           if (othersError) {
             console.error('Error fetching other participants:', othersError)
@@ -521,7 +591,9 @@ export const useDMStore = defineStore('dm', () => {
             .eq('conversation_id', conversation.id)
             .is('left_at', null)
 
-          return {
+          console.log('🔍 DEBUG: Participant count for conversation', conversation.id, ':', participantCount)
+
+          const result = {
             conversation_id: conversation.id,
             conversation_name: conversation.name,
             conversation_type: conversation.type || 'direct',
@@ -532,6 +604,9 @@ export const useDMStore = defineStore('dm', () => {
             user_role: participation.role,
             user_joined_at: participation.joined_at
           }
+
+          console.log('🔍 DEBUG: Final conversation data:', result)
+          return result
         })
       )
 
@@ -567,16 +642,27 @@ export const useDMStore = defineStore('dm', () => {
   // Helper: Service-like method to process individual conversation using participant system
   const _processConversationData = async (conv: any, userId: string): Promise<DMConversation | null> => {
     try {
+      console.log('🔍 DEBUG: Processing conversation data:', {
+        conversationId: conv.conversation_id,
+        other_participants: conv.other_participants,
+        other_participants_type: typeof conv.other_participants,
+        other_participants_isArray: Array.isArray(conv.other_participants),
+        other_participants_length: conv.other_participants?.length,
+        fullConvData: conv
+      })
+
       // For direct conversations, get the other participant (not the current user)
       let otherUserId: string | null = null
       
       if (conv.other_participants && Array.isArray(conv.other_participants) && conv.other_participants.length > 0) {
         // Get the first other participant (for direct messages, should be exactly 1)
         otherUserId = conv.other_participants[0].user_id
+        console.log('🔍 DEBUG: Found other participant:', otherUserId)
       }
 
       if (!otherUserId) {
-        console.error('No other participant found for conversation:', conv.conversation_id)
+        console.error('❌ DEBUG: No other participant found for conversation:', conv.conversation_id)
+        console.error('❌ DEBUG: other_participants data:', conv.other_participants)
         return null
       }
       
@@ -1345,6 +1431,128 @@ export const useDMStore = defineStore('dm', () => {
     return mentionTags
   }
 
+  // Add debugging method
+  const debugConversationQueries = async (userId?: string) => {
+    const testUserId = userId || '2d06f6ba-4c21-4c84-a963-db65148ac543' // From the logs
+    const testConversationId = '06008d5f-7491-47ed-a038-24c323c7d97e' // From user's data
+    
+    console.log('🧪 MANUAL DEBUG: Testing conversation queries')
+    console.log('🧪 Test user ID:', testUserId)
+    console.log('🧪 Test conversation ID:', testConversationId)
+    
+    // Test 1: Check all participants for the conversation
+    console.log('\n🧪 Test 1: All participants in conversation')
+    const { data: allParticipants, error: allError } = await supabase
+      .from('conversation_participants')
+      .select('*')
+      .eq('conversation_id', testConversationId)
+    
+    console.log('All participants:', allParticipants, 'Error:', allError)
+    
+    // Test 2: Check other participants (excluding test user)
+    console.log('\n🧪 Test 2: Other participants (excluding current user)')
+    const { data: otherParticipants, error: otherError } = await supabase
+      .from('conversation_participants')
+      .select('user_id, role, joined_at')
+      .eq('conversation_id', testConversationId)
+      .neq('user_id', testUserId)
+      .is('left_at', null)
+    
+    console.log('Other participants:', otherParticipants, 'Error:', otherError)
+    
+    // Test 3: Check user's conversations
+    console.log('\n🧪 Test 3: User participations')
+    const { data: userConversations, error: userError } = await supabase
+      .from('conversation_participants')
+      .select(`
+        conversation_id,
+        role,
+        joined_at,
+        conversations!inner(
+          id,
+          created_at,
+          type,
+          name,
+          is_active
+        )
+      `)
+      .eq('user_id', testUserId)
+      .is('left_at', null)
+      .limit(3)
+    
+    console.log('User conversations:', userConversations, 'Error:', userError)
+    
+    return {
+      allParticipants,
+      otherParticipants,
+      userConversations
+    }
+  }
+
+  // Check migration status and provide fix instructions
+  const checkMigrationStatus = async () => {
+    console.log('🔍 Checking conversation migration status...')
+    
+    try {
+      // Check if conversation_participants table exists
+      const { data: participantData, error: participantError } = await supabase
+        .from('conversation_participants')
+        .select('id')
+        .limit(1)
+      
+      if (participantError) {
+        console.error('❌ Migration 013 NOT APPLIED: conversation_participants table missing')
+        console.log('💡 To fix this, you need to apply the migration:')
+        console.log('   1. Run: psql -d your_database -f db_migrations/013_multi_participant_conversations.sql')
+        console.log('   2. Or apply the migration through your Supabase dashboard')
+        return { migrationApplied: false, error: participantError }
+      }
+      
+      // Check if conversations table has the new columns
+      const { data: convData, error: convError } = await supabase
+        .from('conversations')
+        .select('id, type, created_by')
+        .limit(1)
+      
+      if (convError) {
+        console.error('❌ Migration 013 PARTIALLY APPLIED: conversations table missing new columns')
+        console.log('💡 The migration needs to be re-run or completed')
+        return { migrationApplied: false, error: convError }
+      }
+      
+      // Check if data was migrated
+      const { count: participantCount } = await supabase
+        .from('conversation_participants')
+        .select('*', { count: 'exact', head: true })
+      
+      const { count: conversationCount } = await supabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+      
+      console.log('✅ Migration status check:')
+      console.log(`   - conversation_participants table: EXISTS (${participantCount} records)`)
+      console.log(`   - conversations table: EXISTS (${conversationCount} records)`)
+      console.log(`   - Expected participants: ${(conversationCount || 0) * 2}`)
+      
+      if (participantCount === 0) {
+        console.warn('⚠️ Migration tables exist but no participant data found')
+        console.log('💡 You may need to re-run the migration data population step')
+      }
+      
+      return { 
+        migrationApplied: true, 
+        participantCount, 
+        conversationCount,
+        dataMigrated: participantCount > 0
+      }
+      
+    } catch (error) {
+      console.error('❌ Error checking migration status:', error)
+      return { migrationApplied: false, error }
+    }
+  }
+
+  // Export the conversation store
   return {
     // State
     conversations,
@@ -1386,6 +1594,38 @@ export const useDMStore = defineStore('dm', () => {
     processFederatedDM,
     validateMentionTag,
     extractMentionsFromMessageParts,
-    generateActivityPubMentionTags
+    generateActivityPubMentionTags,
+    debugConversationQueries,
+    checkMigrationStatus
   }
 })
+
+// Global debug function for browser console testing
+if (typeof window !== 'undefined') {
+  (window as any).debugDMQueries = async () => {
+    console.log('🧪 Running DM debug queries from browser console...')
+    
+    // Try to get the current DM store instance
+    try {
+      const { useDM } = await import('@/stores/useDM')
+      const dmStore = useDM()
+      
+      console.log('✅ DM store loaded, running migration check...')
+      const migrationStatus = await dmStore.checkMigrationStatus()
+      console.log('Migration status:', migrationStatus)
+      
+      if (migrationStatus.migrationApplied) {
+        console.log('✅ Running debug queries...')
+        const debugResults = await dmStore.debugConversationQueries()
+        console.log('Debug results:', debugResults)
+      }
+      
+      return { migrationStatus, store: dmStore }
+    } catch (error) {
+      console.error('❌ Error running debug queries:', error)
+      return { error }
+    }
+  }
+  
+  console.log('💡 Debug function available: window.debugDMQueries()')
+}
