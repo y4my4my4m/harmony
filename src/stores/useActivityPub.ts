@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
+import { services } from '@/services';
 import router from '@/router';
 // InteractionService removed - using direct database operations
 import type { 
@@ -1135,25 +1136,19 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Load post with author information - clean and professional
+     * Load post with author information - migrated to service layer
      */
     async loadPostWithAuthor(postId: string): Promise<TimelinePost | null> {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('User not authenticated');
-
-        const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
-          p_user_id: user.id,
-          p_timeline_type: 'public',
-          p_limit: 1,
-          p_max_id: null
-        });
-
-        if (error) throw error;
-
-        return data?.find((post: any) => post.id === postId) || null;
+        console.log('🔄 Loading post via PostService:', postId);
+        
+        // Use services.posts for consistent loading with service layer
+        const post = await services.posts.loadPost(postId);
+        
+        console.log('✅ Post loaded via service layer:', post ? 'found' : 'not found');
+        return post;
       } catch (error) {
-        console.error('Failed to load post with author:', error);
+        console.error('❌ Failed to load post via service:', error);
         return null;
       }
     },

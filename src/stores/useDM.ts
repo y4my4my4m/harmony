@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
+import { services } from '@/services'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
 import { useReactionsStore } from './useReactions'
@@ -534,41 +535,34 @@ export const useDMStore = defineStore('dm', () => {
     loadingMessages.value = true
     
     try {
-      let query = supabase
-        .from('messages')
-        .select(`*`)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(20)
-
+      console.log('🔄 Loading DM messages via MessageService:', { conversationId, beforeMessageId })
+      
+      // Use services.messages for consistent loading with service layer
+      // Determine cursor for pagination (before timestamp)
+      let beforeTimestamp: string | undefined
       if (beforeMessageId) {
-        const { data: beforeMessage } = await supabase
-          .from('messages')
-          .select('created_at')
-          .eq('id', beforeMessageId)
-          .single()
-        
+        // Get the timestamp of the message for pagination
+        const beforeMessage = currentDMMessages.value.find(m => m.id === beforeMessageId)
         if (beforeMessage) {
-          query = query.lt('created_at', beforeMessage.created_at)
+          beforeTimestamp = beforeMessage.created_at.toISOString()
         }
       }
-
-      const { data: messagesData, error } = await query
+      
+      const { messages: messagesData, hasMore } = await services.messages.loadConversationMessages(
+        conversationId,
+        20, // limit
+        beforeTimestamp
+      )
 
       // Check if request was cancelled
       if (signal?.aborted) {
         throw new Error('Request aborted')
       }
 
-      if (error) {
-        console.error('Error fetching DM messages:', error)
-        return
-      }
-
       if (!messagesData) return
 
       // Extract unique user IDs from messages and pre-load profiles
-      // This ensures user data is available for UI components (same as chat system)
+      // Service already loads user profiles, but we pre-load for consistency
       const userIds = new Set<string>();
       messagesData.forEach(message => {
         if (message?.user_id) {
@@ -583,23 +577,12 @@ export const useDMStore = defineStore('dm', () => {
         await serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds));
       }
 
-      // Fetch reactions for messages
-      for (const message of messagesData) {
-        if (message.reactions && message.reactions.length > 0) {
-          const { data: reactions, error: reactionsError } = await supabase
-            .rpc('get_message_reactions', { message_id: message.id })
+      // Service already handles reactions loading
+      // Messages come with properly formatted reactions from the service
       
-          if (reactionsError) {
-            console.error('Error fetching reactions:', reactionsError)
-            continue
-          }
-      
-          message.reactions = reactions
-        }
-      }
-
-      const reversedMessages = messagesData.reverse()
-      const allLoaded = messagesData.length < 20
+      // Service already returns messages in chronological order (oldest first)
+      const reversedMessages = messagesData
+      const allLoaded = !hasMore
 
       // Ensure all messages have conversation_id set
       const formattedMessages: Message[] = reversedMessages.map(msg => ({
@@ -785,32 +768,16 @@ export const useDMStore = defineStore('dm', () => {
     replyTo?: string
   ): Promise<boolean> => {
     try {
-      console.log('🔄 Sending DM message:', { conversationId, userId, content })
+      console.log('🔄 Sending DM message via MessageService:', { conversationId, userId })
       
-      const { data: newMessage, error } = await supabase
-        .from('messages')
-        .insert([
-          {
-            conversation_id: conversationId,
-            user_id: userId,
-            content: content,
-            ...(replyTo ? { reply_to: replyTo } : {})
-          }
-        ])
-        .select('*')
-        .single()
+      // Use services.messages for consistent DM sending with service layer
+      const message = await services.messages.sendDMMessage(
+        conversationId,
+        content,
+        replyTo
+      )
 
-      if (error) {
-        console.error('❌ Database error sending DM message:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
-        return false
-      }
-
-      console.log('✅ DM message sent successfully to database:', newMessage)
+      console.log('✅ DM message sent via service layer:', message.id)
       
       // 🎯 DATABASE TRIGGERS NOW HANDLE:
       // 1. DM notifications (handle_message_notifications trigger)
@@ -821,9 +788,9 @@ export const useDMStore = defineStore('dm', () => {
       // Don't manually add here to prevent duplicates
 
       return true
-    } catch (error) {
-      console.error('❌ Failed to send DM message:', error)
-      return false
+    } catch (error: any) {
+      console.error('❌ Failed to send DM message via service:', error)
+      throw new Error(error.message || 'Failed to send DM message')
     }
   }
 

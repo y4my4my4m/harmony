@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
+import { services } from '@/services';
 import type { Message, MessagePart, ChannelCache, CacheMetadata } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
@@ -246,35 +247,28 @@ export const useChatStore = defineStore('chat', {
       this.loadingOlderMessages = true;
       
       try {
-        let query = supabase
-          .from('messages')
-          .select(`*`)
-          .eq('channel_id', channelId)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
+        console.log('🔄 Loading messages via MessageService:', { channelId, oldestMessageId });
+        
+        // Use services.messages for consistent loading with service layer
+        // Determine cursor for pagination (before timestamp)
+        let beforeTimestamp: string | undefined;
         if (oldestMessageId !== '') {
-          const { data: oldestMessage } = await supabase
-            .from('messages')
-            .select('created_at')
-            .eq('id', oldestMessageId)
-            .single();
-
+          // Get the timestamp of the oldest message for pagination
+          const oldestMessage = this.messages.find(m => m.id === oldestMessageId);
           if (oldestMessage) {
-            query = query.lt('created_at', oldestMessage.created_at);
+            beforeTimestamp = oldestMessage.created_at.toISOString();
           }
         }
-
-        const { data: messages, error } = await query;
+        
+        const { messages, hasMore } = await services.messages.loadChannelMessages(
+          channelId,
+          20, // limit
+          beforeTimestamp
+        );
 
         // Check if request was cancelled
         if (signal?.aborted) {
           throw new Error('Request aborted');
-        }
-
-        if (error) {
-          console.error('Error fetching messages:', error);
-          return;
         }
 
         if (!messages) return;
@@ -283,6 +277,7 @@ export const useChatStore = defineStore('chat', {
         const reactionsStore = useReactionsStore();
         
         // Extract unique user IDs from messages and pre-load profiles
+        // Service already loads user profiles, but we pre-load for consistency
         const userIds = new Set<string>();
         messages.forEach(message => {
           if (message?.user_id) {
@@ -301,8 +296,9 @@ export const useChatStore = defineStore('chat', {
         const messageIds = messages.map(m => m.id);
         await reactionsStore.fetchMultipleMessageReactions(messageIds);
 
-        const reversedMessages = messages.reverse();
-        const allLoaded = messages.length < 20;
+        // Service already returns messages in chronological order (oldest first)
+        const reversedMessages = messages;
+        const allLoaded = !hasMore;
 
         if (oldestMessageId === '') {
           // Initial load - update cache and current messages
@@ -436,109 +432,70 @@ export const useChatStore = defineStore('chat', {
 
     async editMessage(messageId: string, content: MessagePart[]) {
       try {
+        console.log('🔄 Editing message via MessageService:', messageId);
         
         // Find the current message to get its data
         const currentMessage = this.messages.find(msg => msg.id === messageId);
         if (!currentMessage) {
-          console.error('Message not found in current messages:', messageId);
+          console.error('❌ Message not found in current messages:', messageId);
           return;
         }
         
-        // Check current user authentication
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-          console.error('Authentication error:', authError);
-          return;
-        }
+        // Use services.messages for consistent editing with service layer
+        const updatedMessage = await services.messages.editMessage(messageId, content);
         
-        // Try to update the message
-        const { data, error } = await supabase
-          .from('messages')
-          .update({ 
-            content: content,
-          })
-          .eq('id', messageId)
-          .select('*');
-    
-        if (error) {
-          console.error('Error editing message:', error);
-          console.error('Error code:', error.code);
-          console.error('Error details:', error.details);
-          console.error('Error hint:', error.hint);
-          console.error('Error message:', error.message);
-          return;
-        }
+        // IMPORTANT: Preserve existing reactions and other computed fields
+        // Service may not return all computed fields
+        const messageWithReactions = {
+          ...updatedMessage,
+          reactions: currentMessage.reactions || [],
+        };
         
-        // Check if we got data back
-        if (data && data.length > 0) {
-          console.log('Using returned data from database');
-          const updatedMessage = data[0];
-          
-          // IMPORTANT: Database doesn't return computed reactions field
-          // We need to preserve the existing reactions from the current message
-          updatedMessage.reactions = currentMessage.reactions || [];
-          
-          this.updateMessageInCache(messageId, updatedMessage);
-        } else {
-          // Optimistically update the cache with the new content
-          // IMPORTANT: Preserve all existing fields including reactions
-          const updatedMessage: Message = {
-            ...currentMessage,
-            content: content,
-            // Explicitly preserve reactions and other computed fields
-            reactions: currentMessage.reactions || [],
-          };
-          
-          this.updateMessageInCache(messageId, updatedMessage);
-        }
+        this.updateMessageInCache(messageId, messageWithReactions);
+        console.log('✅ Message edited via service layer');
         
-        
-      } catch (e) {
-        console.error('Error during message edition:', e);
+      } catch (error: any) {
+        console.error('❌ Error editing message via service:', error);
+        throw new Error(error.message || 'Failed to edit message');
       }
     },
 
     async deleteMessage(messageId: string) {
       try {
-        const { error } = await supabase.from('messages').delete().match({ id: messageId });
-        if (error) {
-          console.error('Error deleting message:', error);
-          return;
-        }
+        console.log('🔄 Deleting message via MessageService:', messageId);
+        
+        // Use services.messages for consistent deletion with service layer
+        await services.messages.deleteMessage(messageId);
+        
+        // Remove from local cache (service handles database deletion)
         this.removeMessageFromCache(messageId);
-      } catch (e) {
-        console.error('Error during message deletion:', e);
+        console.log('✅ Message deleted via service layer');
+      } catch (error: any) {
+        console.error('❌ Error deleting message via service:', error);
+        throw new Error(error.message || 'Failed to delete message');
       }
     },
 
     async sendMessage(serverId: string, channelId: string, userId: string, content: Array<Object>, replyTo: string) {
       try {
-        const { data, error } = await supabase
-          .from('messages')
-          .insert([{ 
-            channel_id: channelId, 
-            user_id: userId, 
-            content: content,
-            ...(replyTo ? { reply_to: replyTo } : {})
-          }])
-          .select('*');
-    
-        if (error) {
-          console.error('Error sending message:', error);
-          return;
-        }
+        console.log('🔄 Sending message via MessageService:', { channelId, userId });
         
-        if (data && data.length > 0) {
-          const message = data[0];
-          
-          // Real-time subscription will handle adding to cache
-          this.addMessageToCache(message);
-
-          // Database trigger will handle mention notifications automatically when message is inserted
-        }
-        console.log('Message sent:', data);
-      } catch (e) {
-        console.error('Error during message sending:', e);
+        // Use services.messages for consistent sending with service layer
+        const message = await services.messages.sendChannelMessage(
+          serverId,
+          channelId, 
+          content as any, // MessagePart[]
+          replyTo || undefined
+        );
+        
+        // Real-time subscription will handle adding to cache
+        this.addMessageToCache(message);
+        
+        console.log('✅ Message sent via service layer:', message.id);
+        return message;
+      } catch (error: any) {
+        console.error('❌ Error sending message via service:', error);
+        throw new Error(error.message || 'Failed to send message');
       }
     },
 
