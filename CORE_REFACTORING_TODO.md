@@ -64,19 +64,21 @@ src/services/
   - [x] **KEPT**: All Supabase operations, validation, error handling ✅
   - [x] **CREATED**: `src/services/core/index.ts` for exports ✅
 
-#### **Phase 1B: Core Post Service**
-- [ ] **CREATE**: `src/services/core/CorePostService.ts`
-  - [ ] Extract `createPost()` - pure local post creation
-  - [ ] Extract `updatePost()` - local post editing
-  - [ ] Extract `deletePost()` - local soft delete
-  - [ ] Extract `toggleLike()` - pure local like CRUD
-  - [ ] Extract `toggleShare()` - local reblog operations
-  - [ ] Extract `toggleBookmark()` - pure local bookmarks
-  - [ ] Extract `toggleReaction()` - pure local post reactions
-  - [ ] Extract `loadTimelinePosts()` - pure local queries
-  - [ ] Extract `loadPost()` - single post loading
-  - [ ] **REMOVE**: All federation logic
-  - [ ] **KEEP**: All validation, caching, pagination
+#### **Phase 1B: Core Post Service** ✅ **COMPLETED**
+- [x] **CREATED**: `src/services/core/CorePostService.ts` ✅
+  - [x] Extracted `createPost()` - pure local post creation ✅
+  - [x] Extracted `updatePost()` - local post editing ✅
+  - [x] Extracted `deletePost()` - local soft delete ✅
+  - [x] Extracted `toggleLike()` - pure local like CRUD ✅
+  - [x] Extracted `toggleShare()` - local reblog operations ✅
+  - [x] Extracted `toggleBookmark()` - pure local bookmarks ✅
+  - [x] Extracted `toggleReaction()` - pure local post reactions ✅
+  - [x] Extracted `getPostReactions()` - optimized reaction loading ✅
+  - [x] Extracted `loadTimelinePosts()` - pure local queries ✅
+  - [x] Extracted `loadPost()` - single post loading ✅
+  - [x] **REMOVED**: All federation logic ✅
+  - [x] **KEPT**: All validation, caching, pagination ✅
+  - [x] **ADDED**: Full post reaction support with database functions ✅
 
 #### **Phase 1C: Core Profile Service**
 - [ ] **CREATE**: `src/services/core/CoreProfileService.ts`

@@ -18,8 +18,9 @@
 export { CoreMessageService, coreMessageService } from './CoreMessageService'
 export type { SendMessageData, CoreMessageServiceError } from './CoreMessageService'
 
-// Phase 1B: Core Post Service (NEXT)
-// export { CorePostService, corePostService } from './CorePostService'
+// Phase 1B: Core Post Service ✅ COMPLETED
+export { CorePostService, corePostService } from './CorePostService'
+export type { CreatePostData, UpdatePostData, CorePostServiceError } from './CorePostService'
 
 // Phase 1C: Core Profile Service (COMING)
 // export { CoreProfileService, coreProfileService } from './CoreProfileService'
