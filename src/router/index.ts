@@ -3,8 +3,7 @@ import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import InviteAccept from '@/components/InviteAccept.vue';
 import { useAuthStore } from '@/stores/auth';
-import { 
-  ViewMode, 
+import {
   ViewType, 
   CurrentView 
 } from '@/types/viewTypes';
