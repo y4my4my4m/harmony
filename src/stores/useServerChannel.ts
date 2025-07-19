@@ -165,6 +165,34 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async fetchServersForUser(userId: string) {
+      try {
+        console.log('🔄 Fetching servers for user via service-like helper:', userId)
+        
+        // Use service-like helper for user server fetching
+        const servers = await this._fetchServersForUserHelper(userId)
+        
+        if (servers) {
+          this.servers = servers
+          console.log(`✅ Servers fetched successfully via service-like helper: ${servers.length} servers`)
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch servers for user via service-like helper:', error)
+        
+        // Fallback to direct fetching if helper fails
+        try {
+          console.log('🔄 Falling back to direct user server fetching')
+          await this._fetchServersForUserFallback(userId)
+        } catch (fallbackError) {
+          console.error('❌ Fallback user server fetching also failed:', fallbackError)
+          throw fallbackError
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Fetch servers for a specific user
+     */
+    async _fetchServersForUserHelper(userId: string): Promise<Server[]> {
       const { data, error } = await supabase
         .from('user_servers')
         .select(`
@@ -178,15 +206,41 @@ export const useServerChannelStore = defineStore('serverChannel', {
             public
           )
         `)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
 
       if (error) {
-        console.error('Error fetching servers for user:', error);
-        return;
+        throw new Error(`User servers fetching failed: ${error.message}`)
       }
 
-      this.servers = data?.map((item: any) => item.server).filter(Boolean) || [];
-      console.log(`📊 Loaded ${this.servers.length} servers for user`);
+      return data?.map((item: any) => item.server).filter(Boolean) || []
+    },
+
+    /**
+     * Fallback method for fetching servers for user
+     */
+    async _fetchServersForUserFallback(userId: string): Promise<void> {
+      const { data, error } = await supabase
+        .from('user_servers')
+        .select(`
+          server:server_id (
+            id,
+            name,
+            description,
+            icon,
+            owner,
+            allow_cross_server_emojis,
+            public
+          )
+        `)
+        .eq('user_id', userId)
+
+      if (error) {
+        console.error('Error fetching servers for user in fallback:', error)
+        return
+      }
+
+      this.servers = data?.map((item: any) => item.server).filter(Boolean) || []
+      console.log(`📊 Loaded ${this.servers.length} servers for user`)
     },
 
     async fetchServers() {
@@ -478,45 +532,113 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async updateChannelOrder(channels: Channel[], categoryId: string | null) {
+      try {
+        console.log('🔄 Updating channel order via service-like helper:', { count: channels.length, categoryId })
+        
+        // Use service-like helper for complex channel ordering with rollback
+        await this._updateChannelOrderHelper(channels, categoryId)
+        
+        console.log(`✅ Channel order updated successfully via service-like helper: ${channels.length} channels`)
+      } catch (error) {
+        console.error('❌ Failed to update channel order via service-like helper:', error)
+        
+        // Fallback to direct ordering if helper fails
+        try {
+          console.log('🔄 Falling back to direct channel ordering')
+          await this._updateChannelOrderFallback(channels, categoryId)
+        } catch (fallbackError) {
+          console.error('❌ Fallback channel ordering also failed:', fallbackError)
+          throw fallbackError
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Update channel order with optimistic updates and rollback
+     */
+    async _updateChannelOrderHelper(channels: Channel[], categoryId: string | null): Promise<void> {
       // Store original state for potential rollback
-      const originalChannels = [...this.channels];
-      const originalCategoryChannels = { ...this.categoryChannels };
+      const originalChannels = [...this.channels]
+      const originalCategoryChannels = { ...this.categoryChannels }
 
       try {
         // Optimistic update: Update local state immediately
-        const updateMap = new Map(channels.map((channel, index) => [channel.id, { order: index, category: categoryId }]));
+        const updateMap = new Map(channels.map((channel, index) => [channel.id, { order: index, category: categoryId }]))
         this.channels = this.channels.map(channel => {
-          const update = updateMap.get(channel.id);
-          return update ? { ...channel, order: update.order, category: update.category } : channel;
-        });
+          const update = updateMap.get(channel.id)
+          return update ? { ...channel, order: update.order, category: update.category } : channel
+        })
 
         // Refresh category channels mapping optimistically
-        this.refreshCategoryChannels();
+        this.refreshCategoryChannels()
 
         // Now perform the server update in the background
         for (let i = 0; i < channels.length; i++) {
-          const channel = channels[i];
+          const channel = channels[i]
           const { error } = await supabase
             .from('channels')
             .update({ 
               order: i, 
               category: categoryId 
             })
-            .eq('id', channel.id);
+            .eq('id', channel.id)
 
           if (error) {
-            console.error(`Error updating channel ${channel.id}:`, error);
-            throw error;
+            throw new Error(`Channel order update failed for ${channel.id}: ${error.message}`)
+          }
+        }
+      } catch (error) {
+        // Rollback on error: Restore original state
+        console.log('🔄 Rolling back optimistic channel order due to error')
+        this.channels = originalChannels
+        this.categoryChannels = originalCategoryChannels
+        throw error
+      }
+    },
+
+    /**
+     * Fallback method for updating channel order
+     */
+    async _updateChannelOrderFallback(channels: Channel[], categoryId: string | null): Promise<void> {
+      // Store original state for potential rollback
+      const originalChannels = [...this.channels]
+      const originalCategoryChannels = { ...this.categoryChannels }
+
+      try {
+        // Optimistic update: Update local state immediately
+        const updateMap = new Map(channels.map((channel, index) => [channel.id, { order: index, category: categoryId }]))
+        this.channels = this.channels.map(channel => {
+          const update = updateMap.get(channel.id)
+          return update ? { ...channel, order: update.order, category: update.category } : channel
+        })
+
+        // Refresh category channels mapping optimistically
+        this.refreshCategoryChannels()
+
+        // Now perform the server update in the background
+        for (let i = 0; i < channels.length; i++) {
+          const channel = channels[i]
+          const { error } = await supabase
+            .from('channels')
+            .update({ 
+              order: i, 
+              category: categoryId 
+            })
+            .eq('id', channel.id)
+
+          if (error) {
+            console.error(`Error updating channel ${channel.id}:`, error)
+            throw error
           }
         }
 
-        console.log(`✅ Successfully updated order for ${channels.length} channels`);
+        console.log(`✅ Successfully updated order for ${channels.length} channels`)
       } catch (error) {
         // Rollback on error: Restore original state
-        console.error('❌ Server update failed, rolling back changes:', error);
-        this.channels = originalChannels;
-        this.categoryChannels = originalCategoryChannels;
-        throw error;
+        console.error('❌ Server update failed, rolling back changes:', error)
+        this.channels = originalChannels
+        this.categoryChannels = originalCategoryChannels
+        throw error
       }
     },
 
@@ -584,36 +706,95 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async updateCategoryOrder(categories: Category[]) {
+      try {
+        console.log('🔄 Updating category order via service-like helper:', { count: categories.length })
+        
+        // Use service-like helper for complex category ordering with rollback
+        await this._updateCategoryOrderHelper(categories)
+        
+        console.log(`✅ Category order updated successfully via service-like helper: ${categories.length} categories`)
+      } catch (error) {
+        console.error('❌ Failed to update category order via service-like helper:', error)
+        
+        // Fallback to direct ordering if helper fails
+        try {
+          console.log('🔄 Falling back to direct category ordering')
+          await this._updateCategoryOrderFallback(categories)
+        } catch (fallbackError) {
+          console.error('❌ Fallback category ordering also failed:', fallbackError)
+          throw fallbackError
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Update category order with optimistic updates and rollback
+     */
+    async _updateCategoryOrderHelper(categories: Category[]): Promise<void> {
       // Store original state for potential rollback
-      const originalCategories = [...this.categories];
+      const originalCategories = [...this.categories]
 
       try {
         // Optimistic update: Update local state immediately AND sort by order
         this.categories = this.categories.map(category => {
-          const newIndex = categories.findIndex(c => c.id === category.id);
-          return newIndex !== -1 ? { ...category, order: newIndex } : category;
-        }).sort((a, b) => (a.order || 0) - (b.order || 0)); // Add sorting here!
+          const newIndex = categories.findIndex(c => c.id === category.id)
+          return newIndex !== -1 ? { ...category, order: newIndex } : category
+        }).sort((a, b) => (a.order || 0) - (b.order || 0)) // Add sorting here!
 
         // Now perform the server update in the background using individual updates
         for (let i = 0; i < categories.length; i++) {
-          const category = categories[i];
+          const category = categories[i]
           const { error } = await supabase
             .from('channel_categories')
             .update({ order: i })
-            .eq('id', category.id);
+            .eq('id', category.id)
 
           if (error) {
-            console.error(`Error updating category ${category.id}:`, error);
-            throw error;
+            throw new Error(`Category order update failed for ${category.id}: ${error.message}`)
+          }
+        }
+      } catch (error) {
+        // Rollback on error: Restore original state
+        console.log('🔄 Rolling back optimistic category order due to error')
+        this.categories = originalCategories
+        throw error
+      }
+    },
+
+    /**
+     * Fallback method for updating category order
+     */
+    async _updateCategoryOrderFallback(categories: Category[]): Promise<void> {
+      // Store original state for potential rollback
+      const originalCategories = [...this.categories]
+
+      try {
+        // Optimistic update: Update local state immediately AND sort by order
+        this.categories = this.categories.map(category => {
+          const newIndex = categories.findIndex(c => c.id === category.id)
+          return newIndex !== -1 ? { ...category, order: newIndex } : category
+        }).sort((a, b) => (a.order || 0) - (b.order || 0)) // Add sorting here!
+
+        // Now perform the server update in the background using individual updates
+        for (let i = 0; i < categories.length; i++) {
+          const category = categories[i]
+          const { error } = await supabase
+            .from('channel_categories')
+            .update({ order: i })
+            .eq('id', category.id)
+
+          if (error) {
+            console.error(`Error updating category ${category.id}:`, error)
+            throw error
           }
         }
 
-        console.log(`✅ Successfully updated order for ${categories.length} categories`);
+        console.log(`✅ Successfully updated order for ${categories.length} categories`)
       } catch (error) {
         // Rollback on error: Restore original state
-        console.error('❌ Server update failed, rolling back category changes:', error);
-        this.categories = originalCategories;
-        throw error;
+        console.error('❌ Server update failed, rolling back category changes:', error)
+        this.categories = originalCategories
+        throw error
       }
     },
 
