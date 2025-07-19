@@ -48,19 +48,21 @@ src/services/
 
 **Scope**: Extract pure local operations from existing services
 
-#### **Phase 1A: Core Message Service** 
-- [ ] **CREATE**: `src/services/core/CoreMessageService.ts`
-  - [ ] Extract `sendChannelMessage()` - pure local database insertion
-  - [ ] Extract `sendDMMessage()` - local database, no federation logic
-  - [ ] Extract `editMessage()` - pure local updates
-  - [ ] Extract `deleteMessage()` - local soft delete
-  - [ ] Extract `toggleReaction()` - pure local reaction CRUD
-  - [ ] Extract `getMessageReactions()` - pure database query
-  - [ ] Extract `loadChannelMessages()` - pure local pagination
-  - [ ] Extract `loadConversationMessages()` - pure local queries
-  - [ ] **REMOVE**: All `ap_activities` insertions
-  - [ ] **REMOVE**: All federation condition checks
-  - [ ] **KEEP**: All Supabase operations, validation, error handling
+#### **Phase 1A: Core Message Service** ✅ **COMPLETED**
+- [x] **CREATED**: `src/services/core/CoreMessageService.ts` ✅
+  - [x] Extracted `sendChannelMessage()` - pure local database insertion ✅
+  - [x] Extracted `sendDMMessage()` - local database, no federation logic ✅
+  - [x] Extracted `editMessage()` - pure local updates ✅
+  - [x] Extracted `deleteMessage()` - local soft delete ✅
+  - [x] Extracted `toggleReaction()` - pure local reaction CRUD ✅
+  - [x] Extracted `getMessageReactions()` - pure database query ✅
+  - [x] Extracted `loadChannelMessages()` - pure local pagination ✅
+  - [x] Extracted `loadConversationMessages()` - pure local queries ✅
+  - [x] Extracted `loadMessage()` - single message loading ✅
+  - [x] **REMOVED**: All `ap_activities` insertions ✅
+  - [x] **REMOVED**: All federation condition checks ✅
+  - [x] **KEPT**: All Supabase operations, validation, error handling ✅
+  - [x] **CREATED**: `src/services/core/index.ts` for exports ✅
 
 #### **Phase 1B: Core Post Service**
 - [ ] **CREATE**: `src/services/core/CorePostService.ts`

@@ -236,10 +236,6 @@ DROP TRIGGER IF EXISTS handle_post_reactions_federation_trigger ON post_interact
 CREATE TRIGGER handle_post_reactions_federation_trigger
     AFTER INSERT OR DELETE ON post_interactions
     FOR EACH ROW
-    WHEN (
-        (TG_OP = 'INSERT' AND NEW.interaction_type = 'emoji_reaction') OR
-        (TG_OP = 'DELETE' AND OLD.interaction_type = 'emoji_reaction')
-    )
     EXECUTE FUNCTION public.handle_post_reactions_federation();
 
 COMMENT ON FUNCTION public.handle_post_reactions_federation IS 'OUTGOING ONLY: Federate post emoji reactions as ActivityPub Like activities. Pleroma/Misskey compatible format.';
