@@ -623,36 +623,67 @@ activity_type := 'EmojiReact';  -- ❌ NOT in allowed types
 
 ---
 
-## **Phase 10: Database Schema Cleanup** 🧹
+## **Phase 10: Core/Federation Architecture Migration** 🏗️
+
+### **Priority**: High (Professional architecture upgrade)
+
+**Scope**: Migrate to professional core/federation separation while maintaining 100% functionality
+
+**📋 Detailed Plan**: See **[CORE_REFACTORING_TODO.md](./CORE_REFACTORING_TODO.md)** for comprehensive migration plan
+
+**⚠️ CRITICAL**: This phase must be completed before proceeding with any other phases. The detailed refactoring plan contains:
+
+- **4-week timeline** with incremental migration strategy
+- **Zero-risk approach** with rollback capabilities at each step
+- **API preservation** - no breaking changes to existing stores/components
+- **Professional separation** of local operations vs federation logic
+- **Comprehensive testing** strategy for each migration phase
+
+**High-Level Phases:**
+1. **Week 1**: Extract core services (pure local operations)
+2. **Week 2**: Extract federation services (pure ActivityPub protocol)
+3. **Week 3**: Refactor existing services to orchestrate core + federation
+4. **Week 4**: Verification, testing, and cleanup
+
+**Success Criteria:**
+- [ ] **Zero functionality loss** - all existing features work identically
+- [ ] **Same APIs** - no changes to service method calls
+- [ ] **Professional architecture** - clean separation of concerns
+- [ ] **Better testability** - core and federation logic separately testable
+
+**🚫 BLOCKING**: All subsequent phases depend on this architecture migration
+
+---
+
+## **Phase 11: Database Schema Cleanup** 🧹
 
 ### **Priority**: Medium (housekeeping after migrations)
 
-**Scope**: Clean up database schema after running migrations 001-005
+**Scope**: Clean up database schema after running migrations 001-006
 
-#### **Phase 10A: Schema Analysis** 📊
+#### **Phase 11A: Schema Analysis** 📊
 - [ ] **DUMP**: Current database schema after all migrations
 - [ ] **COMPARE**: New schema vs migrations to identify unused elements
 - [ ] **IDENTIFY**: Orphaned functions, triggers, tables, columns
 - [ ] **CATALOG**: Performance optimization opportunities
 
-#### **Phase 10B: Cleanup Migrations** 🗑️
-- [ ] **CREATE**: Migration 006 to remove orphaned database objects
-- [ ] **REMOVE**: Unused functions identified in Phase 10A
+#### **Phase 11B: Cleanup Migrations** 🗑️
+- [ ] **CREATE**: Migration 007 to remove orphaned database objects
+- [ ] **REMOVE**: Unused functions identified in Phase 11A
 - [ ] **REMOVE**: Obsolete triggers and indexes
 - [ ] **OPTIMIZE**: Database performance based on usage patterns
 
-#### **Phase 10C: Code Cleanup** 📝  
-- [ ] **DELETE**: `src/stores/useActivityPubRefactored.ts` (unused demo)
-- [ ] **DELETE**: `src/services/core/` directory (duplicated functionality)
-- [ ] **DELETE**: `src/services/federation/` directory (unused)
-- [ ] **UPDATE**: Import statements to use main services
-- [ ] **VERIFY**: No broken imports after cleanup
+#### **Phase 11C: Code Cleanup** 📝  
+- [ ] **VERIFY**: No orphaned service imports after core/federation migration
+- [ ] **CLEAN**: Any remaining unused utility functions
+- [ ] **OPTIMIZE**: Database query performance after schema cleanup
+- [ ] **UPDATE**: Import statements after final cleanup
 
-#### **Phase 10D: Documentation Updates** 📚
+#### **Phase 11D: Documentation Updates** 📚
 - [ ] **UPDATE**: Database schema documentation
-- [ ] **CREATE**: Service layer architecture guide  
+- [ ] **UPDATE**: Core/Federation architecture guide (from Phase 10)
 - [ ] **UPDATE**: Development setup guide
-- [ ] **CREATE**: Federation configuration documentation
+- [ ] **CREATE**: Complete federation configuration documentation
 
 ---
 
@@ -752,15 +783,21 @@ const loadPosts = async () => {
 ### **Success Criteria** ✅
 
 #### **Phase 9 Success:**
-- [ ] **Chat reactions work locally** without federation errors
-- [ ] **Post reactions implemented** with proper federation
-- [ ] **Custom emoji support** compatible with major ActivityPub platforms
-- [ ] **Edge functions updated** for reaction federation
+- [x] **Chat reactions work locally** without federation errors ✅
+- [x] **Post reactions implemented** with proper federation ✅
+- [x] **Custom emoji support** compatible with major ActivityPub platforms ✅
+- [x] **Database migration created** for reaction federation fixes ✅
 
 #### **Phase 10 Success:**
+- [ ] **Core/Federation separation** achieved with zero functionality loss
+- [ ] **Professional architecture** with clean separation of concerns
+- [ ] **API preservation** - all existing service calls work identically
+- [ ] **Better testability** - core and federation logic separately testable
+
+#### **Phase 11 Success:**
 - [ ] **Database optimized** with unused objects removed
-- [ ] **Codebase cleaned** with no duplicate service files
-- [ ] **Documentation updated** for current architecture
+- [ ] **Codebase cleaned** with no orphaned imports or functions
+- [ ] **Documentation updated** for new core/federation architecture
 - [ ] **Performance improved** through schema optimization
 
 #### **Overall Phase 8 Legacy Success (Completed):**
@@ -773,8 +810,11 @@ const loadPosts = async () => {
 
 ### **Risk Mitigation** ⚠️
 
-#### **Phase 9 & 10 Risk Mitigation:**
-- [ ] **Database Backup**: Before any schema cleanup
+#### **Phase 9, 10 & 11 Risk Mitigation:**
+- [x] **Database Migration**: Phase 9 migration 006 created and tested ✅
+- [ ] **Core/Federation Testing**: Verify separation doesn't break functionality (Phase 10)
+- [ ] **API Preservation**: Ensure no breaking changes to existing service calls (Phase 10)
+- [ ] **Database Backup**: Before any schema cleanup (Phase 11)
 - [ ] **Migration Testing**: Test all changes on development environment
 - [ ] **Rollback Plan**: Each phase can be independently reverted
 - [ ] **Federation Testing**: Verify compatibility with other ActivityPub platforms
