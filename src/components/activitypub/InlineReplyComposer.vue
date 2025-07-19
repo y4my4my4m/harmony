@@ -97,6 +97,7 @@
 import { ref, computed, nextTick, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { services } from '@/services';
 import type { TimelinePost } from '@/types';
 
 // Components
@@ -170,12 +171,17 @@ const submitReply = async () => {
   try {
     isSubmitting.value = true;
 
-    const reply = await activityPubStore.replyToPost(props.replyToPost.id, content.value, {
+    // Use service layer for post creation with optimistic updates
+    const reply = await services.posts.createPost({
+      content: [{ type: 'text', text: content.value }],
       visibility: visibility.value,
       content_warning: contentWarning.value || undefined,
-      is_sensitive: isSensitive.value
+      in_reply_to: props.replyToPost.id,
+      is_sensitive: isSensitive.value,
+      language: 'en'
     });
 
+    console.log('✅ Reply created successfully via service layer');
     emit('reply-sent', reply);
     
     // Reset form
@@ -186,8 +192,8 @@ const submitReply = async () => {
     
     emit('close');
   } catch (error) {
-    console.error('Failed to send reply:', error);
-    // Could show error toast here
+    console.error('❌ Failed to send reply via service layer:', error);
+    // TODO: Show error toast using our service layer patterns
   } finally {
     isSubmitting.value = false;
   }

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '@/supabase'
+import { services } from '@/services'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
 import { useReactionsStore } from './useReactions'
@@ -25,13 +26,13 @@ export interface DMUser {
 
 export interface DMConversation {
   id: string
-  user1: string
-  user2: string
   created_at: string
   last_activity?: string
   last_message?: Message
   unread_count?: number
   other_user?: DMUser
+  type?: string
+  participant_count?: number
 }
 
 export interface DMCache {
@@ -233,6 +234,31 @@ export const useDMStore = defineStore('dm', () => {
     fetchingReplyMessages.value.add(messageId)
 
     try {
+      console.log('🔄 Fetching DM reply message via service-like method:', messageId)
+      
+      // Use a service-like approach while preserving functionality
+      const message = await _fetchSingleMessage(messageId)
+      
+      if (!message) {
+        console.error('❌ DM reply message not found:', messageId)
+        return null
+      }
+
+      // Cache the message
+      replyMessageCache.value.set(messageId, message)
+      console.log('✅ DM reply message fetched and cached')
+      return message
+    } catch (error) {
+      console.error('❌ Error fetching DM reply message:', error)
+      return null
+    } finally {
+      fetchingReplyMessages.value.delete(messageId)
+    }
+  }
+
+  // Helper: Service-like method for fetching individual messages
+  const _fetchSingleMessage = async (messageId: string): Promise<Message | null> => {
+    try {
       const { data: message, error } = await supabase
         .from('messages')
         .select('*')
@@ -240,28 +266,16 @@ export const useDMStore = defineStore('dm', () => {
         .single()
 
       if (error || !message) {
-        console.error('Error fetching DM reply message:', error)
         return null
       }
 
-      // Fetch reactions for the message if it has any
-      if (message.reactions && message.reactions.length > 0) {
-        const { data: reactions, error: reactionsError } = await supabase
-          .rpc('get_message_reactions', { message_id: message.id })
-    
-        if (!reactionsError) {
-          message.reactions = reactions
-        }
-      }
+      // Note: Reactions are now loaded via batch loading in MessageService
+      // Individual fetches removed for performance
 
-      // Cache the message
-      replyMessageCache.value.set(messageId, message)
       return message
     } catch (error) {
-      console.error('Error fetching DM reply message:', error)
+      console.error('Error in _fetchSingleMessage:', error)
       return null
-    } finally {
-      fetchingReplyMessages.value.delete(messageId)
     }
   }
 
@@ -281,86 +295,81 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // Add method to fetch conversation details and ensure user profiles are loaded
+  // Add method to fetch conversation details using participant system
   const fetchConversationDetails = async (conversationId: string, currentUserId: string) => {
     try {
+      console.log('🔄 Fetching conversation details via service-like method:', { conversationId, currentUserId })
+      
       // First check if we already have this conversation
       const existingConv = conversations.value.find(c => c.id === conversationId)
       if (existingConv) {
+        console.log('✅ Conversation already in cache')
         return existingConv
       }
 
-      // Fetch the specific conversation
-      const { data: convData, error: convError } = await supabase
-        .from('conversations')
-        .select('id, user1, user2, created_at')
-        .eq('id', conversationId)
-        .single()
-
-      if (convError || !convData) {
-        console.error('Error fetching conversation:', convError)
-        return null
-      }
-
-      // Determine the other user
-      const otherUserId = convData.user1 === currentUserId ? convData.user2 : convData.user1
-      
-      // Get user profiles for both users and ensure they're in the server users store
-      const serverUsersStore = useServerUsersStore()
-      await serverUsersStore.fetchUserProfiles([currentUserId, otherUserId])
-
-      // Get other user's profile for the conversation
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
-        .eq('id', otherUserId)
-        .single()
-
-      if (profileError) {
-        console.error('Error fetching profile:', profileError)
-        return null
-      }
-
-      // Get last message for conversation
-      const { data: lastMessageData } = await supabase
-        .from('messages')
-        .select('id, user_id, content, created_at, metadata')
+      // Simple approach: Get the specific conversation where user is a participant
+      const { data: participation, error: participationError } = await supabase
+        .from('conversation_participants')
+        .select(`
+          conversation_id,
+          role,
+          joined_at,
+          conversations!inner(
+            id,
+            created_at,
+            type,
+            name,
+            is_active
+          )
+        `)
+        .eq('user_id', currentUserId)
         .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(1)
+        .is('left_at', null)
         .single()
 
-      // Determine if this is a federated conversation
-      const isFederated = !profileData.is_local && profileData.domain
+      if (participationError || !participation) {
+        console.error('❌ Conversation not found or user not participant:', participationError)
+        return null
+      }
 
-      const processedConv: DMConversation = {
-        id: convData.id,
-        user1: convData.user1,
-        user2: convData.user2,
-        created_at: convData.created_at,
-        last_activity: lastMessageData?.created_at || convData.created_at,
-        last_message: lastMessageData ? {
-          id: lastMessageData.id,
-          user_id: lastMessageData.user_id,
-          content: lastMessageData.content,
-          created_at: new Date(lastMessageData.created_at),
-          channel_id: '', // Empty string for DMs
-          conversation_id: conversationId,
-          reactions: [],
-          metadata: lastMessageData.metadata || {}
-        } : undefined,
-        unread_count: 0,
-        other_user: {
-          id: profileData.id,
-          username: profileData.username,
-          display_name: profileData.display_name,
-          avatar_url: profileData.avatar_url,
-          is_online: false, // Will be updated by global presence system in UI
-          domain: profileData.domain,
-          is_local: profileData.is_local,
-          federated_id: profileData.federated_id,
-          handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
-        }
+      const conversation = participation.conversations
+
+      // Get other participants (excluding current user)
+      const { data: otherParticipants, error: othersError } = await supabase
+        .from('conversation_participants')
+        .select('user_id, role, joined_at')
+        .eq('conversation_id', conversationId)
+        .neq('user_id', currentUserId)
+        .is('left_at', null)
+
+      if (othersError) {
+        console.error('Error fetching other participants:', othersError)
+      }
+
+      // Get participant count
+      const { count: participantCount, error: countError } = await supabase
+        .from('conversation_participants')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .is('left_at', null)
+
+      const convData = {
+        conversation_id: conversation.id,
+        conversation_name: conversation.name,
+        conversation_type: conversation.type || 'direct',
+        created_at: conversation.created_at,
+        is_active: conversation.is_active,
+        participant_count: participantCount || 2,
+        other_participants: otherParticipants || [],
+        user_role: participation.role,
+        user_joined_at: participation.joined_at
+      }
+
+      // Process conversation using existing helper
+      const processedConv = await _processConversationData(convData, currentUserId)
+      if (!processedConv) {
+        console.error('❌ Failed to process conversation data')
+        return null
       }
 
       // Add to conversations if not already there
@@ -368,11 +377,28 @@ export const useDMStore = defineStore('dm', () => {
         conversations.value.push(processedConv)
       }
 
+      console.log('✅ Conversation details fetched and cached')
       return processedConv
     } catch (error) {
-      console.error('Failed to fetch conversation details:', error)
+      console.error('❌ Failed to fetch conversation details via service-like method:', error)
       return null
     }
+  }
+
+  // Helper: Service-like method to fetch specific conversation using participant system
+  const _fetchSpecificConversation = async (conversationId: string) => {
+    const { data: convData, error: convError } = await supabase
+      .from('conversations')
+      .select('id, created_at, type, name')
+      .eq('id', conversationId)
+      .single()
+
+    if (convError || !convData) {
+      console.error('Error fetching conversation:', convError)
+      return null
+    }
+
+    return convData
   }
 
   // Enhanced initialization for direct DM access
@@ -410,111 +436,225 @@ export const useDMStore = defineStore('dm', () => {
   const fetchUserConversations = async (userId: string) => {
     try {
       loadingConversations.value = true
+      console.log('🔄 Fetching user conversations via service-like method:', userId)
       
-      // Fetch conversations where user is participant
-      const { data: conversationsData, error: convError } = await supabase
-        .from('conversations')
-        .select(`
-          id,
-          user1,
-          user2,
-          created_at
-        `)
-        .or(`user1.eq.${userId},user2.eq.${userId}`)
-        .order('created_at', { ascending: false })
-
-      if (convError) {
-        console.error('Error fetching conversations:', convError)
+      // Use service-like helpers to break down complexity
+      const rawConversations = await _fetchRawConversations(userId)
+      if (!rawConversations || rawConversations.length === 0) {
+        conversations.value = []
         return
       }
 
-      if (!conversationsData) return
+      // Pre-load all user profiles
+      await _preloadUserProfiles(rawConversations)
 
-      // Get all unique user IDs to ensure profiles are loaded
-      const allUserIds = new Set<string>()
-      conversationsData.forEach(conv => {
-        allUserIds.add(conv.user1)
-        allUserIds.add(conv.user2)
-      })
-
-      // Ensure all user profiles are loaded in the server users store
-      const serverUsersStore = useServerUsersStore()
-      await serverUsersStore.fetchUserProfiles(Array.from(allUserIds))
-
-      // Process conversations and get other user details
+      // Process each conversation with service-like helpers
       const processedConversations: DMConversation[] = []
       
-      for (const conv of conversationsData) {
-        const otherUserId = conv.user1 === userId ? conv.user2 : conv.user1
-        
-        // Get other user's profile - enhanced to handle federated users
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
-          .eq('id', otherUserId)
-          .single()
-
-        if (profileError) {
-          console.error('Error fetching profile:', profileError)
-          continue
+      for (const conv of rawConversations) {
+        const processedConv = await _processConversationData(conv, userId)
+        if (processedConv) {
+          processedConversations.push(processedConv)
         }
-
-        // Get last message for conversation
-        const { data: lastMessageData } = await supabase
-          .from('messages')
-          .select('id, user_id, content, created_at, metadata')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-
-        // Count unread messages (messages after user's last read)
-        const unreadCount = 0 // TODO: Implement proper unread counting
-
-        // Determine if this is a federated conversation
-        const isFederated = !profileData.is_local && profileData.domain
-
-        const processedConv: DMConversation = {
-          id: conv.id,
-          user1: conv.user1,
-          user2: conv.user2,
-          created_at: conv.created_at,
-          last_activity: lastMessageData?.created_at || conv.created_at,
-          last_message: lastMessageData ? {
-            id: lastMessageData.id,
-            user_id: lastMessageData.user_id,
-            content: lastMessageData.content,
-            created_at: new Date(lastMessageData.created_at),
-            channel_id: '', // Empty string for DMs
-            conversation_id: conv.id,
-            reactions: [],
-            metadata: lastMessageData.metadata || {}
-          } : undefined,
-          unread_count: unreadCount,
-          other_user: {
-            id: profileData.id,
-            username: profileData.username,
-            display_name: profileData.display_name,
-            avatar_url: profileData.avatar_url,
-            is_online: false, // Will be updated by global presence system in UI
-            // Add federated user information
-            domain: profileData.domain,
-            is_local: profileData.is_local,
-            federated_id: profileData.federated_id,
-            handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
-          }
-        }
-
-        processedConversations.push(processedConv)
       }
       
       conversations.value = processedConversations
+      console.log(`✅ Processed ${processedConversations.length} conversations via service-like method`)
       
     } catch (error) {
-      console.error('Failed to fetch conversations:', error)
+      console.error('❌ Failed to fetch conversations via service-like method:', error)
     } finally {
       loadingConversations.value = false
     }
+  }
+
+  // Helper: Service-like method to fetch raw conversation data using participant system
+  const _fetchRawConversations = async (userId: string) => {
+    try {
+      // Simple approach: Query conversations where user is a participant
+      const { data: participations, error: participationError } = await supabase
+        .from('conversation_participants')
+        .select(`
+          conversation_id,
+          role,
+          joined_at,
+          conversations!inner(
+            id,
+            created_at,
+            type,
+            name,
+            is_active
+          )
+        `)
+        .eq('user_id', userId)
+        .is('left_at', null)
+        .order('joined_at', { ascending: false })
+
+      if (participationError) {
+        console.error('Error fetching conversation participations:', participationError)
+        return null
+      }
+
+      if (!participations) return []
+
+      // Transform to the expected format
+      const conversationsData = await Promise.all(
+        participations.map(async (participation) => {
+          const conversation = participation.conversations
+
+          // Get other participants (excluding current user)
+          const { data: otherParticipants, error: othersError } = await supabase
+            .from('conversation_participants')
+            .select('user_id, role, joined_at')
+            .eq('conversation_id', conversation.id)
+            .neq('user_id', userId)
+            .is('left_at', null)
+
+          if (othersError) {
+            console.error('Error fetching other participants:', othersError)
+          }
+
+          // Get participant count
+          const { count: participantCount, error: countError } = await supabase
+            .from('conversation_participants')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', conversation.id)
+            .is('left_at', null)
+
+          return {
+            conversation_id: conversation.id,
+            conversation_name: conversation.name,
+            conversation_type: conversation.type || 'direct',
+            created_at: conversation.created_at,
+            is_active: conversation.is_active,
+            participant_count: participantCount || 2,
+            other_participants: otherParticipants || [],
+            user_role: participation.role,
+            user_joined_at: participation.joined_at
+          }
+        })
+      )
+
+      return conversationsData
+    } catch (error) {
+      console.error('Error in _fetchRawConversations:', error)
+      return null
+    }
+  }
+
+  // Helper: Service-like method to preload user profiles from participant data
+  const _preloadUserProfiles = async (conversationsData: any[]) => {
+    const allUserIds = new Set<string>()
+    
+    // Extract user IDs from participant data (other_participants JSONB array)
+    conversationsData.forEach(conv => {
+      // Add the current user (implied participant)
+      // Add other participants from the JSONB array
+      if (conv.other_participants && Array.isArray(conv.other_participants)) {
+        conv.other_participants.forEach((participant: any) => {
+          if (participant.user_id) {
+            allUserIds.add(participant.user_id)
+          }
+        })
+      }
+    })
+
+    // Ensure all user profiles are loaded in the server users store
+    const serverUsersStore = useServerUsersStore()
+    await serverUsersStore.fetchUserProfiles(Array.from(allUserIds))
+  }
+
+  // Helper: Service-like method to process individual conversation using participant system
+  const _processConversationData = async (conv: any, userId: string): Promise<DMConversation | null> => {
+    try {
+      // For direct conversations, get the other participant (not the current user)
+      let otherUserId: string | null = null
+      
+      if (conv.other_participants && Array.isArray(conv.other_participants) && conv.other_participants.length > 0) {
+        // Get the first other participant (for direct messages, should be exactly 1)
+        otherUserId = conv.other_participants[0].user_id
+      }
+
+      if (!otherUserId) {
+        console.error('No other participant found for conversation:', conv.conversation_id)
+        return null
+      }
+      
+      // Get other user's profile
+      const profileData = await _fetchUserProfile(otherUserId)
+      if (!profileData) {
+        console.error('Failed to fetch profile for user:', otherUserId)
+        return null
+      }
+
+      // Get last message for conversation
+      const lastMessageData = await _fetchLastMessage(conv.conversation_id)
+
+      // Determine if this is a federated conversation
+      const isFederated = !profileData.is_local && profileData.domain
+
+      return {
+        id: conv.conversation_id,
+        created_at: conv.created_at,
+        type: conv.conversation_type || 'direct',
+        participant_count: conv.participant_count || 2,
+        last_activity: lastMessageData?.created_at || conv.created_at,
+        last_message: lastMessageData ? {
+          id: lastMessageData.id,
+          user_id: lastMessageData.user_id,
+          content: lastMessageData.content,
+          created_at: new Date(lastMessageData.created_at),
+          channel_id: '', // Empty string for DMs
+          conversation_id: conv.conversation_id,
+          reactions: [],
+          metadata: lastMessageData.metadata || {}
+        } : undefined,
+        unread_count: 0, // TODO: Implement proper unread counting
+        other_user: {
+          id: profileData.id,
+          username: profileData.username,
+          display_name: profileData.display_name,
+          avatar_url: profileData.avatar_url,
+          is_online: false, // Will be updated by global presence system in UI
+          domain: profileData.domain,
+          is_local: profileData.is_local,
+          federated_id: profileData.federated_id,
+          handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
+        }
+      }
+    } catch (error) {
+      console.error('Error processing conversation data:', error)
+      return null
+    }
+  }
+
+  // Helper: Service-like method to fetch user profile
+  const _fetchUserProfile = async (userId: string) => {
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
+      .eq('id', userId)
+      .single()
+
+    if (profileError) {
+      console.error('Error fetching profile:', profileError)
+      return null
+    }
+
+    return profileData
+  }
+
+  // Helper: Service-like method to fetch last message
+  const _fetchLastMessage = async (conversationId: string) => {
+    const { data: lastMessageData } = await supabase
+      .from('messages')
+      .select('id, user_id, content, created_at, metadata')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    return lastMessageData
   }
 
   const fetchConversationMessages = async (conversationId: string, beforeMessageId?: string, signal?: AbortSignal) => {
@@ -534,41 +674,38 @@ export const useDMStore = defineStore('dm', () => {
     loadingMessages.value = true
     
     try {
-      let query = supabase
-        .from('messages')
-        .select(`*`)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(20)
-
+      console.log('🔄 Loading DM messages via MessageService:', { conversationId, beforeMessageId })
+      
+      // Use services.messages for consistent loading with service layer
+      // Determine cursor for pagination (before timestamp)
+      let beforeTimestamp: string | undefined
       if (beforeMessageId) {
-        const { data: beforeMessage } = await supabase
-          .from('messages')
-          .select('created_at')
-          .eq('id', beforeMessageId)
-          .single()
-        
+        // Get the timestamp of the message for pagination
+        const beforeMessage = currentDMMessages.value.find(m => m.id === beforeMessageId)
         if (beforeMessage) {
-          query = query.lt('created_at', beforeMessage.created_at)
+          beforeTimestamp = beforeMessage.created_at.toISOString()
         }
       }
+      
 
-      const { data: messagesData, error } = await query
+
+      const { messages: messagesData, hasMore } = await services.messages.loadConversationMessages(
+        conversationId,
+        20, // limit
+        beforeTimestamp
+      )
+
+
 
       // Check if request was cancelled
       if (signal?.aborted) {
         throw new Error('Request aborted')
       }
 
-      if (error) {
-        console.error('Error fetching DM messages:', error)
-        return
-      }
-
       if (!messagesData) return
 
       // Extract unique user IDs from messages and pre-load profiles
-      // This ensures user data is available for UI components (same as chat system)
+      // Service already loads user profiles, but we pre-load for consistency
       const userIds = new Set<string>();
       messagesData.forEach(message => {
         if (message?.user_id) {
@@ -583,23 +720,12 @@ export const useDMStore = defineStore('dm', () => {
         await serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds));
       }
 
-      // Fetch reactions for messages
-      for (const message of messagesData) {
-        if (message.reactions && message.reactions.length > 0) {
-          const { data: reactions, error: reactionsError } = await supabase
-            .rpc('get_message_reactions', { message_id: message.id })
+      // Service already handles reactions loading
+      // Messages come with properly formatted reactions from the service
       
-          if (reactionsError) {
-            console.error('Error fetching reactions:', reactionsError)
-            continue
-          }
-      
-          message.reactions = reactions
-        }
-      }
-
-      const reversedMessages = messagesData.reverse()
-      const allLoaded = messagesData.length < 20
+      // Service already returns messages in chronological order (oldest first)
+      const reversedMessages = messagesData
+      const allLoaded = !hasMore
 
       // Ensure all messages have conversation_id set
       const formattedMessages: Message[] = reversedMessages.map(msg => ({
@@ -659,121 +785,113 @@ export const useDMStore = defineStore('dm', () => {
   const searchUsers = async (query: string, currentUserId: string) => {
     try {
       isSearching.value = true
+      console.log('🔄 Searching users via service layer:', query)
       
       if (!query.trim()) {
         searchResults.value = []
         return
       }
 
-      // Check if query looks like a federated handle (@user@domain.com or user@domain.com)
-      const federatedMatch = query.match(/^@?([^@]+)@([^@]+\.[^@]+)$/)
+      // Use activityPubService for federated user search (includes local users)
+      const users = await services.activityPub.searchUsers(query, 10)
       
-      if (federatedMatch) {
-        // Search for federated user by handle
-        const [, username, domain] = federatedMatch
-        
-        const { data: federatedUsers, error: fedError } = await supabase
-          .from('profiles')
-          .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
-          .eq('username', username)
-          .eq('domain', domain)
-          .eq('is_local', false)
-          .limit(5)
+      // Filter out current user and convert to DMUser format
+      const filteredUsers = users
+        .filter(user => user.id !== currentUserId)
+        .map(user => ({
+          id: user.id,
+          username: user.username,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url,
+          domain: user.domain,
+          is_local: user.is_local,
+          federated_id: user.federated_id,
+          handle: user.handle,
+          is_online: false // Will be updated by global presence system in UI
+        }))
 
-        if (fedError) {
-          console.error('Error searching federated users:', fedError)
-        } else if (federatedUsers && federatedUsers.length > 0) {
-          searchResults.value = federatedUsers.map(user => ({
-            id: user.id,
-            username: user.username,
-            display_name: user.display_name,
-            avatar_url: user.avatar_url,
-            domain: user.domain,
-            is_local: user.is_local,
-            federated_id: user.federated_id,
-            handle: `${user.username}@${user.domain}`,
-            is_online: false
-          }))
-          return
-        }
-      }
-
-      // Search local users
-      const { data: users, error } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
-        .neq('id', currentUserId) // Exclude current user
-        .eq('is_local', true) // Only search local users for now
-        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
-        .limit(10)
-
-      if (error) {
-        console.error('Error searching users:', error)
-        searchResults.value = []
-        return
-      }
-
-      searchResults.value = (users || []).map(user => ({
-        id: user.id,
-        username: user.username,
-        display_name: user.display_name,
-        avatar_url: user.avatar_url,
-        domain: user.domain,
-        is_local: user.is_local,
-        federated_id: user.federated_id,
-        handle: user.is_local ? user.username : `${user.username}@${user.domain}`,
-        is_online: false // Will be updated by global presence system in UI
-      }))
+      searchResults.value = filteredUsers
+      console.log(`✅ Found ${filteredUsers.length} users via service layer`)
       
     } catch (error) {
-      console.error('Failed to search users:', error)
+      console.error('❌ Failed to search users via service:', error)
       searchResults.value = []
+      
+      // Fallback to local search if service fails
+      try {
+        console.log('🔄 Falling back to local user search')
+        await _searchLocalUsers(query, currentUserId)
+      } catch (fallbackError) {
+        console.error('❌ Fallback search also failed:', fallbackError)
+      }
     } finally {
       isSearching.value = false
     }
   }
 
+  // Helper: Fallback local user search
+  const _searchLocalUsers = async (query: string, currentUserId: string) => {
+    const { data: users, error } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, domain, is_local, federated_id')
+      .neq('id', currentUserId) // Exclude current user
+      .eq('is_local', true) // Only search local users
+      .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+      .limit(10)
+
+    if (error) throw error
+
+    searchResults.value = (users || []).map(user => ({
+      id: user.id,
+      username: user.username,
+      display_name: user.display_name,
+      avatar_url: user.avatar_url,
+      domain: user.domain,
+      is_local: user.is_local,
+      federated_id: user.federated_id,
+      handle: user.is_local ? user.username : `${user.username}@${user.domain}`,
+      is_online: false
+    }))
+  }
+
   const createOrGetConversation = async (user1Id: string, user2Id: string): Promise<string | null> => {
     try {
-      // Check if conversation already exists
-      const { data: existingConv, error } = await supabase
-        .from('conversations')
-        .select('id')
-        .or(`and(user1.eq.${user1Id},user2.eq.${user2Id}),and(user1.eq.${user2Id},user2.eq.${user1Id})`)
-        .single()
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error searching for existing conversation:', error)
-        return null
+      console.log('🔄 Creating/getting conversation via service-like method:', { user1Id, user2Id })
+      
+      // Use service-like helper for conversation management
+      const conversationId = await _createOrFindConversation(user1Id, user2Id)
+      
+      if (conversationId) {
+        // Refresh conversations to include the new one
+        await fetchUserConversations(user1Id)
+        console.log('✅ Conversation created/found:', conversationId)
       }
 
-      if (existingConv) {
-        return existingConv.id
-      }
-
-      // Create new conversation if none exists
-      const { data: newConv, error: createError } = await supabase
-        .from('conversations')
-        .insert([
-          {
-            user1: user1Id,
-            user2: user2Id
-          }
-        ])
-        .select('id')
-        .single()
-
-      if (createError) {
-        console.error('Error creating conversation:', createError)
-        return null
-      }
-
-      // Refresh conversations to include the new one
-      await fetchUserConversations(user1Id)
-
-      return newConv.id
+      return conversationId
     } catch (error) {
-      console.error('Failed to create conversation:', error)
+      console.error('❌ Failed to create conversation via service-like method:', error)
+      return null
+    }
+  }
+
+  // Helper: Service-like method for conversation management using new participant system
+  const _createOrFindConversation = async (user1Id: string, user2Id: string): Promise<string | null> => {
+    try {
+      // Use the database function that handles participant system
+      const { data: conversationId, error } = await supabase
+        .rpc('create_or_get_direct_conversation', { 
+          user1_uuid: user1Id, 
+          user2_uuid: user2Id 
+        })
+
+      if (error) {
+        console.error('Error creating/finding conversation:', error)
+        return null
+      }
+
+      return conversationId
+    } catch (error) {
+      console.error('Error in _createOrFindConversation:', error)
       return null
     }
   }
@@ -785,32 +903,16 @@ export const useDMStore = defineStore('dm', () => {
     replyTo?: string
   ): Promise<boolean> => {
     try {
-      console.log('🔄 Sending DM message:', { conversationId, userId, content })
+      console.log('🔄 Sending DM message via MessageService:', { conversationId, userId })
       
-      const { data: newMessage, error } = await supabase
-        .from('messages')
-        .insert([
-          {
-            conversation_id: conversationId,
-            user_id: userId,
-            content: content,
-            ...(replyTo ? { reply_to: replyTo } : {})
-          }
-        ])
-        .select('*')
-        .single()
+      // Use services.messages for consistent DM sending with service layer
+      const message = await services.messages.sendDMMessage(
+        conversationId,
+        content,
+        replyTo
+      )
 
-      if (error) {
-        console.error('❌ Database error sending DM message:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
-        return false
-      }
-
-      console.log('✅ DM message sent successfully to database:', newMessage)
+      console.log('✅ DM message sent via service layer:', message.id)
       
       // 🎯 DATABASE TRIGGERS NOW HANDLE:
       // 1. DM notifications (handle_message_notifications trigger)
@@ -821,9 +923,9 @@ export const useDMStore = defineStore('dm', () => {
       // Don't manually add here to prevent duplicates
 
       return true
-    } catch (error) {
-      console.error('❌ Failed to send DM message:', error)
-      return false
+    } catch (error: any) {
+      console.error('❌ Failed to send DM message via service:', error)
+      throw new Error(error.message || 'Failed to send DM message')
     }
   }
 
