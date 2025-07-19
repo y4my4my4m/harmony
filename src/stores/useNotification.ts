@@ -4,6 +4,7 @@ import router from '@/router'
 import { useAuthStore } from './auth'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
+import { services } from '@/services'
 import type { 
   Notification, 
   NotificationType,
@@ -314,25 +315,19 @@ export const useNotificationStore = defineStore('notification', {
 
     async fetchNotifications(userId: string, limit = 50, offset = 0) {
       try {
-        console.log('🔔 Fetching notifications for user:', userId)
+        console.log('🔄 Fetching notifications via NotificationService:', userId)
         
         // Get the profile ID for this auth user ID
         const profileId = await this.getProfileId(userId)
         console.log('🔄 Using profile ID for notifications:', profileId)
         
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', profileId)
-          .order('created_at', { ascending: false })
-          .limit(limit)
+        // Use NotificationService for consistent notification management
+        const data = await services.notifications.fetchNotifications(profileId, {
+          limit,
+          offset
+        })
 
-        if (error) {
-          console.error('❌ Error fetching notifications:', error)
-          throw error
-        }
-
-        console.log(`✅ Fetched ${data?.length || 0} notifications`)
+        console.log(`✅ Fetched ${data?.length || 0} notifications via service layer`)
         
         if (offset === 0) {
           this.notifications = data || []
@@ -345,13 +340,48 @@ export const useNotificationStore = defineStore('notification', {
 
         return data || []
       } catch (error) {
-        console.error('❌ Failed to fetch notifications:', error)
-        // Create mock notifications for development/testing
-        if (process.env.NODE_ENV === 'development') {
-          this.createMockNotifications(userId)
+        console.error('❌ Failed to fetch notifications via service:', error)
+        
+        // Fallback to direct query if service fails
+        try {
+          console.log('🔄 Falling back to direct notification fetch')
+          await this._fetchNotificationsFallback(userId, limit, offset)
+        } catch (fallbackError) {
+          console.error('❌ Fallback fetch also failed:', fallbackError)
+          // Create mock notifications for development/testing
+          if (process.env.NODE_ENV === 'development') {
+            this.createMockNotifications(userId)
+          }
         }
         throw error
       }
+    },
+
+    /**
+     * Fallback method for fetching notifications
+     */
+    async _fetchNotificationsFallback(userId: string, limit = 50, offset = 0) {
+      const profileId = await this.getProfileId(userId)
+      
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', profileId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+      if (error) throw error
+
+      if (offset === 0) {
+        this.notifications = data || []
+      } else {
+        this.notifications.push(...(data || []))
+      }
+
+      this.updateUnreadCount()
+      this.lastFetchedAt = new Date()
+
+      return data || []
     },
 
     /**
@@ -692,6 +722,8 @@ export const useNotificationStore = defineStore('notification', {
      */
     async markAsRead(notificationId: string) {
       try {
+        console.log('🔄 Marking notification as read via service:', notificationId)
+        
         // Optimistic update
         const notification = this.notifications.find(n => n.id === notificationId)
         if (notification) {
@@ -699,45 +731,43 @@ export const useNotificationStore = defineStore('notification', {
           this.updateUnreadCount()
         }
 
-        console.log(notificationId);
-        const { error } = await supabase
-          .from('notifications')
-          .update({ is_read: true })
-          .eq('id', notificationId)
-
-        if (error) {
-          // Revert on error
-          if (notification) {
-            notification.is_read = false
-            this.updateUnreadCount()
-          }
-          throw error
-        }
+        // Use NotificationService for consistent state management
+        await services.notifications.markAsRead(notificationId)
+        console.log('✅ Notification marked as read via service layer')
       } catch (error) {
-        console.error('Failed to mark notification as read:', error)
+        console.error('❌ Failed to mark notification as read via service:', error)
+        
+        // Revert optimistic update on error
+        if (notification) {
+          notification.is_read = false
+          this.updateUnreadCount()
+        }
+        throw error
       }
     },
 
     async deleteNotification(notificationId: string) {
       try {
+        console.log('🔄 Deleting notification via service:', notificationId)
+        
+        // Optimistic update
         const index = this.notifications.findIndex(n => n.id === notificationId)
         if (index === -1) return
         const notification = this.notifications[index]
         this.notifications.splice(index, 1)
         this.updateUnreadCount()
-        const { error } = await supabase
-          .from('notifications')
-          .delete()
-          .eq('id', notificationId)
-        if (error) {
-          // Revert on error
-          this.notifications.splice(index, 0, notification)
-          this.updateUnreadCount()
-          throw error
-        }
+        
+        // Use NotificationService for consistent state management
+        await services.notifications.deleteNotification(notificationId)
+        console.log('✅ Notification deleted via service layer')
       } catch (error) {
-        console.error('Failed to delete notification:', error)
+        console.error('❌ Failed to delete notification via service:', error)
+        
+        // Revert optimistic update on error
+        this.notifications.splice(index, 0, notification)
+        this.updateUnreadCount()
         this.showToast('server_update', 'Failed to delete notification', 'Please try again', 3000)
+        throw error
       }
     },  
 

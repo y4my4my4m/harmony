@@ -27,6 +27,12 @@ export type {
 export { profileService, ProfileService } from './ProfileService'
 export type { ProfileServiceError, ProfileData } from './ProfileService'
 
+export { notificationService, NotificationService } from './NotificationService'
+export type { 
+  NotificationServiceError, 
+  NotificationResult 
+} from './NotificationService'
+
 // Legacy services (to be migrated)
 export { activityPubService, ActivityPubService } from './activityPubService'
 
@@ -36,6 +42,7 @@ export const services = {
   messages: messageService,
   interactions: interactionService,
   profiles: profileService,
+  notifications: notificationService,
   // Legacy
   activityPub: activityPubService
 } as const
