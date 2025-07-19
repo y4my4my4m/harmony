@@ -304,18 +304,22 @@ export class CoreMessageService {
         throw this.createError('FETCH_REACTIONS_FAILED', error.message, error)
       }
 
-      // FIXED: Transform data to match store expectations
+      console.log('🔍 DEBUG: Raw reaction data from database:', JSON.stringify(reactions, null, 2))
+
+      // FIXED: Transform data to match store expectations - NEW function structure
       const transformedReactions = reactions?.map(reaction => ({
-        emoji_id: reaction.emoji_id,
+        emoji_id: reaction.emoji?.id || reaction.emoji_id,  // Handle both old and new formats
         emoji: {
-          id: reaction.emoji_id,
-          name: reaction.emoji_name,
-          url: reaction.emoji_url
+          id: reaction.emoji?.id || reaction.emoji_id,
+          name: reaction.emoji?.name || reaction.emoji_name || 'unknown',
+          url: reaction.emoji?.url || reaction.emoji_url || ''
         },
-        count: reaction.reaction_count,
-        reactions: Array.isArray(reaction.users) ? reaction.users : []  // FIXED: Ensure it's an array
+        count: reaction.count || reaction.reaction_count || 0,
+        reactions: Array.isArray(reaction.reactions || reaction.users) ? (reaction.reactions || reaction.users) : [],
+        message_id_of_reactions: reaction.message_id_of_reactions || messageId
       })) || []
 
+      console.log('🔍 DEBUG: Transformed reaction data:', JSON.stringify(transformedReactions, null, 2))
       console.log(`✅ Core: Fetched ${transformedReactions.length} reaction groups for message: ${messageId}`)
       return transformedReactions
     } catch (error) {

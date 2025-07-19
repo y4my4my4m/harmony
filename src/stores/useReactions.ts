@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { services } from '@/services'
 import type { ReactionGroup, Emoji } from '@/types'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 
 interface OptimisticOperation {
   messageId: string
@@ -21,8 +22,8 @@ export const useReactionsStore = defineStore('reactions', () => {
   const optimisticOperations = ref(new Map<string, OptimisticOperation>()) // key: `${messageId}-${emojiId}-${userId}`
   const pendingToggleRequests = ref(new Set<string>()) // Prevent double-clicks
   
-  // Realtime debouncing
-  const realtimeDebounceTimers = ref(new Map<string, NodeJS.Timeout>())
+  // Realtime debouncing - Use regular Map (not reactive) to avoid method interference
+  const realtimeDebounceTimers = new Map<string, NodeJS.Timeout>()
 
   // Getters
   const getMessageReactions = computed(() => (messageId: string): ReactionGroup[] => {
@@ -286,10 +287,25 @@ export const useReactionsStore = defineStore('reactions', () => {
            existing.count = existing.reactions.length
          }
        } else {
-         // Create new reaction group
+         // Create new reaction group - Get real emoji data from cache
+         const emojiCache = useEmojiCacheStore()
+         const emojiData = emojiCache.getEmojiById(emojiId)
+         
+         const emoji: Emoji = emojiData || { 
+           id: emojiId, 
+           name: 'unknown', 
+           url: '', 
+           server_id: '',
+           uploader: '',
+           created_at: '',
+           updated_at: '',
+           usage_count: 0,
+           last_used: ''
+         }
+         
          reactions.push({
            emoji_id: emojiId,
-           emoji: { id: emojiId, name: 'unknown', url: '' } as Emoji, // Placeholder
+           emoji: emoji,
            count: 1,
            reactions: [{ 
              reaction_id: 'optimistic-' + Date.now(),
@@ -332,11 +348,11 @@ export const useReactionsStore = defineStore('reactions', () => {
      }
      
      // Clean up stale realtime debounce timers
-     for (const [key, timer] of realtimeDebounceTimers.value.entries()) {
+     for (const [key, timer] of realtimeDebounceTimers.entries()) {
        // Clear very old timers (shouldn't happen but safety)
        if (key.includes('realtime-')) {
          clearTimeout(timer)
-         realtimeDebounceTimers.value.delete(key)
+         realtimeDebounceTimers.delete(key)
        }
      }
    }
