@@ -222,6 +222,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         console.log('✅ ActivityPub store initialized successfully');
       } catch (error) {
         console.error('❌ Failed to initialize ActivityPub store:', error);
+        throw error;
       }
     },
 

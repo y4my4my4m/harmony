@@ -265,9 +265,7 @@ const chatUserStatus = computed(() => {
 
 const isFollowing = computed(() => {
   if (!isFederatedUser(props.user)) return false
-  const following = activityPubStore.isFollowing(props.user.id)
-  console.log(`🔍 Profile card - User ${props.user.id} following status:`, following)
-  return following
+  return activityPubStore.isFollowing(props.user.id)
 })
 
 const isMuted = computed(() => {
