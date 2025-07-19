@@ -8,9 +8,11 @@
 -- FIX CONVERSATION_PARTICIPANTS POLICIES (NO RECURSION)
 -- =====================================================
 
--- Drop the problematic recursive policies
+-- Drop ALL existing policies first to avoid conflicts
 DROP POLICY IF EXISTS "Users can view participations in their conversations" ON conversation_participants;
 DROP POLICY IF EXISTS "Users can view their own conversation participations" ON conversation_participants;
+DROP POLICY IF EXISTS "Users can view their own participations" ON conversation_participants;
+DROP POLICY IF EXISTS "Users can update their own participations" ON conversation_participants;
 
 -- Create simple, non-recursive policies
 CREATE POLICY "Users can view their own participations"
@@ -25,10 +27,15 @@ CREATE POLICY "Users can update their own participations"
 -- FIX CONVERSATIONS POLICIES (USE SIMPLE SUBQUERY)  
 -- =====================================================
 
--- Drop old policies
+-- Drop ALL possible existing policies first
 DROP POLICY IF EXISTS "Users can view conversations they participate in" ON conversations;
 DROP POLICY IF EXISTS "Users can create conversations" ON conversations;
 DROP POLICY IF EXISTS "Users can update conversations they participate in" ON conversations;
+DROP POLICY IF EXISTS "conversations_insert_policy" ON conversations;
+DROP POLICY IF EXISTS "conversations_select_policy" ON conversations;
+DROP POLICY IF EXISTS "conversations_update_policy" ON conversations;
+DROP POLICY IF EXISTS "Users can view their own conversations" ON conversations;
+DROP POLICY IF EXISTS "Users can update their own conversations" ON conversations;
 
 -- Create new, properly structured policies
 CREATE POLICY "Users can view conversations they participate in"
@@ -61,9 +68,13 @@ CREATE POLICY "Users can update conversations they participate in"
 -- FIX MESSAGES POLICIES (USE SIMPLE SUBQUERY)
 -- =====================================================
 
--- Drop old policies
+-- Drop ALL possible existing policies first
 DROP POLICY IF EXISTS "Users can view messages in conversations they participate in" ON messages;
 DROP POLICY IF EXISTS "Users can create messages in conversations they participate in" ON messages;
+DROP POLICY IF EXISTS "messages_insert_policy" ON messages;
+DROP POLICY IF EXISTS "messages_select_policy" ON messages;
+DROP POLICY IF EXISTS "Users can view messages in their conversations" ON messages;
+DROP POLICY IF EXISTS "Users can create messages in their conversations" ON messages;
 
 -- Create new, properly structured policies for messages
 CREATE POLICY "Users can view messages in conversations they participate in"
