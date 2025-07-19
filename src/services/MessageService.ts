@@ -372,6 +372,71 @@ export class MessageService {
   }
 
   /**
+   * Debug helper: Check if conversation exists and has messages
+   */
+  async debugConversation(conversationId: string): Promise<void> {
+    try {
+      console.log('🔍 Debug: Checking conversation existence:', conversationId)
+      
+      // Check if conversation exists
+      const { data: conversation, error: convError } = await supabase
+        .from('conversations')
+        .select('id, created_at, updated_at')
+        .eq('id', conversationId)
+        .single()
+      
+      console.log('🔍 Debug: Conversation query result:', {
+        found: !!conversation,
+        conversationId: conversation?.id,
+        error: convError?.message
+      })
+
+      // Check raw message count for this conversation
+      const { count: messageCount, error: countError } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+      
+      console.log('🔍 Debug: Total messages count (including deleted):', {
+        count: messageCount,
+        error: countError?.message
+      })
+
+      // Check non-deleted message count
+      const { count: activeCount, error: activeError } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('is_deleted', false)
+      
+      console.log('🔍 Debug: Active messages count:', {
+        count: activeCount,
+        error: activeError?.message
+      })
+
+      // Get a sample message to check structure
+      const { data: sampleMessage, error: sampleError } = await supabase
+        .from('messages')
+        .select('id, user_id, conversation_id, is_deleted, created_at')
+        .eq('conversation_id', conversationId)
+        .limit(1)
+        .single()
+      
+      console.log('🔍 Debug: Sample message:', {
+        hasMessage: !!sampleMessage,
+        messageId: sampleMessage?.id,
+        userId: sampleMessage?.user_id,
+        isDeleted: sampleMessage?.is_deleted,
+        createdAt: sampleMessage?.created_at,
+        error: sampleError?.message
+      })
+
+    } catch (error: any) {
+      console.error('❌ Debug conversation failed:', error)
+    }
+  }
+
+  /**
    * Load messages for a DM conversation with pagination
    */
   async loadConversationMessages(
@@ -380,6 +445,28 @@ export class MessageService {
     before?: string
   ): Promise<{ messages: Message[]; hasMore: boolean }> {
     try {
+      console.log('🔍 MessageService.loadConversationMessages DEBUG:', {
+        conversationId,
+        limit,
+        before,
+        timestamp: new Date().toISOString()
+      })
+
+      // Check authentication first
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      console.log('🔍 Authentication check:', {
+        hasUser: !!user,
+        userId: user?.id,
+        authError: authError?.message
+      })
+
+      if (authError || !user) {
+        throw this.createError('AUTH_REQUIRED', `Authentication failed: ${authError?.message || 'No user'}`)
+      }
+
+      // DEBUG: Run conversation debugging for this specific conversation
+      await this.debugConversation(conversationId)
+
       let query = supabase
         .from('messages')
         .select(`
@@ -400,25 +487,70 @@ export class MessageService {
 
       // Apply cursor pagination
       if (before) {
+        console.log('🔍 Applying cursor pagination with before:', before)
         query = query.lt('created_at', before)
       }
 
+      console.log('🔍 Executing Supabase query for conversation:', conversationId)
       const { data: messages, error } = await query
 
-      if (error) throw this.createError('LOAD_FAILED', error.message, error)
+      console.log('🔍 Supabase query result:', {
+        messagesCount: messages?.length || 0,
+        hasError: !!error,
+        errorMessage: error?.message,
+        errorDetails: error?.details,
+        errorHint: error?.hint,
+        firstMessageId: messages?.[0]?.id,
+        conversationId: conversationId
+      })
+
+      if (error) {
+        console.error('❌ Supabase query error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        throw this.createError('LOAD_FAILED', error.message, error)
+      }
+
+      if (!messages) {
+        console.log('⚠️ Messages is null/undefined from Supabase')
+        return { messages: [], hasMore: false }
+      }
 
       const hasMore = messages.length > limit
       const resultMessages = hasMore ? messages.slice(0, limit) : messages
 
+      console.log('🔍 Processing messages result:', {
+        rawCount: messages.length,
+        afterLimitCount: resultMessages.length,
+        hasMore,
+        willReverse: true
+      })
+
       // Reverse to get chronological order (oldest first)
       resultMessages.reverse()
 
+      const transformedMessages = resultMessages.map(msg => this.transformDatabaseMessage(msg))
+      
+      console.log('🔍 Final result:', {
+        transformedCount: transformedMessages.length,
+        hasMore,
+        firstTransformedId: transformedMessages[0]?.id,
+        lastTransformedId: transformedMessages[transformedMessages.length - 1]?.id
+      })
+
       return {
-        messages: resultMessages.map(msg => this.transformDatabaseMessage(msg)),
+        messages: transformedMessages,
         hasMore
       }
-    } catch (error) {
-      console.error('Failed to load conversation messages:', error)
+    } catch (error: any) {
+      console.error('❌ MessageService.loadConversationMessages failed:', {
+        conversationId,
+        error: error.message,
+        stack: error.stack
+      })
       throw error
     }
   }
@@ -499,7 +631,6 @@ export class MessageService {
     return {
       id: message.id,
       created_at: message.created_at,
-      updated_at: message.updated_at || message.created_at,
       content: processedContent,
       user_id: message.user_id,
       channel_id: message.channel_id,

@@ -570,18 +570,40 @@ export const useDMStore = defineStore('dm', () => {
         }
       }
       
+      console.log('🔍 useDM.fetchConversationMessages calling service with:', {
+        conversationId,
+        limit: 20,
+        beforeTimestamp,
+        hasSignal: !!signal,
+        isAborted: signal?.aborted
+      })
+
       const { messages: messagesData, hasMore } = await services.messages.loadConversationMessages(
         conversationId,
         20, // limit
         beforeTimestamp
       )
 
+      console.log('🔍 useDM.fetchConversationMessages service response:', {
+        messagesCount: messagesData?.length || 0,
+        hasMore,
+        firstMessageId: messagesData?.[0]?.id,
+        conversationId
+      })
+
       // Check if request was cancelled
       if (signal?.aborted) {
         throw new Error('Request aborted')
       }
 
-      if (!messagesData) return
+      if (!messagesData) {
+        console.log('⚠️ No messages data returned from service, exiting early')
+        return
+      }
+
+      if (messagesData.length === 0) {
+        console.log('⚠️ Empty messages array returned from service')
+      }
 
       // Extract unique user IDs from messages and pre-load profiles
       // Service already loads user profiles, but we pre-load for consistency

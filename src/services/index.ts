@@ -55,6 +55,23 @@ export const services = {
   activityPub: activityPubService
 } as const
 
+// DEBUG: Export debug methods (remove in production)
+export const debugServices = {
+  debugConversation: (conversationId: string) => messageService.debugConversation(conversationId),
+  debugMessages: async (conversationId: string) => {
+    console.log('🔍 Manual debug for conversation:', conversationId)
+    await messageService.debugConversation(conversationId)
+    try {
+      const result = await messageService.loadConversationMessages(conversationId, 20)
+      console.log('🔍 Manual debug result:', result)
+      return result
+    } catch (error) {
+      console.error('❌ Manual debug failed:', error)
+      throw error
+    }
+  }
+}
+
 // Common patterns for all services
 export interface ServiceError {
   code: string
