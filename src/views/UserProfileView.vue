@@ -837,9 +837,13 @@ watch(() => route.params.handle, (newHandle) => {
 }, { immediate: true });
 
 // Ensure profile loads on mount
-onMounted(() => {
+onMounted(async () => {
   const handle = currentHandle.value;
   console.log(`🔄 UserProfileView mounted with handle: ${handle}`);
+  
+  // Initialize ActivityPub store to load followed users
+  await activityPubStore.initialize();
+  
   if (handle && typeof handle === 'string') {
     loadUserProfile(handle);
   }
