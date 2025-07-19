@@ -115,6 +115,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { services } from '@/services';
 import type { TimelinePost } from '@/types';
 
 // Components
@@ -160,8 +161,10 @@ const loadPost = async () => {
   error.value = null;
 
   try {
-    // Load the post using the ActivityPub store
-    const loadedPost = await activityPubStore.loadPostWithAuthor(props.postId);
+    console.log('🔄 Loading post via service layer:', props.postId);
+    
+    // Use service layer directly for post loading with optimistic updates
+    const loadedPost = await services.posts.loadPost(props.postId);
     
     if (!loadedPost) {
       throw new Error('Post not found');
@@ -170,9 +173,10 @@ const loadPost = async () => {
     post.value = loadedPost;
     totalReplies.value = post.value.replies_count || 0;
     
+    console.log('✅ Post loaded successfully via service layer');
     await loadReplies();
   } catch (err) {
-    console.error('Failed to load post:', err);
+    console.error('❌ Failed to load post via service layer:', err);
     error.value = 'Failed to load post. It might have been deleted or you might not have permission to view it.';
   } finally {
     isLoading.value = false;
@@ -219,7 +223,7 @@ const sharePost = async () => {
     try {
       await navigator.share({
         title: `Mony by ${post.value.author.display_name}`,
-        text: post.value.content as string,
+        text: post.value.content.map(part => part.type === 'text' ? part.text : '').join(''),
         url: url
       });
     } catch (err) {

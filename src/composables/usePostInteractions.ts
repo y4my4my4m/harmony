@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { services } from '@/services'
 import type { FederatedUser, TimelinePost } from '@/types'
 
 /**
  * Composable for handling ActivityPub post and user interactions
  * Professional, DRY, and reusable across all components
+ * Now using service layer for improved error handling and consistency
  */
 export function usePostInteractions() {
   const activityPubStore = useActivityPubStore()
@@ -21,6 +23,7 @@ export function usePostInteractions() {
 
   /**
    * Toggle follow status for a user
+   * Now using service layer for consistent error handling and optimistic updates
    */
   const toggleFollow = async (user: FederatedUser | string): Promise<{ following: boolean; error?: string }> => {
     const userId = typeof user === 'string' ? user : user.id
@@ -32,9 +35,9 @@ export function usePostInteractions() {
 
     isFollowLoading.value = true
     try {
-      const result = await activityPubStore.toggleFollow(userId)
+      const result = await services.interactions.toggleFollow(userId)
       console.log(`✅ Follow toggled for user ${userId}:`, result.following ? 'Following' : 'Unfollowed')
-      return result
+      return { following: result.following }
     } catch (error) {
       console.error('❌ Failed to toggle follow:', error)
       return { 
@@ -105,10 +108,10 @@ export function usePostInteractions() {
   // =============================================
 
   /**
-   * Toggle favorite status for a post
-   * Note: Does not return immediate state - UI should read from store reactively
+   * Toggle favorite (like) status for a post
+   * Now using service layer for consistent error handling and optimistic updates
    */
-  const toggleFavorite = async (post: TimelinePost | string): Promise<{ success: boolean; error?: string }> => {
+  const toggleFavorite = async (post: TimelinePost | string): Promise<{ success: boolean; liked?: boolean; newCount?: number; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
@@ -118,9 +121,13 @@ export function usePostInteractions() {
 
     isFavoriteLoading.value = true
     try {
-      await activityPubStore.toggleFavorite(postId)
-      console.log(`✅ Favorite toggle requested for post ${postId} - waiting for realtime update`)
-      return { success: true }
+      const result = await services.posts.toggleLike(postId)
+      console.log(`✅ Favorite toggled for post ${postId}:`, result.liked ? 'Liked' : 'Unliked')
+      return { 
+        success: true, 
+        liked: result.liked,
+        newCount: result.newCount
+      }
     } catch (error) {
       console.error('❌ Failed to toggle favorite:', error)
       return { 
@@ -133,10 +140,10 @@ export function usePostInteractions() {
   }
 
   /**
-   * Toggle reblog status for a post
-   * Note: Does not return immediate state - UI should read from store reactively
+   * Toggle reblog (share) status for a post
+   * Now using service layer for consistent error handling and optimistic updates
    */
-  const toggleReblog = async (post: TimelinePost | string): Promise<{ success: boolean; error?: string }> => {
+  const toggleReblog = async (post: TimelinePost | string): Promise<{ success: boolean; shared?: boolean; newCount?: number; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
@@ -146,9 +153,13 @@ export function usePostInteractions() {
 
     isReblogLoading.value = true
     try {
-      await activityPubStore.toggleReblog(postId)
-      console.log(`✅ Reblog toggle requested for post ${postId} - waiting for realtime update`)
-      return { success: true }
+      const result = await services.posts.toggleShare(postId)
+      console.log(`✅ Reblog toggled for post ${postId}:`, result.shared ? 'Shared' : 'Unshared')
+      return { 
+        success: true, 
+        shared: result.shared,
+        newCount: result.newCount
+      }
     } catch (error) {
       console.error('❌ Failed to toggle reblog:', error)
       return { 
@@ -162,9 +173,9 @@ export function usePostInteractions() {
 
   /**
    * Toggle bookmark status for a post
-   * Note: Does not return immediate state - UI should read from store reactively
+   * Now using service layer for consistent error handling and optimistic updates
    */
-  const toggleBookmark = async (post: TimelinePost | string): Promise<{ success: boolean; error?: string }> => {
+  const toggleBookmark = async (post: TimelinePost | string): Promise<{ success: boolean; bookmarked?: boolean; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
@@ -174,9 +185,12 @@ export function usePostInteractions() {
 
     isBookmarkLoading.value = true
     try {
-      await activityPubStore.toggleBookmark(postId)
-      console.log(`✅ Bookmark toggle requested for post ${postId} - waiting for realtime update`)
-      return { success: true }
+      const result = await services.posts.toggleBookmark(postId)
+      console.log(`✅ Bookmark toggled for post ${postId}:`, result.bookmarked ? 'Bookmarked' : 'Unbookmarked')
+      return { 
+        success: true, 
+        bookmarked: result.bookmarked
+      }
     } catch (error) {
       console.error('❌ Failed to toggle bookmark:', error)
       return { 
