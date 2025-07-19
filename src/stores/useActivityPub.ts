@@ -1059,25 +1059,11 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Upload media attachments if any
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
 
-        // Use new service layer for post creation
+        // Use new service layer for post creation - content properly formatted
         const formattedContent = await this.formatPostContent(content);
         
-        // Ensure content is in correct MessagePart[] format
-        let finalContent;
-        if (Array.isArray(formattedContent)) {
-          finalContent = formattedContent;
-        } else if (typeof formattedContent === 'string') {
-          // Fallback: convert string to MessagePart[]
-          finalContent = [{ type: 'text', text: formattedContent }];
-        } else {
-          // Fallback for any other format
-          finalContent = [{ type: 'text', text: String(formattedContent || '') }];
-        }
-        
-        console.log('✅ Final content for service:', finalContent);
-        
         const post = await services.posts.createPost({
-          content: finalContent,
+          content: formattedContent,
           visibility: visibility,
           content_warning: contentWarning,
           in_reply_to: replyTo,
@@ -1137,9 +1123,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Format post content for storage with mention detection and unified format
      */
-    async formatPostContent(content: string): Promise<any> {
-      console.log('🔧 DEBUG: formatPostContent input:', content, typeof content);
-      
+    async formatPostContent(content: string): Promise<MessagePart[]> {
       // Use the centralized unified content processing utility
       const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveHashtagsData } = await import('@/utils/unifiedContentProcessing');
       
@@ -1150,9 +1134,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         resolveHashtagsData(content)
       ]);
       
-      const result = parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
-      console.log('🔧 DEBUG: formatPostContent result:', result);
-      return result;
+      return await parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
     },
 
     /**
