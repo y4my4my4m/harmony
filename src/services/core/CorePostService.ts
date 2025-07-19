@@ -69,6 +69,11 @@ export class CorePostService {
         throw this.createError('INVALID_CONTENT', 'Content must be an array of MessageParts')
       }
 
+      console.log('🔧 DEBUG: CorePostService received data.content:', data.content);
+      console.log('🔧 DEBUG: CorePostService content type:', typeof data.content);
+      console.log('🔧 DEBUG: CorePostService content is array:', Array.isArray(data.content));
+      console.log('🔧 DEBUG: CorePostService content JSON:', JSON.stringify(data.content));
+
       const postData = {
         author_id: profileId,
         content: data.content,
@@ -82,6 +87,9 @@ export class CorePostService {
         is_federated: true, // Keep for compatibility, federation handled by orchestrator
         metadata: { created_via: 'harmony_client' }
       }
+      
+      console.log('🔧 DEBUG: CorePostService postData before insert:', postData);
+      console.log('🔧 DEBUG: CorePostService postData.content before insert:', postData.content);
 
       const { data: post, error } = await supabase
         .from('posts')

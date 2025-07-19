@@ -1060,16 +1060,26 @@ export const useActivityPubStore = defineStore('activitypub', {
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
 
         // Handle content format - content should already be MessagePart[] from component
+        console.log('🔧 DEBUG: useActivityPub received content:', content);
+        console.log('🔧 DEBUG: useActivityPub content type:', typeof content);
+        console.log('🔧 DEBUG: useActivityPub content is array:', Array.isArray(content));
+        
         let finalContent: MessagePart[];
         if (Array.isArray(content)) {
           // Content is already parsed MessagePart[] from component
           finalContent = content;
+          console.log('🔧 DEBUG: useActivityPub using parsed content:', finalContent);
         } else if (typeof content === 'string') {
           // Fallback: parse string content (legacy support)
+          console.log('🔧 DEBUG: useActivityPub falling back to string parsing');
           finalContent = await this.formatPostContent(content);
         } else {
+          console.log('🔧 DEBUG: useActivityPub invalid content format:', content);
           throw new Error('Invalid content format');
         }
+        
+        console.log('🔧 DEBUG: useActivityPub finalContent:', finalContent);
+        console.log('🔧 DEBUG: useActivityPub finalContent JSON:', JSON.stringify(finalContent));
         
         const post = await services.posts.createPost({
           content: finalContent,
