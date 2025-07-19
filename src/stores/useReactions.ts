@@ -44,7 +44,8 @@ export const useReactionsStore = defineStore('reactions', () => {
   const hasUserReacted = computed(() => (messageId: string, emojiId: string, userId: string): boolean => {
     const reactions = getMessageReactions.value(messageId)
     const reaction = reactions.find(r => r.emoji_id === emojiId)
-    return reaction?.users?.some(u => u.id === userId) || false
+    // FIXED: Use 'reactions' array with user_id, not 'users' array with id
+    return reaction?.reactions?.some(r => r.user_id === userId) || false
   })
 
   const isLoadingReactions = computed(() => (messageId: string): boolean => {
@@ -226,51 +227,59 @@ export const useReactionsStore = defineStore('reactions', () => {
     await fetchMessageReactions(messageId, true)
   }
 
-  /**
-   * Apply optimistic operation to reaction list
-   */
-  function applyOptimisticOperation(reactions: ReactionGroup[], op: OptimisticOperation): ReactionGroup[] {
-    const { emojiId, userId, operation } = op
-    
-    // Find existing reaction group
-    const existingIndex = reactions.findIndex(r => r.emoji_id === emojiId)
-    
-    if (operation === 'add') {
-      if (existingIndex >= 0) {
-        // Add user to existing group
-        const existing = reactions[existingIndex]
-        if (!existing.users.some(u => u.id === userId)) {
-          existing.users.push({ 
-            id: userId, 
-            username: 'You', // Placeholder for current user
-            avatar_url: '' 
-          })
-          existing.count = existing.users.length
-        }
-      } else {
-        // Create new reaction group
-        reactions.push({
-          emoji_id: emojiId,
-          emoji: { id: emojiId, name: 'unknown', url: '' } as Emoji, // Placeholder
-          count: 1,
-          users: [{ id: userId, username: 'You', avatar_url: '' }]
-        })
-      }
-    } else if (operation === 'remove') {
-      if (existingIndex >= 0) {
-        const existing = reactions[existingIndex]
-        existing.users = existing.users.filter(u => u.id !== userId)
-        existing.count = existing.users.length
-        
-        // Remove group if no users left
-        if (existing.count === 0) {
-          reactions.splice(existingIndex, 1)
-        }
-      }
-    }
-    
-    return reactions
-  }
+     /**
+    * Apply optimistic operation to reaction list
+    * FIXED: Use correct data structure matching CoreMessageService output
+    */
+   function applyOptimisticOperation(reactions: ReactionGroup[], op: OptimisticOperation): ReactionGroup[] {
+     const { emojiId, userId, operation } = op
+     
+     // Find existing reaction group
+     const existingIndex = reactions.findIndex(r => r.emoji_id === emojiId)
+     
+     if (operation === 'add') {
+       if (existingIndex >= 0) {
+         // Add user to existing group
+         const existing = reactions[existingIndex]
+         // FIXED: Use 'reactions' array, not 'users'
+         if (!existing.reactions?.some(r => r.user_id === userId)) {
+           if (!existing.reactions) existing.reactions = []
+           existing.reactions.push({ 
+             reaction_id: 'optimistic-' + Date.now(),
+             user_id: userId
+           })
+           existing.count = existing.reactions.length
+         }
+       } else {
+         // Create new reaction group
+         reactions.push({
+           emoji_id: emojiId,
+           emoji: { id: emojiId, name: 'unknown', url: '' } as Emoji, // Placeholder
+           count: 1,
+           reactions: [{ 
+             reaction_id: 'optimistic-' + Date.now(),
+             user_id: userId 
+           }]
+         })
+       }
+     } else if (operation === 'remove') {
+       if (existingIndex >= 0) {
+         const existing = reactions[existingIndex]
+         // FIXED: Use 'reactions' array, not 'users'
+         if (existing.reactions) {
+           existing.reactions = existing.reactions.filter(r => r.user_id !== userId)
+           existing.count = existing.reactions.length
+           
+           // Remove group if no reactions left
+           if (existing.count === 0) {
+             reactions.splice(existingIndex, 1)
+           }
+         }
+       }
+     }
+     
+     return reactions
+   }
 
   /**
    * Clean up old optimistic operations (prevent memory leaks)
