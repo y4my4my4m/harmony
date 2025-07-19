@@ -25,24 +25,23 @@ export const useReactionsStore = defineStore('reactions', () => {
   // Realtime debouncing - Use regular Map (not reactive) to avoid method interference
   const realtimeDebounceTimers = new Map<string, NodeJS.Timeout>()
 
-  // Getters
+  // Getters - FIXED: Break infinite reactivity loop
   const getMessageReactions = computed(() => (messageId: string): ReactionGroup[] => {
     if (!messageId) return []
     
-    let reactions = reactionsByMessage.value.get(messageId) || []
+    const baseReactions = reactionsByMessage.value.get(messageId) || []
     
-    // Apply optimistic updates (Discord-style instant feedback)
+    // Get optimistic operations for this message
     const optimisticOps = Array.from(optimisticOperations.value.values())
       .filter(op => op.messageId === messageId)
     
-    // Clone reactions to avoid mutating store data
-    reactions = JSON.parse(JSON.stringify(reactions))
-    
-    for (const op of optimisticOps) {
-      reactions = applyOptimisticOperation(reactions, op)
+    // No optimistic operations? Return base data directly
+    if (optimisticOps.length === 0) {
+      return baseReactions
     }
     
-    return reactions || []
+    // Apply optimistic updates IMMUTABLY
+    return applyOptimisticOperationsImmutable(baseReactions, optimisticOps)
   })
 
   const hasUserReacted = computed(() => (messageId: string, emojiId: string, userId: string): boolean => {
@@ -182,10 +181,7 @@ export const useReactionsStore = defineStore('reactions', () => {
         // 3. SUCCESS: Remove optimistic operation (let realtime handle final state)
         optimisticOperations.value.delete(toggleKey)
         
-        // Refresh to get authoritative state from server
-        setTimeout(() => {
-          fetchMessageReactions(messageId, true)
-        }, 100) // Small delay to let DB settle
+        // NO IMMEDIATE REFRESH - Let realtime updates handle it naturally
         
         return { success: true }
         
@@ -207,8 +203,10 @@ export const useReactionsStore = defineStore('reactions', () => {
       
       return { success: false, reason: `Toggle error: ${error.message}` }
     } finally {
-      // Always clear the pending request lock
-      pendingToggleRequests.value.delete(toggleKey)
+      // Always clear the pending request lock with a small delay to prevent immediate retriggers
+      setTimeout(() => {
+        pendingToggleRequests.value.delete(toggleKey)
+      }, 50) // Small delay to prevent rapid re-clicking
     }
   }
 
@@ -229,22 +227,21 @@ export const useReactionsStore = defineStore('reactions', () => {
     const recentOptimistic = Array.from(optimisticOperations.value.values())
       .some(op => op.messageId === messageId && (Date.now() - op.timestamp) < 2000) // 2 seconds
     
-    if (recentOptimistic) {
-      console.log('🔄 Skipping realtime fetch - recent optimistic update detected')
-      // Clear optimistic operation after a delay to let it settle
-      setTimeout(() => {
-        const keysToDelete = Array.from(optimisticOperations.value.entries())
-          .filter(([_, op]) => op.messageId === messageId)
-          .map(([key, _]) => key)
-        
-        keysToDelete.forEach(key => optimisticOperations.value.delete(key))
-        
-        // Now do a single refresh
-        lastFetched.value.delete(messageId)
-        fetchMessageReactions(messageId, true)
-      }, 1000)
-      return
-    }
+         if (recentOptimistic) {
+       console.log('🔄 Skipping realtime fetch - recent optimistic update detected')
+       // Clean up optimistic operations after a longer delay to allow settling
+       setTimeout(() => {
+         const keysToDelete = Array.from(optimisticOperations.value.entries())
+           .filter(([_, op]) => op.messageId === messageId && (Date.now() - op.timestamp) > 2000)
+           .map(([key, _]) => key)
+         
+         keysToDelete.forEach(key => {
+           console.log('🧹 Cleaning up settled optimistic operation:', key)
+           optimisticOperations.value.delete(key)
+         })
+       }, 3000) // Longer delay to let things settle
+       return
+     }
     
     // DEBOUNCED: Prevent multiple rapid fetches for the same message
     const debounceKey = `realtime-${messageId}`
@@ -254,79 +251,104 @@ export const useReactionsStore = defineStore('reactions', () => {
       clearTimeout(existingTimer)
     }
     
-    const timer = setTimeout(() => {
-      lastFetched.value.delete(messageId) // Force refresh
-      fetchMessageReactions(messageId, true)
-      realtimeDebounceTimers.delete(debounceKey)
-    }, 300) // 300ms debounce
+         const timer = setTimeout(() => {
+       lastFetched.value.delete(messageId) // Force refresh
+       fetchMessageReactions(messageId, true)
+       realtimeDebounceTimers.delete(debounceKey)
+     }, 800) // 800ms debounce - Longer to reduce rapid fetches
     
     realtimeDebounceTimers.set(debounceKey, timer)
   }
 
      /**
-    * Apply optimistic operation to reaction list
-    * FIXED: Use correct data structure matching CoreMessageService output
+    * Apply optimistic operations IMMUTABLY (prevents infinite reactivity)
     */
-   function applyOptimisticOperation(reactions: ReactionGroup[], op: OptimisticOperation): ReactionGroup[] {
+   function applyOptimisticOperationsImmutable(baseReactions: ReactionGroup[], operations: OptimisticOperation[]): ReactionGroup[] {
+     // Start with a deep clone to avoid mutations
+     let result = JSON.parse(JSON.stringify(baseReactions)) as ReactionGroup[]
+     
+     for (const op of operations) {
+       result = applySingleOptimisticOperation(result, op)
+     }
+     
+     return result
+   }
+
+   /**
+    * Apply a single optimistic operation IMMUTABLY
+    */
+   function applySingleOptimisticOperation(reactions: ReactionGroup[], op: OptimisticOperation): ReactionGroup[] {
      const { emojiId, userId, operation } = op
      
-     // Find existing reaction group
-     const existingIndex = reactions.findIndex(r => r.emoji_id === emojiId)
-     
      if (operation === 'add') {
+       const existingIndex = reactions.findIndex(r => r.emoji_id === emojiId)
+       
        if (existingIndex >= 0) {
-         // Add user to existing group
+         // Add user to existing group (if not already present)
          const existing = reactions[existingIndex]
-         // FIXED: Use 'reactions' array, not 'users'
          if (!existing.reactions?.some(r => r.user_id === userId)) {
-           if (!existing.reactions) existing.reactions = []
-           existing.reactions.push({ 
-             reaction_id: 'optimistic-' + Date.now(),
-             user_id: userId
-           })
-           existing.count = existing.reactions.length
+           return reactions.map((group, index) => 
+             index === existingIndex
+               ? {
+                   ...group,
+                   reactions: [
+                     ...(group.reactions || []),
+                     { reaction_id: 'optimistic-' + Date.now(), user_id: userId }
+                   ],
+                   count: (group.reactions?.length || 0) + 1
+                 }
+               : group
+           )
          }
+         return reactions // No change needed
        } else {
-         // Create new reaction group - Get real emoji data from cache
+         // Create new reaction group with real emoji data
          const emojiCache = useEmojiCacheStore()
          const emojiData = emojiCache.getEmojiById(emojiId)
          
-         const emoji: Emoji = emojiData || { 
-           id: emojiId, 
-           name: 'unknown', 
-           url: '', 
-           server_id: '',
-           uploader: '',
-           created_at: '',
-           updated_at: '',
-           usage_count: 0,
-           last_used: ''
+         const newGroup: ReactionGroup = {
+           emoji_id: emojiId,
+           emoji: emojiData || { 
+             id: emojiId, 
+             name: 'unknown', 
+             url: '',
+             server_id: '',
+             uploader: '',
+             created_at: '',
+             updated_at: '',
+             usage_count: 0,
+             last_used: ''
+           },
+           count: 1,
+           reactions: [{ reaction_id: 'optimistic-' + Date.now(), user_id: userId }]
          }
          
-         reactions.push({
-           emoji_id: emojiId,
-           emoji: emoji,
-           count: 1,
-           reactions: [{ 
-             reaction_id: 'optimistic-' + Date.now(),
-             user_id: userId 
-           }]
-         })
+         return [...reactions, newGroup]
        }
      } else if (operation === 'remove') {
+       const existingIndex = reactions.findIndex(r => r.emoji_id === emojiId)
+       
        if (existingIndex >= 0) {
          const existing = reactions[existingIndex]
-         // FIXED: Use 'reactions' array, not 'users'
-         if (existing.reactions) {
-           existing.reactions = existing.reactions.filter(r => r.user_id !== userId)
-           existing.count = existing.reactions.length
-           
-           // Remove group if no reactions left
-           if (existing.count === 0) {
-             reactions.splice(existingIndex, 1)
-           }
+         const filteredReactions = existing.reactions?.filter(r => r.user_id !== userId) || []
+         
+         if (filteredReactions.length === 0) {
+           // Remove entire group
+           return reactions.filter((_, index) => index !== existingIndex)
+         } else {
+           // Update group with user removed
+           return reactions.map((group, index) =>
+             index === existingIndex
+               ? {
+                   ...group,
+                   reactions: filteredReactions,
+                   count: filteredReactions.length
+                 }
+               : group
+           )
          }
        }
+       return reactions // No change needed
      }
      
      return reactions

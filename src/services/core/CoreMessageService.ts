@@ -304,22 +304,18 @@ export class CoreMessageService {
         throw this.createError('FETCH_REACTIONS_FAILED', error.message, error)
       }
 
-      console.log('🔍 DEBUG: Raw reaction data from database:', JSON.stringify(reactions, null, 2))
-
-      // FIXED: Transform data to match store expectations - NEW function structure
+      // SIMPLIFIED: Only support NEW format (migration fixed the database)
       const transformedReactions = reactions?.map(reaction => ({
-        emoji_id: reaction.emoji?.id || reaction.emoji_id,  // Handle both old and new formats
+        emoji_id: reaction.emoji.id,
         emoji: {
-          id: reaction.emoji?.id || reaction.emoji_id,
-          name: reaction.emoji?.name || reaction.emoji_name || 'unknown',
-          url: reaction.emoji?.url || reaction.emoji_url || ''
+          id: reaction.emoji.id,
+          name: reaction.emoji.name,
+          url: reaction.emoji.url
         },
-        count: reaction.count || reaction.reaction_count || 0,
-        reactions: Array.isArray(reaction.reactions || reaction.users) ? (reaction.reactions || reaction.users) : [],
-        message_id_of_reactions: reaction.message_id_of_reactions || messageId
+        count: reaction.count,
+        reactions: Array.isArray(reaction.reactions) ? reaction.reactions : [],
+        message_id_of_reactions: reaction.message_id_of_reactions
       })) || []
-
-      console.log('🔍 DEBUG: Transformed reaction data:', JSON.stringify(transformedReactions, null, 2))
       console.log(`✅ Core: Fetched ${transformedReactions.length} reaction groups for message: ${messageId}`)
       return transformedReactions
     } catch (error) {
@@ -369,11 +365,11 @@ export class CoreMessageService {
           emoji_id: reaction.emoji_id,
           emoji: {
             id: reaction.emoji_id,
-            name: reaction.emoji_name,
-            url: reaction.emoji_url
+            name: reaction.emoji_name || 'unknown',
+            url: reaction.emoji_url || ''
           },
-          count: reaction.reaction_count,
-          reactions: Array.isArray(reaction.users) ? reaction.users : []  // FIXED: Ensure it's an array
+          count: reaction.reaction_count || 0,
+          reactions: Array.isArray(reaction.users) ? reaction.users : []
         })
       })
 
