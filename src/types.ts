@@ -307,14 +307,13 @@ export interface Notification {
   id: string;
   user_id: string;
   type: NotificationType;
-  title: string;
-  message?: string;
   data: NotificationData;
   is_read: boolean;
   is_clicked: boolean;
-  created_at?: string;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
   expires_at: string;
+  read_at?: string;
 }
 
 export type NotificationType = 

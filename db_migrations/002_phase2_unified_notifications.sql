@@ -52,7 +52,7 @@ DECLARE
     channel_prefs record;
     should_send boolean;
     notification_id uuid;
-    current_time timestamp with time zone := now();
+    current_timestamp timestamp with time zone := now();
     is_dnd_time boolean;
 BEGIN
     -- Validate inputs
@@ -82,7 +82,7 @@ BEGIN
         is_dnd_time := false;
         IF user_prefs.dnd_enabled THEN
             is_dnd_time := (
-                current_time::time BETWEEN user_prefs.dnd_start_time AND user_prefs.dnd_end_time
+                current_timestamp::time BETWEEN user_prefs.dnd_start_time AND user_prefs.dnd_end_time
             );
         END IF;
 
@@ -104,7 +104,7 @@ BEGIN
             IF channel_prefs.muted = true THEN
                 CONTINUE;
             END IF;
-            IF channel_prefs.muted_until IS NOT NULL AND channel_prefs.muted_until > current_time THEN
+            IF channel_prefs.muted_until IS NOT NULL AND channel_prefs.muted_until > current_timestamp THEN
                 CONTINUE;
             END IF;
         END IF;
@@ -209,9 +209,9 @@ BEGIN
             notification_data,
             false,
             false,
-            current_time,
-            current_time,
-            current_time + INTERVAL '30 days',
+            current_timestamp,
+            current_timestamp,
+            current_timestamp + INTERVAL '30 days',
             NULL
         ) RETURNING id INTO notification_id;
 
@@ -232,7 +232,7 @@ BEGIN
             'Notification',
             'completed',
             format('Sent %s notification to user %s', notification_type, recipient_id),
-            current_time
+            current_timestamp
         );
     END LOOP;
 
