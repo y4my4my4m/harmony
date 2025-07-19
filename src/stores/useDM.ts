@@ -269,15 +269,8 @@ export const useDMStore = defineStore('dm', () => {
         return null
       }
 
-      // Fetch reactions for the message if it has any
-      if (message.reactions && message.reactions.length > 0) {
-        const { data: reactions, error: reactionsError } = await supabase
-          .rpc('get_message_reactions', { message_id: message.id })
-    
-        if (!reactionsError) {
-          message.reactions = reactions
-        }
-      }
+      // Note: Reactions are now loaded via batch loading in MessageService
+      // Individual fetches removed for performance
 
       return message
     } catch (error) {

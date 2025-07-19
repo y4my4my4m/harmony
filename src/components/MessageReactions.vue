@@ -113,14 +113,23 @@ const handleEmojiError = (emoji: Emoji) => {
   console.warn('Failed to load emoji:', emoji);
 };
 
-// Load reactions when component mounts
+// PERFORMANCE: Only fetch reactions if not already cached from batch loading
 onMounted(() => {
-  reactionsStore.fetchMessageReactions(props.message.id);
+  // Check if reactions are already cached in the store (from batch loading)
+  if (!reactionsStore.isCacheValid(props.message.id)) {
+    // Only fetch individually if not already cached from batch loading
+    reactionsStore.fetchMessageReactions(props.message.id);
+  } else {
+    console.log('✅ Using cached reactions from batch loading for message:', props.message.id);
+  }
 });
 
 // Watch for message changes and reload reactions if needed
 watch(() => props.message.id, (newMessageId) => {
-  reactionsStore.fetchMessageReactions(newMessageId);
+  // Only fetch if not already cached from batch loading
+  if (!reactionsStore.isCacheValid(newMessageId)) {
+    reactionsStore.fetchMessageReactions(newMessageId);
+  }
 });
 </script>
 
