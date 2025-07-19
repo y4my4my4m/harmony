@@ -44,7 +44,7 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     created_notification_ids uuid[] := '{}';
-    user_id uuid;
+    recipient_id uuid;
     user_prefs record;
     channel_prefs record;
     should_send boolean;
@@ -60,17 +60,17 @@ BEGIN
     END IF;
 
     -- Process each recipient
-    FOREACH user_id IN ARRAY to_user_ids
+    FOREACH recipient_id IN ARRAY to_user_ids
     LOOP
         -- Skip if sending to self (optional check)
-        IF from_user_id IS NOT NULL AND user_id = from_user_id THEN
+        IF from_user_id IS NOT NULL AND recipient_id = from_user_id THEN
             CONTINUE;
         END IF;
 
         -- Get user notification preferences
         SELECT * INTO user_prefs 
         FROM notification_preferences 
-        WHERE notification_preferences.user_id = user_id;
+        WHERE notification_preferences.user_id = recipient_id;
 
         -- If no preferences found, skip (user might have disabled notifications)
         IF user_prefs IS NULL THEN
@@ -90,7 +90,7 @@ BEGIN
         IF channel_id IS NOT NULL OR server_id IS NOT NULL OR conversation_id IS NOT NULL THEN
             SELECT * INTO channel_prefs
             FROM notification_channels nc
-            WHERE nc.user_id = user_id
+            WHERE nc.user_id = recipient_id
             AND (
                 nc.channel_id = channel_id OR
                 nc.server_id = server_id OR
@@ -240,7 +240,7 @@ BEGIN
             created_at,
             read_at
         ) VALUES (
-            user_id,
+            recipient_id,
             notification_type,
             notification_title,
             notification_message,
@@ -270,7 +270,7 @@ BEGIN
             'notification-' || notification_id::text,
             'Notification',
             'completed',
-            format('Sent %s notification to user %s', notification_type, user_id),
+            format('Sent %s notification to user %s', notification_type, recipient_id),
             current_time
         );
     END LOOP;
