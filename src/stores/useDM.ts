@@ -26,13 +26,13 @@ export interface DMUser {
 
 export interface DMConversation {
   id: string
-  user1: string
-  user2: string
   created_at: string
   last_activity?: string
   last_message?: Message
   unread_count?: number
   other_user?: DMUser
+  type?: string
+  participant_count?: number
 }
 
 export interface DMCache {
@@ -295,7 +295,7 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // Add method to fetch conversation details and ensure user profiles are loaded
+  // Add method to fetch conversation details using participant system
   const fetchConversationDetails = async (conversationId: string, currentUserId: string) => {
     try {
       console.log('🔄 Fetching conversation details via service-like method:', { conversationId, currentUserId })
@@ -307,8 +307,17 @@ export const useDMStore = defineStore('dm', () => {
         return existingConv
       }
 
-      // Use service-like helper to fetch specific conversation
-      const convData = await _fetchSpecificConversation(conversationId)
+      // Get conversation with participant info using the database function
+      const { data: convWithParticipants, error } = await supabase
+        .rpc('get_user_conversations_with_participants', { user_uuid: currentUserId })
+
+      if (error) {
+        console.error('❌ Error fetching conversations with participants:', error)
+        return null
+      }
+
+      // Find the specific conversation we're looking for
+      const convData = convWithParticipants?.find((conv: any) => conv.conversation_id === conversationId)
       if (!convData) {
         console.error('❌ Conversation not found:', conversationId)
         return null
@@ -334,11 +343,11 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // Helper: Service-like method to fetch specific conversation
+  // Helper: Service-like method to fetch specific conversation using participant system
   const _fetchSpecificConversation = async (conversationId: string) => {
     const { data: convData, error: convError } = await supabase
       .from('conversations')
-      .select('id, user1, user2, created_at')
+      .select('id, created_at, type, name')
       .eq('id', conversationId)
       .single()
 
@@ -417,18 +426,10 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // Helper: Service-like method to fetch raw conversation data
+  // Helper: Service-like method to fetch raw conversation data using new participant system
   const _fetchRawConversations = async (userId: string) => {
     const { data: conversationsData, error: convError } = await supabase
-      .from('conversations')
-      .select(`
-        id,
-        user1,
-        user2,
-        created_at
-      `)
-      .or(`user1.eq.${userId},user2.eq.${userId}`)
-      .order('created_at', { ascending: false })
+      .rpc('get_user_conversations_with_participants', { user_uuid: userId })
 
     if (convError) {
       console.error('Error fetching conversations:', convError)
@@ -438,12 +439,21 @@ export const useDMStore = defineStore('dm', () => {
     return conversationsData
   }
 
-  // Helper: Service-like method to preload user profiles
+  // Helper: Service-like method to preload user profiles from participant data
   const _preloadUserProfiles = async (conversationsData: any[]) => {
     const allUserIds = new Set<string>()
+    
+    // Extract user IDs from participant data (other_participants JSONB array)
     conversationsData.forEach(conv => {
-      allUserIds.add(conv.user1)
-      allUserIds.add(conv.user2)
+      // Add the current user (implied participant)
+      // Add other participants from the JSONB array
+      if (conv.other_participants && Array.isArray(conv.other_participants)) {
+        conv.other_participants.forEach((participant: any) => {
+          if (participant.user_id) {
+            allUserIds.add(participant.user_id)
+          }
+        })
+      }
     })
 
     // Ensure all user profiles are loaded in the server users store
@@ -451,10 +461,21 @@ export const useDMStore = defineStore('dm', () => {
     await serverUsersStore.fetchUserProfiles(Array.from(allUserIds))
   }
 
-  // Helper: Service-like method to process individual conversation
+  // Helper: Service-like method to process individual conversation using participant system
   const _processConversationData = async (conv: any, userId: string): Promise<DMConversation | null> => {
     try {
-      const otherUserId = conv.user1 === userId ? conv.user2 : conv.user1
+      // For direct conversations, get the other participant (not the current user)
+      let otherUserId: string | null = null
+      
+      if (conv.other_participants && Array.isArray(conv.other_participants) && conv.other_participants.length > 0) {
+        // Get the first other participant (for direct messages, should be exactly 1)
+        otherUserId = conv.other_participants[0].user_id
+      }
+
+      if (!otherUserId) {
+        console.error('No other participant found for conversation:', conv.conversation_id)
+        return null
+      }
       
       // Get other user's profile
       const profileData = await _fetchUserProfile(otherUserId)
@@ -464,16 +485,16 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       // Get last message for conversation
-      const lastMessageData = await _fetchLastMessage(conv.id)
+      const lastMessageData = await _fetchLastMessage(conv.conversation_id)
 
       // Determine if this is a federated conversation
       const isFederated = !profileData.is_local && profileData.domain
 
       return {
-        id: conv.id,
-        user1: conv.user1,
-        user2: conv.user2,
+        id: conv.conversation_id,
         created_at: conv.created_at,
+        type: conv.conversation_type || 'direct',
+        participant_count: conv.participant_count || 2,
         last_activity: lastMessageData?.created_at || conv.created_at,
         last_message: lastMessageData ? {
           id: lastMessageData.id,
@@ -481,7 +502,7 @@ export const useDMStore = defineStore('dm', () => {
           content: lastMessageData.content,
           created_at: new Date(lastMessageData.created_at),
           channel_id: '', // Empty string for DMs
-          conversation_id: conv.id,
+          conversation_id: conv.conversation_id,
           reactions: [],
           metadata: lastMessageData.metadata || {}
         } : undefined,
@@ -750,43 +771,22 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // Helper: Service-like method for conversation management
+  // Helper: Service-like method for conversation management using new participant system
   const _createOrFindConversation = async (user1Id: string, user2Id: string): Promise<string | null> => {
     try {
-      // Check if conversation already exists
-      const { data: existingConv, error } = await supabase
-        .from('conversations')
-        .select('id')
-        .or(`and(user1.eq.${user1Id},user2.eq.${user2Id}),and(user1.eq.${user2Id},user2.eq.${user1Id})`)
-        .single()
+      // Use the database function that handles participant system
+      const { data: conversationId, error } = await supabase
+        .rpc('create_or_get_direct_conversation', { 
+          user1_uuid: user1Id, 
+          user2_uuid: user2Id 
+        })
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error searching for existing conversation:', error)
+      if (error) {
+        console.error('Error creating/finding conversation:', error)
         return null
       }
 
-      if (existingConv) {
-        return existingConv.id
-      }
-
-      // Create new conversation if none exists
-      const { data: newConv, error: createError } = await supabase
-        .from('conversations')
-        .insert([
-          {
-            user1: user1Id,
-            user2: user2Id
-          }
-        ])
-        .select('id')
-        .single()
-
-      if (createError) {
-        console.error('Error creating conversation:', createError)
-        return null
-      }
-
-      return newConv.id
+      return conversationId
     } catch (error) {
       console.error('Error in _createOrFindConversation:', error)
       return null
