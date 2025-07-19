@@ -119,7 +119,7 @@ export class CoreInteractionService {
         .from('follows')
         .select('id, status')
         .eq('follower_id', profileId)
-        .eq('followed_id', targetUserId)
+        .eq('following_id', targetUserId)
         .maybeSingle()
 
       if (followError) throw this.createError('QUERY_FAILED', 'Failed to check follow status', followError)
@@ -171,7 +171,7 @@ export class CoreInteractionService {
           .from('follows')
           .insert({
             follower_id: profileId,
-            followed_id: targetUserId,
+            following_id: targetUserId,
             status: status,
             created_at: new Date().toISOString()
           })
@@ -222,7 +222,7 @@ export class CoreInteractionService {
           updated_at: new Date().toISOString()
         })
         .eq('follower_id', followerUserId)
-        .eq('followed_id', profileId) // Security: Ensure we own the target profile
+        .eq('following_id', profileId) // Security: Ensure we own the target profile
         .eq('status', 'pending')      // Security: Only update pending requests
         .select('id')
 
@@ -262,7 +262,7 @@ export class CoreInteractionService {
         .from('follows')
         .delete()
         .eq('follower_id', followerUserId)
-        .eq('followed_id', profileId) // Security: Ensure we own the target profile
+        .eq('following_id', profileId) // Security: Ensure we own the target profile
         .eq('status', 'pending')      // Security: Only delete pending requests
         .select('id')
 
@@ -350,7 +350,7 @@ export class CoreInteractionService {
         await supabase
           .from('follows')
           .delete()
-          .or(`and(follower_id.eq.${profileId},followed_id.eq.${targetUserId}),and(follower_id.eq.${targetUserId},followed_id.eq.${profileId})`)
+          .or(`and(follower_id.eq.${profileId},following_id.eq.${targetUserId}),and(follower_id.eq.${targetUserId},following_id.eq.${profileId})`)
 
         blocked = true
         console.log(`✅ Core: Successfully blocked user: ${targetUserId}`)
@@ -491,16 +491,16 @@ export class CoreInteractionService {
         // Get follows (outgoing - who current user follows)
         supabase
           .from('follows')
-          .select('followed_id, status')
+          .select('following_id, status')
           .eq('follower_id', profileId)
-          .in('followed_id', sanitizedUserIds),
+                      .in('following_id', sanitizedUserIds),
 
-        // Get follows (incoming - who follows current user)
-        supabase
-          .from('follows')
-          .select('follower_id, status')
-          .eq('followed_id', profileId)
-          .in('follower_id', sanitizedUserIds),
+                  // Get follows (incoming - who follows current user)
+          supabase
+            .from('follows')
+            .select('follower_id, status')
+            .eq('following_id', profileId)
+            .in('follower_id', sanitizedUserIds),
 
         // Get blocks
         supabase
@@ -520,8 +520,8 @@ export class CoreInteractionService {
       // Process following relationships
       if (followingData.status === 'fulfilled' && followingData.value.data) {
         followingData.value.data.forEach(follow => {
-          relationships[follow.followed_id].following = follow.status === 'accepted'
-          relationships[follow.followed_id].followRequestPending = follow.status === 'pending'
+                  relationships[follow.following_id].following = follow.status === 'accepted'
+        relationships[follow.following_id].followRequestPending = follow.status === 'pending'
         })
       }
 
@@ -588,7 +588,7 @@ export class CoreInteractionService {
             domain
           )
         `)
-        .eq('followed_id', profileId)
+        .eq('following_id', profileId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(secureLimit + 1) // Get one extra to check if there are more
@@ -662,7 +662,7 @@ export class CoreInteractionService {
             domain
           )
         `)
-        .eq('followed_id', userId)
+        .eq('following_id', userId)
         .eq('status', 'accepted')
         .order('created_at', { ascending: false })
         .limit(secureLimit + 1)
@@ -717,9 +717,9 @@ export class CoreInteractionService {
       let query = supabase
         .from('follows')
         .select(`
-          followed_id,
+          following_id,
           created_at,
-          profiles!follows_followed_id_fkey (
+          profiles!follows_following_id_fkey (
             id,
             username,
             display_name,
