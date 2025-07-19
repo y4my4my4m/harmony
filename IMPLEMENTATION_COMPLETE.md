@@ -5,10 +5,10 @@
 ### **✅ Phase 1: Function Cleanup & Renaming** 
 **Result: Cleaner, more maintainable function names**
 
-- ✅ **Renamed 3 core content conversion functions**:
-  - `parse_activitypub_content_to_jsonb()` → `convert_ap_to_jsonb()`
-  - `convert_unified_content_to_activitypub_html()` → `convert_jsonb_to_ap()`
-  - `parse_activitypub_dm_content_to_jsonb()` → `convert_ap_dm_to_jsonb()`
+- ✅ **Created 2 UNIVERSAL content conversion functions**:
+  - `convert_ap_to_jsonb()` - ActivityPub HTML → Harmony unified JSONB format
+  - `convert_jsonb_to_ap()` - Harmony unified JSONB format → ActivityPub HTML
+  - ❌ **REMOVED**: DM-specific converter (was unnecessary duplication)
 
 - ✅ **Removed database HTTP signature function**:
   - Dropped `create_http_signature()` from database
@@ -92,9 +92,9 @@
 3. `db_migrations/003_phase3_trigger_consolidation.sql` - Trigger consolidation
 
 ### **Key Functions Created:**
-- `convert_ap_to_jsonb()` - Clean ActivityPub to JSONB conversion
-- `convert_jsonb_to_ap()` - Clean JSONB to ActivityPub conversion
-- `convert_ap_dm_to_jsonb()` - DM-specific conversion with mention stripping
+- `convert_ap_to_jsonb()` - UNIVERSAL ActivityPub HTML → Harmony JSONB conversion 
+- `convert_jsonb_to_ap()` - UNIVERSAL Harmony JSONB → ActivityPub HTML conversion
+- `strip_dm_mentions()` - APPLICATION LAYER helper for DM mention stripping
 - `send_notification()` - THE unified notification function
 - `is_federation_enabled_for_user()` - Federation control helper
 - `handle_unified_*_federation()` - 4 unified trigger functions

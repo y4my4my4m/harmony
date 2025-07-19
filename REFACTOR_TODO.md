@@ -3,11 +3,12 @@
 ## Phase 1: Core Function Cleanup & Renaming ✅ **COMPLETED**
 
 ### Content Conversion Functions
-- [x] **RENAME**: `parse_activitypub_content_to_jsonb()` → `convert_ap_to_jsonb()`
-- [x] **RENAME**: `convert_unified_content_to_activitypub_html()` → `convert_jsonb_to_ap()`  
-- [x] **RENAME**: `parse_activitypub_dm_content_to_jsonb()` → `convert_ap_dm_to_jsonb()`
-- [x] **TEST**: Ensure all renames work with existing callers
-- [x] **UPDATE**: All references in triggers and other functions
+- [x] **CREATE**: `convert_ap_to_jsonb()` - UNIVERSAL ActivityPub HTML → Harmony JSONB
+- [x] **CREATE**: `convert_jsonb_to_ap()` - UNIVERSAL Harmony JSONB → ActivityPub HTML  
+- [x] **REMOVE**: DM-specific converter (was unnecessary duplication)
+- [x] **CREATE**: `strip_dm_mentions()` - APPLICATION LAYER helper for DM logic
+- [x] **TEST**: Universal converters work with existing callers
+- [x] **UPDATE**: All references use universal functions
 
 ### Federation Handler Functions  
 - [x] **INTEGRATE**: Federation control checks into unified triggers
