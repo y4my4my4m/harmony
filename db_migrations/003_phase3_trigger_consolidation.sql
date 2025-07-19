@@ -697,22 +697,22 @@ CREATE TRIGGER trigger_unified_notification_reactions
 -- =====================================================
 
 -- Add indexes to support the new unified triggers
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_posts_author_federation 
+CREATE INDEX IF NOT EXISTS idx_posts_author_federation 
 ON posts(author_id) WHERE author_id IS NOT NULL;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_messages_user_conversation
+CREATE INDEX IF NOT EXISTS idx_messages_user_conversation
 ON messages(user_id, conversation_id) WHERE conversation_id IS NOT NULL;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_follows_federation_status
+CREATE INDEX IF NOT EXISTS idx_follows_federation_status
 ON follows(follower_id, following_id, status);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_post_interactions_federation  
+CREATE INDEX IF NOT EXISTS idx_post_interactions_federation  
 ON post_interactions(user_id, post_id, interaction_type);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_profiles_federation_enabled
-ON profiles(id) WHERE federation_enabled = true;
+CREATE INDEX IF NOT EXISTS idx_profiles_federation_enabled
+ON profiles(id) WHERE is_local = true;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ap_activities_status_type
+CREATE INDEX IF NOT EXISTS idx_ap_activities_status_type
 ON ap_activities(status, ap_type) WHERE status = 'pending';
 
 COMMIT;

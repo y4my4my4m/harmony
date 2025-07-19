@@ -29,7 +29,86 @@ COMMENT ON COLUMN notifications.read_at IS 'Timestamp when notification was mark
 COMMENT ON COLUMN notifications.is_read IS 'Boolean field indicating if notification has been read';
 
 -- =====================================================
--- STEP 1: CORE UNIFIED NOTIFICATION FUNCTION
+-- STEP 1: CREATE NOTIFICATION PREFERENCE TABLES
+-- =====================================================
+
+-- Create notification preferences table
+CREATE TABLE IF NOT EXISTS notification_preferences (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    -- Desktop notifications
+    desktop_notifications boolean DEFAULT true,
+    desktop_mentions boolean DEFAULT true,
+    desktop_dms boolean DEFAULT true,
+    desktop_replies boolean DEFAULT true,
+    desktop_reactions boolean DEFAULT true,
+    
+    -- Push notifications
+    push_mentions boolean DEFAULT true,
+    push_dms boolean DEFAULT true,
+    
+    -- Sound notifications
+    sound_reactions boolean DEFAULT true,
+    sound_voice_activity boolean DEFAULT true,
+    
+    -- ActivityPub notifications
+    activitypub_notifications boolean DEFAULT true,
+    activitypub_mentions boolean DEFAULT true,
+    activitypub_replies boolean DEFAULT true,
+    activitypub_follows boolean DEFAULT true,
+    activitypub_favorites boolean DEFAULT true,
+    activitypub_reblogs boolean DEFAULT true,
+    
+    -- Do Not Disturb settings
+    dnd_enabled boolean DEFAULT false,
+    dnd_start_time time DEFAULT '22:00:00',
+    dnd_end_time time DEFAULT '08:00:00',
+    
+    UNIQUE(user_id)
+);
+
+-- Create notification channels table for granular muting
+CREATE TABLE IF NOT EXISTS notification_channels (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    server_id uuid,
+    channel_id uuid,
+    conversation_id uuid,
+    muted boolean DEFAULT false,
+    muted_until timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    
+    UNIQUE(user_id, server_id, channel_id, conversation_id)
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_notification_preferences_user_id ON notification_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_channels_user_id ON notification_channels(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_channels_muted ON notification_channels(user_id, muted) WHERE muted = true;
+
+COMMENT ON TABLE notification_preferences IS 'User notification preferences including DND settings and granular control';
+COMMENT ON TABLE notification_channels IS 'Channel/server/conversation specific notification muting settings';
+
+-- Function to create default notification preferences for new users
+CREATE OR REPLACE FUNCTION public.create_default_notification_preferences(p_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO notification_preferences (user_id)
+    VALUES (p_user_id)
+    ON CONFLICT (user_id) DO NOTHING;
+END;
+$$;
+
+COMMENT ON FUNCTION public.create_default_notification_preferences(uuid) IS 'Creates default notification preferences for a user if they do not exist';
+
+-- =====================================================
+-- STEP 2: CORE UNIFIED NOTIFICATION FUNCTION
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION public.send_notification(
@@ -73,9 +152,17 @@ BEGIN
         FROM notification_preferences 
         WHERE notification_preferences.user_id = recipient_id;
 
-        -- If no preferences found, skip (user might have disabled notifications)
+        -- If no preferences found, create defaults and fetch them
         IF user_prefs IS NULL THEN
-            CONTINUE;
+            PERFORM create_default_notification_preferences(recipient_id);
+            SELECT * INTO user_prefs 
+            FROM notification_preferences 
+            WHERE notification_preferences.user_id = recipient_id;
+            
+            -- If still null after creation, skip this user
+            IF user_prefs IS NULL THEN
+                CONTINUE;
+            END IF;
         END IF;
 
         -- Check DND (Do Not Disturb) settings
@@ -217,23 +304,6 @@ BEGIN
 
         -- Add to result array
         created_notification_ids := created_notification_ids || notification_id;
-
-        -- Log notification creation (for debugging/analytics)
-        INSERT INTO activity_processing_logs (
-            activity_id,
-            ap_id,
-            ap_type,
-            status,
-            error_message,
-            created_at
-        ) VALUES (
-            notification_id,
-            'notification-' || notification_id::text,
-            'Notification',
-            'completed',
-            format('Sent %s notification to user %s', notification_type, recipient_id),
-            current_timestamp
-        );
     END LOOP;
 
     RETURN created_notification_ids;

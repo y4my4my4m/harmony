@@ -318,18 +318,19 @@ DROP FUNCTION IF EXISTS public.check_federation_blocks(uuid, uuid, text);
 -- =====================================================
 
 -- Add federation_type column to federation_delivery_queue for better filtering
-ALTER TABLE federation_delivery_queue ADD COLUMN IF NOT EXISTS federation_type text;
+-- ALTER TABLE federation_delivery_queue ADD COLUMN IF NOT EXISTS federation_type text;
 
 -- Add check constraint for federation_type
-ALTER TABLE federation_delivery_queue DROP CONSTRAINT IF EXISTS federation_delivery_queue_federation_type_check;
-ALTER TABLE federation_delivery_queue ADD CONSTRAINT federation_delivery_queue_federation_type_check
-CHECK (federation_type IS NULL OR federation_type = ANY (ARRAY['post'::text, 'follow'::text, 'like'::text, 'announce'::text, 'update'::text, 'delete'::text, 'accept'::text, 'reject'::text]));
+-- ALTER TABLE federation_delivery_queue DROP CONSTRAINT IF EXISTS federation_delivery_queue_federation_type_check;
+-- ALTER TABLE federation_delivery_queue ADD CONSTRAINT federation_delivery_queue_federation_type_check
+-- CHECK (federation_type IS NULL OR federation_type = ANY (ARRAY['post'::text, 'follow'::text, 'like'::text, 'announce'::text, 'update'::text, 'delete'::text, 'accept'::text, 'reject'::text]));
 
 -- Create index for federation_type filtering
-CREATE INDEX IF NOT EXISTS idx_federation_delivery_queue_type_status
-ON federation_delivery_queue(federation_type, status, next_attempt_at);
+-- CREATE INDEX IF NOT EXISTS idx_federation_delivery_queue_type_status
+-- ON federation_delivery_queue(federation_type, status, next_attempt_at);
 
-COMMENT ON COLUMN federation_delivery_queue.federation_type IS 'Type of federation activity for filtering and prioritization';
+-- COMMENT ON COLUMN federation_delivery_queue.federation_type IS 'Type of federation activity for filtering and prioritization';
+-- Note: federation_delivery_queue table not found - operations commented out
 
 -- =====================================================
 -- STEP 8: UPDATED TRIGGER COMMENTS FOR CLARITY

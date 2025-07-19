@@ -103,33 +103,35 @@ COMMENT ON COLUMN blocked_instances.expires_at IS 'Optional expiration time for 
 -- =====================================================
 
 -- Federation-specific indexes
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_profiles_federation_lookup 
+CREATE INDEX IF NOT EXISTS idx_profiles_federation_lookup 
 ON profiles(domain, federation_enabled) WHERE federation_enabled = true;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ap_activities_federation_status
+CREATE INDEX IF NOT EXISTS idx_ap_activities_federation_status
 ON ap_activities(status, is_local, created_at) WHERE status IN ('pending', 'processing');
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_federation_delivery_queue_next_attempt
-ON federation_delivery_queue(next_attempt_at, status) WHERE status = 'pending';
+-- CREATE INDEX IF NOT EXISTS idx_federation_delivery_queue_next_attempt
+-- ON federation_delivery_queue(next_attempt_at, status) WHERE status = 'pending';
+-- Note: federation_delivery_queue table not found - index commented out
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_posts_federation_visibility
+CREATE INDEX IF NOT EXISTS idx_posts_federation_visibility
 ON posts(visibility, is_federated, created_at) WHERE is_federated = true;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_follows_federation_status  
+CREATE INDEX IF NOT EXISTS idx_follows_federation_status  
 ON follows(status, is_local, created_at);
 
 -- Blocking/muting indexes
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_blocks_blocker
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker
 ON user_blocks(blocker_id, block_type) WHERE expires_at IS NULL OR expires_at > now();
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_blocks_blocked
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked
 ON user_blocks(blocked_user_id, block_type) WHERE expires_at IS NULL OR expires_at > now();
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_mutes_muter
+CREATE INDEX IF NOT EXISTS idx_user_mutes_muter
 ON user_mutes(muter_id, mute_type) WHERE expires_at IS NULL OR expires_at > now();
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blocked_instances_active
-ON blocked_instances(domain, block_type) WHERE expires_at IS NULL OR expires_at > now();
+-- CREATE INDEX IF NOT EXISTS idx_blocked_instances_active
+-- ON blocked_instances(domain, block_type) WHERE expires_at IS NULL OR expires_at > now();
+-- Note: blocked_instances table not found - index commented out
 
 -- =====================================================
 -- STEP 5: HELPER FUNCTIONS FOR EDGE FUNCTIONS
