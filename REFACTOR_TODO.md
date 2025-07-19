@@ -501,9 +501,136 @@ The useServerChannel store is now **enterprise-ready** with robust error handlin
 
 ---
 
+## **🔍 Phase 8.5: Architecture Audit Results** 📊
+
+### **Critical Issues Found:**
+
+#### **🚨 Issue 1: Reactions Federation Constraint Violation**
+**Problem**: `handle_reactions_federation()` uses `'EmojiReact'` but constraint only allows `'Like'`
+```sql
+activity_type := 'EmojiReact';  -- ❌ NOT in allowed types
+-- Should be: activity_type := 'Like';  -- ✅ Valid AP type
+```
+**Impact**: **All chat reactions fail** with constraint violation
+**Solution**: Update federation function to use 'Like' + proper local-first logic
+
+#### **🚨 Issue 2: Duplicate Service Architecture**
+**Found**:
+- `src/services/` (main) - Used everywhere ✅
+- `src/services/core/` - Unused, duplicated functionality ❌  
+- `src/services/federation/` - Unused ❌
+- `src/stores/useActivityPubRefactored.ts` - Unused demo file ❌
+
+**Impact**: Code confusion, potential maintenance issues
+**Solution**: Clean up unused files + consolidate
+
+#### **🚨 Issue 3: Local-First Violation**
+**Problem**: Chat reactions trigger federation when they should be local-only
+**Current**: All reactions → AP activities (even local chat)
+**Should be**: Only federated post reactions → AP activities
+**Solution**: Add message type detection in federation triggers
+
+---
+
+## **Phase 9: Advanced Reactions & Federation** 🎭
+
+### **Priority**: High (fix broken reactions + add post reactions)
+
+**Scope**: Fix chat reactions + implement federated post reactions with custom emoji support
+
+#### **Phase 9A: Fix Chat Reactions (Critical)** 🚨
+- [ ] **FIX**: Update `handle_reactions_federation()` to use 'Like' instead of 'EmojiReact'
+- [ ] **FIX**: Add message type detection - only federate DM reactions, not server chat
+- [ ] **MIGRATE**: `useReactions.ts` to use `services.messages.toggleReaction()`
+- [ ] **TEST**: Chat reactions work locally without federation
+
+#### **Phase 9B: Implement Post Reactions** ✨
+- [ ] **CREATE**: Post reaction UI components (emoji picker, reaction display)
+- [ ] **UPDATE**: `PostService.toggleReaction()` method for post reactions
+- [ ] **CREATE**: Database schema for post reactions (separate from message reactions)
+- [ ] **IMPLEMENT**: Federation for post reactions (proper ActivityPub Like/EmojiReact)
+
+#### **Phase 9C: Custom Emoji Support** 🎨
+- [ ] **RESEARCH**: Misskey, Pleroma, Mastodon emoji reaction formats
+- [ ] **IMPLEMENT**: Custom emoji federation format
+- [ ] **CREATE**: Emoji picker with custom emoji support
+- [ ] **UPDATE**: Edge functions to handle federated emoji reactions
+
+#### **Phase 9D: Edge Function Updates** 🌐
+- [ ] **UPDATE**: Outbox edge function to handle reaction federation
+- [ ] **CREATE**: Emoji reaction ActivityPub JSON generation
+- [ ] **IMPLEMENT**: Custom emoji federation protocol
+- [ ] **TEST**: Cross-platform emoji reaction compatibility
+
+---
+
+## **Phase 10: Database Schema Cleanup** 🧹
+
+### **Priority**: Medium (housekeeping after migrations)
+
+**Scope**: Clean up database schema after running migrations 001-005
+
+#### **Phase 10A: Schema Analysis** 📊
+- [ ] **DUMP**: Current database schema after all migrations
+- [ ] **COMPARE**: New schema vs migrations to identify unused elements
+- [ ] **IDENTIFY**: Orphaned functions, triggers, tables, columns
+- [ ] **CATALOG**: Performance optimization opportunities
+
+#### **Phase 10B: Cleanup Migrations** 🗑️
+- [ ] **CREATE**: Migration 006 to remove orphaned database objects
+- [ ] **REMOVE**: Unused functions identified in Phase 10A
+- [ ] **REMOVE**: Obsolete triggers and indexes
+- [ ] **OPTIMIZE**: Database performance based on usage patterns
+
+#### **Phase 10C: Code Cleanup** 📝  
+- [ ] **DELETE**: `src/stores/useActivityPubRefactored.ts` (unused demo)
+- [ ] **DELETE**: `src/services/core/` directory (duplicated functionality)
+- [ ] **DELETE**: `src/services/federation/` directory (unused)
+- [ ] **UPDATE**: Import statements to use main services
+- [ ] **VERIFY**: No broken imports after cleanup
+
+#### **Phase 10D: Documentation Updates** 📚
+- [ ] **UPDATE**: Database schema documentation
+- [ ] **CREATE**: Service layer architecture guide  
+- [ ] **UPDATE**: Development setup guide
+- [ ] **CREATE**: Federation configuration documentation
+
+---
+
 ### **Migration Principles** 📋
 
-**🔄 Local-First Pattern**:
+**🔄 Local-First Pattern for Reactions**:
+```typescript
+// Chat Reactions: Local-only (no federation)
+if (isServerChatMessage(messageId)) {
+  // Pure local reaction - no AP activity
+  await supabase.from('reactions').insert({ message_id, emoji_id, user_id })
+}
+
+// DM Reactions: Optional federation  
+if (isDMMessage(messageId) && shouldFederate) {
+  // Local + federation with proper AP 'Like' type
+  await services.messages.toggleReaction(messageId, emojiId)
+}
+
+// Post Reactions: Always federated
+if (isPost(postId)) {
+  // Always federate with ActivityPub standards
+  await services.posts.toggleReaction(postId, emojiId)
+}
+```
+
+**⚡ Proper Federation Types**:
+```sql
+-- Fix federation function
+activity_type := CASE 
+  WHEN TG_OP = 'INSERT' THEN 'Like'        -- ✅ Valid AP type
+  WHEN TG_OP = 'DELETE' THEN 'Undo'        -- ✅ Valid AP type  
+  ELSE NULL
+END;
+```
+
+**🔄 Legacy Local-First Pattern**:
 ```typescript
 // OLD: Direct Supabase with loading states in components
 const { data, error } = await supabase.from('posts').insert(...)
@@ -565,20 +692,40 @@ const loadPosts = async () => {
 
 ### **Success Criteria** ✅
 
-- [ ] **Zero Regressions**: All existing functionality works exactly as before
-- [ ] **Improved UX**: Faster perceived performance with optimistic updates  
-- [ ] **Consistent Patterns**: Same error handling and loading states everywhere
-- [ ] **Maintainable Code**: Clean service abstractions reduce technical debt
-- [ ] **Type Safety**: Full TypeScript coverage with service interfaces
-- [ ] **Performance**: No degradation in realtime updates or navigation speed
+#### **Phase 9 Success:**
+- [ ] **Chat reactions work locally** without federation errors
+- [ ] **Post reactions implemented** with proper federation
+- [ ] **Custom emoji support** compatible with major ActivityPub platforms
+- [ ] **Edge functions updated** for reaction federation
+
+#### **Phase 10 Success:**
+- [ ] **Database optimized** with unused objects removed
+- [ ] **Codebase cleaned** with no duplicate service files
+- [ ] **Documentation updated** for current architecture
+- [ ] **Performance improved** through schema optimization
+
+#### **Overall Phase 8 Legacy Success (Completed):**
+- [x] **Zero Regressions**: All existing functionality works exactly as before ✅
+- [x] **Improved UX**: Faster perceived performance with optimistic updates ✅
+- [x] **Consistent Patterns**: Same error handling and loading states everywhere ✅
+- [x] **Maintainable Code**: Clean service abstractions reduce technical debt ✅
+- [x] **Type Safety**: Full TypeScript coverage with service interfaces ✅
+- [x] **Performance**: No degradation in realtime updates or navigation speed ✅
 
 ### **Risk Mitigation** ⚠️
 
-- [ ] **Incremental Migration**: Each subphase can be tested independently
-- [ ] **Backward Compatibility**: Keep old methods during transition period
-- [ ] **Rollback Plan**: Each subphase can be reverted if issues arise
-- [ ] **Testing Strategy**: Comprehensive testing at each subphase
-- [ ] **Documentation**: Clear migration guide for any manual component updates
+#### **Phase 9 & 10 Risk Mitigation:**
+- [ ] **Database Backup**: Before any schema cleanup
+- [ ] **Migration Testing**: Test all changes on development environment
+- [ ] **Rollback Plan**: Each phase can be independently reverted
+- [ ] **Federation Testing**: Verify compatibility with other ActivityPub platforms
+
+#### **Legacy Phase 8 Risk Mitigation (Completed):**
+- [x] **Incremental Migration**: Each subphase tested independently ✅
+- [x] **Backward Compatibility**: Old methods kept during transition ✅
+- [x] **Rollback Plan**: Each subphase reverted when needed ✅
+- [x] **Testing Strategy**: Comprehensive testing at each subphase ✅
+- [x] **Documentation**: Clear migration guide created ✅
 
 ## Phase 7: Testing & Validation ✅ ONGOING
 
