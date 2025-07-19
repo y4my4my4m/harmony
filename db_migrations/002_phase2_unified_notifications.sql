@@ -166,11 +166,11 @@ BEGIN
         SELECT 
             CASE notification_type
                 WHEN 'mention' THEN 'New Mention'
-                WHEN 'dm', 'direct_message' THEN 'New Direct Message'
+                WHEN 'dm' or 'direct_message' THEN 'New Direct Message'
                 WHEN 'reply' THEN 'New Reply'
                 WHEN 'follow' THEN 'New Follower'
-                WHEN 'like', 'favorite' THEN 'New Like'
-                WHEN 'reblog', 'boost' THEN 'New Reblog'
+                WHEN 'like' or 'favorite' THEN 'New Like'
+                WHEN 'reblog' or 'boost' THEN 'New Reblog'
                 WHEN 'reaction' THEN 'New Reaction'
                 WHEN 'voice_activity' THEN 'Voice Channel Activity'
                 WHEN 'activitypub_mention' THEN 'Federated Mention'
@@ -178,11 +178,11 @@ BEGIN
             END,
             CASE notification_type
                 WHEN 'mention' THEN 'You were mentioned in a message'
-                WHEN 'dm', 'direct_message' THEN 'You received a new direct message'
+                WHEN 'dm' or 'direct_message' THEN 'You received a new direct message'
                 WHEN 'reply' THEN 'Someone replied to your post'
                 WHEN 'follow' THEN 'Someone started following you'
-                WHEN 'like', 'favorite' THEN 'Someone liked your post'
-                WHEN 'reblog', 'boost' THEN 'Someone reblogged your post'
+                WHEN 'like' or 'favorite' THEN 'Someone liked your post'
+                WHEN 'reblog' or 'boost' THEN 'Someone reblogged your post'
                 WHEN 'reaction' THEN 'Someone reacted to your message'
                 WHEN 'voice_activity' THEN 'Voice channel activity'
                 WHEN 'activitypub_mention' THEN 'You were mentioned by a federated user'

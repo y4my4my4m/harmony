@@ -237,32 +237,221 @@
 
 ## Phase 8: Frontend Store Migration 🖥️ **NEXT PRIORITY**
 
-### Store Refactoring (Use New Service Layer)
-- [ ] **REFACTOR**: `useActivityPub.ts` to use `services.posts` instead of direct database calls
-- [ ] **REFACTOR**: `useChat.ts` to use `services.messages` instead of direct database calls  
-- [ ] **REFACTOR**: `useDM.ts` to use `services.messages` for unified conversation handling
-- [ ] **REFACTOR**: Components to use `services.interactions` for follows/blocks/mutes
-- [ ] **ADD**: Loading state management using service layer helpers
-- [ ] **ADD**: Consistent error handling across all stores
+**Goal**: Migrate all frontend stores from direct Supabase calls to our new service layer for local-first operations with consistent error handling, type safety, and optimistic UI updates.
 
-### Component Updates
-- [ ] **UPDATE**: `MonyComposerInline.vue` to use `services.posts.createPost()`
-- [ ] **UPDATE**: `ChatComponent.vue` to use `services.messages.sendChannelMessage()`
-- [ ] **UPDATE**: `DMView.vue` to use `services.messages.sendDMMessage()`
-- [ ] **UPDATE**: Post interaction buttons to use `services.posts.toggleLike()` etc.
-- [ ] **UPDATE**: Follow buttons to use `services.interactions.toggleFollow()`
+**Strategy**: Incremental migration preserving functionality, realtime subscriptions, and performance optimizations while introducing modern patterns.
 
-### UI Enhancements  
-- [ ] **ADD**: Federation status indicators in UI (online/offline, pending delivery)
-- [ ] **ADD**: Federation controls in user settings (enable/disable per user)
-- [ ] **ADD**: Loading states for all service operations
-- [ ] **ADD**: Toast notifications for service errors
-- [ ] **ADD**: Optimistic UI updates (immediate feedback)
+---
 
-### Edge Function Integration
-- [ ] **VERIFY**: Edge functions work with new database structure
-- [ ] **TEST**: HTTP signature handling in edge functions
-- [ ] **TEST**: ActivityPub JSON generation using database helpers
+### **Phase 8A: Foundation User Data Migration** 🏗️
+
+**Priority**: Critical foundation (other stores depend on user data)
+
+**Scope**: User profiles, authentication, and presence system
+- [ ] **MIGRATE**: `useProfile.ts` → Use `services.interactions` for user relationships
+  - [ ] Replace direct Supabase profile queries with service calls  
+  - [ ] Maintain `userDataService` integration (already good)
+  - [ ] Add loading states and error handling from service layer
+  - [ ] Test profile loading, updating, and caching
+- [ ] **MIGRATE**: `useServerUsers.ts` → Use `services.interactions` for user relationships  
+  - [ ] Replace Supabase calls for user fetching with service methods
+  - [ ] Maintain realtime presence subscriptions (critical for UX)
+  - [ ] Preserve voice channel user tracking functionality
+  - [ ] Update membership service integration
+- [ ] **VERIFY**: Authentication flows still work correctly
+- [ ] **VERIFY**: User presence and status updates work in realtime
+- [ ] **TEST**: UserProfileComponent, UserSidebar, UserProfileModal
+
+**Components Affected**: `UserProfileComponent.vue`, `UserSidebar.vue`, `UserProfileModal.vue`, `UnifiedProfileCard.vue`
+
+---
+
+### **Phase 8B: Content Store Migration** 📝  
+
+**Priority**: High (core content functionality)
+
+**Scope**: Posts, messages, and DMs using new service layer
+- [ ] **MIGRATE**: `useActivityPub.ts` → Use `services.posts` for all post operations
+  - [ ] Replace `activityPubService.createPost()` with `services.posts.createPost()`
+  - [ ] Migrate timeline loading to `services.posts.loadTimelinePosts()`
+  - [ ] Update interactions: `services.posts.toggleLike()`, `toggleShare()`, `toggleBookmark()`
+  - [ ] Preserve realtime post subscriptions and feed management
+  - [ ] Maintain conversation/thread functionality  
+  - [ ] Keep existing caching and pagination logic
+- [ ] **MIGRATE**: `useChat.ts` → Use `services.messages` for channel messages
+  - [ ] Replace Supabase message queries with `services.messages.loadChannelMessages()`
+  - [ ] Update sending: `services.messages.sendChannelMessage()`
+  - [ ] Migrate editing/deleting: `services.messages.editMessage()`, `deleteMessage()`
+  - [ ] Preserve message caching and pagination
+  - [ ] Maintain realtime message subscriptions (critical)
+- [ ] **MIGRATE**: `useDM.ts` → Use `services.messages` for DM functionality
+  - [ ] Replace conversation queries with service layer methods
+  - [ ] Update DM sending: `services.messages.sendDMMessage()`  
+  - [ ] Migrate user search to appropriate service methods
+  - [ ] Preserve DM caching and realtime subscriptions
+  - [ ] Maintain federation support for ActivityPub DMs
+
+**Components Affected**: `MonyComposerInline.vue`, `MonyFeed.vue`, `ChatComponent.vue`, `DMSidebar.vue`, `MessageDisplay.vue`
+
+---
+
+### **Phase 8C: Interaction & System Store Migration** 🔄
+
+**Priority**: Medium (enhances UX but not core functionality)
+
+**Scope**: Notifications, interactions, and server management
+- [ ] **MIGRATE**: User interactions in ActivityPub store → Use `services.interactions`
+  - [ ] Replace follow/unfollow logic with `services.interactions.toggleFollow()`
+  - [ ] Update blocking/muting: `services.interactions.toggleBlock()`, `toggleMute()`
+  - [ ] Migrate follow request handling: `acceptFollowRequest()`, `rejectFollowRequest()`
+  - [ ] Preserve relationship caching and realtime updates
+- [ ] **MIGRATE**: `useNotification.ts` → Use unified notification system
+  - [ ] Integrate with database's `create_notification_unified()` function
+  - [ ] Add service layer helpers for notification management
+  - [ ] Preserve realtime notification subscriptions
+  - [ ] Maintain notification preferences and DND functionality
+- [ ] **MIGRATE**: `useServerChannel.ts` → Use service layer for server operations
+  - [ ] Abstract server/channel queries into service methods
+  - [ ] Maintain existing server navigation and state management
+  - [ ] Preserve emoji and server data caching
+
+**Components Affected**: `ServerSidebar.vue`, `ServerChannelStore` dependents, notification system
+
+---
+
+### **Phase 8D: Component Integration & Enhancement** ✨
+
+**Priority**: Medium (polish and optimization)
+
+**Scope**: Update components with new service layer patterns
+- [ ] **UPDATE**: Post interaction components
+  - [ ] `MonyPost.vue` → Use service layer methods with optimistic updates
+  - [ ] `InlineReplyComposer.vue` → Update to use `services.posts.createPost()`
+  - [ ] `PostDetailDisplay.vue` → Migrate to service layer post loading
+  - [ ] Add loading states and error handling for all interactions
+- [ ] **UPDATE**: Message components  
+  - [ ] Update reaction handling to use `services.messages.toggleReaction()`
+  - [ ] Add optimistic updates for message sending/editing
+  - [ ] Enhance error handling with consistent service layer patterns
+- [ ] **UPDATE**: Navigation and routing
+  - [ ] Ensure all route handlers work with migrated stores
+  - [ ] Update any direct store method calls from router guards
+- [ ] **ADD**: Loading States & Optimistic Updates
+  - [ ] Implement loading states using service layer helpers
+  - [ ] Add optimistic UI updates for immediate feedback
+  - [ ] Create consistent error handling across all components
+  - [ ] Add toast notifications for service errors
+
+**Components Affected**: All major content and interaction components
+
+---
+
+### **Phase 8E: Validation & Performance Testing** 🧪
+
+**Priority**: Critical (ensure everything works correctly)
+
+**Scope**: Comprehensive testing and validation
+- [ ] **TEST**: Core Functionality
+  - [ ] Create posts in social timeline → Verify `services.posts` integration
+  - [ ] Send channel messages → Verify `services.messages` integration
+  - [ ] Send DMs → Verify federation and service layer work together
+  - [ ] Follow/unfollow users → Verify `services.interactions` work
+  - [ ] Real-time updates work across all content types
+- [ ] **TEST**: Performance & UX
+  - [ ] Verify optimistic updates provide immediate feedback
+  - [ ] Confirm caching still provides fast navigation
+  - [ ] Check that loading states enhance (not hinder) UX
+  - [ ] Validate error handling provides helpful feedback
+- [ ] **TEST**: Edge Function Integration  
+  - [ ] Verify inbox edge function works with new database structure
+  - [ ] Test ActivityPub JSON generation using database helpers
+  - [ ] Confirm federation delivery queue processes correctly
+- [ ] **VERIFY**: No Regressions
+  - [ ] All existing functionality still works
+  - [ ] Realtime subscriptions remain active and performant
+  - [ ] Authentication and authorization unchanged
+  - [ ] Federation and ActivityPub compliance maintained
+
+---
+
+### **Migration Principles** 📋
+
+**🔄 Local-First Pattern**:
+```typescript
+// OLD: Direct Supabase with loading states in components
+const { data, error } = await supabase.from('posts').insert(...)
+if (error) { /* handle in component */ }
+
+// NEW: Service layer with consistent patterns  
+try {
+  const post = await services.posts.createPost({
+    content: [...],
+    visibility: 'public'
+  })
+  // UI updates immediately (optimistic)
+  // Federation happens in background
+} catch (error) {
+  // Consistent error format across all services
+}
+```
+
+**🚀 Optimistic Updates**:
+```typescript
+// NEW: Immediate UI feedback pattern
+const [optimisticPost, setOptimistic] = useOptimisticUpdate()
+
+const handleCreatePost = async (data) => {
+  // 1. Update UI immediately
+  setOptimistic(createTempPost(data))
+  
+  try {
+    // 2. Call service (handles database + federation)
+    const realPost = await services.posts.createPost(data)
+    // 3. Replace optimistic with real data
+    setOptimistic(null)
+    updateFeed(realPost)
+  } catch (error) {
+    // 4. Revert optimistic update on error  
+    setOptimistic(null)
+    showError(error)
+  }
+}
+```
+
+**⚡ Consistent Loading States**:
+```typescript
+// NEW: Service layer loading helpers
+import { services, createLoadingState, setLoading, setSuccess, setError } from '@/services'
+
+const postState = createLoadingState()
+
+const loadPosts = async () => {
+  postState.value = setLoading(postState.value)
+  try {
+    const posts = await services.posts.loadTimelinePosts('public')
+    postState.value = setSuccess(postState.value, posts)
+  } catch (error) {
+    postState.value = setError(postState.value, error)
+  }
+}
+```
+
+### **Success Criteria** ✅
+
+- [ ] **Zero Regressions**: All existing functionality works exactly as before
+- [ ] **Improved UX**: Faster perceived performance with optimistic updates  
+- [ ] **Consistent Patterns**: Same error handling and loading states everywhere
+- [ ] **Maintainable Code**: Clean service abstractions reduce technical debt
+- [ ] **Type Safety**: Full TypeScript coverage with service interfaces
+- [ ] **Performance**: No degradation in realtime updates or navigation speed
+
+### **Risk Mitigation** ⚠️
+
+- [ ] **Incremental Migration**: Each subphase can be tested independently
+- [ ] **Backward Compatibility**: Keep old methods during transition period
+- [ ] **Rollback Plan**: Each subphase can be reverted if issues arise
+- [ ] **Testing Strategy**: Comprehensive testing at each subphase
+- [ ] **Documentation**: Clear migration guide for any manual component updates
 
 ## Phase 7: Testing & Validation ✅ ONGOING
 
