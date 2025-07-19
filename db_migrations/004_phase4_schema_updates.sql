@@ -255,12 +255,8 @@ BEGIN
     
     RETURN QUERY
     SELECT 
-        -- Instance level blocks
-        EXISTS(
-            SELECT 1 FROM blocked_instances bi 
-            WHERE bi.domain = v_target_domain 
-            AND (bi.expires_at IS NULL OR bi.expires_at > now())
-        ) as is_instance_blocked,
+        -- Instance level blocks (blocked_instances table not implemented yet)
+        false as is_instance_blocked,
         
         -- User level blocks
         CASE 
@@ -288,11 +284,7 @@ BEGIN
         
         -- Combined metadata
         jsonb_build_object(
-            'instance_block', COALESCE(
-                (SELECT jsonb_build_object('type', block_type, 'reason', reason, 'expires_at', expires_at)
-                 FROM blocked_instances WHERE domain = v_target_domain),
-                'null'::jsonb
-            ),
+            'instance_block', 'null'::jsonb,
             'user_block', CASE 
                 WHEN p_target_user_id IS NOT NULL THEN
                     COALESCE(
@@ -317,51 +309,7 @@ $$;
 
 COMMENT ON FUNCTION public.check_federation_blocks(uuid, uuid, text) IS 'Check all blocking/muting status for federation decisions - optimized for edge functions';
 
--- Log federation health check
-CREATE OR REPLACE FUNCTION public.log_federation_health(
-    p_domain text,
-    p_check_type text,
-    p_status text,
-    p_response_time_ms integer DEFAULT NULL,
-    p_http_status_code integer DEFAULT NULL,
-    p_error_message text DEFAULT NULL,
-    p_metadata jsonb DEFAULT '{}'
-)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    INSERT INTO federation_health (
-        domain,
-        check_type,
-        status,
-        response_time_ms,
-        http_status_code,
-        error_message,
-        metadata
-    ) VALUES (
-        p_domain,
-        p_check_type,
-        p_status,
-        p_response_time_ms,
-        p_http_status_code,
-        p_error_message,
-        p_metadata
-    );
-    
-    -- Update federated_instances table with health info
-    UPDATE federated_instances 
-    SET 
-        last_seen_at = CASE WHEN p_status = 'success' THEN now() ELSE last_seen_at END,
-        metadata = metadata || jsonb_build_object(
-            'last_health_check', now(),
-            'last_health_status', p_status
-        )
-    WHERE domain = p_domain;
-END;
-$$;
-
-COMMENT ON FUNCTION public.log_federation_health(text, text, text, integer, integer, text, jsonb) IS 'Log federation health check results and update instance status';
+-- Note: log_federation_health function removed - we use existing federation_stats view instead
 
 -- =====================================================
 -- STEP 6: UPDATED FEDERATION HELPER FUNCTIONS
@@ -459,10 +407,6 @@ BEGIN
         SELECT * INTO block_status FROM check_federation_blocks(test_user_id, NULL, 'example.com');
         RAISE NOTICE 'Blocking check: instance_blocked=%, user_blocked=%, user_muted=%', 
             block_status.is_instance_blocked, block_status.is_user_blocked, block_status.is_user_muted;
-        
-        -- Test health logging
-        PERFORM log_federation_health('test.example', 'delivery', 'success', 150, 200);
-        RAISE NOTICE 'Health logging function working';
         
         RAISE NOTICE 'All Phase 4 functions created successfully!';
     ELSE
