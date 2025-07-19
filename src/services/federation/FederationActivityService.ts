@@ -411,11 +411,11 @@ export class FederationActivityService {
         actor: actor.federated_id,
         object: `${instanceDomain}/messages/${messageData.id}`,
         published: new Date().toISOString(),
-        content: emojiData.shortcode,
+        content: emojiData.name,
         tag: [{
           id: emojiData.url,
           type: 'Emoji',
-          name: emojiData.shortcode,
+          name: emojiData.name,
           icon: {
             type: 'Image',
             url: emojiData.url
@@ -429,10 +429,10 @@ export class FederationActivityService {
         id: activityId,
         type: 'Undo',
         actor: actor.federated_id,
-        object: {
+                  object: {
           type: 'Like',
           object: `${instanceDomain}/messages/${messageData.id}`,
-          content: emojiData.shortcode
+          content: emojiData.name
         },
         published: new Date().toISOString()
       }
@@ -459,11 +459,11 @@ export class FederationActivityService {
         actor: actor.federated_id,
         object: `${instanceDomain}/posts/${postData.id}`,
         published: new Date().toISOString(),
-        content: emojiData.shortcode,
+        content: emojiData.name,
         tag: [{
           id: emojiData.url,
           type: 'Emoji',
-          name: emojiData.shortcode,
+          name: emojiData.name,
           icon: {
             type: 'Image',
             url: emojiData.url
@@ -477,10 +477,10 @@ export class FederationActivityService {
         id: activityId,
         type: 'Undo',
         actor: actor.federated_id,
-        object: {
+                  object: {
           type: 'Like',
           object: `${instanceDomain}/posts/${postData.id}`,
-          content: emojiData.shortcode
+          content: emojiData.name
         },
         published: new Date().toISOString()
       }
@@ -630,7 +630,7 @@ export class FederationActivityService {
   private async getEmojiData(emojiId: string) {
     const { data, error } = await supabase
       .from('emojis')
-      .select('id, shortcode, url')
+      .select('id, name, url')
       .eq('id', emojiId)
       .single()
 
