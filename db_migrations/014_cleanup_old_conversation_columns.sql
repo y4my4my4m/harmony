@@ -169,7 +169,7 @@ CREATE POLICY "Users can view reactions on messages they can see"
         (m.channel_id IN (
           SELECT c.id FROM channels c
           INNER JOIN user_servers us ON c.server_id = us.server_id
-          WHERE us.user_id = auth.uid() AND us.status = 'member'
+          WHERE us.user_id = auth.uid()
         ))
     )
   );
@@ -191,7 +191,7 @@ CREATE POLICY "Users can create reactions on messages they can see"
         (m.channel_id IN (
           SELECT c.id FROM channels c
           INNER JOIN user_servers us ON c.server_id = us.server_id
-          WHERE us.user_id = auth.uid() AND us.status = 'member'
+          WHERE us.user_id = auth.uid()
         ))
     )
   );
