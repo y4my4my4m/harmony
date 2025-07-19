@@ -328,7 +328,7 @@ export class CoreMessageService {
    * Get reactions for multiple messages using optimized database function (pure local)
    * PERFORMANCE: Uses database function to eliminate N+1 query problem
    */
-  private async getBatchMessageReactions(messageIds: string[]): Promise<Record<string, any[]>> {
+  async getBatchMessageReactions(messageIds: string[]): Promise<Record<string, any[]>> {
     try {
       if (messageIds.length === 0) {
         return {}

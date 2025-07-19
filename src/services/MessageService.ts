@@ -19,7 +19,7 @@
  */
 
 import { supabase } from '@/supabase'
-import type { Message, MessagePart } from '@/types'
+import type { Message, MessagePart, ReactionGroup } from '@/types'
 
 // Import core and federation services
 import { coreMessageService } from './core'
@@ -287,6 +287,26 @@ export class MessageService {
   async getMessageReactionsLegacy(messageId: string): Promise<any[]> {
     console.log(`🎭 Orchestration: Getting reactions (legacy) for message: ${messageId}`)
     return await coreMessageService.getMessageReactions(messageId)
+  }
+
+  /**
+   * CRITICAL: Batch fetch reactions for multiple messages to avoid N+1 queries
+   * Essential for performance when loading chat history
+   */
+  async getBatchMessageReactions(messageIds: string[]): Promise<Record<string, any[]>> {
+    try {
+      console.log(`🎭 Orchestration: Batch getting reactions for ${messageIds.length} messages`)
+      
+      // Delegate to core service for the actual batch fetch
+      const results = await coreMessageService.getBatchMessageReactions(messageIds)
+      
+      console.log(`✅ Orchestration: Retrieved reactions for ${Object.keys(results).length} messages`)
+      return results
+      
+    } catch (error) {
+      console.error('❌ Orchestration: Failed to batch get message reactions:', error)
+      throw error
+    }
   }
 
 

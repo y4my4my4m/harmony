@@ -82,6 +82,61 @@ export const useReactionsStore = defineStore('reactions', () => {
   }
 
   /**
+   * CRITICAL: Batch fetch reactions for multiple messages to avoid N+1 queries
+   * This is essential for performance when loading chat history
+   */
+  async function fetchMultipleMessageReactions(messageIds: string[], force = false): Promise<void> {
+    if (!messageIds.length) return
+
+    const now = Date.now()
+    
+    // Filter out messages that are already cached (unless forced)
+    const idsToFetch = force 
+      ? messageIds 
+      : messageIds.filter(id => {
+          const lastFetch = lastFetched.value.get(id) || 0
+          return now - lastFetch >= 30000 // 30 second cache
+        })
+
+    if (!idsToFetch.length) {
+      console.log('✅ All message reactions already cached, skipping batch fetch')
+      return
+    }
+
+    // Mark all as loading
+    idsToFetch.forEach(id => isLoading.value.add(id))
+
+    try {
+      console.log(`🔄 Batch fetching reactions for ${idsToFetch.length} messages via service layer`)
+
+      // Use the core service directly for batch operations
+      const batchReactions = await services.messages.getBatchMessageReactions(idsToFetch)
+      
+      // Store all results in cache
+      for (const [messageId, reactions] of Object.entries(batchReactions)) {
+        reactionsByMessage.value.set(messageId, reactions)
+        lastFetched.value.set(messageId, now)
+      }
+      
+      console.log(`✅ Successfully batch fetched reactions for ${Object.keys(batchReactions).length} messages`)
+    } catch (error) {
+      console.error('❌ Failed to batch fetch reactions:', error)
+      
+      // Fallback: fetch individually (graceful degradation)
+      console.log('🔄 Falling back to individual fetches...')
+      const promises = idsToFetch.map(id => 
+        fetchMessageReactions(id, force).catch(err => 
+          console.error(`❌ Failed individual fetch for ${id}:`, err)
+        )
+      )
+      await Promise.allSettled(promises)
+    } finally {
+      // Clear loading state for all
+      idsToFetch.forEach(id => isLoading.value.delete(id))
+    }
+  }
+
+  /**
    * Discord-style reaction toggle: Instant UI feedback with graceful rollback
    */
   async function toggleReaction(messageId: string, emojiId: string, userId: string): Promise<{
@@ -235,18 +290,19 @@ export const useReactionsStore = defineStore('reactions', () => {
   // Cleanup timer
   setInterval(cleanupStaleOptimisticOps, 30000) // Every 30 seconds
 
-  return {
-    // State
-    reactionsByMessage,
-    
-    // Getters
-    getMessageReactions,
-    hasUserReacted,
-    isLoadingReactions,
-    
-    // Actions
-    fetchMessageReactions,
-    toggleReaction,
-    handleRealtimeUpdate
-  }
+     return {
+     // State
+     reactionsByMessage,
+     
+     // Getters
+     getMessageReactions,
+     hasUserReacted,
+     isLoadingReactions,
+     
+     // Actions
+     fetchMessageReactions,
+     fetchMultipleMessageReactions, // CRITICAL: Batch fetch to avoid N+1
+     toggleReaction,
+     handleRealtimeUpdate
+   }
 })
