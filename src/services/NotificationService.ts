@@ -95,17 +95,15 @@ export class NotificationService {
         .from('notifications')
         .select(`
           id,
+          user_id,
           type,
-          title,
-          message,
           data,
           is_read,
+          is_clicked,
           created_at,
-          server_id,
-          channel_id,
-          conversation_id,
-          activity_id,
-          category
+          updated_at,
+          expires_at,
+          read_at
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false })

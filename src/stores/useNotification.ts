@@ -44,7 +44,8 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_reblog: 'reaction',
   activitypub_mention: 'mention',
   activitypub_reply: 'reply',
-  activitypub_follow_request: 'friend_request'
+  activitypub_follow_request: 'friend_request',
+  error: 'server_update' // Map error notifications to server_update sound
 }
 
 // Default notification preferences
@@ -721,11 +722,13 @@ export const useNotificationStore = defineStore('notification', {
      * NOTIFICATION MANAGEMENT - UI actions only
      */
     async markAsRead(notificationId: string) {
+      // Find notification for optimistic updates
+      const notification = this.notifications.find(n => n.id === notificationId)
+      
       try {
         console.log('🔄 Marking notification as read via service:', notificationId)
         
         // Optimistic update
-        const notification = this.notifications.find(n => n.id === notificationId)
         if (notification) {
           notification.is_read = true
           this.updateUnreadCount()
@@ -747,13 +750,16 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     async deleteNotification(notificationId: string) {
+      // Find notification and index for optimistic updates
+      const index = this.notifications.findIndex(n => n.id === notificationId)
+      if (index === -1) return
+      
+      const notification = this.notifications[index]
+      
       try {
         console.log('🔄 Deleting notification via service:', notificationId)
         
         // Optimistic update
-        const index = this.notifications.findIndex(n => n.id === notificationId)
-        if (index === -1) return
-        const notification = this.notifications[index]
         this.notifications.splice(index, 1)
         this.updateUnreadCount()
         
