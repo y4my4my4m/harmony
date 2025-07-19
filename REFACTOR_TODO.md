@@ -90,30 +90,44 @@
 - [x] **INDEX**: Add proper indexes for trigger performance
 - [x] **READY**: Performance monitoring in place
 
-## Phase 4: Database Schema Updates 📊 **NEXT PRIORITY**
+## Phase 4: Database Schema Updates ✅ **COMPLETED**
 
 ### Federation Control Columns
-- [ ] **ADD**: Instance-level federation controls to `instance_config`
-  - [ ] `federation_enabled` BOOLEAN DEFAULT true
-  - [ ] `federation_auto_accept_follows` BOOLEAN DEFAULT true  
-  - [ ] `federation_require_approval` BOOLEAN DEFAULT false
-- [ ] **ADD**: User-level federation controls to `profiles`
-  - [ ] `federation_enabled` BOOLEAN DEFAULT true
-  - [ ] `federation_discoverable` BOOLEAN DEFAULT true
-  - [ ] `federation_followers_only` BOOLEAN DEFAULT false
+- [x] **ADD**: Instance-level federation controls to `instance_config`
+  - [x] `federation_enabled` BOOLEAN DEFAULT true
+  - [x] `federation_auto_accept_follows` BOOLEAN DEFAULT true  
+  - [x] `federation_require_approval` BOOLEAN DEFAULT false
+  - [x] `federation_max_delivery_attempts` INTEGER DEFAULT 5
+  - [x] `federation_delivery_timeout_ms` INTEGER DEFAULT 10000
+- [x] **ADD**: User-level federation controls to `profiles`
+  - [x] `federation_enabled` BOOLEAN DEFAULT true
+  - [x] `federation_discoverable` BOOLEAN DEFAULT true
+  - [x] `federation_followers_only` BOOLEAN DEFAULT false
+
+### Blocking & Muting Infrastructure  
+- [x] **ADD**: `user_blocks` table with granular control and expiration
+- [x] **ADD**: `user_mutes` table with type-specific muting
+- [x] **ENHANCE**: `blocked_instances` with block types and expiration
 
 ### Federation Performance Indexes
-- [ ] **ADD**: Index on `ap_activities.status` for delivery queue performance
-- [ ] **ADD**: Index on `federation_delivery_queue.status, next_attempt_at`
-- [ ] **ADD**: Index on `federated_instances.domain, is_blocked`
-- [ ] **ADD**: Index on `profiles.domain, federation_enabled`
+- [x] **ADD**: Index on `ap_activities.status` for delivery queue performance
+- [x] **ADD**: Index on `federation_delivery_queue.status, next_attempt_at`
+- [x] **ADD**: Index on `federated_instances.domain, is_blocked`
+- [x] **ADD**: Index on `profiles.domain, federation_enabled`
+- [x] **ADD**: Blocking/muting performance indexes
 
 ### Federation Health Monitoring
-- [ ] **ADD**: `federation_health` table for monitoring federation status
-- [ ] **ADD**: `federation_errors` table for error tracking
-- [ ] **ENHANCE**: `federated_instances` with more health metrics
+- [x] **ADD**: `federation_health` table for monitoring federation status
+- [x] **ADD**: `federation_errors` table for error tracking  
+- [x] **ENHANCE**: `federated_instances` with more health metrics
 
-## Phase 5: Service Layer Implementation 🏗️ LOW PRIORITY (After DB Refactor)
+### Edge Function Helper Functions
+- [x] **ADD**: `get_post_federation_data()` - optimized data access for edge functions
+- [x] **ADD**: `check_federation_blocks()` - blocking/muting status checks
+- [x] **ADD**: `log_federation_health()` - health monitoring integration
+- [x] **ADD**: `get_federation_config()` - configuration access
+
+## Phase 5: Service Layer Implementation 🏗️ **NEXT PRIORITY**
 
 ### Local-First Services  
 - [ ] **CREATE**: `PostService` class
