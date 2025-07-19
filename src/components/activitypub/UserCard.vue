@@ -169,7 +169,11 @@ const isCurrentUser = computed(() => {
 });
 
 const isFollowing = computed(() => {
-  return activityPubStore.followedUsers.has(props.user.id);
+  const following = activityPubStore.followedUsers.has(props.user.id);
+  console.log(`🔍 UserCard - User ${props.user.id} (${props.user.username}) following status:`, following);
+  console.log(`🔍 UserCard - followedUsers Set size:`, activityPubStore.followedUsers.size);
+  console.log(`🔍 UserCard - followedUsers Set contents:`, Array.from(activityPubStore.followedUsers));
+  return following;
 });
 
 const isMuted = computed(() => {
