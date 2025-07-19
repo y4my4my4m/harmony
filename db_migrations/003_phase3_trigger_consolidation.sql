@@ -289,8 +289,14 @@ BEGIN
         ) VALUES (
             current_instance_domain || '/activities/' || gen_random_uuid(),
             activity_type,
-            COALESCE(NEW.user_id, NEW.follower_id, OLD.user_id, OLD.follower_id),
-            (SELECT federated_id FROM profiles WHERE id = COALESCE(NEW.user_id, NEW.follower_id, OLD.user_id, OLD.follower_id)),
+            CASE 
+                WHEN TG_TABLE_NAME = 'follows' THEN COALESCE(NEW.follower_id, OLD.follower_id)
+                ELSE COALESCE(NEW.user_id, OLD.user_id)
+            END,
+            (SELECT federated_id FROM profiles WHERE id = CASE 
+                WHEN TG_TABLE_NAME = 'follows' THEN COALESCE(NEW.follower_id, OLD.follower_id)
+                ELSE COALESCE(NEW.user_id, OLD.user_id)
+            END),
             target_object_id,
             CASE 
                 WHEN TG_TABLE_NAME = 'follows' THEN 'Person'
@@ -302,7 +308,10 @@ BEGIN
             'Person',
             jsonb_build_object(
                 'type', activity_type,
-                'actor', (SELECT federated_id FROM profiles WHERE id = COALESCE(NEW.user_id, NEW.follower_id, OLD.user_id, OLD.follower_id)),
+                'actor', (SELECT federated_id FROM profiles WHERE id = CASE 
+                    WHEN TG_TABLE_NAME = 'follows' THEN COALESCE(NEW.follower_id, OLD.follower_id)
+                    ELSE COALESCE(NEW.user_id, OLD.user_id)
+                END),
                 'object', target_object_id
             ),
             'pending',
