@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { supabase } from '@/supabase';
+import { services } from '@/services';
 import type { Emoji } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 
@@ -94,21 +94,17 @@ export const useReactionsStore = defineStore('reactions', {
       this.loadingReactions.add(messageId);
 
       try {
-        const { data: reactions, error } = await supabase
-          .rpc('get_message_reactions', { message_id: messageId });
-
-        if (error) {
-          console.error('Error fetching reactions for message:', messageId, error);
-          return [];
-        }
-
-        const reactionGroups = reactions || [];
+        console.log('🔄 Fetching reactions via service layer for message:', messageId);
+        
+        const reactionGroups = await services.messages.getMessageReactions(messageId);
+        
         this.reactionsByMessage.set(messageId, reactionGroups);
         this.lastFetched.set(messageId, Date.now());
         
+        console.log('✅ Successfully fetched reactions via service layer');
         return reactionGroups;
       } catch (error) {
-        console.error('Error fetching reactions:', error);
+        console.error('❌ Error fetching reactions via service layer:', error);
         return [];
       } finally {
         this.loadingReactions.delete(messageId);
@@ -165,51 +161,20 @@ export const useReactionsStore = defineStore('reactions', {
         // Apply optimistic update for immediate UI feedback
         this.optimisticallyUpdateReaction(messageId, emojiId, userId, isAdding);
 
-        if (hasReacted) {
-          // Remove reaction
-          const { error } = await supabase
-            .from('reactions')
-            .delete()
-            .match({ message_id: messageId, emoji_id: emojiId, user_id: userId });
-
-          if (error) {
-            console.error('🎯 Error removing reaction:', error);
-            this.revertOptimisticUpdate(messageId);
-            return { success: false, reason: 'error', message: `Error removing reaction: ${error.message}` };
+        // Use service layer for reaction toggle with race condition handling
+        try {
+          console.log('🔄 Using service layer for reaction toggle');
+          const result = await services.messages.toggleReaction(messageId, emojiId);
+          
+          if (result.hadRaceCondition) {
+            console.log('🎯 Service layer handled race condition successfully');
           }
-          // console.log('🎯 Reaction removed successfully');
-        } else {
-          // Try to add reaction
-          const { error } = await supabase
-            .from('reactions')
-            .insert([{ 
-              message_id: messageId, 
-              emoji_id: emojiId,
-              user_id: userId,
-            }]);
-
-          if (error) {
-            // If duplicate error, check if the reaction now exists (race condition)
-            if (error.code === '23505') {
-              console.log('🎯 Duplicate reaction detected (race condition)');
-              // Refresh cache to get latest state and check if reaction actually exists
-              await this.fetchMessageReactions(messageId, true);
-              const nowHasReacted = this.hasUserReacted(messageId, emojiId, userId);
-              
-              if (nowHasReacted) {
-                console.log('🎯 Reaction was added by another process, treating as success');
-                return { success: true };
-              } else {
-                console.error('🎯 Unexpected duplicate error state');
-                this.revertOptimisticUpdate(messageId);
-                return { success: false, reason: 'race_condition', message: 'Unexpected duplicate error state' };
-              }
-            }
-            console.error('🎯 Error adding reaction:', error);
-            this.revertOptimisticUpdate(messageId);
-            return { success: false, reason: 'error', message: `Error adding reaction: ${error.message}` };
-          }
-          // console.log('🎯 Reaction added successfully');
+          
+          console.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`);
+        } catch (error: any) {
+          console.error('❌ Service layer reaction toggle failed:', error);
+          this.revertOptimisticUpdate(messageId);
+          return { success: false, reason: 'error', message: `Service layer error: ${error.message}` };
         }
 
         // Refresh reactions for this message to get the final state from server

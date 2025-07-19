@@ -240,60 +240,119 @@ export class MessageService {
   // =====================================================
 
   /**
-   * Add/remove reaction to a message (local-first)
+   * Add/remove emoji reaction to a message (local-first, federation aware)
+   * Supports custom emojis via emoji_id and handles race conditions
    */
-  async toggleReaction(messageId: string, emoji: string): Promise<{ added: boolean }> {
+  async toggleReaction(
+    messageId: string, 
+    emojiId: string, 
+    options: {
+      signal?: AbortSignal;
+    } = {}
+  ): Promise<{ added: boolean; hadRaceCondition?: boolean }> {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
       const profileId = await this.getCurrentUserProfileId()
 
+      console.log(`🔄 Toggling reaction: message=${messageId}, emoji=${emojiId}, user=${profileId}`);
+
       // Check if reaction already exists
       const { data: existingReaction } = await supabase
         .from('reactions')
         .select('id')
-        .eq('message_id', messageId)
-        .eq('user_id', profileId)
-        .eq('emoji', emoji)
+        .match({ message_id: messageId, emoji_id: emojiId, user_id: profileId })
         .maybeSingle()
 
-      let added: boolean
+      const isAdding = !existingReaction;
 
       if (existingReaction) {
         // Remove reaction
         const { error } = await supabase
           .from('reactions')
           .delete()
-          .eq('id', existingReaction.id)
+          .match({ message_id: messageId, emoji_id: emojiId, user_id: profileId });
 
         if (error) throw this.createError('REMOVE_REACTION_FAILED', error.message, error)
-        added = false
+        
+        console.log('✅ Reaction removed successfully');
+        return { added: false }
       } else {
         // Add reaction
         const { error } = await supabase
           .from('reactions')
-          .insert({
-            message_id: messageId,
+          .insert([{ 
+            message_id: messageId, 
+            emoji_id: emojiId,
             user_id: profileId,
-            emoji: emoji
-          })
+          }]);
 
-        if (error) throw this.createError('ADD_REACTION_FAILED', error.message, error)
-        added = true
+        if (error) {
+          // Handle race condition (duplicate constraint violation)
+          if (error.code === '23505') {
+            console.log('🎯 Race condition detected in reaction toggle');
+            
+            // Double-check current state after race condition
+            const { data: nowExists } = await supabase
+              .from('reactions')
+              .select('id')
+              .match({ message_id: messageId, emoji_id: emojiId, user_id: profileId })
+              .maybeSingle();
+
+            if (nowExists) {
+              console.log('✅ Reaction was added by another process, treating as success');
+              return { added: true, hadRaceCondition: true };
+            } else {
+              throw this.createError('RACE_CONDITION_ERROR', 'Unexpected duplicate error state')
+            }
+          }
+          throw this.createError('ADD_REACTION_FAILED', error.message, error)
+        }
+        
+        console.log('✅ Reaction added successfully');
+        return { added: true }
       }
-
-      return { added }
     } catch (error) {
-      console.error('Failed to toggle reaction:', error)
+      console.error('❌ Failed to toggle reaction:', error);
       throw error
     }
   }
 
   /**
-   * Get reactions for a message
+   * Get reactions for a message using optimized database function
+   * More efficient than manual aggregation - returns grouped reaction data
    */
-  async getMessageReactions(messageId: string): Promise<any[]> {
+  async getMessageReactions(
+    messageId: string,
+    options: {
+      signal?: AbortSignal;
+    } = {}
+  ): Promise<any[]> {
+    try {
+      console.log(`🔄 Fetching reactions for message: ${messageId}`);
+      
+      const { data: reactions, error } = await supabase
+        .rpc('get_message_reactions', { message_id: messageId });
+
+      if (error) {
+        console.error('❌ Failed to fetch message reactions:', error);
+        throw this.createError('FETCH_REACTIONS_FAILED', error.message, error)
+      }
+
+      console.log(`✅ Fetched ${reactions?.length || 0} reaction groups for message: ${messageId}`);
+      return reactions || [];
+    } catch (error) {
+      console.error('❌ Error in getMessageReactions:', error);
+      throw error
+    }
+  }
+
+  /**
+   * Legacy method for backward compatibility
+   * @deprecated Use getMessageReactions instead
+   */
+  async getMessageReactionsLegacy(messageId: string): Promise<any[]> {
     try {
       const { data: reactions, error } = await supabase
         .from('reactions')
