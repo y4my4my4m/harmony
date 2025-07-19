@@ -99,7 +99,7 @@ export class ProfileService {
       console.log(`🎭 Orchestration: Fetching profile by auth user ID: ${authUserId}`)
       
       // Delegate to core service (no federation needed for reads)
-      const profile = await coreProfileService.fetchProfileByAuthUserId(authUserId)
+      const profile = await coreProfileService.loadProfileByAuthUserId(authUserId)
 
       if (profile) {
         console.log(`✅ Orchestration: Profile fetched by auth user ID: ${profile.id}`)
@@ -147,13 +147,13 @@ export class ProfileService {
       })
 
       // 2. Federation decision: Should this profile update federate?
-      const decision = await federationDecisionService.shouldFederateProfile(profileId, 'update')
+      const decision = await federationDecisionService.shouldFederateProfileUpdate(profileId)
       
       if (decision.shouldFederate) {
         console.log(`📤 Orchestration: Profile update eligible for federation: ${decision.reason}`)
         
         // 3. Federation operation: Create ActivityPub Update activity
-        const activityResult = await federationActivityService.createProfileActivity(profileId, 'update')
+        const activityResult = await federationActivityService.createProfileUpdateActivity(profileId)
         
         if (activityResult.success) {
           console.log(`✅ Orchestration: Profile update federation activity created: ${activityResult.activityId}`)
@@ -185,13 +185,13 @@ export class ProfileService {
       const newProfile = await coreProfileService.createProfile(profileData)
 
       // 2. Federation decision: Should this profile creation federate?
-      const decision = await federationDecisionService.shouldFederateProfile(newProfile.id, 'create')
+      const decision = await federationDecisionService.shouldFederateProfileUpdate(newProfile.id)
       
       if (decision.shouldFederate) {
         console.log(`📤 Orchestration: Profile creation eligible for federation: ${decision.reason}`)
         
         // 3. Federation operation: Create ActivityPub Person activity
-        const activityResult = await federationActivityService.createProfileActivity(newProfile.id, 'create')
+        const activityResult = await federationActivityService.createProfileUpdateActivity(newProfile.id)
         
         if (activityResult.success) {
           console.log(`✅ Orchestration: Profile creation federation activity created: ${activityResult.activityId}`)
