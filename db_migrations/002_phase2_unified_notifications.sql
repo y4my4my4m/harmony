@@ -70,7 +70,7 @@ BEGIN
         -- Get user notification preferences
         SELECT * INTO user_prefs 
         FROM notification_preferences 
-        WHERE notification_preferences.user_id = send_notification.user_id;
+        WHERE notification_preferences.user_id = user_id;
 
         -- If no preferences found, skip (user might have disabled notifications)
         IF user_prefs IS NULL THEN
@@ -90,11 +90,11 @@ BEGIN
         IF channel_id IS NOT NULL OR server_id IS NOT NULL OR conversation_id IS NOT NULL THEN
             SELECT * INTO channel_prefs
             FROM notification_channels nc
-            WHERE nc.user_id = send_notification.user_id
+            WHERE nc.user_id = user_id
             AND (
-                nc.channel_id = send_notification.channel_id OR
-                nc.server_id = send_notification.server_id OR
-                nc.conversation_id = send_notification.conversation_id
+                nc.channel_id = channel_id OR
+                nc.server_id = server_id OR
+                nc.conversation_id = conversation_id
             );
         END IF;
 
