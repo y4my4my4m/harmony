@@ -289,6 +289,26 @@ export class MessageService {
     return await coreMessageService.getMessageReactions(messageId)
   }
 
+  /**
+   * Get reactions for multiple messages in one optimized query
+   * PERFORMANCE: Solves N+1 query problem by batching reaction fetches
+   */
+  async getBatchMessageReactions(messageIds: string[]): Promise<Record<string, any[]>> {
+    try {
+      console.log(`🎭 Orchestration: Batch getting reactions for ${messageIds.length} messages`)
+      
+      // Delegate to core service (no federation needed for reads)
+      const reactions = await coreMessageService.getBatchMessageReactions(messageIds)
+      
+      console.log(`✅ Orchestration: Retrieved batch reactions for ${messageIds.length} messages`)
+      return reactions
+
+    } catch (error) {
+      console.error('❌ Orchestration: Failed to get batch message reactions:', error)
+      throw error
+    }
+  }
+
   // =====================================================
   // MESSAGE LOADING (DELEGATED TO CORE SERVICE)
   // =====================================================
