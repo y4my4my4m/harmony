@@ -119,15 +119,15 @@ ON posts(visibility, is_federated, created_at) WHERE is_federated = true;
 CREATE INDEX IF NOT EXISTS idx_follows_federation_status  
 ON follows(status, is_local, created_at);
 
--- Blocking/muting indexes
+-- Blocking/muting indexes (without now() function which is not IMMUTABLE)
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker
-ON user_blocks(blocker_id, block_type) WHERE expires_at IS NULL OR expires_at > now();
+ON user_blocks(blocker_id, block_type, expires_at);
 
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked
-ON user_blocks(blocked_user_id, block_type) WHERE expires_at IS NULL OR expires_at > now();
+ON user_blocks(blocked_user_id, block_type, expires_at);
 
 CREATE INDEX IF NOT EXISTS idx_user_mutes_muter
-ON user_mutes(muter_id, mute_type) WHERE expires_at IS NULL OR expires_at > now();
+ON user_mutes(muter_id, mute_type, expires_at);
 
 -- CREATE INDEX IF NOT EXISTS idx_blocked_instances_active
 -- ON blocked_instances(domain, block_type) WHERE expires_at IS NULL OR expires_at > now();
