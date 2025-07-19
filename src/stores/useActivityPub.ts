@@ -1060,8 +1060,13 @@ export const useActivityPubStore = defineStore('activitypub', {
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
 
         // Use new service layer for post creation
+        const formattedContent = await this.formatPostContent(content);
+        console.log('🔧 DEBUG: createPost - raw content:', content);
+        console.log('🔧 DEBUG: createPost - formatted content:', formattedContent);
+        console.log('🔧 DEBUG: createPost - formatted content type:', typeof formattedContent);
+        
         const post = await services.posts.createPost({
-          content: await this.formatPostContent(content),
+          content: formattedContent,
           visibility: visibility,
           content_warning: contentWarning,
           in_reply_to: replyTo,
