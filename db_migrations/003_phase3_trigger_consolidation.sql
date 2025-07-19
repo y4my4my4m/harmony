@@ -175,7 +175,7 @@ BEGIN
                             'id', current_instance_domain || '/messages/' || NEW.id,
                             'content', convert_jsonb_to_ap(NEW.content),
                             'attributedTo', (SELECT federated_id FROM profiles WHERE id = NEW.user_id),
-                            'to', array_agg(p.federated_id) FROM (SELECT federated_id FROM profiles WHERE id = ANY(remote_participants)) p
+                            'to', (SELECT array_agg(p.federated_id) FROM (SELECT federated_id FROM profiles WHERE id = ANY(remote_participants)) p)
                         )
                     ),
                     'pending',
