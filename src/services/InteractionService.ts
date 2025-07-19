@@ -181,7 +181,7 @@ export class InteractionService {
         .from('user_blocks')
         .select('id')
         .eq('blocker_id', profileId)
-        .eq('blocked_id', targetUserId)
+        .eq('blocked_user_id', targetUserId)
         .maybeSingle()
 
       let blocked: boolean
@@ -201,7 +201,7 @@ export class InteractionService {
           .from('user_blocks')
           .insert({
             blocker_id: profileId,
-            blocked_id: targetUserId
+            blocked_user_id: targetUserId
           })
 
         if (blockError) throw this.createError('BLOCK_FAILED', blockError.message, blockError)
@@ -245,7 +245,7 @@ export class InteractionService {
         .from('user_mutes')
         .select('id')
         .eq('muter_id', profileId)
-        .eq('muted_id', targetUserId)
+        .eq('muted_user_id', targetUserId)
         .maybeSingle()
 
       let muted: boolean
@@ -265,7 +265,7 @@ export class InteractionService {
           .from('user_mutes')
           .insert({
             muter_id: profileId,
-            muted_id: targetUserId
+            muted_user_id: targetUserId
           })
 
         if (error) throw this.createError('MUTE_FAILED', error.message, error)
@@ -338,23 +338,23 @@ export class InteractionService {
       // Get blocks
       const { data: blocks } = await supabase
         .from('user_blocks')
-        .select('blocked_id')
+        .select('blocked_user_id')
         .eq('blocker_id', profileId)
-        .in('blocked_id', targetUserIds)
+        .in('blocked_user_id', targetUserIds)
 
       blocks?.forEach(block => {
-        relationships[block.blocked_id].blocked = true
+        relationships[block.blocked_user_id].blocked = true
       })
 
       // Get mutes
       const { data: mutes } = await supabase
         .from('user_mutes')
-        .select('muted_id')
+        .select('muted_user_id')
         .eq('muter_id', profileId)
-        .in('muted_id', targetUserIds)
+        .in('muted_user_id', targetUserIds)
 
       mutes?.forEach(mute => {
-        relationships[mute.muted_id].muted = true
+        relationships[mute.muted_user_id].muted = true
       })
 
       return relationships

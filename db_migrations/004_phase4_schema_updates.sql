@@ -92,44 +92,11 @@ COMMENT ON COLUMN blocked_instances.block_type IS 'Type of block: full, media_on
 COMMENT ON COLUMN blocked_instances.expires_at IS 'Optional expiration time for temporary blocks';
 
 -- =====================================================
--- STEP 3: FEDERATION HEALTH MONITORING
+-- STEP 3: FEDERATION MONITORING (Use Existing Systems)
 -- =====================================================
 
--- Federation health monitoring table
-CREATE TABLE IF NOT EXISTS federation_health (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now(),
-    domain text NOT NULL,
-    check_type text NOT NULL CHECK (check_type IN ('delivery', 'inbox', 'actor_fetch', 'object_fetch')),
-    status text NOT NULL CHECK (status IN ('success', 'timeout', 'error', 'unreachable')),
-    response_time_ms integer,
-    http_status_code integer,
-    error_message text,
-    metadata jsonb DEFAULT '{}'
-);
-
-CREATE INDEX IF NOT EXISTS idx_federation_health_domain_time ON federation_health(domain, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_federation_health_status ON federation_health(status, check_type);
-
-COMMENT ON TABLE federation_health IS 'Health monitoring for federated instances with detailed metrics';
-
--- Federation error tracking table
-CREATE TABLE IF NOT EXISTS federation_errors (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT now(),
-    domain text NOT NULL,
-    error_type text NOT NULL CHECK (error_type IN ('delivery_failed', 'signature_invalid', 'object_invalid', 'rate_limited', 'blocked')),
-    activity_id uuid REFERENCES ap_activities(id),
-    error_message text NOT NULL,
-    retry_count integer DEFAULT 0,
-    resolved_at timestamp with time zone,
-    metadata jsonb DEFAULT '{}'
-);
-
-CREATE INDEX IF NOT EXISTS idx_federation_errors_domain_time ON federation_errors(domain, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_federation_errors_type ON federation_errors(error_type, resolved_at);
-
-COMMENT ON TABLE federation_errors IS 'Detailed error tracking for federation issues with retry support';
+-- Note: We use the existing federation_stats view and federation_delivery_queue
+-- for health monitoring. No additional tables needed.
 
 -- =====================================================
 -- STEP 4: PERFORMANCE INDEXES
