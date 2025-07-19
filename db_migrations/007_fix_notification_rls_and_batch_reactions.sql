@@ -214,7 +214,7 @@ RETURNS TABLE (
     message_id uuid,
     emoji_id uuid,
     emoji_name varchar,
-    emoji_url text,
+    emoji_url varchar,
     reaction_count bigint,
     users jsonb
 )
@@ -254,7 +254,7 @@ RETURNS TABLE (
     post_id uuid,
     emoji_id uuid,
     emoji_name varchar,
-    emoji_url text,
+    emoji_url varchar,
     reaction_count bigint,
     users jsonb
 )
