@@ -509,8 +509,20 @@ const handleSubmit = async () => {
 
   isPosting.value = true;
   try {
+    // Parse content just like chat messages do
+    const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveHashtagsData } = await import('@/utils/unifiedContentProcessing');
+    
+    const rawContent = content.value.trim();
+    const [usernameToUserDataMap, emojiDataMap, hashtagDataMap] = await Promise.all([
+      resolveMentionsUserData(rawContent),
+      resolveEmojisData(rawContent),
+      resolveHashtagsData(rawContent)
+    ]);
+    
+    const parsedContent = await parseContentToMessageParts(rawContent, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
+
     await activityPubStore.createPost({
-      content: content.value.trim(),
+      content: parsedContent,
       visibility: visibility.value,
       content_warning: showContentWarning.value ? contentWarning.value : undefined,
       in_reply_to: undefined,

@@ -1035,7 +1035,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Create a new post (Mony)
      */
     async createPost(postData?: {
-      content?: string;
+      content?: string | MessagePart[];
       visibility?: Post['visibility'];
       content_warning?: string;
       contentWarning?: string;
@@ -1059,11 +1059,20 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Upload media attachments if any
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
 
-        // Use new service layer for post creation - content properly formatted
-        const formattedContent = await this.formatPostContent(content);
+        // Handle content format - content should already be MessagePart[] from component
+        let finalContent: MessagePart[];
+        if (Array.isArray(content)) {
+          // Content is already parsed MessagePart[] from component
+          finalContent = content;
+        } else if (typeof content === 'string') {
+          // Fallback: parse string content (legacy support)
+          finalContent = await this.formatPostContent(content);
+        } else {
+          throw new Error('Invalid content format');
+        }
         
         const post = await services.posts.createPost({
-          content: formattedContent,
+          content: finalContent,
           visibility: visibility,
           content_warning: contentWarning,
           in_reply_to: replyTo,
