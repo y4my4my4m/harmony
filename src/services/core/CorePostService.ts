@@ -65,7 +65,7 @@ export class CorePostService {
       const profileId = await this.getCurrentUserProfileId()
 
       const postData = {
-        user_id: profileId,
+        author_id: profileId,
         content: data.content,
         visibility: data.visibility,
         content_warning: data.content_warning || null,
@@ -83,7 +83,7 @@ export class CorePostService {
         .insert(postData)
         .select(`
           *,
-          author:profiles!posts_user_id_fkey(*)
+          author:profiles!posts_author_id_fkey(*)
         `)
         .single()
 
@@ -110,11 +110,11 @@ export class CorePostService {
       // Verify ownership
       const { data: existingPost } = await supabase
         .from('posts')
-        .select('user_id')
+        .select('author_id')
         .eq('id', postId)
         .single()
 
-      if (existingPost?.user_id !== profileId) {
+      if (existingPost?.author_id !== profileId) {
         throw this.createError('UNAUTHORIZED', 'Cannot edit post you do not own')
       }
 
@@ -129,7 +129,7 @@ export class CorePostService {
         .eq('id', postId)
         .select(`
           *,
-          author:profiles!posts_user_id_fkey(*)
+          author:profiles!posts_author_id_fkey(*)
         `)
         .single()
 
@@ -156,11 +156,11 @@ export class CorePostService {
       // Verify ownership
       const { data: existingPost } = await supabase
         .from('posts')
-        .select('user_id')
+        .select('author_id')
         .eq('id', postId)
         .single()
 
-      if (existingPost?.user_id !== profileId) {
+      if (existingPost?.author_id !== profileId) {
         throw this.createError('UNAUTHORIZED', 'Cannot delete post you do not own')
       }
 
@@ -628,7 +628,7 @@ export class CorePostService {
         .from('posts')
         .select(`
           *,
-          author:profiles!posts_user_id_fkey(*)
+          author:profiles!posts_author_id_fkey(*)
         `)
         .eq('id', postId)
         .single()
