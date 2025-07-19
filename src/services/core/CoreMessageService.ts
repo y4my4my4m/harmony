@@ -304,8 +304,20 @@ export class CoreMessageService {
         throw this.createError('FETCH_REACTIONS_FAILED', error.message, error)
       }
 
-      console.log(`✅ Core: Fetched ${reactions?.length || 0} reaction groups for message: ${messageId}`)
-      return reactions || []
+      // FIXED: Transform data to match store expectations
+      const transformedReactions = reactions?.map(reaction => ({
+        emoji_id: reaction.emoji_id,
+        emoji: {
+          id: reaction.emoji_id,
+          name: reaction.emoji_name,
+          url: reaction.emoji_url
+        },
+        count: reaction.reaction_count,
+        reactions: reaction.users || []  // FIXED: Store expects 'reactions', not 'users'
+      })) || []
+
+      console.log(`✅ Core: Fetched ${transformedReactions.length} reaction groups for message: ${messageId}`)
+      return transformedReactions
     } catch (error) {
       console.error('❌ Core: Error in getMessageReactions:', error)
       throw error
@@ -357,7 +369,7 @@ export class CoreMessageService {
             url: reaction.emoji_url
           },
           count: reaction.reaction_count,
-          users: reaction.users
+          reactions: reaction.users || []  // FIXED: Store expects 'reactions', not 'users'
         })
       })
 

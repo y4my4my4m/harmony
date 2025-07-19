@@ -319,22 +319,31 @@ export class MessageService {
       const messages = await coreMessageService.loadChannelMessages(channelId, options)
       
       // PERFORMANCE: Populate reactions store cache to prevent individual fetches
-      // Import the store dynamically to avoid circular dependencies
-      const { useReactionsStore } = await import('@/stores/useReactions')
-      const reactionsStore = useReactionsStore()
-      
-      messages.forEach(message => {
-        if (message.reactions && message.reactions.length > 0) {
-          // Populate store cache with batch-loaded reactions
-          reactionsStore.reactionsByMessage.set(message.id, message.reactions)
-          reactionsStore.lastFetched.set(message.id, Date.now())
-          console.log(`✅ Populated store cache for message: ${message.id} (${message.reactions.length} reactions)`)
-        } else {
-          // Also cache empty reactions to prevent unnecessary fetches
-          reactionsStore.reactionsByMessage.set(message.id, [])
-          reactionsStore.lastFetched.set(message.id, Date.now())
-        }
-      })
+      try {
+        // Import the store dynamically to avoid circular dependencies
+        const { useReactionsStore } = await import('@/stores/useReactions')
+        const reactionsStore = useReactionsStore()
+        
+        messages.forEach(message => {
+          try {
+            if (message.reactions && Array.isArray(message.reactions) && message.reactions.length > 0) {
+              // Populate store cache with batch-loaded reactions
+              reactionsStore.reactionsByMessage.set(message.id, message.reactions)
+              reactionsStore.lastFetched.set(message.id, Date.now())
+              console.log(`✅ Populated store cache for message: ${message.id} (${message.reactions.length} reactions)`)
+            } else {
+              // Also cache empty reactions to prevent unnecessary fetches
+              reactionsStore.reactionsByMessage.set(message.id, [])
+              reactionsStore.lastFetched.set(message.id, Date.now())
+            }
+          } catch (err) {
+            console.warn(`⚠️ Failed to populate reaction cache for message ${message.id}:`, err)
+          }
+        })
+      } catch (error) {
+        console.warn('⚠️ Failed to populate reactions store cache (channel messages):', error)
+        // Continue execution even if cache population fails
+      }
       
       // Transform core service response to match expected API
       const { limit = 50 } = options
@@ -380,22 +389,31 @@ export class MessageService {
       const messages = await coreMessageService.loadConversationMessages(conversationId, options)
       
       // PERFORMANCE: Populate reactions store cache to prevent individual fetches
-      // Import the store dynamically to avoid circular dependencies
-      const { useReactionsStore } = await import('@/stores/useReactions')
-      const reactionsStore = useReactionsStore()
-      
-      messages.forEach(message => {
-        if (message.reactions && message.reactions.length > 0) {
-          // Populate store cache with batch-loaded reactions
-          reactionsStore.reactionsByMessage.set(message.id, message.reactions)
-          reactionsStore.lastFetched.set(message.id, Date.now())
-          console.log(`✅ Populated store cache for message: ${message.id} (${message.reactions.length} reactions)`)
-        } else {
-          // Also cache empty reactions to prevent unnecessary fetches
-          reactionsStore.reactionsByMessage.set(message.id, [])
-          reactionsStore.lastFetched.set(message.id, Date.now())
-        }
-      })
+      try {
+        // Import the store dynamically to avoid circular dependencies
+        const { useReactionsStore } = await import('@/stores/useReactions')
+        const reactionsStore = useReactionsStore()
+        
+        messages.forEach(message => {
+          try {
+            if (message.reactions && Array.isArray(message.reactions) && message.reactions.length > 0) {
+              // Populate store cache with batch-loaded reactions
+              reactionsStore.reactionsByMessage.set(message.id, message.reactions)
+              reactionsStore.lastFetched.set(message.id, Date.now())
+              console.log(`✅ Populated store cache for message: ${message.id} (${message.reactions.length} reactions)`)
+            } else {
+              // Also cache empty reactions to prevent unnecessary fetches
+              reactionsStore.reactionsByMessage.set(message.id, [])
+              reactionsStore.lastFetched.set(message.id, Date.now())
+            }
+          } catch (err) {
+            console.warn(`⚠️ Failed to populate reaction cache for message ${message.id}:`, err)
+          }
+        })
+      } catch (error) {
+        console.warn('⚠️ Failed to populate reactions store cache (conversation messages):', error)
+        // Continue execution even if cache population fails
+      }
       
       // Transform core service response to match expected API
       const { limit = 50 } = options

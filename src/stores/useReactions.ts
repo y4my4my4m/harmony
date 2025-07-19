@@ -38,16 +38,34 @@ export const useReactionsStore = defineStore('reactions', {
      * Get reactions for a specific message
      */
     getMessageReactions: (state) => (messageId: string): ReactionGroup[] => {
-      return state.reactionsByMessage.get(messageId) || [];
+      try {
+        const reactions = state.reactionsByMessage.get(messageId) || [];
+        // FIXED: Ensure we return valid reaction groups
+        return reactions.filter(r => r && r.emoji && r.emoji.id);
+      } catch (error) {
+        console.error('❌ Error in getMessageReactions:', error, { messageId });
+        return [];
+      }
     },
 
     /**
      * Check if user has reacted with specific emoji
      */
     hasUserReacted: (state) => (messageId: string, emojiId: string, userId: string): boolean => {
-      const reactions = state.reactionsByMessage.get(messageId) || [];
-      const emojiGroup = reactions.find(r => r.emoji.id === emojiId);
-      return emojiGroup?.reactions.some(r => r.user_id === userId) || false;
+      try {
+        const reactions = state.reactionsByMessage.get(messageId) || [];
+        const emojiGroup = reactions.find(r => r?.emoji?.id === emojiId);
+        
+        // FIXED: Add defensive checks for data structure
+        if (!emojiGroup || !emojiGroup.reactions || !Array.isArray(emojiGroup.reactions)) {
+          return false;
+        }
+        
+        return emojiGroup.reactions.some(r => r?.user_id === userId) || false;
+      } catch (error) {
+        console.error('❌ Error in hasUserReacted:', error, { messageId, emojiId, userId });
+        return false;
+      }
     },
 
     /**

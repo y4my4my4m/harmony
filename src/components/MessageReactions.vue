@@ -10,7 +10,7 @@
       <!-- Reaction groups -->
       <div
         v-for="reactionGroup in reactions"
-        :key="reactionGroup.id"
+        :key="reactionGroup.emoji_id || reactionGroup.emoji?.id"
         class="reaction"
         :class="{ 
           'reacted': hasUserReacted(reactionGroup.emoji.id),
@@ -61,9 +61,16 @@ const reactionsStore = useReactionsStore();
 const authStore = useAuthStore();
 
 // Get reactions for this message
-const reactions = computed(() => 
-  reactionsStore.getMessageReactions(props.message.id)
-);
+const reactions = computed(() => {
+  try {
+    const messageReactions = reactionsStore.getMessageReactions(props.message.id);
+    // FIXED: Filter out any invalid reaction data
+    return messageReactions.filter(r => r && r.emoji && r.emoji.id);
+  } catch (error) {
+    console.error('❌ Error getting reactions for message:', props.message.id, error);
+    return [];
+  }
+});
 
 // Check if reactions are loading
 const isLoadingReactions = computed(() => 
