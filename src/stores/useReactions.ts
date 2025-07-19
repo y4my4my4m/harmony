@@ -31,6 +31,10 @@ export const useReactionsStore = defineStore('reactions', {
     
     // Track toggle lock timestamps for cleanup
     toggleLockTimestamps: new Map<string, number>(),
+    
+    // FIXED: Add realtime debouncing and optimistic update tracking
+    realtimeDebounceTimers: new Map<string, NodeJS.Timeout>(),
+    recentOptimisticUpdates: new Set<string>(),
   }),
 
   getters: {
@@ -179,6 +183,9 @@ export const useReactionsStore = defineStore('reactions', {
         // Apply optimistic update for immediate UI feedback
         this.optimisticallyUpdateReaction(messageId, emojiId, userId, isAdding);
 
+        // FIXED: Mark this message as having a recent optimistic update
+        this.recentOptimisticUpdates.add(messageId);
+
         // Use service layer for reaction toggle with race condition handling
         try {
           console.log('🔄 Using service layer for reaction toggle');
@@ -192,16 +199,30 @@ export const useReactionsStore = defineStore('reactions', {
         } catch (error: any) {
           console.error('❌ Service layer reaction toggle failed:', error);
           this.revertOptimisticUpdate(messageId);
+          
+          // FIXED: Clear optimistic flag on service error too
+          this.recentOptimisticUpdates.delete(messageId);
+          
           return { success: false, reason: 'error', message: `Service layer error: ${error.message}` };
         }
 
         // Refresh reactions for this message to get the final state from server
         // This will overwrite the optimistic update with real data
         await this.fetchMessageReactions(messageId, true);
+        
+        // FIXED: Clear optimistic flag after successful completion
+        setTimeout(() => {
+          this.recentOptimisticUpdates.delete(messageId);
+        }, 500);
+        
         return { success: true };
       } catch (error) {
         console.error('🎯 Error toggling reaction:', error);
         this.revertOptimisticUpdate(messageId);
+        
+        // FIXED: Clear optimistic flag on error too
+        this.recentOptimisticUpdates.delete(messageId);
+        
         return { success: false, reason: 'error', message: `Exception during toggle: ${error}` };
       } finally {
         // Always remove the toggle lock
@@ -316,9 +337,32 @@ export const useReactionsStore = defineStore('reactions', {
 
       console.log('🎯 Handling realtime reaction update for message:', messageId);
       
-      // Invalidate cache for this message and refetch
-      this.lastFetched.delete(messageId);
-      this.fetchMessageReactions(messageId, true);
+      // FIXED: Add debouncing to prevent rapid successive fetches that conflict with optimistic updates
+      const debounceKey = `realtime_${messageId}`;
+      
+      // Clear any existing timer for this message
+      if (this.realtimeDebounceTimers.has(debounceKey)) {
+        clearTimeout(this.realtimeDebounceTimers.get(debounceKey));
+      }
+      
+      // Set a debounced fetch
+      const timer = setTimeout(() => {
+        // Only fetch if this wasn't our own optimistic update
+        if (!this.recentOptimisticUpdates.has(messageId)) {
+          console.log('🔄 Fetching reactions from realtime update');
+          this.lastFetched.delete(messageId);
+          this.fetchMessageReactions(messageId, true);
+        } else {
+          console.log('🔄 Skipping realtime fetch - was our own optimistic update');
+          // Clear the optimistic flag after a delay
+          setTimeout(() => {
+            this.recentOptimisticUpdates.delete(messageId);
+          }, 1000);
+        }
+        this.realtimeDebounceTimers.delete(debounceKey);
+      }, 300); // 300ms debounce
+      
+      this.realtimeDebounceTimers.set(debounceKey, timer);
     },
 
     /**
