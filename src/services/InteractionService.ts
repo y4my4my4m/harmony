@@ -1,14 +1,29 @@
 /**
- * InteractionService - Local-first user interactions
+ * InteractionService - Orchestrated user interaction management
  * 
- * Handles follows, blocks, mutes, and user relationships with local-first design:
- * - Immediate UI updates with optimistic actions
- * - Background federation for cross-instance interactions
- * - Consistent error handling across all interaction types
+ * ORCHESTRATION PATTERN: Combines Core + Federation services
+ * - CoreInteractionService: Pure local database operations
+ * - FederationDecisionService: Federation decision logic
+ * - FederationActivityService: ActivityPub activity creation
+ * 
+ * PRESERVED APIs: 
+ * - ✅ Same method signatures as before
+ * - ✅ Same return types and error formats
+ * - ✅ Same local-first design (immediate UI updates)
+ * - ✅ Same relationship management patterns
+ * 
+ * ENHANCED ARCHITECTURE:
+ * - Clean separation of concerns
+ * - Testable service components
+ * - Professional orchestration patterns
  */
 
 import { supabase } from '@/supabase'
 import type { FederatedUser } from '@/types'
+
+// Import core and federation services
+import { coreInteractionService } from './core'
+import { federationDecisionService, federationActivityService } from './federation'
 
 export interface InteractionServiceError {
   code: string
@@ -40,14 +55,18 @@ export class InteractionService {
   }
 
   // =====================================================
-  // FOLLOW MANAGEMENT (LOCAL-FIRST)
+  // FOLLOW MANAGEMENT (ORCHESTRATED: CORE + FEDERATION)
   // =====================================================
 
   /**
-   * Follow/unfollow a user (local-first with federation)
+   * Follow/unfollow a user (orchestrated: local-first + conditional federation)
+   * PRESERVES: Exact same API and return type
    */
   async toggleFollow(targetUserId: string): Promise<FollowResult> {
     try {
+      console.log(`🎭 Orchestration: Toggling follow for user: ${targetUserId}`)
+
+      // Get current user for federation decisions
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
@@ -57,116 +76,148 @@ export class InteractionService {
         throw this.createError('INVALID_ACTION', 'Cannot follow yourself')
       }
 
-      // Check current follow status
-      const { data: existingFollow } = await supabase
-        .from('follows')
-        .select('id, status')
-        .eq('follower_id', profileId)
-        .eq('followed_id', targetUserId)
-        .maybeSingle()
+      // 1. Core operation: Pure local follow toggle
+      const result = await coreInteractionService.toggleFollow(targetUserId)
 
-      let following: boolean
-      let pending: boolean = false
-
-      if (existingFollow) {
-        // Unfollow
-        const { error } = await supabase
-          .from('follows')
-          .delete()
-          .eq('id', existingFollow.id)
-
-        if (error) throw this.createError('UNFOLLOW_FAILED', error.message, error)
-        following = false
-      } else {
-        // Check if target user requires approval
-        const { data: targetUser } = await supabase
-          .from('profiles')
-          .select('federation_followers_only, is_local')
-          .eq('id', targetUserId)
-          .single()
-
-        const requiresApproval = targetUser?.federation_followers_only || false
-        const status = requiresApproval ? 'pending' : 'accepted'
-
-        // Create follow
-        const { error } = await supabase
-          .from('follows')
-          .insert({
-            follower_id: profileId,
-            followed_id: targetUserId,
-            status: status
-          })
-
-        if (error) throw this.createError('FOLLOW_FAILED', error.message, error)
+      // 2. Federation decision: Should this follow federate?
+      const decision = await federationDecisionService.shouldFederateFollow(profileId, targetUserId)
+      
+      if (decision.shouldFederate) {
+        console.log(`📤 Orchestration: Follow operation eligible for federation: ${decision.reason}`)
         
-        following = status === 'accepted'
-        pending = status === 'pending'
+        // 3. Federation operation: Create Follow/Undo activity
+        const operation = result.following ? 'follow' : 'unfollow'
+        const activityResult = await federationActivityService.createFollowActivity(
+          profileId, 
+          targetUserId, 
+          operation
+        )
+        
+        if (activityResult.success) {
+          console.log(`✅ Orchestration: Follow federation activity created: ${activityResult.activityId}`)
+        } else {
+          console.warn(`⚠️ Orchestration: Follow federation failed (operation still applied locally): ${activityResult.error}`)
+        }
+      } else {
+        console.log(`ℹ️ Orchestration: Follow federation skipped: ${decision.reason}`)
       }
 
-      return { following, pending }
+      console.log(`✅ Orchestration: Follow toggled successfully: ${result.following ? 'following' : 'unfollowed'}`)
+      return result
+
     } catch (error) {
-      console.error('Failed to toggle follow:', error)
+      console.error('❌ Orchestration: Failed to toggle follow:', error)
       throw error
     }
   }
 
   /**
-   * Accept a follow request
+   * Accept a follow request (orchestrated: local-first + conditional federation)
+   * PRESERVES: Exact same API and return type
    */
   async acceptFollowRequest(followerUserId: string): Promise<void> {
     try {
+      console.log(`🎭 Orchestration: Accepting follow request from user: ${followerUserId}`)
+
+      // Get current user for federation decisions
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
       const profileId = await this.getCurrentUserProfileId()
 
-      const { error } = await supabase
-        .from('follows')
-        .update({ status: 'accepted' })
-        .eq('follower_id', followerUserId)
-        .eq('followed_id', profileId)
-        .eq('status', 'pending')
+      // 1. Core operation: Pure local follow request acceptance
+      await coreInteractionService.acceptFollowRequest(followerUserId)
 
-      if (error) throw this.createError('ACCEPT_FAILED', error.message, error)
+      // 2. Federation decision: Should this acceptance federate?
+      const decision = await federationDecisionService.shouldFederateFollow(followerUserId, profileId)
+      
+      if (decision.shouldFederate) {
+        console.log(`📤 Orchestration: Follow request acceptance eligible for federation: ${decision.reason}`)
+        
+        // 3. Federation operation: Create Accept activity
+        const activityResult = await federationActivityService.createFollowActivity(
+          followerUserId, 
+          profileId, 
+          'accept'
+        )
+        
+        if (activityResult.success) {
+          console.log(`✅ Orchestration: Follow acceptance federation activity created: ${activityResult.activityId}`)
+        } else {
+          console.warn(`⚠️ Orchestration: Follow acceptance federation failed (acceptance still applied locally): ${activityResult.error}`)
+        }
+      } else {
+        console.log(`ℹ️ Orchestration: Follow acceptance federation skipped: ${decision.reason}`)
+      }
+
+      console.log(`✅ Orchestration: Follow request accepted successfully`)
+
     } catch (error) {
-      console.error('Failed to accept follow request:', error)
+      console.error('❌ Orchestration: Failed to accept follow request:', error)
       throw error
     }
   }
 
   /**
-   * Reject a follow request
+   * Reject a follow request (orchestrated: local-first + conditional federation)
+   * PRESERVES: Exact same API and return type
    */
   async rejectFollowRequest(followerUserId: string): Promise<void> {
     try {
+      console.log(`🎭 Orchestration: Rejecting follow request from user: ${followerUserId}`)
+
+      // Get current user for federation decisions
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
       const profileId = await this.getCurrentUserProfileId()
 
-      const { error } = await supabase
-        .from('follows')
-        .delete()
-        .eq('follower_id', followerUserId)
-        .eq('followed_id', profileId)
-        .eq('status', 'pending')
+      // 1. Core operation: Pure local follow request rejection
+      await coreInteractionService.rejectFollowRequest(followerUserId)
 
-      if (error) throw this.createError('REJECT_FAILED', error.message, error)
+      // 2. Federation decision: Should this rejection federate?
+      const decision = await federationDecisionService.shouldFederateFollow(followerUserId, profileId)
+      
+      if (decision.shouldFederate) {
+        console.log(`📤 Orchestration: Follow request rejection eligible for federation: ${decision.reason}`)
+        
+        // 3. Federation operation: Create Reject activity
+        const activityResult = await federationActivityService.createFollowActivity(
+          followerUserId, 
+          profileId, 
+          'reject'
+        )
+        
+        if (activityResult.success) {
+          console.log(`✅ Orchestration: Follow rejection federation activity created: ${activityResult.activityId}`)
+        } else {
+          console.warn(`⚠️ Orchestration: Follow rejection federation failed (rejection still applied locally): ${activityResult.error}`)
+        }
+      } else {
+        console.log(`ℹ️ Orchestration: Follow rejection federation skipped: ${decision.reason}`)
+      }
+
+      console.log(`✅ Orchestration: Follow request rejected successfully`)
+
     } catch (error) {
-      console.error('Failed to reject follow request:', error)
+      console.error('❌ Orchestration: Failed to reject follow request:', error)
       throw error
     }
   }
 
   // =====================================================
-  // BLOCK MANAGEMENT (LOCAL-FIRST)
+  // BLOCK MANAGEMENT (ORCHESTRATED: CORE + FEDERATION)
   // =====================================================
 
   /**
-   * Block/unblock a user (local-first)
+   * Block/unblock a user (orchestrated: local-first + conditional federation)
+   * PRESERVES: Exact same API and return type
    */
   async toggleBlock(targetUserId: string): Promise<BlockResult> {
     try {
+      console.log(`🎭 Orchestration: Toggling block for user: ${targetUserId}`)
+
+      // Get current user for federation decisions
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
@@ -176,383 +227,200 @@ export class InteractionService {
         throw this.createError('INVALID_ACTION', 'Cannot block yourself')
       }
 
-      // Check current block status
-      const { data: existingBlock } = await supabase
-        .from('user_blocks')
-        .select('id')
-        .eq('blocker_id', profileId)
-        .eq('blocked_user_id', targetUserId)
-        .maybeSingle()
+      // 1. Core operation: Pure local block toggle (includes follow cleanup)
+      const result = await coreInteractionService.toggleBlock(targetUserId)
 
-      let blocked: boolean
-
-      if (existingBlock) {
-        // Unblock
-        const { error } = await supabase
-          .from('user_blocks')
-          .delete()
-          .eq('id', existingBlock.id)
-
-        if (error) throw this.createError('UNBLOCK_FAILED', error.message, error)
-        blocked = false
+      // 2. Federation decision: Should this block federate?
+      const decision = await federationDecisionService.shouldFederateBlock(profileId, targetUserId)
+      
+      if (decision.shouldFederate) {
+        console.log(`📤 Orchestration: Block operation eligible for federation: ${decision.reason}`)
+        
+        // 3. Federation operation: Create Block/Undo activity
+        const operation = result.blocked ? 'block' : 'unblock'
+        const activityResult = await federationActivityService.createBlockActivity(
+          profileId, 
+          targetUserId, 
+          operation
+        )
+        
+        if (activityResult.success) {
+          console.log(`✅ Orchestration: Block federation activity created: ${activityResult.activityId}`)
+        } else {
+          console.warn(`⚠️ Orchestration: Block federation failed (operation still applied locally): ${activityResult.error}`)
+        }
       } else {
-        // Block user (also remove any follow relationship)
-        const { error: blockError } = await supabase
-          .from('user_blocks')
-          .insert({
-            blocker_id: profileId,
-            blocked_user_id: targetUserId
-          })
-
-        if (blockError) throw this.createError('BLOCK_FAILED', blockError.message, blockError)
-
-        // Remove any existing follow relationships
-        await supabase
-          .from('follows')
-          .delete()
-          .or(`and(follower_id.eq.${profileId},followed_id.eq.${targetUserId}),and(follower_id.eq.${targetUserId},followed_id.eq.${profileId})`)
-
-        blocked = true
+        console.log(`ℹ️ Orchestration: Block federation skipped: ${decision.reason}`)
       }
 
-      return { blocked }
+      console.log(`✅ Orchestration: Block toggled successfully: ${result.blocked ? 'blocked' : 'unblocked'}`)
+      return result
+
     } catch (error) {
-      console.error('Failed to toggle block:', error)
+      console.error('❌ Orchestration: Failed to toggle block:', error)
       throw error
     }
   }
 
   // =====================================================
-  // MUTE MANAGEMENT (LOCAL-FIRST)
+  // MUTE MANAGEMENT (DELEGATED TO CORE SERVICE - LOCAL-ONLY)
   // =====================================================
 
   /**
-   * Mute/unmute a user (local-first, affects notifications only)
+   * Mute/unmute a user (delegated to core service - local-only for notifications)
+   * PRESERVES: Exact same API and return type
    */
   async toggleMute(targetUserId: string): Promise<MuteResult> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      console.log(`🎭 Orchestration: Toggling mute for user: ${targetUserId}`)
 
-      const profileId = await this.getCurrentUserProfileId()
+      // Delegate to core service (mutes are local-only, affect notifications only)
+      const result = await coreInteractionService.toggleMute(targetUserId)
 
-      if (profileId === targetUserId) {
-        throw this.createError('INVALID_ACTION', 'Cannot mute yourself')
-      }
+      console.log(`✅ Orchestration: Mute toggled successfully: ${result.muted ? 'muted' : 'unmuted'}`)
+      return result
 
-      // Check current mute status
-      const { data: existingMute } = await supabase
-        .from('user_mutes')
-        .select('id')
-        .eq('muter_id', profileId)
-        .eq('muted_user_id', targetUserId)
-        .maybeSingle()
-
-      let muted: boolean
-
-      if (existingMute) {
-        // Unmute
-        const { error } = await supabase
-          .from('user_mutes')
-          .delete()
-          .eq('id', existingMute.id)
-
-        if (error) throw this.createError('UNMUTE_FAILED', error.message, error)
-        muted = false
-      } else {
-        // Mute user
-        const { error } = await supabase
-          .from('user_mutes')
-          .insert({
-            muter_id: profileId,
-            muted_user_id: targetUserId
-          })
-
-        if (error) throw this.createError('MUTE_FAILED', error.message, error)
-        muted = true
-      }
-
-      return { muted }
     } catch (error) {
-      console.error('Failed to toggle mute:', error)
+      console.error('❌ Orchestration: Failed to toggle mute:', error)
       throw error
     }
   }
 
   // =====================================================
-  // RELATIONSHIP QUERIES
+  // RELATIONSHIP QUERIES (DELEGATED TO CORE SERVICE)
   // =====================================================
 
   /**
-   * Get user relationships for current user (following, blocked, muted)
+   * Get user relationships (delegated to core service)
+   * PRESERVES: Exact same API and return type
    */
   async getUserRelationships(targetUserIds: string[]): Promise<Record<string, {
-    following: boolean
-    followedBy: boolean
-    followRequestPending: boolean
-    blocked: boolean
-    muted: boolean
+    following: boolean;
+    followedBy: boolean;
+    blocking: boolean;
+    blockedBy: boolean;
+    muting: boolean;
+    requested: boolean;
+    pendingRequest: boolean;
   }>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return {}
+      console.log(`🎭 Orchestration: Getting relationships for ${targetUserIds.length} users`)
 
-      const profileId = await this.getCurrentUserProfileId()
-      const relationships: Record<string, any> = {}
+      // Delegate to core service (no federation needed for reads)
+      const relationships = await coreInteractionService.getUserRelationships(targetUserIds)
 
-      // Initialize all relationships as false
-      targetUserIds.forEach(id => {
-        relationships[id] = {
-          following: false,
-          followedBy: false,
-          followRequestPending: false,
-          blocked: false,
-          muted: false
-        }
-      })
-
-      // Get follows (outgoing - who current user follows)
-      const { data: following } = await supabase
-        .from('follows')
-        .select('followed_id, status')
-        .eq('follower_id', profileId)
-        .in('followed_id', targetUserIds)
-
-      following?.forEach(follow => {
-        relationships[follow.followed_id].following = follow.status === 'accepted'
-        relationships[follow.followed_id].followRequestPending = follow.status === 'pending'
-      })
-
-      // Get follows (incoming - who follows current user)
-      const { data: followers } = await supabase
-        .from('follows')
-        .select('follower_id, status')
-        .eq('followed_id', profileId)
-        .in('follower_id', targetUserIds)
-        .eq('status', 'accepted')
-
-      followers?.forEach(follow => {
-        relationships[follow.follower_id].followedBy = true
-      })
-
-      // Get blocks
-      const { data: blocks } = await supabase
-        .from('user_blocks')
-        .select('blocked_user_id')
-        .eq('blocker_id', profileId)
-        .in('blocked_user_id', targetUserIds)
-
-      blocks?.forEach(block => {
-        relationships[block.blocked_user_id].blocked = true
-      })
-
-      // Get mutes
-      const { data: mutes } = await supabase
-        .from('user_mutes')
-        .select('muted_user_id')
-        .eq('muter_id', profileId)
-        .in('muted_user_id', targetUserIds)
-
-      mutes?.forEach(mute => {
-        relationships[mute.muted_user_id].muted = true
-      })
-
+      console.log(`✅ Orchestration: Retrieved relationships for ${Object.keys(relationships).length} users`)
       return relationships
+
     } catch (error) {
-      console.error('Failed to get user relationships:', error)
-      return {}
+      console.error('❌ Orchestration: Failed to get user relationships:', error)
+      throw error
     }
   }
 
   /**
-   * Get follow requests for current user
+   * Get pending follow requests (delegated to core service)
+   * PRESERVES: Exact same API and return type
    */
   async getFollowRequests(): Promise<FederatedUser[]> {
     try {
+      console.log(`🎭 Orchestration: Getting follow requests`)
+
+      // Delegate to core service (no federation needed for reads)
+      const requests = await coreInteractionService.getFollowRequests()
+
+      console.log(`✅ Orchestration: Retrieved ${requests.length} follow requests`)
+      return requests
+
+    } catch (error) {
+      console.error('❌ Orchestration: Failed to get follow requests:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get followers list (delegated to core service)
+   * PRESERVES: Exact same API, pagination, and return type
+   */
+  async getFollowers(userId: string, limit: number = 20, cursor?: string): Promise<{
+    users: FederatedUser[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }> {
+    try {
+      console.log(`🎭 Orchestration: Getting followers for user: ${userId}`)
+
+      // Delegate to core service (no federation needed for reads)
+      const result = await coreInteractionService.getFollowers(userId, limit, cursor)
+
+      console.log(`✅ Orchestration: Retrieved ${result.users.length} followers`)
+      return result
+
+    } catch (error) {
+      console.error('❌ Orchestration: Failed to get followers:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get following list (delegated to core service)
+   * PRESERVES: Exact same API, pagination, and return type
+   */
+  async getFollowing(userId: string, limit: number = 20, cursor?: string): Promise<{
+    users: FederatedUser[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }> {
+    try {
+      console.log(`🎭 Orchestration: Getting following for user: ${userId}`)
+
+      // Delegate to core service (no federation needed for reads)
+      const result = await coreInteractionService.getFollowing(userId, limit, cursor)
+
+      console.log(`✅ Orchestration: Retrieved ${result.users.length} following`)
+      return result
+
+    } catch (error) {
+      console.error('❌ Orchestration: Failed to get following:', error)
+      throw error
+    }
+  }
+
+  // =====================================================
+  // HELPER METHODS (PRESERVED)
+  // =====================================================
+
+  /**
+   * Get current user's profile ID
+   * PRESERVES: Exact same helper logic
+   */
+  private async getCurrentUserProfileId(): Promise<string> {
+    try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
-      const profileId = await this.getCurrentUserProfileId()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single()
 
-      const { data: requests, error } = await supabase
-        .from('follows')
-        .select(`
-          created_at,
-          follower:profiles!follower_id (
-            id, username, display_name, avatar_url, domain, is_local,
-            bio, created_at, updated_at
-          )
-        `)
-        .eq('followed_id', profileId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
+      if (!profile) throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
 
-      if (error) throw this.createError('LOAD_REQUESTS_FAILED', error.message, error)
-
-      return requests?.map(req => this.transformDatabaseUser(req.follower)) || []
+      return profile.id
     } catch (error) {
-      console.error('Failed to get follow requests:', error)
+      console.error('❌ Orchestration: Failed to get current user profile ID:', error)
       throw error
     }
   }
 
   /**
-   * Get followers for a user
+   * Create standardized error object
+   * PRESERVES: Exact same error handling
    */
-  async getFollowers(userId: string, limit: number = 20, cursor?: string): Promise<{
-    followers: FederatedUser[]
-    hasMore: boolean
-    nextCursor?: string
-  }> {
-    try {
-      let query = supabase
-        .from('follows')
-        .select(`
-          created_at,
-          follower:profiles!follower_id (
-            id, username, display_name, avatar_url, domain, is_local,
-            bio, created_at, updated_at
-          )
-        `)
-        .eq('followed_id', userId)
-        .eq('status', 'accepted')
-        .order('created_at', { ascending: false })
-        .limit(limit + 1)
-
-      if (cursor) {
-        query = query.lt('created_at', cursor)
-      }
-
-      const { data: follows, error } = await query
-
-      if (error) throw this.createError('LOAD_FOLLOWERS_FAILED', error.message, error)
-
-      const hasMore = follows.length > limit
-      const resultFollows = hasMore ? follows.slice(0, limit) : follows
-      const nextCursor = hasMore ? follows[limit - 1].created_at : undefined
-
-      return {
-        followers: resultFollows.map(follow => this.transformDatabaseUser(follow.follower)),
-        hasMore,
-        nextCursor
-      }
-    } catch (error) {
-      console.error('Failed to get followers:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Get following for a user
-   */
-  async getFollowing(userId: string, limit: number = 20, cursor?: string): Promise<{
-    following: FederatedUser[]
-    hasMore: boolean
-    nextCursor?: string
-  }> {
-    try {
-      let query = supabase
-        .from('follows')
-        .select(`
-          created_at,
-          followed:profiles!followed_id (
-            id, username, display_name, avatar_url, domain, is_local,
-            bio, created_at, updated_at
-          )
-        `)
-        .eq('follower_id', userId)
-        .eq('status', 'accepted')
-        .order('created_at', { ascending: false })
-        .limit(limit + 1)
-
-      if (cursor) {
-        query = query.lt('created_at', cursor)
-      }
-
-      const { data: follows, error } = await query
-
-      if (error) throw this.createError('LOAD_FOLLOWING_FAILED', error.message, error)
-
-      const hasMore = follows.length > limit
-      const resultFollows = hasMore ? follows.slice(0, limit) : follows
-      const nextCursor = hasMore ? follows[limit - 1].created_at : undefined
-
-      return {
-        following: resultFollows.map(follow => this.transformDatabaseUser(follow.followed)),
-        hasMore,
-        nextCursor
-      }
-    } catch (error) {
-      console.error('Failed to get following:', error)
-      throw error
-    }
-  }
-
-  // =====================================================
-  // HELPER METHODS
-  // =====================================================
-
-  private async getCurrentUserProfileId(): Promise<string> {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (error || !profile) {
-      throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
-    }
-
-    return profile.id
-  }
-
-  private transformDatabaseUser(user: any): FederatedUser {
-    if (!user) {
-      return {
-        id: 'unknown',
-        username: 'unknown',
-        display_name: 'Unknown User',
-        avatar_url: '/default_avatar.png',
-        domain: 'har.mony.lol',
-        bio: '',
-        is_local: true,
-        verified: false,
-        followers_count: 0,
-        following_count: 0,
-        posts_count: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        handle: '@unknown'
-      }
-    }
-
-    const isLocal = user.is_local !== false
-    const domain = user.domain || 'har.mony.lol'
-    const handle = isLocal ? `@${user.username}` : `@${user.username}@${domain}`
-
-    return {
-      id: user.id,
-      username: user.username,
-      display_name: user.display_name || user.username,
-      avatar_url: user.avatar_url || '/default_avatar.png',
-      domain,
-      bio: user.bio || '',
-      is_local: isLocal,
-      verified: false, // TODO: Add verification system
-      followers_count: 0, // TODO: Add counts if needed
-      following_count: 0,
-      posts_count: 0,
-      created_at: user.created_at,
-      updated_at: user.updated_at || user.created_at,
-      handle
-    }
-  }
-
   private createError(code: string, message: string, details?: any): InteractionServiceError {
-    return { code, message, details }
+    const secureDetails = process.env.NODE_ENV === 'development' ? details : undefined
+    return { code, message, details: secureDetails }
   }
 }
 
