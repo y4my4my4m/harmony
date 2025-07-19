@@ -676,6 +676,68 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async updateServer(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
+      try {
+        console.log('🔄 Updating server via service-like helper:', serverData.id);
+        
+        // Use service-like helper for server update
+        const updatedServer = await this._updateServerHelper(serverData);
+        
+        if (updatedServer) {
+          // Update local state with optimistic update
+          const serverIndex = this.servers.findIndex(server => server.id === serverData.id);
+          if (serverIndex !== -1) {
+            this.servers[serverIndex] = { ...this.servers[serverIndex], ...updatedServer };
+          }
+          
+          console.log('✅ Server updated successfully via service-like helper:', updatedServer.id);
+          return updatedServer;
+        }
+        
+        throw new Error('Server update returned no data');
+      } catch (error) {
+        console.error('❌ Failed to update server via service-like helper:', error);
+        
+        // Fallback to direct update if helper fails
+        try {
+          console.log('🔄 Falling back to direct server update');
+          return await this._updateServerFallback(serverData);
+        } catch (fallbackError) {
+          console.error('❌ Fallback server update also failed:', fallbackError);
+          throw fallbackError;
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Update server with enhanced error handling
+     */
+    async _updateServerHelper(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
+      const updateData: Record<string, any> = {};
+      
+      // Build update object conditionally
+      if (serverData.icon) updateData.icon = serverData.icon;
+      if (serverData.name) updateData.name = serverData.name;
+      if (serverData.description !== undefined) updateData.description = serverData.description;
+      if (serverData.public !== undefined) updateData.public = serverData.public;
+
+      const { data, error } = await supabase
+        .from('servers')
+        .update(updateData)
+        .eq('id', serverData.id)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Server update failed: ${error.message}`);
+      }
+
+      return data;
+    },
+
+    /**
+     * Fallback method for updating server
+     */
+    async _updateServerFallback(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
       const { data, error } = await supabase
         .from('servers')
         .update({
@@ -689,7 +751,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .single();
 
       if (error) {
-        console.error('Error updating server:', error);
+        console.error('Error updating server in fallback:', error);
         throw error;
       }
 
@@ -699,7 +761,6 @@ export const useServerChannelStore = defineStore('serverChannel', {
         this.servers[serverIndex] = { ...this.servers[serverIndex], ...data };
       }
 
-      console.log('✅ Server updated successfully:', data);
       return data;
     },
 
@@ -822,158 +883,359 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async deleteChannel(channelId: string): Promise<void> {
       try {
-        const { error } = await supabase
-          .from('channels')
-          .delete()
-          .eq('id', channelId);
-
-        if (error) {
-          console.error('Error deleting channel:', error);
-          throw error;
-        }
-
-        // Remove channel from local state
-        this.channels = this.channels.filter(channel => channel.id !== channelId);
+        console.log('🔄 Deleting channel via service-like helper:', channelId);
         
-        // Remove from category channels if it was in a category
-        Object.keys(this.categoryChannels).forEach(categoryId => {
-          this.categoryChannels[categoryId] = this.categoryChannels[categoryId].filter(
-            channel => channel.id !== channelId
-          );
-        });
-
-        // If this was the current channel, switch to another channel
-        if (this.currentChannelId === channelId) {
-          const defaultChannel = this.getDefaultChannel();
-          if (defaultChannel) {
-            this.setCurrentChannel(defaultChannel);
-          } else {
-            this.currentChannelId = null;
-          }
-        }
-
-        console.log('✅ Channel deleted successfully:', channelId);
+        // Use service-like helper for channel deletion
+        await this._deleteChannelHelper(channelId);
+        
+        // Handle complex local state cleanup using service-like helper
+        this._removeChannelFromLocalState(channelId);
+        
+        console.log('✅ Channel deleted successfully via service-like helper:', channelId);
       } catch (error) {
-        console.error('❌ Failed to delete channel:', error);
+        console.error('❌ Failed to delete channel via service-like helper:', error);
+        
+        // Fallback to direct deletion if helper fails
+        try {
+          console.log('🔄 Falling back to direct channel deletion');
+          await this._deleteChannelFallback(channelId);
+        } catch (fallbackError) {
+          console.error('❌ Fallback channel deletion also failed:', fallbackError);
+          throw fallbackError;
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Delete channel with enhanced error handling
+     */
+    async _deleteChannelHelper(channelId: string): Promise<void> {
+      const { error } = await supabase
+        .from('channels')
+        .delete()
+        .eq('id', channelId);
+
+      if (error) {
+        throw new Error(`Channel deletion failed: ${error.message}`);
+      }
+    },
+
+    /**
+     * Service-like helper: Remove channel from complex local state
+     */
+    _removeChannelFromLocalState(channelId: string): void {
+      // Remove channel from local state
+      this.channels = this.channels.filter(channel => channel.id !== channelId);
+      
+      // Remove from category channels if it was in a category
+      Object.keys(this.categoryChannels).forEach(categoryId => {
+        this.categoryChannels[categoryId] = this.categoryChannels[categoryId].filter(
+          channel => channel.id !== channelId
+        );
+      });
+
+      // If this was the current channel, switch to another channel
+      if (this.currentChannelId === channelId) {
+        const defaultChannel = this.getDefaultChannel();
+        if (defaultChannel) {
+          this.setCurrentChannel(defaultChannel);
+        } else {
+          this.currentChannelId = null;
+        }
+      }
+    },
+
+    /**
+     * Fallback method for deleting channel
+     */
+    async _deleteChannelFallback(channelId: string): Promise<void> {
+      const { error } = await supabase
+        .from('channels')
+        .delete()
+        .eq('id', channelId);
+
+      if (error) {
+        console.error('Error deleting channel in fallback:', error);
         throw error;
       }
+
+      // Handle complex local state cleanup using reusable helper
+      this._removeChannelFromLocalState(channelId);
     },
 
     async deleteCategory(categoryId: string): Promise<void> {
       try {
-        // First, move all channels in this category to orphans (no category)
+        console.log('🔄 Deleting category via service-like helper:', categoryId);
+        
+        // Get channels that need to be moved to orphans
         const channelsInCategory = this.categoryChannels[categoryId] || [];
-        if (channelsInCategory.length > 0) {
-          const { error: updateError } = await supabase
-            .from('channels')
-            .update({ category_id: null })
-            .in('id', channelsInCategory.map(channel => channel.id));
-
-          if (updateError) {
-            console.error('Error moving channels to orphans:', updateError);
-            throw updateError;
-          }
-        }
-
-        // Then delete the category
-        const { error } = await supabase
-          .from('channel_categories')
-          .delete()
-          .eq('id', categoryId);
-
-        if (error) {
-          console.error('Error deleting category:', error);
-          throw error;
-        }
-
-        // Update local state
-        this.categories = this.categories.filter(category => category.id !== categoryId);
         
-        // Move channels to orphans in local state
-        if (channelsInCategory.length > 0) {
-          channelsInCategory.forEach(channel => {
-            channel.category_id = null;
-          });
-        }
+        // Use service-like helper for complex category deletion
+        await this._deleteCategoryHelper(categoryId, channelsInCategory);
         
-        // Remove category from categoryChannels
-        delete this.categoryChannels[categoryId];
-
-        console.log('✅ Category deleted successfully:', categoryId);
+        // Handle complex local state cleanup using service-like helper
+        this._removeCategoryFromLocalState(categoryId, channelsInCategory);
+        
+        console.log('✅ Category deleted successfully via service-like helper:', categoryId);
       } catch (error) {
-        console.error('❌ Failed to delete category:', error);
+        console.error('❌ Failed to delete category via service-like helper:', error);
+        
+        // Fallback to direct deletion if helper fails
+        try {
+          console.log('🔄 Falling back to direct category deletion');
+          await this._deleteCategoryFallback(categoryId);
+        } catch (fallbackError) {
+          console.error('❌ Fallback category deletion also failed:', fallbackError);
+          throw fallbackError;
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Delete category with channel orphaning
+     */
+    async _deleteCategoryHelper(categoryId: string, channelsInCategory: Channel[]): Promise<void> {
+      // First, move all channels in this category to orphans (no category)
+      if (channelsInCategory.length > 0) {
+        const { error: updateError } = await supabase
+          .from('channels')
+          .update({ category_id: null })
+          .in('id', channelsInCategory.map(channel => channel.id));
+
+        if (updateError) {
+          throw new Error(`Error moving channels to orphans: ${updateError.message}`);
+        }
+      }
+
+      // Then delete the category
+      const { error } = await supabase
+        .from('channel_categories')
+        .delete()
+        .eq('id', categoryId);
+
+      if (error) {
+        throw new Error(`Category deletion failed: ${error.message}`);
+      }
+    },
+
+    /**
+     * Service-like helper: Remove category from complex local state
+     */
+    _removeCategoryFromLocalState(categoryId: string, channelsInCategory: Channel[]): void {
+      // Update local state
+      this.categories = this.categories.filter(category => category.id !== categoryId);
+      
+      // Move channels to orphans in local state
+      if (channelsInCategory.length > 0) {
+        channelsInCategory.forEach(channel => {
+          channel.category_id = null;
+        });
+      }
+      
+      // Remove category from categoryChannels
+      delete this.categoryChannels[categoryId];
+    },
+
+    /**
+     * Fallback method for deleting category
+     */
+    async _deleteCategoryFallback(categoryId: string): Promise<void> {
+      // Get channels that need to be moved to orphans
+      const channelsInCategory = this.categoryChannels[categoryId] || [];
+      
+      // First, move all channels in this category to orphans (no category)
+      if (channelsInCategory.length > 0) {
+        const { error: updateError } = await supabase
+          .from('channels')
+          .update({ category_id: null })
+          .in('id', channelsInCategory.map(channel => channel.id));
+
+        if (updateError) {
+          console.error('Error moving channels to orphans in fallback:', updateError);
+          throw updateError;
+        }
+      }
+
+      // Then delete the category
+      const { error } = await supabase
+        .from('channel_categories')
+        .delete()
+        .eq('id', categoryId);
+
+      if (error) {
+        console.error('Error deleting category in fallback:', error);
         throw error;
       }
+
+      // Handle complex local state cleanup using reusable helper
+      this._removeCategoryFromLocalState(categoryId, channelsInCategory);
     },
 
     async updateChannel(channelData: { id: string; name?: string; description?: string }): Promise<void> {
       try {
-        const updateData: any = {};
-        if (channelData.name !== undefined) updateData.name = channelData.name;
-        if (channelData.description !== undefined) updateData.description = channelData.description;
-
-        const { data, error } = await supabase
-          .from('channels')
-          .update(updateData)
-          .eq('id', channelData.id)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error updating channel:', error);
-          throw error;
+        console.log('🔄 Updating channel via service-like helper:', channelData.id);
+        
+        // Use service-like helper for channel update
+        const updatedChannel = await this._updateChannelHelper(channelData);
+        
+        if (updatedChannel) {
+          // Update complex local state using service-like helper
+          this._updateChannelInLocalState(updatedChannel);
+          
+          console.log('✅ Channel updated successfully via service-like helper:', channelData.id);
         }
-
-        // Update local state
-        const channelIndex = this.channels.findIndex(channel => channel.id === channelData.id);
-        if (channelIndex !== -1) {
-          this.channels[channelIndex] = { ...this.channels[channelIndex], ...data };
-        }
-
-        // Update in category channels if it exists
-        Object.keys(this.categoryChannels).forEach(categoryId => {
-          const categoryChannelIndex = this.categoryChannels[categoryId].findIndex(
-            channel => channel.id === channelData.id
-          );
-          if (categoryChannelIndex !== -1) {
-            this.categoryChannels[categoryId][categoryChannelIndex] = {
-              ...this.categoryChannels[categoryId][categoryChannelIndex],
-              ...data
-            };
-          }
-        });
-
-        console.log('✅ Channel updated successfully:', channelData.id);
       } catch (error) {
-        console.error('❌ Failed to update channel:', error);
+        console.error('❌ Failed to update channel via service-like helper:', error);
+        
+        // Fallback to direct update if helper fails
+        try {
+          console.log('🔄 Falling back to direct channel update');
+          await this._updateChannelFallback(channelData);
+        } catch (fallbackError) {
+          console.error('❌ Fallback channel update also failed:', fallbackError);
+          throw fallbackError;
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Update channel with enhanced error handling
+     */
+    async _updateChannelHelper(channelData: { id: string; name?: string; description?: string }) {
+      const updateData: any = {};
+      if (channelData.name !== undefined) updateData.name = channelData.name;
+      if (channelData.description !== undefined) updateData.description = channelData.description;
+
+      const { data, error } = await supabase
+        .from('channels')
+        .update(updateData)
+        .eq('id', channelData.id)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Channel update failed: ${error.message}`);
+      }
+
+      return data;
+    },
+
+    /**
+     * Service-like helper: Update channel in complex local state
+     */
+    _updateChannelInLocalState(updatedChannel: Channel) {
+      // Update local state in main channels array
+      const channelIndex = this.channels.findIndex(channel => channel.id === updatedChannel.id);
+      if (channelIndex !== -1) {
+        this.channels[channelIndex] = { ...this.channels[channelIndex], ...updatedChannel };
+      }
+
+      // Update in category channels if it exists
+      Object.keys(this.categoryChannels).forEach(categoryId => {
+        const categoryChannelIndex = this.categoryChannels[categoryId].findIndex(
+          channel => channel.id === updatedChannel.id
+        );
+        if (categoryChannelIndex !== -1) {
+          this.categoryChannels[categoryId][categoryChannelIndex] = {
+            ...this.categoryChannels[categoryId][categoryChannelIndex],
+            ...updatedChannel
+          };
+        }
+      });
+    },
+
+    /**
+     * Fallback method for updating channel
+     */
+    async _updateChannelFallback(channelData: { id: string; name?: string; description?: string }): Promise<void> {
+      const updateData: any = {};
+      if (channelData.name !== undefined) updateData.name = channelData.name;
+      if (channelData.description !== undefined) updateData.description = channelData.description;
+
+      const { data, error } = await supabase
+        .from('channels')
+        .update(updateData)
+        .eq('id', channelData.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating channel in fallback:', error);
         throw error;
       }
+
+      // Update complex local state using reusable helper
+      this._updateChannelInLocalState(data);
     },
 
     async updateCategory(categoryData: { id: string; name: string }): Promise<void> {
       try {
-        const { data, error } = await supabase
-          .from('channel_categories')
-          .update({ name: categoryData.name })
-          .eq('id', categoryData.id)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error updating category:', error);
-          throw error;
+        console.log('🔄 Updating category via service-like helper:', categoryData.id);
+        
+        // Use service-like helper for category update
+        const updatedCategory = await this._updateCategoryHelper(categoryData);
+        
+        if (updatedCategory) {
+          // Update local state
+          const categoryIndex = this.categories.findIndex(category => category.id === categoryData.id);
+          if (categoryIndex !== -1) {
+            this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...updatedCategory };
+          }
+          
+          console.log('✅ Category updated successfully via service-like helper:', categoryData.id);
         }
-
-        // Update local state
-        const categoryIndex = this.categories.findIndex(category => category.id === categoryData.id);
-        if (categoryIndex !== -1) {
-          this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...data };
-        }
-
-        console.log('✅ Category updated successfully:', categoryData.id);
       } catch (error) {
-        console.error('❌ Failed to update category:', error);
+        console.error('❌ Failed to update category via service-like helper:', error);
+        
+        // Fallback to direct update if helper fails
+        try {
+          console.log('🔄 Falling back to direct category update');
+          await this._updateCategoryFallback(categoryData);
+        } catch (fallbackError) {
+          console.error('❌ Fallback category update also failed:', fallbackError);
+          throw fallbackError;
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Update category with enhanced error handling
+     */
+    async _updateCategoryHelper(categoryData: { id: string; name: string }) {
+      const { data, error } = await supabase
+        .from('channel_categories')
+        .update({ name: categoryData.name })
+        .eq('id', categoryData.id)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Category update failed: ${error.message}`);
+      }
+
+      return data;
+    },
+
+    /**
+     * Fallback method for updating category
+     */
+    async _updateCategoryFallback(categoryData: { id: string; name: string }): Promise<void> {
+      const { data, error } = await supabase
+        .from('channel_categories')
+        .update({ name: categoryData.name })
+        .eq('id', categoryData.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating category in fallback:', error);
         throw error;
+      }
+
+      // Update local state
+      const categoryIndex = this.categories.findIndex(category => category.id === categoryData.id);
+      if (categoryIndex !== -1) {
+        this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...data };
       }
     },
   }

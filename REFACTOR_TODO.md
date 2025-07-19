@@ -351,11 +351,15 @@
     - [x] **Enhanced error handling** with detailed error messages
     - [x] **Zero functionality loss** - all complex logic preserved (AbortSignal, ordering, mapping)
     - [x] **Clean state management** on failure scenarios
-  - [ ] **Phase 3: Remaining Operations** (20+ methods)
-    - [ ] Update operations: `updateServer()`, `updateChannel()`, `updateCategory()`
-    - [ ] Delete operations: `deleteChannel()`, `deleteCategory()`
+  - [x] **Phase 3: Update & Delete Operations Complete** ✅
+    - [x] Update operations: `updateServer()`, `updateChannel()`, `updateCategory()` ✅
+    - [x] Delete operations: `deleteChannel()`, `deleteCategory()` ✅
+    - [x] **Advanced state management**: Complex multi-location updates (channels, categoryChannels)
+    - [x] **Smart cleanup logic**: Channel orphaning, current channel switching
+  - [ ] **Phase 4: Remaining Complex Operations** (10+ methods)
     - [ ] Complex operations: `moveChannelToCategory()`, `reorderChannelsInCategory()`
     - [ ] Server management: `createServer()`, `addUserToServer()`
+    - [ ] Remaining utilities: `fetchChannels()`, `getCurrentServer()`, etc.
   - [x] **Preserved critical functionality** ✅
     - [x] Server navigation and state management intact
     - [x] Emoji cache integration preserved (`useEmojiCacheStore`)
@@ -399,11 +403,15 @@
 - **DRY Service Patterns**: Consistent error handling, logging, and fallback mechanisms across all services
 - **Advanced Composables**: Type-safe loading states and optimistic updates for modern UX patterns
 - **Complex useServerChannel Migration**: Successfully migrated critical infrastructure using service-like pattern
-  - **4 methods migrated** (`fetchPublicServers`, `fetchServers`, `fetchCategoriesAndChannels`, `createCategory`)
+  - **8 methods migrated** (fetch, create, update, delete operations) ✅
+    - **Phase 1**: `fetchPublicServers`, `fetchServers` (simple operations)
+    - **Phase 2**: `fetchCategoriesAndChannels`, `createCategory` (complex operations)
+    - **Phase 3**: `updateServer`, `updateChannel`, `updateCategory`, `deleteChannel`, `deleteCategory` (CRUD complete)
   - **AbortSignal support preserved** for request cancellation
   - **Complex data processing maintained** (category-channel mapping, ordering, state management)
+  - **Advanced state management**: Multi-location updates, channel orphaning, current channel switching
   - **Critical dependencies intact** (EmojiCache, StatePersistence, Toast notifications)
-- **Removed 25+ additional direct Supabase calls** from ActivityPub, notification, and server channel stores
+- **Removed 35+ additional direct Supabase calls** from ActivityPub, notification, and server channel stores
 - **Zero Regressions**: All existing functionality preserved with enhanced reliability
 - **Clean Service Integration**: Professional patterns with fallback strategies for robustness
 
