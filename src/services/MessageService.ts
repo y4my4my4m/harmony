@@ -381,7 +381,7 @@ export class MessageService {
       // Check if conversation exists
       const { data: conversation, error: convError } = await supabase
         .from('conversations')
-        .select('id, created_at, updated_at')
+        .select('id, created_at')
         .eq('id', conversationId)
         .single()
       
@@ -407,7 +407,7 @@ export class MessageService {
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('conversation_id', conversationId)
-        .eq('is_deleted', false)
+        .or('is_deleted.is.null,is_deleted.eq.false')
       
       console.log('🔍 Debug: Active messages count:', {
         count: activeCount,
@@ -445,27 +445,17 @@ export class MessageService {
     before?: string
   ): Promise<{ messages: Message[]; hasMore: boolean }> {
     try {
-      console.log('🔍 MessageService.loadConversationMessages DEBUG:', {
-        conversationId,
-        limit,
-        before,
-        timestamp: new Date().toISOString()
-      })
+      console.log('🔄 MessageService: Loading conversation messages:', { conversationId, limit, before })
 
       // Check authentication first
       const { data: { user }, error: authError } = await supabase.auth.getUser()
-      console.log('🔍 Authentication check:', {
-        hasUser: !!user,
-        userId: user?.id,
-        authError: authError?.message
-      })
 
       if (authError || !user) {
         throw this.createError('AUTH_REQUIRED', `Authentication failed: ${authError?.message || 'No user'}`)
       }
 
-      // DEBUG: Run conversation debugging for this specific conversation
-      await this.debugConversation(conversationId)
+      // DEBUG: Only run detailed debugging if needed (comment out for now)
+      // await this.debugConversation(conversationId)
 
       let query = supabase
         .from('messages')
@@ -481,7 +471,7 @@ export class MessageService {
           )
         `)
         .eq('conversation_id', conversationId)
-        .eq('is_deleted', false)
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
         .limit(limit + 1) // +1 to check if there are more
 
@@ -491,18 +481,13 @@ export class MessageService {
         query = query.lt('created_at', before)
       }
 
-      console.log('🔍 Executing Supabase query for conversation:', conversationId)
       const { data: messages, error } = await query
 
-      console.log('🔍 Supabase query result:', {
-        messagesCount: messages?.length || 0,
-        hasError: !!error,
-        errorMessage: error?.message,
-        errorDetails: error?.details,
-        errorHint: error?.hint,
-        firstMessageId: messages?.[0]?.id,
-        conversationId: conversationId
-      })
+      if (error) {
+        console.error('❌ Query failed:', { conversation: conversationId, error: error.message })
+      } else {
+        console.log('✅ Query success:', { conversation: conversationId, count: messages?.length || 0 })
+      }
 
       if (error) {
         console.error('❌ Supabase query error details:', {
@@ -522,24 +507,12 @@ export class MessageService {
       const hasMore = messages.length > limit
       const resultMessages = hasMore ? messages.slice(0, limit) : messages
 
-      console.log('🔍 Processing messages result:', {
-        rawCount: messages.length,
-        afterLimitCount: resultMessages.length,
-        hasMore,
-        willReverse: true
-      })
-
       // Reverse to get chronological order (oldest first)
       resultMessages.reverse()
 
       const transformedMessages = resultMessages.map(msg => this.transformDatabaseMessage(msg))
       
-      console.log('🔍 Final result:', {
-        transformedCount: transformedMessages.length,
-        hasMore,
-        firstTransformedId: transformedMessages[0]?.id,
-        lastTransformedId: transformedMessages[transformedMessages.length - 1]?.id
-      })
+      console.log('✅ Messages processed:', { count: transformedMessages.length, hasMore })
 
       return {
         messages: transformedMessages,
@@ -637,7 +610,6 @@ export class MessageService {
       conversation_id: message.conversation_id,
       reply_to: message.reply_to,
       is_system: message.is_system || false,
-      is_edited: message.is_edited || false,
       edited_at: message.edited_at,
       is_deleted: message.is_deleted || false,
       deleted_at: message.deleted_at,
