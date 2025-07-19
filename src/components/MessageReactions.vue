@@ -10,13 +10,13 @@
       <!-- Reaction groups -->
       <div
         v-for="reactionGroup in reactions"
-        :key="reactionGroup.emoji_id || reactionGroup.emoji?.id"
+        :key="reactionGroup.emoji_id"
         class="reaction"
         :class="{ 
-          'reacted': hasUserReacted(reactionGroup.emoji.id),
+          'reacted': hasUserReacted(reactionGroup.emoji_id),
           'loading': isLoadingReactions 
         }"
-        @click="handleReactionClick(reactionGroup.emoji)"
+        @click="handleReactionClick(reactionGroup.emoji, reactionGroup.emoji_id)"
         @mouseenter="showTooltip($event, reactionGroup)"
         @mouseleave="hideTooltip"
       >
@@ -60,12 +60,10 @@ const emit = defineEmits<Emits>();
 const reactionsStore = useReactionsStore();
 const authStore = useAuthStore();
 
-// Get reactions for this message
+// Get reactions for this message (Discord-style instant feedback)
 const reactions = computed(() => {
   try {
-    const messageReactions = reactionsStore.getMessageReactions(props.message.id);
-    // FIXED: Filter out any invalid reaction data
-    return messageReactions.filter(r => r && r.emoji && r.emoji.id);
+    return reactionsStore.getMessageReactions(props.message.id);
   } catch (error) {
     console.error('❌ Error getting reactions for message:', props.message.id, error);
     return [];
@@ -74,9 +72,7 @@ const reactions = computed(() => {
 
 // Check if reactions are loading
 const isLoadingReactions = computed(() => 
-  false
-  // this is making the app have some weird reaction like flashing in/out 
-  // reactionsStore.isLoadingReactions(props.message.id)
+  reactionsStore.isLoadingReactions(props.message.id)
 );
 
 // Get current user ID
@@ -90,18 +86,18 @@ const hasUserReacted = (emojiId: string) => {
   return reactionsStore.hasUserReacted(props.message.id, emojiId, currentUserId.value);
 };
 
-// Handle reaction toggle
-const handleReactionClick = async (emoji: Emoji) => {
+// Handle reaction toggle (Discord-style instant feedback)
+const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
   if (!currentUserId.value) return;
   
   emit('toggle-reaction', props.message.id, emoji);
   
-  // Update via the store
-  const result = await reactionsStore.toggleReaction(props.message.id, emoji.id, currentUserId.value);
+  // Discord-style: Instant UI feedback with background API call
+  const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value);
   
   // Log result but don't show error for duplicate requests (they're expected)
-  if (!result.success && result.reason !== 'duplicate_request') {
-    console.error('🎯 Failed to toggle reaction:', result.message || result.reason);
+  if (!result.success && result.reason !== 'Request already in progress') {
+    console.error('🎯 Failed to toggle reaction:', result.reason);
   }
 };
 
@@ -120,23 +116,14 @@ const handleEmojiError = (emoji: Emoji) => {
   console.warn('Failed to load emoji:', emoji);
 };
 
-// PERFORMANCE: Only fetch reactions if not already cached from batch loading
+// Fetch reactions on mount
 onMounted(() => {
-  // Check if reactions are already cached in the store (from batch loading)
-  if (!reactionsStore.isCacheValid(props.message.id)) {
-    // Only fetch individually if not already cached from batch loading
-    reactionsStore.fetchMessageReactions(props.message.id);
-  } else {
-    console.log('✅ Using cached reactions from batch loading for message:', props.message.id);
-  }
+  reactionsStore.fetchMessageReactions(props.message.id);
 });
 
 // Watch for message changes and reload reactions if needed
 watch(() => props.message.id, (newMessageId) => {
-  // Only fetch if not already cached from batch loading
-  if (!reactionsStore.isCacheValid(newMessageId)) {
-    reactionsStore.fetchMessageReactions(newMessageId);
-  }
+  reactionsStore.fetchMessageReactions(newMessageId);
 });
 </script>
 

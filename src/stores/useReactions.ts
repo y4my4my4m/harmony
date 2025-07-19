@@ -1,444 +1,252 @@
-import { defineStore } from 'pinia';
-import { services } from '@/services';
-import type { Emoji } from '@/types';
-import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import { services } from '@/services'
+import type { ReactionGroup, Emoji } from '@/types'
 
-export interface ReactionGroup {
-  id: string;
-  count: number;
-  emoji: Emoji;
-  reactions: Array<{
-    reaction_id: string;
-    user_id: string;
-  }>;
-  message_id: string;
+interface OptimisticOperation {
+  messageId: string
+  emojiId: string
+  userId: string
+  operation: 'add' | 'remove'
+  timestamp: number
 }
 
-export const useReactionsStore = defineStore('reactions', {
-  state: () => ({
-    // Cache reactions by message ID for efficient lookups
-    reactionsByMessage: new Map<string, ReactionGroup[]>(),
+export const useReactionsStore = defineStore('reactions', () => {
+  // State
+  const reactionsByMessage = ref(new Map<string, ReactionGroup[]>())
+  const lastFetched = ref(new Map<string, number>())
+  const isLoading = ref(new Set<string>())
+  
+  // Discord-style optimistic updates
+  const optimisticOperations = ref(new Map<string, OptimisticOperation>()) // key: `${messageId}-${emojiId}-${userId}`
+  const pendingToggleRequests = ref(new Set<string>()) // Prevent double-clicks
+
+  // Getters
+  const getMessageReactions = computed(() => (messageId: string): ReactionGroup[] => {
+    if (!messageId) return []
     
-    // Track loading states
-    loadingReactions: new Set<string>(),
+    let reactions = reactionsByMessage.value.get(messageId) || []
     
-    // Cache validation
-    cacheValidityDuration: 5 * 60 * 1000, // 5 minutes
-    lastFetched: new Map<string, number>(),
+    // Apply optimistic updates (Discord-style instant feedback)
+    const optimisticOps = Array.from(optimisticOperations.value.values())
+      .filter(op => op.messageId === messageId)
     
-    // Prevent rapid clicking/race conditions
-    reactionToggleInProgress: new Set<string>(),
+    // Clone reactions to avoid mutating store data
+    reactions = JSON.parse(JSON.stringify(reactions))
     
-    // Track toggle lock timestamps for cleanup
-    toggleLockTimestamps: new Map<string, number>(),
+    for (const op of optimisticOps) {
+      reactions = applyOptimisticOperation(reactions, op)
+    }
     
-    // FIXED: Add realtime debouncing and optimistic update tracking
-    realtimeDebounceTimers: new Map<string, NodeJS.Timeout>(),
-    recentOptimisticUpdates: new Set<string>(),
-  }),
+    return reactions || []
+  })
 
-  getters: {
-    /**
-     * Get reactions for a specific message
-     */
-    getMessageReactions: (state) => (messageId: string): ReactionGroup[] => {
-      try {
-        const reactions = state.reactionsByMessage.get(messageId) || [];
-        // FIXED: Ensure we return valid reaction groups
-        return reactions.filter(r => r && r.emoji && r.emoji.id);
-      } catch (error) {
-        console.error('❌ Error in getMessageReactions:', error, { messageId });
-        return [];
-      }
-    },
+  const hasUserReacted = computed(() => (messageId: string, emojiId: string, userId: string): boolean => {
+    const reactions = getMessageReactions.value(messageId)
+    const reaction = reactions.find(r => r.emoji_id === emojiId)
+    return reaction?.users?.some(u => u.id === userId) || false
+  })
 
-    /**
-     * Check if user has reacted with specific emoji
-     */
-    hasUserReacted: (state) => (messageId: string, emojiId: string, userId: string): boolean => {
-      try {
-        const reactions = state.reactionsByMessage.get(messageId) || [];
-        const emojiGroup = reactions.find(r => r?.emoji?.id === emojiId);
-        
-        // FIXED: Add defensive checks for data structure
-        if (!emojiGroup || !emojiGroup.reactions || !Array.isArray(emojiGroup.reactions)) {
-          return false;
-        }
-        
-        return emojiGroup.reactions.some(r => r?.user_id === userId) || false;
-      } catch (error) {
-        console.error('❌ Error in hasUserReacted:', error, { messageId, emojiId, userId });
-        return false;
-      }
-    },
+  const isLoadingReactions = computed(() => (messageId: string): boolean => {
+    return isLoading.value.has(messageId)
+  })
 
-    /**
-     * Check if reactions are currently loading for a message
-     */
-    isLoadingReactions: (state) => (messageId: string): boolean => {
-      return state.loadingReactions.has(messageId);
-    },
+  // Actions
+  async function fetchMessageReactions(messageId: string, force = false): Promise<void> {
+    if (!messageId) return
 
-    /**
-     * Check if cached reactions are still valid
-     */
-    isCacheValid: (state) => (messageId: string): boolean => {
-      const lastFetch = state.lastFetched.get(messageId);
-      if (!lastFetch) return false;
-      return Date.now() - lastFetch < state.cacheValidityDuration;
-    },
-  },
+    const now = Date.now()
+    const lastFetch = lastFetched.value.get(messageId) || 0
+    
+    // Skip if recently fetched (unless forced)
+    if (!force && now - lastFetch < 30000) return // 30 second cache
+    
+    if (isLoading.value.has(messageId)) return // Already loading
 
-  actions: {
-    /**
-     * Fetch reactions for a single message
-     */
-    async fetchMessageReactions(messageId: string, forceRefresh = false): Promise<ReactionGroup[]> {
-      // Return cached data if valid and not forcing refresh
-      if (!forceRefresh && this.isCacheValid(messageId)) {
-        return this.getMessageReactions(messageId);
-      }
+    try {
+      isLoading.value.add(messageId)
+      console.log('🔄 Fetching reactions via service layer for message:', messageId)
 
-      // Prevent duplicate requests
-      if (this.loadingReactions.has(messageId)) {
-        return new Promise((resolve) => {
-          const checkLoading = () => {
-            if (!this.loadingReactions.has(messageId)) {
-              resolve(this.getMessageReactions(messageId));
-            } else {
-              setTimeout(checkLoading, 50);
-            }
-          };
-          checkLoading();
-        });
-      }
-
-      this.loadingReactions.add(messageId);
-
-      try {
-        console.log('🔄 Fetching reactions via service layer for message:', messageId);
-        
-        const reactionGroups = await services.messages.getMessageReactions(messageId);
-        
-        this.reactionsByMessage.set(messageId, reactionGroups);
-        this.lastFetched.set(messageId, Date.now());
-        
-        console.log('✅ Successfully fetched reactions via service layer');
-        return reactionGroups;
-      } catch (error) {
-        console.error('❌ Error fetching reactions via service layer:', error);
-        return [];
-      } finally {
-        this.loadingReactions.delete(messageId);
-      }
-    },
-
-    /**
-     * Batch fetch reactions for multiple messages
-     */
-    async fetchMultipleMessageReactions(messageIds: string[], forceRefresh = false): Promise<void> {
-      const idsToFetch = forceRefresh 
-        ? messageIds 
-        : messageIds.filter(id => !this.isCacheValid(id));
-
-      if (idsToFetch.length === 0) return;
-
-      // Use Promise.allSettled to prevent one failure from affecting others
-      const promises = idsToFetch.map(id => this.fetchMessageReactions(id, forceRefresh));
-      await Promise.allSettled(promises);
-    },
-
-    /**
-     * Add or remove a reaction
-     * @returns Object with success status and reason for failure
-     */
-    async toggleReaction(messageId: string, emojiId: string, userId: string): Promise<{
-      success: boolean;
-      reason?: 'duplicate_request' | 'error' | 'race_condition';
-      message?: string;
-    }> {
-      const toggleKey = `${messageId}-${emojiId}-${userId}`;
+      const reactions = await services.messages.getMessageReactions(messageId)
       
-      // Clean up old stuck locks first
-      this.cleanupStuckLocks();
+      // Store in cache
+      reactionsByMessage.value.set(messageId, reactions)
+      lastFetched.value.set(messageId, now)
       
-      // Prevent rapid double-clicking
-      if (this.reactionToggleInProgress.has(toggleKey)) {
-        // console.log('🎯 Reaction toggle already in progress, ignoring duplicate request');
-        return { success: false, reason: 'duplicate_request', message: 'Toggle already in progress' };
+      console.log('✅ Successfully fetched reactions via service layer')
+    } catch (error) {
+      console.error('❌ Failed to fetch reactions:', error)
+    } finally {
+      isLoading.value.delete(messageId)
+    }
+  }
+
+  /**
+   * Discord-style reaction toggle: Instant UI feedback with graceful rollback
+   */
+  async function toggleReaction(messageId: string, emojiId: string, userId: string): Promise<{
+    success: boolean;
+    reason?: string;
+  }> {
+    const toggleKey = `${messageId}-${emojiId}-${userId}`
+    
+    // Prevent rapid double-clicking (Discord behavior)
+    if (pendingToggleRequests.value.has(toggleKey)) {
+      return { success: false, reason: 'Request already in progress' }
+    }
+
+    pendingToggleRequests.value.add(toggleKey)
+
+    try {
+      // 1. INSTANT UI UPDATE (Discord-style)
+      const currentlyHasReaction = hasUserReacted.value(messageId, emojiId, userId)
+      const operation = currentlyHasReaction ? 'remove' : 'add'
+      
+      // Apply optimistic update immediately
+      const optimisticOp: OptimisticOperation = {
+        messageId,
+        emojiId, 
+        userId,
+        operation,
+        timestamp: Date.now()
       }
+      
+      optimisticOperations.value.set(toggleKey, optimisticOp)
+      console.log(`⚡ Optimistic reaction ${operation} applied instantly`)
 
-      this.reactionToggleInProgress.add(toggleKey);
-      this.toggleLockTimestamps.set(toggleKey, Date.now());
-      // console.log('🎯 Toggle lock acquired for:', toggleKey);
-
+      // 2. BACKGROUND API CALL
       try {
-        // Get current state before any operations
-        await this.fetchMessageReactions(messageId, true);
-        const hasReacted = this.hasUserReacted(messageId, emojiId, userId);
-        const isAdding = !hasReacted;
-
-        // console.log('🎯 Toggle reaction - User has reacted:', hasReacted, 'Will add:', isAdding);
-
-        // Apply optimistic update for immediate UI feedback
-        this.optimisticallyUpdateReaction(messageId, emojiId, userId, isAdding);
-
-        // FIXED: Mark this message as having a recent optimistic update
-        this.recentOptimisticUpdates.add(messageId);
-
-        // Use service layer for reaction toggle with race condition handling
-        try {
-          console.log('🔄 Using service layer for reaction toggle');
-          const result = await services.messages.toggleReaction(messageId, emojiId);
-          
-          if (result.hadRaceCondition) {
-            console.log('🎯 Service layer handled race condition successfully');
-          }
-          
-          console.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`);
-        } catch (error: any) {
-          console.error('❌ Service layer reaction toggle failed:', error);
-          this.revertOptimisticUpdate(messageId);
-          
-          // FIXED: Clear optimistic flag on service error too
-          this.recentOptimisticUpdates.delete(messageId);
-          
-          return { success: false, reason: 'error', message: `Service layer error: ${error.message}` };
-        }
-
-        // Refresh reactions for this message to get the final state from server
-        // This will overwrite the optimistic update with real data
-        await this.fetchMessageReactions(messageId, true);
+        const result = await services.messages.toggleReaction(messageId, emojiId)
+        console.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`)
         
-        // FIXED: Clear optimistic flag after successful completion
+        // 3. SUCCESS: Remove optimistic operation (let realtime handle final state)
+        optimisticOperations.value.delete(toggleKey)
+        
+        // Refresh to get authoritative state from server
         setTimeout(() => {
-          this.recentOptimisticUpdates.delete(messageId);
-        }, 500);
+          fetchMessageReactions(messageId, true)
+        }, 100) // Small delay to let DB settle
         
-        return { success: true };
-      } catch (error) {
-        console.error('🎯 Error toggling reaction:', error);
-        this.revertOptimisticUpdate(messageId);
+        return { success: true }
         
-        // FIXED: Clear optimistic flag on error too
-        this.recentOptimisticUpdates.delete(messageId);
+      } catch (apiError: any) {
+        console.error('❌ Service layer reaction toggle failed:', apiError)
         
-        return { success: false, reason: 'error', message: `Exception during toggle: ${error}` };
-      } finally {
-        // Always remove the toggle lock
-        this.reactionToggleInProgress.delete(toggleKey);
-        this.toggleLockTimestamps.delete(toggleKey);
-        // console.log('🎯 Toggle lock cleared for:', toggleKey);
+        // 4. FAILURE: Rollback optimistic update (Discord-style)
+        optimisticOperations.value.delete(toggleKey)
+        console.log('🔄 Rolled back optimistic update due to API failure')
+        
+        return { success: false, reason: `API error: ${apiError.message}` }
       }
-    },
+      
+    } catch (error: any) {
+      console.error('❌ Reaction toggle error:', error)
+      
+      // Rollback on any error
+      optimisticOperations.value.delete(toggleKey)
+      
+      return { success: false, reason: `Toggle error: ${error.message}` }
+    } finally {
+      // Always clear the pending request lock
+      pendingToggleRequests.value.delete(toggleKey)
+    }
+  }
 
-    /**
-     * Optimistically update reaction state while API call is in progress
-     */
-    optimisticallyUpdateReaction(messageId: string, emojiId: string, userId: string, isAdding: boolean) {
-      // console.log('🎯 Optimistic update:', { messageId, emojiId, userId, isAdding });
-      
-      const currentReactions = this.getMessageReactions(messageId);
-      const updatedReactions = [...currentReactions];
-      
-      const existingGroupIndex = updatedReactions.findIndex(r => r.emoji.id === emojiId);
-      
-      if (isAdding) {
-        if (existingGroupIndex >= 0) {
-          // Add user to existing group
-          const existingGroup = updatedReactions[existingGroupIndex];
-          if (!existingGroup.reactions.some(r => r.user_id === userId)) {
-            updatedReactions[existingGroupIndex] = {
-              ...existingGroup,
-              count: existingGroup.count + 1,
-              reactions: [...existingGroup.reactions, { reaction_id: 'temp', user_id: userId }]
-            };
-          }
-        } else {
-          // Create new reaction group for first reaction
-          // Try to get emoji data from the emoji cache
-          const emojiCacheStore = useEmojiCacheStore();
-          const emojiData = emojiCacheStore.getEmojiById(emojiId);
-          
-          if (emojiData) {
-            const newReactionGroup: ReactionGroup = {
-              id: `temp-${emojiId}`, // Temporary ID for optimistic update
-              count: 1,
-              emoji: emojiData,
-              reactions: [{ reaction_id: 'temp', user_id: userId }],
-              message_id: messageId
-            };
-            updatedReactions.push(newReactionGroup);
-            // console.log('🎯 Created new reaction group optimistically:', emojiData.name);
-          } else {
-            console.log('🎯 Could not create new reaction group optimistically - emoji data not cached');
-          }
+  /**
+   * Handle realtime updates (simplified)
+   */
+  async function handleRealtimeUpdate(payload: any): Promise<void> {
+    const messageId = payload.new?.message_id || payload.old?.message_id
+    
+    if (!messageId) {
+      console.warn('🎯 No message_id in realtime payload:', payload)
+      return
+    }
+
+    console.log('🔄 Realtime reaction update for message:', messageId)
+    
+    // Simple approach: Just refresh the affected message's reactions
+    // This will overwrite any stale optimistic updates with server truth
+    lastFetched.value.delete(messageId) // Force refresh
+    await fetchMessageReactions(messageId, true)
+  }
+
+  /**
+   * Apply optimistic operation to reaction list
+   */
+  function applyOptimisticOperation(reactions: ReactionGroup[], op: OptimisticOperation): ReactionGroup[] {
+    const { emojiId, userId, operation } = op
+    
+    // Find existing reaction group
+    const existingIndex = reactions.findIndex(r => r.emoji_id === emojiId)
+    
+    if (operation === 'add') {
+      if (existingIndex >= 0) {
+        // Add user to existing group
+        const existing = reactions[existingIndex]
+        if (!existing.users.some(u => u.id === userId)) {
+          existing.users.push({ 
+            id: userId, 
+            username: 'You', // Placeholder for current user
+            avatar_url: '' 
+          })
+          existing.count = existing.users.length
         }
       } else {
-        if (existingGroupIndex >= 0) {
-          // Remove user from existing group
-          const existingGroup = updatedReactions[existingGroupIndex];
-          const userReactionIndex = existingGroup.reactions.findIndex(r => r.user_id === userId);
-          
-          if (userReactionIndex >= 0) {
-            const newReactions = existingGroup.reactions.filter((_, index) => index !== userReactionIndex);
-            
-            if (newReactions.length === 0) {
-              // Remove the entire group if no reactions left
-              updatedReactions.splice(existingGroupIndex, 1);
-            } else {
-              // Update the group
-              updatedReactions[existingGroupIndex] = {
-                ...existingGroup,
-                count: existingGroup.count - 1,
-                reactions: newReactions
-              };
-            }
-          }
-        }
+        // Create new reaction group
+        reactions.push({
+          emoji_id: emojiId,
+          emoji: { id: emojiId, name: 'unknown', url: '' } as Emoji, // Placeholder
+          count: 1,
+          users: [{ id: userId, username: 'You', avatar_url: '' }]
+        })
       }
-      
-      // Update cache with optimistic state
-      this.reactionsByMessage.set(messageId, updatedReactions);
-      // console.log('🎯 Optimistic update applied, new reaction count:', updatedReactions.length);
-    },
-
-    /**
-     * Revert optimistic update if API call fails
-     */
-    revertOptimisticUpdate(messageId: string) {
-      // Force refresh from server to get true state
-      this.fetchMessageReactions(messageId, true);
-    },
-
-    /**
-     * Handle real-time reaction updates
-     */
-    async handleRealtimeUpdate(payload: any) {
-      const messageId = payload.new?.message_id || payload.old?.message_id;
-      
-      if (!messageId) {
-        console.warn('🎯 No message_id found in reaction realtime payload, payload:', payload);
+    } else if (operation === 'remove') {
+      if (existingIndex >= 0) {
+        const existing = reactions[existingIndex]
+        existing.users = existing.users.filter(u => u.id !== userId)
+        existing.count = existing.users.length
         
-        // WORKAROUND: For DELETE events that only have reaction.id due to REPLICA IDENTITY issues
-        if (payload.eventType === 'DELETE' && payload.old?.id) {
-          console.log('🎯 Using fallback: refreshing all cached reactions due to missing message_id in DELETE event');
-          
-          // Refresh all cached reactions as fallback
-          // This is not ideal but ensures consistency until REPLICA IDENTITY FULL works properly
-          const messageIds = Array.from(this.reactionsByMessage.keys());
-          for (const msgId of messageIds) {
-            this.lastFetched.delete(msgId);
-            this.fetchMessageReactions(msgId, true);
-          }
-        }
-        return;
-      }
-
-      console.log('🎯 Handling realtime reaction update for message:', messageId);
-      
-      // FIXED: Add debouncing to prevent rapid successive fetches that conflict with optimistic updates
-      const debounceKey = `realtime_${messageId}`;
-      
-      // Clear any existing timer for this message
-      if (this.realtimeDebounceTimers.has(debounceKey)) {
-        clearTimeout(this.realtimeDebounceTimers.get(debounceKey));
-      }
-      
-      // Set a debounced fetch
-      const timer = setTimeout(() => {
-        // Only fetch if this wasn't our own optimistic update
-        if (!this.recentOptimisticUpdates.has(messageId)) {
-          console.log('🔄 Fetching reactions from realtime update');
-          this.lastFetched.delete(messageId);
-          this.fetchMessageReactions(messageId, true);
-        } else {
-          console.log('🔄 Skipping realtime fetch - was our own optimistic update');
-          // Clear the optimistic flag after a delay
-          setTimeout(() => {
-            this.recentOptimisticUpdates.delete(messageId);
-          }, 1000);
-        }
-        this.realtimeDebounceTimers.delete(debounceKey);
-      }, 300); // 300ms debounce
-      
-      this.realtimeDebounceTimers.set(debounceKey, timer);
-    },
-
-    /**
-     * Clear reactions cache for a specific message
-     */
-    clearMessageReactions(messageId: string) {
-      this.reactionsByMessage.delete(messageId);
-      this.lastFetched.delete(messageId);
-    },
-
-    /**
-     * Clear all cached reactions
-     */
-    clearAllReactions() {
-      this.reactionsByMessage.clear();
-      this.lastFetched.clear();
-      this.loadingReactions.clear();
-      this.reactionToggleInProgress.clear();
-      this.toggleLockTimestamps.clear();
-    },
-
-    /**
-     * Clear stuck toggle locks (for debugging)
-     */
-    clearToggleLocks() {
-      const size = this.reactionToggleInProgress.size;
-      this.reactionToggleInProgress.clear();
-      this.toggleLockTimestamps.clear();
-      console.log(`🎯 Cleared ${size} stuck toggle locks`);
-    },
-
-    /**
-     * Clean up toggle locks that are older than 10 seconds
-     */
-    cleanupStuckLocks() {
-      const cutoff = Date.now() - 10000; // 10 seconds
-      let cleaned = 0;
-      
-      for (const [toggleKey, timestamp] of this.toggleLockTimestamps.entries()) {
-        if (timestamp < cutoff) {
-          this.reactionToggleInProgress.delete(toggleKey);
-          this.toggleLockTimestamps.delete(toggleKey);
-          cleaned++;
+        // Remove group if no users left
+        if (existing.count === 0) {
+          reactions.splice(existingIndex, 1)
         }
       }
-      
-      if (cleaned > 0) {
-        console.log(`🎯 Cleaned up ${cleaned} stuck toggle locks`);
-      }
-    },
+    }
+    
+    return reactions
+  }
 
-    /**
-     * Get debug info about current state
-     */
-    getDebugInfo() {
-      return {
-        cachedMessages: Array.from(this.reactionsByMessage.keys()),
-        loadingMessages: Array.from(this.loadingReactions),
-        activeLocks: Array.from(this.reactionToggleInProgress),
-        lockTimestamps: Object.fromEntries(this.toggleLockTimestamps),
-        cacheCount: this.reactionsByMessage.size
-      };
-    },
-
-    /**
-     * Clean up old cache entries to prevent memory leaks
-     */
-    cleanupCache() {
-      const cutoff = Date.now() - (this.cacheValidityDuration * 2); // Keep for 2x validity duration
-      
-      for (const [messageId, timestamp] of this.lastFetched.entries()) {
-        if (timestamp < cutoff) {
-          this.reactionsByMessage.delete(messageId);
-          this.lastFetched.delete(messageId);
-        }
+  /**
+   * Clean up old optimistic operations (prevent memory leaks)
+   */
+  function cleanupStaleOptimisticOps(): void {
+    const now = Date.now()
+    const STALE_THRESHOLD = 10000 // 10 seconds
+    
+    for (const [key, op] of optimisticOperations.value.entries()) {
+      if (now - op.timestamp > STALE_THRESHOLD) {
+        optimisticOperations.value.delete(key)
+        console.log('🧹 Cleaned up stale optimistic operation:', key)
       }
-    },
-  },
-});
+    }
+  }
+
+  // Cleanup timer
+  setInterval(cleanupStaleOptimisticOps, 30000) // Every 30 seconds
+
+  return {
+    // State
+    reactionsByMessage,
+    
+    // Getters
+    getMessageReactions,
+    hasUserReacted,
+    isLoadingReactions,
+    
+    // Actions
+    fetchMessageReactions,
+    toggleReaction,
+    handleRealtimeUpdate
+  }
+})
