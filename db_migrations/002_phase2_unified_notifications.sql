@@ -13,6 +13,19 @@
 BEGIN;
 
 -- =====================================================
+-- STEP 0: ADD MISSING COLUMNS TO NOTIFICATIONS TABLE
+-- =====================================================
+
+-- Add read_at column for tracking read status
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at timestamp with time zone;
+
+-- Add is_read column as computed field for backward compatibility
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read boolean GENERATED ALWAYS AS (read_at IS NOT NULL) STORED;
+
+COMMENT ON COLUMN notifications.read_at IS 'Timestamp when notification was marked as read';
+COMMENT ON COLUMN notifications.is_read IS 'Computed field indicating if notification has been read';
+
+-- =====================================================
 -- STEP 1: CORE UNIFIED NOTIFICATION FUNCTION
 -- =====================================================
 
@@ -105,7 +118,13 @@ BEGIN
                     user_prefs.push_mentions AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
-            WHEN 'dm', 'direct_message' THEN
+            WHEN 'dm' THEN
+                should_send := (
+                    user_prefs.desktop_dms AND
+                    user_prefs.push_dms AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'direct_message' THEN
                 should_send := (
                     user_prefs.desktop_dms AND
                     user_prefs.push_dms AND
@@ -122,12 +141,22 @@ BEGIN
                     user_prefs.activitypub_follows AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
-            WHEN 'like', 'favorite' THEN
+            WHEN 'like' THEN
                 should_send := (
                     user_prefs.activitypub_favorites AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
-            WHEN 'reblog', 'boost' THEN
+            WHEN 'favorite' THEN
+                should_send := (
+                    user_prefs.activitypub_favorites AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'reblog' THEN
+                should_send := (
+                    user_prefs.activitypub_reblogs AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'boost' THEN
                 should_send := (
                     user_prefs.activitypub_reblogs AND
                     (NOT is_dnd_time OR priority = 'high')
@@ -166,11 +195,14 @@ BEGIN
         SELECT 
             CASE notification_type
                 WHEN 'mention' THEN 'New Mention'
-                WHEN 'dm' or 'direct_message' THEN 'New Direct Message'
+                WHEN 'dm' THEN 'New Direct Message'
+                WHEN 'direct_message' THEN 'New Direct Message'
                 WHEN 'reply' THEN 'New Reply'
                 WHEN 'follow' THEN 'New Follower'
-                WHEN 'like' or 'favorite' THEN 'New Like'
-                WHEN 'reblog' or 'boost' THEN 'New Reblog'
+                WHEN 'like' THEN 'New Like'
+                WHEN 'favorite' THEN 'New Like'
+                WHEN 'reblog' THEN 'New Reblog'
+                WHEN 'boost' THEN 'New Reblog'
                 WHEN 'reaction' THEN 'New Reaction'
                 WHEN 'voice_activity' THEN 'Voice Channel Activity'
                 WHEN 'activitypub_mention' THEN 'Federated Mention'
@@ -178,11 +210,14 @@ BEGIN
             END,
             CASE notification_type
                 WHEN 'mention' THEN 'You were mentioned in a message'
-                WHEN 'dm' or 'direct_message' THEN 'You received a new direct message'
+                WHEN 'dm' THEN 'You received a new direct message'
+                WHEN 'direct_message' THEN 'You received a new direct message'
                 WHEN 'reply' THEN 'Someone replied to your post'
                 WHEN 'follow' THEN 'Someone started following you'
-                WHEN 'like' or 'favorite' THEN 'Someone liked your post'
-                WHEN 'reblog' or 'boost' THEN 'Someone reblogged your post'
+                WHEN 'like' THEN 'Someone liked your post'
+                WHEN 'favorite' THEN 'Someone liked your post'
+                WHEN 'reblog' THEN 'Someone reblogged your post'
+                WHEN 'boost' THEN 'Someone reblogged your post'
                 WHEN 'reaction' THEN 'Someone reacted to your message'
                 WHEN 'voice_activity' THEN 'Voice channel activity'
                 WHEN 'activitypub_mention' THEN 'You were mentioned by a federated user'
