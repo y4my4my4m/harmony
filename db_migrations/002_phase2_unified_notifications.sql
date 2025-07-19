@@ -16,14 +16,17 @@ BEGIN;
 -- STEP 0: ADD MISSING COLUMNS TO NOTIFICATIONS TABLE
 -- =====================================================
 
--- Add read_at column for tracking read status
+-- Add read_at column for tracking read status (if it doesn't exist)
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at timestamp with time zone;
 
--- Add is_read column as computed field for backward compatibility
-ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read boolean GENERATED ALWAYS AS (read_at IS NOT NULL) STORED;
+-- Add is_read column if it doesn't exist (keeping as regular boolean since it may already exist)
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read boolean DEFAULT false;
+
+-- Sync is_read with read_at for existing records
+UPDATE notifications SET is_read = (read_at IS NOT NULL) WHERE is_read != (read_at IS NOT NULL);
 
 COMMENT ON COLUMN notifications.read_at IS 'Timestamp when notification was marked as read';
-COMMENT ON COLUMN notifications.is_read IS 'Computed field indicating if notification has been read';
+COMMENT ON COLUMN notifications.is_read IS 'Boolean field indicating if notification has been read';
 
 -- =====================================================
 -- STEP 1: CORE UNIFIED NOTIFICATION FUNCTION
@@ -49,8 +52,6 @@ DECLARE
     channel_prefs record;
     should_send boolean;
     notification_id uuid;
-    notification_title varchar(255);
-    notification_message text;
     current_time timestamp with time zone := now();
     is_dnd_time boolean;
 BEGIN
@@ -191,66 +192,26 @@ BEGIN
             CONTINUE;
         END IF;
 
-        -- Generate notification title and message based on type
-        SELECT 
-            CASE notification_type
-                WHEN 'mention' THEN 'New Mention'
-                WHEN 'dm' THEN 'New Direct Message'
-                WHEN 'direct_message' THEN 'New Direct Message'
-                WHEN 'reply' THEN 'New Reply'
-                WHEN 'follow' THEN 'New Follower'
-                WHEN 'like' THEN 'New Like'
-                WHEN 'favorite' THEN 'New Like'
-                WHEN 'reblog' THEN 'New Reblog'
-                WHEN 'boost' THEN 'New Reblog'
-                WHEN 'reaction' THEN 'New Reaction'
-                WHEN 'voice_activity' THEN 'Voice Channel Activity'
-                WHEN 'activitypub_mention' THEN 'Federated Mention'
-                ELSE 'New Notification'
-            END,
-            CASE notification_type
-                WHEN 'mention' THEN 'You were mentioned in a message'
-                WHEN 'dm' THEN 'You received a new direct message'
-                WHEN 'direct_message' THEN 'You received a new direct message'
-                WHEN 'reply' THEN 'Someone replied to your post'
-                WHEN 'follow' THEN 'Someone started following you'
-                WHEN 'like' THEN 'Someone liked your post'
-                WHEN 'favorite' THEN 'Someone liked your post'
-                WHEN 'reblog' THEN 'Someone reblogged your post'
-                WHEN 'boost' THEN 'Someone reblogged your post'
-                WHEN 'reaction' THEN 'Someone reacted to your message'
-                WHEN 'voice_activity' THEN 'Voice channel activity'
-                WHEN 'activitypub_mention' THEN 'You were mentioned by a federated user'
-                ELSE 'You have a new notification'
-            END
-        INTO notification_title, notification_message;
-
-        -- Create the notification
+        -- Create the notification (using JSONB data field)
         INSERT INTO notifications (
             user_id,
             type,
-            title,
-            message,
             data,
-            server_id,
-            channel_id,
-            conversation_id,
-            from_user_id,
-            priority,
+            is_read,
+            is_clicked,
             created_at,
+            updated_at,
+            expires_at,
             read_at
         ) VALUES (
             recipient_id,
             notification_type,
-            notification_title,
-            notification_message,
             notification_data,
-            server_id,
-            channel_id,
-            conversation_id,
-            from_user_id,
-            priority,
+            false,
+            false,
             current_time,
+            current_time,
+            current_time + INTERVAL '30 days',
             NULL
         ) RETURNING id INTO notification_id;
 
@@ -482,7 +443,7 @@ AS $$
     AND n.read_at IS NULL;
 $$;
 
--- Get notifications with better filtering
+-- Get notifications with better filtering (matches actual table structure)
 CREATE OR REPLACE FUNCTION public.get_user_notifications(
     p_user_id uuid,
     p_limit integer DEFAULT 20,
@@ -492,18 +453,15 @@ CREATE OR REPLACE FUNCTION public.get_user_notifications(
 )
 RETURNS TABLE(
     id uuid,
+    user_id uuid,
     type varchar,
-    title varchar,
-    message text,
     data jsonb,
-    server_id uuid,
-    channel_id uuid,
-    conversation_id uuid,
-    from_user_id uuid,
-    priority varchar,
+    is_read boolean,
+    is_clicked boolean,
     created_at timestamp with time zone,
-    read_at timestamp with time zone,
-    from_user_data jsonb
+    updated_at timestamp with time zone,
+    expires_at timestamp with time zone,
+    read_at timestamp with time zone
 )
 LANGUAGE plpgsql STABLE
 AS $$
@@ -511,30 +469,16 @@ BEGIN
     RETURN QUERY
     SELECT 
         n.id,
+        n.user_id,
         n.type,
-        n.title,
-        n.message,
         n.data,
-        n.server_id,
-        n.channel_id,
-        n.conversation_id,
-        n.from_user_id,
-        n.priority,
+        n.is_read,
+        n.is_clicked,
         n.created_at,
-        n.read_at,
-        CASE 
-            WHEN n.from_user_id IS NOT NULL THEN
-                jsonb_build_object(
-                    'id', p.id,
-                    'username', p.username,
-                    'display_name', p.display_name,
-                    'avatar_url', p.avatar_url,
-                    'domain', p.domain
-                )
-            ELSE NULL
-        END as from_user_data
+        n.updated_at,
+        n.expires_at,
+        n.read_at
     FROM notifications n
-    LEFT JOIN profiles p ON n.from_user_id = p.id
     WHERE n.user_id = p_user_id
     AND (NOT p_unread_only OR n.read_at IS NULL)
     AND (p_notification_types IS NULL OR n.type = ANY(p_notification_types))
@@ -544,7 +488,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.get_user_notifications(uuid, integer, integer, boolean, varchar[]) IS 'Get user notifications with filtering and user data. Supports pagination and type filtering.';
+COMMENT ON FUNCTION public.get_user_notifications(uuid, integer, integer, boolean, varchar[]) IS 'Get user notifications with filtering. Supports pagination and type filtering. Returns actual table structure with JSONB data field.';
 
 -- Mark notifications as read
 CREATE OR REPLACE FUNCTION public.mark_notifications_read(
@@ -560,13 +504,13 @@ BEGIN
     IF p_notification_ids IS NULL THEN
         -- Mark all unread notifications as read
         UPDATE notifications 
-        SET read_at = now()
+        SET read_at = now(), is_read = true, updated_at = now()
         WHERE user_id = p_user_id 
         AND read_at IS NULL;
     ELSE
         -- Mark specific notifications as read
         UPDATE notifications 
-        SET read_at = now()
+        SET read_at = now(), is_read = true, updated_at = now()
         WHERE user_id = p_user_id 
         AND id = ANY(p_notification_ids)
         AND read_at IS NULL;
