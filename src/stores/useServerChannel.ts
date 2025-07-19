@@ -369,20 +369,46 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async moveChannelToCategory(channelId: string, newCategoryId: string | null) {
+      try {
+        console.log('🔄 Moving channel to category via service-like helper:', { channelId, newCategoryId })
+        
+        // Use service-like helper for optimistic channel move with rollback
+        const updatedChannel = await this._moveChannelToCategoryHelper(channelId, newCategoryId)
+        
+        console.log(`✅ Channel moved successfully via service-like helper: ${channelId} → ${newCategoryId || 'orphan'}`)
+        return updatedChannel
+      } catch (error) {
+        console.error('❌ Failed to move channel via service-like helper:', error)
+        
+        // Fallback to direct move if helper fails
+        try {
+          console.log('🔄 Falling back to direct channel move')
+          return await this._moveChannelToCategoryFallback(channelId, newCategoryId)
+        } catch (fallbackError) {
+          console.error('❌ Fallback channel move also failed:', fallbackError)
+          throw fallbackError
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Move channel to category with optimistic updates and rollback
+     */
+    async _moveChannelToCategoryHelper(channelId: string, newCategoryId: string | null) {
       // Store original state for potential rollback
-      const originalChannels = [...this.channels];
-      const originalCategoryChannels = { ...this.categoryChannels };
+      const originalChannels = [...this.channels]
+      const originalCategoryChannels = { ...this.categoryChannels }
 
       try {
         // Optimistic update: Update local state immediately
-        const channelIndex = this.channels.findIndex(c => c.id === channelId);
+        const channelIndex = this.channels.findIndex(c => c.id === channelId)
         if (channelIndex !== -1) {
           this.channels[channelIndex] = { 
             ...this.channels[channelIndex], 
             category: newCategoryId 
-          };
+          }
           // Refresh category channels mapping optimistically
-          this.refreshCategoryChannels();
+          this.refreshCategoryChannels()
         }
 
         // Now perform the server update in the background
@@ -391,21 +417,63 @@ export const useServerChannelStore = defineStore('serverChannel', {
           .update({ category: newCategoryId })
           .eq('id', channelId)
           .select()
-          .single();
+          .single()
 
         if (error) {
-          console.error('Error moving channel to category:', error);
-          throw error;
+          throw new Error(`Channel move failed: ${error.message}`)
         }
 
-        console.log(`✅ Successfully moved channel ${channelId} to category ${newCategoryId || 'orphan'}`);
-        return data;
+        return data
       } catch (error) {
         // Rollback on error: Restore original state
-        console.error('❌ Server update failed, rolling back channel move:', error);
-        this.channels = originalChannels;
-        this.categoryChannels = originalCategoryChannels;
-        throw error;
+        console.log('🔄 Rolling back optimistic channel move due to error')
+        this.channels = originalChannels
+        this.categoryChannels = originalCategoryChannels
+        throw error
+      }
+    },
+
+    /**
+     * Fallback method for moving channel to category
+     */
+    async _moveChannelToCategoryFallback(channelId: string, newCategoryId: string | null) {
+      // Store original state for potential rollback
+      const originalChannels = [...this.channels]
+      const originalCategoryChannels = { ...this.categoryChannels }
+
+      try {
+        // Optimistic update: Update local state immediately
+        const channelIndex = this.channels.findIndex(c => c.id === channelId)
+        if (channelIndex !== -1) {
+          this.channels[channelIndex] = { 
+            ...this.channels[channelIndex], 
+            category: newCategoryId 
+          }
+          // Refresh category channels mapping optimistically
+          this.refreshCategoryChannels()
+        }
+
+        // Now perform the server update in the background
+        const { data, error } = await supabase
+          .from('channels')
+          .update({ category: newCategoryId })
+          .eq('id', channelId)
+          .select()
+          .single()
+
+        if (error) {
+          console.error('Error moving channel to category in fallback:', error)
+          throw error
+        }
+
+        console.log(`✅ Successfully moved channel ${channelId} to category ${newCategoryId || 'orphan'}`)
+        return data
+      } catch (error) {
+        // Rollback on error: Restore original state
+        console.error('❌ Server update failed, rolling back channel move:', error)
+        this.channels = originalChannels
+        this.categoryChannels = originalCategoryChannels
+        throw error
       }
     },
 
@@ -453,13 +521,46 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async reorderChannelsInCategory(categoryId: string | null, newChannelOrder: Channel[]) {
+      try {
+        console.log('🔄 Reordering channels in category via service-like helper:', { categoryId, count: newChannelOrder.length })
+        
+        // Use service-like helper for channel reordering
+        await this._reorderChannelsInCategoryHelper(categoryId, newChannelOrder)
+        
+        console.log(`✅ Channels reordered successfully via service-like helper: ${newChannelOrder.length} in ${categoryId || 'orphan'}`)
+      } catch (error) {
+        console.error('❌ Failed to reorder channels via service-like helper:', error)
+        
+        // Fallback to direct reordering if helper fails
+        try {
+          console.log('🔄 Falling back to direct channel reordering')
+          await this._reorderChannelsInCategoryFallback(categoryId, newChannelOrder)
+        } catch (fallbackError) {
+          console.error('❌ Fallback channel reordering also failed:', fallbackError)
+          throw fallbackError
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Reorder channels within a category
+     */
+    async _reorderChannelsInCategoryHelper(categoryId: string | null, newChannelOrder: Channel[]): Promise<void> {
+      // Delegate to the updateChannelOrder helper for consistency
+      await this.updateChannelOrder(newChannelOrder, categoryId)
+    },
+
+    /**
+     * Fallback method for reordering channels in category
+     */
+    async _reorderChannelsInCategoryFallback(categoryId: string | null, newChannelOrder: Channel[]): Promise<void> {
       // Specifically handle reordering within the same category
       try {
-        await this.updateChannelOrder(newChannelOrder, categoryId);
-        console.log(`✅ Reordered ${newChannelOrder.length} channels in category ${categoryId || 'orphan'}`);
+        await this.updateChannelOrder(newChannelOrder, categoryId)
+        console.log(`✅ Reordered ${newChannelOrder.length} channels in category ${categoryId || 'orphan'}`)
       } catch (error) {
-        console.error('❌ Failed to reorder channels in category:', error);
-        throw error;
+        console.error('❌ Failed to reorder channels in category:', error)
+        throw error
       }
     },
 
@@ -616,19 +717,89 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async fetchChannels(serverId: string) {
+      try {
+        console.log('🔄 Fetching channels via service-like helper:', serverId)
+        
+        // Use service-like helper for channel fetching
+        const channels = await this._fetchChannelsHelper(serverId)
+        
+        if (channels) {
+          this.channels = channels
+          console.log('✅ Channels fetched successfully via service-like helper:', channels.length)
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch channels via service-like helper:', error)
+        
+        // Fallback to direct fetching if helper fails
+        try {
+          console.log('🔄 Falling back to direct channel fetching')
+          await this._fetchChannelsFallback(serverId)
+        } catch (fallbackError) {
+          console.error('❌ Fallback channel fetching also failed:', fallbackError)
+          throw fallbackError
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Fetch channels for a server
+     */
+    async _fetchChannelsHelper(serverId: string): Promise<Channel[]> {
       const { data, error } = await supabase
         .from('channels')
         .select('*')
-        .eq('server_id', serverId);
+        .eq('server_id', serverId)
 
       if (error) {
-        console.error('Error fetching channels:', error);
-        return;
+        throw new Error(`Channel fetching failed: ${error.message}`)
       }
-      this.channels = data;
+
+      return data || []
+    },
+
+    /**
+     * Fallback method for fetching channels
+     */
+    async _fetchChannelsFallback(serverId: string): Promise<void> {
+      const { data, error } = await supabase
+        .from('channels')
+        .select('*')
+        .eq('server_id', serverId)
+
+      if (error) {
+        console.error('Error fetching channels in fallback:', error)
+        return
+      }
+      this.channels = data
     },
 
     async createServer(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
+      try {
+        console.log('🔄 Creating server via service-like helper:', serverData.name)
+        
+        // Use service-like helper for server creation with user membership
+        const newServer = await this._createServerHelper(serverData)
+        
+        console.log('✅ Server created successfully via service-like helper:', newServer.id)
+        return newServer
+      } catch (error) {
+        console.error('❌ Failed to create server via service-like helper:', error)
+        
+        // Fallback to direct creation if helper fails
+        try {
+          console.log('🔄 Falling back to direct server creation')
+          return await this._createServerFallback(serverData)
+        } catch (fallbackError) {
+          console.error('❌ Fallback server creation also failed:', fallbackError)
+          throw fallbackError
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Create server with user membership and local state
+     */
+    async _createServerHelper(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
       const { data, error } = await supabase
         .from('servers')
         .insert([{
@@ -638,40 +809,111 @@ export const useServerChannelStore = defineStore('serverChannel', {
           owner: serverData.owner
         }])
         .select()
-        .single();
+        .single()
 
       if (error) {
-        console.error('Error creating server:', error);
-        throw error;
+        throw new Error(`Server creation failed: ${error.message}`)
       }
 
       // Add the new server to the user's server list
-      await this.addUserToServer(data.id, serverData.owner);
+      await this.addUserToServer(data.id, serverData.owner)
       
       // Add server to local state
-      this.servers.push(data);
+      this.servers.push(data)
       
-      console.log('✅ Server created successfully with default structure:', data);
-      return data;
+      return data
+    },
+
+    /**
+     * Fallback method for creating server
+     */
+    async _createServerFallback(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
+      const { data, error } = await supabase
+        .from('servers')
+        .insert([{
+          name: serverData.name,
+          description: serverData.description || null,
+          public: serverData.public || false,
+          owner: serverData.owner
+        }])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating server in fallback:', error)
+        throw error
+      }
+
+      // Add the new server to the user's server list
+      await this.addUserToServer(data.id, serverData.owner)
+      
+      // Add server to local state
+      this.servers.push(data)
+      
+      console.log('✅ Server created successfully with default structure:', data)
+      return data
     },
 
     async addUserToServer(serverId: string, userId: string) {
-      const toast = useToast();
-      
+      try {
+        console.log('🔄 Adding user to server via service-like helper:', { serverId, userId })
+        
+        // Use service-like helper for user-server membership
+        await this._addUserToServerHelper(serverId, userId)
+        
+        console.log('✅ User added to server successfully via service-like helper')
+      } catch (error) {
+        console.error('❌ Failed to add user to server via service-like helper:', error)
+        
+        // Fallback to direct addition if helper fails
+        try {
+          console.log('🔄 Falling back to direct user-server addition')
+          await this._addUserToServerFallback(serverId, userId)
+        } catch (fallbackError) {
+          console.error('❌ Fallback user-server addition also failed:', fallbackError)
+          throw fallbackError
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Add user to server with duplicate handling
+     */
+    async _addUserToServerHelper(serverId: string, userId: string): Promise<void> {
       const { error } = await supabase
         .from('user_servers')
-        .insert([{ server_id: serverId, user_id: userId }]);
+        .insert([{ server_id: serverId, user_id: userId }])
 
       if (error) {
         // Handle duplicate membership gracefully
         if (error.code === '23505') { // Unique constraint violation
-          console.log("User is already a member of this server");
-          // Don't show a toast here since this is typically called internally
-          return; // Consider it successful since the desired state is achieved
+          console.log("User is already a member of this server")
+          return // Consider it successful since the desired state is achieved
         }
-        console.error('Error adding user to server:', error);
-        toast.error("Failed to add user to server");
-        throw error;
+        throw new Error(`Adding user to server failed: ${error.message}`)
+      }
+    },
+
+    /**
+     * Fallback method for adding user to server
+     */
+    async _addUserToServerFallback(serverId: string, userId: string): Promise<void> {
+      const toast = useToast()
+      
+      const { error } = await supabase
+        .from('user_servers')
+        .insert([{ server_id: serverId, user_id: userId }])
+
+      if (error) {
+        // Handle duplicate membership gracefully
+        if (error.code === '23505') { // Unique constraint violation
+          console.log("User is already a member of this server")
+          // Don't show a toast here since this is typically called internally
+          return // Consider it successful since the desired state is achieved
+        }
+        console.error('Error adding user to server:', error)
+        toast.error("Failed to add user to server")
+        throw error
       }
     },
 

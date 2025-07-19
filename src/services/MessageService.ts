@@ -328,7 +328,7 @@ export class MessageService {
     before?: string
   ): Promise<{ messages: Message[]; hasMore: boolean }> {
     try {
-      console.log('🔄 MessageService: Loading channel messages:', { channelId, limit, before })
+
       let query = supabase
         .from('messages')
         .select(`
@@ -354,12 +354,7 @@ export class MessageService {
 
       const { data: messages, error } = await query
 
-      if (error) {
-        console.error('❌ Channel query failed:', { channel: channelId, error: error.message })
-        throw this.createError('LOAD_FAILED', error.message, error)
-      } else {
-        console.log('✅ Channel query success:', { channel: channelId, count: messages?.length || 0 })
-      }
+      if (error) throw this.createError('LOAD_FAILED', error.message, error)
 
       const hasMore = messages.length > limit
       const resultMessages = hasMore ? messages.slice(0, limit) : messages
@@ -367,11 +362,8 @@ export class MessageService {
       // Reverse to get chronological order (oldest first)
       resultMessages.reverse()
 
-      const transformedMessages = resultMessages.map(msg => this.transformDatabaseMessage(msg))
-      console.log('✅ Channel messages processed:', { count: transformedMessages.length, hasMore })
-
       return {
-        messages: transformedMessages,
+        messages: resultMessages.map(msg => this.transformDatabaseMessage(msg)),
         hasMore
       }
     } catch (error) {
@@ -454,7 +446,7 @@ export class MessageService {
     before?: string
   ): Promise<{ messages: Message[]; hasMore: boolean }> {
     try {
-      console.log('🔄 MessageService: Loading conversation messages:', { conversationId, limit, before })
+
 
       // Check authentication first
       const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -492,11 +484,7 @@ export class MessageService {
 
       const { data: messages, error } = await query
 
-      if (error) {
-        console.error('❌ Query failed:', { conversation: conversationId, error: error.message })
-      } else {
-        console.log('✅ Query success:', { conversation: conversationId, count: messages?.length || 0 })
-      }
+
 
       if (error) {
         console.error('❌ Supabase query error details:', {
@@ -521,7 +509,7 @@ export class MessageService {
 
       const transformedMessages = resultMessages.map(msg => this.transformDatabaseMessage(msg))
       
-      console.log('✅ Messages processed:', { count: transformedMessages.length, hasMore })
+
 
       return {
         messages: transformedMessages,
