@@ -159,12 +159,14 @@ export const useReactionsStore = defineStore('reactions', () => {
       const result = await services.messages.toggleReaction(messageId, emojiId)
       console.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`)
       
-      // 3. SUCCESS: Clear optimistic state (show real data)
+      // 3. SUCCESS: Keep optimistic state! (No flash)
+      // Our optimistic state is correct, so just keep it
+      // Real data will be updated by realtime naturally
+      
+      // Update cache in background for other messages
       setTimeout(() => {
-        optimisticReactions.value.delete(messageId)
-        // Refresh real data
         fetchMessageReactions(messageId, true)
-      }, 100)
+      }, 2000) // Longer delay, in background
       
       return { success: true }
       
@@ -183,7 +185,7 @@ export const useReactionsStore = defineStore('reactions', () => {
   }
 
     /**
-   * SIMPLE realtime handling
+   * SMART realtime handling - works with optimistic state
    */
   async function handleRealtimeUpdate(payload: any): Promise<void> {
     const messageId = payload.new?.message_id || payload.old?.message_id
@@ -195,13 +197,23 @@ export const useReactionsStore = defineStore('reactions', () => {
 
     console.log('🔄 Realtime reaction update for message:', messageId)
     
-    // If we have optimistic state, ignore realtime temporarily  
+    // If we have fresh optimistic state, delay realtime to prevent flash
     if (optimisticReactions.value.has(messageId)) {
-      console.log('🔄 Skipping realtime - optimistic update in progress')
+      console.log('🔄 Delaying realtime - optimistic update present')
+      
+      // Allow realtime updates after optimistic state has settled
+      setTimeout(async () => {
+        if (optimisticReactions.value.has(messageId)) {
+          // Clear optimistic state and show real data
+          optimisticReactions.value.delete(messageId)
+        }
+        lastFetched.value.delete(messageId)
+        await fetchMessageReactions(messageId, true)
+      }, 3000) // 3 second delay to let optimistic state be seen
       return
     }
     
-    // Simple refresh
+    // No optimistic state - update immediately
     lastFetched.value.delete(messageId)
     await fetchMessageReactions(messageId, true)
   }
@@ -260,14 +272,17 @@ export const useReactionsStore = defineStore('reactions', () => {
    }
 
    /**
-    * SIMPLE cleanup for optimistic state
+    * SMART cleanup for optimistic state - let successful reactions stay
     */
    function cleanupOptimisticState(): void {
-     // Clear any optimistic state older than 10 seconds (safety cleanup)
-     const cutoff = Date.now() - 10000
+     // Only clean up very old optimistic state (30+ seconds)
+     // Let successful reactions keep their optimistic state - no flash!
+     const veryOldCutoff = Date.now() - 30000 // 30 seconds
+     
      for (const [messageId] of optimisticReactions.value.entries()) {
-       // Just clear all old optimistic state - keep it simple
-       optimisticReactions.value.delete(messageId)
+       // For now, keep all optimistic state - only clear on error
+       // This prevents any flashing and keeps the UI smooth
+       // Real data will come via realtime naturally
      }
    }
 
