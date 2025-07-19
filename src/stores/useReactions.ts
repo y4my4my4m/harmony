@@ -20,6 +20,9 @@ export const useReactionsStore = defineStore('reactions', () => {
   // Discord-style optimistic updates
   const optimisticOperations = ref(new Map<string, OptimisticOperation>()) // key: `${messageId}-${emojiId}-${userId}`
   const pendingToggleRequests = ref(new Set<string>()) // Prevent double-clicks
+  
+  // Realtime debouncing
+  const realtimeDebounceTimers = ref(new Map<string, NodeJS.Timeout>())
 
   // Getters
   const getMessageReactions = computed(() => (messageId: string): ReactionGroup[] => {
@@ -209,7 +212,7 @@ export const useReactionsStore = defineStore('reactions', () => {
   }
 
   /**
-   * Handle realtime updates (simplified)
+   * Handle realtime updates (Discord-style with smart debouncing)
    */
   async function handleRealtimeUpdate(payload: any): Promise<void> {
     const messageId = payload.new?.message_id || payload.old?.message_id
@@ -221,10 +224,42 @@ export const useReactionsStore = defineStore('reactions', () => {
 
     console.log('🔄 Realtime reaction update for message:', messageId)
     
-    // Simple approach: Just refresh the affected message's reactions
-    // This will overwrite any stale optimistic updates with server truth
-    lastFetched.value.delete(messageId) // Force refresh
-    await fetchMessageReactions(messageId, true)
+    // PERFORMANCE: Check if we have a recent optimistic update for this message
+    const recentOptimistic = Array.from(optimisticOperations.value.values())
+      .some(op => op.messageId === messageId && (Date.now() - op.timestamp) < 2000) // 2 seconds
+    
+    if (recentOptimistic) {
+      console.log('🔄 Skipping realtime fetch - recent optimistic update detected')
+      // Clear optimistic operation after a delay to let it settle
+      setTimeout(() => {
+        const keysToDelete = Array.from(optimisticOperations.value.entries())
+          .filter(([_, op]) => op.messageId === messageId)
+          .map(([key, _]) => key)
+        
+        keysToDelete.forEach(key => optimisticOperations.value.delete(key))
+        
+        // Now do a single refresh
+        lastFetched.value.delete(messageId)
+        fetchMessageReactions(messageId, true)
+      }, 1000)
+      return
+    }
+    
+    // DEBOUNCED: Prevent multiple rapid fetches for the same message
+    const debounceKey = `realtime-${messageId}`
+    const existingTimer = realtimeDebounceTimers.get(debounceKey)
+    
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+    }
+    
+    const timer = setTimeout(() => {
+      lastFetched.value.delete(messageId) // Force refresh
+      fetchMessageReactions(messageId, true)
+      realtimeDebounceTimers.delete(debounceKey)
+    }, 300) // 300ms debounce
+    
+    realtimeDebounceTimers.set(debounceKey, timer)
   }
 
      /**
@@ -281,23 +316,33 @@ export const useReactionsStore = defineStore('reactions', () => {
      return reactions
    }
 
-  /**
-   * Clean up old optimistic operations (prevent memory leaks)
-   */
-  function cleanupStaleOptimisticOps(): void {
-    const now = Date.now()
-    const STALE_THRESHOLD = 10000 // 10 seconds
-    
-    for (const [key, op] of optimisticOperations.value.entries()) {
-      if (now - op.timestamp > STALE_THRESHOLD) {
-        optimisticOperations.value.delete(key)
-        console.log('🧹 Cleaned up stale optimistic operation:', key)
-      }
-    }
-  }
+     /**
+    * Clean up old optimistic operations and timers (prevent memory leaks)
+    */
+   function cleanupStaleOptimisticOps(): void {
+     const now = Date.now()
+     const STALE_THRESHOLD = 10000 // 10 seconds
+     
+     // Clean up stale optimistic operations
+     for (const [key, op] of optimisticOperations.value.entries()) {
+       if (now - op.timestamp > STALE_THRESHOLD) {
+         optimisticOperations.value.delete(key)
+         console.log('🧹 Cleaned up stale optimistic operation:', key)
+       }
+     }
+     
+     // Clean up stale realtime debounce timers
+     for (const [key, timer] of realtimeDebounceTimers.value.entries()) {
+       // Clear very old timers (shouldn't happen but safety)
+       if (key.includes('realtime-')) {
+         clearTimeout(timer)
+         realtimeDebounceTimers.value.delete(key)
+       }
+     }
+   }
 
-  // Cleanup timer
-  setInterval(cleanupStaleOptimisticOps, 30000) // Every 30 seconds
+   // Cleanup timer
+   setInterval(cleanupStaleOptimisticOps, 30000) // Every 30 seconds
 
      return {
      // State

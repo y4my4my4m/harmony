@@ -313,7 +313,7 @@ export class CoreMessageService {
           url: reaction.emoji_url
         },
         count: reaction.reaction_count,
-        reactions: reaction.users || []  // FIXED: Store expects 'reactions', not 'users'
+        reactions: Array.isArray(reaction.users) ? reaction.users : []  // FIXED: Ensure it's an array
       })) || []
 
       console.log(`✅ Core: Fetched ${transformedReactions.length} reaction groups for message: ${messageId}`)
@@ -369,7 +369,7 @@ export class CoreMessageService {
             url: reaction.emoji_url
           },
           count: reaction.reaction_count,
-          reactions: reaction.users || []  // FIXED: Store expects 'reactions', not 'users'
+          reactions: Array.isArray(reaction.users) ? reaction.users : []  // FIXED: Ensure it's an array
         })
       })
 
