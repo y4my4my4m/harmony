@@ -152,9 +152,39 @@
 - [x] **NOTIFICATION LIMITS**: Rate limiting table and spam prevention logic
 - [x] **REACTION LIMITS**: Max 20 different emoji types per post/message
 
-## Phase 6: Service Layer Implementation 🏗️ **NEXT PRIORITY**
+## Phase 6: System Testing & Validation 🧪 **READY TO TEST**
 
-### Local-First Services  
+### Database Migration Testing
+- [ ] **RUN**: `./test-system.sh` - Automated migration and testing
+- [ ] **VERIFY**: Universal content converters working
+- [ ] **VERIFY**: Unified notification system working  
+- [ ] **VERIFY**: Trigger consolidation active
+- [ ] **VERIFY**: Federation infrastructure ready
+
+### Core Functionality Testing
+- [ ] **TEST**: Create posts in social timeline
+- [ ] **TEST**: Send messages in server channels
+- [ ] **TEST**: Send direct messages
+- [ ] **TEST**: Add reactions to posts and messages
+- [ ] **TEST**: Follow local and remote users
+- [ ] **TEST**: Notifications work correctly
+
+### Federation Testing
+- [ ] **TEST**: Posts federate to remote instances
+- [ ] **TEST**: Receive activities from remote instances
+- [ ] **TEST**: HTTP signing works in edge functions
+- [ ] **TEST**: Content conversion (JSONB ↔ ActivityPub)
+- [ ] **TEST**: Blocking and muting systems
+- [ ] **TEST**: Health monitoring and error tracking
+
+### Performance Testing
+- [ ] **VERIFY**: 87% trigger reduction achieved
+- [ ] **VERIFY**: Database query performance improved
+- [ ] **VERIFY**: Real-time updates working efficiently
+- [ ] **VERIFY**: Federation delivery queue processing
+- [ ] **VERIFY**: Notification spam prevention working
+
+### Original Service Layer Plan (DEFERRED)
 - [ ] **CREATE**: `PostService` class
   - [ ] `createPost()` - Create posts
   - [ ] `editPost()` - Edit post
