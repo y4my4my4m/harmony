@@ -2,46 +2,29 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { services } from '@/services'
 import type { ReactionGroup, Emoji } from '@/types'
-import { useEmojiCacheStore } from '@/stores/useEmojiCache'
-
-interface OptimisticOperation {
-  messageId: string
-  emojiId: string
-  userId: string
-  operation: 'add' | 'remove'
-  timestamp: number
-}
 
 export const useReactionsStore = defineStore('reactions', () => {
-  // State
+  // State - SIMPLE AND CLEAN
   const reactionsByMessage = ref(new Map<string, ReactionGroup[]>())
   const lastFetched = ref(new Map<string, number>())
   const isLoading = ref(new Set<string>())
   
-  // Discord-style optimistic updates
-  const optimisticOperations = ref(new Map<string, OptimisticOperation>()) // key: `${messageId}-${emojiId}-${userId}`
-  const pendingToggleRequests = ref(new Set<string>()) // Prevent double-clicks
-  
-  // Realtime debouncing - Use regular Map (not reactive) to avoid method interference
-  const realtimeDebounceTimers = new Map<string, NodeJS.Timeout>()
+  // Optimistic state - SEPARATE from computed properties
+  const optimisticReactions = ref(new Map<string, ReactionGroup[]>()) // key: messageId
+  const pendingToggleRequests = ref(new Set<string>())
 
-  // Getters - FIXED: Break infinite reactivity loop
+  // Simple getters - NO MERGING, NO LOOPS
   const getMessageReactions = computed(() => (messageId: string): ReactionGroup[] => {
     if (!messageId) return []
     
-    const baseReactions = reactionsByMessage.value.get(messageId) || []
-    
-    // Get optimistic operations for this message
-    const optimisticOps = Array.from(optimisticOperations.value.values())
-      .filter(op => op.messageId === messageId)
-    
-    // No optimistic operations? Return base data directly
-    if (optimisticOps.length === 0) {
-      return baseReactions
+    // Check if we have optimistic state for this message
+    const optimistic = optimisticReactions.value.get(messageId)
+    if (optimistic) {
+      return optimistic // Show optimistic version
     }
     
-    // Apply optimistic updates IMMUTABLY
-    return applyOptimisticOperationsImmutable(baseReactions, optimisticOps)
+    // Otherwise show real data
+    return reactionsByMessage.value.get(messageId) || []
   })
 
   const hasUserReacted = computed(() => (messageId: string, emojiId: string, userId: string): boolean => {
@@ -141,7 +124,7 @@ export const useReactionsStore = defineStore('reactions', () => {
   }
 
   /**
-   * Discord-style reaction toggle: Instant UI feedback with graceful rollback
+   * SIMPLE reaction toggle with instant UI feedback
    */
   async function toggleReaction(messageId: string, emojiId: string, userId: string): Promise<{
     success: boolean;
@@ -149,7 +132,7 @@ export const useReactionsStore = defineStore('reactions', () => {
   }> {
     const toggleKey = `${messageId}-${emojiId}-${userId}`
     
-    // Prevent rapid double-clicking (Discord behavior)
+    // Prevent rapid clicking
     if (pendingToggleRequests.value.has(toggleKey)) {
       return { success: false, reason: 'Request already in progress' }
     }
@@ -157,61 +140,50 @@ export const useReactionsStore = defineStore('reactions', () => {
     pendingToggleRequests.value.add(toggleKey)
 
     try {
-      // 1. INSTANT UI UPDATE (Discord-style)
+      // 1. INSTANT UI UPDATE - Create optimistic version
+      const currentReactions = reactionsByMessage.value.get(messageId) || []
       const currentlyHasReaction = hasUserReacted.value(messageId, emojiId, userId)
-      const operation = currentlyHasReaction ? 'remove' : 'add'
       
-      // Apply optimistic update immediately
-      const optimisticOp: OptimisticOperation = {
-        messageId,
+      const optimisticVersion = createOptimisticReactions(
+        currentReactions, 
         emojiId, 
-        userId,
-        operation,
-        timestamp: Date.now()
-      }
+        userId, 
+        currentlyHasReaction ? 'remove' : 'add'
+      )
       
-      optimisticOperations.value.set(toggleKey, optimisticOp)
-      console.log(`⚡ Optimistic reaction ${operation} applied instantly`)
+      // Show optimistic version immediately
+      optimisticReactions.value.set(messageId, optimisticVersion)
+      console.log(`⚡ Optimistic reaction ${currentlyHasReaction ? 'remove' : 'add'} applied instantly`)
 
-      // 2. BACKGROUND API CALL
-      try {
-        const result = await services.messages.toggleReaction(messageId, emojiId)
-        console.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`)
-        
-        // 3. SUCCESS: Remove optimistic operation (let realtime handle final state)
-        optimisticOperations.value.delete(toggleKey)
-        
-        // NO IMMEDIATE REFRESH - Let realtime updates handle it naturally
-        
-        return { success: true }
-        
-      } catch (apiError: any) {
-        console.error('❌ Service layer reaction toggle failed:', apiError)
-        
-        // 4. FAILURE: Rollback optimistic update (Discord-style)
-        optimisticOperations.value.delete(toggleKey)
-        console.log('🔄 Rolled back optimistic update due to API failure')
-        
-        return { success: false, reason: `API error: ${apiError.message}` }
-      }
+      // 2. API CALL
+      const result = await services.messages.toggleReaction(messageId, emojiId)
+      console.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`)
+      
+      // 3. SUCCESS: Clear optimistic state (show real data)
+      setTimeout(() => {
+        optimisticReactions.value.delete(messageId)
+        // Refresh real data
+        fetchMessageReactions(messageId, true)
+      }, 100)
+      
+      return { success: true }
       
     } catch (error: any) {
-      console.error('❌ Reaction toggle error:', error)
+      console.error('❌ Reaction toggle failed:', error)
       
-      // Rollback on any error
-      optimisticOperations.value.delete(toggleKey)
+      // ROLLBACK: Clear optimistic state immediately
+      optimisticReactions.value.delete(messageId)
       
-      return { success: false, reason: `Toggle error: ${error.message}` }
+      return { success: false, reason: error.message }
     } finally {
-      // Always clear the pending request lock with a small delay to prevent immediate retriggers
       setTimeout(() => {
         pendingToggleRequests.value.delete(toggleKey)
-      }, 50) // Small delay to prevent rapid re-clicking
+      }, 100)
     }
   }
 
-  /**
-   * Handle realtime updates (Discord-style with smart debouncing)
+    /**
+   * SIMPLE realtime handling
    */
   async function handleRealtimeUpdate(payload: any): Promise<void> {
     const messageId = payload.new?.message_id || payload.old?.message_id
@@ -223,166 +195,86 @@ export const useReactionsStore = defineStore('reactions', () => {
 
     console.log('🔄 Realtime reaction update for message:', messageId)
     
-    // PERFORMANCE: Check if we have a recent optimistic update for this message
-    const recentOptimistic = Array.from(optimisticOperations.value.values())
-      .some(op => op.messageId === messageId && (Date.now() - op.timestamp) < 2000) // 2 seconds
-    
-         if (recentOptimistic) {
-       console.log('🔄 Skipping realtime fetch - recent optimistic update detected')
-       // Clean up optimistic operations after a longer delay to allow settling
-       setTimeout(() => {
-         const keysToDelete = Array.from(optimisticOperations.value.entries())
-           .filter(([_, op]) => op.messageId === messageId && (Date.now() - op.timestamp) > 2000)
-           .map(([key, _]) => key)
-         
-         keysToDelete.forEach(key => {
-           console.log('🧹 Cleaning up settled optimistic operation:', key)
-           optimisticOperations.value.delete(key)
-         })
-       }, 3000) // Longer delay to let things settle
-       return
-     }
-    
-    // DEBOUNCED: Prevent multiple rapid fetches for the same message
-    const debounceKey = `realtime-${messageId}`
-    const existingTimer = realtimeDebounceTimers.get(debounceKey)
-    
-    if (existingTimer) {
-      clearTimeout(existingTimer)
+    // If we have optimistic state, ignore realtime temporarily  
+    if (optimisticReactions.value.has(messageId)) {
+      console.log('🔄 Skipping realtime - optimistic update in progress')
+      return
     }
     
-         const timer = setTimeout(() => {
-       lastFetched.value.delete(messageId) // Force refresh
-       fetchMessageReactions(messageId, true)
-       realtimeDebounceTimers.delete(debounceKey)
-     }, 800) // 800ms debounce - Longer to reduce rapid fetches
-    
-    realtimeDebounceTimers.set(debounceKey, timer)
+    // Simple refresh
+    lastFetched.value.delete(messageId)
+    await fetchMessageReactions(messageId, true)
   }
 
-     /**
-    * Apply optimistic operations IMMUTABLY (prevents infinite reactivity)
+   /**
+    * SIMPLE helper: Create optimistic reaction state
     */
-   function applyOptimisticOperationsImmutable(baseReactions: ReactionGroup[], operations: OptimisticOperation[]): ReactionGroup[] {
-     // Start with a deep clone to avoid mutations
-     let result = JSON.parse(JSON.stringify(baseReactions)) as ReactionGroup[]
+   function createOptimisticReactions(
+     baseReactions: ReactionGroup[], 
+     emojiId: string, 
+     userId: string, 
+     operation: 'add' | 'remove'
+   ): ReactionGroup[] {
+     // Deep clone to avoid mutations
+     const result = JSON.parse(JSON.stringify(baseReactions)) as ReactionGroup[]
      
-     for (const op of operations) {
-       result = applySingleOptimisticOperation(result, op)
+     if (operation === 'add') {
+       const existingIndex = result.findIndex(r => r.emoji_id === emojiId)
+       
+       if (existingIndex >= 0) {
+         // Add user to existing group
+         const existing = result[existingIndex]
+         if (!existing.reactions?.some(r => r.user_id === userId)) {
+           existing.reactions = existing.reactions || []
+           existing.reactions.push({ 
+             reaction_id: 'temp-' + Date.now(), 
+             user_id: userId 
+           })
+           existing.count = existing.reactions.length
+         }
+       } else {
+         // Create new group (simple placeholder - will be replaced by real data soon)
+         result.push({
+           emoji_id: emojiId,
+           emoji: { id: emojiId, name: '...', url: '' } as Emoji,
+           count: 1,
+           reactions: [{ reaction_id: 'temp-' + Date.now(), user_id: userId }]
+         })
+       }
+     } else if (operation === 'remove') {
+       const existingIndex = result.findIndex(r => r.emoji_id === emojiId)
+       
+       if (existingIndex >= 0) {
+         const existing = result[existingIndex]
+         existing.reactions = existing.reactions?.filter(r => r.user_id !== userId) || []
+         existing.count = existing.reactions.length
+         
+         // Remove group if empty
+         if (existing.count === 0) {
+           result.splice(existingIndex, 1)
+         }
+       }
      }
      
      return result
    }
 
    /**
-    * Apply a single optimistic operation IMMUTABLY
+    * SIMPLE cleanup for optimistic state
     */
-   function applySingleOptimisticOperation(reactions: ReactionGroup[], op: OptimisticOperation): ReactionGroup[] {
-     const { emojiId, userId, operation } = op
-     
-     if (operation === 'add') {
-       const existingIndex = reactions.findIndex(r => r.emoji_id === emojiId)
-       
-       if (existingIndex >= 0) {
-         // Add user to existing group (if not already present)
-         const existing = reactions[existingIndex]
-         if (!existing.reactions?.some(r => r.user_id === userId)) {
-           return reactions.map((group, index) => 
-             index === existingIndex
-               ? {
-                   ...group,
-                   reactions: [
-                     ...(group.reactions || []),
-                     { reaction_id: 'optimistic-' + Date.now(), user_id: userId }
-                   ],
-                   count: (group.reactions?.length || 0) + 1
-                 }
-               : group
-           )
-         }
-         return reactions // No change needed
-       } else {
-         // Create new reaction group with real emoji data
-         const emojiCache = useEmojiCacheStore()
-         const emojiData = emojiCache.getEmojiById(emojiId)
-         
-         const newGroup: ReactionGroup = {
-           emoji_id: emojiId,
-           emoji: emojiData || { 
-             id: emojiId, 
-             name: 'unknown', 
-             url: '',
-             server_id: '',
-             uploader: '',
-             created_at: '',
-             updated_at: '',
-             usage_count: 0,
-             last_used: ''
-           },
-           count: 1,
-           reactions: [{ reaction_id: 'optimistic-' + Date.now(), user_id: userId }]
-         }
-         
-         return [...reactions, newGroup]
-       }
-     } else if (operation === 'remove') {
-       const existingIndex = reactions.findIndex(r => r.emoji_id === emojiId)
-       
-       if (existingIndex >= 0) {
-         const existing = reactions[existingIndex]
-         const filteredReactions = existing.reactions?.filter(r => r.user_id !== userId) || []
-         
-         if (filteredReactions.length === 0) {
-           // Remove entire group
-           return reactions.filter((_, index) => index !== existingIndex)
-         } else {
-           // Update group with user removed
-           return reactions.map((group, index) =>
-             index === existingIndex
-               ? {
-                   ...group,
-                   reactions: filteredReactions,
-                   count: filteredReactions.length
-                 }
-               : group
-           )
-         }
-       }
-       return reactions // No change needed
-     }
-     
-     return reactions
-   }
-
-     /**
-    * Clean up old optimistic operations and timers (prevent memory leaks)
-    */
-   function cleanupStaleOptimisticOps(): void {
-     const now = Date.now()
-     const STALE_THRESHOLD = 10000 // 10 seconds
-     
-     // Clean up stale optimistic operations
-     for (const [key, op] of optimisticOperations.value.entries()) {
-       if (now - op.timestamp > STALE_THRESHOLD) {
-         optimisticOperations.value.delete(key)
-         console.log('🧹 Cleaned up stale optimistic operation:', key)
-       }
-     }
-     
-     // Clean up stale realtime debounce timers
-     for (const [key, timer] of realtimeDebounceTimers.entries()) {
-       // Clear very old timers (shouldn't happen but safety)
-       if (key.includes('realtime-')) {
-         clearTimeout(timer)
-         realtimeDebounceTimers.delete(key)
-       }
+   function cleanupOptimisticState(): void {
+     // Clear any optimistic state older than 10 seconds (safety cleanup)
+     const cutoff = Date.now() - 10000
+     for (const [messageId] of optimisticReactions.value.entries()) {
+       // Just clear all old optimistic state - keep it simple
+       optimisticReactions.value.delete(messageId)
      }
    }
 
-   // Cleanup timer
-   setInterval(cleanupStaleOptimisticOps, 30000) // Every 30 seconds
+   // Cleanup timer - much simpler
+   setInterval(cleanupOptimisticState, 30000)
 
-     return {
+   return {
      // State
      reactionsByMessage,
      
@@ -395,6 +287,11 @@ export const useReactionsStore = defineStore('reactions', () => {
      fetchMessageReactions,
      fetchMultipleMessageReactions, // CRITICAL: Batch fetch to avoid N+1
      toggleReaction,
-     handleRealtimeUpdate
+     handleRealtimeUpdate,
+     
+     // Utils
+     clearOptimisticState: (messageId: string) => {
+       optimisticReactions.value.delete(messageId)
+     }
    }
 })
