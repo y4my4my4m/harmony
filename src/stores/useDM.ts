@@ -307,20 +307,62 @@ export const useDMStore = defineStore('dm', () => {
         return existingConv
       }
 
-      // Get conversation with participant info using the database function
-      const { data: convWithParticipants, error } = await supabase
-        .rpc('get_user_conversations_with_participants', { user_uuid: currentUserId })
+      // Simple approach: Get the specific conversation where user is a participant
+      const { data: participation, error: participationError } = await supabase
+        .from('conversation_participants')
+        .select(`
+          conversation_id,
+          role,
+          joined_at,
+          conversations!inner(
+            id,
+            created_at,
+            type,
+            name,
+            is_active
+          )
+        `)
+        .eq('user_id', currentUserId)
+        .eq('conversation_id', conversationId)
+        .is('left_at', null)
+        .single()
 
-      if (error) {
-        console.error('❌ Error fetching conversations with participants:', error)
+      if (participationError || !participation) {
+        console.error('❌ Conversation not found or user not participant:', participationError)
         return null
       }
 
-      // Find the specific conversation we're looking for
-      const convData = convWithParticipants?.find((conv: any) => conv.conversation_id === conversationId)
-      if (!convData) {
-        console.error('❌ Conversation not found:', conversationId)
-        return null
+      const conversation = participation.conversations
+
+      // Get other participants (excluding current user)
+      const { data: otherParticipants, error: othersError } = await supabase
+        .from('conversation_participants')
+        .select('user_id, role, joined_at')
+        .eq('conversation_id', conversationId)
+        .neq('user_id', currentUserId)
+        .is('left_at', null)
+
+      if (othersError) {
+        console.error('Error fetching other participants:', othersError)
+      }
+
+      // Get participant count
+      const { count: participantCount, error: countError } = await supabase
+        .from('conversation_participants')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .is('left_at', null)
+
+      const convData = {
+        conversation_id: conversation.id,
+        conversation_name: conversation.name,
+        conversation_type: conversation.type || 'direct',
+        created_at: conversation.created_at,
+        is_active: conversation.is_active,
+        participant_count: participantCount || 2,
+        other_participants: otherParticipants || [],
+        user_role: participation.role,
+        user_joined_at: participation.joined_at
       }
 
       // Process conversation using existing helper
@@ -426,17 +468,78 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // Helper: Service-like method to fetch raw conversation data using new participant system
+  // Helper: Service-like method to fetch raw conversation data using participant system
   const _fetchRawConversations = async (userId: string) => {
-    const { data: conversationsData, error: convError } = await supabase
-      .rpc('get_user_conversations_with_participants', { user_uuid: userId })
+    try {
+      // Simple approach: Query conversations where user is a participant
+      const { data: participations, error: participationError } = await supabase
+        .from('conversation_participants')
+        .select(`
+          conversation_id,
+          role,
+          joined_at,
+          conversations!inner(
+            id,
+            created_at,
+            type,
+            name,
+            is_active
+          )
+        `)
+        .eq('user_id', userId)
+        .is('left_at', null)
+        .order('joined_at', { ascending: false })
 
-    if (convError) {
-      console.error('Error fetching conversations:', convError)
+      if (participationError) {
+        console.error('Error fetching conversation participations:', participationError)
+        return null
+      }
+
+      if (!participations) return []
+
+      // Transform to the expected format
+      const conversationsData = await Promise.all(
+        participations.map(async (participation) => {
+          const conversation = participation.conversations
+
+          // Get other participants (excluding current user)
+          const { data: otherParticipants, error: othersError } = await supabase
+            .from('conversation_participants')
+            .select('user_id, role, joined_at')
+            .eq('conversation_id', conversation.id)
+            .neq('user_id', userId)
+            .is('left_at', null)
+
+          if (othersError) {
+            console.error('Error fetching other participants:', othersError)
+          }
+
+          // Get participant count
+          const { count: participantCount, error: countError } = await supabase
+            .from('conversation_participants')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', conversation.id)
+            .is('left_at', null)
+
+          return {
+            conversation_id: conversation.id,
+            conversation_name: conversation.name,
+            conversation_type: conversation.type || 'direct',
+            created_at: conversation.created_at,
+            is_active: conversation.is_active,
+            participant_count: participantCount || 2,
+            other_participants: otherParticipants || [],
+            user_role: participation.role,
+            user_joined_at: participation.joined_at
+          }
+        })
+      )
+
+      return conversationsData
+    } catch (error) {
+      console.error('Error in _fetchRawConversations:', error)
       return null
     }
-
-    return conversationsData
   }
 
   // Helper: Service-like method to preload user profiles from participant data
