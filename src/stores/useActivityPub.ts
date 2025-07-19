@@ -1818,17 +1818,25 @@ export const useActivityPubStore = defineStore('activitypub', {
            return;
          }
          
+         console.log('🔄 Current user for loading followed users:', currentUser.id);
+         
          // Use InteractionService for consistent relationship management
          const result = await services.interactions.getFollowing(currentUser.id);
+         console.log('🔄 Service result:', result);
+         
          this.followedUsers = new Set(result.users.map(user => user.id));
          
          console.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
+         console.log('✅ followedUsers Set contents:', Array.from(this.followedUsers));
        } catch (error) {
          console.error('❌ Failed to load followed users via service:', error);
          
          // Fallback to direct query if service fails
          try {
+           console.log('🔄 Trying fallback method...');
            await this._loadFollowedUsersFallback();
+           console.log(`✅ Fallback loaded ${this.followedUsers.size} followed users`);
+           console.log('✅ Fallback followedUsers Set contents:', Array.from(this.followedUsers));
          } catch (fallbackError) {
            console.error('❌ Fallback loading also failed:', fallbackError);
          }
