@@ -184,53 +184,85 @@
 - [ ] **VERIFY**: Federation delivery queue processing
 - [ ] **VERIFY**: Notification spam prevention working
 
-### Original Service Layer Plan (DEFERRED)
-- [ ] **CREATE**: `PostService` class
-  - [ ] `createPost()` - Create posts
-  - [ ] `editPost()` - Edit post
-  - [ ] `deletePost()` - Delete posts
-  - [ ] `likePost()` / `unlikePost()` - Local-first
-  - [ ] `reblogPost()` / `unreblogPost()` - Local-first
-  - [ ] `featurePost()` / `unfeaturePost()` - Local-first (featuring means like pinning a post)
-- [ ] **CREATE**: `MessageService` class  
-  - [ ] `sendMessage()` - Send channel or DM messages, (local and federated)
-  - [ ] `editMessage()` - Edit messages (local and federated)
-  - [ ] `deleteMessage()` - Delete messages (local and federated)
-- [ ] **CREATE**: `InteractionService` class
-  - [ ] `followUser()` / `unfollowUser()` - Local-first follows
-  - [ ] `blockUser()` / `unblockUser()` - Local-first blocks
-  - [ ] `acceptFollow()` / `rejectFollow()` - Handle follow requests
-  - [ ] `addReaction()` / `removeReaction()` - Local-first reactions
+## Phase 7: Service Layer Implementation ✅ **COMPLETED**
 
-### Federation Services
-- [ ] **CREATE**: `FederationManager` class
-  - [ ] Central federation control and configuration
-  - [ ] Health monitoring and status
-  - [ ] Enable/disable federation controls
-- [ ] **CREATE**: `IncomingFederationHandler` class
-  - [ ] Process all incoming ActivityPub activities
-  - [ ] Unified entry point for federation
-  - [ ] Validation and security checks
-- [ ] **CREATE**: `OutgoingFederationHandler` class
-  - [ ] Queue all outgoing ActivityPub activities  
-  - [ ] Determine federation targets
-  - [ ] Handle delivery and retries
+### Local-First Services Created
+- [x] **CREATE**: `PostService` class - Complete post management
+  - [x] `createPost()` - Create posts locally first, federation async
+  - [x] `updatePost()` - Edit posts with ownership verification
+  - [x] `deletePost()` - Soft delete with federation
+  - [x] `toggleLike()` - Like/unlike with optimistic updates
+  - [x] `toggleShare()` - Share/unshare (reblog/boost)
+  - [x] `toggleBookmark()` - Bookmark management
+  - [x] `loadTimelinePosts()` - Timeline loading with pagination
+  - [x] `loadPost()` - Single post loading with context
+- [x] **CREATE**: `MessageService` class - Unified message/DM handling
+  - [x] `sendChannelMessage()` - Server channel messages (no federation)
+  - [x] `sendDMMessage()` - DM messages (with federation)
+  - [x] `editMessage()` - Message editing with ownership verification
+  - [x] `deleteMessage()` - Soft delete messages
+  - [x] `toggleReaction()` - Add/remove emoji reactions
+  - [x] `getMessageReactions()` - Load message reactions
+  - [x] `loadChannelMessages()` - Load channel messages with pagination
+  - [x] `loadConversationMessages()` - Load DM messages with pagination
+- [x] **CREATE**: `InteractionService` class - User relationships
+  - [x] `toggleFollow()` - Follow/unfollow with approval support
+  - [x] `acceptFollowRequest()` - Accept pending follow requests
+  - [x] `rejectFollowRequest()` - Reject pending follow requests
+  - [x] `toggleBlock()` - Block/unblock users (removes follows)
+  - [x] `toggleMute()` - Mute/unmute users (notifications only)
+  - [x] `getUserRelationships()` - Batch relationship queries
+  - [x] `getFollowRequests()` - Load pending follow requests
+  - [x] `getFollowers()` - Load followers with pagination
+  - [x] `getFollowing()` - Load following with pagination
+- [x] **CREATE**: Service aggregator and helpers
+  - [x] Unified `services` export for easy access
+  - [x] Common error handling patterns
+  - [x] Loading state helpers and utilities
+  - [x] Migration guide and documentation
 
-## Phase 6: Frontend Store Migration 🖥️ LOW PRIORITY
+### Service Layer Benefits
+- ✅ **Local-First**: All operations work immediately (optimistic updates)
+- ✅ **Consistent**: Same patterns for error handling and loading states
+- ✅ **Type-Safe**: Full TypeScript interfaces for all operations
+- ✅ **Testable**: Easy to mock and unit test
+- ✅ **Maintainable**: Clean separation of concerns
+- ✅ **Federation-Ready**: Background federation without blocking UI
 
-### Store Updates
-- [ ] **REFACTOR**: `useActivityPub.ts` to use new service layer
-- [ ] **REFACTOR**: `useChat.ts` to use new MessageService
-- [ ] **REFACTOR**: `useDM.ts` to use unified conversation handling
-- [ ] **REFACTOR**: `useProfile.ts` to use new InteractionService
-- [ ] **ADD**: Federation status indicators in UI
-- [ ] **ADD**: Federation controls in user settings
+### Migration Path
+- [x] **OLD**: Direct Supabase calls scattered throughout components
+- [x] **NEW**: `import { services } from '@/services'` → Clean service methods
+- [x] **EXAMPLE**: `services.posts.createPost()` instead of raw SQL
+- [x] **CONSISTENCY**: Same error format across all operations
 
-### Edge Function Updates
-- [ ] **UPDATE**: `inbox/index.ts` to use new IncomingFederationHandler
-- [ ] **UPDATE**: Outbox functions to use new OutgoingFederationHandler
-- [ ] **ADD**: HTTP signature handling in edge functions
-- [ ] **REMOVE**: Database HTTP signature dependencies
+## Phase 8: Frontend Store Migration 🖥️ **NEXT PRIORITY**
+
+### Store Refactoring (Use New Service Layer)
+- [ ] **REFACTOR**: `useActivityPub.ts` to use `services.posts` instead of direct database calls
+- [ ] **REFACTOR**: `useChat.ts` to use `services.messages` instead of direct database calls  
+- [ ] **REFACTOR**: `useDM.ts` to use `services.messages` for unified conversation handling
+- [ ] **REFACTOR**: Components to use `services.interactions` for follows/blocks/mutes
+- [ ] **ADD**: Loading state management using service layer helpers
+- [ ] **ADD**: Consistent error handling across all stores
+
+### Component Updates
+- [ ] **UPDATE**: `MonyComposerInline.vue` to use `services.posts.createPost()`
+- [ ] **UPDATE**: `ChatComponent.vue` to use `services.messages.sendChannelMessage()`
+- [ ] **UPDATE**: `DMView.vue` to use `services.messages.sendDMMessage()`
+- [ ] **UPDATE**: Post interaction buttons to use `services.posts.toggleLike()` etc.
+- [ ] **UPDATE**: Follow buttons to use `services.interactions.toggleFollow()`
+
+### UI Enhancements  
+- [ ] **ADD**: Federation status indicators in UI (online/offline, pending delivery)
+- [ ] **ADD**: Federation controls in user settings (enable/disable per user)
+- [ ] **ADD**: Loading states for all service operations
+- [ ] **ADD**: Toast notifications for service errors
+- [ ] **ADD**: Optimistic UI updates (immediate feedback)
+
+### Edge Function Integration
+- [ ] **VERIFY**: Edge functions work with new database structure
+- [ ] **TEST**: HTTP signature handling in edge functions
+- [ ] **TEST**: ActivityPub JSON generation using database helpers
 
 ## Phase 7: Testing & Validation ✅ ONGOING
 

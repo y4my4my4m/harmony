@@ -33,6 +33,7 @@ migrations=(
     "db_migrations/001_phase1_function_renaming.sql"
     "db_migrations/002_phase2_unified_notifications.sql"
     "db_migrations/003_phase3_trigger_consolidation.sql"
+    "db_migrations/004_phase4_schema_updates.sql"
     "db_migrations/005_cleanup_redundancies.sql"
 )
 
