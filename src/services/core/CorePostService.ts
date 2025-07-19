@@ -500,6 +500,64 @@ export class CorePostService {
   // =====================================================
 
   /**
+   * Get reactions for multiple posts using optimized database function (pure local)
+   * PERFORMANCE: Uses database function to eliminate N+1 query problem
+   */
+  private async getBatchPostReactions(postIds: string[]): Promise<Record<string, any[]>> {
+    try {
+      if (postIds.length === 0) {
+        return {}
+      }
+
+      console.log(`🔄 Core: Batch fetching reactions for ${postIds.length} posts`)
+      
+      // Use the optimized database function
+      const { data: reactions, error } = await supabase
+        .rpc('get_batch_post_reactions', { post_ids: postIds })
+
+      if (error) {
+        console.error('❌ Core: Failed to batch fetch post reactions:', error)
+        throw this.createError('BATCH_FETCH_POST_REACTIONS_FAILED', error.message, error)
+      }
+
+      // Group reactions by post_id
+      const groupedReactions: Record<string, any[]> = {}
+      
+      // Initialize all post IDs with empty arrays
+      postIds.forEach(postId => {
+        groupedReactions[postId] = []
+      })
+
+      // Group reactions by post
+      reactions?.forEach(reaction => {
+        const postId = reaction.post_id
+        
+        if (!groupedReactions[postId]) {
+          groupedReactions[postId] = []
+        }
+        
+        groupedReactions[postId].push({
+          emoji_id: reaction.emoji_id,
+          emoji: {
+            id: reaction.emoji_id,
+            name: reaction.emoji_name,
+            url: reaction.emoji_url,
+            category: reaction.emoji_category
+          },
+          count: reaction.reaction_count,
+          users: reaction.users
+        })
+      })
+
+      console.log(`✅ Core: Batch fetched reactions for ${postIds.length} posts (${reactions?.length || 0} reaction groups)`)
+      return groupedReactions
+    } catch (error) {
+      console.error('❌ Core: Error in getBatchPostReactions:', error)
+      throw error
+    }
+  }
+
+  /**
    * Load timeline posts with pagination (pure local)
    */
   async loadTimelinePosts(
@@ -539,8 +597,21 @@ export class CorePostService {
 
       if (error) throw this.createError('LOAD_POSTS_FAILED', error.message, error)
 
-      console.log(`✅ Core: Loaded ${posts?.length || 0} posts for ${timeline} timeline`)
-      return posts || []
+      const postList = posts || []
+
+      // PERFORMANCE OPTIMIZATION: Batch load reactions for all posts
+      if (postList.length > 0) {
+        const postIds = postList.map(p => p.id)
+        const reactionsByPost = await this.getBatchPostReactions(postIds)
+        
+        // Attach reactions to each post
+        postList.forEach(post => {
+          post.reactions = reactionsByPost[post.id] || []
+        })
+      }
+
+      console.log(`✅ Core: Loaded ${postList.length} posts with reactions for ${timeline} timeline`)
+      return postList
     } catch (error) {
       console.error('❌ Core: Failed to load timeline posts:', error)
       throw error

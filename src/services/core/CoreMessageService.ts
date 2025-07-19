@@ -277,26 +277,7 @@ export class CoreMessageService {
             }
           }
           
-          // Handle RLS policy violation on notification_preferences (known issue)
-          if (error.code === '42501' && error.message.includes('notification_preferences')) {
-            console.warn(`⚠️ Core: Notification preferences RLS policy violation - reaction likely added but notification creation failed`)
-            console.warn(`ℹ️ Core: This is a known issue - the reaction was added successfully but the notification trigger failed`)
-            
-            // Check if the reaction was actually added
-            const { data: reactionExists } = await supabase
-              .from('reactions')
-              .select('id')
-              .match({ message_id: messageId, emoji_id: emojiId, user_id: profileId })
-              .maybeSingle()
-
-            if (reactionExists) {
-              console.log('✅ Core: Reaction was added successfully despite notification failure')
-              return { added: true, hadRaceCondition: false }
-            } else {
-              console.error('❌ Core: Both reaction and notification creation failed')
-              throw this.createError('ADD_REACTION_FAILED', `Reaction creation failed: ${error.message}`, error)
-            }
-          }
+          // Note: RLS policy issues should be resolved by migration 007's SECURITY DEFINER functions
           
           throw this.createError('ADD_REACTION_FAILED', error.message, error)
         }
@@ -334,10 +315,10 @@ export class CoreMessageService {
   }
 
   /**
-   * Get reactions for multiple messages in one optimized query (pure local)
-   * PERFORMANCE: Solves N+1 query problem by batching reaction fetches
+   * Get reactions for multiple messages using optimized database function (pure local)
+   * PERFORMANCE: Uses database function to eliminate N+1 query problem
    */
-  async getBatchMessageReactions(messageIds: string[]): Promise<Record<string, any[]>> {
+  private async getBatchMessageReactions(messageIds: string[]): Promise<Record<string, any[]>> {
     try {
       if (messageIds.length === 0) {
         return {}
@@ -345,29 +326,9 @@ export class CoreMessageService {
 
       console.log(`🔄 Core: Batch fetching reactions for ${messageIds.length} messages`)
       
-      // Use direct query instead of RPC for batch operations
+      // Use the optimized database function
       const { data: reactions, error } = await supabase
-        .from('reactions')
-        .select(`
-          message_id,
-          emoji_id,
-          user_id,
-          created_at,
-          emojis!inner(
-            id,
-            name,
-            url,
-            category
-          ),
-          profiles!inner(
-            id,
-            username,
-            display_name,
-            avatar_url
-          )
-        `)
-        .in('message_id', messageIds)
-        .order('created_at', { ascending: true })
+        .rpc('get_batch_message_reactions', { message_ids: messageIds })
 
       if (error) {
         console.error('❌ Core: Failed to batch fetch message reactions:', error)
@@ -382,41 +343,28 @@ export class CoreMessageService {
         groupedReactions[messageId] = []
       })
 
-      // Group reactions by message and emoji
-      const reactionGroups: Record<string, Record<string, any>> = {}
-      
+      // Group reactions by message
       reactions?.forEach(reaction => {
         const messageId = reaction.message_id
-        const emojiId = reaction.emoji_id
         
-        if (!reactionGroups[messageId]) {
-          reactionGroups[messageId] = {}
+        if (!groupedReactions[messageId]) {
+          groupedReactions[messageId] = []
         }
         
-        if (!reactionGroups[messageId][emojiId]) {
-          reactionGroups[messageId][emojiId] = {
-            emoji_id: emojiId,
-            emoji: reaction.emojis,
-            count: 0,
-            users: []
-          }
-        }
-        
-        reactionGroups[messageId][emojiId].count++
-        reactionGroups[messageId][emojiId].users.push({
-          id: reaction.user_id,
-          username: reaction.profiles.username,
-          display_name: reaction.profiles.display_name,
-          avatar_url: reaction.profiles.avatar_url
+        groupedReactions[messageId].push({
+          emoji_id: reaction.emoji_id,
+          emoji: {
+            id: reaction.emoji_id,
+            name: reaction.emoji_name,
+            url: reaction.emoji_url,
+            category: reaction.emoji_category
+          },
+          count: reaction.reaction_count,
+          users: reaction.users
         })
       })
 
-      // Convert to final format
-      Object.keys(reactionGroups).forEach(messageId => {
-        groupedReactions[messageId] = Object.values(reactionGroups[messageId])
-      })
-
-      console.log(`✅ Core: Batch fetched reactions for ${messageIds.length} messages (${reactions?.length || 0} total reactions)`)
+      console.log(`✅ Core: Batch fetched reactions for ${messageIds.length} messages (${reactions?.length || 0} reaction groups)`)
       return groupedReactions
     } catch (error) {
       console.error('❌ Core: Error in getBatchMessageReactions:', error)
@@ -429,7 +377,8 @@ export class CoreMessageService {
   // =====================================================
 
   /**
-   * Load channel messages with pagination (pure local)
+   * Load channel messages with pagination and reactions (pure local)
+   * PERFORMANCE: Automatically loads reactions with messages to prevent N+1 queries
    */
   async loadChannelMessages(
     channelId: string,
@@ -468,8 +417,21 @@ export class CoreMessageService {
 
       if (error) throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
 
-      console.log(`✅ Core: Loaded ${messages?.length || 0} messages for channel: ${channelId}`)
-      return messages || []
+      const messageList = messages || []
+
+      // PERFORMANCE OPTIMIZATION: Batch load reactions for all messages
+      if (messageList.length > 0) {
+        const messageIds = messageList.map(m => m.id)
+        const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
+        
+        // Attach reactions to each message
+        messageList.forEach(message => {
+          message.reactions = reactionsByMessage[message.id] || []
+        })
+      }
+
+      console.log(`✅ Core: Loaded ${messageList.length} messages with reactions for channel: ${channelId}`)
+      return messageList
     } catch (error) {
       console.error('❌ Core: Failed to load channel messages:', error)
       throw error
@@ -516,8 +478,21 @@ export class CoreMessageService {
 
       if (error) throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
 
-      console.log(`✅ Core: Loaded ${messages?.length || 0} messages for conversation: ${conversationId}`)
-      return messages || []
+      const messageList = messages || []
+
+      // PERFORMANCE OPTIMIZATION: Batch load reactions for all messages
+      if (messageList.length > 0) {
+        const messageIds = messageList.map(m => m.id)
+        const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
+        
+        // Attach reactions to each message
+        messageList.forEach(message => {
+          message.reactions = reactionsByMessage[message.id] || []
+        })
+      }
+
+      console.log(`✅ Core: Loaded ${messageList.length} messages with reactions for conversation: ${conversationId}`)
+      return messageList
     } catch (error) {
       console.error('❌ Core: Failed to load conversation messages:', error)
       throw error
