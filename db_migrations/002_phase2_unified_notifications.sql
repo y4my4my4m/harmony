@@ -29,48 +29,13 @@ COMMENT ON COLUMN notifications.read_at IS 'Timestamp when notification was mark
 COMMENT ON COLUMN notifications.is_read IS 'Boolean field indicating if notification has been read';
 
 -- =====================================================
--- STEP 1: CREATE NOTIFICATION PREFERENCE TABLES
+-- STEP 1: ENSURE NOTIFICATION INFRASTRUCTURE EXISTS
 -- =====================================================
 
--- Create notification preferences table
-CREATE TABLE IF NOT EXISTS notification_preferences (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
-    
-    -- Desktop notifications
-    desktop_notifications boolean DEFAULT true,
-    desktop_mentions boolean DEFAULT true,
-    desktop_dms boolean DEFAULT true,
-    desktop_replies boolean DEFAULT true,
-    desktop_reactions boolean DEFAULT true,
-    
-    -- Push notifications
-    push_mentions boolean DEFAULT true,
-    push_dms boolean DEFAULT true,
-    
-    -- Sound notifications
-    sound_reactions boolean DEFAULT true,
-    sound_voice_activity boolean DEFAULT true,
-    
-    -- ActivityPub notifications
-    activitypub_notifications boolean DEFAULT true,
-    activitypub_mentions boolean DEFAULT true,
-    activitypub_replies boolean DEFAULT true,
-    activitypub_follows boolean DEFAULT true,
-    activitypub_favorites boolean DEFAULT true,
-    activitypub_reblogs boolean DEFAULT true,
-    
-    -- Do Not Disturb settings
-    dnd_enabled boolean DEFAULT false,
-    dnd_start_time time DEFAULT '22:00:00',
-    dnd_end_time time DEFAULT '08:00:00',
-    
-    UNIQUE(user_id)
-);
+-- Note: notification_preferences table already exists with comprehensive structure
+-- Your existing table has better granular controls than what we would create
 
--- Create notification channels table for granular muting
+-- Create notification channels table for granular muting (if it doesn't exist)
 CREATE TABLE IF NOT EXISTS notification_channels (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -90,7 +55,6 @@ CREATE INDEX IF NOT EXISTS idx_notification_preferences_user_id ON notification_
 CREATE INDEX IF NOT EXISTS idx_notification_channels_user_id ON notification_channels(user_id);
 CREATE INDEX IF NOT EXISTS idx_notification_channels_muted ON notification_channels(user_id, muted) WHERE muted = true;
 
-COMMENT ON TABLE notification_preferences IS 'User notification preferences including DND settings and granular control';
 COMMENT ON TABLE notification_channels IS 'Channel/server/conversation specific notification muting settings';
 
 -- Function to create default notification preferences for new users
@@ -197,73 +161,115 @@ BEGIN
         END IF;
 
         -- Determine if we should send this notification based on type and preferences
+        -- Uses your comprehensive notification preference structure
         should_send := false;
 
         CASE notification_type
             WHEN 'mention' THEN
                 should_send := (
+                    user_prefs.desktop_notifications AND 
                     user_prefs.desktop_mentions AND
-                    user_prefs.push_mentions AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
             WHEN 'dm' THEN
                 should_send := (
+                    user_prefs.desktop_notifications AND 
                     user_prefs.desktop_dms AND
-                    user_prefs.push_dms AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
             WHEN 'direct_message' THEN
                 should_send := (
+                    user_prefs.desktop_notifications AND 
                     user_prefs.desktop_dms AND
-                    user_prefs.push_dms AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
             WHEN 'reply' THEN
                 should_send := (
+                    user_prefs.desktop_notifications AND 
                     user_prefs.desktop_replies AND
-                    user_prefs.activitypub_replies AND
-                    (NOT is_dnd_time OR priority = 'high')
-                );
-            WHEN 'follow' THEN
-                should_send := (
-                    user_prefs.activitypub_follows AND
-                    (NOT is_dnd_time OR priority = 'high')
-                );
-            WHEN 'like' THEN
-                should_send := (
-                    user_prefs.activitypub_favorites AND
-                    (NOT is_dnd_time OR priority = 'high')
-                );
-            WHEN 'favorite' THEN
-                should_send := (
-                    user_prefs.activitypub_favorites AND
-                    (NOT is_dnd_time OR priority = 'high')
-                );
-            WHEN 'reblog' THEN
-                should_send := (
-                    user_prefs.activitypub_reblogs AND
-                    (NOT is_dnd_time OR priority = 'high')
-                );
-            WHEN 'boost' THEN
-                should_send := (
-                    user_prefs.activitypub_reblogs AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
             WHEN 'reaction' THEN
                 should_send := (
+                    user_prefs.desktop_notifications AND 
                     user_prefs.desktop_reactions AND
-                    user_prefs.sound_reactions AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
             WHEN 'voice_activity' THEN
                 should_send := (
+                    user_prefs.sound_notifications AND 
                     user_prefs.sound_voice_activity AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
+            -- ActivityPub notifications with granular controls
             WHEN 'activitypub_mention' THEN
                 should_send := (
-                    user_prefs.activitypub_mentions AND
                     user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_mentions AND
+                    user_prefs.activitypub_desktop_mentions AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'activitypub_follow' THEN
+                should_send := (
+                    user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_follows AND
+                    user_prefs.activitypub_desktop_follows AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'follow' THEN
+                should_send := (
+                    user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_follows AND
+                    user_prefs.activitypub_desktop_follows AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'activitypub_favorite' THEN
+                should_send := (
+                    user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_favorites AND
+                    user_prefs.activitypub_desktop_favorites AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'like' THEN
+                should_send := (
+                    user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_favorites AND
+                    user_prefs.activitypub_desktop_favorites AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'favorite' THEN
+                should_send := (
+                    user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_favorites AND
+                    user_prefs.activitypub_desktop_favorites AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'activitypub_reblog' THEN
+                should_send := (
+                    user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_reblogs AND
+                    user_prefs.activitypub_desktop_reblogs AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'reblog' THEN
+                should_send := (
+                    user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_reblogs AND
+                    user_prefs.activitypub_desktop_reblogs AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'boost' THEN
+                should_send := (
+                    user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_reblogs AND
+                    user_prefs.activitypub_desktop_reblogs AND
+                    (NOT is_dnd_time OR priority = 'high')
+                );
+            WHEN 'activitypub_reply' THEN
+                should_send := (
+                    user_prefs.activitypub_notifications AND
+                    user_prefs.activitypub_replies AND
+                    user_prefs.activitypub_desktop_replies AND
                     (NOT is_dnd_time OR priority = 'high')
                 );
             ELSE
