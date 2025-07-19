@@ -142,7 +142,7 @@ CREATE POLICY "Users can create messages in conversations they participate in"
   );
 
 -- =====================================================
--- UPDATE REACTIONS POLICIES  
+-- UPDATE REACTIONS POLICIES (MESSAGE REACTIONS ONLY)
 -- =====================================================
 
 -- Drop old reaction policies that reference user1/user2 via conversations
@@ -152,20 +152,73 @@ DROP POLICY IF EXISTS "reactions_update_policy" ON reactions;
 DROP POLICY IF EXISTS "reactions_delete_policy" ON reactions;
 
 -- Create new policies using participant system for message reactions
+-- NOTE: reactions table is only for message reactions (no target_type column)
 CREATE POLICY "Users can view reactions on messages they can see"
   ON reactions FOR SELECT
   USING (
-    -- For message reactions: user can see if they can see the message
-    (target_type = 'message' AND target_id IN (
+    message_id IN (
       SELECT m.id FROM messages m
-      WHERE m.conversation_id IN (
-        SELECT conversation_id FROM conversation_participants 
-        WHERE user_id = auth.uid() AND left_at IS NULL
-      )
-    ))
-    OR
-    -- For post reactions: user can see if they can see the post (existing logic)
-    (target_type = 'post' AND target_id IN (
+      WHERE 
+        -- For DM messages: user must be a participant
+        (m.conversation_id IN (
+          SELECT conversation_id FROM conversation_participants 
+          WHERE user_id = auth.uid() AND left_at IS NULL
+        ))
+        OR
+        -- For channel messages: user must be in the server
+        (m.channel_id IN (
+          SELECT c.id FROM channels c
+          INNER JOIN user_servers us ON c.server_id = us.server_id
+          WHERE us.user_id = auth.uid() AND us.status = 'member'
+        ))
+    )
+  );
+
+CREATE POLICY "Users can create reactions on messages they can see"
+  ON reactions FOR INSERT
+  WITH CHECK (
+    user_id = auth.uid() 
+    AND message_id IN (
+      SELECT m.id FROM messages m
+      WHERE 
+        -- For DM messages: user must be a participant
+        (m.conversation_id IN (
+          SELECT conversation_id FROM conversation_participants 
+          WHERE user_id = auth.uid() AND left_at IS NULL
+        ))
+        OR
+        -- For channel messages: user must be in the server
+        (m.channel_id IN (
+          SELECT c.id FROM channels c
+          INNER JOIN user_servers us ON c.server_id = us.server_id
+          WHERE us.user_id = auth.uid() AND us.status = 'member'
+        ))
+    )
+  );
+
+CREATE POLICY "Users can update their own reactions"
+  ON reactions FOR UPDATE
+  USING (user_id = auth.uid());
+
+CREATE POLICY "Users can delete their own reactions"
+  ON reactions FOR DELETE
+  USING (user_id = auth.uid());
+
+-- =====================================================
+-- UPDATE POST_INTERACTIONS POLICIES (POST REACTIONS)
+-- =====================================================
+
+-- Also update post_interactions policies to not reference user1/user2
+DROP POLICY IF EXISTS "post_interactions_select_policy" ON post_interactions;
+DROP POLICY IF EXISTS "post_interactions_insert_policy" ON post_interactions;
+DROP POLICY IF EXISTS "post_interactions_update_policy" ON post_interactions;
+DROP POLICY IF EXISTS "post_interactions_delete_policy" ON post_interactions;
+
+-- Create new policies for post interactions (including emoji reactions on posts)
+CREATE POLICY "Users can view post interactions on posts they can see"
+  ON post_interactions FOR SELECT
+  USING (
+    post_id IN (
       SELECT p.id FROM posts p
       WHERE p.user_id = auth.uid() 
         OR p.visibility = 'public'
@@ -175,19 +228,32 @@ CREATE POLICY "Users can view reactions on messages they can see"
             AND ur.following_id = p.user_id 
             AND ur.status = 'accepted'
         ))
-    ))
+    )
   );
 
-CREATE POLICY "Users can create reactions on content they can see"
-  ON reactions FOR INSERT
-  WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Users can create post interactions on posts they can see"
+  ON post_interactions FOR INSERT
+  WITH CHECK (
+    user_id = auth.uid()
+    AND post_id IN (
+      SELECT p.id FROM posts p
+      WHERE p.user_id = auth.uid() 
+        OR p.visibility = 'public'
+        OR (p.visibility = 'followers' AND EXISTS (
+          SELECT 1 FROM user_relationships ur 
+          WHERE ur.follower_id = auth.uid() 
+            AND ur.following_id = p.user_id 
+            AND ur.status = 'accepted'
+        ))
+    )
+  );
 
-CREATE POLICY "Users can update their own reactions"
-  ON reactions FOR UPDATE
+CREATE POLICY "Users can update their own post interactions"
+  ON post_interactions FOR UPDATE
   USING (user_id = auth.uid());
 
-CREATE POLICY "Users can delete their own reactions"
-  ON reactions FOR DELETE
+CREATE POLICY "Users can delete their own post interactions"
+  ON post_interactions FOR DELETE
   USING (user_id = auth.uid());
 
 -- =====================================================
