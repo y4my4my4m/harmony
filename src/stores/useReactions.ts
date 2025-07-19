@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { services } from '@/services'
 import type { ReactionGroup, Emoji } from '@/types'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 
 export const useReactionsStore = defineStore('reactions', () => {
   // State - SIMPLE AND CLEAN
@@ -125,8 +126,14 @@ export const useReactionsStore = defineStore('reactions', () => {
 
   /**
    * SIMPLE reaction toggle with instant UI feedback
+   * emojiData is optional - if provided, uses it immediately for zero-delay rendering
    */
-  async function toggleReaction(messageId: string, emojiId: string, userId: string): Promise<{
+  async function toggleReaction(
+    messageId: string, 
+    emojiId: string, 
+    userId: string, 
+    emojiData?: Emoji
+  ): Promise<{
     success: boolean;
     reason?: string;
   }> {
@@ -143,12 +150,14 @@ export const useReactionsStore = defineStore('reactions', () => {
       // 1. INSTANT UI UPDATE - Create optimistic version
       const currentReactions = reactionsByMessage.value.get(messageId) || []
       const currentlyHasReaction = hasUserReacted.value(messageId, emojiId, userId)
+      const emojiCache = useEmojiCacheStore()
       
       const optimisticVersion = createOptimisticReactions(
         currentReactions, 
         emojiId, 
         userId, 
-        currentlyHasReaction ? 'remove' : 'add'
+        currentlyHasReaction ? 'remove' : 'add',
+        emojiData // Pass emoji data if available
       )
       
       // Show optimistic version immediately
@@ -159,14 +168,16 @@ export const useReactionsStore = defineStore('reactions', () => {
       const result = await services.messages.toggleReaction(messageId, emojiId)
       console.log(`✅ Service layer reaction toggle: ${result.added ? 'added' : 'removed'}`)
       
-      // 3. SUCCESS: Keep optimistic state! (No flash)
-      // Our optimistic state is correct, so just keep it
-      // Real data will be updated by realtime naturally
+      // 3. SUCCESS: Keep optimistic state! (No flash)  
+      // Our optimistic state has real emoji data, so just keep it
+      // Only update cache if emoji data was missing
       
-      // Update cache in background for other messages
-      setTimeout(() => {
-        fetchMessageReactions(messageId, true)
-      }, 2000) // Longer delay, in background
+      if (!emojiData && !emojiCache.getEmojiById(emojiId)) {
+        // Only refresh if we used fallback emoji data
+        setTimeout(() => {
+          fetchMessageReactions(messageId, true)
+        }, 1000) // Faster refresh if needed
+      }
       
       return { success: true }
       
@@ -225,7 +236,8 @@ export const useReactionsStore = defineStore('reactions', () => {
      baseReactions: ReactionGroup[], 
      emojiId: string, 
      userId: string, 
-     operation: 'add' | 'remove'
+     operation: 'add' | 'remove',
+     providedEmojiData?: Emoji
    ): ReactionGroup[] {
      // Deep clone to avoid mutations
      const result = JSON.parse(JSON.stringify(baseReactions)) as ReactionGroup[]
@@ -245,10 +257,40 @@ export const useReactionsStore = defineStore('reactions', () => {
            existing.count = existing.reactions.length
          }
        } else {
-         // Create new group (simple placeholder - will be replaced by real data soon)
+         // Create new group with REAL emoji data (instant image!)
+         let emoji: Emoji
+         
+         if (providedEmojiData) {
+           // Use provided emoji data (fastest - zero lookup delay!)
+           emoji = providedEmojiData
+           console.log('⚡ Using provided emoji data:', emoji.name, emoji.url)
+         } else {
+           // Fallback to cache lookup
+           const emojiCache = useEmojiCacheStore()
+           const cachedEmojiData = emojiCache.getEmojiById(emojiId)
+           
+           if (cachedEmojiData) {
+             emoji = cachedEmojiData
+             console.log('✅ Found emoji in cache:', emoji.name, emoji.url)
+           } else {
+             emoji = {
+               id: emojiId,
+               name: 'unknown',
+               url: '',
+               server_id: '',
+               uploader: '',
+               created_at: '',
+               updated_at: '',
+               usage_count: 0,
+               last_used: ''
+             }
+             console.warn('❌ Emoji not found in cache:', emojiId)
+           }
+         }
+         
          result.push({
            emoji_id: emojiId,
-           emoji: { id: emojiId, name: '...', url: '' } as Emoji,
+           emoji: emoji,
            count: 1,
            reactions: [{ reaction_id: 'temp-' + Date.now(), user_id: userId }]
          })
