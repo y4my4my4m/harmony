@@ -1800,9 +1800,16 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          console.log('🔄 Loading followed users via InteractionService');
          
+         // Get current user ID for the service call
+         const currentUser = this.currentUser || this.userProfile;
+         if (!currentUser?.id) {
+           console.log('ℹ️ No current user available, skipping followed users loading');
+           return;
+         }
+         
          // Use InteractionService for consistent relationship management
-         const following = await services.interactions.getFollowing();
-         this.followedUsers = new Set(following.map(user => user.id));
+         const result = await services.interactions.getFollowing(currentUser.id);
+         this.followedUsers = new Set(result.users.map(user => user.id));
          
          console.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
        } catch (error) {

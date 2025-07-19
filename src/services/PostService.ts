@@ -282,22 +282,30 @@ export class PostService {
       console.log(`🎭 Orchestration: Toggling reaction for post: ${postId}, emoji: ${emojiId}`)
 
       // 1. Core operation: Pure local reaction toggle
-      const result = await corePostService.toggleReaction(postId, emojiId)
+      const coreResult = await corePostService.toggleReaction(postId, emojiId)
 
-      // 2. Get current user for federation decision
+      // 2. Get reaction count for the API response
+      const { count } = await supabase
+        .from('post_interactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_id', postId)
+        .eq('interaction_type', 'reaction')
+        .eq('emoji_id', emojiId)
+
+      // 3. Get current user for federation decision
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
       const profileId = await this.getCurrentUserProfileId()
 
-      // 3. Federation decision: Should this reaction federate?
+      // 4. Federation decision: Should this reaction federate?
       const decision = await federationDecisionService.shouldFederatePostReaction(postId, profileId)
       
       if (decision.shouldFederate) {
         console.log(`📤 Orchestration: Post reaction eligible for federation: ${decision.reason}`)
         
-        // 4. Federation operation: Create reaction activity
-        const operation = result.added ? 'add' : 'remove'
+        // 5. Federation operation: Create reaction activity
+        const operation = coreResult.added ? 'add' : 'remove'
         const activityResult = await federationActivityService.createPostReactionActivity(
           postId, 
           emojiId, 
@@ -312,6 +320,12 @@ export class PostService {
         }
       } else {
         console.log(`ℹ️ Orchestration: Post reaction federation skipped: ${decision.reason}`)
+      }
+
+      // 6. Return API-compatible result
+      const result = {
+        added: coreResult.added,
+        newCount: count || 0
       }
 
       console.log(`✅ Orchestration: Post reaction toggled successfully: ${result.added ? 'added' : 'removed'}`)
@@ -347,10 +361,24 @@ export class PostService {
     try {
       console.log(`🎭 Orchestration: Loading ${timelineType} timeline posts`)
       
-      // Delegate to core service (no federation needed for reads)
-      const result = await corePostService.loadTimelinePosts(timelineType, options)
+      // Map federated to public for core service (core doesn't distinguish federated)
+      const coreTimelineType = timelineType === 'federated' ? 'public' : timelineType
       
-      console.log(`✅ Orchestration: Loaded ${result.posts.length} timeline posts`)
+      // Delegate to core service (no federation needed for reads)
+      const posts = await corePostService.loadTimelinePosts(coreTimelineType, options)
+      
+      // Transform core service response to match expected API
+      const { limit = 20 } = options
+      const hasMore = posts.length === limit
+      const nextCursor = hasMore ? posts[posts.length - 1]?.created_at : undefined
+      
+      const result = {
+        posts,
+        hasMore,
+        nextCursor
+      }
+      
+      console.log(`✅ Orchestration: Loaded ${posts.length} timeline posts`)
       return result
 
     } catch (error) {

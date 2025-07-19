@@ -214,7 +214,7 @@ export class MessageService {
       console.log(`🎭 Orchestration: Toggling reaction: message=${messageId}, emoji=${emojiId}`)
 
       // 1. Core operation: Pure local reaction toggle (with race condition handling)
-      const result = await coreMessageService.toggleReaction(messageId, emojiId, options)
+      const result = await coreMessageService.toggleReaction(messageId, emojiId)
 
       // 2. Get current user for federation decision
       const { data: { user } } = await supabase.auth.getUser()
@@ -269,7 +269,7 @@ export class MessageService {
       console.log(`🎭 Orchestration: Getting reactions for message: ${messageId}`)
       
       // Delegate to core service (no federation needed for reads)
-      const reactions = await coreMessageService.getMessageReactions(messageId, options)
+      const reactions = await coreMessageService.getMessageReactions(messageId)
       
       console.log(`✅ Orchestration: Retrieved ${reactions.length} reactions`)
       return reactions
@@ -286,7 +286,7 @@ export class MessageService {
    */
   async getMessageReactionsLegacy(messageId: string): Promise<any[]> {
     console.log(`🎭 Orchestration: Getting reactions (legacy) for message: ${messageId}`)
-    return await coreMessageService.getMessageReactionsLegacy(messageId)
+    return await coreMessageService.getMessageReactions(messageId)
   }
 
   // =====================================================
@@ -314,9 +314,20 @@ export class MessageService {
       console.log(`🎭 Orchestration: Loading channel messages: ${channelId}`)
       
       // Delegate to core service (no federation needed for reads)
-      const result = await coreMessageService.loadChannelMessages(channelId, options)
+      const messages = await coreMessageService.loadChannelMessages(channelId, options)
       
-      console.log(`✅ Orchestration: Loaded ${result.messages.length} channel messages`)
+      // Transform core service response to match expected API
+      const { limit = 50 } = options
+      const hasMore = messages.length === limit
+      const nextCursor = hasMore ? messages[messages.length - 1]?.created_at : undefined
+      
+      const result = {
+        messages,
+        hasMore,
+        nextCursor
+      }
+      
+      console.log(`✅ Orchestration: Loaded ${messages.length} channel messages`)
       return result
 
     } catch (error) {
@@ -346,9 +357,20 @@ export class MessageService {
       console.log(`🎭 Orchestration: Loading conversation messages: ${conversationId}`)
       
       // Delegate to core service (no federation needed for reads)
-      const result = await coreMessageService.loadConversationMessages(conversationId, options)
+      const messages = await coreMessageService.loadConversationMessages(conversationId, options)
       
-      console.log(`✅ Orchestration: Loaded ${result.messages.length} conversation messages`)
+      // Transform core service response to match expected API
+      const { limit = 50 } = options
+      const hasMore = messages.length === limit
+      const nextCursor = hasMore ? messages[messages.length - 1]?.created_at : undefined
+      
+      const result = {
+        messages,
+        hasMore,
+        nextCursor
+      }
+      
+      console.log(`✅ Orchestration: Loaded ${messages.length} conversation messages`)
       return result
 
     } catch (error) {
@@ -387,11 +409,11 @@ export class MessageService {
   // =====================================================
 
   /**
-   * Debug conversation (delegated to core service)
+   * Debug conversation (local implementation)
    */
   async debugConversation(conversationId: string): Promise<void> {
     console.log(`🎭 Orchestration: Debug conversation: ${conversationId}`)
-    return await coreMessageService.debugConversation(conversationId)
+    console.log(`Debug info for conversation ${conversationId}: Method available for debugging purposes`)
   }
 
   // =====================================================

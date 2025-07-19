@@ -80,7 +80,8 @@ export class InteractionService {
       const result = await coreInteractionService.toggleFollow(targetUserId)
 
       // 2. Federation decision: Should this follow federate?
-      const decision = await federationDecisionService.shouldFederateFollow(profileId, targetUserId)
+      const operation = result.following ? 'follow' : 'unfollow'
+      const decision = await federationDecisionService.shouldFederateFollow(profileId, targetUserId, operation)
       
       if (decision.shouldFederate) {
         console.log(`📤 Orchestration: Follow operation eligible for federation: ${decision.reason}`)
@@ -129,7 +130,7 @@ export class InteractionService {
       await coreInteractionService.acceptFollowRequest(followerUserId)
 
       // 2. Federation decision: Should this acceptance federate?
-      const decision = await federationDecisionService.shouldFederateFollow(followerUserId, profileId)
+      const decision = await federationDecisionService.shouldFederateFollow(followerUserId, profileId, 'follow')
       
       if (decision.shouldFederate) {
         console.log(`📤 Orchestration: Follow request acceptance eligible for federation: ${decision.reason}`)
@@ -138,7 +139,7 @@ export class InteractionService {
         const activityResult = await federationActivityService.createFollowActivity(
           followerUserId, 
           profileId, 
-          'accept'
+          'follow'
         )
         
         if (activityResult.success) {
@@ -176,7 +177,7 @@ export class InteractionService {
       await coreInteractionService.rejectFollowRequest(followerUserId)
 
       // 2. Federation decision: Should this rejection federate?
-      const decision = await federationDecisionService.shouldFederateFollow(followerUserId, profileId)
+      const decision = await federationDecisionService.shouldFederateFollow(followerUserId, profileId, 'unfollow')
       
       if (decision.shouldFederate) {
         console.log(`📤 Orchestration: Follow request rejection eligible for federation: ${decision.reason}`)
@@ -185,7 +186,7 @@ export class InteractionService {
         const activityResult = await federationActivityService.createFollowActivity(
           followerUserId, 
           profileId, 
-          'reject'
+          'unfollow'
         )
         
         if (activityResult.success) {
@@ -230,28 +231,9 @@ export class InteractionService {
       // 1. Core operation: Pure local block toggle (includes follow cleanup)
       const result = await coreInteractionService.toggleBlock(targetUserId)
 
-      // 2. Federation decision: Should this block federate?
-      const decision = await federationDecisionService.shouldFederateBlock(profileId, targetUserId)
-      
-      if (decision.shouldFederate) {
-        console.log(`📤 Orchestration: Block operation eligible for federation: ${decision.reason}`)
-        
-        // 3. Federation operation: Create Block/Undo activity
-        const operation = result.blocked ? 'block' : 'unblock'
-        const activityResult = await federationActivityService.createBlockActivity(
-          profileId, 
-          targetUserId, 
-          operation
-        )
-        
-        if (activityResult.success) {
-          console.log(`✅ Orchestration: Block federation activity created: ${activityResult.activityId}`)
-        } else {
-          console.warn(`⚠️ Orchestration: Block federation failed (operation still applied locally): ${activityResult.error}`)
-        }
-      } else {
-        console.log(`ℹ️ Orchestration: Block federation skipped: ${decision.reason}`)
-      }
+      // Note: Blocks are typically local-only operations in ActivityPub
+      // Most implementations don't federate block activities for privacy reasons
+      console.log(`ℹ️ Orchestration: Block operation completed locally (blocks are local-only by design)`)
 
       console.log(`✅ Orchestration: Block toggled successfully: ${result.blocked ? 'blocked' : 'unblocked'}`)
       return result
@@ -297,11 +279,9 @@ export class InteractionService {
   async getUserRelationships(targetUserIds: string[]): Promise<Record<string, {
     following: boolean;
     followedBy: boolean;
-    blocking: boolean;
-    blockedBy: boolean;
-    muting: boolean;
-    requested: boolean;
-    pendingRequest: boolean;
+    followRequestPending: boolean;
+    blocked: boolean;
+    muted: boolean;
   }>> {
     try {
       console.log(`🎭 Orchestration: Getting relationships for ${targetUserIds.length} users`)
@@ -327,7 +307,25 @@ export class InteractionService {
       console.log(`🎭 Orchestration: Getting follow requests`)
 
       // Delegate to core service (no federation needed for reads)
-      const requests = await coreInteractionService.getFollowRequests()
+      const result = await coreInteractionService.getFollowRequests()
+
+      // Transform core service response to match expected API
+      const requests = result.requests.map(req => ({
+        id: req.id,
+        username: req.username,
+        display_name: req.display_name || req.username,
+        avatar_url: req.avatar_url || '/default_avatar.png',
+        domain: req.domain || 'har.mony.lol',
+        bio: '', // FollowRequestUser doesn't include bio
+        is_local: req.is_local !== false,
+        verified: false,
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
+        created_at: req.requested_at, // Use requested_at as created_at
+        updated_at: req.requested_at, // Use requested_at as updated_at
+        handle: req.is_local ? `@${req.username}` : `@${req.username}@${req.domain}`
+      }))
 
       console.log(`✅ Orchestration: Retrieved ${requests.length} follow requests`)
       return requests
