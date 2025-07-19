@@ -1061,12 +1061,23 @@ export const useActivityPubStore = defineStore('activitypub', {
 
         // Use new service layer for post creation
         const formattedContent = await this.formatPostContent(content);
-        console.log('🔧 DEBUG: createPost - raw content:', content);
-        console.log('🔧 DEBUG: createPost - formatted content:', formattedContent);
-        console.log('🔧 DEBUG: createPost - formatted content type:', typeof formattedContent);
+        
+        // Ensure content is in correct MessagePart[] format
+        let finalContent;
+        if (Array.isArray(formattedContent)) {
+          finalContent = formattedContent;
+        } else if (typeof formattedContent === 'string') {
+          // Fallback: convert string to MessagePart[]
+          finalContent = [{ type: 'text', text: formattedContent }];
+        } else {
+          // Fallback for any other format
+          finalContent = [{ type: 'text', text: String(formattedContent || '') }];
+        }
+        
+        console.log('✅ Final content for service:', finalContent);
         
         const post = await services.posts.createPost({
-          content: formattedContent,
+          content: finalContent,
           visibility: visibility,
           content_warning: contentWarning,
           in_reply_to: replyTo,

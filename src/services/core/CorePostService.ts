@@ -64,9 +64,10 @@ export class CorePostService {
 
       const profileId = await this.getCurrentUserProfileId()
 
-      console.log('🔧 DEBUG: CorePostService.createPost - received data.content:', data.content);
-      console.log('🔧 DEBUG: CorePostService.createPost - content type:', typeof data.content);
-      console.log('🔧 DEBUG: CorePostService.createPost - content JSON:', JSON.stringify(data.content));
+      // Validate content format
+      if (!Array.isArray(data.content)) {
+        throw this.createError('INVALID_CONTENT', 'Content must be an array of MessageParts')
+      }
 
       const postData = {
         author_id: profileId,
