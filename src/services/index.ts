@@ -24,6 +24,9 @@ export type {
   MuteResult 
 } from './InteractionService'
 
+export { profileService, ProfileService } from './ProfileService'
+export type { ProfileServiceError, ProfileData } from './ProfileService'
+
 // Legacy services (to be migrated)
 export { activityPubService, ActivityPubService } from './activityPubService'
 
@@ -32,6 +35,7 @@ export const services = {
   posts: postService,
   messages: messageService,
   interactions: interactionService,
+  profiles: profileService,
   // Legacy
   activityPub: activityPubService
 } as const
