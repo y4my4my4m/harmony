@@ -412,7 +412,7 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     notification_data jsonb;
-    target_user_ids uuid[];
+    target_user_id uuid;
     mentioned_users uuid[];
     server_members uuid[];
     followers uuid[];
@@ -444,10 +444,10 @@ BEGIN
 
         -- Handle reply notifications
         IF NEW.in_reply_to IS NOT NULL THEN
-            SELECT author_id INTO target_user_ids[1] 
+            SELECT author_id INTO target_user_id 
             FROM posts WHERE id = NEW.in_reply_to;
             
-            IF target_user_ids[1] IS NOT NULL AND target_user_ids[1] != NEW.author_id THEN
+            IF target_user_id IS NOT NULL AND target_user_id != NEW.author_id THEN
                 notification_data := jsonb_build_object(
                     'type', 'reply',
                     'post_id', NEW.id,
@@ -458,7 +458,7 @@ BEGIN
                 
                 PERFORM send_notification_to_user(
                     'reply',
-                    target_user_ids[1],
+                    target_user_id,
                     notification_data,
                     NULL,
                     NULL,
@@ -529,9 +529,9 @@ BEGIN
 
     ELSIF TG_TABLE_NAME = 'post_interactions' AND TG_OP = 'INSERT' THEN
         -- Handle like/reblog notifications
-        SELECT author_id INTO target_user_ids[1] FROM posts WHERE id = NEW.post_id;
+        SELECT author_id INTO target_user_id FROM posts WHERE id = NEW.post_id;
         
-        IF target_user_ids[1] IS NOT NULL AND target_user_ids[1] != NEW.user_id THEN
+        IF target_user_id IS NOT NULL AND target_user_id != NEW.user_id THEN
             notification_data := jsonb_build_object(
                 'type', NEW.interaction_type,
                 'post_id', NEW.post_id,
@@ -540,7 +540,7 @@ BEGIN
             
             PERFORM send_notification_to_user(
                 NEW.interaction_type,
-                target_user_ids[1],
+                target_user_id,
                 notification_data,
                 NULL,
                 NULL,
@@ -570,9 +570,9 @@ BEGIN
 
     ELSIF TG_TABLE_NAME = 'reactions' AND TG_OP = 'INSERT' THEN
         -- Handle reaction notifications
-        SELECT user_id INTO target_user_ids[1] FROM messages WHERE id = NEW.message_id;
+        SELECT user_id INTO target_user_id FROM messages WHERE id = NEW.message_id;
         
-        IF target_user_ids[1] IS NOT NULL AND target_user_ids[1] != NEW.user_id THEN
+        IF target_user_id IS NOT NULL AND target_user_id != NEW.user_id THEN
             notification_data := jsonb_build_object(
                 'type', 'reaction',
                 'message_id', NEW.message_id,
@@ -582,7 +582,7 @@ BEGIN
             
             PERFORM send_notification_to_user(
                 'reaction',
-                target_user_ids[1],
+                target_user_id,
                 notification_data,
                 (SELECT s.id FROM messages m JOIN channels c ON m.channel_id = c.id JOIN servers s ON c.server_id = s.id WHERE m.id = NEW.message_id),
                 (SELECT channel_id FROM messages WHERE id = NEW.message_id),
