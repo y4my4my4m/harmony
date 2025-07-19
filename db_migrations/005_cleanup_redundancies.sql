@@ -292,11 +292,19 @@ BEGIN
         END IF;
     END IF;
     
-    -- Create notification normally
-    RETURN create_notification_unified(
-        p_user_id, p_type, p_title, p_message, p_data, 
-        p_server_id, p_channel_id, p_conversation_id
-    );
+    -- Create notification normally using the unified send_notification_to_user function
+    SELECT send_notification_to_user(
+        p_type,
+        p_user_id,
+        p_data,
+        p_server_id,
+        p_channel_id,
+        p_conversation_id,
+        p_source_user_id,
+        'normal'
+    ) INTO v_notification_id;
+    
+    RETURN v_notification_id;
 END;
 $$;
 
@@ -358,13 +366,16 @@ BEGIN
     SELECT id INTO test_user_id FROM profiles WHERE is_local = true LIMIT 1;
     
     IF test_user_id IS NOT NULL THEN
-        -- Test unified notification creation
-        SELECT create_notification_unified(
-            test_user_id,
+        -- Test unified notification creation using send_notification_to_user
+        SELECT send_notification_to_user(
             'test',
-            'Test Notification',
-            'Testing unified notification system',
-            '{"test": true}'::jsonb
+            test_user_id,
+            '{"test": true}'::jsonb,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            'normal'
         ) INTO notification_id;
         
         IF notification_id IS NOT NULL THEN
