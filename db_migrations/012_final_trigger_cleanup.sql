@@ -18,27 +18,29 @@ DROP TRIGGER IF EXISTS handle_reactions_federation_trigger ON reactions;
 DROP TRIGGER IF EXISTS trigger_reactions_federation ON reactions;
 
 -- =====================================================
--- STEP 2: Fix the reaction RPC function to handle profiles properly
+-- STEP 2: Fix the reaction RPC functions to handle profiles properly  
 -- =====================================================
 
--- Check if get_message_reactions function exists and fix it
+-- Drop existing functions to avoid type conflicts
+DROP FUNCTION IF EXISTS public.get_message_reactions(uuid);
+DROP FUNCTION IF EXISTS public.get_batch_message_reactions(uuid[]);
+
+-- Recreate get_message_reactions with the ORIGINAL return structure 
+-- (to match existing frontend expectations)
 CREATE OR REPLACE FUNCTION public.get_message_reactions(message_id uuid)
 RETURNS TABLE(
-    emoji_id uuid,
-    emoji_name text,
-    emoji_url text,
-    reaction_count bigint,
-    users jsonb
+    count bigint,
+    emoji jsonb,
+    reactions jsonb,
+    message_id_of_reactions uuid
 ) 
 LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
     SELECT 
-        r.emoji_id,
-        e.name as emoji_name,
-        e.url as emoji_url,
-        COUNT(r.id) as reaction_count,
+        COUNT(r.*) as count,
+        to_jsonb(e.*) as emoji,
         COALESCE(
             jsonb_agg(
                 jsonb_build_object(
@@ -47,40 +49,36 @@ BEGIN
                 ) ORDER BY r.created_at
             ) FILTER (WHERE r.user_id IS NOT NULL),
             '[]'::jsonb
-        ) as users
+        ) as reactions,
+        get_message_reactions.message_id as message_id_of_reactions
     FROM reactions r
     LEFT JOIN emojis e ON r.emoji_id = e.id
     WHERE r.message_id = get_message_reactions.message_id
-    GROUP BY r.emoji_id, e.name, e.url
+    GROUP BY r.emoji_id, e.id, r.message_id
     ORDER BY MIN(r.created_at);
 END;
 $$;
 
-COMMENT ON FUNCTION public.get_message_reactions(uuid) IS 'FIXED: Returns reaction groups with proper user_id handling, no null UUIDs';
-
--- =====================================================
--- STEP 3: Fix batch reactions function for proper user handling
--- =====================================================
-
+-- Recreate get_batch_message_reactions with FIXED types (matching schema)
 CREATE OR REPLACE FUNCTION public.get_batch_message_reactions(message_ids uuid[])
 RETURNS TABLE(
     message_id uuid,
     emoji_id uuid,
-    emoji_name text,
-    emoji_url text,
+    emoji_name character varying,  -- MATCH schema: character varying not text
+    emoji_url character varying,   -- MATCH schema: character varying not text  
     reaction_count bigint,
     users jsonb
 ) 
-LANGUAGE plpgsql
+LANGUAGE plpgsql STABLE
 AS $$
 BEGIN
     RETURN QUERY
     SELECT 
         r.message_id,
         r.emoji_id,
-        e.name as emoji_name,
-        e.url as emoji_url,
-        COUNT(r.id) as reaction_count,
+        e.name as emoji_name,  -- No cast needed - already character varying
+        e.url as emoji_url,    -- No cast needed - already character varying
+        COUNT(r.user_id) as reaction_count,  -- Match existing function behavior
         COALESCE(
             jsonb_agg(
                 jsonb_build_object(
@@ -98,7 +96,8 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.get_batch_message_reactions(uuid[]) IS 'FIXED: Batch reaction fetching with proper user_id handling, no null UUIDs';
+COMMENT ON FUNCTION public.get_message_reactions(uuid) IS 'FIXED: Returns reaction groups with proper user_id handling, matching original return structure';
+COMMENT ON FUNCTION public.get_batch_message_reactions(uuid[]) IS 'FIXED: Batch reaction fetching with proper user_id handling and correct column types';
 
 -- =====================================================
 -- STEP 4: Recreate ONLY the necessary triggers (no duplicates)
