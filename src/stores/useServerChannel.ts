@@ -190,15 +190,125 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async fetchServers() {
+      try {
+        console.log('🔄 Fetching all servers via service-like helper');
+        
+        // Use service-like helper for database operations
+        const servers = await this._fetchServersHelper();
+        this.servers = servers || [];
+        
+        console.log(`✅ Fetched ${this.servers.length} servers via service-like helper`);
+      } catch (error) {
+        console.error('❌ Failed to fetch servers via service-like helper:', error);
+        
+        // Fallback to direct query if helper fails
+        try {
+          console.log('🔄 Falling back to direct servers fetch');
+          await this._fetchServersFallback();
+        } catch (fallbackError) {
+          console.error('❌ Fallback servers fetch also failed:', fallbackError);
+          this.servers = []; // Ensure state is clean on total failure
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Fetch all servers with enhanced error handling
+     */
+    async _fetchServersHelper(): Promise<Server[]> {
+      const { data, error } = await supabase.from('servers').select('*');
+      
+      if (error) {
+        throw new Error(`Servers fetch failed: ${error.message}`);
+      }
+      
+      return data || [];
+    },
+
+    /**
+     * Fallback method for fetching servers
+     */
+    async _fetchServersFallback(): Promise<void> {
       const { data, error } = await supabase.from('servers').select('*');
       if (error) {
-        console.error('Error fetching servers:', error);
-        return;
+        console.error('Error in fallback servers fetch:', error);
+        throw error;
       }
-      this.servers = data;
+      this.servers = data || [];
     },
 
     async fetchCategoriesAndChannels(serverId: string, signal?: AbortSignal) {
+      try {
+        console.log('🔄 Fetching categories and channels via service-like helper:', serverId);
+        
+        // Use service-like helper with full abort support
+        await this._fetchCategoriesAndChannelsHelper(serverId, signal);
+        
+        console.log(`✅ Fetched ${this.categories?.length || 0} categories and ${this.channels?.length || 0} channels via service-like helper`);
+      } catch (error) {
+        if (signal?.aborted) {
+          console.log('🛑 Categories and channels fetch aborted');
+          return;
+        }
+        
+        console.error('❌ Failed to fetch categories and channels via service-like helper:', error);
+        
+        // Fallback to direct query if helper fails
+        try {
+          console.log('🔄 Falling back to direct categories and channels fetch');
+          await this._fetchCategoriesAndChannelsFallback(serverId, signal);
+        } catch (fallbackError) {
+          if (signal?.aborted) {
+            console.log('🛑 Categories and channels fallback fetch aborted');
+            return;
+          }
+          console.error('❌ Fallback categories and channels fetch also failed:', fallbackError);
+          // Ensure state is clean on total failure
+          this.categories = [];
+          this.channels = [];
+          this.categoryChannels = {};
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Fetch categories and channels with abort support
+     */
+    async _fetchCategoriesAndChannelsHelper(serverId: string, signal?: AbortSignal): Promise<void> {
+      // Fetch categories first
+      const { data: categories, error: categoriesError } = await supabase
+        .from('channel_categories')
+        .select('*')
+        .eq('server_id', serverId)
+        .order('order', { ascending: true });
+
+      if (signal?.aborted) throw new Error('Operation aborted');
+      
+      if (categoriesError) {
+        throw new Error(`Categories fetch failed: ${categoriesError.message}`);
+      }
+
+      // Fetch channels
+      const { data: channels, error: channelsError } = await supabase
+        .from('channels')
+        .select('*')
+        .eq('server_id', serverId)
+        .order('order', { ascending: true });
+
+      if (signal?.aborted) throw new Error('Operation aborted');
+      
+      if (channelsError) {
+        throw new Error(`Channels fetch failed: ${channelsError.message}`);
+      }
+
+      // Update state and process data
+      this._processCategoriesAndChannelsData(categories || [], channels || [], serverId);
+    },
+
+    /**
+     * Fallback method for fetching categories and channels
+     */
+    async _fetchCategoriesAndChannelsFallback(serverId: string, signal?: AbortSignal): Promise<void> {
       // Fetch categories
       const { data: categories, error: categoriesError } = await supabase
         .from('channel_categories')
@@ -209,10 +319,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (signal?.aborted) return;
       
       if (categoriesError) {
-        console.error('Error fetching categories:', categoriesError);
-        return;
+        console.error('Error fetching categories in fallback:', categoriesError);
+        throw categoriesError;
       }
-      this.categories = categories;
 
       // Fetch channels ordered by order column
       const { data: channels, error: channelsError } = await supabase
@@ -224,9 +333,19 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (signal?.aborted) return;
       
       if (channelsError) {
-        console.error('Error fetching channels:', channelsError);
-        return;
+        console.error('Error fetching channels in fallback:', channelsError);
+        throw channelsError;
       }
+
+      // Update state and process data
+      this._processCategoriesAndChannelsData(categories || [], channels || [], serverId);
+    },
+
+    /**
+     * Service-like helper: Process categories and channels data
+     */
+    _processCategoriesAndChannelsData(categories: Category[], channels: Channel[], serverId: string): void {
+      this.categories = categories;
       this.channels = channels;
       this.categoryChannels = {};
 
@@ -398,6 +517,37 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async createCategory(name: string, serverId: string) {
+      try {
+        console.log('🔄 Creating category via service-like helper:', { name, serverId });
+        
+        // Use service-like helper for category creation
+        const newCategory = await this._createCategoryHelper(name, serverId);
+        
+        if (newCategory) {
+          this.categories.push(newCategory);
+          console.log('✅ Category created successfully via service-like helper:', newCategory.id);
+          return newCategory;
+        }
+        
+        return null;
+      } catch (error) {
+        console.error('❌ Failed to create category via service-like helper:', error);
+        
+        // Fallback to direct creation if helper fails
+        try {
+          console.log('🔄 Falling back to direct category creation');
+          return await this._createCategoryFallback(name, serverId);
+        } catch (fallbackError) {
+          console.error('❌ Fallback category creation also failed:', fallbackError);
+          return null;
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Create category with proper ordering
+     */
+    async _createCategoryHelper(name: string, serverId: string): Promise<Category | null> {
       // Get the highest order value for existing categories in this server
       const { data: existingCategories, error: fetchError } = await supabase
         .from('channel_categories')
@@ -407,7 +557,41 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .limit(1);
 
       if (fetchError) {
-        console.error('Error fetching existing categories for ordering:', fetchError);
+        console.warn('Warning: Could not fetch existing categories for ordering, using default');
+      }
+
+      // Calculate the next order value (highest + 1, or 0 if no categories exist)
+      const nextOrder = existingCategories && existingCategories.length > 0 
+        ? (existingCategories[0].order || 0) + 1 
+        : 0;
+
+      const { data, error } = await supabase
+        .from('channel_categories')
+        .insert([{ name, server_id: serverId, order: nextOrder }])
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Category creation failed: ${error.message}`);
+      }
+
+      return data;
+    },
+
+    /**
+     * Fallback method for creating category
+     */
+    async _createCategoryFallback(name: string, serverId: string): Promise<Category | null> {
+      // Get the highest order value for existing categories in this server
+      const { data: existingCategories, error: fetchError } = await supabase
+        .from('channel_categories')
+        .select('order')
+        .eq('server_id', serverId)
+        .order('order', { ascending: false })
+        .limit(1);
+
+      if (fetchError) {
+        console.error('Error fetching existing categories for ordering in fallback:', fetchError);
         // Continue with default order if fetch fails
       }
 
@@ -423,8 +607,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .single();
 
       if (error) {
-        console.error('Error creating category:', error);
-        return null;
+        console.error('Error creating category in fallback:', error);
+        throw error;
       }
 
       this.categories.push(data);
@@ -567,6 +751,55 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     async fetchPublicServers(searchTerm = '', limit = 10) {
+      try {
+        console.log('🔄 Fetching public servers via service-like helper:', { searchTerm, limit });
+        
+        // Use service-like helper for database operations
+        const servers = await this._fetchPublicServersHelper(searchTerm, limit);
+        this.publicServers = servers || [];
+        
+        console.log(`✅ Fetched ${this.publicServers.length} public servers via service-like helper`);
+      } catch (error) {
+        console.error('❌ Failed to fetch public servers via service-like helper:', error);
+        
+        // Fallback to direct query if helper fails
+        try {
+          console.log('🔄 Falling back to direct public servers fetch');
+          await this._fetchPublicServersFallback(searchTerm, limit);
+        } catch (fallbackError) {
+          console.error('❌ Fallback public servers fetch also failed:', fallbackError);
+          this.publicServers = []; // Ensure state is clean on total failure
+        }
+      }
+    },
+
+    /**
+     * Service-like helper: Fetch public servers with enhanced error handling
+     */
+    async _fetchPublicServersHelper(searchTerm = '', limit = 10): Promise<Server[]> {
+      let query = supabase
+        .from('servers')
+        .select('*')
+        .eq('public', true)
+        .limit(limit);
+
+      if (searchTerm.trim()) {
+        query = query.ilike('name', `%${searchTerm.trim()}%`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw new Error(`Public servers fetch failed: ${error.message}`);
+      }
+
+      return data || [];
+    },
+
+    /**
+     * Fallback method for fetching public servers
+     */
+    async _fetchPublicServersFallback(searchTerm = '', limit = 10): Promise<void> {
       let query = supabase
         .from('servers')
         .select('*')
@@ -580,11 +813,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Error fetching public servers:', error);
-        return;
+        console.error('Error in fallback public servers fetch:', error);
+        throw error;
       }
 
-      this.publicServers = data;
+      this.publicServers = data || [];
     },
 
     async deleteChannel(channelId: string): Promise<void> {
