@@ -397,6 +397,7 @@ export class ProfileService {
     }
   }
 }
+// TODO: export these directly
 
 // Export singleton instance
 export const profileService = ProfileService.getInstance()

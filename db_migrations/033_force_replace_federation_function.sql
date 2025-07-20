@@ -227,12 +227,3 @@ BEGIN
     RAISE NOTICE '✅ Detailed logging added for debugging';
     RAISE NOTICE '🎯 Federation should work now with visible logs!';
 END $$;
-
--- Log completion
-INSERT INTO migration_log (version, description, applied_at) 
-VALUES (33, 'FORCE replaced broken federation function with working version + queue calls', NOW())
-ON CONFLICT (version) DO UPDATE SET 
-    description = EXCLUDED.description,
-    applied_at = EXCLUDED.applied_at;
-
-COMMIT;
