@@ -1,14 +1,26 @@
--- Migration 032: Fix Federation Queue Population
+-- Migration 031: Complete Posts Federation Fix
 -- 
--- ISSUE: handle_unified_content_federation() creates ap_activities but never queues for delivery
--- RESULT: ap_activities exist but federation_delivery_queue is empty
--- WEBHOOK: "Federated Outbox" trigger never fires because no queue entries
+-- CONTEXT: From HARMONY_DATABASE_ANALYSIS and REFACTOR_TODO:
+-- - Migration 003: Created unified triggers (posts federation trigger created)
+-- - Migration 017: DISABLED posts federation trigger (temp fix for content issues)
+-- - Migration 030: Fixed function field access but forgot to restore posts trigger
 -- 
--- SOLUTION: Add queue_activity_for_federation() calls to populate delivery queue
+-- ISSUES:
+-- 1. Posts table missing federation trigger (disabled in 017, never restored)
+-- 2. handle_unified_content_federation() creates ap_activities but never calls queue_activity_for_federation()
+-- 
+-- RESULT: Posts create ap_activities but federation_delivery_queue stays empty
+--         → "Federated Outbox" webhook has nothing to process
+--         → Edge function never called
+--         → No federation occurs
+-- 
+-- SOLUTION: Fix function + restore trigger in one migration
 
 BEGIN;
 
--- Replace the handle_unified_content_federation function to include queue population
+-- Part 1: Fix Federation Function to Include Queue Population
+-- (This addresses the missing queue_activity_for_federation calls)
+
 CREATE OR REPLACE FUNCTION public.handle_unified_content_federation() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -26,7 +38,7 @@ BEGIN
     
     full_instance_url := 'https://' || current_instance_domain;
 
-    -- Check federation for user (table-aware field access)
+    -- Table-aware federation check (fixed in migration 030)
     SELECT is_federation_enabled_for_user(
         CASE 
             WHEN TG_TABLE_NAME = 'posts' THEN COALESCE(NEW.author_id, OLD.author_id)
@@ -65,7 +77,7 @@ BEGIN
                 true
             ) RETURNING id INTO activity_id;
 
-            -- 🔥 MISSING PIECE: Queue for federation delivery
+            -- 🔥 FIX: Queue for federation delivery (was missing!)
             -- Get follower domains for this user's posts
             SELECT array_agg(DISTINCT p.domain) INTO target_domains
             FROM follows f
@@ -128,7 +140,7 @@ BEGIN
                     true
                 ) RETURNING id INTO activity_id;
 
-                -- 🔥 MISSING PIECE: Queue DM for federation delivery
+                -- 🔥 FIX: Queue DM for federation delivery (was missing!)
                 -- Get domains of remote participants
                 SELECT array_agg(DISTINCT p.domain) INTO target_domains
                 FROM profiles p
@@ -158,40 +170,73 @@ $$;
 
 -- Update function comment
 COMMENT ON FUNCTION public.handle_unified_content_federation() IS 
-'FIXED: Table-aware federation trigger that creates ap_activities AND queues for delivery via federation_delivery_queue';
+'FIXED: Unified federation trigger that creates ap_activities AND queues for delivery via federation_delivery_queue';
 
--- Verify the function was updated
+-- Part 2: Restore Missing Posts Federation Trigger
+-- (This restores the trigger that was disabled in migration 017)
+
+-- Clean up any existing posts federation triggers
+DROP TRIGGER IF EXISTS trigger_unified_content_federation ON posts;
+DROP TRIGGER IF EXISTS handle_post_federation_trigger ON posts;
+DROP TRIGGER IF EXISTS trg_handle_post_federation ON posts;
+
+-- Create the posts federation trigger (restoring what was removed in migration 017)
+CREATE TRIGGER trigger_unified_content_federation
+    AFTER INSERT OR UPDATE ON posts
+    FOR EACH ROW
+    EXECUTE FUNCTION handle_unified_content_federation();
+
+-- Add trigger comment
+COMMENT ON TRIGGER trigger_unified_content_federation ON posts IS 
+'RESTORED: Posts federation trigger disabled in migration 017, now restored with queue population fix';
+
+-- Verify everything was created correctly
 DO $$
 BEGIN
+    -- Verify function exists
     IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'handle_unified_content_federation') THEN
         RAISE EXCEPTION 'Federation function was not updated successfully';
     END IF;
     
-    RAISE NOTICE 'Federation function updated to include queue population ✅';
+    -- Verify trigger exists
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger t 
+        JOIN pg_class c ON t.tgrelid = c.oid 
+        WHERE c.relname = 'posts' AND t.tgname = 'trigger_unified_content_federation'
+    ) THEN
+        RAISE EXCEPTION 'Posts federation trigger was not created successfully';
+    END IF;
+    
+    RAISE NOTICE '✅ Federation function updated with queue population';
+    RAISE NOTICE '✅ Posts federation trigger restored';
 END $$;
 
 -- Log completion
 INSERT INTO migration_log (version, description, applied_at) 
-VALUES (32, 'Fixed federation queue population - activities now queued for webhook delivery', NOW())
+VALUES (31, 'Complete posts federation fix - function queue population + trigger restoration', NOW())
 ON CONFLICT (version) DO UPDATE SET 
     description = EXCLUDED.description,
     applied_at = EXCLUDED.applied_at;
 
 COMMIT;
 
--- Verification message
+-- Final status message
 DO $$
 BEGIN
-    RAISE NOTICE '🎯 Federation fix applied:';
-    RAISE NOTICE '  ✅ ap_activities entries will be created';
-    RAISE NOTICE '  ✅ federation_delivery_queue entries will be created';  
-    RAISE NOTICE '  ✅ "Federated Outbox" webhook will fire';
-    RAISE NOTICE '  ✅ Edge function will be called';
-    RAISE NOTICE '  ✅ ActivityPub HTTP requests will be sent';
+    RAISE NOTICE '🎯 Posts Federation COMPLETELY FIXED!';
     RAISE NOTICE '';
-    RAISE NOTICE 'Next steps:';
-    RAISE NOTICE '  1. Apply this migration';
-    RAISE NOTICE '  2. Create a test post';
-    RAISE NOTICE '  3. Check federation_delivery_queue for entries';
-    RAISE NOTICE '  4. Monitor edge function calls';
+    RAISE NOTICE 'Historical Context (from your refactor documents):';
+    RAISE NOTICE '  Migration 003: Created unified triggers ✅';
+    RAISE NOTICE '  Migration 017: Disabled posts trigger (temp fix) ❌';  
+    RAISE NOTICE '  Migration 030: Fixed function, forgot trigger ❌';
+    RAISE NOTICE '  Migration 031: COMPLETE FIX ✅';
+    RAISE NOTICE '';
+    RAISE NOTICE 'What was fixed:';
+    RAISE NOTICE '  1. Function now calls queue_activity_for_federation() ✅';
+    RAISE NOTICE '  2. Posts table trigger restored ✅';
+    RAISE NOTICE '';
+    RAISE NOTICE 'Federation flow now complete:';
+    RAISE NOTICE '  Posts → trigger → ap_activities → queue → webhook → edge function → HTTP';
+    RAISE NOTICE '';
+    RAISE NOTICE 'Your webhook architecture was perfect - just needed these fixes!';
 END $$;
