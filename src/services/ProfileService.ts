@@ -1,29 +1,17 @@
 /**
- * ProfileService - Simplified profile management (TRUSTS DATABASE TRIGGERS)
+ * ProfileService - Simple profile management (LOCAL-FIRST)
  * 
- * OPTIMIZATION: Simplified to trust your excellent database federation triggers
- * - CoreProfileService: Pure local database operations
- * - Database triggers: handle_profile_federation() (if exists) 
- * - NO manual federation decisions or activity creation needed
+ * SIMPLIFIED: Trust database triggers for federation, focus on local operations
+ * - Simple direct Supabase operations
+ * - No complex federation service calls  
+ * - Trust database triggers for ActivityPub handling
  * 
- * PRESERVED APIs: 
- * - ✅ Same method signatures as before
- * - ✅ Same return types and error formats
- * - ✅ Same userDataService integration
- * - ✅ Same local-first design (immediate UI updates)
- * 
- * SIMPLIFIED ARCHITECTURE:
- * - Trust database triggers for all federation
- * - Eliminate unnecessary federation service calls
- * - Reduce database round trips significantly
+ * PRESERVED: All existing APIs and return types
  */
 
 import { supabase } from '@/supabase'
 import { userDataService } from './userDataService'
 import type { Profile } from '@/types'
-
-// Import only core service - database handles federation
-import { coreProfileService } from './core'
 
 export interface ProfileData {
   username?: string
@@ -44,135 +32,148 @@ export class ProfileService {
     return ProfileService.instance
   }
 
-  // =====================================================
-  // PROFILE MANAGEMENT (SIMPLIFIED: TRUST DATABASE)
-  // =====================================================
-
   /**
-   * Get current user's profile (delegated to core service)
-   * PRESERVES: Exact same API and return type
+   * Get current user's profile
    */
   async getCurrentProfile(): Promise<Profile> {
     try {
-      console.log(`🚀 Simplified: Getting current user profile`)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
-      // Delegate to core service (no federation needed for reads)
-      const profile = await coreProfileService.getCurrentProfile()
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('auth_user_id', user.id)
+        .single()
 
-      console.log(`✅ Simplified: Current profile loaded successfully`)
+      if (error || !profile) {
+        throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
+      }
+
       return profile
-
     } catch (error) {
-      console.error('❌ Simplified: Failed to get current profile:', error)
+      console.error('❌ Failed to get current profile:', error)
       throw error
     }
   }
 
   /**
-   * Update current user's profile (simplified: database triggers handle federation)
-   * PRESERVES: Exact same API and return type
+   * Update current user's profile (database triggers handle federation)
    */
   async updateCurrentProfile(updates: ProfileData): Promise<Profile> {
     try {
-      console.log(`🚀 Simplified: Updating current user profile`)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
-      // Just update the profile - database triggers handle federation automatically
-      const profile = await coreProfileService.updateCurrentProfile(updates)
+      // Update profile - database triggers will handle federation automatically
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('auth_user_id', user.id)
+        .select('*')
+        .single()
 
-      // Update userDataService cache with fresh profile data
-      try {
-        await userDataService.refreshCurrentUser()
-        console.log('✅ Simplified: UserDataService cache refreshed')
-      } catch (refreshError) {
-        console.warn('⚠️ Simplified: Failed to refresh userDataService cache:', refreshError)
-        // Don't fail the whole operation if cache refresh fails
+      if (error || !profile) {
+        throw this.createError('UPDATE_FAILED', 'Failed to update profile', error)
       }
 
-      console.log(`✅ Simplified: Profile updated successfully - database handling federation`)
-      return profile
+      // Refresh userDataService cache
+      try {
+        await userDataService.refreshCurrentUser()
+      } catch (refreshError) {
+        console.warn('⚠️ Failed to refresh userDataService cache:', refreshError)
+      }
 
+      return profile
     } catch (error) {
-      console.error('❌ Simplified: Failed to update profile:', error)
+      console.error('❌ Failed to update profile:', error)
       throw error
     }
   }
 
   /**
-   * Create a new profile (simplified: database triggers handle federation)
-   * PRESERVES: Exact same API and return type
+   * Create a new profile (database triggers handle federation)
    */
   async createProfile(profileData: ProfileData & { auth_user_id: string }): Promise<Profile> {
     try {
-      console.log(`🚀 Simplified: Creating new profile`)
+      // Create profile - database triggers will handle federation automatically
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .insert([profileData])
+        .select('*')
+        .single()
 
-      // Just create the profile - database triggers handle federation automatically
-      const profile = await coreProfileService.createProfile(profileData)
-
-      // Initialize userDataService with new profile
-      try {
-        await userDataService.refreshCurrentUser()
-        console.log('✅ Simplified: UserDataService initialized with new profile')
-      } catch (initError) {
-        console.warn('⚠️ Simplified: Failed to initialize userDataService:', initError)
-        // Don't fail profile creation if cache init fails
+      if (error || !profile) {
+        throw this.createError('CREATE_FAILED', 'Failed to create profile', error)
       }
 
-      console.log(`✅ Simplified: Profile created successfully - database handling federation`)
-      return profile
+      // Initialize userDataService
+      try {
+        await userDataService.refreshCurrentUser()
+      } catch (initError) {
+        console.warn('⚠️ Failed to initialize userDataService:', initError)
+      }
 
+      return profile
     } catch (error) {
-      console.error('❌ Simplified: Failed to create profile:', error)
+      console.error('❌ Failed to create profile:', error)
       throw error
     }
   }
 
-  // =====================================================
-  // PROFILE QUERIES (DELEGATED TO CORE SERVICE)
-  // =====================================================
-
   /**
-   * Get profile by ID (delegated to core service)
-   * PRESERVES: Exact same API and return type
+   * Get profile by ID
    */
   async getProfileById(profileId: string): Promise<Profile> {
     try {
-      console.log(`🚀 Simplified: Getting profile by ID: ${profileId}`)
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', profileId)
+        .single()
 
-      // Delegate to core service (no federation needed for reads)
-      const profile = await coreProfileService.getProfileById(profileId)
+      if (error || !profile) {
+        throw this.createError('PROFILE_NOT_FOUND', 'Profile not found')
+      }
 
-      console.log(`✅ Simplified: Profile loaded successfully`)
       return profile
-
     } catch (error) {
-      console.error('❌ Simplified: Failed to get profile by ID:', error)
+      console.error('❌ Failed to get profile by ID:', error)
       throw error
     }
   }
 
   /**
-   * Get profile by username (delegated to core service)
-   * PRESERVES: Exact same API and return type
+   * Get profile by username
    */
   async getProfileByUsername(username: string, domain?: string): Promise<Profile> {
     try {
-      console.log(`🚀 Simplified: Getting profile by username: ${username}@${domain || 'local'}`)
+      let query = supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', username)
 
-      // Delegate to core service (no federation needed for reads)
-      const profile = await coreProfileService.getProfileByUsername(username, domain)
+      if (domain) {
+        query = query.eq('domain', domain)
+      } else {
+        query = query.is('domain', null)
+      }
 
-      console.log(`✅ Simplified: Profile loaded successfully`)
+      const { data: profile, error } = await query.single()
+
+      if (error || !profile) {
+        throw this.createError('PROFILE_NOT_FOUND', 'Profile not found')
+      }
+
       return profile
-
     } catch (error) {
-      console.error('❌ Simplified: Failed to get profile by username:', error)
+      console.error('❌ Failed to get profile by username:', error)
       throw error
     }
   }
 
   /**
-   * Search profiles (delegated to core service)
-   * PRESERVES: Exact same API and return type
+   * Search profiles
    */
   async searchProfiles(
     query: string,
@@ -187,66 +188,60 @@ export class ProfileService {
     total: number;
   }> {
     try {
-      console.log(`🚀 Simplified: Searching profiles: "${query}"`)
+      const { limit = 20, offset = 0, includeFederated = true } = options
 
-      // Delegate to core service (no federation needed for reads)
-      const result = await coreProfileService.searchProfiles(query, options)
+      let searchQuery = supabase
+        .from('profiles')
+        .select('*', { count: 'exact' })
+        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+        .range(offset, offset + limit - 1)
 
-      console.log(`✅ Simplified: Found ${result.profiles.length} profiles`)
-      return result
+      if (!includeFederated) {
+        searchQuery = searchQuery.is('domain', null)
+      }
 
+      const { data: profiles, error, count } = await searchQuery
+
+      if (error) {
+        throw this.createError('SEARCH_FAILED', 'Failed to search profiles', error)
+      }
+
+      return {
+        profiles: profiles || [],
+        hasMore: (count || 0) > offset + limit,
+        total: count || 0
+      }
     } catch (error) {
-      console.error('❌ Simplified: Failed to search profiles:', error)
+      console.error('❌ Failed to search profiles:', error)
       throw error
     }
   }
 
-  // =====================================================
-  // PROFILE VALIDATION (DELEGATED TO CORE SERVICE)
-  // =====================================================
-
   /**
-   * Check username availability (delegated to core service)
-   * PRESERVES: Exact same API and return type
+   * Check username availability
    */
   async checkUsernameAvailability(username: string): Promise<{
     available: boolean;
     reason?: string;
   }> {
     try {
-      console.log(`🚀 Simplified: Checking username availability: ${username}`)
+      const { data: existing, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', username)
+        .limit(1)
 
-      // Delegate to core service (no federation needed for validation)
-      const result = await coreProfileService.checkUsernameAvailability(username)
+      if (error) {
+        throw this.createError('CHECK_FAILED', 'Failed to check username availability', error)
+      }
 
-      console.log(`✅ Simplified: Username availability checked`)
-      return result
-
+      return {
+        available: !existing || existing.length === 0
+      }
     } catch (error) {
-      console.error('❌ Simplified: Failed to check username availability:', error)
+      console.error('❌ Failed to check username availability:', error)
       throw error
     }
-  }
-
-  // =====================================================
-  // UTILITY METHODS (PRESERVED)
-  // =====================================================
-
-  private async getCurrentUserProfileId(): Promise<string> {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (error || !profile) {
-      throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
-    }
-
-    return profile.id
   }
 
   private createError(code: string, message: string, details?: any): Error {
