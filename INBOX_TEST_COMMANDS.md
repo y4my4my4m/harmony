@@ -5,9 +5,11 @@
 First, run the migration to add debug functions:
 
 ```bash
-# Apply the new migration
+# Apply the new migrations
 supabase db reset
-# OR manually run: db_migrations/042_fix_inbox_processing_trigger.sql
+# OR manually run: 
+# - db_migrations/042_fix_inbox_processing_trigger.sql
+# - db_migrations/043_fix_notifications_table_schema.sql
 ```
 
 ## 🧪 **STEP 1: Diagnose the Issue**
@@ -50,6 +52,21 @@ WHERE event_object_table = 'ap_activities'
 
 Should return: `unified_activitypub_processing_trigger | UPDATE`
 
+## 🚨 **STEP 3B: Check Notifications Schema**
+
+Verify the notifications table has all required columns:
+
+```sql
+-- Check notifications table columns
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns 
+WHERE table_name = 'notifications' 
+  AND table_schema = 'public'
+ORDER BY ordinal_position;
+```
+
+Should include: `server_id`, `channel_id`, `conversation_id`, `from_user_id`, `priority`
+
 ## 📊 **STEP 4: Monitor Incoming Activities**
 
 Watch for new activities:
@@ -90,3 +107,13 @@ When working correctly:
 2. Follow requests are processed automatically  
 3. Reactions and interactions sync from remote servers
 4. No activities stuck in `received` status for more than a few seconds
+5. **No more "column server_id does not exist" errors** ✅
+
+## 🎯 **ROOT CAUSE IDENTIFIED**
+
+The issue was that `send_notification()` function expected columns in the `notifications` table that didn't exist:
+- `server_id`, `channel_id`, `conversation_id`, `from_user_id`, `priority`
+
+When ActivityPub processing tried to create notifications (for mentions, follows, etc.), the notification creation failed, causing the entire activity processing to fail and activities to get stuck in `received` status.
+
+Migration 043 fixes this by adding the missing columns to match the function expectations.
