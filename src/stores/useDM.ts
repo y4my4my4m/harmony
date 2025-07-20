@@ -820,11 +820,13 @@ export const useDMStore = defineStore('dm', () => {
       // Use activityPubService for federated user search (includes local users)
       const users = await services.activityPub.searchUsers(query, 10)
       
+      console.log('🔍 Raw search results from service:', users.map(u => ({ id: u.id, user_id: u.user_id, username: u.username })))
+      
       // Filter out current user and convert to DMUser format
       const filteredUsers = users
-        .filter(user => user.id !== currentUserId)
+        .filter(user => (user.id || user.user_id) !== currentUserId)
         .map(user => ({
-          id: user.id,
+          id: user.id || user.user_id, // Try both id and user_id fields
           username: user.username,
           display_name: user.display_name,
           avatar_url: user.avatar_url,
