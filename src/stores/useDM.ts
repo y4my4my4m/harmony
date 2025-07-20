@@ -30,9 +30,15 @@ export interface DMConversation {
   last_activity?: string
   last_message?: Message
   unread_count?: number
-  other_user?: DMUser
-  type?: string
+  other_user?: DMUser // For direct conversations
+  type?: string // 'direct' | 'group'
   participant_count?: number
+  
+  // Group conversation fields
+  name?: string // Group name
+  icon_url?: string // Group icon
+  created_by?: string // Creator user ID
+  participants?: DMUser[] // All participants for group chats
 }
 
 export interface DMCache {
@@ -493,7 +499,9 @@ export const useDMStore = defineStore('dm', () => {
             created_at,
             type,
             name,
-            is_active
+            created_by,
+            is_active,
+            metadata
           )
         `)
         .eq('user_id', userId)
@@ -539,9 +547,11 @@ export const useDMStore = defineStore('dm', () => {
             conversation_id: conversation.id,
             conversation_name: conversation.name,
             conversation_type: conversation.type || 'direct',
+            created_by: conversation.created_by,
             created_at: conversation.created_at,
             is_active: conversation.is_active,
             participant_count: participantCount ?? 2,
+            icon_url: conversation.metadata?.icon_url, // Icon stored in metadata
             other_participants: otherParticipants || [],
             user_role: participation.role,
             user_joined_at: participation.joined_at
@@ -583,46 +593,29 @@ export const useDMStore = defineStore('dm', () => {
     try {
       console.log('🔍 DEBUG: Processing conversation data:', {
         conversationId: conv.conversation_id,
+        type: conv.conversation_type,
+        participant_count: conv.participant_count,
         other_participants: conv.other_participants,
-        other_participants_type: typeof conv.other_participants,
-        other_participants_isArray: Array.isArray(conv.other_participants),
         other_participants_length: conv.other_participants?.length,
-        fullConvData: conv
+        conversation_name: conv.conversation_name,
+        icon_url: conv.icon_url
       })
 
-      // For direct conversations, get the other participant (not the current user)
-      let otherUserId: string | null = null
+      const conversationType = conv.conversation_type || 'direct'
+      const participantCount = conv.participant_count || 0
       
-      if (conv.other_participants && Array.isArray(conv.other_participants) && conv.other_participants.length > 0) {
-        // Get the first other participant (for direct messages, should be exactly 1)
-        otherUserId = conv.other_participants[0].user_id
-        console.log('🔍 DEBUG: Found other participant:', otherUserId)
-      }
-
-      if (!otherUserId) {
-        console.error('❌ DEBUG: No other participant found for conversation:', conv.conversation_id)
-        console.error('❌ DEBUG: other_participants data:', conv.other_participants)
-        return null
-      }
-      
-      // Get other user's profile
-      const profileData = await _fetchUserProfile(otherUserId)
-      if (!profileData) {
-        console.error('Failed to fetch profile for user:', otherUserId)
-        return null
-      }
-
       // Get last message for conversation
       const lastMessageData = await _fetchLastMessage(conv.conversation_id)
 
-      // Determine if this is a federated conversation
-      const isFederated = !profileData.is_local && profileData.domain
-
-      return {
+      // Base conversation data
+      const baseConversation = {
         id: conv.conversation_id,
         created_at: conv.created_at,
-        type: conv.conversation_type || 'direct',
-        participant_count: conv.participant_count || 2,
+        type: conversationType,
+        participant_count: participantCount,
+        name: conv.conversation_name,
+        icon_url: conv.icon_url,
+        created_by: conv.created_by,
         last_activity: lastMessageData?.created_at || conv.created_at,
         last_message: lastMessageData ? {
           id: lastMessageData.id,
@@ -635,13 +628,68 @@ export const useDMStore = defineStore('dm', () => {
           metadata: lastMessageData.metadata || {}
         } : undefined,
         unread_count: 0, // TODO: Implement proper unread counting
-        other_user: {
-          id: profileData.id,
-          username: profileData.username,
-          display_name: profileData.display_name,
-          avatar_url: profileData.avatar_url,
-          is_online: false, // Will be updated by global presence system in UI
-          domain: profileData.domain,
+      }
+
+      // Handle different conversation types
+      if (conversationType === 'group') {
+        // For group conversations, fetch all participants
+        const participantProfiles = []
+        if (conv.other_participants && Array.isArray(conv.other_participants)) {
+          for (const participant of conv.other_participants) {
+            const profileData = await _fetchUserProfile(participant.user_id)
+            if (profileData) {
+              participantProfiles.push({
+                id: profileData.id,
+                username: profileData.username,
+                display_name: profileData.display_name,
+                avatar_url: profileData.avatar_url,
+                domain: profileData.domain,
+                is_local: profileData.is_local,
+                handle: profileData.handle
+              })
+            }
+          }
+        }
+
+        return {
+          ...baseConversation,
+          participants: participantProfiles,
+          other_user: undefined // No other_user for group chats
+        }
+      } else {
+        // For direct conversations, get the other participant (not the current user)
+        let otherUserId: string | null = null
+        
+        if (conv.other_participants && Array.isArray(conv.other_participants) && conv.other_participants.length > 0) {
+          // Get the first other participant (for direct messages, should be exactly 1)
+          otherUserId = conv.other_participants[0].user_id
+          console.log('🔍 DEBUG: Found other participant:', otherUserId)
+        }
+
+        if (!otherUserId) {
+          console.error('❌ DEBUG: No other participant found for conversation:', conv.conversation_id)
+          return null
+        }
+        
+        // Get other user's profile
+        const profileData = await _fetchUserProfile(otherUserId)
+        if (!profileData) {
+          console.error('Failed to fetch profile for user:', otherUserId)
+          return null
+        }
+
+        // Determine if this is a federated conversation
+        const isFederated = !profileData.is_local && profileData.domain
+
+        return {
+          ...baseConversation,
+          other_user: {
+            id: profileData.id,
+            username: profileData.username,
+            display_name: profileData.display_name,
+            avatar_url: profileData.avatar_url,
+            is_online: false, // Will be updated by global presence system in UI
+            domain: profileData.domain,
           is_local: profileData.is_local,
           federated_id: profileData.federated_id,
           handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`

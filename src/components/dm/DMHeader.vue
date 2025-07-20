@@ -12,7 +12,23 @@
       </button>
       
       <div class="conversation-info">
-        <div class="conversation-avatar">
+        <!-- Group Chat Avatar -->
+        <div v-if="conversation.type === 'group'" class="conversation-avatar group-conversation">
+          <div class="group-avatar-header">
+            <img 
+              v-if="conversation.icon_url" 
+              :src="conversation.icon_url" 
+              :alt="conversation.name || 'Group Chat'"
+              class="group-icon"
+            />
+            <div v-else class="default-group-icon">
+              <Icon name="users" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Direct Chat Avatar -->
+        <div v-else class="conversation-avatar">
           <Avatar
             :src="getAvatarUrl(conversation.other_user?.avatar_url)"
             :alt="getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'User'"
@@ -28,22 +44,44 @@
             <Icon name="globe" />
           </div>
         </div>
+
         <div class="conversation-details">
-          <h2 class="conversation-name">
-            {{ getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}
-          </h2>
-          <div class="conversation-status">
-            <!-- Show federated handle for remote users -->
-            <span v-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#5865F2' }">
-              {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
-            </span>
-            <span v-else-if="otherUserStatus !== 'offline'" class="status">
-              {{ getStatusText(otherUserStatus) }}
-            </span>
-            <span v-else class="status">
-              Last seen {{ formatLastSeen(conversation.other_user?.last_seen) }}
-            </span>
-          </div>
+          <!-- Group Chat Title -->
+          <template v-if="conversation.type === 'group'">
+            <h2 class="conversation-name group-name">
+              {{ conversation.name || getDefaultGroupName() }}
+              <button class="edit-group-name-btn" @click="showGroupSettings = true" title="Edit group settings">
+                <Icon name="settings" />
+              </button>
+            </h2>
+            <div class="conversation-status">
+              <span class="participant-count">
+                {{ conversation.participant_count || 0 }} member{{ (conversation.participant_count || 0) !== 1 ? 's' : '' }}
+              </span>
+              <button class="participants-btn" @click="showParticipants = !showParticipants" title="View participants">
+                <Icon name="users" />
+              </button>
+            </div>
+          </template>
+
+          <!-- Direct Chat Title -->
+          <template v-else>
+            <h2 class="conversation-name">
+              {{ getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}
+            </h2>
+            <div class="conversation-status">
+              <!-- Show federated handle for remote users -->
+              <span v-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#5865F2' }">
+                {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
+              </span>
+              <span v-else-if="otherUserStatus !== 'offline'" class="status">
+                {{ getStatusText(otherUserStatus) }}
+              </span>
+              <span v-else class="status">
+                Last seen {{ formatLastSeen(conversation.other_user?.last_seen) }}
+              </span>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -128,6 +166,10 @@ const {
 const showSearchModal = ref(false)
 const showOptionsMenu = ref(false)
 const presenceInitialized = ref(false)
+
+// Group chat state
+const showGroupSettings = ref(false)
+const showParticipants = ref(false)
 
 // Professional presence management for DM header
 // Always ensure the conversation partner is tracked for presence
@@ -252,6 +294,24 @@ const handleSearchClick = () => {
 const handleMoreClick = () => {
   showOptionsMenu.value = !showOptionsMenu.value
 }
+
+// Group chat methods
+const getDefaultGroupName = (): string => {
+  if (props.conversation.participants && props.conversation.participants.length > 0) {
+    // Show first few participant names
+    const names = props.conversation.participants
+      .slice(0, 3)
+      .map(p => p.display_name || p.username)
+      .join(', ')
+    
+    if (props.conversation.participants.length > 3) {
+      return `${names}, and ${props.conversation.participants.length - 3} others`
+    }
+    return names
+  }
+  
+  return `Group Chat (${props.conversation.participant_count || 0} members)`
+}
 </script>
 
 <style scoped>
@@ -305,6 +365,67 @@ const handleMoreClick = () => {
 .conversation-avatar {
   position: relative;
   flex-shrink: 0;
+}
+
+.conversation-avatar.group-conversation {
+  width: 40px;
+  height: 40px;
+}
+
+.group-avatar-header {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.group-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-full);
+}
+
+.default-group-icon {
+  width: 100%;
+  height: 100%;
+  background: var(--harmony-primary);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 18px;
+}
+
+.group-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-group-name-btn,
+.participants-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.edit-group-name-btn:hover,
+.participants-btn:hover {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+}
+
+.participant-count {
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .conversation-details {

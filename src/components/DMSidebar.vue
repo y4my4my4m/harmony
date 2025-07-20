@@ -110,11 +110,28 @@
           class="conversation-item"
           :class="{ 
             'active': conversation.id === dmStore.currentConversationId,
-            'unread': conversation.unread_count && conversation.unread_count > 0
+            'unread': conversation.unread_count && conversation.unread_count > 0,
+            'group-chat': conversation.type === 'group'
           }"
           @click="selectConversation(conversation.id)"
         >
+          <!-- Group Chat Avatar -->
+          <div v-if="conversation.type === 'group'" class="group-avatar">
+            <img 
+              v-if="conversation.icon_url" 
+              :src="conversation.icon_url" 
+              :alt="conversation.name || 'Group Chat'"
+              class="group-icon"
+            />
+            <div v-else class="default-group-icon">
+              <Icon name="users" />
+            </div>
+            <div class="participant-count">{{ conversation.participant_count || 0 }}</div>
+          </div>
+
+          <!-- Direct Chat Avatar -->
           <Avatar
+            v-else
             :src="getUserAvatarUrl(conversation.other_user?.id || '').value"
             :alt="getUserDisplayName(conversation.other_user?.id || '').value"
             size="sm"
@@ -126,7 +143,14 @@
             <div class="conversation-header">
               <div class="conversation-name-container">
                 <div class="conversation-name">
-                  {{ getUserDisplayName(conversation.other_user?.id || '').value }}
+                  <!-- Group Chat Name -->
+                  <template v-if="conversation.type === 'group'">
+                    {{ conversation.name || getDefaultGroupName(conversation) }}
+                  </template>
+                  <!-- Direct Chat Name -->
+                  <template v-else>
+                    {{ getUserDisplayName(conversation.other_user?.id || '').value }}
+                  </template>
                 </div>
                 <div v-if="conversation.other_user && !conversation.other_user.is_local && conversation.other_user.domain" 
                      class="federated-indicator" 
@@ -265,6 +289,23 @@ const selectConversation = (conversationId: string) => {
 
 const handleGroupChatCreated = (conversationId: string) => {
   selectConversation(conversationId)
+}
+
+const getDefaultGroupName = (conversation: DMConversation): string => {
+  if (conversation.participants && conversation.participants.length > 0) {
+    // Show first few participant names
+    const names = conversation.participants
+      .slice(0, 3)
+      .map(p => p.display_name || p.username)
+      .join(', ')
+    
+    if (conversation.participants.length > 3) {
+      return `${names}, and ${conversation.participants.length - 3} others`
+    }
+    return names
+  }
+  
+  return `Group Chat (${conversation.participant_count || 0} members)`
 }
 
 const formatMessageTime = (timestamp: string): string => {
@@ -601,6 +642,52 @@ watch(sortedConversations, async (newConversations) => {
   width: 32px;
   height: 32px;
   flex-shrink: 0;
+}
+
+.group-avatar {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.group-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-full);
+}
+
+.default-group-icon {
+  width: 100%;
+  height: 100%;
+  background: var(--harmony-primary);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+}
+
+.participant-count {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: var(--accent-primary);
+  color: white;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  min-width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--bg-primary);
 }
 
 .avatar-image {
