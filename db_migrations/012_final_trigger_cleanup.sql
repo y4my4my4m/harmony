@@ -13,6 +13,9 @@
 DROP TRIGGER IF EXISTS trigger_unified_notification_reactions ON reactions;
 DROP TRIGGER IF EXISTS trigger_unified_notification_processing_reactions ON reactions; 
 
+-- Drop federation triggers
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_reactions ON reactions;
+
 -- Also drop any other potentially conflicting reaction triggers
 DROP TRIGGER IF EXISTS handle_reactions_federation_trigger ON reactions;
 DROP TRIGGER IF EXISTS trigger_reactions_federation ON reactions;

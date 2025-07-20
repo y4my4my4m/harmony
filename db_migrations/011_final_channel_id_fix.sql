@@ -7,10 +7,16 @@
 -- STEP 1: Drop ALL old problematic triggers completely
 -- =====================================================
 
--- Drop ALL reaction-related triggers to start fresh
+-- Drop ALL problematic triggers to start fresh
 DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_reactions ON reactions;
 DROP TRIGGER IF EXISTS trigger_unified_notification_reactions ON reactions;
 DROP TRIGGER IF EXISTS handle_post_reactions_federation_trigger ON post_interactions;
+
+-- Drop follow triggers
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_follows ON follows;
+
+-- Drop post interaction triggers  
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_post_interactions ON post_interactions;
 
 -- Also drop any old legacy triggers that might still exist
 DROP TRIGGER IF EXISTS trigger_reactions_federation ON reactions;

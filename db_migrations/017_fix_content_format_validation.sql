@@ -64,98 +64,100 @@ END
 $$;
 
 -- =====================================================
--- STEP 3: Enhanced content validation function
+-- STEP 3: Fix invalid content before adding constraint
 -- =====================================================
 
-CREATE OR REPLACE FUNCTION validate_message_parts_content(content_value JSONB)
-RETURNS BOOLEAN AS $$
+-- First, let's identify and fix any invalid content
+DO $$
+DECLARE
+    invalid_post RECORD;
+    fixed_count INTEGER := 0;
 BEGIN
-    -- Must be an array
-    IF jsonb_typeof(content_value) != 'array' THEN
-        RETURN FALSE;
-    END IF;
+    RAISE NOTICE 'Checking for invalid post content...';
     
-    -- Must not be empty
-    IF jsonb_array_length(content_value) = 0 THEN
-        RETURN FALSE;
-    END IF;
-    
-    -- Each element must have a 'type' field
-    FOR i IN 0..jsonb_array_length(content_value) - 1 LOOP
-        IF NOT (content_value->i ? 'type') THEN
-            RETURN FALSE;
-        END IF;
+    -- Find posts with invalid content (using same validation as local environment)
+    FOR invalid_post IN 
+        SELECT id, content, jsonb_typeof(content) as content_type
+        FROM posts 
+        WHERE NOT (jsonb_typeof(content) = 'array' AND (jsonb_array_length(content) > 0 OR reblog IS NOT NULL))
+        LIMIT 10  -- Limit to avoid too much output
+    LOOP
+        RAISE NOTICE 'Invalid post ID: %, Content type: %', invalid_post.id, invalid_post.content_type;
         
-        -- Validate based on type
-        CASE content_value->i->>'type'
-            WHEN 'text' THEN
-                IF NOT (content_value->i ? 'text') THEN
-                    RETURN FALSE;
-                END IF;
-            WHEN 'mention' THEN
-                IF NOT (content_value->i ? 'userId' AND content_value->i ? 'username') THEN
-                    RETURN FALSE;
-                END IF;
-            WHEN 'emoji' THEN
-                IF NOT (content_value->i ? 'emojiId' OR content_value->i ? 'shortcode') THEN
-                    RETURN FALSE;
-                END IF;
-            WHEN 'hashtag' THEN
-                IF NOT (content_value->i ? 'tag') THEN
-                    RETURN FALSE;
-                END IF;
-            ELSE
-                -- Unknown type, allow but log
-                RAISE NOTICE 'Unknown MessagePart type: %', content_value->i->>'type';
-        END CASE;
+        -- Try to fix common issues
+        IF jsonb_typeof(invalid_post.content) = 'string' THEN
+            -- Convert string content to proper MessagePart array
+            UPDATE posts 
+            SET content = jsonb_build_array(
+                jsonb_build_object(
+                    'type', 'text',
+                    'text', invalid_post.content #>> '{}'
+                )
+            )
+            WHERE id = invalid_post.id;
+            fixed_count := fixed_count + 1;
+            RAISE NOTICE 'Fixed string content for post %', invalid_post.id;
+            
+        ELSIF jsonb_typeof(invalid_post.content) = 'object' THEN
+            -- If it's an object but not an array, wrap it
+            UPDATE posts 
+            SET content = jsonb_build_array(invalid_post.content)
+            WHERE id = invalid_post.id;
+            fixed_count := fixed_count + 1;
+            RAISE NOTICE 'Fixed object content for post %', invalid_post.id;
+            
+        ELSIF invalid_post.content IS NULL OR jsonb_typeof(invalid_post.content) = 'null' THEN
+            -- Set empty content to a default text message
+            UPDATE posts 
+            SET content = jsonb_build_array(
+                jsonb_build_object(
+                    'type', 'text',
+                    'text', ''
+                )
+            )
+            WHERE id = invalid_post.id;
+            fixed_count := fixed_count + 1;
+            RAISE NOTICE 'Fixed null content for post %', invalid_post.id;
+        END IF;
     END LOOP;
     
-    RETURN TRUE;
-END;
-$$ LANGUAGE plpgsql;
+    RAISE NOTICE 'Fixed % posts with invalid content', fixed_count;
+END
+$$;
 
 -- =====================================================
--- STEP 4: Update content validation constraint
+-- STEP 4: Update content validation constraint (match local environment)
 -- =====================================================
 
 -- Drop existing constraint
 ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_content_is_array;
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_content_not_empty;
 
--- Add enhanced constraint using validation function
-ALTER TABLE posts ADD CONSTRAINT posts_content_valid_message_parts
-    CHECK (validate_message_parts_content(content));
+-- Add the exact same constraints as in the local environment
+ALTER TABLE posts ADD CONSTRAINT posts_content_is_array 
+    CHECK (jsonb_typeof(content) = 'array');
+
+ALTER TABLE posts ADD CONSTRAINT posts_content_not_empty 
+    CHECK ((jsonb_array_length(content) > 0) OR (reblog IS NOT NULL));
+
+COMMENT ON CONSTRAINT posts_content_not_empty ON posts IS 'Ensures posts have content OR are reblogs. Pure reblogs can have empty content if reblog field is present.';
 
 -- =====================================================
--- STEP 5: Add content validation to messages table
+-- STEP 5: Add content validation to messages table (same approach)
 -- =====================================================
 
 -- Ensure messages table also has proper content validation
 ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_content_is_array;
-ALTER TABLE messages ADD CONSTRAINT messages_content_valid_message_parts
-    CHECK (validate_message_parts_content(content));
+ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_content_not_empty;
+
+ALTER TABLE messages ADD CONSTRAINT messages_content_is_array 
+    CHECK (jsonb_typeof(content) = 'array');
+
+ALTER TABLE messages ADD CONSTRAINT messages_content_not_empty 
+    CHECK (jsonb_array_length(content) > 0);
 
 -- =====================================================
--- STEP 6: Create helper function for content debugging
--- =====================================================
-
-CREATE OR REPLACE FUNCTION debug_content_format(content_value JSONB)
-RETURNS TEXT AS $$
-BEGIN
-    RETURN format(
-        'Type: %s, Length: %s, Valid: %s, Sample: %s',
-        jsonb_typeof(content_value),
-        CASE WHEN jsonb_typeof(content_value) = 'array' 
-             THEN jsonb_array_length(content_value)::text 
-             ELSE 'N/A' 
-        END,
-        validate_message_parts_content(content_value),
-        left(content_value::text, 100)
-    );
-END;
-$$ LANGUAGE plpgsql;
-
--- =====================================================
--- STEP 7: Federation trigger recreation (optional)
+-- STEP 6: Federation trigger recreation (optional)
 -- =====================================================
 -- Note: Federation triggers can be re-enabled once content flow is verified
 -- This should be done after confirming post creation works properly
@@ -172,4 +174,4 @@ COMMIT;
 -- POST-MIGRATION VERIFICATION
 -- =====================================================
 -- Run this query to verify the migration worked:
--- SELECT debug_content_format(content) FROM posts LIMIT 5;
+-- SELECT content, jsonb_typeof(content) FROM posts LIMIT 5;
