@@ -123,6 +123,16 @@
       </button>
     </div>
   </div>
+
+  <!-- Group Settings Modal -->
+  <GroupSettingsModal
+    :show="showGroupSettings"
+    :conversation="conversation"
+    :conversation-id="conversation.id"
+    :participants="conversation.participants || []"
+    @close="showGroupSettings = false"
+    @updated="handleGroupUpdated"
+  />
 </template>
 
 <script setup lang="ts">
@@ -130,6 +140,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import GroupIcon from '@/components/common/GroupIcon.vue'
+import GroupSettingsModal from '@/components/dm/GroupSettingsModal.vue'
 import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
@@ -147,6 +158,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
+  'group-updated': []
 }>()
 
 // Use clean status system
@@ -165,6 +177,11 @@ const presenceInitialized = ref(false)
 // Group chat state
 const showGroupSettings = ref(false)
 const showParticipants = ref(false)
+
+// Methods
+function handleGroupUpdated() {
+  emit('group-updated')
+}
 
 // Professional presence management for DM header
 // Always ensure the conversation partner is tracked for presence

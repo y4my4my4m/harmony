@@ -690,9 +690,10 @@ export const useDMStore = defineStore('dm', () => {
             avatar_url: profileData.avatar_url,
             is_online: false, // Will be updated by global presence system in UI
             domain: profileData.domain,
-          is_local: profileData.is_local,
-          federated_id: profileData.federated_id,
-          handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
+            is_local: profileData.is_local,
+            federated_id: profileData.federated_id,
+            handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
+          }
         }
       }
     } catch (error) {
