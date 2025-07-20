@@ -51,22 +51,19 @@
         </div>
       </div>
 
-      <!-- Stats (non-compact only) -->
-      <div v-if="!isCompact && hasStats" class="stats-section">
+      <!-- Stats (always show for federated users) -->
+      <div v-if="hasStats" class="stats-section">
         <!-- Social Stats (for federated users) -->
         <template v-if="isFederatedUser">
-          <div class="stat-item">
-            <span class="stat-value">{{ formatNumber(user.followers_count || 0) }}</span>
-            <span class="stat-label">Followers</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ formatNumber(user.following_count || 0) }}</span>
-            <span class="stat-label">Following</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ formatNumber(user.posts_count || 0) }}</span>
-            <span class="stat-label">Posts</span>
-          </div>
+          <span class="stat">
+            <strong>{{ formatNumber(user.followers_count || 0) }}</strong> followers
+          </span>
+          <span class="stat">
+            <strong>{{ formatNumber(user.following_count || 0) }}</strong> following
+          </span>
+          <span class="stat">
+            <strong>{{ formatNumber(user.posts_count || 0) }}</strong> monies
+          </span>
         </template>
         
         <!-- Chat Stats (for local users) -->
@@ -88,7 +85,7 @@
     </div>
 
     <!-- Actions Section -->
-    <div v-if="showActions && !isCompact" class="actions-section">
+    <div v-if="showActions" class="actions-section">
       <!-- Follow/Unfollow (federated users only) -->
       <button
         v-if="isFederatedUser && !isCurrentUser && showFollowBtn"
@@ -563,7 +560,28 @@ const vClickOutside = {
 /* ===== STATS SECTION ===== */
 .stats-section {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.compact .stats-section {
+  gap: var(--space-2);
+  margin-bottom: 0;
+}
+
+.stat {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.compact .stat {
+  font-size: 11px;
+}
+
+.stat strong {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
 }
 
 .stat-item {
