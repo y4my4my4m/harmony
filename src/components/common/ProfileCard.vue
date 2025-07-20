@@ -51,36 +51,18 @@
         </div>
       </div>
 
-      <!-- Stats (always show for federated users) -->
+      <!-- Stats (always show) -->
       <div v-if="hasStats" class="stats-section">
-        <!-- Social Stats (for federated users) -->
-        <template v-if="isFederatedUser">
-          <span class="stat">
-            <strong>{{ formatNumber(user.followers_count || 0) }}</strong> followers
-          </span>
-          <span class="stat">
-            <strong>{{ formatNumber(user.following_count || 0) }}</strong> following
-          </span>
-          <span class="stat">
-            <strong>{{ formatNumber(user.posts_count || 0) }}</strong> monies
-          </span>
-        </template>
-        
-        <!-- Chat Stats (for local users) -->
-        <template v-else>
-          <div class="stat-item">
-            <span class="stat-value">{{ formatJoinDate(user.created_at) }}</span>
-            <span class="stat-label">Joined</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ user.message_count || 0 }}</span>
-            <span class="stat-label">Messages</span>
-          </div>
-          <div v-if="user.voice_time" class="stat-item">
-            <span class="stat-value">{{ formatVoiceTime(user.voice_time) }}</span>
-            <span class="stat-label">Voice Time</span>
-          </div>
-        </template>
+        <!-- Standard Social Stats (for all users) -->
+        <span class="stat">
+          <strong>{{ formatNumber(user.followers_count || 0) }}</strong> followers
+        </span>
+        <span class="stat">
+          <strong>{{ formatNumber(user.following_count || 0) }}</strong> following
+        </span>
+        <span class="stat">
+          <strong>{{ formatNumber(user.posts_count || 0) }}</strong> monies
+        </span>
       </div>
     </div>
 
@@ -582,28 +564,6 @@ const vClickOutside = {
 .stat strong {
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.stat-value {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin-bottom: 2px;
-}
-
-.stat-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-  font-weight: var(--font-weight-medium);
 }
 
 /* ===== ACTIONS SECTION ===== */
