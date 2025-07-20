@@ -317,7 +317,7 @@ const refreshSearchResults = () => {
   if (dmStore.searchResults.length > 0) {
     console.log('🔍 Refreshing search results:', {
       totalResults: dmStore.searchResults.length,
-      selectedUsers: selectedUsers.value.map(u => u.id),
+      selectedUsers: selectedUsers.value.map(u => ({ id: u.id, username: u.username, hasId: !!u.id })),
       existingParticipants: props.existingParticipants?.map(p => p.id) || []
     })
     
@@ -334,7 +334,7 @@ const refreshSearchResults = () => {
       }
       // Filter out already selected users
       if (selectedUsers.value.some(s => s.id === user.id)) {
-        console.log('🚫 Filtering out already selected user:', user.id)
+        console.log('🚫 Filtering out already selected user:', user.id, 'comparing with selected:', selectedUsers.value.map(s => s.id))
         return false
       }
       console.log('✅ Keeping user in results:', user.id)
@@ -352,12 +352,16 @@ const selectFirstResult = () => {
 }
 
 const toggleUserSelection = (user: DMUser) => {
+  console.log('🔄 Toggling user selection:', { user, hasId: !!user.id })
+  
   const index = selectedUsers.value.findIndex(u => u.id === user.id)
   if (index > -1) {
     selectedUsers.value.splice(index, 1)
   } else {
     selectedUsers.value.push(user)
   }
+  
+  console.log('👥 Selected users after toggle:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
   
   // Refresh search results to update filtering
   refreshSearchResults()
@@ -438,16 +442,20 @@ const createGroupChat = async () => {
         toast.success('Conversation created!')
       }
     } else {
-      // Multiple users - would need group conversation support
-      // For now, show a message that this requires implementation
-      toast.info('Group conversations with multiple users require additional implementation')
-      
-      // TODO: Implement actual group conversation creation
-      // const conversationId = await createGroupConversation({
-      //   participants: [currentUserId.value, ...selectedUsers.value.map(u => u.id)],
-      //   name: groupName.value || undefined,
-      //   isPrivate: isPrivateGroup.value
-      // })
+      // Multiple users - create group conversation
+      const conversationId = await dmStore.createGroupConversation({
+        participantIds: [currentUserId.value, ...selectedUsers.value.map(u => u.id)],
+        name: groupName.value || undefined,
+        isPrivate: isPrivateGroup.value
+      })
+
+      if (conversationId) {
+        emit('conversationCreated', conversationId)
+        emit('close')
+        toast.success('Group conversation created!')
+      } else {
+        toast.error('Failed to create group conversation')
+      }
     }
   } catch (error) {
     console.error('Failed to create group chat:', error)

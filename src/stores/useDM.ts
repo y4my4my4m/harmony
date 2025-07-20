@@ -1499,26 +1499,77 @@ export const useDMStore = defineStore('dm', () => {
    * Create a group conversation with multiple participants
    */
   const createGroupConversation = async (options: {
-    participants: string[] // User IDs
+    participantIds: string[] // User IDs
     name?: string
     isPrivate?: boolean
-    currentUserId: string
   }): Promise<string | null> => {
     try {
       console.log('🔄 Creating group conversation:', options)
       
-      // For now, this is a placeholder implementation
-      // In a full implementation, you would:
-      // 1. Create a conversation with type 'group'
-      // 2. Add all participants to conversation_participants table
-      // 3. Handle ActivityPub federation for external users
-      // 4. Send system message about conversation creation
-      
-      // TODO: Implement actual group conversation creation
-      // This requires database schema changes and federation support
-      
-      console.warn('🚧 Group conversation creation not yet fully implemented')
-      return null
+      if (!options.participantIds || options.participantIds.length < 2) {
+        console.error('❌ Need at least 2 participants for group conversation')
+        return null
+      }
+
+      // Create the conversation
+      const { data: conversation, error: createError } = await supabase
+        .from('conversations')
+        .insert({
+          type: 'group',
+          name: options.name,
+          created_by: getCurrentUser.value?.id,
+          is_active: true,
+          metadata: {
+            is_private: options.isPrivate ?? true
+          }
+        })
+        .select('id')
+        .single()
+
+      if (createError || !conversation) {
+        console.error('❌ Failed to create conversation:', createError)
+        return null
+      }
+
+      console.log('✅ Created conversation:', conversation.id)
+
+      // Add all participants using the database function
+      for (const userId of options.participantIds) {
+        const { error: addError } = await supabase.rpc('add_user_to_conversation', {
+          conversation_uuid: conversation.id,
+          user_uuid: userId,
+          user_role: 'member'
+        })
+
+        if (addError) {
+          console.error('❌ Failed to add participant:', addError)
+          // Continue with other participants rather than failing completely
+        }
+      }
+
+      // Add a system message about conversation creation
+      try {
+        const systemMessageContent = [{
+          type: 'text',
+          text: `Group conversation created with ${options.participantIds.length} participants`
+        }]
+
+        await services.messages.sendDMMessage(
+          conversation.id,
+          systemMessageContent
+        )
+      } catch (systemMessageError) {
+        console.warn('⚠️ Failed to send system message:', systemMessageError)
+        // Don't fail the operation for this
+      }
+
+      // Refresh conversations to include the new one
+      if (getCurrentUser.value?.id) {
+        await fetchUserConversations(getCurrentUser.value.id)
+      }
+
+      console.log('✅ Successfully created group conversation')
+      return conversation.id
       
     } catch (error) {
       console.error('❌ Failed to create group conversation:', error)
@@ -1549,9 +1600,9 @@ export const useDMStore = defineStore('dm', () => {
         return false
       }
 
-      // If it's a direct conversation, create a NEW group conversation instead
+      // If it's a direct conversation, create a NEW group conversation (keep original 1:1 intact)
       if (conversation?.type === 'direct') {
-        console.log('🔄 Converting 1:1 to group by creating new conversation')
+        console.log('🔄 Creating NEW group conversation (preserving original 1:1 chat)')
         
         // Get current participants of the direct conversation
         const { data: currentParticipants, error: participantsError } = await supabase
