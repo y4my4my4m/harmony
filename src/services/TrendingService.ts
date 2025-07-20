@@ -295,7 +295,6 @@ class TrendingService {
           bio,
           domain,
           is_local,
-          verified,
           created_at,
           updated_at,
           followers_count,
@@ -324,7 +323,7 @@ class TrendingService {
           avatar_url: row.avatar_url || '/default_avatar.png',
           bio: row.bio || '',
           is_local: row.domain === 'har.mony.lol' || !row.domain,
-          verified: row.verified || false,
+          verified: false, // Default value since column doesn't exist
           followers_count: row.followers_count || 0,
           following_count: row.following_count || 0,
           posts_count: row.posts_count || 0,
