@@ -1537,20 +1537,79 @@ export const useDMStore = defineStore('dm', () => {
     try {
       console.log('🔄 Adding users to conversation:', { conversationId, userIds })
       
-      // For now, this is a placeholder implementation
-      // In a full implementation, you would:
-      // 1. Check if current user has permission to add users
-      // 2. Update conversation type if needed (direct -> group)
-      // 3. Add new participants to conversation_participants table
-      // 4. Send federation messages for external users
-      // 5. Add system message about new participants
-      // 6. Update conversation metadata (name, participant count)
-      
-      // TODO: Implement actual user addition to conversations
-      // This requires database schema changes and federation support
-      
-      console.warn('🚧 Adding users to conversations not yet fully implemented')
-      return false
+      // Add new participants to the conversation_participants table
+      const participantInserts = userIds.map(userId => ({
+        conversation_id: conversationId,
+        user_id: userId,
+        role: 'member',
+        joined_at: new Date().toISOString()
+      }))
+
+      const { error: insertError } = await supabase
+        .from('conversation_participants')
+        .insert(participantInserts)
+
+      if (insertError) {
+        console.error('❌ Failed to add participants:', insertError)
+        return false
+      }
+
+      // Update conversation type to 'group' if it was direct
+      const { data: conversation, error: fetchError } = await supabase
+        .from('conversations')
+        .select('type')
+        .eq('id', conversationId)
+        .single()
+
+      if (!fetchError && conversation?.type === 'direct') {
+        const { error: updateError } = await supabase
+          .from('conversations')
+          .update({ type: 'group' })
+          .eq('id', conversationId)
+
+        if (updateError) {
+          console.warn('⚠️ Failed to update conversation type:', updateError)
+          // Don't fail the operation for this
+        }
+      }
+
+      // Add a system message about the new participants
+      try {
+        const userProfiles = await Promise.all(
+          userIds.map(async (userId) => {
+            const { data } = await supabase
+              .from('profiles')
+              .select('username, display_name')
+              .eq('id', userId)
+              .single()
+            return data
+          })
+        )
+
+        const userNames = userProfiles
+          .filter(Boolean)
+          .map(profile => profile?.display_name || profile?.username)
+          .join(', ')
+
+        const systemMessageContent = [{
+          type: 'text',
+          text: `${userNames} ${userIds.length === 1 ? 'was' : 'were'} added to the conversation`
+        }]
+
+        await services.messages.sendDMMessage(
+          conversationId,
+          systemMessageContent
+        )
+      } catch (systemMessageError) {
+        console.warn('⚠️ Failed to send system message:', systemMessageError)
+        // Don't fail the operation for this
+      }
+
+      // Refresh the conversations to show updated participant count
+      await fetchUserConversations(currentUserId)
+
+      console.log('✅ Successfully added users to conversation')
+      return true
       
     } catch (error) {
       console.error('❌ Failed to add users to conversation:', error)

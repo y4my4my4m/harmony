@@ -45,7 +45,7 @@
     <GroupChatInviteModal
       :show="showAddUserModal"
       :conversation-id="currentConversation?.id"
-      :existing-participants="getExistingParticipants()"
+      :existing-participants="existingParticipants"
       @close="showAddUserModal = false"
       @users-added="handleUsersAdded"
     />
@@ -103,6 +103,36 @@ const toast = useToast()
 const chatMessages = computed(() => dmStore.currentDMMessages)
 const currentConversation = computed(() => dmStore.getCurrentConversation)
 
+const existingParticipants = computed(() => {
+  const conversation = currentConversation.value
+  const currentUser = getCurrentUser.value
+  
+  if (!conversation?.other_user || !currentUser) return []
+  
+  // For now, return basic participant data
+  // In the future, this could be enhanced to fetch from conversation_participants table
+  return [
+    {
+      id: currentUser.id,
+      username: currentUser.username || '',
+      display_name: currentUser.display_name,
+      avatar_url: currentUser.avatar_url,
+      is_local: true,
+      domain: null,
+      handle: `@${currentUser.username}`
+    },
+    {
+      id: conversation.other_user.id,
+      username: conversation.other_user.username,
+      display_name: conversation.other_user.display_name,
+      avatar_url: conversation.other_user.avatar_url,
+      is_local: conversation.other_user.is_local || false,
+      domain: conversation.other_user.domain,
+      handle: conversation.other_user.handle
+    }
+  ]
+})
+
 // Load messages when route changes
 const loadMessages = async () => {
   const conversationId = route.params.conversationId as string
@@ -148,40 +178,20 @@ const handleSendMessage = async (content: MessagePart[], replyTo?: string) => {
 }
 
 // Group chat methods
-const getExistingParticipants = () => {
-  // For now, return the other user and current user as participants
-  // In a full implementation, this would fetch all participants from the conversation
-  const conversation = currentConversation.value
-  const currentUser = getCurrentUser.value
-  
-  if (!conversation?.other_user || !currentUser) return []
-  
-  return [
-    {
-      id: currentUser.id,
-      username: currentUser.username || '',
-      display_name: currentUser.display_name,
-      avatar_url: currentUser.avatar_url,
-      is_local: true,
-      domain: null,
-      handle: `@${currentUser.username}`
-    },
-    {
-      id: conversation.other_user.id,
-      username: conversation.other_user.username,
-      display_name: conversation.other_user.display_name,
-      avatar_url: conversation.other_user.avatar_url,
-      is_local: conversation.other_user.is_local || false,
-      domain: conversation.other_user.domain,
-      handle: conversation.other_user.handle
-    }
-  ]
-}
 
-const handleUsersAdded = (conversationId: string, userIds: string[]) => {
-  toast.success(`Added ${userIds.length} user${userIds.length > 1 ? 's' : ''} to conversation`)
-  // TODO: Refresh conversation participants and messages
-  // For now, this is a placeholder for the functionality
+const handleUsersAdded = async (conversationId: string, userIds: string[]) => {
+  // Refresh conversation data to show new participants
+  const currentUser = getCurrentUser.value
+  if (currentUser?.id) {
+    try {
+      // Refresh conversation details to get updated participant info
+      await dmStore.fetchConversationDetails(conversationId, currentUser.id)
+      // Optionally reload messages to show the system message about added users
+      await dmStore.fetchConversationMessages(conversationId)
+    } catch (error) {
+      console.error('Failed to refresh conversation after adding users:', error)
+    }
+  }
 }
 
 // Watch for conversation changes

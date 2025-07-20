@@ -307,6 +307,21 @@ const clearSearch = () => {
   searchResults.value = []
 }
 
+const refreshSearchResults = () => {
+  // Re-filter the current dmStore.searchResults with updated selected users
+  if (dmStore.searchResults.length > 0) {
+    searchResults.value = dmStore.searchResults.filter(user => {
+      // Filter out current user
+      if (user.id === currentUserId.value) return false
+      // Filter out existing participants
+      if (props.existingParticipants?.some(p => p.id === user.id)) return false
+      // Filter out already selected users
+      if (selectedUsers.value.some(s => s.id === user.id)) return false
+      return true
+    })
+  }
+}
+
 const selectFirstResult = () => {
   if (searchResults.value.length > 0) {
     toggleUserSelection(searchResults.value[0])
@@ -321,8 +336,8 @@ const toggleUserSelection = (user: DMUser) => {
     selectedUsers.value.push(user)
   }
   
-  // Clear search after selection
-  clearSearch()
+  // Refresh search results to update filtering
+  refreshSearchResults()
 }
 
 const isUserSelected = (userId: string): boolean => {
@@ -333,11 +348,15 @@ const removeUserFromSelection = (userId: string) => {
   const index = selectedUsers.value.findIndex(u => u.id === userId)
   if (index > -1) {
     selectedUsers.value.splice(index, 1)
+    // Refresh search results to show the user again if we have a search active
+    refreshSearchResults()
   }
 }
 
 const clearAllSelections = () => {
   selectedUsers.value = []
+  // Refresh search results to show all users again
+  refreshSearchResults()
 }
 
 const formatUserHandle = (user: DMUser): string => {
@@ -414,23 +433,25 @@ const createGroupChat = async () => {
 }
 
 const addUsersToConversation = async () => {
-  if (!props.conversationId) return
+  if (!props.conversationId || !currentUserId.value) return
 
   try {
-    // TODO: Implement adding users to existing conversation
-    // This would involve:
-    // 1. Adding new participants to conversation_participants table
-    // 2. Updating conversation type if needed (direct -> group)
-    // 3. Sending federation messages for external users
-    // 4. Adding system message about new participants
+    const success = await dmStore.addUsersToConversation(
+      props.conversationId,
+      selectedUsers.value.map(u => u.id),
+      currentUserId.value
+    )
 
-    toast.info('Adding users to existing conversations requires additional implementation')
-    
-    // For now, emit the event so parent can handle it
-    emit('usersAdded', props.conversationId, selectedUsers.value.map(u => u.id))
-    emit('close')
+    if (success) {
+      emit('usersAdded', props.conversationId, selectedUsers.value.map(u => u.id))
+      emit('close')
+      toast.success(`Added ${selectedUsers.value.length} user${selectedUsers.value.length > 1 ? 's' : ''} to conversation`)
+    } else {
+      toast.error('Failed to add users to conversation')
+    }
   } catch (error) {
     console.error('Failed to add users to conversation:', error)
+    toast.error('Failed to add users to conversation')
     throw error
   }
 }
