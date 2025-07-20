@@ -250,15 +250,30 @@ export class MessageService {
       after?: string;
       signal?: AbortSignal;
     } = {}
-  ): Promise<Message[]> {
+  ): Promise<{
+    messages: Message[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }> {
     try {
       console.log(`🚀 Simplified: Loading channel messages for: ${channelId}`)
 
       // Delegate to core service (no federation needed for reads)
       const messages = await coreMessageService.loadChannelMessages(channelId, options)
 
+      // Transform core service response to match expected API
+      const { limit = 50 } = options
+      const hasMore = messages.length === limit
+      const nextCursor = hasMore ? messages[messages.length - 1]?.created_at : undefined
+      
+      const result = {
+        messages,
+        hasMore,
+        nextCursor
+      }
+
       console.log(`✅ Simplified: Loaded ${messages.length} channel messages`)
-      return messages
+      return result
 
     } catch (error) {
       console.error('❌ Simplified: Failed to load channel messages:', error)
@@ -278,15 +293,30 @@ export class MessageService {
       after?: string;
       signal?: AbortSignal;
     } = {}
-  ): Promise<Message[]> {
+  ): Promise<{
+    messages: Message[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }> {
     try {
       console.log(`🚀 Simplified: Loading conversation messages for: ${conversationId}`)
 
       // Delegate to core service (no federation needed for reads)
       const messages = await coreMessageService.loadConversationMessages(conversationId, options)
 
+      // Transform core service response to match expected API
+      const { limit = 50 } = options
+      const hasMore = messages.length === limit
+      const nextCursor = hasMore ? messages[messages.length - 1]?.created_at : undefined
+      
+      const result = {
+        messages,
+        hasMore,
+        nextCursor
+      }
+
       console.log(`✅ Simplified: Loaded ${messages.length} conversation messages`)
-      return messages
+      return result
 
     } catch (error) {
       console.error('❌ Simplified: Failed to load conversation messages:', error)
@@ -298,14 +328,19 @@ export class MessageService {
    * Load a single message (delegated to core service)
    * PRESERVES: Exact same API and return type
    */
-  async loadMessage(messageId: string): Promise<Message> {
+  async loadMessage(messageId: string): Promise<Message | null> {
     try {
       console.log(`🚀 Simplified: Loading message: ${messageId}`)
 
       // Delegate to core service (no federation needed for reads)
       const message = await coreMessageService.loadMessage(messageId)
 
-      console.log(`✅ Simplified: Message loaded successfully`)
+      if (message) {
+        console.log(`✅ Simplified: Message loaded successfully: ${messageId}`)
+      } else {
+        console.log(`ℹ️ Simplified: Message not found: ${messageId}`)
+      }
+
       return message
 
     } catch (error) {
