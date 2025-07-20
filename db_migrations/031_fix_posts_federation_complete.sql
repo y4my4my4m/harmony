@@ -211,14 +211,6 @@ BEGIN
     RAISE NOTICE '✅ Posts federation trigger restored';
 END $$;
 
--- Log completion
-INSERT INTO migration_log (version, description, applied_at) 
-VALUES (31, 'Complete posts federation fix - function queue population + trigger restoration', NOW())
-ON CONFLICT (version) DO UPDATE SET 
-    description = EXCLUDED.description,
-    applied_at = EXCLUDED.applied_at;
-
-COMMIT;
 
 -- Final status message
 DO $$
