@@ -227,3 +227,5 @@ BEGIN
     RAISE NOTICE '✅ Detailed logging added for debugging';
     RAISE NOTICE '🎯 Federation should work now with visible logs!';
 END $$;
+
+COMMIT;
