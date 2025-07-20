@@ -1,4 +1,4 @@
--- Migration 016: Fix conversation_participants INSERT RLS policy
+-- Migration 020: Fix conversation_participants INSERT RLS policy
 -- 
 -- ISSUE: Current RLS policy only allows users to insert their own participation records
 --        This prevents adding other users to conversations (group chat functionality)
@@ -38,7 +38,7 @@ CREATE POLICY "conversation_participants_insert_policy"
 
 DO $$
 BEGIN
-  RAISE NOTICE 'Migration 016 completed successfully!';
+  RAISE NOTICE 'Migration 020 completed successfully!';
   RAISE NOTICE 'Fixed:';
   RAISE NOTICE '  ✅ Users can now add other participants to conversations they are part of';
   RAISE NOTICE '  ✅ Group chat functionality is now enabled';
