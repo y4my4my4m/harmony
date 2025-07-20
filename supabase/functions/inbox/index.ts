@@ -59,14 +59,13 @@ serve(async (req: Request) => {
       .rpc('upsert_ap_activity', {
         p_ap_id: activity.id,
         p_ap_type: activity.type,
-        p_actor_id: null, // Will be resolved during processing
         p_actor_ap_id: activity.actor,
         p_activity_data: activity,
-        p_target_id: null,
-        p_target_type: null,
-        p_status: 'received',
-        p_requires_federation: false,
-        p_delivery_targets: null,
+        p_origin_domain: new URL(activity.actor).hostname,
+        p_to_addresses: activity.to || [],
+        p_cc_addresses: activity.cc || [],
+        p_bto_addresses: [],
+        p_bcc_addresses: [],
         p_is_local: false
       })
 

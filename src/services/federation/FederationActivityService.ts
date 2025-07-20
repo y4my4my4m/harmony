@@ -648,13 +648,20 @@ export class FederationActivityService {
   }
 
   private async getInstanceDomain(): Promise<string> {
-    const { data } = await supabase
-      .from('instance_config')
-      .select('config_value')
-      .eq('config_key', 'domain')
-      .single()
+    try {
+      const { data, error } = await supabase
+        .rpc('get_instance_domain')
 
-    return data?.config_value?.replace(/"/g, '') || 'localhost'
+      if (error) {
+        console.warn('Failed to get instance domain, using fallback:', error)
+        return 'localhost'
+      }
+
+      return data || 'localhost'
+    } catch (error) {
+      console.warn('Failed to get instance domain, using fallback:', error)
+      return 'localhost'
+    }
   }
 
   private getAudienceForVisibility(visibility: string): string[] {

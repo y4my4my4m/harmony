@@ -373,10 +373,7 @@ export class FederationDecisionService {
   private async checkInstanceFederationEnabled(): Promise<FederationDecision> {
     try {
       const { data, error } = await supabase
-        .from('instance_config')
-        .select('config_value')
-        .eq('config_key', 'federation_settings')
-        .single()
+        .rpc('get_public_federation_settings')
 
       if (error || !data) {
         // Default to enabled if no settings found (your smart default)
@@ -386,8 +383,7 @@ export class FederationDecisionService {
         }
       }
 
-      const federationSettings = data.config_value as any
-      const federationEnabled = federationSettings?.federation_enabled ?? true
+      const federationEnabled = data?.federation_enabled ?? true
 
       if (!federationEnabled) {
         return {
