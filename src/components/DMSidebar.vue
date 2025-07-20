@@ -116,18 +116,15 @@
           @click="selectConversation(conversation.id)"
         >
           <!-- Group Chat Avatar -->
-          <div v-if="conversation.type === 'group'" class="group-avatar">
-            <img 
-              v-if="conversation.icon_url" 
-              :src="conversation.icon_url" 
-              :alt="conversation.name || 'Group Chat'"
-              class="group-icon"
-            />
-            <div v-else class="default-group-icon">
-              <Icon name="users" />
-            </div>
-            <div class="participant-count">{{ conversation.participant_count || 0 }}</div>
-          </div>
+          <GroupIcon
+            v-if="conversation.type === 'group'"
+            :conversation-id="conversation.id"
+            :icon-path="conversation.icon_url"
+            size="sm"
+            :show-participant-count="true"
+            :participant-count="conversation.participant_count"
+            class="conversation-avatar"
+          />
 
           <!-- Direct Chat Avatar -->
           <Avatar
@@ -196,6 +193,7 @@ import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
 import type { Message, MessagePart } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
+import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 
 const emit = defineEmits<{
@@ -644,51 +642,7 @@ watch(sortedConversations, async (newConversations) => {
   flex-shrink: 0;
 }
 
-.group-avatar {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
-.group-icon {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: var(--radius-full);
-}
-
-.default-group-icon {
-  width: 100%;
-  height: 100%;
-  background: var(--harmony-primary);
-  border-radius: var(--radius-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 14px;
-}
-
-.participant-count {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  background: var(--accent-primary);
-  color: white;
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  min-width: 14px;
-  height: 14px;
-  border-radius: var(--radius-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--bg-primary);
-}
 
 .avatar-image {
   width: 100%;

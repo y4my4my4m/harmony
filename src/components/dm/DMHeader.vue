@@ -13,19 +13,13 @@
       
       <div class="conversation-info">
         <!-- Group Chat Avatar -->
-        <div v-if="conversation.type === 'group'" class="conversation-avatar group-conversation">
-          <div class="group-avatar-header">
-            <img 
-              v-if="conversation.icon_url" 
-              :src="conversation.icon_url" 
-              :alt="conversation.name || 'Group Chat'"
-              class="group-icon"
-            />
-            <div v-else class="default-group-icon">
-              <Icon name="users" />
-            </div>
-          </div>
-        </div>
+        <GroupIcon
+          v-if="conversation.type === 'group'"
+          :conversation-id="conversation.id"
+          :icon-path="conversation.icon_url"
+          size="md"
+          class="conversation-avatar"
+        />
 
         <!-- Direct Chat Avatar -->
         <div v-else class="conversation-avatar">
@@ -135,6 +129,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import GroupIcon from '@/components/common/GroupIcon.vue'
 import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
@@ -367,37 +362,7 @@ const getDefaultGroupName = (): string => {
   flex-shrink: 0;
 }
 
-.conversation-avatar.group-conversation {
-  width: 40px;
-  height: 40px;
-}
 
-.group-avatar-header {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.group-icon {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: var(--radius-full);
-}
-
-.default-group-icon {
-  width: 100%;
-  height: 100%;
-  background: var(--harmony-primary);
-  border-radius: var(--radius-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 18px;
-}
 
 .group-name {
   display: flex;
