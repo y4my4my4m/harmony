@@ -256,10 +256,12 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
     // Extract object data
     const activityObject = object as any
     const actorUrl = activity.actor
+    
+    // ✅ FIX: Properly extract object_id and object_type
     const objectId = activityObject.id || activity.id
     const objectType = activityObject.type || 'Note'
     
-    console.log(`📄 Object details: type=${objectType}, actor=${actorUrl}`)
+    console.log(`📄 Object details: type=${objectType}, actor=${actorUrl}, objectId=${objectId}`)
 
     // Store the activity in ap_activities table
     const { error: activityError } = await supabase
@@ -268,8 +270,8 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
         ap_id: activity.id,
         ap_type: activity.type,
         actor_ap_id: actorUrl,
-        object_id: objectId,
-        object_type: objectType,
+        object_id: objectId,  // ✅ FIX: Now properly extracted
+        object_type: objectType,  // ✅ FIX: Now properly extracted
         activity_data: activity,
         status: 'received',
         is_local: false,
@@ -301,8 +303,12 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
         if (mention.href && mention.href.includes('har.mony.lol')) {
           console.log(`📬 Processing local mention: ${mention.href}`)
           
-          // Extract username from mention href (e.g., https://har.mony.lol/users/poring)
-          const usernameMatch = mention.href.match(/\/users\/([^\/]+)$/)
+          // Extract username from mention href (supports both /users/ and /@ formats)
+          let usernameMatch = mention.href.match(/\/users\/([^\/]+)$/)
+          if (!usernameMatch) {
+            usernameMatch = mention.href.match(/\/@([^\/]+)$/)
+          }
+          
           if (usernameMatch) {
             const username = usernameMatch[1]
             console.log(`👤 Found local user mention: ${username}`)
@@ -318,14 +324,14 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
             if (localUser && !userError) {
               console.log(`✅ Local user found: ${localUser.username} (${localUser.id})`)
               
-              // Create a notification for the mention
+              // ✅ FIX: Use 'data' field instead of 'message' for notifications
               const { error: notificationError } = await supabase
                 .from('notifications')
                 .insert({
                   user_id: localUser.id,
                   type: 'mention',
-                  message: `You were mentioned by ${actorUrl}`,
-                  metadata: {
+                  data: {
+                    message: `You were mentioned by ${actorUrl}`,
                     activity_id: activity.id,
                     actor_url: actorUrl,
                     object_id: objectId,

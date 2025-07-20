@@ -23,7 +23,7 @@ LIMIT 1;
 
 -- 3. Check federation delivery queue for recent activities
 SELECT fdq.id, fdq.activity_id, fdq.target_domain, fdq.target_inbox_url, 
-       fdq.status, fdq.attempts, fdq.created_at, fdq.last_attempt_at,
+       fdq.status, fdq.attempts, fdq.created_at, fdq.next_attempt_at,
        fdq.actor_username, fdq.actor_domain
 FROM federation_delivery_queue fdq
 ORDER BY fdq.created_at DESC

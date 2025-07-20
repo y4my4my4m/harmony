@@ -1357,7 +1357,7 @@ export const useDMStore = defineStore('dm', () => {
     content.forEach(part => {
       if (part.type === 'mention' && part.username) {
         const domain = part.domain || instanceDomain
-        const url = part.url || `https://${domain}/@${part.username}`
+        const url = part.url || `https://${domain}/users/${part.username}`  // ✅ FIX: Use /users/ format
         const name = domain === instanceDomain ? `@${part.username}` : `@${part.username}@${domain}`
         
         if (!processedUrls.has(url)) {
