@@ -1514,11 +1514,13 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       // Get current user for conversation creation
-      const currentUserData = await authStore.getCurrentUser()
-      if (!currentUserData) {
+      const currentUserData = userDataService.getCurrentUser()
+      if (!currentUserData || !currentUserData.id) {
         console.error('❌ No current user found for conversation creation')
         return null
       }
+      
+      console.log('✅ Current user for conversation creation:', currentUserData.id)
 
       // Create the conversation
       const { data: conversation, error: createError } = await supabase
