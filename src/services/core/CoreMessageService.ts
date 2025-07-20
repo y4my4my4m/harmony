@@ -1,33 +1,25 @@
 /**
  * CoreMessageService - Pure database operations for messages
  * 
- * PERFORMANCE OPTIMIZED:
- * - ✅ Uses efficient auth helpers instead of supabase.auth.getUser()
- * - ✅ Minimal database queries 
+ * SIMPLIFIED DESIGN: Trust database RLS for security
+ * - ✅ Minimal auth checks (only for UI state)
+ * - ✅ Database RLS handles all security
  * - ✅ No federation logic (handled by database triggers)
- * - ✅ Clean error handling with typed errors
- * 
- * DESIGN PRINCIPLE: Trust database triggers for federation/notifications
+ * - ✅ Clean error handling
  */
 
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
-import { getCurrentUserProfileId, isAuthenticated } from '@/utils/authHelpers'
+import { isAuthenticated } from '@/utils/authHelpers'
 
 /**
- * CoreMessageService - Pure local message operations
+ * CoreMessageService - Pure database operations for messages
  * 
- * Contains ONLY local database operations with NO federation logic:
- * - Message CRUD operations (create, read, update, delete)
- * - Reaction management (local database only)
- * - Message loading and pagination
- * - Validation and error handling
- * 
- * NO FEDERATION CONCERNS:
- * - No ap_activities insertions
- * - No federation condition checks
- * - No ActivityPub protocol handling
- * - Pure local Supabase operations only
+ * SIMPLIFIED DESIGN: Trust database RLS for security
+ * - ✅ Minimal auth checks (only for UI state)
+ * - ✅ Database RLS handles all security
+ * - ✅ No federation logic (handled by database triggers)
+ * - ✅ Clean error handling
  */
 
 interface MessageServiceError {
@@ -49,11 +41,11 @@ export class CoreMessageService {
   private constructor() {}
 
   // =====================================================
-  // CHANNEL MESSAGES (PURE LOCAL)
+  // CHANNEL MESSAGES (TRUST DATABASE RLS)
   // =====================================================
 
   /**
-   * Send a channel message (pure local database operation)
+   * Send a channel message - Database RLS handles security
    */
   async sendChannelMessage(
     channelId: string,
@@ -61,30 +53,37 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
+      // Simple UI check - database RLS handles actual security
       if (!isAuthenticated()) {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      const profileId = await getCurrentUserProfileId()
-
-      const messageData = {
-        user_id: profileId,
-        channel_id: channelId,
-        content: content,
-        reply_to: replyTo || null,
-        metadata: { created_via: 'harmony_client' }
-      }
-
+      // Use database function to insert with proper user_id
       const { data: message, error } = await supabase
-        .from('messages')
-        .insert(messageData)
-        .select('*')
-        .single()
+        .rpc('create_channel_message', {
+          p_channel_id: channelId,
+          p_content: content,
+          p_reply_to: replyTo || null
+        })
 
       if (error) throw this.createError('INSERT_FAILED', error.message, error)
 
-      console.log('✅ Channel message sent successfully')
-      return message
+      // Get the full message with profile data
+      const { data: fullMessage, error: fetchError } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          profiles:user_id (
+            id, username, display_name, avatar_url, color, status, domain, is_local
+          )
+        `)
+        .eq('id', message)
+        .single()
+
+      if (fetchError) throw this.createError('FETCH_FAILED', fetchError.message, fetchError)
+
+      console.log('✅ Channel message sent - database triggers handle federation')
+      return fullMessage
     } catch (error) {
       console.error('❌ Core: Failed to send channel message:', error)
       throw error
@@ -92,7 +91,7 @@ export class CoreMessageService {
   }
 
   /**
-   * Load channel messages with pagination
+   * Load channel messages - Database RLS handles permissions
    */
   async loadChannelMessages(
     channelId: string,
@@ -127,6 +126,7 @@ export class CoreMessageService {
         query = query.gt('created_at', after)
       }
 
+      // Database RLS ensures user can only see messages they have permission to see
       const { data: messages, error } = await query
 
       if (error) throw this.createError('LOAD_FAILED', error.message, error)
@@ -140,12 +140,11 @@ export class CoreMessageService {
   }
 
   // =====================================================
-  // DM MESSAGES (PURE LOCAL)
+  // DM MESSAGES (TRUST DATABASE RLS)
   // =====================================================
 
   /**
-   * Send a DM message (pure local database operation)
-   * Note: Federation handling is done by database triggers
+   * Send a DM message - Database RLS handles security and triggers handle federation
    */
   async sendDMMessage(
     conversationId: string,
@@ -153,30 +152,37 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
+      // Simple UI check - database RLS handles actual security
       if (!isAuthenticated()) {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      const profileId = await getCurrentUserProfileId()
-
-      const messageData = {
-        user_id: profileId,
-        conversation_id: conversationId,
-        content: content,
-        reply_to: replyTo || null,
-        metadata: { created_via: 'harmony_client' }
-      }
-
-      const { data: message, error } = await supabase
-        .from('messages')
-        .insert(messageData)
-        .select('*')
-        .single()
+      // Use database function to insert with proper user_id
+      const { data: messageId, error } = await supabase
+        .rpc('create_dm_message', {
+          p_conversation_id: conversationId,
+          p_content: content,
+          p_reply_to: replyTo || null
+        })
 
       if (error) throw this.createError('INSERT_FAILED', error.message, error)
 
-      console.log('✅ DM message sent successfully - database triggers handle federation')
-      return message
+      // Get the full message with profile data
+      const { data: fullMessage, error: fetchError } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          profiles:user_id (
+            id, username, display_name, avatar_url, color, status, domain, federated_id, is_local
+          )
+        `)
+        .eq('id', messageId)
+        .single()
+
+      if (fetchError) throw this.createError('FETCH_FAILED', fetchError.message, fetchError)
+
+      console.log('✅ DM message sent - database triggers handle federation')
+      return fullMessage
     } catch (error) {
       console.error('❌ Core: Failed to send DM message:', error)
       throw error
@@ -184,7 +190,7 @@ export class CoreMessageService {
   }
 
   /**
-   * Load conversation messages with pagination  
+   * Load conversation messages - Database RLS handles permissions
    */
   async loadConversationMessages(
     conversationId: string,
@@ -219,6 +225,7 @@ export class CoreMessageService {
         query = query.gt('created_at', after)
       }
 
+      // Database RLS ensures user can only see conversations they're part of
       const { data: messages, error } = await query
 
       if (error) throw this.createError('LOAD_FAILED', error.message, error)
@@ -232,11 +239,11 @@ export class CoreMessageService {
   }
 
   // =====================================================
-  // MESSAGE MANAGEMENT (PURE LOCAL)
+  // MESSAGE MANAGEMENT (TRUST DATABASE RLS)
   // =====================================================
 
   /**
-   * Delete a message
+   * Delete a message - Database RLS ensures ownership
    */
   async deleteMessage(messageId: string): Promise<void> {
     try {
@@ -244,21 +251,7 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      const profileId = await getCurrentUserProfileId()
-
-      // Verify ownership
-      const { data: message, error: fetchError } = await supabase
-        .from('messages')
-        .select('user_id')
-        .eq('id', messageId)
-        .single()
-
-      if (fetchError) throw this.createError('MESSAGE_NOT_FOUND', fetchError.message, fetchError)
-
-      if (message.user_id !== profileId) {
-        throw this.createError('UNAUTHORIZED', 'Cannot delete message from another user')
-      }
-
+      // Database RLS will ensure user can only delete their own messages
       const { error } = await supabase
         .from('messages')
         .delete()
@@ -274,7 +267,7 @@ export class CoreMessageService {
   }
 
   /**
-   * Edit a message
+   * Edit a message - Database RLS ensures ownership
    */
   async editMessage(messageId: string, content: MessagePart[]): Promise<Message> {
     try {
@@ -282,21 +275,7 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      const profileId = await getCurrentUserProfileId()
-
-      // Verify ownership
-      const { data: message, error: fetchError } = await supabase
-        .from('messages')
-        .select('user_id')
-        .eq('id', messageId)
-        .single()
-
-      if (fetchError) throw this.createError('MESSAGE_NOT_FOUND', fetchError.message, fetchError)
-
-      if (message.user_id !== profileId) {
-        throw this.createError('UNAUTHORIZED', 'Cannot edit message from another user')
-      }
-
+      // Database RLS will ensure user can only edit their own messages
       const { data: updatedMessage, error } = await supabase
         .from('messages')
         .update({ 
@@ -318,10 +297,11 @@ export class CoreMessageService {
   }
 
   /**
-   * Get a single message by ID
+   * Get a single message by ID - Database RLS handles permissions
    */
   async getMessage(messageId: string): Promise<Message> {
     try {
+      // Database RLS will ensure user can only see messages they have permission to see
       const { data: message, error } = await supabase
         .from('messages')
         .select(`
@@ -343,11 +323,11 @@ export class CoreMessageService {
   }
 
   // =====================================================
-  // SEARCH AND FILTERING (PURE LOCAL)
+  // SEARCH AND FILTERING (TRUST DATABASE RLS)
   // =====================================================
 
   /**
-   * Search messages in a channel
+   * Search messages in a channel - Database RLS handles permissions
    */
   async searchChannelMessages(
     channelId: string,
@@ -360,6 +340,7 @@ export class CoreMessageService {
     try {
       const { limit = 20, offset = 0 } = options
 
+      // Database RLS will ensure user can only search messages they have permission to see
       const { data: messages, error } = await supabase
         .from('messages')
         .select(`
@@ -384,7 +365,7 @@ export class CoreMessageService {
   }
 
   // =====================================================
-  // HELPER METHODS (OPTIMIZED)
+  // HELPER METHODS
   // =====================================================
 
   private createError(code: string, message: string, details?: any): MessageServiceError {
