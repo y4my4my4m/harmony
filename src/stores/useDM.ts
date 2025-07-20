@@ -1522,41 +1522,20 @@ export const useDMStore = defineStore('dm', () => {
       
       console.log('✅ Current user for conversation creation:', currentUserData.id)
 
-      // Create the conversation
-      const { data: conversation, error: createError } = await supabase
-        .from('conversations')
-        .insert({
-          type: 'group',
-          name: options.name,
-          created_by: currentUserData.id,
-          is_active: true,
-          metadata: {
-            is_private: options.isPrivate ?? true
-          }
-        })
-        .select('id')
-        .single()
+      // Create the conversation using database function (bypasses RLS)
+      const { data: conversationId, error: createError } = await supabase.rpc('create_group_conversation', {
+        creator_user_id: currentUserData.id,
+        participant_user_ids: options.participantIds,
+        conversation_name: options.name || null,
+        is_private: options.isPrivate ?? true
+      })
 
-      if (createError || !conversation) {
+      if (createError || !conversationId) {
         console.error('❌ Failed to create conversation:', createError)
         return null
       }
 
-      console.log('✅ Created conversation:', conversation.id)
-
-      // Add all participants using the database function
-      for (const userId of options.participantIds) {
-        const { error: addError } = await supabase.rpc('add_user_to_conversation', {
-          conversation_uuid: conversation.id,
-          user_uuid: userId,
-          user_role: 'member'
-        })
-
-        if (addError) {
-          console.error('❌ Failed to add participant:', addError)
-          // Continue with other participants rather than failing completely
-        }
-      }
+      console.log('✅ Created conversation:', conversationId)
 
       // Add a system message about conversation creation
       try {
@@ -1566,7 +1545,7 @@ export const useDMStore = defineStore('dm', () => {
         }]
 
         await services.messages.sendDMMessage(
-          conversation.id,
+          conversationId,
           systemMessageContent
         )
       } catch (systemMessageError) {
@@ -1578,7 +1557,7 @@ export const useDMStore = defineStore('dm', () => {
       await fetchUserConversations(currentUserData.id)
 
       console.log('✅ Successfully created group conversation')
-      return conversation.id
+      return conversationId
       
     } catch (error) {
       console.error('❌ Failed to create group conversation:', error)
