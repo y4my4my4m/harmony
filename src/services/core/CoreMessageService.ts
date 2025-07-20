@@ -1,25 +1,22 @@
 /**
  * CoreMessageService - Pure database operations for messages
  * 
- * SIMPLIFIED DESIGN: Trust database RLS for security
- * - ✅ Minimal auth checks (only for UI state)
- * - ✅ Database RLS handles all security
- * - ✅ No federation logic (handled by database triggers)
- * - ✅ Clean error handling
+ * SIMPLIFIED: Trust database RLS completely
+ * - ✅ No auth checks (RLS handles security)
+ * - ✅ No federation logic (database triggers handle it)
+ * - ✅ Clean and simple
  */
 
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
-import { isAuthenticated } from '@/utils/authHelpers'
 
 /**
  * CoreMessageService - Pure database operations for messages
  * 
- * SIMPLIFIED DESIGN: Trust database RLS for security
- * - ✅ Minimal auth checks (only for UI state)
- * - ✅ Database RLS handles all security
- * - ✅ No federation logic (handled by database triggers)
- * - ✅ Clean error handling
+ * SIMPLIFIED: Trust database RLS completely
+ * - ✅ No auth checks (RLS handles security)
+ * - ✅ No federation logic (database triggers handle it)
+ * - ✅ Clean and simple
  */
 
 interface MessageServiceError {
@@ -45,7 +42,7 @@ export class CoreMessageService {
   // =====================================================
 
   /**
-   * Send a channel message - Database RLS handles security
+   * Send a channel message - Database RLS handles everything
    */
   async sendChannelMessage(
     channelId: string,
@@ -53,39 +50,27 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
-      // Simple UI check - database RLS handles actual security
-      if (!isAuthenticated()) {
-        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      const messageData = {
+        channel_id: channelId,
+        content: content,
+        reply_to: replyTo || null,
+        metadata: { created_via: 'harmony_client' }
       }
 
-      // Use database function to insert with proper user_id
+      // Database RLS will set user_id and handle all security
+      // Database triggers will handle federation automatically
       const { data: message, error } = await supabase
-        .rpc('create_channel_message', {
-          p_channel_id: channelId,
-          p_content: content,
-          p_reply_to: replyTo || null
-        })
+        .from('messages')
+        .insert(messageData)
+        .select('*')
+        .single()
 
       if (error) throw this.createError('INSERT_FAILED', error.message, error)
 
-      // Get the full message with profile data
-      const { data: fullMessage, error: fetchError } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          profiles:user_id (
-            id, username, display_name, avatar_url, color, status, domain, is_local
-          )
-        `)
-        .eq('id', message)
-        .single()
-
-      if (fetchError) throw this.createError('FETCH_FAILED', fetchError.message, fetchError)
-
-      console.log('✅ Channel message sent - database triggers handle federation')
-      return fullMessage
+      console.log('✅ Channel message sent - triggers handle federation')
+      return message
     } catch (error) {
-      console.error('❌ Core: Failed to send channel message:', error)
+      console.error('❌ Failed to send channel message:', error)
       throw error
     }
   }
@@ -126,15 +111,14 @@ export class CoreMessageService {
         query = query.gt('created_at', after)
       }
 
-      // Database RLS ensures user can only see messages they have permission to see
       const { data: messages, error } = await query
 
       if (error) throw this.createError('LOAD_FAILED', error.message, error)
 
-      console.log(`✅ Core: Loaded ${messages?.length || 0} channel messages`)
+      console.log(`✅ Loaded ${messages?.length || 0} channel messages`)
       return messages || []
     } catch (error) {
-      console.error('❌ Core: Failed to load channel messages:', error)
+      console.error('❌ Failed to load channel messages:', error)
       throw error
     }
   }
@@ -144,7 +128,7 @@ export class CoreMessageService {
   // =====================================================
 
   /**
-   * Send a DM message - Database RLS handles security and triggers handle federation
+   * Send a DM message - Database RLS handles everything
    */
   async sendDMMessage(
     conversationId: string,
@@ -152,39 +136,27 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
-      // Simple UI check - database RLS handles actual security
-      if (!isAuthenticated()) {
-        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      const messageData = {
+        conversation_id: conversationId,
+        content: content,
+        reply_to: replyTo || null,
+        metadata: { created_via: 'harmony_client' }
       }
 
-      // Use database function to insert with proper user_id
-      const { data: messageId, error } = await supabase
-        .rpc('create_dm_message', {
-          p_conversation_id: conversationId,
-          p_content: content,
-          p_reply_to: replyTo || null
-        })
+      // Database RLS will set user_id and handle all security
+      // Database triggers will handle federation automatically
+      const { data: message, error } = await supabase
+        .from('messages')
+        .insert(messageData)
+        .select('*')
+        .single()
 
       if (error) throw this.createError('INSERT_FAILED', error.message, error)
 
-      // Get the full message with profile data
-      const { data: fullMessage, error: fetchError } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          profiles:user_id (
-            id, username, display_name, avatar_url, color, status, domain, federated_id, is_local
-          )
-        `)
-        .eq('id', messageId)
-        .single()
-
-      if (fetchError) throw this.createError('FETCH_FAILED', fetchError.message, fetchError)
-
-      console.log('✅ DM message sent - database triggers handle federation')
-      return fullMessage
+      console.log('✅ DM message sent - triggers handle federation')
+      return message
     } catch (error) {
-      console.error('❌ Core: Failed to send DM message:', error)
+      console.error('❌ Failed to send DM message:', error)
       throw error
     }
   }
@@ -225,15 +197,14 @@ export class CoreMessageService {
         query = query.gt('created_at', after)
       }
 
-      // Database RLS ensures user can only see conversations they're part of
       const { data: messages, error } = await query
 
       if (error) throw this.createError('LOAD_FAILED', error.message, error)
 
-      console.log(`✅ Core: Loaded ${messages?.length || 0} conversation messages`)
+      console.log(`✅ Loaded ${messages?.length || 0} conversation messages`)
       return messages || []
     } catch (error) {
-      console.error('❌ Core: Failed to load conversation messages:', error)
+      console.error('❌ Failed to load conversation messages:', error)
       throw error
     }
   }
@@ -247,11 +218,6 @@ export class CoreMessageService {
    */
   async deleteMessage(messageId: string): Promise<void> {
     try {
-      if (!isAuthenticated()) {
-        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-      }
-
-      // Database RLS will ensure user can only delete their own messages
       const { error } = await supabase
         .from('messages')
         .delete()
@@ -259,9 +225,9 @@ export class CoreMessageService {
 
       if (error) throw this.createError('DELETE_FAILED', error.message, error)
 
-      console.log('✅ Core: Message deleted successfully')
+      console.log('✅ Message deleted successfully')
     } catch (error) {
-      console.error('❌ Core: Failed to delete message:', error)
+      console.error('❌ Failed to delete message:', error)
       throw error
     }
   }
@@ -271,11 +237,6 @@ export class CoreMessageService {
    */
   async editMessage(messageId: string, content: MessagePart[]): Promise<Message> {
     try {
-      if (!isAuthenticated()) {
-        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-      }
-
-      // Database RLS will ensure user can only edit their own messages
       const { data: updatedMessage, error } = await supabase
         .from('messages')
         .update({ 
@@ -288,10 +249,10 @@ export class CoreMessageService {
 
       if (error) throw this.createError('UPDATE_FAILED', error.message, error)
 
-      console.log('✅ Core: Message edited successfully')
+      console.log('✅ Message edited successfully')
       return updatedMessage
     } catch (error) {
-      console.error('❌ Core: Failed to edit message:', error)
+      console.error('❌ Failed to edit message:', error)
       throw error
     }
   }
@@ -301,7 +262,6 @@ export class CoreMessageService {
    */
   async getMessage(messageId: string): Promise<Message> {
     try {
-      // Database RLS will ensure user can only see messages they have permission to see
       const { data: message, error } = await supabase
         .from('messages')
         .select(`
@@ -317,14 +277,10 @@ export class CoreMessageService {
 
       return message
     } catch (error) {
-      console.error('❌ Core: Failed to get message:', error)
+      console.error('❌ Failed to get message:', error)
       throw error
     }
   }
-
-  // =====================================================
-  // SEARCH AND FILTERING (TRUST DATABASE RLS)
-  // =====================================================
 
   /**
    * Search messages in a channel - Database RLS handles permissions
@@ -340,7 +296,6 @@ export class CoreMessageService {
     try {
       const { limit = 20, offset = 0 } = options
 
-      // Database RLS will ensure user can only search messages they have permission to see
       const { data: messages, error } = await supabase
         .from('messages')
         .select(`
@@ -356,10 +311,10 @@ export class CoreMessageService {
 
       if (error) throw this.createError('SEARCH_FAILED', error.message, error)
 
-      console.log(`✅ Core: Found ${messages?.length || 0} messages matching search`)
+      console.log(`✅ Found ${messages?.length || 0} messages matching search`)
       return messages || []
     } catch (error) {
-      console.error('❌ Core: Failed to search messages:', error)
+      console.error('❌ Failed to search messages:', error)
       throw error
     }
   }
