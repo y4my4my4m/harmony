@@ -38,8 +38,14 @@ export interface CreatePostData {
 export interface UpdatePostData {
   content?: MessagePart[]
   content_warning?: string
-  visibility?: 'public' | 'unlisted' | 'followers' | 'direct'
   is_sensitive?: boolean
+  media_attachments?: any[]
+}
+
+export interface PostServiceError {
+  code: string
+  message: string
+  details?: any
 }
 
 export class PostService {
@@ -194,13 +200,9 @@ export class PostService {
         console.log(`📤 Orchestration: Post like eligible for federation: ${decision.reason}`)
         
         // 4. Federation operation: Create Like/Undo activity
-        const activityResult = await federationActivityService.createPostLikeActivity(postId, profileId, result.liked ? 'like' : 'unlike')
-        
-        if (activityResult.success) {
-          console.log(`✅ Orchestration: Like federation activity created: ${activityResult.activityId}`)
-        } else {
-          console.warn(`⚠️ Orchestration: Like federation failed (like still applied locally): ${activityResult.error}`)
-        }
+        // Note: We'll need to enhance FederationActivityService to handle likes
+        // For now, we'll use the post activity pattern
+        console.log(`ℹ️ Orchestration: Like federation not yet implemented (like still applied locally)`)
       } else {
         console.log(`ℹ️ Orchestration: Post like federation skipped: ${decision.reason}`)
       }
@@ -229,8 +231,6 @@ export class PostService {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
-      const profileId = await this.getCurrentUserProfileId()
-
       // 3. Federation decision: Should this share federate?
       const decision = await federationDecisionService.shouldFederatePost(postId, 'create')
       
@@ -238,13 +238,8 @@ export class PostService {
         console.log(`📤 Orchestration: Post share eligible for federation: ${decision.reason}`)
         
         // 4. Federation operation: Create Announce/Undo activity
-        const activityResult = await federationActivityService.createPostShareActivity(postId, profileId, result.shared ? 'share' : 'unshare')
-        
-        if (activityResult.success) {
-          console.log(`✅ Orchestration: Share federation activity created: ${activityResult.activityId}`)
-        } else {
-          console.warn(`⚠️ Orchestration: Share federation failed (share still applied locally): ${activityResult.error}`)
-        }
+        // Note: We'll need to enhance FederationActivityService to handle shares
+        console.log(`ℹ️ Orchestration: Share federation not yet implemented (share still applied locally)`)
       } else {
         console.log(`ℹ️ Orchestration: Post share federation skipped: ${decision.reason}`)
       }
@@ -441,13 +436,9 @@ export class PostService {
     }
   }
 
-  private createError(code: string, message: string, details?: any): Error {
-    const error = new Error(message)
-    error.name = code
-    if (details) {
-      (error as any).details = details
-    }
-    return error
+  private createError(code: string, message: string, details?: any): PostServiceError {
+    const secureDetails = process.env.NODE_ENV === 'development' ? details : undefined
+    return { code, message, details: secureDetails }
   }
 }
 

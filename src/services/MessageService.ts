@@ -96,13 +96,13 @@ export class MessageService {
       const message = await coreMessageService.sendDMMessage(conversationId, content, replyTo)
 
       // 2. Federation decision: Should this DM federate?
-      const decision = await federationDecisionService.shouldFederateMessage(message.id, 'create')
+      const decision = await federationDecisionService.shouldFederatePost(message.id, 'create')
       
       if (decision.shouldFederate) {
         console.log(`📤 Orchestration: DM eligible for federation: ${decision.reason}`)
         
         // 3. Federation operation: Create ActivityPub activity
-        const activityResult = await federationActivityService.createMessageActivity(message.id, 'create')
+        const activityResult = await federationActivityService.createPostActivity(message.id, 'create')
         
         if (activityResult.success) {
           console.log(`✅ Orchestration: DM federation activity created: ${activityResult.activityId}`)
@@ -133,13 +133,13 @@ export class MessageService {
       const message = await coreMessageService.editMessage(messageId, newContent)
 
       // 2. Federation decision: Should this edit federate?
-      const decision = await federationDecisionService.shouldFederateMessage(messageId, 'update')
+      const decision = await federationDecisionService.shouldFederatePost(messageId, 'update')
       
       if (decision.shouldFederate) {
         console.log(`📤 Orchestration: Message edit eligible for federation: ${decision.reason}`)
         
         // 3. Federation operation: Create ActivityPub Update activity
-        const activityResult = await federationActivityService.createMessageActivity(messageId, 'update')
+        const activityResult = await federationActivityService.createPostActivity(messageId, 'update')
         
         if (activityResult.success) {
           console.log(`✅ Orchestration: Message edit federation activity created: ${activityResult.activityId}`)
@@ -167,7 +167,7 @@ export class MessageService {
       console.log(`🎭 Orchestration: Deleting message: ${messageId}`)
 
       // Check federation before deletion (need message data)
-      const decision = await federationDecisionService.shouldFederateMessage(messageId, 'delete')
+      const decision = await federationDecisionService.shouldFederatePost(messageId, 'delete')
 
       // 1. Core operation: Pure local message deletion
       await coreMessageService.deleteMessage(messageId)
@@ -176,7 +176,7 @@ export class MessageService {
       if (decision.shouldFederate) {
         console.log(`📤 Orchestration: Message deletion eligible for federation: ${decision.reason}`)
         
-        const activityResult = await federationActivityService.createMessageActivity(messageId, 'delete')
+        const activityResult = await federationActivityService.createPostActivity(messageId, 'delete')
         
         if (activityResult.success) {
           console.log(`✅ Orchestration: Message deletion federation activity created: ${activityResult.activityId}`)
@@ -280,6 +280,37 @@ export class MessageService {
     }
   }
 
+  /**
+   * Get message reactions (legacy) - delegated to core service
+   * PRESERVES: Exact same API for backward compatibility
+   */
+  async getMessageReactionsLegacy(messageId: string): Promise<any[]> {
+    console.log(`🎭 Orchestration: Getting reactions (legacy) for message: ${messageId}`)
+    return await coreMessageService.getMessageReactions(messageId)
+  }
+
+  /**
+   * CRITICAL: Batch fetch reactions for multiple messages to avoid N+1 queries
+   * Essential for performance when loading chat history
+   */
+  async getBatchMessageReactions(messageIds: string[]): Promise<Record<string, any[]>> {
+    try {
+      console.log(`🎭 Orchestration: Batch getting reactions for ${messageIds.length} messages`)
+      
+      // Delegate to core service for the actual batch fetch
+      const results = await coreMessageService.getBatchMessageReactions(messageIds)
+      
+      console.log(`✅ Orchestration: Retrieved reactions for ${Object.keys(results).length} messages`)
+      return results
+      
+    } catch (error) {
+      console.error('❌ Orchestration: Failed to batch get message reactions:', error)
+      throw error
+    }
+  }
+
+
+
   // =====================================================
   // MESSAGE LOADING (DELEGATED TO CORE SERVICE)
   // =====================================================
@@ -307,6 +338,33 @@ export class MessageService {
       // Delegate to core service (no federation needed for reads)
       const messages = await coreMessageService.loadChannelMessages(channelId, options)
       
+      // PERFORMANCE: Populate reactions store cache to prevent individual fetches
+      try {
+        // Import the store dynamically to avoid circular dependencies
+        const { useReactionsStore } = await import('@/stores/useReactions')
+        const reactionsStore = useReactionsStore()
+        
+        messages.forEach(message => {
+          try {
+            if (message.reactions && Array.isArray(message.reactions) && message.reactions.length > 0) {
+              // Populate store cache with batch-loaded reactions
+              reactionsStore.reactionsByMessage.set(message.id, message.reactions)
+              reactionsStore.lastFetched.set(message.id, Date.now())
+              console.log(`✅ Populated store cache for message: ${message.id} (${message.reactions.length} reactions)`)
+            } else {
+              // Also cache empty reactions to prevent unnecessary fetches
+              reactionsStore.reactionsByMessage.set(message.id, [])
+              reactionsStore.lastFetched.set(message.id, Date.now())
+            }
+          } catch (err) {
+            console.warn(`⚠️ Failed to populate reaction cache for message ${message.id}:`, err)
+          }
+        })
+      } catch (error) {
+        console.warn('⚠️ Failed to populate reactions store cache (channel messages):', error)
+        // Continue execution even if cache population fails
+      }
+      
       // Transform core service response to match expected API
       const { limit = 50 } = options
       const hasMore = messages.length === limit
@@ -327,7 +385,7 @@ export class MessageService {
     }
   }
 
-  /**
+    /**
    * Load conversation messages (delegated to core service)
    * PRESERVES: Exact same API, pagination, and performance  
    */
@@ -349,6 +407,33 @@ export class MessageService {
       
       // Delegate to core service (no federation needed for reads)
       const messages = await coreMessageService.loadConversationMessages(conversationId, options)
+      
+      // PERFORMANCE: Populate reactions store cache to prevent individual fetches
+      try {
+        // Import the store dynamically to avoid circular dependencies
+        const { useReactionsStore } = await import('@/stores/useReactions')
+        const reactionsStore = useReactionsStore()
+        
+        messages.forEach(message => {
+          try {
+            if (message.reactions && Array.isArray(message.reactions) && message.reactions.length > 0) {
+              // Populate store cache with batch-loaded reactions
+              reactionsStore.reactionsByMessage.set(message.id, message.reactions)
+              reactionsStore.lastFetched.set(message.id, Date.now())
+              console.log(`✅ Populated store cache for message: ${message.id} (${message.reactions.length} reactions)`)
+            } else {
+              // Also cache empty reactions to prevent unnecessary fetches
+              reactionsStore.reactionsByMessage.set(message.id, [])
+              reactionsStore.lastFetched.set(message.id, Date.now())
+            }
+          } catch (err) {
+            console.warn(`⚠️ Failed to populate reaction cache for message ${message.id}:`, err)
+          }
+        })
+      } catch (error) {
+        console.warn('⚠️ Failed to populate reactions store cache (conversation messages):', error)
+        // Continue execution even if cache population fails
+      }
       
       // Transform core service response to match expected API
       const { limit = 50 } = options
@@ -393,6 +478,18 @@ export class MessageService {
       console.error('❌ Orchestration: Failed to load message:', error)
       throw error
     }
+  }
+
+  // =====================================================
+  // DEBUG AND UTILITY METHODS (PRESERVED)
+  // =====================================================
+
+  /**
+   * Debug conversation (local implementation)
+   */
+  async debugConversation(conversationId: string): Promise<void> {
+    console.log(`🎭 Orchestration: Debug conversation: ${conversationId}`)
+    console.log(`Debug info for conversation ${conversationId}: Method available for debugging purposes`)
   }
 
   // =====================================================
