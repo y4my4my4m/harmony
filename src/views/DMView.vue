@@ -8,6 +8,7 @@
         :is-mobile="isMobile"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-voice-panel="$emit('toggleVoicePanel')"
+        @add-user="showAddUserModal = true"
       />
       <div v-else class="dm-placeholder-header">
         <div class="header-content">
@@ -39,14 +40,25 @@
         @send-message="handleSendMessage"
       />
     </div>
+
+    <!-- Group Chat Invite Modal for Adding Users -->
+    <GroupChatInviteModal
+      :show="showAddUserModal"
+      :conversation-id="currentConversation?.id"
+      :existing-participants="getExistingParticipants()"
+      @close="showAddUserModal = false"
+      @users-added="handleUsersAdded"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import DMHeader from '@/components/dm/DMHeader.vue'
+import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import { useLayoutState } from '@/composables/useLayoutState'
@@ -82,6 +94,10 @@ const { isMobile } = useLayoutState()
 // State
 const isLoading = ref(false)
 const isAtBottom = ref(true)
+const showAddUserModal = ref(false)
+
+// Toast
+const toast = useToast()
 
 // Computed
 const chatMessages = computed(() => dmStore.currentDMMessages)
@@ -129,6 +145,43 @@ const handleSendMessage = async (content: MessagePart[], replyTo?: string) => {
       emit('sendMessage', { content, replyTo })
     }
   }
+}
+
+// Group chat methods
+const getExistingParticipants = () => {
+  // For now, return the other user and current user as participants
+  // In a full implementation, this would fetch all participants from the conversation
+  const conversation = currentConversation.value
+  const currentUser = getCurrentUser.value
+  
+  if (!conversation?.other_user || !currentUser) return []
+  
+  return [
+    {
+      id: currentUser.id,
+      username: currentUser.username || '',
+      display_name: currentUser.display_name,
+      avatar_url: currentUser.avatar_url,
+      is_local: true,
+      domain: null,
+      handle: `@${currentUser.username}`
+    },
+    {
+      id: conversation.other_user.id,
+      username: conversation.other_user.username,
+      display_name: conversation.other_user.display_name,
+      avatar_url: conversation.other_user.avatar_url,
+      is_local: conversation.other_user.is_local || false,
+      domain: conversation.other_user.domain,
+      handle: conversation.other_user.handle
+    }
+  ]
+}
+
+const handleUsersAdded = (conversationId: string, userIds: string[]) => {
+  toast.success(`Added ${userIds.length} user${userIds.length > 1 ? 's' : ''} to conversation`)
+  // TODO: Refresh conversation participants and messages
+  // For now, this is a placeholder for the functionality
 }
 
 // Watch for conversation changes

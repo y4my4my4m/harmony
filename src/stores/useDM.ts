@@ -1491,6 +1491,148 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  // =================================================================
+  // GROUP CHAT FUNCTIONALITY
+  // =================================================================
+
+  /**
+   * Create a group conversation with multiple participants
+   */
+  const createGroupConversation = async (options: {
+    participants: string[] // User IDs
+    name?: string
+    isPrivate?: boolean
+    currentUserId: string
+  }): Promise<string | null> => {
+    try {
+      console.log('🔄 Creating group conversation:', options)
+      
+      // For now, this is a placeholder implementation
+      // In a full implementation, you would:
+      // 1. Create a conversation with type 'group'
+      // 2. Add all participants to conversation_participants table
+      // 3. Handle ActivityPub federation for external users
+      // 4. Send system message about conversation creation
+      
+      // TODO: Implement actual group conversation creation
+      // This requires database schema changes and federation support
+      
+      console.warn('🚧 Group conversation creation not yet fully implemented')
+      return null
+      
+    } catch (error) {
+      console.error('❌ Failed to create group conversation:', error)
+      return null
+    }
+  }
+
+  /**
+   * Add users to an existing conversation (convert 1:1 to group or add to group)
+   */
+  const addUsersToConversation = async (
+    conversationId: string,
+    userIds: string[],
+    currentUserId: string
+  ): Promise<boolean> => {
+    try {
+      console.log('🔄 Adding users to conversation:', { conversationId, userIds })
+      
+      // For now, this is a placeholder implementation
+      // In a full implementation, you would:
+      // 1. Check if current user has permission to add users
+      // 2. Update conversation type if needed (direct -> group)
+      // 3. Add new participants to conversation_participants table
+      // 4. Send federation messages for external users
+      // 5. Add system message about new participants
+      // 6. Update conversation metadata (name, participant count)
+      
+      // TODO: Implement actual user addition to conversations
+      // This requires database schema changes and federation support
+      
+      console.warn('🚧 Adding users to conversations not yet fully implemented')
+      return false
+      
+    } catch (error) {
+      console.error('❌ Failed to add users to conversation:', error)
+      return false
+    }
+  }
+
+  /**
+   * Get all participants of a conversation
+   */
+  const getConversationParticipants = async (conversationId: string): Promise<DMUser[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('conversation_participants')
+        .select(`
+          user_id,
+          role,
+          joined_at,
+          profiles!conversation_participants_user_id_fkey (
+            id, username, display_name, avatar_url, domain, is_local, federated_id
+          )
+        `)
+        .eq('conversation_id', conversationId)
+        .is('left_at', null)
+
+      if (error) throw error
+
+      return (data || []).map((participant: any) => {
+        const profile = participant.profiles
+        return {
+          id: profile.id,
+          username: profile.username,
+          display_name: profile.display_name,
+          avatar_url: profile.avatar_url,
+          domain: profile.domain,
+          is_local: profile.is_local,
+          federated_id: profile.federated_id,
+          handle: profile.is_local ? `@${profile.username}` : `@${profile.username}@${profile.domain}`
+        }
+      })
+    } catch (error) {
+      console.error('❌ Failed to get conversation participants:', error)
+      return []
+    }
+  }
+
+  /**
+   * Enhanced ActivityPub federation for group DMs
+   * Handles private mentions to multiple recipients
+   */
+  const federateGroupDMMessage = async (
+    message: any,
+    participants: DMUser[]
+  ): Promise<boolean> => {
+    try {
+      console.log('🌐 Federating group DM message to participants:', participants.length)
+      
+      // Filter for external (federated) participants
+      const externalParticipants = participants.filter(p => !p.is_local)
+      
+      if (externalParticipants.length === 0) {
+        console.log('📝 No external participants, skipping federation')
+        return true
+      }
+      
+      // TODO: Implement ActivityPub private group message federation
+      // This would involve:
+      // 1. Creating a private ActivityPub Note with multiple recipients
+      // 2. Setting proper addressing (to: participants, cc: none for privacy)
+      // 3. Adding mention tags for all participants
+      // 4. Delivering to each external participant's inbox
+      // 5. Handling delivery failures and retries
+      
+      console.warn('🚧 Group DM federation not yet fully implemented')
+      return false
+      
+    } catch (error) {
+      console.error('❌ Failed to federate group DM message:', error)
+      return false
+    }
+  }
+
   // Export the conversation store
   return {
     // State
@@ -1528,6 +1670,12 @@ export const useDMStore = defineStore('dm', () => {
     setupConversationSubscription,
     cleanupRealtimeSubscriptions,
     cleanup,
+    
+    // Group Chat Functions
+    createGroupConversation,
+    addUsersToConversation,
+    getConversationParticipants,
+    federateGroupDMMessage,
     
     // Federation Support
     processFederatedDM,

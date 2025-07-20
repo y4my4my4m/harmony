@@ -49,6 +49,17 @@
     </div>
 
     <div class="header-actions">
+      <!-- Add User Button (for group chat invitation) -->
+      <button 
+        class="action-btn add-user-btn"
+        @click="$emit('add-user')"
+        title="Add people to conversation"
+      >
+        <svg viewBox="0 0 24 24" class="add-user-icon">
+          <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
+        </svg>
+      </button>
+      
       <button 
         class="action-btn voice-btn"
         @click="$emit('toggle-voice-panel')"
