@@ -245,13 +245,113 @@ async function processUndoActivity(supabase: any, activity: ActivityPubActivity)
 async function processCreateActivity(supabase: any, activity: ActivityPubActivity) {
   // Validate create activity has object
   const object = activity.object
-  if (!object) {
-    console.error('Invalid Create activity: missing object')
+  if (!object || typeof object !== 'object') {
+    console.error('Invalid Create activity: missing or invalid object')
     return false
   }
 
-  console.log('Create activity received, database will handle processing')
-  return true
+  try {
+    console.log('📥 Processing incoming Create activity:', activity.id)
+    
+    // Extract object data
+    const activityObject = object as any
+    const actorUrl = activity.actor
+    const objectId = activityObject.id || activity.id
+    const objectType = activityObject.type || 'Note'
+    
+    console.log(`📄 Object details: type=${objectType}, actor=${actorUrl}`)
+
+    // Store the activity in ap_activities table
+    const { error: activityError } = await supabase
+      .from('ap_activities')
+      .insert({
+        ap_id: activity.id,
+        ap_type: activity.type,
+        actor_ap_id: actorUrl,
+        object_id: objectId,
+        object_type: objectType,
+        activity_data: activity,
+        status: 'received',
+        is_local: false,
+        to_addresses: activity.to || [],
+        cc_addresses: activity.cc || [],
+        created_at: new Date().toISOString()
+      })
+
+    if (activityError) {
+      console.error('❌ Failed to store activity:', activityError)
+      return false
+    }
+
+    console.log('✅ Activity stored in ap_activities table')
+
+    // If this is a Note (post/reply), try to process it further
+    if (objectType === 'Note') {
+      console.log('📝 Processing Note object for mentions and notifications')
+      
+      // Check if this mentions any local users
+      const content = activityObject.content || ''
+      const tags = activityObject.tag || []
+      
+      // Find mentions in tags
+      const mentions = tags.filter((tag: any) => tag.type === 'Mention')
+      console.log(`🏷️ Found ${mentions.length} mentions:`, mentions.map((m: any) => m.href))
+      
+      for (const mention of mentions) {
+        if (mention.href && mention.href.includes('har.mony.lol')) {
+          console.log(`📬 Processing local mention: ${mention.href}`)
+          
+          // Extract username from mention href (e.g., https://har.mony.lol/users/poring)
+          const usernameMatch = mention.href.match(/\/users\/([^\/]+)$/)
+          if (usernameMatch) {
+            const username = usernameMatch[1]
+            console.log(`👤 Found local user mention: ${username}`)
+            
+            // Find the local user
+            const { data: localUser, error: userError } = await supabase
+              .from('profiles')
+              .select('id, username')
+              .eq('username', username)
+              .eq('is_local', true)
+              .single()
+            
+            if (localUser && !userError) {
+              console.log(`✅ Local user found: ${localUser.username} (${localUser.id})`)
+              
+              // Create a notification for the mention
+              const { error: notificationError } = await supabase
+                .from('notifications')
+                .insert({
+                  user_id: localUser.id,
+                  type: 'mention',
+                  message: `You were mentioned by ${actorUrl}`,
+                  metadata: {
+                    activity_id: activity.id,
+                    actor_url: actorUrl,
+                    object_id: objectId,
+                    content: content
+                  },
+                  created_at: new Date().toISOString()
+                })
+              
+              if (notificationError) {
+                console.error('❌ Failed to create notification:', notificationError)
+              } else {
+                console.log('✅ Mention notification created')
+              }
+            } else {
+              console.log(`❌ Local user not found: ${username}`)
+            }
+          }
+        }
+      }
+    }
+
+    return true
+  } catch (error) {
+    console.error('❌ Error processing Create activity:', error)
+    return false
+  }
 }
 
 async function processUpdateActivity(supabase: any, activity: ActivityPubActivity) {
