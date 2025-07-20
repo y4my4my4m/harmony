@@ -64,9 +64,25 @@ export class CorePostService {
 
       const profileId = await this.getCurrentUserProfileId()
 
+      // Enterprise-grade content validation
+      if (!Array.isArray(data.content)) {
+        throw this.createError('INVALID_CONTENT', 'Content must be an array of MessageParts')
+      }
+
+      if (data.content.length === 0) {
+        throw this.createError('EMPTY_CONTENT', 'Content cannot be empty')
+      }
+
+      // Validate each MessagePart
+      for (const part of data.content) {
+        if (!part || typeof part !== 'object' || !part.type) {
+          throw this.createError('INVALID_MESSAGE_PART', 'Each content part must be a valid MessagePart object')
+        }
+      }
+
       const postData = {
-        user_id: profileId,
-        content: data.content,
+        author_id: profileId,
+        content: data.content, // Direct JSONB insertion - Supabase handles serialization
         visibility: data.visibility,
         content_warning: data.content_warning || null,
         in_reply_to: data.in_reply_to || null,
@@ -75,7 +91,7 @@ export class CorePostService {
         language: data.language || 'en',
         is_local: true,
         is_federated: true, // Keep for compatibility, federation handled by orchestrator
-        metadata: { created_via: 'harmony_client' }
+        metadata: { created_via: 'harmony_client', content_format: 'message_parts_v1' }
       }
 
       const { data: post, error } = await supabase
@@ -83,7 +99,7 @@ export class CorePostService {
         .insert(postData)
         .select(`
           *,
-          author:profiles!posts_user_id_fkey(*)
+          author:profiles!posts_author_id_fkey(*)
         `)
         .single()
 
@@ -110,11 +126,11 @@ export class CorePostService {
       // Verify ownership
       const { data: existingPost } = await supabase
         .from('posts')
-        .select('user_id')
+        .select('author_id')
         .eq('id', postId)
         .single()
 
-      if (existingPost?.user_id !== profileId) {
+      if (existingPost?.author_id !== profileId) {
         throw this.createError('UNAUTHORIZED', 'Cannot edit post you do not own')
       }
 
@@ -129,7 +145,7 @@ export class CorePostService {
         .eq('id', postId)
         .select(`
           *,
-          author:profiles!posts_user_id_fkey(*)
+          author:profiles!posts_author_id_fkey(*)
         `)
         .single()
 
@@ -156,11 +172,11 @@ export class CorePostService {
       // Verify ownership
       const { data: existingPost } = await supabase
         .from('posts')
-        .select('user_id')
+        .select('author_id')
         .eq('id', postId)
         .single()
 
-      if (existingPost?.user_id !== profileId) {
+      if (existingPost?.author_id !== profileId) {
         throw this.createError('UNAUTHORIZED', 'Cannot delete post you do not own')
       }
 
@@ -628,7 +644,7 @@ export class CorePostService {
         .from('posts')
         .select(`
           *,
-          author:profiles!posts_user_id_fkey(*)
+          author:profiles!posts_author_id_fkey(*)
         `)
         .eq('id', postId)
         .single()

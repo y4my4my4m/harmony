@@ -632,6 +632,37 @@
     <path v-if="name === 'mentioned'" d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
     <path v-if="name === 'mentioned'" d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"></path>
 
+    <!-- Plus -->
+    <line v-if="name === 'plus'" x1="12" y1="5" x2="12" y2="19"></line>
+    <line v-if="name === 'plus'" x1="5" y1="12" x2="19" y2="12"></line>
+
+    <!-- Search -->
+    <circle v-if="name === 'search'" cx="11" cy="11" r="8"></circle>
+    <path v-if="name === 'search'" d="m21 21-4.35-4.35"></path>
+
+    <!-- Loader/Spinner -->
+    <path v-if="name === 'loader'" d="M21 12a9 9 0 11-6.219-8.56"></path>
+
+    <!-- Check -->
+    <polyline v-if="name === 'check'" points="20 6 9 17 4 12"></polyline>
+
+    <!-- Users -->
+    <path v-if="name === 'users'" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+    <circle v-if="name === 'users'" cx="9" cy="7" r="4"></circle>
+    <path v-if="name === 'users'" d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+    <path v-if="name === 'users'" d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+
+    <!-- User Plus -->
+    <path v-if="name === 'user-plus'" d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle v-if="name === 'user-plus'" cx="8.5" cy="7" r="4"></circle>
+    <line v-if="name === 'user-plus'" x1="20" y1="8" x2="20" y2="14"></line>
+    <line v-if="name === 'user-plus'" x1="23" y1="11" x2="17" y2="11"></line>
+
+    <!-- Globe/Federation -->
+    <circle v-if="name === 'globe' || name === 'federation'" cx="12" cy="12" r="10"></circle>
+    <line v-if="name === 'globe' || name === 'federation'" x1="2" y1="12" x2="22" y2="12"></line>
+    <path v-if="name === 'globe' || name === 'federation'" d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+
 
 </svg>
 </template>

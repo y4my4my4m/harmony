@@ -30,9 +30,15 @@ export interface DMConversation {
   last_activity?: string
   last_message?: Message
   unread_count?: number
-  other_user?: DMUser
-  type?: string
+  other_user?: DMUser // For direct conversations
+  type?: string // 'direct' | 'group'
   participant_count?: number
+  
+  // Group conversation fields
+  name?: string // Group name
+  icon_url?: string // Group icon
+  created_by?: string // Creator user ID
+  participants?: DMUser[] // All participants for group chats
 }
 
 export interface DMCache {
@@ -493,7 +499,9 @@ export const useDMStore = defineStore('dm', () => {
             created_at,
             type,
             name,
-            is_active
+            created_by,
+            is_active,
+            metadata
           )
         `)
         .eq('user_id', userId)
@@ -539,9 +547,11 @@ export const useDMStore = defineStore('dm', () => {
             conversation_id: conversation.id,
             conversation_name: conversation.name,
             conversation_type: conversation.type || 'direct',
+            created_by: conversation.created_by,
             created_at: conversation.created_at,
             is_active: conversation.is_active,
             participant_count: participantCount ?? 2,
+            icon_url: conversation.metadata?.icon_url, // Icon stored in metadata
             other_participants: otherParticipants || [],
             user_role: participation.role,
             user_joined_at: participation.joined_at
@@ -583,46 +593,29 @@ export const useDMStore = defineStore('dm', () => {
     try {
       console.log('🔍 DEBUG: Processing conversation data:', {
         conversationId: conv.conversation_id,
+        type: conv.conversation_type,
+        participant_count: conv.participant_count,
         other_participants: conv.other_participants,
-        other_participants_type: typeof conv.other_participants,
-        other_participants_isArray: Array.isArray(conv.other_participants),
         other_participants_length: conv.other_participants?.length,
-        fullConvData: conv
+        conversation_name: conv.conversation_name,
+        icon_url: conv.icon_url
       })
 
-      // For direct conversations, get the other participant (not the current user)
-      let otherUserId: string | null = null
+      const conversationType = conv.conversation_type || 'direct'
+      const participantCount = conv.participant_count || 0
       
-      if (conv.other_participants && Array.isArray(conv.other_participants) && conv.other_participants.length > 0) {
-        // Get the first other participant (for direct messages, should be exactly 1)
-        otherUserId = conv.other_participants[0].user_id
-        console.log('🔍 DEBUG: Found other participant:', otherUserId)
-      }
-
-      if (!otherUserId) {
-        console.error('❌ DEBUG: No other participant found for conversation:', conv.conversation_id)
-        console.error('❌ DEBUG: other_participants data:', conv.other_participants)
-        return null
-      }
-      
-      // Get other user's profile
-      const profileData = await _fetchUserProfile(otherUserId)
-      if (!profileData) {
-        console.error('Failed to fetch profile for user:', otherUserId)
-        return null
-      }
-
       // Get last message for conversation
       const lastMessageData = await _fetchLastMessage(conv.conversation_id)
 
-      // Determine if this is a federated conversation
-      const isFederated = !profileData.is_local && profileData.domain
-
-      return {
+      // Base conversation data
+      const baseConversation = {
         id: conv.conversation_id,
         created_at: conv.created_at,
-        type: conv.conversation_type || 'direct',
-        participant_count: conv.participant_count || 2,
+        type: conversationType,
+        participant_count: participantCount,
+        name: conv.conversation_name,
+        icon_url: conv.icon_url,
+        created_by: conv.created_by,
         last_activity: lastMessageData?.created_at || conv.created_at,
         last_message: lastMessageData ? {
           id: lastMessageData.id,
@@ -635,16 +628,58 @@ export const useDMStore = defineStore('dm', () => {
           metadata: lastMessageData.metadata || {}
         } : undefined,
         unread_count: 0, // TODO: Implement proper unread counting
-        other_user: {
-          id: profileData.id,
-          username: profileData.username,
-          display_name: profileData.display_name,
-          avatar_url: profileData.avatar_url,
-          is_online: false, // Will be updated by global presence system in UI
-          domain: profileData.domain,
-          is_local: profileData.is_local,
-          federated_id: profileData.federated_id,
-          handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
+      }
+
+      // Handle different conversation types
+      if (conversationType === 'group') {
+        // For group conversations, fetch all participants
+        const participantProfiles = []
+        if (conv.other_participants && Array.isArray(conv.other_participants)) {
+          for (const participant of conv.other_participants) {
+            const profileData = await _fetchUserProfile(participant.user_id)
+            if (profileData) {
+              participantProfiles.push(_normalizeUserObject(profileData))
+            }
+          }
+        }
+
+        return {
+          ...baseConversation,
+          participants: participantProfiles,
+          other_user: undefined // No other_user for group chats
+        }
+      } else {
+        // For direct conversations, get the other participant (not the current user)
+        let otherUserId: string | null = null
+        
+        if (conv.other_participants && Array.isArray(conv.other_participants) && conv.other_participants.length > 0) {
+          // Get the first other participant (for direct messages, should be exactly 1)
+          otherUserId = conv.other_participants[0].user_id
+          console.log('🔍 DEBUG: Found other participant:', otherUserId)
+        }
+
+        if (!otherUserId) {
+          console.error('❌ DEBUG: No other participant found for conversation:', conv.conversation_id)
+          return null
+        }
+        
+        // Get other user's profile
+        const profileData = await _fetchUserProfile(otherUserId)
+        if (!profileData) {
+          console.error('Failed to fetch profile for user:', otherUserId)
+          return null
+        }
+
+        // Determine if this is a federated conversation
+        const isFederated = !profileData.is_local && profileData.domain
+
+        return {
+          ...baseConversation,
+          other_user: {
+            ..._normalizeUserObject(profileData),
+            is_online: false, // Will be updated by global presence system in UI
+            handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
+          }
         }
       }
     } catch (error) {
@@ -667,6 +702,28 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     return profileData
+  }
+
+  // Helper: Normalize user object to ensure consistent ID field
+  const _normalizeUserObject = (user: any): DMUser => {
+    // Determine the correct ID (prefer 'id' over 'user_id')
+    const userId = user.id || user.user_id
+    if (!userId) {
+      console.error('User object missing both id and user_id fields:', user)
+      throw new Error('Invalid user object: missing ID')
+    }
+
+    return {
+      id: userId,
+      username: user.username,
+      display_name: user.display_name,
+      avatar_url: user.avatar_url,
+      domain: user.domain,
+      is_local: user.is_local,
+      federated_id: user.federated_id,
+      handle: user.handle,
+      is_online: false // Will be updated by global presence system in UI
+    }
   }
 
   // Helper: Service-like method to fetch last message
@@ -820,20 +877,12 @@ export const useDMStore = defineStore('dm', () => {
       // Use activityPubService for federated user search (includes local users)
       const users = await services.activityPub.searchUsers(query, 10)
       
-      // Filter out current user and convert to DMUser format
+      console.log('🔍 Raw search results from service:', users.map(u => ({ id: u.id, user_id: u.user_id, username: u.username })))
+      
+      // Normalize and filter users with consistent ID structure
       const filteredUsers = users
+        .map(user => _normalizeUserObject(user))
         .filter(user => user.id !== currentUserId)
-        .map(user => ({
-          id: user.id,
-          username: user.username,
-          display_name: user.display_name,
-          avatar_url: user.avatar_url,
-          domain: user.domain,
-          is_local: user.is_local,
-          federated_id: user.federated_id,
-          handle: user.handle,
-          is_online: false // Will be updated by global presence system in UI
-        }))
 
       searchResults.value = filteredUsers
       console.log(`✅ Found ${filteredUsers.length} users via service layer`)
@@ -1491,6 +1540,283 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  // =================================================================
+  // GROUP CHAT FUNCTIONALITY
+  // =================================================================
+
+  /**
+   * Create a group conversation with multiple participants
+   */
+  const createGroupConversation = async (options: {
+    participantIds: string[] // User IDs
+    name?: string
+    isPrivate?: boolean
+  }): Promise<string | null> => {
+    try {
+      console.log('🔄 Creating group conversation:', options)
+      
+      if (!options.participantIds || options.participantIds.length < 2) {
+        console.error('❌ Need at least 2 participants for group conversation')
+        return null
+      }
+
+      // Get current user for conversation creation
+      const currentUserData = userDataService.getCurrentUser()
+      if (!currentUserData || !currentUserData.id) {
+        console.error('❌ No current user found for conversation creation')
+        return null
+      }
+      
+      console.log('✅ Current user for conversation creation:', currentUserData.id)
+
+      // Create the conversation using database function (bypasses RLS)
+      const { data: conversationId, error: createError } = await supabase.rpc('create_group_conversation', {
+        creator_user_id: currentUserData.id,
+        participant_user_ids: options.participantIds,
+        conversation_name: options.name || null,
+        is_private: options.isPrivate ?? true
+      })
+
+      if (createError || !conversationId) {
+        console.error('❌ Failed to create conversation:', createError)
+        return null
+      }
+
+      console.log('✅ Created conversation:', conversationId)
+
+      // Add a system message about conversation creation
+      try {
+        const systemMessageContent = [{
+          type: 'text',
+          text: `Group conversation created with ${options.participantIds.length} participants`
+        }]
+
+        await services.messages.sendDMMessage(
+          conversationId,
+          systemMessageContent
+        )
+      } catch (systemMessageError) {
+        console.warn('⚠️ Failed to send system message:', systemMessageError)
+        // Don't fail the operation for this
+      }
+
+      // Refresh conversations to include the new one
+      await fetchUserConversations(currentUserData.id)
+
+      console.log('✅ Successfully created group conversation')
+      return conversationId
+      
+    } catch (error) {
+      console.error('❌ Failed to create group conversation:', error)
+      return null
+    }
+  }
+
+  /**
+   * Add users to an existing conversation (convert 1:1 to group or add to group)
+   */
+  const addUsersToConversation = async (
+    conversationId: string,
+    userIds: string[],
+    currentUserId: string
+  ): Promise<boolean> => {
+    try {
+      console.log('🔄 Adding users to conversation:', { conversationId, userIds })
+      
+      // First, check if this is a direct conversation
+      const { data: conversation, error: fetchError } = await supabase
+        .from('conversations')
+        .select('type, created_by')
+        .eq('id', conversationId)
+        .single()
+
+      if (fetchError) {
+        console.error('❌ Failed to fetch conversation:', fetchError)
+        return false
+      }
+
+      // If it's a direct conversation, create a NEW group conversation (keep original 1:1 intact)
+      if (conversation?.type === 'direct') {
+        console.log('🔄 Creating NEW group conversation (preserving original 1:1 chat)')
+        
+        // Get current participants of the direct conversation
+        const { data: currentParticipants, error: participantsError } = await supabase
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', conversationId)
+
+        if (participantsError) {
+          console.error('❌ Failed to fetch current participants:', participantsError)
+          return false
+        }
+
+        if (!currentParticipants || currentParticipants.length === 0) {
+          console.error('❌ No current participants found for conversation')
+          return false
+        }
+
+        // Create new group conversation with all users (current participants + new users)
+        const allUserIds = [
+          ...currentParticipants.filter(p => p.user_id).map(p => p.user_id),
+          ...userIds.filter(id => id) // Filter out any undefined values
+        ].filter((id, index, arr) => id && arr.indexOf(id) === index) // Remove duplicates and undefined values
+
+        console.log('🔄 All user IDs for new group:', allUserIds)
+
+        const groupOptions = {
+          participantIds: allUserIds,
+          name: undefined, // Let the system generate a name
+          isPrivate: true // Default to private group
+        }
+
+        const newConversationId = await createGroupConversation(groupOptions)
+        
+        if (newConversationId) {
+          // Navigate to the new group conversation
+          // The parent component should handle this
+          console.log('✅ Created new group conversation:', newConversationId)
+          return newConversationId // Return the new conversation ID
+        } else {
+          return false
+        }
+      } else {
+        // It's already a group conversation, just add the new participants
+        console.log('🔄 Adding users to existing group conversation')
+        
+        // Use the database function to add participants (bypasses RLS)
+        for (const userId of userIds) {
+          const { error: addError } = await supabase.rpc('add_user_to_conversation', {
+            conversation_uuid: conversationId,
+            user_uuid: userId,
+            user_role: 'member'
+          })
+
+          if (addError) {
+            console.error('❌ Failed to add participant:', addError)
+            return false
+          }
+        }
+
+        // Add a system message about the new participants
+        try {
+          const userProfiles = await Promise.all(
+            userIds.map(async (userId) => {
+              const { data } = await supabase
+                .from('profiles')
+                .select('username, display_name')
+                .eq('id', userId)
+                .single()
+              return data
+            })
+          )
+
+          const userNames = userProfiles
+            .filter(Boolean)
+            .map(profile => profile?.display_name || profile?.username)
+            .join(', ')
+
+          const systemMessageContent = [{
+            type: 'text',
+            text: `${userNames} ${userIds.length === 1 ? 'was' : 'were'} added to the conversation`
+          }]
+
+          await services.messages.sendDMMessage(
+            conversationId,
+            systemMessageContent
+          )
+        } catch (systemMessageError) {
+          console.warn('⚠️ Failed to send system message:', systemMessageError)
+          // Don't fail the operation for this
+        }
+
+        // Refresh the conversations to show updated participant count
+        await fetchUserConversations(currentUserId)
+
+        console.log('✅ Successfully added users to group conversation')
+        return true
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to add users to conversation:', error)
+      return false
+    }
+  }
+
+  /**
+   * Get all participants of a conversation
+   */
+  const getConversationParticipants = async (conversationId: string): Promise<DMUser[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('conversation_participants')
+        .select(`
+          user_id,
+          role,
+          joined_at,
+          profiles!conversation_participants_user_id_fkey (
+            id, username, display_name, avatar_url, domain, is_local, federated_id
+          )
+        `)
+        .eq('conversation_id', conversationId)
+        .is('left_at', null)
+
+      if (error) throw error
+
+      return (data || []).map((participant: any) => {
+        const profile = participant.profiles
+        return {
+          id: profile.id,
+          username: profile.username,
+          display_name: profile.display_name,
+          avatar_url: profile.avatar_url,
+          domain: profile.domain,
+          is_local: profile.is_local,
+          federated_id: profile.federated_id,
+          handle: profile.is_local ? `@${profile.username}` : `@${profile.username}@${profile.domain}`
+        }
+      })
+    } catch (error) {
+      console.error('❌ Failed to get conversation participants:', error)
+      return []
+    }
+  }
+
+  /**
+   * Enhanced ActivityPub federation for group DMs
+   * Handles private mentions to multiple recipients
+   */
+  const federateGroupDMMessage = async (
+    message: any,
+    participants: DMUser[]
+  ): Promise<boolean> => {
+    try {
+      console.log('🌐 Federating group DM message to participants:', participants.length)
+      
+      // Filter for external (federated) participants
+      const externalParticipants = participants.filter(p => !p.is_local)
+      
+      if (externalParticipants.length === 0) {
+        console.log('📝 No external participants, skipping federation')
+        return true
+      }
+      
+      // TODO: Implement ActivityPub private group message federation
+      // This would involve:
+      // 1. Creating a private ActivityPub Note with multiple recipients
+      // 2. Setting proper addressing (to: participants, cc: none for privacy)
+      // 3. Adding mention tags for all participants
+      // 4. Delivering to each external participant's inbox
+      // 5. Handling delivery failures and retries
+      
+      console.warn('🚧 Group DM federation not yet fully implemented')
+      return false
+      
+    } catch (error) {
+      console.error('❌ Failed to federate group DM message:', error)
+      return false
+    }
+  }
+
   // Export the conversation store
   return {
     // State
@@ -1528,6 +1854,12 @@ export const useDMStore = defineStore('dm', () => {
     setupConversationSubscription,
     cleanupRealtimeSubscriptions,
     cleanup,
+    
+    // Group Chat Functions
+    createGroupConversation,
+    addUsersToConversation,
+    getConversationParticipants,
+    federateGroupDMMessage,
     
     // Federation Support
     processFederatedDM,

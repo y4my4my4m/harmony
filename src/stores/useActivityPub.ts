@@ -161,7 +161,13 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Check if user is following another user
      */
     isFollowing: (state) => (userId: string) => {
-      return state.followedUsers.has(userId);
+      const following = state.followedUsers.has(userId);
+      console.log(`🔍 isFollowing check for ${userId}:`, {
+        following,
+        followedUsersSize: state.followedUsers.size,
+        followedUsersList: Array.from(state.followedUsers).slice(0, 5) // First 5 for debug
+      });
+      return following;
     },
 
     /**
@@ -222,6 +228,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         console.log('✅ ActivityPub store initialized successfully');
       } catch (error) {
         console.error('❌ Failed to initialize ActivityPub store:', error);
+        throw error;
       }
     },
 
@@ -1035,7 +1042,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Create a new post (Mony)
      */
     async createPost(postData?: {
-      content?: string;
+      content?: string | MessagePart[];
       visibility?: Post['visibility'];
       content_warning?: string;
       contentWarning?: string;
@@ -1059,9 +1066,20 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Upload media attachments if any
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
 
-        // Use activityPubService to create the post
-        const post = await activityPubService.createPost({
-          content: await this.formatPostContent(content),
+        // Handle content format - content should already be MessagePart[] from component
+        let finalContent: MessagePart[];
+        if (Array.isArray(content)) {
+          // Content is already parsed MessagePart[] from component
+          finalContent = content;
+        } else if (typeof content === 'string') {
+          // Fallback: parse string content (legacy support)
+          finalContent = await this.formatPostContent(content);
+        } else {
+          throw new Error('Invalid content format - must be MessagePart[] or string');
+        }
+        
+        const post = await services.posts.createPost({
+          content: finalContent,
           visibility: visibility,
           content_warning: contentWarning,
           in_reply_to: replyTo,
@@ -1121,7 +1139,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Format post content for storage with mention detection and unified format
      */
-    async formatPostContent(content: string): Promise<any> {
+    async formatPostContent(content: string): Promise<MessagePart[]> {
       // Use the centralized unified content processing utility
       const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveHashtagsData } = await import('@/utils/unifiedContentProcessing');
       
@@ -1132,7 +1150,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         resolveHashtagsData(content)
       ]);
       
-      return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
+      return await parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
     },
 
     /**
@@ -1800,24 +1818,33 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          console.log('🔄 Loading followed users via InteractionService');
          
-         // Get current user ID for the service call
-         const currentUser = this.currentUser || this.userProfile;
-         if (!currentUser?.id) {
-           console.log('ℹ️ No current user available, skipping followed users loading');
-           return;
-         }
+                 // Get current user ID via service layer for consistency
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.auth_user_id) {
+          console.log('ℹ️ No current user available, skipping followed users loading');
+          return;
+        }
+        
+        console.log('🔄 Current user for loading followed users:', currentUser.auth_user_id);
          
-         // Use InteractionService for consistent relationship management
-         const result = await services.interactions.getFollowing(currentUser.id);
+                 // Use InteractionService for consistent relationship management
+        const result = await services.interactions.getFollowing(currentUser.auth_user_id);
+         console.log('🔄 Service result:', result);
+         
          this.followedUsers = new Set(result.users.map(user => user.id));
          
          console.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
+         console.log('✅ followedUsers Set contents:', Array.from(this.followedUsers));
        } catch (error) {
          console.error('❌ Failed to load followed users via service:', error);
          
          // Fallback to direct query if service fails
          try {
+           console.log('🔄 Trying fallback method...');
            await this._loadFollowedUsersFallback();
+           console.log(`✅ Fallback loaded ${this.followedUsers.size} followed users`);
+           console.log('✅ Fallback followedUsers Set contents:', Array.from(this.followedUsers));
          } catch (fallbackError) {
            console.error('❌ Fallback loading also failed:', fallbackError);
          }
@@ -2065,7 +2092,7 @@ export const useActivityPubStore = defineStore('activitypub', {
            language: 'en'
          };
 
-         const reply = await activityPubService.createPost(replyData);
+         const reply = await services.posts.createPost(replyData);
          
          // Clear conversation cache to force refresh
          this.conversationContexts.clear();
