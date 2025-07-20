@@ -187,7 +187,8 @@ CREATE TRIGGER trigger_unified_content_federation
     EXECUTE FUNCTION handle_unified_content_federation();
 
 -- Step 4: Recreate the messages trigger if it was there
-CREATE TRIGGER IF NOT EXISTS trigger_unified_content_federation
+DROP TRIGGER IF EXISTS trigger_unified_content_federation ON messages;
+CREATE TRIGGER trigger_unified_content_federation
     AFTER INSERT OR UPDATE ON messages
     FOR EACH ROW
     EXECUTE FUNCTION handle_unified_content_federation();
