@@ -277,6 +277,125 @@ export class ProfileService {
       throw error
     }
   }
+
+  /**
+   * Fetch profile by ID (alias for compatibility with stores)
+   */
+  async fetchProfile(userId: string, useCache = true): Promise<Profile | null> {
+    try {
+      // For now, ignore cache parameter since we simplified the service
+      return await this.getProfileById(userId)
+    } catch (error: any) {
+      if (error.code === 'PROFILE_NOT_FOUND') {
+        return null
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Fetch profile by auth user ID (for store compatibility)
+   */
+  async fetchProfileByAuthUserId(authUserId: string): Promise<Profile | null> {
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('auth_user_id', authUserId)
+        .single()
+
+      if (error || !profile) {
+        return null
+      }
+
+      return profile
+    } catch (error) {
+      console.error('❌ Failed to get profile by auth user ID:', error)
+      return null
+    }
+  }
+
+  /**
+   * Update profile (alias for updateCurrentProfile for store compatibility)
+   */
+  async updateProfile(profileData: ProfileData): Promise<Profile> {
+    return this.updateCurrentProfile(profileData)
+  }
+
+  /**
+   * Check if profile is complete (for store compatibility)
+   */
+  isProfileComplete(profile: Profile | null): boolean {
+    return !!(profile && profile.username && profile.display_name)
+  }
+
+  /**
+   * Get profile with avatar URL (for Vue component compatibility)
+   */
+  async getProfileWithAvatarUrl(userId: string): Promise<Profile | null> {
+    try {
+      const profile = await this.getProfileById(userId)
+      // Avatar URL should already be included in the profile data
+      return profile
+    } catch (error: any) {
+      if (error.code === 'PROFILE_NOT_FOUND') {
+        return null
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Upload avatar (wrapper for existing utility)
+   */
+  async uploadAvatar(file: File, userId: string): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      // Import the utility function dynamically to avoid circular imports
+      const { uploadAvatar } = await import('@/utils/fileUpload')
+      const result = await uploadAvatar(file, userId)
+      
+      if (result.success && result.url) {
+        // Update the profile with the new avatar URL
+        await this.updateCurrentProfile({ avatar_url: result.url })
+      }
+      
+      return {
+        success: result.success,
+        url: result.url,
+        error: result.error
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to upload avatar:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to upload avatar'
+      }
+    }
+  }
+
+  /**
+   * Upload banner (wrapper for existing utility)
+   */
+  async uploadBanner(file: File, userId: string): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      // Import the utility function dynamically to avoid circular imports
+      const { uploadBanner } = await import('@/utils/bannerUtils')
+      const result = await uploadBanner(file, userId)
+      
+      if (result.success && result.url) {
+        // Update the profile with the new banner URL
+        await this.updateCurrentProfile({ banner_url: result.url })
+      }
+      
+      return result
+    } catch (error: any) {
+      console.error('❌ Failed to upload banner:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to upload banner'
+      }
+    }
+  }
 }
 
 // Export singleton instance
@@ -285,3 +404,21 @@ export const profileService = ProfileService.getInstance()
 // Export individual functions for compatibility with old imports
 export const updateUserStatus = (userId: string, status: number) => 
   profileService.updateUserStatus(userId, status)
+
+export const getProfile = (userId: string) => 
+  profileService.fetchProfile(userId)
+
+export const getProfileWithAvatarUrl = (userId: string) => 
+  profileService.getProfileWithAvatarUrl(userId)
+
+export const getProfileByAuthUserId = (authUserId: string) => 
+  profileService.fetchProfileByAuthUserId(authUserId)
+
+export const updateProfile = (profileData: ProfileData) => 
+  profileService.updateProfile(profileData)
+
+export const uploadAvatar = (file: File, userId: string) => 
+  profileService.uploadAvatar(file, userId)
+
+export const uploadBanner = (file: File, userId: string) => 
+  profileService.uploadBanner(file, userId)
