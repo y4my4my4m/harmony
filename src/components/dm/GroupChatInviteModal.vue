@@ -419,50 +419,56 @@ const handleCreateOrAddUsers = async () => {
   }
 }
 
-const createGroupChat = async () => {
-  if (!currentUserId.value) return
+const createDirectConversation = async () => {
+  if (!currentUserId.value || selectedUsers.value.length !== 1) return;
 
   try {
-    // For now, create individual conversations or use a service method for group creation
-    // This is a simplified implementation - in a full implementation, you'd want to:
-    // 1. Create a conversation with type 'group'
-    // 2. Add all participants to conversation_participants table
-    // 3. Handle ActivityPub federation for external users
+    const conversationId = await dmStore.createOrGetConversation(
+      currentUserId.value,
+      selectedUsers.value[0].id
+    );
 
-    if (selectedUsers.value.length === 1) {
-      // Single user - create/get direct conversation
-      const conversationId = await dmStore.createOrGetConversation(
-        currentUserId.value,
-        selectedUsers.value[0].id
-      )
-      
-      if (conversationId) {
-        emit('conversationCreated', conversationId)
-        emit('close')
-        toast.success('Conversation created!')
-      }
-    } else {
-      // Multiple users - create group conversation
-      const conversationId = await dmStore.createGroupConversation({
-        participantIds: [currentUserId.value, ...selectedUsers.value.map(u => u.id)],
-        name: groupName.value || undefined,
-        isPrivate: isPrivateGroup.value
-      })
-
-      if (conversationId) {
-        emit('conversationCreated', conversationId)
-        emit('close')
-        toast.success('Group conversation created!')
-      } else {
-        toast.error('Failed to create group conversation')
-      }
+    if (conversationId) {
+      emit('conversationCreated', conversationId);
+      emit('close');
+      toast.success('Conversation created!');
     }
   } catch (error) {
-    console.error('Failed to create group chat:', error)
-    throw error
+    console.error('Failed to create direct conversation:', error);
+    throw error;
   }
-}
+};
 
+const createGroupConversation = async () => {
+  if (!currentUserId.value || selectedUsers.value.length <= 1) return;
+
+  try {
+    const conversationId = await dmStore.createGroupConversation({
+      participantIds: [currentUserId.value, ...selectedUsers.value.map(u => u.id)],
+      name: groupName.value || undefined,
+      isPrivate: isPrivateGroup.value,
+    });
+
+    if (conversationId) {
+      emit('conversationCreated', conversationId);
+      emit('close');
+      toast.success('Group conversation created!');
+    } else {
+      toast.error('Failed to create group conversation');
+    }
+  } catch (error) {
+    console.error('Failed to create group conversation:', error);
+    throw error;
+  }
+};
+
+const createGroupChat = async () => {
+  if (selectedUsers.value.length === 1) {
+    await createDirectConversation();
+  } else {
+    await createGroupConversation();
+  }
+};
 const addUsersToConversation = async () => {
   if (!props.conversationId || !currentUserId.value) return
 
