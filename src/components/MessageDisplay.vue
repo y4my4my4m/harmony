@@ -305,11 +305,26 @@ const validateMessageContent = (content: any): boolean => {
   }
   
   // Check if array has valid parts
-  return content.every(part => 
-    part && 
-    typeof part === 'object' && 
-    typeof part.type === 'string'
-  );
+  return content.every(part => {
+    if (!part || typeof part !== 'object') {
+      return false;
+    }
+    
+    // Validate part has a type
+    if (typeof part.type !== 'string') {
+      return false;
+    }
+    
+    // ✅ FIX: Handle system message format
+    if (part.type === 'system') {
+      // System messages have different structure: { type: 'system', user: {...}, event_type: '...', ... }
+      return true; // System messages are always valid if they have type: 'system'
+    }
+    
+    // Standard MessagePart validation for other types
+    const validTypes = ['text', 'mention', 'emoji', 'hashtag', 'url', 'file'];
+    return validTypes.includes(part.type);
+  });
 };
 
 const validMessages = computed(() => {

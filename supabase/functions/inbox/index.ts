@@ -253,42 +253,59 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
   try {
     console.log('📥 Processing incoming Create activity:', activity.id)
     
-    // Extract object data
+    // Extract object data with robust extraction
     const activityObject = object as any
     const actorUrl = activity.actor
     
-    // ✅ FIX: Properly extract object_id and object_type
-    const objectId = activityObject.id || activity.id
-    const objectType = activityObject.type || 'Note'
+    // ✅ FIX: More robust object_id and object_type extraction
+    let objectId: string | null = null
+    let objectType: string | null = null
     
-    console.log(`📄 Object details: type=${objectType}, actor=${actorUrl}, objectId=${objectId}`)
+    if (activityObject && typeof activityObject === 'object') {
+      objectId = activityObject.id || null
+      objectType = activityObject.type || null
+    }
+    
+    console.log(`📄 Object details:`, {
+      objectType,
+      objectId,
+      actorUrl,
+      hasObject: !!activityObject,
+      objectKeys: activityObject ? Object.keys(activityObject) : []
+    })
 
     // Store the activity in ap_activities table
-    const { error: activityError } = await supabase
+    const activityRecord = {
+      ap_id: activity.id,
+      ap_type: activity.type,
+      actor_ap_id: actorUrl,
+      object_id: objectId,
+      object_type: objectType,
+      activity_data: activity,
+      status: 'received',
+      is_local: false,
+      to_addresses: activity.to || [],
+      cc_addresses: activity.cc || [],
+      created_at: new Date().toISOString()
+    }
+    
+    console.log('📤 Inserting activity record:', activityRecord)
+
+    const { data: insertedActivity, error: activityError } = await supabase
       .from('ap_activities')
-      .insert({
-        ap_id: activity.id,
-        ap_type: activity.type,
-        actor_ap_id: actorUrl,
-        object_id: objectId,  // ✅ FIX: Now properly extracted
-        object_type: objectType,  // ✅ FIX: Now properly extracted
-        activity_data: activity,
-        status: 'received',
-        is_local: false,
-        to_addresses: activity.to || [],
-        cc_addresses: activity.cc || [],
-        created_at: new Date().toISOString()
-      })
+      .insert(activityRecord)
+      .select()
+      .single()
 
     if (activityError) {
       console.error('❌ Failed to store activity:', activityError)
       return false
     }
 
-    console.log('✅ Activity stored in ap_activities table')
+    console.log('✅ Activity stored in ap_activities table:', insertedActivity?.id)
 
     // If this is a Note (post/reply), try to process it further
-    if (objectType === 'Note') {
+    if (objectType === 'Note' && objectId) {
       console.log('📝 Processing Note object for mentions and notifications')
       
       // Check if this mentions any local users
@@ -296,11 +313,11 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
       const tags = activityObject.tag || []
       
       // Find mentions in tags
-      const mentions = tags.filter((tag: any) => tag.type === 'Mention')
-      console.log(`🏷️ Found ${mentions.length} mentions:`, mentions.map((m: any) => m.href))
+      const mentions = tags.filter((tag: any) => tag?.type === 'Mention')
+      console.log(`🏷️ Found ${mentions.length} mentions:`, mentions.map((m: any) => m?.href))
       
       for (const mention of mentions) {
-        if (mention.href && mention.href.includes('har.mony.lol')) {
+        if (mention?.href && mention.href.includes('har.mony.lol')) {
           console.log(`📬 Processing local mention: ${mention.href}`)
           
           // Extract username from mention href (supports both /users/ and /@ formats)
@@ -325,20 +342,25 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
               console.log(`✅ Local user found: ${localUser.username} (${localUser.id})`)
               
               // ✅ FIX: Use 'data' field instead of 'message' for notifications
+              const notificationData = {
+                user_id: localUser.id,
+                type: 'mention',
+                data: {
+                  message: `You were mentioned by ${actorUrl}`,
+                  activity_id: activity.id,
+                  actor_url: actorUrl,
+                  object_id: objectId,
+                  content: content,
+                  mention_href: mention.href
+                },
+                created_at: new Date().toISOString()
+              }
+              
+              console.log('📤 Creating notification:', notificationData)
+              
               const { error: notificationError } = await supabase
                 .from('notifications')
-                .insert({
-                  user_id: localUser.id,
-                  type: 'mention',
-                  data: {
-                    message: `You were mentioned by ${actorUrl}`,
-                    activity_id: activity.id,
-                    actor_url: actorUrl,
-                    object_id: objectId,
-                    content: content
-                  },
-                  created_at: new Date().toISOString()
-                })
+                .insert(notificationData)
               
               if (notificationError) {
                 console.error('❌ Failed to create notification:', notificationError)
@@ -346,8 +368,10 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
                 console.log('✅ Mention notification created')
               }
             } else {
-              console.log(`❌ Local user not found: ${username}`)
+              console.log(`❌ Local user not found: ${username}`, userError)
             }
+          } else {
+            console.log(`❌ Could not extract username from mention href: ${mention.href}`)
           }
         }
       }
