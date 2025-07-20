@@ -1564,11 +1564,18 @@ export const useDMStore = defineStore('dm', () => {
           return false
         }
 
+        if (!currentParticipants || currentParticipants.length === 0) {
+          console.error('❌ No current participants found for conversation')
+          return false
+        }
+
         // Create new group conversation with all users (current participants + new users)
         const allUserIds = [
-          ...currentParticipants.map(p => p.user_id),
-          ...userIds
-        ].filter((id, index, arr) => arr.indexOf(id) === index) // Remove duplicates
+          ...currentParticipants.filter(p => p.user_id).map(p => p.user_id),
+          ...userIds.filter(id => id) // Filter out any undefined values
+        ].filter((id, index, arr) => id && arr.indexOf(id) === index) // Remove duplicates and undefined values
+
+        console.log('🔄 All user IDs for new group:', allUserIds)
 
         const groupOptions = {
           participantIds: allUserIds,

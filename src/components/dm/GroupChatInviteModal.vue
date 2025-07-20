@@ -284,6 +284,9 @@ const handleSearch = () => {
     isSearching.value = true
     try {
       await dmStore.searchUsers(query, currentUserId.value)
+      console.log('🔍 Search completed, raw results:', dmStore.searchResults.length)
+      console.log('🔍 Selected users before filtering:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
+      
       searchResults.value = dmStore.searchResults.filter(user => {
         // Filter out current user
         if (user.id === currentUserId.value) return false
@@ -293,6 +296,8 @@ const handleSearch = () => {
         if (selectedUsers.value.some(s => s.id === user.id)) return false
         return true
       })
+      
+      console.log('🔍 Filtered search results:', searchResults.value.length)
     } catch (error) {
       console.error('Search failed:', error)
       toast.error('Failed to search users')
@@ -310,15 +315,33 @@ const clearSearch = () => {
 const refreshSearchResults = () => {
   // Re-filter the current dmStore.searchResults with updated selected users
   if (dmStore.searchResults.length > 0) {
+    console.log('🔍 Refreshing search results:', {
+      totalResults: dmStore.searchResults.length,
+      selectedUsers: selectedUsers.value.map(u => u.id),
+      existingParticipants: props.existingParticipants?.map(p => p.id) || []
+    })
+    
     searchResults.value = dmStore.searchResults.filter(user => {
       // Filter out current user
-      if (user.id === currentUserId.value) return false
+      if (user.id === currentUserId.value) {
+        console.log('🚫 Filtering out current user:', user.id)
+        return false
+      }
       // Filter out existing participants
-      if (props.existingParticipants?.some(p => p.id === user.id)) return false
+      if (props.existingParticipants?.some(p => p.id === user.id)) {
+        console.log('🚫 Filtering out existing participant:', user.id)
+        return false
+      }
       // Filter out already selected users
-      if (selectedUsers.value.some(s => s.id === user.id)) return false
+      if (selectedUsers.value.some(s => s.id === user.id)) {
+        console.log('🚫 Filtering out already selected user:', user.id)
+        return false
+      }
+      console.log('✅ Keeping user in results:', user.id)
       return true
     })
+    
+    console.log('🔍 Final search results count:', searchResults.value.length)
   }
 }
 
