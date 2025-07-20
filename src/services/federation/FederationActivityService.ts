@@ -502,7 +502,7 @@ export class FederationActivityService {
       .rpc('convert_jsonb_to_ap', { content: postData.content })
 
     const noteObject = {
-      id: `${instanceDomain}/posts/${postData.id}`,
+      id: `${instanceDomain}/posts/${postData.id}`,  // FIXED: instanceDomain now includes https://
       type: 'Note',
       published: postData.created_at,
       attributedTo: actor.federated_id,
@@ -514,7 +514,7 @@ export class FederationActivityService {
     if (operation === 'delete') {
       return {
         '@context': 'https://www.w3.org/ns/activitystreams',
-        id: activityId,
+        id: activityId,  // FIXED: activityId now includes https:// from getInstanceDomain
         type: 'Delete',
         actor: actor.federated_id,
         object: noteObject,
@@ -524,7 +524,7 @@ export class FederationActivityService {
 
     return {
       '@context': 'https://www.w3.org/ns/activitystreams',
-      id: activityId,
+      id: activityId,  // FIXED: activityId now includes https:// from getInstanceDomain
       type: activityType,
       actor: actor.federated_id,
       object: noteObject,
@@ -654,13 +654,15 @@ export class FederationActivityService {
 
       if (error) {
         console.warn('Failed to get instance domain, using fallback:', error)
-        return 'localhost'
+        return 'https://localhost'  // FIXED: Include protocol in fallback
       }
 
-      return data || 'localhost'
+      // FIXED: Ensure protocol is included
+      const domain = data || 'localhost'
+      return domain.startsWith('http') ? domain : `https://${domain}`
     } catch (error) {
       console.warn('Failed to get instance domain, using fallback:', error)
-      return 'localhost'
+      return 'https://localhost'  // FIXED: Include protocol in fallback
     }
   }
 
