@@ -363,6 +363,7 @@ async function updateGroupName() {
   try {
     const { data, error } = await supabase.rpc('update_group_name', {
       conversation_uuid: props.conversationId,
+      user_profile_id: currentUser.value.id,
       new_name: localGroupName.value.trim() || null
     })
     

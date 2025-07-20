@@ -127,9 +127,27 @@ export async function uploadGroupIcon(
       return { success: false, error: uploadError.message }
     }
 
+    // Get current user profile ID
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    // Get profile ID from auth user
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      throw new Error('User profile not found')
+    }
+
     // Update conversation metadata with new icon path
     const { data: updateResult, error: updateError } = await supabase.rpc('update_group_icon', {
       conversation_uuid: conversationId,
+      user_profile_id: profile.id,
       icon_path: filePath
     })
 
@@ -166,10 +184,27 @@ export async function deleteGroupIcon(conversationId: string): Promise<{ success
 
     const iconPath = conversation.metadata.icon_url
 
+    // Get current user profile ID
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    // Get profile ID from auth user
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      throw new Error('User profile not found')
+    }
+
     // Remove icon from conversation metadata
-    const { error: updateError } = await supabase.rpc('update_group_icon', {
+    const { error: updateError } = await supabase.rpc('remove_group_icon', {
       conversation_uuid: conversationId,
-      icon_path: null
+      user_profile_id: profile.id
     })
 
     if (updateError) {
