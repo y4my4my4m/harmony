@@ -11,7 +11,7 @@
     @click="handleClick"
   >
     <img
-      v-if="iconUrl"
+      v-if="iconUrl && !imageError"
       :src="iconUrl"
       :alt="alt"
       class="icon-image"
@@ -71,6 +71,7 @@ const emit = defineEmits<{
 
 const imageError = ref(false)
 
+// Memoize the URL to prevent flashing
 const iconUrl = computed(() => {
   if (imageError.value || !props.iconPath) {
     return getDefaultGroupIcon(props.conversationId, getSizePixels(props.size))
@@ -79,7 +80,6 @@ const iconUrl = computed(() => {
   // Use appropriate preset based on size
   switch (props.size) {
     case 'xs':
-      return GroupIconPresets.small(props.conversationId, props.iconPath)
     case 'sm':
       return GroupIconPresets.small(props.conversationId, props.iconPath)
     case 'md':
@@ -105,6 +105,7 @@ function getSizePixels(size: string): number {
 }
 
 function handleImageError(event: Event) {
+  console.warn('Group icon failed to load, falling back to default:', props.iconPath)
   imageError.value = true
   emit('error', event)
 }

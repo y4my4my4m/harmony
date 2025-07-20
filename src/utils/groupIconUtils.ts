@@ -22,14 +22,13 @@ export function getGroupIconUrl(
   options: {
     size?: number
     quality?: number
-    format?: 'webp' | 'png' | 'jpg'
   } = {}
 ): string {
   if (!iconPath) {
     return getDefaultGroupIcon(conversationId, options.size)
   }
 
-  const { size = DEFAULT_SIZE, quality = DEFAULT_QUALITY, format = 'webp' } = options
+  const { size = DEFAULT_SIZE, quality = DEFAULT_QUALITY } = options
 
   try {
     const { data } = supabase.storage
@@ -39,10 +38,15 @@ export function getGroupIconUrl(
           width: size,
           height: size,
           quality: quality,
-          format: format,
           resize: 'cover'
         }
       })
+
+    // Ensure we have a valid URL before returning
+    if (!data.publicUrl) {
+      console.warn('No public URL returned for icon path:', iconPath)
+      return getDefaultGroupIcon(conversationId, size)
+    }
 
     return data.publicUrl
   } catch (error) {
