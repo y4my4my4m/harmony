@@ -475,20 +475,6 @@ export const useDMStore = defineStore('dm', () => {
   // Helper: Service-like method to fetch raw conversation data using participant system
   const _fetchRawConversations = async (userId: string) => {
     try {
-      // First, let's check if the conversation_participants table exists and has data
-      const { data: participantCheck, error: participantCheckError } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .limit(1)
-      
-      if (participantCheckError) {
-        console.error('❌ conversation_participants table not accessible:', participantCheckError)
-        console.log('ℹ️ Please apply migration 013 to enable multi-participant conversations')
-        
-        // Fallback to old user1/user2 system temporarily
-        return await _fetchLegacyConversations(userId)
-      }
-      
       // Simple approach: Query conversations where user is a participant
       const { data: participations, error: participationError } = await supabase
         .from('conversation_participants')
@@ -512,8 +498,7 @@ export const useDMStore = defineStore('dm', () => {
 
       if (participationError) {
         console.error('Error fetching conversation participations:', participationError)
-        // Fallback to legacy system on error
-        return await _fetchLegacyConversations(userId)
+        return null
       }
 
       if (!participations || participations.length === 0) {
@@ -521,39 +506,51 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       // Transform to the expected format
-      return participations.map(p => ({
-        ...p.conversations,
-        participant_role: p.role,
-        participant_joined_at: p.joined_at
-      }))
+      const conversationsData = await Promise.all(
+        participations.map(async (participation) => {
+          const conversation = Array.isArray(participation.conversations) 
+            ? participation.conversations[0] 
+            : participation.conversations
 
-    } catch (error) {
-      console.error('❌ Error in _fetchRawConversations:', error)
-      // Always fallback to legacy system on any error
-      return await _fetchLegacyConversations(userId)
-    }
-  }
+          // Get other participants (excluding current user)
+          const { data: otherParticipants, error: othersError } = await supabase
+            .from('conversation_participants')
+            .select('user_id, role, joined_at')
+            .eq('conversation_id', conversation.id)
+            .neq('user_id', userId)
+            .is('left_at', null)
 
-  // Helper: Fallback to legacy user1/user2 conversation system
-  const _fetchLegacyConversations = async (userId: string) => {
-    try {
-      console.log('🔄 Using legacy conversation system (user1/user2)')
-      
-      const { data: conversations, error } = await supabase
-        .from('conversations')
-        .select('*')
-        .or(`user1.eq.${userId},user2.eq.${userId}`)
-        .order('created_at', { ascending: false })
-      
-      if (error) {
-        console.error('❌ Error fetching legacy conversations:', error)
-        return []
-      }
-      
-      return conversations || []
+          if (othersError) {
+            console.error('Error fetching other participants:', othersError)
+          }
+
+          // Get participant count
+          const { count: participantCount, error: countError } = await supabase
+            .from('conversation_participants')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', conversation.id)
+            .is('left_at', null)
+
+          return {
+            conversation_id: conversation.id,
+            conversation_name: conversation.name,
+            conversation_type: conversation.type || 'direct',
+            created_by: conversation.created_by,
+            created_at: conversation.created_at,
+            is_active: conversation.is_active,
+            participant_count: participantCount ?? 2,
+            icon_url: conversation.metadata?.icon_url, // Icon stored in metadata
+            other_participants: otherParticipants || [],
+            user_role: participation.role,
+            user_joined_at: participation.joined_at
+          }
+        })
+      )
+
+      return conversationsData
     } catch (error) {
-      console.error('❌ Error in legacy conversation fallback:', error)
-      return []
+      console.error('Error in _fetchRawConversations:', error)
+      return null
     }
   }
 
