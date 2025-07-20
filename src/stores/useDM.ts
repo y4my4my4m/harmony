@@ -1513,13 +1513,20 @@ export const useDMStore = defineStore('dm', () => {
         return null
       }
 
+      // Get current user for conversation creation
+      const currentUserData = await authStore.getCurrentUser()
+      if (!currentUserData) {
+        console.error('❌ No current user found for conversation creation')
+        return null
+      }
+
       // Create the conversation
       const { data: conversation, error: createError } = await supabase
         .from('conversations')
         .insert({
           type: 'group',
           name: options.name,
-          created_by: getCurrentUser.value?.id,
+          created_by: currentUserData.id,
           is_active: true,
           metadata: {
             is_private: options.isPrivate ?? true
@@ -1566,9 +1573,7 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       // Refresh conversations to include the new one
-      if (getCurrentUser.value?.id) {
-        await fetchUserConversations(getCurrentUser.value.id)
-      }
+      await fetchUserConversations(currentUserData.id)
 
       console.log('✅ Successfully created group conversation')
       return conversation.id
