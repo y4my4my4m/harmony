@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
-import { updateUserStatus } from '@/services/profileService';
+import { updateUserStatus } from '@/services/ProfileService';
 import { UserStatus } from '@/types';
 import router from '@/router';
 
