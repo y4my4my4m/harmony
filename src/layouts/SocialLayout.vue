@@ -94,13 +94,12 @@
           <div class="sidebar-section">
             <h3 class="section-title">Suggested Follows</h3>
             <div class="suggested-users">
-              <UserCard
+              <ProfileCard
                 v-for="user in suggestedUsers"
                 :key="user.id"
                 :user="user"
                 :show-follow-btn="true"
-                @follow="handleFollow"
-                @unfollow="handleUnfollow"
+                :is-compact="true"
                 @click="handleUserCardClick"
               />
             </div>
@@ -154,10 +153,11 @@ import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
 import MonyComposer from '@/components/activitypub/MonyComposer.vue'
-import UserCard from '@/components/activitypub/UserCard.vue'
+import ProfileCard from '@/components/common/ProfileCard.vue'
 import UserSearchModal from '@/components/activitypub/UserSearchModal.vue'
 import UserProfileModal from '@/components/UserProfileModal.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
+import { trendingService } from '@/services/TrendingService'
 import type { FederatedUser, TimelinePost } from '@/types'
 
 // Props - Made view props optional since we extract from route
@@ -296,6 +296,20 @@ const trendingTopics = ref([
   { tag: 'federation', count: 234 }
 ])
 const suggestedUsers = ref<FederatedUser[]>([])
+
+// Load suggested users
+const loadSuggestedUsers = async () => {
+  try {
+    // Use TrendingService to get suggested users with proper stats
+    const trendingUserResults = await trendingService.getTrendingUsers({ limit: 3 })
+    suggestedUsers.value = trendingUserResults.map(result => result.user)
+  } catch (error) {
+    console.error('Failed to load suggested users:', error)
+  }
+}
+
+// Load suggested users on component mount
+loadSuggestedUsers()
 
 // Event handlers
 const handleToggleSearch = () => {

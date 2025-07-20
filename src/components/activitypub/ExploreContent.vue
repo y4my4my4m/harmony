@@ -116,14 +116,13 @@
             Suggested Users
           </h3>
           <div v-if="suggestedUsers.length > 0" class="users-grid">
-            <UserCard 
+            <ProfileCard 
               v-for="user in suggestedUsers"
               :key="user.user?.id || user.id"
               :user="user.user || user"
               :show-more-actions="true"
               :is-compact="true"
-              @show-user-profile="$emit('show-user-profile', user.user || user)"
-              @follow="() => $emit('follow-user', (user.user || user).id)"
+              @click="$emit('show-user-profile', user.user || user)"
             />
           </div>
           <div v-else class="empty-state">
@@ -228,7 +227,7 @@ import InstanceDetailModal from './InstanceDetailModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { TimelinePost, FederatedUser } from '@/types';
 import Avatar from '../common/Avatar.vue';
-import UserCard from './UserCard.vue';
+import ProfileCard from '@/components/common/ProfileCard.vue';
 
 // Props
 interface Props {

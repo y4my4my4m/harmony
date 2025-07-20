@@ -594,15 +594,26 @@ const vClickOutside = {
   color: var(--text-primary);
 }
 
-.follow-btn.following {
-  background: var(--success-primary);
-  border-color: var(--success-primary);
+.follow-btn {
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
   color: white;
 }
 
+.follow-btn:hover {
+  background: var(--harmony-primary-hover, #4f46e5);
+  border-color: var(--harmony-primary-hover, #4f46e5);
+}
+
+.follow-btn.following {
+  background: var(--background-secondary);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
 .follow-btn.following:hover {
-  background: var(--success-secondary);
-  border-color: var(--success-secondary);
+  background: var(--background-tertiary);
+  border-color: var(--border-hover);
 }
 
 .action-btn:disabled {

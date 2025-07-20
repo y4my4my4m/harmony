@@ -288,9 +288,19 @@ class TrendingService {
       let query = supabase
         .from('profiles')
         .select(`
-          *,
-          follower_count:follows!following_id(count),
-          post_count:posts!author_id(count)
+          id,
+          username,
+          display_name,
+          avatar_url,
+          bio,
+          domain,
+          is_local,
+          verified,
+          created_at,
+          updated_at,
+          followers_count,
+          following_count,
+          posts_count
         `)
         .eq('domain', 'har.mony.lol') // Local users for now
         .order('created_at', { ascending: false });
@@ -315,9 +325,9 @@ class TrendingService {
           bio: row.bio || '',
           is_local: row.domain === 'har.mony.lol' || !row.domain,
           verified: row.verified || false,
-          followers_count: row.follower_count?.[0]?.count || 0,
-          following_count: 0, // Would need separate query
-          posts_count: row.post_count?.[0]?.count || 0,
+          followers_count: row.followers_count || 0,
+          following_count: row.following_count || 0,
+          posts_count: row.posts_count || 0,
           created_at: row.created_at,
           updated_at: row.updated_at || row.created_at
         };
