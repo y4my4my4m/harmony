@@ -76,7 +76,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
   is_participant BOOLEAN := false;
-  update_result BOOLEAN := false;
+  conversation_exists BOOLEAN := false;
 BEGIN
   -- Check if user is a participant in the conversation
   SELECT can_manage_group_icon(conversation_uuid, user_profile_id) INTO is_participant;
@@ -88,6 +88,19 @@ BEGIN
     );
   END IF;
   
+  -- Check if conversation exists and is a group
+  SELECT EXISTS(
+    SELECT 1 FROM conversations 
+    WHERE id = conversation_uuid AND type = 'group'
+  ) INTO conversation_exists;
+  
+  IF NOT conversation_exists THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Group conversation not found'
+    );
+  END IF;
+  
   -- Update the conversation metadata with the new icon path
   UPDATE conversations 
   SET 
@@ -96,19 +109,10 @@ BEGIN
   WHERE id = conversation_uuid
     AND type = 'group';
   
-  GET DIAGNOSTICS update_result = FOUND;
-  
-  IF update_result THEN
-    RETURN jsonb_build_object(
-      'success', true,
-      'message', 'Group icon updated successfully'
-    );
-  ELSE
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', 'Failed to update group icon or conversation not found'
-    );
-  END IF;
+  RETURN jsonb_build_object(
+    'success', true,
+    'message', 'Group icon updated successfully'
+  );
 END;
 $$;
 
@@ -124,7 +128,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
   is_participant BOOLEAN := false;
-  update_result BOOLEAN := false;
+  conversation_exists BOOLEAN := false;
 BEGIN
   -- Check if user is a participant in the conversation
   SELECT can_manage_group_icon(conversation_uuid, user_profile_id) INTO is_participant;
@@ -136,6 +140,19 @@ BEGIN
     );
   END IF;
   
+  -- Check if conversation exists and is a group
+  SELECT EXISTS(
+    SELECT 1 FROM conversations 
+    WHERE id = conversation_uuid AND type = 'group'
+  ) INTO conversation_exists;
+  
+  IF NOT conversation_exists THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Group conversation not found'
+    );
+  END IF;
+  
   -- Update the conversation name
   UPDATE conversations 
   SET 
@@ -144,19 +161,10 @@ BEGIN
   WHERE id = conversation_uuid
     AND type = 'group';
   
-  GET DIAGNOSTICS update_result = FOUND;
-  
-  IF update_result THEN
-    RETURN jsonb_build_object(
-      'success', true,
-      'message', 'Group name updated successfully'
-    );
-  ELSE
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', 'Failed to update group name or conversation not found'
-    );
-  END IF;
+  RETURN jsonb_build_object(
+    'success', true,
+    'message', 'Group name updated successfully'
+  );
 END;
 $$;
 
@@ -171,7 +179,7 @@ SECURITY DEFINER
 AS $$
 DECLARE
   is_participant BOOLEAN := false;
-  update_result BOOLEAN := false;
+  conversation_exists BOOLEAN := false;
 BEGIN
   -- Check if user is a participant in the conversation
   SELECT can_manage_group_icon(conversation_uuid, user_profile_id) INTO is_participant;
@@ -183,6 +191,19 @@ BEGIN
     );
   END IF;
   
+  -- Check if conversation exists and is a group
+  SELECT EXISTS(
+    SELECT 1 FROM conversations 
+    WHERE id = conversation_uuid AND type = 'group'
+  ) INTO conversation_exists;
+  
+  IF NOT conversation_exists THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Group conversation not found'
+    );
+  END IF;
+  
   -- Remove icon from conversation metadata
   UPDATE conversations 
   SET 
@@ -191,19 +212,10 @@ BEGIN
   WHERE id = conversation_uuid
     AND type = 'group';
   
-  GET DIAGNOSTICS update_result = FOUND;
-  
-  IF update_result THEN
-    RETURN jsonb_build_object(
-      'success', true,
-      'message', 'Group icon removed successfully'
-    );
-  ELSE
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', 'Failed to remove group icon or conversation not found'
-    );
-  END IF;
+  RETURN jsonb_build_object(
+    'success', true,
+    'message', 'Group icon removed successfully'
+  );
 END;
 $$;
 
