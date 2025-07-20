@@ -426,6 +426,7 @@ DECLARE
     server_members uuid[];
     followers uuid[];
     single_target_id uuid;
+    target_user_ids uuid[];  -- ADD THIS MISSING VARIABLE
 BEGIN
     -- Process based on table and determine notification recipients
     IF TG_TABLE_NAME = 'posts' AND TG_OP = 'INSERT' THEN

@@ -311,7 +311,137 @@ $$;
 COMMENT ON FUNCTION public.create_notification_with_spam_prevention IS 'Creates notifications with spam prevention. Suppresses repeated notifications from same source within time windows.';
 
 -- =====================================================
--- STEP 6: CLEAN UP REDUNDANT HELPER FUNCTIONS
+-- STEP 6: FIX FEDERATION TRIGGER BEFORE TESTING
+-- =====================================================
+
+-- Fix the handle_unified_interaction_federation function to handle different table triggers
+-- This prevents the "follower_id" error when triggered from post_interactions
+CREATE OR REPLACE FUNCTION public.handle_unified_interaction_federation() 
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    user_federation_enabled boolean;
+    target_federation_enabled boolean;
+    current_instance_domain text;
+    activity_type text;
+    target_object_id text;
+    target_object_type text;
+    target_actor_id uuid;
+    actor_user_id uuid;
+BEGIN
+    -- Get current instance domain
+    SELECT trim(both '"' from config_value::text) INTO current_instance_domain 
+    FROM instance_config WHERE config_key = 'domain' LIMIT 1;
+
+    -- Determine actor user ID based on table
+    IF TG_TABLE_NAME = 'follows' THEN
+        actor_user_id := COALESCE(NEW.follower_id, OLD.follower_id);
+    ELSE
+        actor_user_id := COALESCE(NEW.user_id, OLD.user_id);
+    END IF;
+
+    -- Check federation for the acting user
+    SELECT is_federation_enabled_for_user(actor_user_id) INTO user_federation_enabled;
+    
+    IF NOT user_federation_enabled THEN
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+
+    -- Handle different table triggers
+    IF TG_TABLE_NAME = 'follows' THEN
+        -- Handle follows
+        IF TG_OP = 'INSERT' THEN
+            activity_type := 'Follow';
+            target_object_id := (SELECT federated_id FROM profiles WHERE id = NEW.following_id);
+            target_actor_id := NEW.following_id;
+        ELSIF TG_OP = 'DELETE' THEN
+            activity_type := 'Undo';
+            target_object_id := (SELECT federated_id FROM profiles WHERE id = OLD.following_id);
+            target_actor_id := OLD.following_id;
+        END IF;
+
+    ELSIF TG_TABLE_NAME = 'post_interactions' THEN
+        -- Handle post interactions
+        IF TG_OP = 'INSERT' THEN
+            activity_type := CASE 
+                WHEN NEW.interaction_type = 'favorite' THEN 'Like'
+                WHEN NEW.interaction_type = 'reblog' THEN 'Announce' 
+                ELSE 'Like'
+            END;
+            -- Construct post federated URL (posts don't have federated_id column)
+            target_object_id := current_instance_domain || '/posts/' || NEW.post_id;
+            target_actor_id := (SELECT author_id FROM posts WHERE id = NEW.post_id);
+        ELSIF TG_OP = 'DELETE' THEN
+            activity_type := 'Undo';
+            -- Construct post federated URL (posts don't have federated_id column)
+            target_object_id := current_instance_domain || '/posts/' || OLD.post_id;
+            target_actor_id := (SELECT author_id FROM posts WHERE id = OLD.post_id);
+        END IF;
+
+    ELSIF TG_TABLE_NAME = 'reactions' THEN
+        -- Handle message reactions
+        IF TG_OP = 'INSERT' THEN
+            activity_type := 'Like';
+            -- Construct message federated URL (messages don't have federated_id column)
+            target_object_id := current_instance_domain || '/messages/' || NEW.message_id;
+            target_actor_id := (SELECT user_id FROM messages WHERE id = NEW.message_id);
+        ELSIF TG_OP = 'DELETE' THEN
+            activity_type := 'Undo';
+            -- Construct message federated URL (messages don't have federated_id column)
+            target_object_id := current_instance_domain || '/messages/' || OLD.message_id;
+            target_actor_id := (SELECT user_id FROM messages WHERE id = OLD.message_id);
+        END IF;
+    END IF;
+
+    -- Check if target user has federation enabled
+    SELECT is_federation_enabled_for_user(target_actor_id) INTO target_federation_enabled;
+    
+    IF NOT target_federation_enabled THEN
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+
+    -- Only federate if we have valid data
+    IF activity_type IS NOT NULL AND target_object_id IS NOT NULL THEN
+        -- Determine object type
+        target_object_type := CASE 
+            WHEN TG_TABLE_NAME = 'follows' THEN 'Person'
+            WHEN TG_TABLE_NAME = 'post_interactions' THEN 'Note'
+            WHEN TG_TABLE_NAME = 'reactions' THEN 'Note'
+            ELSE 'Object'
+        END;
+
+        -- Create ActivityPub activity for federation
+        INSERT INTO ap_activities (
+            ap_id, ap_type, actor_id, actor_ap_id, object_id, object_type,
+            target_id, target_type, activity_data, status, is_local
+        ) VALUES (
+            current_instance_domain || '/activities/' || gen_random_uuid(),
+            activity_type,
+            actor_user_id,
+            (SELECT federated_id FROM profiles WHERE id = actor_user_id),
+            target_object_id,
+            target_object_type,
+            target_actor_id,
+            'Person',
+            jsonb_build_object(
+                'type', activity_type,
+                'actor', (SELECT federated_id FROM profiles WHERE id = actor_user_id),
+                'object', target_object_id
+            ),
+            'pending',
+            true
+        );
+    END IF;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+COMMENT ON FUNCTION public.handle_unified_interaction_federation() IS 'FIXED: Unified trigger function with proper table-specific column handling to prevent follower_id errors.';
+
+-- =====================================================
+-- STEP 7: CLEAN UP REDUNDANT HELPER FUNCTIONS
 -- =====================================================
 
 -- Remove redundant helper functions I created (use existing ones)
@@ -322,7 +452,7 @@ DROP FUNCTION IF EXISTS public.check_federation_blocks(uuid, uuid, text);
 -- No need for duplicate helper functions
 
 -- =====================================================
--- STEP 7: ADD FEDERATION_TYPE TO DELIVERY QUEUE
+-- STEP 8: ADD FEDERATION_TYPE TO DELIVERY QUEUE
 -- =====================================================
 
 -- Add federation_type column to federation_delivery_queue for better filtering
@@ -341,17 +471,38 @@ DROP FUNCTION IF EXISTS public.check_federation_blocks(uuid, uuid, text);
 -- Note: federation_delivery_queue table not found - operations commented out
 
 -- =====================================================
--- STEP 8: UPDATED TRIGGER COMMENTS FOR CLARITY
+-- STEP 9: UPDATED TRIGGER COMMENTS FOR CLARITY
 -- =====================================================
 
--- Update trigger comments to clarify they are OUTGOING ONLY
-COMMENT ON FUNCTION public.handle_unified_content_federation() IS 'OUTGOING ONLY: Unified trigger for federating local posts and messages to remote instances. Not bidirectional.';
--- Updated comments for the new separate federation functions
-COMMENT ON FUNCTION public.handle_follows_federation() IS 'OUTGOING ONLY: Trigger for federating local follows to remote instances. Not bidirectional.';
-COMMENT ON FUNCTION public.handle_post_interactions_federation() IS 'OUTGOING ONLY: Trigger for federating local post interactions (likes/reblogs) to remote instances. Not bidirectional.';
-COMMENT ON FUNCTION public.handle_reactions_federation() IS 'OUTGOING ONLY: Trigger for federating local reactions to remote instances. Not bidirectional.';
-COMMENT ON FUNCTION public.handle_unified_profile_federation() IS 'OUTGOING ONLY: Unified trigger for federating local profile updates to remote instances. Not bidirectional.';
-COMMENT ON FUNCTION public.handle_unified_notification_processing() IS 'LOCAL ONLY: Unified trigger for processing notifications locally. Does not involve federation.';
+-- Update trigger comments to clarify they are OUTGOING ONLY (only if functions exist)
+DO $$
+BEGIN
+    -- Check and update comments for existing functions only
+    IF EXISTS(SELECT 1 FROM pg_proc WHERE proname = 'handle_unified_content_federation') THEN
+        EXECUTE 'COMMENT ON FUNCTION public.handle_unified_content_federation() IS ''OUTGOING ONLY: Unified trigger for federating local posts and messages to remote instances. Not bidirectional.''';
+    END IF;
+    
+    IF EXISTS(SELECT 1 FROM pg_proc WHERE proname = 'handle_follows_federation') THEN
+        EXECUTE 'COMMENT ON FUNCTION public.handle_follows_federation() IS ''OUTGOING ONLY: Trigger for federating local follows to remote instances. Not bidirectional.''';
+    END IF;
+    
+    IF EXISTS(SELECT 1 FROM pg_proc WHERE proname = 'handle_post_interactions_federation') THEN
+        EXECUTE 'COMMENT ON FUNCTION public.handle_post_interactions_federation() IS ''OUTGOING ONLY: Trigger for federating local post interactions (likes/reblogs) to remote instances. Not bidirectional.''';
+    END IF;
+    
+    IF EXISTS(SELECT 1 FROM pg_proc WHERE proname = 'handle_reactions_federation') THEN
+        EXECUTE 'COMMENT ON FUNCTION public.handle_reactions_federation() IS ''OUTGOING ONLY: Trigger for federating local reactions to remote instances. Not bidirectional.''';
+    END IF;
+    
+    IF EXISTS(SELECT 1 FROM pg_proc WHERE proname = 'handle_unified_profile_federation') THEN
+        EXECUTE 'COMMENT ON FUNCTION public.handle_unified_profile_federation() IS ''OUTGOING ONLY: Unified trigger for federating local profile updates to remote instances. Not bidirectional.''';
+    END IF;
+    
+    IF EXISTS(SELECT 1 FROM pg_proc WHERE proname = 'handle_unified_notification_processing') THEN
+        EXECUTE 'COMMENT ON FUNCTION public.handle_unified_notification_processing() IS ''LOCAL ONLY: Unified trigger for processing notifications locally. Does not involve federation.''';
+    END IF;
+END;
+$$;
 
 COMMIT;
 
