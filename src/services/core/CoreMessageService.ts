@@ -56,13 +56,7 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const profileId = await this.getCurrentUserProfileId()
-
       const messageData = {
-        user_id: profileId,
         channel_id: channelId,
         content: content,
         reply_to: replyTo || null,
@@ -95,13 +89,7 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const profileId = await this.getCurrentUserProfileId()
-
       const messageData = {
-        user_id: profileId,
         conversation_id: conversationId,
         content: content,
         reply_to: replyTo || null,
@@ -133,22 +121,6 @@ export class CoreMessageService {
    */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const profileId = await this.getCurrentUserProfileId()
-
-      // Verify ownership
-      const { data: existingMessage } = await supabase
-        .from('messages')
-        .select('user_id')
-        .eq('id', messageId)
-        .single()
-
-      if (existingMessage?.user_id !== profileId) {
-        throw this.createError('UNAUTHORIZED', 'Cannot edit message you do not own')
-      }
-
       const { data: message, error } = await supabase
         .from('messages')
         .update({ 
@@ -174,22 +146,6 @@ export class CoreMessageService {
    */
   async deleteMessage(messageId: string): Promise<void> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const profileId = await this.getCurrentUserProfileId()
-
-      // Verify ownership
-      const { data: existingMessage } = await supabase
-        .from('messages')
-        .select('user_id')
-        .eq('id', messageId)
-        .single()
-
-      if (existingMessage?.user_id !== profileId) {
-        throw this.createError('UNAUTHORIZED', 'Cannot delete message you do not own')
-      }
-
       const { error } = await supabase
         .from('messages')
         .update({ 
@@ -541,25 +497,7 @@ export class CoreMessageService {
   // HELPER METHODS (PURE LOCAL)
   // =====================================================
 
-  private async getCurrentUserProfileId(): Promise<string> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-
-      if (!profile) throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
-
-      return profile.id
-    } catch (error) {
-      console.error('❌ Core: Failed to get current user profile ID:', error)
-      throw error
-    }
-  }
 
   private createError(code: string, message: string, details?: any): CoreMessageServiceError {
     return { code, message, details }
