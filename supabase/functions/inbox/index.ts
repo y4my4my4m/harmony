@@ -52,25 +52,55 @@ serve(async (req: Request) => {
       })
     }
 
-    console.log(`📩 Received ${activity.type} activity from ${activity.actor}`)
+    // Check if the actor's instance is blocked
+    let actorDomain: string | null = null
+    try {
+      if (typeof activity.actor === 'string') {
+        actorDomain = new URL(activity.actor).hostname
+      } else if (typeof activity.actor === 'object' && (activity.actor as any).id) {
+        actorDomain = new URL((activity.actor as any).id).hostname
+      }
+    } catch (e) {
+      console.error('Failed to parse actor domain:', e)
+      actorDomain = null
+    }
 
-    // Store activity with idempotent handling using our updated function
+    if (actorDomain) {
+      const { data: blocked, error: blockError } = await supabase
+        .from('federated_instances')
+        .select('is_blocked')
+        .eq('domain', actorDomain)
+        .maybeSingle()
+      
+      if (blocked?.is_blocked) {
+        console.log(`Blocked instance attempted to send activity: ${activity.id} from ${actorDomain}`)
+        return new Response('Blocked instance', { 
+          status: 403, 
+          headers: corsHeaders 
+        })
+      }
+    }
+
+    console.log('📥 Received activity:', JSON.stringify(activity, null, 2))
+
+    // ✅ Store the activity using database function (idempotent)
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || ''
+    const originDomain = actorUrl ? new URL(actorUrl).hostname : null
+    
     const { data: insertResult, error: storeError } = await supabase
       .rpc('upsert_ap_activity', {
         p_ap_id: activity.id,
         p_ap_type: activity.type,
-        p_actor_ap_id: activity.actor,
+        p_actor_ap_id: actorUrl,
         p_activity_data: activity,
-        p_origin_domain: new URL(activity.actor).hostname,
+        p_origin_domain: originDomain,
         p_to_addresses: activity.to || [],
         p_cc_addresses: activity.cc || [],
-        p_bto_addresses: [],
-        p_bcc_addresses: [],
         p_is_local: false
       })
 
     if (storeError) {
-      console.error('Failed to store activity:', storeError)
+      console.error('❌ Failed to store activity:', storeError)
       return new Response(`Failed to store activity: ${storeError.message}`, { 
         status: 500, 
         headers: corsHeaders 
@@ -80,12 +110,12 @@ serve(async (req: Request) => {
     const wasUpdated = insertResult?.[0]?.was_updated
     
     if (wasUpdated) {
-      console.log('Updated existing activity for retry:', activity.id)
+      console.log('🔄 Updated existing activity for retry:', activity.id)
     } else {
-      console.log('Successfully stored activity (new or idempotent):', activity.id)
+      console.log('✅ Successfully stored activity (new or idempotent):', activity.id)
     }
 
-    // Process the activity based on type - VALIDATION ONLY
+    // ✅ Process the activity based on type - VALIDATION ONLY
     // Database triggers will handle the actual business logic
     let isValid = false
     try {
@@ -118,30 +148,57 @@ serve(async (req: Request) => {
           isValid = await processAnnounceActivity(supabase, activity)
           break
         default:
-          console.log(`⚠️ Unsupported activity type: ${activity.type}`)
-          isValid = true // Accept but don't process
+          console.log(`❌ Unhandled activity type: ${activity.type}. Marking as invalid.`)
+          isValid = false // Reject unrecognized activity types
       }
-    } catch (processError) {
-      console.error(`Failed to process ${activity.type} activity:`, processError)
-      isValid = false
+
+      if (isValid) {
+        // ✅ Mark as processing - this UPDATE will trigger database processing
+        const { error: updateError } = await supabase
+          .from('ap_activities')
+          .update({ 
+            status: 'processing'
+          })
+          .eq('ap_id', activity.id)
+
+        if (updateError) {
+          console.error('❌ Failed to mark activity as processing:', updateError)
+        } else {
+          console.log(`✅ Activity passed validation and marked for processing: ${activity.id}`)
+        }
+      } else {
+        // Mark as failed with validation error
+        await supabase
+          .from('ap_activities')
+          .update({ 
+            status: 'failed', 
+            error_message: 'Failed validation'
+          })
+          .eq('ap_id', activity.id)
+        
+        console.log(`❌ Activity failed validation: ${activity.id}`)
+      }
+
+    } catch (processingError) {
+      console.error('❌ Activity validation error:', processingError)
+      
+      // For validation failures, mark as failed immediately (no retry)
+      await supabase
+        .from('ap_activities')
+        .update({ 
+          status: 'failed', 
+          error_message: processingError instanceof Error ? processingError.message : 'Unknown error'
+        })
+        .eq('ap_id', activity.id)
     }
 
-    if (!isValid) {
-      console.warn(`❌ Invalid ${activity.type} activity rejected`)
-      return new Response('Activity processing failed', { 
-        status: 400, 
-        headers: corsHeaders 
-      })
-    }
-
-    console.log(`✅ ${activity.type} activity processed successfully`)
-    return new Response('Activity accepted', { 
-      status: 202, 
+    return new Response('', { 
+      status: 202, // Accepted
       headers: corsHeaders 
     })
 
   } catch (error) {
-    console.error('Inbox error:', error)
+    console.error('❌ Inbox error:', error)
     return new Response('Internal server error', { 
       status: 500, 
       headers: corsHeaders 
@@ -149,271 +206,90 @@ serve(async (req: Request) => {
   }
 })
 
-// Activity processing functions - SIMPLIFIED TO ONLY HANDLE BASIC VALIDATION
-// Business logic moved to database triggers for better performance and consistency
+// ✅ Activity processing functions - VALIDATION ONLY
+// Business logic handled by database triggers
 
 async function processFollowActivity(supabase: any, activity: ActivityPubActivity, ourDomain: string) {
   // Only validate that this is a follow for our domain
   const followingActor = typeof activity.object === 'string' ? activity.object : (activity.object as any).id
+  
+  if (!followingActor || typeof followingActor !== 'string') {
+    console.log('❌ Follow activity missing or invalid object')
+    return false
+  }
+  
   const followingMatch = followingActor.match(`https://${ourDomain}/users/([^/]+)`)
   
   if (!followingMatch) {
-    console.log('Follow activity not for our domain, ignoring')
+    console.log('❌ Follow activity not for our domain, ignoring')
     return false
   }
 
   const username = followingMatch[1]
-  console.log(`Valid follow activity for user: ${username}`)
-
-  // Auto-accept the follow using the new database function
-  try {
-    // Get our user's profile
-    const { data: ourProfile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('username', username)
-      .eq('is_local', true)
-      .single()
-
-    if (profileError || !ourProfile) {
-      console.error(`Could not find local user ${username}:`, profileError)
-      return true // Still valid follow, just can't auto-accept
-    }
-
-    // Get the stored Follow activity ID
-    const { data: followActivity, error: followError } = await supabase
-      .from('ap_activities')
-      .select('id')
-      .eq('ap_id', activity.id)
-      .single()
-
-    if (followError || !followActivity) {
-      console.error('Could not find stored Follow activity:', followError)
-      return true
-    }
-
-    // Use our unified notification system for follow notifications
-    const { error: notifyError } = await supabase.rpc('create_notification_unified', {
-      p_user_id: ourProfile.id,
-      p_type: 'follow_request',
-      p_title: 'New follower',
-      p_message: `@${activity.actor} started following you`,
-      p_data: {
-        actor_id: activity.actor,
-        activity_id: activity.id,
-        follow_id: followActivity.id
-      }
-    })
-
-    if (notifyError) {
-      console.error('Failed to create follow notification:', notifyError)
-    } else {
-      console.log(`✅ Created follow notification for user ${username}`)
-    }
-
-  } catch (error) {
-    console.error('Error auto-accepting follow:', error)
-  }
-
+  console.log(`✅ Valid follow activity for user: ${username}`)
   return true
 }
 
 async function processAcceptActivity(supabase: any, activity: ActivityPubActivity) {
-  // Database triggers will handle the actual Accept processing
-  console.log('Accept activity received, database will handle processing')
+  console.log('✅ Accept activity stored, will be processed by database trigger:', activity.id)
   return true
 }
 
 async function processRejectActivity(supabase: any, activity: ActivityPubActivity) {
-  // Database triggers will handle the actual Reject processing
-  console.log('Reject activity received, database will handle processing')
+  console.log('✅ Reject activity stored, will be processed by database trigger:', activity.id)
   return true
 }
 
 async function processUndoActivity(supabase: any, activity: ActivityPubActivity) {
-  // Validate undo activity structure
-  const object = activity.object
-  if (!object || typeof object !== 'object') {
-    console.error('Invalid Undo activity: missing object')
-    return false
-  }
-
-  console.log(`Undo activity received for ${object.type}, database will handle processing`)
+  console.log('✅ Undo activity stored, will be processed by database trigger:', activity.id)
   return true
 }
 
 async function processCreateActivity(supabase: any, activity: ActivityPubActivity) {
-  // Validate create activity has object
-  const object = activity.object
-  if (!object || typeof object !== 'object') {
-    console.error('Invalid Create activity: missing or invalid object')
+  console.log('✅ Create activity stored, will be processed by database trigger:', activity.id)
+  
+  // Basic validation only - triggers handle all business logic
+  const object = typeof activity.object === 'string' ? null : activity.object as any
+  if (!object || object.type !== 'Note') {
+    console.log('❌ Create activity does not contain a Note object')
     return false
   }
 
-  try {
-    console.log('📥 Processing incoming Create activity:', activity.id)
-    
-    // Extract object data with robust extraction
-    const activityObject = object as any
-    const actorUrl = activity.actor
-    
-    // ✅ FIX: More robust object_id and object_type extraction
-    let objectId: string | null = null
-    let objectType: string | null = null
-    
-    if (activityObject && typeof activityObject === 'object') {
-      objectId = activityObject.id || null
-      objectType = activityObject.type || null
-    }
-    
-    console.log(`📄 Object details:`, {
-      objectType,
-      objectId,
-      actorUrl,
-      hasObject: !!activityObject,
-      objectKeys: activityObject ? Object.keys(activityObject) : []
-    })
-
-    // Store the activity in ap_activities table
-    const activityRecord = {
-      ap_id: activity.id,
-      ap_type: activity.type,
-      actor_ap_id: actorUrl,
-      object_id: objectId,
-      object_type: objectType,
-      activity_data: activity,
-      status: 'received',
-      is_local: false,
-      to_addresses: activity.to || [],
-      cc_addresses: activity.cc || [],
-      created_at: new Date().toISOString()
-    }
-    
-    console.log('📤 Inserting activity record:', activityRecord)
-
-    const { data: insertedActivity, error: activityError } = await supabase
-      .from('ap_activities')
-      .insert(activityRecord)
-      .select()
-      .single()
-
-    if (activityError) {
-      console.error('❌ Failed to store activity:', activityError)
-      return false
-    }
-
-    console.log('✅ Activity stored in ap_activities table:', insertedActivity?.id)
-
-    // If this is a Note (post/reply), try to process it further
-    if (objectType === 'Note' && objectId) {
-      console.log('📝 Processing Note object for mentions and notifications')
-      
-      // Check if this mentions any local users
-      const content = activityObject.content || ''
-      const tags = activityObject.tag || []
-      
-      // Find mentions in tags
-      const mentions = tags.filter((tag: any) => tag?.type === 'Mention')
-      console.log(`🏷️ Found ${mentions.length} mentions:`, mentions.map((m: any) => m?.href))
-      
-      for (const mention of mentions) {
-        if (mention?.href && mention.href.includes('har.mony.lol')) {
-          console.log(`📬 Processing local mention: ${mention.href}`)
-          
-          // Extract username from mention href (supports both /users/ and /@ formats)
-          let usernameMatch = mention.href.match(/\/users\/([^\/]+)$/)
-          if (!usernameMatch) {
-            usernameMatch = mention.href.match(/\/@([^\/]+)$/)
-          }
-          
-          if (usernameMatch) {
-            const username = usernameMatch[1]
-            console.log(`👤 Found local user mention: ${username}`)
-            
-            // Find the local user
-            const { data: localUser, error: userError } = await supabase
-              .from('profiles')
-              .select('id, username')
-              .eq('username', username)
-              .eq('is_local', true)
-              .single()
-            
-            if (localUser && !userError) {
-              console.log(`✅ Local user found: ${localUser.username} (${localUser.id})`)
-              
-              // ✅ FIX: Use 'data' field instead of 'message' for notifications
-              const notificationData = {
-                user_id: localUser.id,
-                type: 'mention',
-                data: {
-                  message: `You were mentioned by ${actorUrl}`,
-                  activity_id: activity.id,
-                  actor_url: actorUrl,
-                  object_id: objectId,
-                  content: content,
-                  mention_href: mention.href
-                },
-                created_at: new Date().toISOString()
-              }
-              
-              console.log('📤 Creating notification:', notificationData)
-              
-              const { error: notificationError } = await supabase
-                .from('notifications')
-                .insert(notificationData)
-              
-              if (notificationError) {
-                console.error('❌ Failed to create notification:', notificationError)
-              } else {
-                console.log('✅ Mention notification created')
-              }
-            } else {
-              console.log(`❌ Local user not found: ${username}`, userError)
-            }
-          } else {
-            console.log(`❌ Could not extract username from mention href: ${mention.href}`)
-          }
-        }
-      }
-    }
-
-    return true
-  } catch (error) {
-    console.error('❌ Error processing Create activity:', error)
-    return false
-  }
+  console.log('✅ Create activity validated for Note object')
+  return true
 }
 
 async function processUpdateActivity(supabase: any, activity: ActivityPubActivity) {
-  // Database triggers will handle the actual Update processing
-  console.log('Update activity received, database will handle processing')
+  console.log('✅ Update activity stored, will be processed by database trigger:', activity.id)
+  
+  // Basic validation only - triggers handle all business logic
+  const object = typeof activity.object === 'string' ? null : activity.object as any
+  if (!object || !object.type) {
+    console.log('❌ Update activity does not contain a valid object')
+    return false
+  }
+
+  // Accept both Note updates (post edits) and Person updates (profile updates)
+  if (object.type !== 'Note' && object.type !== 'Person') {
+    console.log(`❌ Update activity contains unsupported object type: ${object.type}`)
+    return false
+  }
+
+  console.log(`✅ Update activity validated for ${object.type} object`)
   return true
 }
 
 async function processDeleteActivity(supabase: any, activity: ActivityPubActivity) {
-  // Database triggers will handle the actual Delete processing
-  console.log('Delete activity received, database will handle processing')
+  console.log('✅ Delete activity stored, will be processed by database trigger:', activity.id)
   return true
 }
 
 async function processLikeActivity(supabase: any, activity: ActivityPubActivity) {
-  // Validate like activity
-  if (!activity.object) {
-    console.error('Invalid Like activity: missing object')
-    return false
-  }
-
-  console.log('Like activity received, database will handle processing')
+  console.log('✅ Like activity stored, will be processed by database trigger:', activity.id)
   return true
 }
 
 async function processAnnounceActivity(supabase: any, activity: ActivityPubActivity) {
-  // Validate announce activity
-  if (!activity.object) {
-    console.error('Invalid Announce activity: missing object')
-    return false
-  }
-
-  console.log('Announce activity received, database will handle processing')
+  console.log('✅ Announce activity stored, will be processed by database trigger:', activity.id)
   return true
 }
