@@ -1818,17 +1818,18 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          console.log('🔄 Loading followed users via InteractionService');
          
-         // Get current user ID for the service call
-         const { data: { user } } = await supabase.auth.getUser();
-         if (!user) {
-           console.log('ℹ️ No current user available, skipping followed users loading');
-           return;
-         }
+                 // Get current user ID via service layer for consistency
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.auth_user_id) {
+          console.log('ℹ️ No current user available, skipping followed users loading');
+          return;
+        }
+        
+        console.log('🔄 Current user for loading followed users:', currentUser.auth_user_id);
          
-         console.log('🔄 Current user for loading followed users:', user.id);
-         
-         // Use InteractionService for consistent relationship management
-         const result = await services.interactions.getFollowing(user.id);
+                 // Use InteractionService for consistent relationship management
+        const result = await services.interactions.getFollowing(currentUser.auth_user_id);
          console.log('🔄 Service result:', result);
          
          this.followedUsers = new Set(result.users.map(user => user.id));

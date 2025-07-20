@@ -638,15 +638,7 @@ export const useDMStore = defineStore('dm', () => {
           for (const participant of conv.other_participants) {
             const profileData = await _fetchUserProfile(participant.user_id)
             if (profileData) {
-              participantProfiles.push({
-                id: profileData.id,
-                username: profileData.username,
-                display_name: profileData.display_name,
-                avatar_url: profileData.avatar_url,
-                domain: profileData.domain,
-                is_local: profileData.is_local,
-                handle: profileData.handle
-              })
+              participantProfiles.push(_normalizeUserObject(profileData))
             }
           }
         }
@@ -684,14 +676,8 @@ export const useDMStore = defineStore('dm', () => {
         return {
           ...baseConversation,
           other_user: {
-            id: profileData.id,
-            username: profileData.username,
-            display_name: profileData.display_name,
-            avatar_url: profileData.avatar_url,
+            ..._normalizeUserObject(profileData),
             is_online: false, // Will be updated by global presence system in UI
-            domain: profileData.domain,
-            is_local: profileData.is_local,
-            federated_id: profileData.federated_id,
             handle: isFederated ? `@${profileData.username}@${profileData.domain}` : `@${profileData.username}`
           }
         }
@@ -716,6 +702,28 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     return profileData
+  }
+
+  // Helper: Normalize user object to ensure consistent ID field
+  const _normalizeUserObject = (user: any): DMUser => {
+    // Determine the correct ID (prefer 'id' over 'user_id')
+    const userId = user.id || user.user_id
+    if (!userId) {
+      console.error('User object missing both id and user_id fields:', user)
+      throw new Error('Invalid user object: missing ID')
+    }
+
+    return {
+      id: userId,
+      username: user.username,
+      display_name: user.display_name,
+      avatar_url: user.avatar_url,
+      domain: user.domain,
+      is_local: user.is_local,
+      federated_id: user.federated_id,
+      handle: user.handle,
+      is_online: false // Will be updated by global presence system in UI
+    }
   }
 
   // Helper: Service-like method to fetch last message
@@ -871,20 +879,10 @@ export const useDMStore = defineStore('dm', () => {
       
       console.log('🔍 Raw search results from service:', users.map(u => ({ id: u.id, user_id: u.user_id, username: u.username })))
       
-      // Filter out current user and convert to DMUser format
+      // Normalize and filter users with consistent ID structure
       const filteredUsers = users
-        .filter(user => (user.id || user.user_id) !== currentUserId)
-        .map(user => ({
-          id: user.id || user.user_id, // Try both id and user_id fields
-          username: user.username,
-          display_name: user.display_name,
-          avatar_url: user.avatar_url,
-          domain: user.domain,
-          is_local: user.is_local,
-          federated_id: user.federated_id,
-          handle: user.handle,
-          is_online: false // Will be updated by global presence system in UI
-        }))
+        .map(user => _normalizeUserObject(user))
+        .filter(user => user.id !== currentUserId)
 
       searchResults.value = filteredUsers
       console.log(`✅ Found ${filteredUsers.length} users via service layer`)

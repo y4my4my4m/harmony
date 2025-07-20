@@ -71,25 +71,31 @@ const emit = defineEmits<{
 
 const imageError = ref(false)
 
-// Memoize the URL to prevent flashing
+// Memoize the URL to prevent flashing with error boundary
 const iconUrl = computed(() => {
-  if (imageError.value || !props.iconPath) {
-    return getDefaultGroupIcon(props.conversationId, getSizePixels(props.size))
-  }
+  try {
+    if (imageError.value || !props.iconPath) {
+      return getDefaultGroupIcon(props.conversationId, getSizePixels(props.size))
+    }
 
-  // Use appropriate preset based on size
-  switch (props.size) {
-    case 'xs':
-    case 'sm':
-      return GroupIconPresets.small(props.conversationId, props.iconPath)
-    case 'md':
-      return GroupIconPresets.medium(props.conversationId, props.iconPath)
-    case 'lg':
-      return GroupIconPresets.large(props.conversationId, props.iconPath)
-    case 'xl':
-      return GroupIconPresets.profile(props.conversationId, props.iconPath)
-    default:
-      return GroupIconPresets.medium(props.conversationId, props.iconPath)
+    // Use appropriate preset based on size
+    switch (props.size) {
+      case 'xs':
+      case 'sm':
+        return GroupIconPresets.small(props.conversationId, props.iconPath)
+      case 'md':
+        return GroupIconPresets.medium(props.conversationId, props.iconPath)
+      case 'lg':
+        return GroupIconPresets.large(props.conversationId, props.iconPath)
+      case 'xl':
+        return GroupIconPresets.profile(props.conversationId, props.iconPath)
+      default:
+        return GroupIconPresets.medium(props.conversationId, props.iconPath)
+    }
+  } catch (error) {
+    // Error boundary: if anything fails, use a basic fallback
+    console.error('Failed to generate group icon URL:', error)
+    return `data:image/svg+xml;base64,${btoa('<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" fill="#5865F2" rx="8"/><text x="24" y="30" text-anchor="middle" fill="white" font-size="18" font-family="system-ui">?</text></svg>')}`
   }
 })
 
