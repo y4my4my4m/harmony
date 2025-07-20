@@ -9,7 +9,7 @@ SELECT
     m.conversation_id,
     m.content,
     jsonb_typeof(m.content) as content_type,
-    array_length(m.content, 1) as content_array_length,
+    jsonb_array_length(m.content->'object') as content_array_length, -- fixed here
     m.created_at,
     p.username
 FROM messages m

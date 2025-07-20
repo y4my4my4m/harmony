@@ -53,10 +53,10 @@ WITH recent_post AS (
 )
 SELECT 
     'POST' as type,
-    rp.id as post_id,
+    rp.id::text as post_id,
     rp.created_at,
     NULL as activity_id,
-    NULL as delivery_count
+    NULL::bigint as delivery_count              -- <- fixed here
 FROM recent_post rp
 UNION ALL
 SELECT 
@@ -64,7 +64,7 @@ SELECT
     aa.object_id as post_id,
     aa.created_at,
     aa.id as activity_id,
-    NULL as delivery_count
+    NULL::bigint as delivery_count              -- <- fixed here
 FROM recent_post rp
 JOIN ap_activities aa ON aa.object_id = 'https://har.mony.lol/posts/' || rp.id::text
 UNION ALL
