@@ -133,7 +133,7 @@
                 @click="removeParticipant(participant)"
                 title="Remove from group"
               >
-                <Icon name="user-minus" />
+                                 <Icon name="user-x" />
               </button>
             </div>
           </div>
@@ -148,7 +148,7 @@
             class="danger-btn leave-group"
             @click="showLeaveConfirm = true"
           >
-            <Icon name="logout" />
+            <Icon name="x" />
             Leave Group
           </button>
           <button 
@@ -182,24 +182,24 @@
     />
 
     <!-- Confirmation Modals -->
-    <ConfirmModal
+    <ConfirmationModal
       :show="showLeaveConfirm"
       title="Leave Group"
       message="Are you sure you want to leave this group? You won't be able to see new messages."
-      confirm-text="Leave"
-      confirm-variant="danger"
+      confirm-button-text="Leave"
       @confirm="leaveGroup"
-      @cancel="showLeaveConfirm = false"
+      @close="showLeaveConfirm = false"
     />
 
-    <ConfirmModal
+    <ConfirmationModal
       :show="showDeleteConfirm"
       title="Delete Group"
       message="Are you sure you want to delete this group? This cannot be undone and all messages will be lost."
-      confirm-text="Delete"
-      confirm-variant="danger"
+      confirm-button-text="Delete"
+      :require-confirmation="true"
+      confirmation-text="DELETE"
       @confirm="deleteGroup"
-      @cancel="showDeleteConfirm = false"
+      @close="showDeleteConfirm = false"
     />
   </BaseModal>
 </template>
@@ -212,7 +212,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
-import ConfirmModal from '@/components/common/ConfirmModal.vue'
+import ConfirmationModal from '@/components/ConfirmationModal.vue'
 import { uploadGroupIcon, deleteGroupIcon } from '@/utils/groupIconUtils'
 import { useDMStore, type DMConversation, type DMUser } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
