@@ -16,6 +16,7 @@
 
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
+import { userDataService } from '@/services/userDataService'
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -56,7 +57,14 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
+      // Get current user from cached userDataService (no database calls)
+      const currentUser = userDataService.getCurrentUser()
+      if (!currentUser?.id) {
+        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      }
+
       const messageData = {
+        user_id: currentUser.id,
         channel_id: channelId,
         content: content,
         reply_to: replyTo || null,
@@ -89,7 +97,14 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
+      // Get current user from cached userDataService (no database calls)
+      const currentUser = userDataService.getCurrentUser()
+      if (!currentUser?.id) {
+        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      }
+
       const messageData = {
+        user_id: currentUser.id,
         conversation_id: conversationId,
         content: content,
         reply_to: replyTo || null,
