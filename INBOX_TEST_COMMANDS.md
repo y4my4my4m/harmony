@@ -9,7 +9,7 @@ First, run the migration to add debug functions:
 supabase db reset
 # OR manually run: 
 # - db_migrations/042_fix_inbox_processing_trigger.sql
-# - db_migrations/043_fix_notifications_table_schema.sql
+# - db_migrations/043_fix_send_notification_function.sql
 ```
 
 ## 🧪 **STEP 1: Diagnose the Issue**
@@ -52,20 +52,28 @@ WHERE event_object_table = 'ap_activities'
 
 Should return: `unified_activitypub_processing_trigger | UPDATE`
 
-## 🚨 **STEP 3B: Check Notifications Schema**
+## 🚨 **STEP 3B: Test Notification Function**
 
-Verify the notifications table has all required columns:
+Verify the send_notification function works with existing schema:
 
 ```sql
--- Check notifications table columns
-SELECT column_name, data_type, is_nullable
-FROM information_schema.columns 
-WHERE table_name = 'notifications' 
-  AND table_schema = 'public'
-ORDER BY ordinal_position;
+-- Test the fixed function
+SELECT send_notification(
+    'test_notification',
+    ARRAY['00000000-0000-0000-0000-000000000001']::uuid[],
+    '{"message": "Function test"}'::jsonb,
+    NULL::uuid, -- server_id (stored in data JSON)
+    NULL::uuid, -- channel_id (stored in data JSON)
+    NULL::uuid, -- conversation_id (stored in data JSON)
+    NULL::uuid, -- from_user_id (stored in data JSON)
+    'normal' -- priority (stored in data JSON)
+);
+
+-- Clean up test
+DELETE FROM notifications WHERE type = 'test_notification';
 ```
 
-Should include: `server_id`, `channel_id`, `conversation_id`, `from_user_id`, `priority`
+Should complete without "column does not exist" errors
 
 ## 📊 **STEP 4: Monitor Incoming Activities**
 
@@ -111,9 +119,14 @@ When working correctly:
 
 ## 🎯 **ROOT CAUSE IDENTIFIED**
 
-The issue was that `send_notification()` function expected columns in the `notifications` table that didn't exist:
-- `server_id`, `channel_id`, `conversation_id`, `from_user_id`, `priority`
+The issue was that `send_notification()` function was trying to insert into columns that don't exist in the `notifications` table:
+- The function expected: `server_id`, `channel_id`, `conversation_id`, `from_user_id`, `priority` columns
+- The actual table has: `id`, `user_id`, `type`, `data`, `is_read`, `is_clicked`, `created_at`, `updated_at`, `expires_at`, `read_at`
 
-When ActivityPub processing tried to create notifications (for mentions, follows, etc.), the notification creation failed, causing the entire activity processing to fail and activities to get stuck in `received` status.
+When ActivityPub processing tried to create notifications (for mentions, follows, etc.), the notification creation failed with "column does not exist" errors, causing the entire activity processing to fail and activities to get stuck in `received` status.
 
-Migration 043 fixes this by adding the missing columns to match the function expectations.
+**Migration 043 fixes this by:**
+- Updating `send_notification()` to work with the existing table schema
+- Storing contextual data (`server_id`, `channel_id`, etc.) in the JSONB `data` column
+- Maintaining all notification preference logic
+- Keeping the clean, modern notification architecture
