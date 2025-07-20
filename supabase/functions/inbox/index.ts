@@ -35,7 +35,6 @@ serve(async (req: Request) => {
   }
 
   try {
-    const url = new URL(req.url)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
@@ -52,38 +51,9 @@ serve(async (req: Request) => {
       })
     }
 
-    // Check if the actor's instance is blocked
-    let actorDomain: string | null = null
-    try {
-      if (typeof activity.actor === 'string') {
-        actorDomain = new URL(activity.actor).hostname
-      } else if (typeof activity.actor === 'object' && (activity.actor as any).id) {
-        actorDomain = new URL((activity.actor as any).id).hostname
-      }
-    } catch (e) {
-      console.error('Failed to parse actor domain:', e)
-      actorDomain = null
-    }
-
-    if (actorDomain) {
-      const { data: blocked, error: blockError } = await supabase
-        .from('federated_instances')
-        .select('is_blocked')
-        .eq('domain', actorDomain)
-        .maybeSingle()
-      
-      if (blocked?.is_blocked) {
-        console.log(`Blocked instance attempted to send activity: ${activity.id} from ${actorDomain}`)
-        return new Response('Blocked instance', { 
-          status: 403, 
-          headers: corsHeaders 
-        })
-      }
-    }
-
     console.log('📥 Received activity:', JSON.stringify(activity, null, 2))
 
-    // ✅ Store the activity using database function (idempotent)
+    // ✅ Store the activity using database function (idempotent - FIXES CONSTRAINT ERROR)
     const actorUrl = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || ''
     const originDomain = actorUrl ? new URL(actorUrl).hostname : null
     
@@ -124,47 +94,31 @@ serve(async (req: Request) => {
           isValid = await processFollowActivity(supabase, activity, ourDomain)
           break
         case 'Accept':
-          isValid = await processAcceptActivity(supabase, activity)
-          break
         case 'Reject':
-          isValid = await processRejectActivity(supabase, activity)
-          break
         case 'Undo':
-          isValid = await processUndoActivity(supabase, activity)
-          break
         case 'Create':
-          isValid = await processCreateActivity(supabase, activity)
-          break
         case 'Update':
-          isValid = await processUpdateActivity(supabase, activity)
-          break
         case 'Delete':
-          isValid = await processDeleteActivity(supabase, activity)
-          break
         case 'Like':
-          isValid = await processLikeActivity(supabase, activity)
-          break
         case 'Announce':
-          isValid = await processAnnounceActivity(supabase, activity)
+          isValid = true // Basic validation passed, let database handle business logic
           break
         default:
-          console.log(`❌ Unhandled activity type: ${activity.type}. Marking as invalid.`)
-          isValid = false // Reject unrecognized activity types
+          console.log(`❌ Unhandled activity type: ${activity.type}`)
+          isValid = false
       }
 
       if (isValid) {
-        // ✅ Mark as processing - this UPDATE will trigger database processing
+        // ✅ Mark as processing - this UPDATE triggers database processing
         const { error: updateError } = await supabase
           .from('ap_activities')
-          .update({ 
-            status: 'processing'
-          })
+          .update({ status: 'processing' })
           .eq('ap_id', activity.id)
 
         if (updateError) {
           console.error('❌ Failed to mark activity as processing:', updateError)
         } else {
-          console.log(`✅ Activity passed validation and marked for processing: ${activity.id}`)
+          console.log(`✅ Activity marked for processing: ${activity.id}`)
         }
       } else {
         // Mark as failed with validation error
@@ -182,7 +136,6 @@ serve(async (req: Request) => {
     } catch (processingError) {
       console.error('❌ Activity validation error:', processingError)
       
-      // For validation failures, mark as failed immediately (no retry)
       await supabase
         .from('ap_activities')
         .update({ 
@@ -206,11 +159,8 @@ serve(async (req: Request) => {
   }
 })
 
-// ✅ Activity processing functions - VALIDATION ONLY
-// Business logic handled by database triggers
-
+// ✅ Minimal validation functions
 async function processFollowActivity(supabase: any, activity: ActivityPubActivity, ourDomain: string) {
-  // Only validate that this is a follow for our domain
   const followingActor = typeof activity.object === 'string' ? activity.object : (activity.object as any).id
   
   if (!followingActor || typeof followingActor !== 'string') {
@@ -221,75 +171,10 @@ async function processFollowActivity(supabase: any, activity: ActivityPubActivit
   const followingMatch = followingActor.match(`https://${ourDomain}/users/([^/]+)`)
   
   if (!followingMatch) {
-    console.log('❌ Follow activity not for our domain, ignoring')
+    console.log('❌ Follow activity not for our domain')
     return false
   }
 
-  const username = followingMatch[1]
-  console.log(`✅ Valid follow activity for user: ${username}`)
-  return true
-}
-
-async function processAcceptActivity(supabase: any, activity: ActivityPubActivity) {
-  console.log('✅ Accept activity stored, will be processed by database trigger:', activity.id)
-  return true
-}
-
-async function processRejectActivity(supabase: any, activity: ActivityPubActivity) {
-  console.log('✅ Reject activity stored, will be processed by database trigger:', activity.id)
-  return true
-}
-
-async function processUndoActivity(supabase: any, activity: ActivityPubActivity) {
-  console.log('✅ Undo activity stored, will be processed by database trigger:', activity.id)
-  return true
-}
-
-async function processCreateActivity(supabase: any, activity: ActivityPubActivity) {
-  console.log('✅ Create activity stored, will be processed by database trigger:', activity.id)
-  
-  // Basic validation only - triggers handle all business logic
-  const object = typeof activity.object === 'string' ? null : activity.object as any
-  if (!object || object.type !== 'Note') {
-    console.log('❌ Create activity does not contain a Note object')
-    return false
-  }
-
-  console.log('✅ Create activity validated for Note object')
-  return true
-}
-
-async function processUpdateActivity(supabase: any, activity: ActivityPubActivity) {
-  console.log('✅ Update activity stored, will be processed by database trigger:', activity.id)
-  
-  // Basic validation only - triggers handle all business logic
-  const object = typeof activity.object === 'string' ? null : activity.object as any
-  if (!object || !object.type) {
-    console.log('❌ Update activity does not contain a valid object')
-    return false
-  }
-
-  // Accept both Note updates (post edits) and Person updates (profile updates)
-  if (object.type !== 'Note' && object.type !== 'Person') {
-    console.log(`❌ Update activity contains unsupported object type: ${object.type}`)
-    return false
-  }
-
-  console.log(`✅ Update activity validated for ${object.type} object`)
-  return true
-}
-
-async function processDeleteActivity(supabase: any, activity: ActivityPubActivity) {
-  console.log('✅ Delete activity stored, will be processed by database trigger:', activity.id)
-  return true
-}
-
-async function processLikeActivity(supabase: any, activity: ActivityPubActivity) {
-  console.log('✅ Like activity stored, will be processed by database trigger:', activity.id)
-  return true
-}
-
-async function processAnnounceActivity(supabase: any, activity: ActivityPubActivity) {
-  console.log('✅ Announce activity stored, will be processed by database trigger:', activity.id)
+  console.log(`✅ Valid follow activity for user: ${followingMatch[1]}`)
   return true
 }
