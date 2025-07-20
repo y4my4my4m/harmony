@@ -1,9 +1,9 @@
 <template>
   <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
-    <div class="no-messages" v-if="validMessages.length == 0">
+    <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
-    <template v-else v-for="(message, index) in validMessages" :key="`wrapper-${message.id}`">
+    <template v-else v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
       <!-- Beginning of conversation indicator -->
       <div v-if="index === 0 && hasScrollbar" class="beginning-indicator" :style="getIndicatorStyle()">
         <div class="beginning-content">
@@ -297,64 +297,13 @@ const indexRef = ref(0);
 const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 
 // --- COMPUTED PROPERTIES ---
-const validateMessageContent = (content: any): boolean => {
-  // Check if content exists and is an array
-  if (!content || !Array.isArray(content)) {
-    console.warn('Invalid message content format:', content);
-    return false;
-  }
-  
-  // Check if array has valid parts
-  return content.every(part => {
-    if (!part || typeof part !== 'object') {
-      return false;
-    }
-    
-    // Validate part has a type
-    if (typeof part.type !== 'string') {
-      return false;
-    }
-    
-    // ✅ FIX: Handle system message format
-    if (part.type === 'system') {
-      // System messages have different structure: { type: 'system', user: {...}, event_type: '...', ... }
-      return true; // System messages are always valid if they have type: 'system'
-    }
-    
-    // Standard MessagePart validation for other types
-    const validTypes = ['text', 'mention', 'emoji', 'hashtag', 'url', 'file'];
-    return validTypes.includes(part.type);
-  });
-};
-
-const validMessages = computed(() => {
-  if (!props.messages || !Array.isArray(props.messages)) {
-    console.warn('Messages prop is not an array:', props.messages);
-    return [];
-  }
-  
-  return props.messages.filter(message => {
-    if (!message) {
-      console.warn('Null/undefined message in array');
-      return false;
-    }
-    
-    if (!validateMessageContent(message.content)) {
-      console.warn('Message has invalid content:', message.id, message.content);
-      return false;
-    }
-    
-    return true;
-  });
-});
-
 const lightboxImages = computed(() => {
   let urls: Array<string> = [];
-  if (!validMessages.value || !Array.isArray(validMessages.value)) {
+  if (!props.messages || !Array.isArray(props.messages)) {
     return urls;
   }
   
-  validMessages.value.forEach(message => {
+  props.messages.forEach(message => {
     if (!message?.content || !Array.isArray(message.content)) {
       return;
     }
@@ -389,7 +338,7 @@ const currentServerData = computed(() => {
 });
 
 // --- WATCHERS ---
-watch(() => validMessages.value, (newMessages) => {
+watch(() => props.messages, (newMessages) => {
   if (!newMessages || !Array.isArray(newMessages)) {
     return;
   }
@@ -444,8 +393,8 @@ watch(() => validMessages.value, (newMessages) => {
   }
 }, { immediate: true, deep: true });
 
-watch(() => validMessages.value.map(msg => msg.reactions?.length), () => {
-  const hasVisibleReactions = validMessages.value.some(msg => msg.reactions && msg.reactions.length > 0);
+watch(() => props.messages.map(msg => msg.reactions?.length), () => {
+  const hasVisibleReactions = props.messages.some(msg => msg.reactions && msg.reactions.length > 0);
   if (!hasVisibleReactions && tooltip.value.visible) {
     hideTooltip();
   }
