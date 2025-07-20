@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
@@ -300,16 +300,23 @@ const suggestedUsers = ref<FederatedUser[]>([])
 // Load suggested users
 const loadSuggestedUsers = async () => {
   try {
+    console.log('🔄 Loading suggested users...')
     // Use TrendingService to get suggested users with proper stats
     const trendingUserResults = await trendingService.getTrendingUsers({ limit: 3 })
+    console.log('📊 Trending user results:', trendingUserResults)
     suggestedUsers.value = trendingUserResults.map(result => result.user)
+    console.log('✅ Suggested users loaded:', suggestedUsers.value.length)
   } catch (error) {
     console.error('Failed to load suggested users:', error)
+    // Fallback to empty array
+    suggestedUsers.value = []
   }
 }
 
 // Load suggested users on component mount
-loadSuggestedUsers()
+onMounted(() => {
+  loadSuggestedUsers()
+})
 
 // Event handlers
 const handleToggleSearch = () => {

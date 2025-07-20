@@ -161,7 +161,13 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Check if user is following another user
      */
     isFollowing: (state) => (userId: string) => {
-      return state.followedUsers.has(userId);
+      const following = state.followedUsers.has(userId);
+      console.log(`🔍 isFollowing check for ${userId}:`, {
+        following,
+        followedUsersSize: state.followedUsers.size,
+        followedUsersList: Array.from(state.followedUsers).slice(0, 5) // First 5 for debug
+      });
+      return following;
     },
 
     /**
@@ -1813,16 +1819,16 @@ export const useActivityPubStore = defineStore('activitypub', {
          console.log('🔄 Loading followed users via InteractionService');
          
          // Get current user ID for the service call
-         const currentUser = this.currentUser || this.userProfile;
-         if (!currentUser?.id) {
+         const { data: { user } } = await supabase.auth.getUser();
+         if (!user) {
            console.log('ℹ️ No current user available, skipping followed users loading');
            return;
          }
          
-         console.log('🔄 Current user for loading followed users:', currentUser.id);
+         console.log('🔄 Current user for loading followed users:', user.id);
          
          // Use InteractionService for consistent relationship management
-         const result = await services.interactions.getFollowing(currentUser.id);
+         const result = await services.interactions.getFollowing(user.id);
          console.log('🔄 Service result:', result);
          
          this.followedUsers = new Set(result.users.map(user => user.id));
