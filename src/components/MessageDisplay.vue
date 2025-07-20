@@ -1,9 +1,9 @@
 <template>
   <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
-    <div class="no-messages" v-if="messages.length == 0">
+    <div class="no-messages" v-if="validMessages.length == 0">
       There are no messages here, type something!
     </div>
-    <template v-else v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
+    <template v-else v-for="(message, index) in validMessages" :key="`wrapper-${message.id}`">
       <!-- Beginning of conversation indicator -->
       <div v-if="index === 0 && hasScrollbar" class="beginning-indicator" :style="getIndicatorStyle()">
         <div class="beginning-content">
@@ -297,13 +297,49 @@ const indexRef = ref(0);
 const BUFFER_THRESHOLD = 15; // pixels needed to trigger buffer effect
 
 // --- COMPUTED PROPERTIES ---
+const validateMessageContent = (content: any): boolean => {
+  // Check if content exists and is an array
+  if (!content || !Array.isArray(content)) {
+    console.warn('Invalid message content format:', content);
+    return false;
+  }
+  
+  // Check if array has valid parts
+  return content.every(part => 
+    part && 
+    typeof part === 'object' && 
+    typeof part.type === 'string'
+  );
+};
+
+const validMessages = computed(() => {
+  if (!props.messages || !Array.isArray(props.messages)) {
+    console.warn('Messages prop is not an array:', props.messages);
+    return [];
+  }
+  
+  return props.messages.filter(message => {
+    if (!message) {
+      console.warn('Null/undefined message in array');
+      return false;
+    }
+    
+    if (!validateMessageContent(message.content)) {
+      console.warn('Message has invalid content:', message.id, message.content);
+      return false;
+    }
+    
+    return true;
+  });
+});
+
 const lightboxImages = computed(() => {
   let urls: Array<string> = [];
-  if (!props.messages || !Array.isArray(props.messages)) {
+  if (!validMessages.value || !Array.isArray(validMessages.value)) {
     return urls;
   }
   
-  props.messages.forEach(message => {
+  validMessages.value.forEach(message => {
     if (!message?.content || !Array.isArray(message.content)) {
       return;
     }
@@ -338,7 +374,7 @@ const currentServerData = computed(() => {
 });
 
 // --- WATCHERS ---
-watch(() => props.messages, (newMessages) => {
+watch(() => validMessages.value, (newMessages) => {
   if (!newMessages || !Array.isArray(newMessages)) {
     return;
   }
@@ -393,8 +429,8 @@ watch(() => props.messages, (newMessages) => {
   }
 }, { immediate: true, deep: true });
 
-watch(() => props.messages.map(msg => msg.reactions?.length), () => {
-  const hasVisibleReactions = props.messages.some(msg => msg.reactions && msg.reactions.length > 0);
+watch(() => validMessages.value.map(msg => msg.reactions?.length), () => {
+  const hasVisibleReactions = validMessages.value.some(msg => msg.reactions && msg.reactions.length > 0);
   if (!hasVisibleReactions && tooltip.value.visible) {
     hideTooltip();
   }
