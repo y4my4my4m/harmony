@@ -436,16 +436,24 @@ const addUsersToConversation = async () => {
   if (!props.conversationId || !currentUserId.value) return
 
   try {
-    const success = await dmStore.addUsersToConversation(
+    const result = await dmStore.addUsersToConversation(
       props.conversationId,
       selectedUsers.value.map(u => u.id),
       currentUserId.value
     )
 
-    if (success) {
-      emit('usersAdded', props.conversationId, selectedUsers.value.map(u => u.id))
+    if (result) {
+      // Check if result is a new conversation ID (string) or success boolean (true)
+      if (typeof result === 'string') {
+        // New group conversation was created, navigate to it
+        emit('conversationCreated', result)
+        toast.success(`Created group conversation with ${selectedUsers.value.length} additional user${selectedUsers.value.length > 1 ? 's' : ''}`)
+      } else {
+        // Users were added to existing group conversation
+        emit('usersAdded', props.conversationId, selectedUsers.value.map(u => u.id))
+        toast.success(`Added ${selectedUsers.value.length} user${selectedUsers.value.length > 1 ? 's' : ''} to conversation`)
+      }
       emit('close')
-      toast.success(`Added ${selectedUsers.value.length} user${selectedUsers.value.length > 1 ? 's' : ''} to conversation`)
     } else {
       toast.error('Failed to add users to conversation')
     }

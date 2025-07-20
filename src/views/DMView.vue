@@ -48,13 +48,14 @@
       :existing-participants="existingParticipants"
       @close="showAddUserModal = false"
       @users-added="handleUsersAdded"
+      @conversation-created="handleConversationCreated"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import DMHeader from '@/components/dm/DMHeader.vue'
@@ -84,6 +85,7 @@ const emit = defineEmits<{
 const dmStore = useDMStore()
 const authStore = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 
 // User data
 const { getCurrentUser } = useUserData()
@@ -191,6 +193,15 @@ const handleUsersAdded = async (conversationId: string, userIds: string[]) => {
     } catch (error) {
       console.error('Failed to refresh conversation after adding users:', error)
     }
+  }
+}
+
+const handleConversationCreated = async (newConversationId: string) => {
+  // Navigate to the new group conversation
+  try {
+    await router.push(`/dm/${newConversationId}`)
+  } catch (error) {
+    console.error('Failed to navigate to new conversation:', error)
   }
 }
 

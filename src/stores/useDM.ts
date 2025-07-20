@@ -1537,79 +1537,111 @@ export const useDMStore = defineStore('dm', () => {
     try {
       console.log('🔄 Adding users to conversation:', { conversationId, userIds })
       
-      // Add new participants to the conversation_participants table
-      const participantInserts = userIds.map(userId => ({
-        conversation_id: conversationId,
-        user_id: userId,
-        role: 'member',
-        joined_at: new Date().toISOString()
-      }))
-
-      const { error: insertError } = await supabase
-        .from('conversation_participants')
-        .insert(participantInserts)
-
-      if (insertError) {
-        console.error('❌ Failed to add participants:', insertError)
-        return false
-      }
-
-      // Update conversation type to 'group' if it was direct
+      // First, check if this is a direct conversation
       const { data: conversation, error: fetchError } = await supabase
         .from('conversations')
-        .select('type')
+        .select('type, created_by')
         .eq('id', conversationId)
         .single()
 
-      if (!fetchError && conversation?.type === 'direct') {
-        const { error: updateError } = await supabase
-          .from('conversations')
-          .update({ type: 'group' })
-          .eq('id', conversationId)
+      if (fetchError) {
+        console.error('❌ Failed to fetch conversation:', fetchError)
+        return false
+      }
 
-        if (updateError) {
-          console.warn('⚠️ Failed to update conversation type:', updateError)
+      // If it's a direct conversation, create a NEW group conversation instead
+      if (conversation?.type === 'direct') {
+        console.log('🔄 Converting 1:1 to group by creating new conversation')
+        
+        // Get current participants of the direct conversation
+        const { data: currentParticipants, error: participantsError } = await supabase
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', conversationId)
+
+        if (participantsError) {
+          console.error('❌ Failed to fetch current participants:', participantsError)
+          return false
+        }
+
+        // Create new group conversation with all users (current participants + new users)
+        const allUserIds = [
+          ...currentParticipants.map(p => p.user_id),
+          ...userIds
+        ].filter((id, index, arr) => arr.indexOf(id) === index) // Remove duplicates
+
+        const groupOptions = {
+          participantIds: allUserIds,
+          name: undefined, // Let the system generate a name
+          isPrivate: true // Default to private group
+        }
+
+        const newConversationId = await createGroupConversation(groupOptions)
+        
+        if (newConversationId) {
+          // Navigate to the new group conversation
+          // The parent component should handle this
+          console.log('✅ Created new group conversation:', newConversationId)
+          return newConversationId // Return the new conversation ID
+        } else {
+          return false
+        }
+      } else {
+        // It's already a group conversation, just add the new participants
+        console.log('🔄 Adding users to existing group conversation')
+        
+        // Use the database function to add participants (bypasses RLS)
+        for (const userId of userIds) {
+          const { error: addError } = await supabase.rpc('add_user_to_conversation', {
+            conversation_uuid: conversationId,
+            user_uuid: userId,
+            user_role: 'member'
+          })
+
+          if (addError) {
+            console.error('❌ Failed to add participant:', addError)
+            return false
+          }
+        }
+
+        // Add a system message about the new participants
+        try {
+          const userProfiles = await Promise.all(
+            userIds.map(async (userId) => {
+              const { data } = await supabase
+                .from('profiles')
+                .select('username, display_name')
+                .eq('id', userId)
+                .single()
+              return data
+            })
+          )
+
+          const userNames = userProfiles
+            .filter(Boolean)
+            .map(profile => profile?.display_name || profile?.username)
+            .join(', ')
+
+          const systemMessageContent = [{
+            type: 'text',
+            text: `${userNames} ${userIds.length === 1 ? 'was' : 'were'} added to the conversation`
+          }]
+
+          await services.messages.sendDMMessage(
+            conversationId,
+            systemMessageContent
+          )
+        } catch (systemMessageError) {
+          console.warn('⚠️ Failed to send system message:', systemMessageError)
           // Don't fail the operation for this
         }
+
+        // Refresh the conversations to show updated participant count
+        await fetchUserConversations(currentUserId)
+
+        console.log('✅ Successfully added users to group conversation')
+        return true
       }
-
-      // Add a system message about the new participants
-      try {
-        const userProfiles = await Promise.all(
-          userIds.map(async (userId) => {
-            const { data } = await supabase
-              .from('profiles')
-              .select('username, display_name')
-              .eq('id', userId)
-              .single()
-            return data
-          })
-        )
-
-        const userNames = userProfiles
-          .filter(Boolean)
-          .map(profile => profile?.display_name || profile?.username)
-          .join(', ')
-
-        const systemMessageContent = [{
-          type: 'text',
-          text: `${userNames} ${userIds.length === 1 ? 'was' : 'were'} added to the conversation`
-        }]
-
-        await services.messages.sendDMMessage(
-          conversationId,
-          systemMessageContent
-        )
-      } catch (systemMessageError) {
-        console.warn('⚠️ Failed to send system message:', systemMessageError)
-        // Don't fail the operation for this
-      }
-
-      // Refresh the conversations to show updated participant count
-      await fetchUserConversations(currentUserId)
-
-      console.log('✅ Successfully added users to conversation')
-      return true
       
     } catch (error) {
       console.error('❌ Failed to add users to conversation:', error)
