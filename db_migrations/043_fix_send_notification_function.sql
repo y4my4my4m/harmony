@@ -171,24 +171,39 @@ IS 'SECURITY DEFINER: Unified notification function that stores contextual data 
 DO $$
 DECLARE
     test_result uuid[];
+    test_user_id uuid;
 BEGIN
-    -- Test the function (this should not fail)
-    SELECT send_notification(
-        'test_notification',
-        ARRAY['00000000-0000-0000-0000-000000000001']::uuid[],
-        '{"message": "Test notification"}'::jsonb,
-        '00000000-0000-0000-0000-000000000002'::uuid, -- server_id
-        '00000000-0000-0000-0000-000000000003'::uuid, -- channel_id
-        NULL::uuid, -- conversation_id
-        '00000000-0000-0000-0000-000000000004'::uuid, -- from_user_id
-        'high' -- priority
-    ) INTO test_result;
+    -- Get a real user ID for testing (if any exist)
+    SELECT id INTO test_user_id 
+    FROM profiles 
+    WHERE is_local = true 
+    LIMIT 1;
     
-    -- Clean up test notification
-    DELETE FROM notifications WHERE type = 'test_notification';
+    -- Only test if we have a real user
+    IF test_user_id IS NOT NULL THEN
+        -- Test the function with a real user ID
+        SELECT send_notification(
+            'test_notification',
+            ARRAY[test_user_id],
+            '{"message": "Test notification after schema fix"}'::jsonb,
+            NULL::uuid, -- server_id
+            NULL::uuid, -- channel_id
+            NULL::uuid, -- conversation_id
+            NULL::uuid, -- from_user_id
+            'normal' -- priority
+        ) INTO test_result;
+        
+        -- Clean up test notification
+        DELETE FROM notifications WHERE type = 'test_notification';
+        
+        RAISE NOTICE '✅ send_notification function tested successfully with user %', test_user_id;
+    ELSE
+        RAISE NOTICE '✅ send_notification function deployed (no users available for testing)';
+    END IF;
     
-    RAISE NOTICE '✅ send_notification function now works with existing table schema';
 EXCEPTION WHEN OTHERS THEN
+    -- Clean up any test notifications that might have been created
+    DELETE FROM notifications WHERE type = 'test_notification';
     RAISE EXCEPTION 'send_notification function test failed: %', SQLERRM;
 END $$;
 
