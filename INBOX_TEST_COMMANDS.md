@@ -10,6 +10,7 @@ supabase db reset
 # OR manually run: 
 # - db_migrations/042_fix_inbox_processing_trigger.sql
 # - db_migrations/043_fix_send_notification_function.sql
+# - db_migrations/044_fix_dm_federation_triggers.sql
 ```
 
 ## 🧪 **STEP 1: Diagnose the Issue**
