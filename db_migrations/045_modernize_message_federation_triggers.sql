@@ -9,7 +9,7 @@ DROP TRIGGER IF EXISTS trigger_unified_message_federation ON messages;
 DROP TRIGGER IF EXISTS trigger_unified_notification_messages ON messages;
 DROP TRIGGER IF EXISTS trigger_handle_outgoing_messages ON messages; -- My mistake from 044
 
--- 2. Create modern message federation trigger (following posts pattern)
+-- 2. Create modern message federation trigger (following posts pattern exactly)
 DROP TRIGGER IF EXISTS trg_handle_message_federation ON messages;
 
 CREATE TRIGGER trg_handle_message_federation
