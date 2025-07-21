@@ -1,6 +1,7 @@
 -- Migration 043: Fix send_notification Function for Existing Schema
 -- Issue: send_notification() tries to insert into columns that don't exist
 -- Solution: Store contextual data (server_id, channel_id, etc.) in the data JSONB column
+-- This migration REPLACES the broken function with a working one
 
 BEGIN;
 
