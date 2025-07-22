@@ -103,12 +103,30 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
+      // ENSURE CONTENT IS PROPERLY FORMATTED FOR ACTIVITYPUB COMPATIBILITY
+      let processedContent = content;
+      
+      // Validate that content is an array of MessagePart objects
+      if (!Array.isArray(content)) {
+        throw this.createError('INVALID_CONTENT', 'Content must be an array of MessagePart objects')
+      }
+      
+      // Ensure each part is a proper MessagePart object (not raw text)
+      for (const part of content) {
+        if (!part || typeof part !== 'object' || !part.type) {
+          throw this.createError('INVALID_MESSAGE_PART', `Invalid MessagePart: ${JSON.stringify(part)}. Each content part must be a valid MessagePart object with a 'type' field.`)
+        }
+      }
+
       const messageData = {
         user_id: currentUser.id,
         conversation_id: conversationId,
-        content: content,
+        content: processedContent, // Properly validated MessagePart[] array
         reply_to: replyTo || null,
-        metadata: { created_via: 'harmony_client' }
+        metadata: { 
+          created_via: 'harmony_client',
+          content_format: 'message_parts_v1' // Track format version
+        }
       }
 
       const { data: message, error } = await supabase
