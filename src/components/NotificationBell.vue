@@ -318,15 +318,10 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
-// ✅ PERFORMANCE FIX: Don't duplicate notification initialization
-// BaseLayout already handles initial notification loading in background
+// ✅ CLEAN ARCHITECTURE: NotificationBell is pure reactive display component
+// BaseLayout handles ALL notification initialization - we just display current state
 onMounted(() => {
-  if (authStore.session?.user?.id && !notificationStore.isInitialized) {
-    // Only initialize if not already done by BaseLayout
-    // This handles edge cases where NotificationBell mounts before BaseLayout completes
-    console.log('🔔 NotificationBell: Fallback initialization (BaseLayout not complete yet)')
-    notificationStore.initializeUnreadCountOnly(authStore.session.user.id)
-  }
+  console.log('🔔 NotificationBell: Mounted as reactive display component')
   
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeydown)

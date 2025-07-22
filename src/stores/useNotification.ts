@@ -459,15 +459,17 @@ export const useNotificationStore = defineStore('notification', {
       // ✅ PERFORMANCE FIX: Prevent duplicate subscription setup
       if (this.realtimeSubscription) {
         // Check if the existing subscription is for the same user and still active
-        const existingChannelName = `harmony-notifications-${await this.getProfileId(userId)}`;
+        const profileId = await this.getProfileId(userId);
+        const existingChannelName = `harmony-notifications-${profileId}`;
         if (this.realtimeSubscription.topic === existingChannelName) {
-          console.log('🔄 Real-time notification subscription already exists for user, reusing:', userId)
+          console.log('✅ Real-time notification subscription already exists for user, reusing:', userId)
           return; // Reuse existing subscription
         }
         
-        // Only clean up if we're changing users
+        // Only clean up if we're changing users (shouldn't happen in normal flow)
         console.log('🧹 Cleaning up existing notification subscription for different user')
         supabase.removeChannel(this.realtimeSubscription)
+        this.realtimeSubscription = null
       }
 
       console.log('🔔 Setting up real-time notification subscription for user:', userId)
