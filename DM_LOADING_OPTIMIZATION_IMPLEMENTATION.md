@@ -211,9 +211,9 @@ The DM loading optimization implementation successfully addresses all issues ide
    - ⚠️ More database queries (still 70% fewer than original)
    - 🎯 **Used for `/dm` route for optimal UX**
 
-2. **`'partial'`** - Load 4 most recent conversations immediately  
+2. **`'partial'`** - Load 20 most recent conversations immediately  
    - ✅ Balanced approach - recent chats load fast
-   - ✅ Good performance - only loads what's likely to be viewed
+   - ✅ Good performance - covers more conversations that are likely to be viewed
    - 🎯 **Default strategy for other routes**
 
 3. **`'lazy'`** - Pure hover-based loading

@@ -292,7 +292,7 @@ export const useDMStore = defineStore('dm', () => {
   /**
    * Initialize DM environment with configurable loading strategies:
    * - 'lazy': User profiles load only on hover (maximum performance, placeholder UX)
-   * - 'partial': Load user profiles for 4 most recent conversations immediately (balanced)
+   * - 'partial': Load user profiles for 20 most recent conversations immediately (balanced)
    * - 'immediate': Load ALL user profiles right away (best UX, more database load)
    */
   const initializeDMEnvironment = async (userId: string, forceRefresh = false, metadataOnly = false, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
@@ -479,15 +479,15 @@ export const useDMStore = defineStore('dm', () => {
           }, 100)
         }
       } else if (loadStrategy === 'partial') {
-        // Load user profiles for most recent conversations immediately for better UX
-        // Keep the rest as lazy-loaded for performance
-        const immediateLoadConversations = processedConversations
-          .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
-          .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()) // Most recent first
-          .slice(0, 4) // Load first 4 most recent direct conversations immediately
-          
-        if (immediateLoadConversations.length > 0) {
-          console.log(`⚡ Loading user profiles for first ${immediateLoadConversations.length} most recent conversations`)
+                 // Load user profiles for most recent conversations immediately for better UX
+         // Keep the rest as lazy-loaded for performance
+         const immediateLoadConversations = processedConversations
+           .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
+           .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()) // Most recent first
+           .slice(0, 20) // Load first 20 most recent direct conversations immediately
+           
+         if (immediateLoadConversations.length > 0) {
+           console.log(`⚡ Loading user profiles for first ${immediateLoadConversations.length} most recent conversations (user info only, not messages)`)
           setTimeout(() => {
             loadMultipleConversationUserProfiles(immediateLoadConversations.map(c => c.id))
           }, 100)
