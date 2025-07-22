@@ -60,7 +60,7 @@ const emit = defineEmits<Emits>();
 const reactionsStore = useReactionsStore();
 const authStore = useAuthStore();
 
-// Get reactions for this message (Discord-style instant feedback)
+// ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
 const reactions = computed(() => {
   try {
     return reactionsStore.getMessageReactions(props.message.id);
@@ -116,14 +116,20 @@ const handleEmojiError = (emoji: Emoji) => {
   console.warn('Failed to load emoji:', emoji);
 };
 
-// Fetch reactions on mount
+// ✅ UNIFIED ARCHITECTURE: Reactions store is pre-populated by CoreMessageService  
+// Components can safely request reactions - store has batch-loaded data, no N+1 queries
 onMounted(() => {
-  reactionsStore.fetchMessageReactions(props.message.id);
+  // Store is populated by batch loading, but safe to request (will use cache)
+  if (!reactionsStore.isLoadingReactions(props.message.id)) {
+    reactionsStore.fetchMessageReactions(props.message.id);
+  }
 });
 
 // Watch for message changes and reload reactions if needed
 watch(() => props.message.id, (newMessageId) => {
-  reactionsStore.fetchMessageReactions(newMessageId);
+  if (!reactionsStore.isLoadingReactions(newMessageId)) {
+    reactionsStore.fetchMessageReactions(newMessageId);
+  }
 });
 </script>
 

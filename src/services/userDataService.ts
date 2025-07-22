@@ -33,6 +33,10 @@ class UserDataService extends EventTarget {
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
   private readonly HEARTBEAT_INTERVAL = 30 * 1000 // 30 seconds
+  
+  // Presence sync debouncing
+  private presenceSyncTimeouts = new Map<string, NodeJS.Timeout>()
+  private readonly PRESENCE_SYNC_DEBOUNCE = 200 // 200ms debounce for presence sync
   private heartbeatTimer: NodeJS.Timeout | null = null
   private heartbeatFailures = 0
   private readonly MAX_HEARTBEAT_FAILURES = 3
@@ -40,7 +44,7 @@ class UserDataService extends EventTarget {
   /**
    * Initialize the service for a user
    */
-  async initialize(userId: string, username: string, avatarUrl?: string): Promise<void> {
+  async initialize(userId: string, username: string, avatarUrl?: string, existingProfile?: any): Promise<void> {
     if (this.initialized && this.currentUserId === userId) return
     
     console.log('🚀 Initializing User Data Service for:', username)
@@ -49,19 +53,31 @@ class UserDataService extends EventTarget {
     this.currentUserId = userId
     
     // Initialize current user
-    await this.initializeCurrentUser(userId, username, avatarUrl)
+    await this.initializeCurrentUser(userId, username, avatarUrl, existingProfile)
     
     // Setup global presence channel
     await this.setupGlobalPresence()
     
-    // Start activity tracking and lifecycle management
-    this.setupActivityTracking()
-    
-    // Start heartbeat
+    // Start heartbeat for core functionality
     this.startHeartbeat()
     
     this.initialized = true
     console.log('✅ User Data Service initialized')
+  }
+
+  /**
+   * ✅ PERFORMANCE FIX: Initialize background features after critical path
+   * This includes activity tracking which is not needed for initial render
+   */
+  async initializeBackgroundFeatures(): Promise<void> {
+    if (!this.initialized) {
+      console.warn('⚠️ Cannot initialize background features - service not initialized')
+      return
+    }
+    
+    // Start activity tracking and lifecycle management
+    this.setupActivityTracking()
+    console.log('✅ Background features initialized (activity tracking)')
   }
   
   /**
@@ -158,14 +174,23 @@ class UserDataService extends EventTarget {
   /**
    * Initialize current user data (Discord/Slack style)
    */
-  private async initializeCurrentUser(userId: string, username: string, avatarUrl?: string): Promise<void> {
+  private async initializeCurrentUser(userId: string, username: string, avatarUrl?: string, existingProfile?: any): Promise<void> {
     try {
-      // Try to load from database first - this is the primary source of truth
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at')
-        .eq('id', userId)
-        .single()
+      // ✅ PERFORMANCE FIX: Use existing profile if provided to avoid duplicate database query
+      let profile = existingProfile
+      
+      if (!profile) {
+        // Only query database if profile wasn't already loaded
+        console.log('🔄 Loading user profile from database...')
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at')
+          .eq('id', userId)
+          .single()
+        profile = profileData
+      } else {
+        console.log('✅ Using existing profile data, skipping database query')
+      }
       
       if (profile) {
         // Professional status handling: database is truth, localStorage is backup
@@ -539,9 +564,25 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Handle server presence sync
+   * Handle server presence sync with debouncing to prevent excessive syncs
    */
   private handleServerSync(serverId: string): void {
+    // ✅ PERFORMANCE FIX: Debounce presence sync to prevent double syncs
+    const existingTimeout = this.presenceSyncTimeouts.get(serverId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+    }
+    
+    this.presenceSyncTimeouts.set(serverId, setTimeout(() => {
+      this.executeServerSync(serverId)
+      this.presenceSyncTimeouts.delete(serverId)
+    }, this.PRESENCE_SYNC_DEBOUNCE))
+  }
+  
+  /**
+   * Execute the actual server sync (separated for debouncing)
+   */
+  private executeServerSync(serverId: string): void {
     const context = this.contexts.get(serverId)
     if (!context?.channel) {
       console.warn('⚠️ No context or channel found for server sync:', serverId)
@@ -1156,6 +1197,12 @@ class UserDataService extends EventTarget {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
     }
+    
+    // ✅ PERFORMANCE FIX: Clear any pending presence sync timeouts
+    for (const timeout of this.presenceSyncTimeouts.values()) {
+      clearTimeout(timeout)
+    }
+    this.presenceSyncTimeouts.clear()
     
     // Unsubscribe from all contexts
     for (const context of this.contexts.values()) {

@@ -58,6 +58,10 @@ class StatePersistenceService {
   private appState: ApplicationState = { ...DEFAULT_APP_STATE }
   private isLoaded = false
   private loadingPromise: Promise<void> | null = null
+  
+  // ✅ PERFORMANCE FIX: Debounce localStorage writes to reduce overhead
+  private saveTimeout: NodeJS.Timeout | null = null
+  private pendingSave = false
 
   /**
    * Initialize and load persisted state with version migration
@@ -159,6 +163,52 @@ class StatePersistenceService {
   }
 
   /**
+   * ✅ PERFORMANCE FIX: Debounced save to reduce localStorage writes during initialization
+   * Batches multiple rapid state changes into a single write
+   */
+  private debouncedSave(): void {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout)
+    }
+    
+    this.pendingSave = true
+    this.saveTimeout = setTimeout(async () => {
+      if (this.pendingSave) {
+        await this.saveState()
+        this.pendingSave = false
+      }
+    }, 500) // 500ms debounce for better batching during initialization
+  }
+
+  /**
+   * ✅ PERFORMANCE FIX: Force immediate save for critical operations
+   */
+  async forceSave(): Promise<void> {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout)
+      this.saveTimeout = null
+    }
+    this.pendingSave = false
+    await this.saveState()
+  }
+
+  /**
+   * ✅ PERFORMANCE FIX: Cleanup method for app shutdown/logout
+   */
+  async cleanup(): Promise<void> {
+    // Force save any pending changes
+    if (this.pendingSave) {
+      await this.forceSave()
+    }
+    
+    // Clear any pending timeouts
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout)
+      this.saveTimeout = null
+    }
+  }
+
+  /**
    * Clear old/unused localStorage keys to free up space
    */
   private clearOldStates(): void {
@@ -184,7 +234,7 @@ class StatePersistenceService {
     if (!this.isLoaded) await this.initialize()
     
     this.state.lastServerId = serverId
-    await this.saveState()
+    this.debouncedSave() // ✅ PERFORMANCE FIX: Use debounced save during initialization
     console.log('📍 Last server saved:', serverId)
   }
 
@@ -211,7 +261,7 @@ class StatePersistenceService {
       delete this.state.lastChannelByServer[serverId]
     }
     
-    await this.saveState()
+    this.debouncedSave() // ✅ PERFORMANCE FIX: Use debounced save during initialization
     console.log('📍 Last channel saved for server', serverId, ':', channelId)
   }
 
@@ -279,20 +329,6 @@ class StatePersistenceService {
     await this.saveState()
     
     console.log('📂 Batch updated category states for server:', serverId)
-  }
-
-  // Debounced save function to prevent excessive localStorage writes
-  private saveTimeout: number | null = null
-  
-  private debouncedSave(): void {
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout)
-    }
-    
-    this.saveTimeout = window.setTimeout(async () => {
-      await this.saveState()
-      this.saveTimeout = null
-    }, 300) // 300ms debounce
   }
 
   /**
@@ -485,15 +521,7 @@ class StatePersistenceService {
     }
   }
 
-  /**
-   * Cleanup method for component unmounting
-   */
-  cleanup(): void {
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout)
-      this.saveTimeout = null
-    }
-  }
+
 }
 
 // Create singleton instance
