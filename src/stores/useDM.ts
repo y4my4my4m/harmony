@@ -289,7 +289,13 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Actions
-  const initializeDMEnvironment = async (userId: string, forceRefresh = false, metadataOnly = false) => {
+  /**
+   * Initialize DM environment with configurable loading strategies:
+   * - 'lazy': User profiles load only on hover (maximum performance, placeholder UX)
+   * - 'partial': Load user profiles for 4 most recent conversations immediately (balanced)
+   * - 'immediate': Load ALL user profiles right away (best UX, more database load)
+   */
+  const initializeDMEnvironment = async (userId: string, forceRefresh = false, metadataOnly = false, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
     // Prevent duplicate initialization
     if (isInitializing.value && !forceRefresh) {
       console.log('🔄 DM initialization already in progress, skipping duplicate')
@@ -306,7 +312,7 @@ export const useDMStore = defineStore('dm', () => {
       if (forceRefresh || conversations.value.length === 0) {
         if (metadataOnly) {
           console.log('⚡ Loading DM metadata only (no message content)...')
-          await fetchUserConversationsMetadata(userId)
+          await fetchUserConversationsMetadata(userId, loadStrategy)
         } else {
           console.log('📦 Loading full DM conversations...')
           await fetchUserConversations(userId)
@@ -322,9 +328,9 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
-  // ⚡ OPTIMIZED: Fetch only conversation metadata (no message content, no user profiles)
+  // ⚡ OPTIMIZED: Fetch only conversation metadata (no message content, configurable user profile loading)
   // For faster initial load when user isn't actively viewing DMs
-  const fetchUserConversationsMetadata = async (userId: string) => {
+  const fetchUserConversationsMetadata = async (userId: string, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
     try {
       console.log('⚡ Fetching DM conversations metadata only...')
       loadingConversations.value = true
@@ -458,7 +464,38 @@ export const useDMStore = defineStore('dm', () => {
       })
 
       conversations.value = processedConversations
-      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries (optimized - no user profiles, with message previews & group icons)`)
+      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries (${loadStrategy} loading strategy)`)
+      
+      // OPTIMIZATION: Different loading strategies for user profiles
+      if (loadStrategy === 'immediate') {
+        // Load ALL user profiles immediately
+        const allDirectConversations = processedConversations
+          .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
+          
+        if (allDirectConversations.length > 0) {
+          console.log(`⚡ Loading ALL user profiles immediately (${allDirectConversations.length} conversations)`)
+          setTimeout(() => {
+            loadMultipleConversationUserProfiles(allDirectConversations.map(c => c.id))
+          }, 100)
+        }
+      } else if (loadStrategy === 'partial') {
+        // Load user profiles for most recent conversations immediately for better UX
+        // Keep the rest as lazy-loaded for performance
+        const immediateLoadConversations = processedConversations
+          .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
+          .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()) // Most recent first
+          .slice(0, 4) // Load first 4 most recent direct conversations immediately
+          
+        if (immediateLoadConversations.length > 0) {
+          console.log(`⚡ Loading user profiles for first ${immediateLoadConversations.length} most recent conversations`)
+          setTimeout(() => {
+            loadMultipleConversationUserProfiles(immediateLoadConversations.map(c => c.id))
+          }, 100)
+        }
+      } else if (loadStrategy === 'lazy') {
+        // Pure lazy loading - everything loads on hover only
+        console.log(`⚡ Pure lazy loading - user profiles will load on hover only`)
+      }
       
     } catch (error) {
       console.error('❌ Error fetching conversation metadata:', error)

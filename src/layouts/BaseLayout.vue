@@ -284,12 +284,12 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         console.log(`✅ DM conversation loaded: ${strategy.currentConversationId}`)
       } else if (strategy.routeType === 'dm-list') {
         console.log('🎯 Loading DM list metadata only (optimized)')
-        // Load DM list metadata only (no message content)
-        await dmStore.initializeDMEnvironment(userId, false, true) // false = forceRefresh, true = metadataOnly
-        console.log('✅ DM list metadata loaded')
+        // Load DM list metadata with immediate user profile loading for better UX
+        await dmStore.initializeDMEnvironment(userId, false, true, 'immediate') // immediate = load all user profiles right away
+        console.log('✅ DM list metadata loaded with immediate user profiles')
       } else {
         console.log('🎯 Generic DM route - loading full DM environment')
-        await dmStore.initializeDMEnvironment(userId, false, false) // Full loading as fallback
+        await dmStore.initializeDMEnvironment(userId, false, false, 'partial') // Full loading as fallback with partial user loading
         console.log('✅ Full DM environment loaded')
       }
       
