@@ -486,12 +486,12 @@ export const useDMStore = defineStore('dm', () => {
            .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()) // Most recent first
            .slice(0, 20) // Load first 20 most recent direct conversations immediately
            
-                   if (immediateLoadConversations.length > 0) {
-            // Load user profiles for recent conversations in background
-            setTimeout(() => {
-              loadMultipleConversationUserProfiles(immediateLoadConversations.map(c => c.id))
-            }, 100)
-          }
+        if (immediateLoadConversations.length > 0) {
+          // Load user profiles for recent conversations in background
+          setTimeout(() => {
+            loadMultipleConversationUserProfiles(immediateLoadConversations.map(c => c.id))
+          }, 100)
+        }
       } else if (loadStrategy === 'lazy') {
         // Pure lazy loading - everything loads on hover only
         console.log(`⚡ Pure lazy loading - user profiles will load on hover only`)
