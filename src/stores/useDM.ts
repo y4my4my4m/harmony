@@ -472,12 +472,12 @@ export const useDMStore = defineStore('dm', () => {
         const allDirectConversations = processedConversations
           .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
           
-                 if (allDirectConversations.length > 0) {
-           // Load all user profiles in background
-           setTimeout(() => {
-             loadMultipleConversationUserProfiles(allDirectConversations.map(c => c.id))
-           }, 100)
-         }
+        if (allDirectConversations.length > 0) {
+          // Load all user profiles in background
+          setTimeout(() => {
+            loadMultipleConversationUserProfiles(allDirectConversations.map(c => c.id))
+          }, 100)
+        }
       } else if (loadStrategy === 'partial') {
                  // Load user profiles for most recent conversations immediately for better UX
          // Keep the rest as lazy-loaded for performance
