@@ -862,8 +862,10 @@ export const useDMStore = defineStore('dm', () => {
 
       const { messages: messagesData, hasMore } = await services.messages.loadConversationMessages(
         conversationId,
-        20, // limit
-        beforeTimestamp
+        {
+          limit: 20,
+          before: beforeTimestamp
+        }
       )
 
 
@@ -1676,7 +1678,7 @@ export const useDMStore = defineStore('dm', () => {
       // Add a system message about conversation creation
       try {
         const systemMessageContent = [{
-          type: 'text',
+          type: 'text' as const,
           text: `Group conversation created with ${options.participantIds.length} participants`
         }]
 
@@ -1805,7 +1807,7 @@ export const useDMStore = defineStore('dm', () => {
             .join(', ')
 
           const systemMessageContent = [{
-            type: 'text',
+            type: 'text' as const,
             text: `${userNames} ${userIds.length === 1 ? 'was' : 'were'} added to the conversation`
           }]
 
@@ -1933,6 +1935,7 @@ export const useDMStore = defineStore('dm', () => {
     initializeDMEnvironmentForDirectAccess,
     fetchConversationDetails,
     fetchUserConversations,
+    fetchUserConversationsMetadata,
     fetchConversationMessages,
     searchUsers,
     createOrGetConversation,
