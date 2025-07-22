@@ -64,8 +64,14 @@
 
     <!-- User Groups -->
     <div class="user-groups" v-if="props.visible">
+      <!-- Loading Indicator -->
+      <div v-if="isLoadingUsers" class="loading-indicator">
+        <div class="loading-spinner"></div>
+        <span>Loading users...</span>
+      </div>
+      
       <!-- Online Users -->
-      <div v-if="groupedUsers.online.length > 0" class="user-group">
+      <div v-if="!isLoadingUsers && groupedUsers.online.length > 0" class="user-group">
         <button 
           @click="toggleGroup('online')"
           class="group-header"
@@ -103,7 +109,7 @@
       </div>
 
       <!-- Away Users -->
-      <div v-if="groupedUsers.away.length > 0" class="user-group">
+      <div v-if="!isLoadingUsers && groupedUsers.away.length > 0" class="user-group">
         <button 
           @click="toggleGroup('away')"
           class="group-header"
@@ -141,7 +147,7 @@
       </div>
 
       <!-- Busy Users -->
-      <div v-if="groupedUsers.busy.length > 0" class="user-group">
+      <div v-if="!isLoadingUsers && groupedUsers.busy.length > 0" class="user-group">
         <button 
           @click="toggleGroup('busy')"
           class="group-header"
@@ -179,7 +185,7 @@
       </div>
 
       <!-- Offline Users -->
-      <div v-if="groupedUsers.offline.length > 0" class="user-group">
+      <div v-if="!isLoadingUsers && groupedUsers.offline.length > 0" class="user-group">
         <button 
           @click="toggleGroup('offline')"
           class="group-header"
@@ -278,6 +284,7 @@ const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
 const searchQuery = ref('');
+const isLoadingUsers = ref(false);
 
 // Group collapse state
 const collapsedGroups = ref({
@@ -299,8 +306,14 @@ const users = computed(() => {
   const contextUsers = getUsersInContext(serverId).value;
   console.log(`🔍 UserSidebar: Server ${serverId} users from context:`, contextUsers.length, contextUsers);
   
-  // Fallback to all users if context is empty  
-  if (contextUsers.length === 0) {
+  // ✅ PERFORMANCE FIX: Don't show fallback data during loading to prevent double rendering
+  if (contextUsers.length === 0 && isLoadingUsers.value) {
+    console.log(`🔍 UserSidebar: Loading users, not showing fallback data yet`);
+    return [];
+  }
+  
+  // Only show fallback if we're not loading and context is truly empty
+  if (contextUsers.length === 0 && !isLoadingUsers.value) {
     const allUsers = getAllUsers.value;
     console.log(`🔍 UserSidebar: Fallback to all users:`, allUsers.length, allUsers);
     
@@ -408,26 +421,46 @@ const fetchAndSetUsers = async (serverId: string | null) => {
   console.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
   
   if (serverId) {
-    // ✅ PERFORMANCE FIX: Wait a bit for context to be established by BaseLayout
-    // This prevents the race condition where UserSidebar mounts before context is ready
-    let users = getUsersInContext(serverId).value;
+    isLoadingUsers.value = true;
     
-    // If no users found, wait a short time for BaseLayout to establish context
-    if (users.length === 0) {
-      console.log(`⏳ UserSidebar: Waiting for server context to be established...`);
-      await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
-      users = getUsersInContext(serverId).value;
+    try {
+      // ✅ PERFORMANCE FIX: Wait properly for context to be established by BaseLayout
+      // This prevents the race condition where UserSidebar mounts before context is ready
+      let users = getUsersInContext(serverId).value;
+      
+      // If no users found, wait for BaseLayout to establish context (with reasonable timeout)
+      if (users.length === 0) {
+        console.log(`⏳ UserSidebar: Waiting for server context to be established...`);
+        
+        // Wait up to 1 second for context to be ready, checking every 50ms
+        const maxWaitTime = 1000; // 1 second max
+        const checkInterval = 50; // Check every 50ms
+        let waitTime = 0;
+        
+        while (users.length === 0 && waitTime < maxWaitTime) {
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          waitTime += checkInterval;
+          users = getUsersInContext(serverId).value;
+        }
+        
+        if (users.length > 0) {
+          console.log(`✅ UserSidebar: Server context ready after ${waitTime}ms wait`);
+        }
+      }
+      
+      if (users.length > 0) {
+        console.log(`📋 Server context already initialized: ${serverId} (${users.length} members) - using existing subscription`);
+        return;
+      }
+      
+      // Context still not initialized after waiting, subscribe to it
+      console.log(`🔄 UserSidebar: Context not ready after wait, creating subscription...`);
+      const userIds = await getUserIdsForServer(serverId);
+      await subscribeToContext(serverId, 'server', userIds);
+      console.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
+    } finally {
+      isLoadingUsers.value = false;
     }
-    
-    if (users.length > 0) {
-      console.log(`📋 Server context already initialized: ${serverId} (${users.length} members) - using existing subscription`);
-      return;
-    }
-    
-    // Context still not initialized, subscribe to it
-    const userIds = await getUserIdsForServer(serverId);
-    await subscribeToContext(serverId, 'server', userIds);
-    console.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
   }
 };
 
@@ -640,6 +673,31 @@ const closeInviteModal = () => {
 
 .user-groups::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Loading Indicator */
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-left: 2px solid var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .user-group {

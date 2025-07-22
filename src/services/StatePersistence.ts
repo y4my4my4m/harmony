@@ -331,20 +331,6 @@ class StatePersistenceService {
     console.log('📂 Batch updated category states for server:', serverId)
   }
 
-  // Debounced save function to prevent excessive localStorage writes
-  private saveTimeout: number | null = null
-  
-  private debouncedSave(): void {
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout)
-    }
-    
-    this.saveTimeout = window.setTimeout(async () => {
-      await this.saveState()
-      this.saveTimeout = null
-    }, 300) // 300ms debounce
-  }
-
   /**
    * Set sidebar visibility state
    */
@@ -535,15 +521,7 @@ class StatePersistenceService {
     }
   }
 
-  /**
-   * Cleanup method for component unmounting
-   */
-  cleanup(): void {
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout)
-      this.saveTimeout = null
-    }
-  }
+
 }
 
 // Create singleton instance
