@@ -285,6 +285,7 @@ const showProfileModal = ref(false);
 const showInviteModal = ref(false);
 const searchQuery = ref('');
 const isLoadingUsers = ref(false);
+const lastFetchedServerId = ref<string | null>(null);
 
 // Group collapse state
 const collapsedGroups = ref({
@@ -294,28 +295,31 @@ const collapsedGroups = ref({
   offline: true // Start with offline collapsed
 });
 
-// Clean user data from unified system - always accurate and real-time
+// Smart cached user data - shows cached data immediately, updates in background
 const users = computed(() => {
   const serverId = serverChannelStore.currentServerId;
   if (!serverId) {
-    console.log('🔍 UserSidebar: No current server ID');
     return [];
   }
   
-  // Get users from context first
+  // Get users from context first (this is our cached data)
   const contextUsers = getUsersInContext(serverId).value;
-  console.log(`🔍 UserSidebar: Server ${serverId} users from context:`, contextUsers.length, contextUsers);
   
-  // ✅ PERFORMANCE FIX: Don't show fallback data during loading to prevent double rendering
-  if (contextUsers.length === 0 && isLoadingUsers.value) {
-    console.log(`🔍 UserSidebar: Loading users, not showing fallback data yet`);
-    return [];
+  // ✅ SMART CACHING: Only log when context changes significantly (not on every presence update)
+  if (contextUsers.length > 0) {
+    // Use cached context data immediately - no logging spam during presence updates
+    return contextUsers;
   }
   
-  // Only show fallback if we're not loading and context is truly empty
-  if (contextUsers.length === 0 && !isLoadingUsers.value) {
-    const allUsers = getAllUsers.value;
-    console.log(`🔍 UserSidebar: Fallback to all users:`, allUsers.length, allUsers);
+  // Only show loading state if we're actively loading and have no cached data
+  if (isLoadingUsers.value) {
+    return []; // Show loading spinner
+  }
+  
+  // Fallback only if we have no context data and aren't loading
+  const allUsers = getAllUsers.value;
+  if (allUsers.length > 0) {
+    console.log(`🔄 UserSidebar: Using fallback data for server ${serverId}: ${allUsers.length} users`);
     
     // Convert to legacy format for compatibility
     return allUsers.map(userData => ({
@@ -327,7 +331,7 @@ const users = computed(() => {
     }));
   }
   
-  return contextUsers;
+  return [];
 });
 
 // Filter users based on search query
@@ -421,19 +425,34 @@ const fetchAndSetUsers = async (serverId: string | null) => {
   console.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
   
   if (serverId) {
+    // ✅ DEBOUNCE: Prevent duplicate calls for the same server
+    if (lastFetchedServerId.value === serverId && isLoadingUsers.value) {
+      console.log(`⏭️ UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
+      return;
+    }
+    
+    lastFetchedServerId.value = serverId;
+    
+    // ✅ SMART CACHING: Check if we already have users for this server
+    let users = getUsersInContext(serverId).value;
+    
+    if (users.length > 0) {
+      console.log(`💾 UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
+      isLoadingUsers.value = false; // Ensure loading state is cleared
+      return; // Use cached data, no loading needed
+    }
+    
+    // Only show loading if we truly have no data for this server
+    console.log(`🔄 UserSidebar: No cached users found, loading for server ${serverId}...`);
     isLoadingUsers.value = true;
     
     try {
-      // ✅ PERFORMANCE FIX: Wait properly for context to be established by BaseLayout
-      // This prevents the race condition where UserSidebar mounts before context is ready
-      let users = getUsersInContext(serverId).value;
-      
-      // If no users found, wait for BaseLayout to establish context (with reasonable timeout)
+      // Wait briefly for BaseLayout to establish context (for initial app load)
       if (users.length === 0) {
         console.log(`⏳ UserSidebar: Waiting for server context to be established...`);
         
-        // Wait up to 1 second for context to be ready, checking every 50ms
-        const maxWaitTime = 1000; // 1 second max
+        // Shorter wait time since we're being smarter about caching
+        const maxWaitTime = 500; // 500ms max for server switches
         const checkInterval = 50; // Check every 50ms
         let waitTime = 0;
         
@@ -445,16 +464,12 @@ const fetchAndSetUsers = async (serverId: string | null) => {
         
         if (users.length > 0) {
           console.log(`✅ UserSidebar: Server context ready after ${waitTime}ms wait`);
+          return; // Found cached data during wait
         }
       }
       
-      if (users.length > 0) {
-        console.log(`📋 Server context already initialized: ${serverId} (${users.length} members) - using existing subscription`);
-        return;
-      }
-      
-      // Context still not initialized after waiting, subscribe to it
-      console.log(`🔄 UserSidebar: Context not ready after wait, creating subscription...`);
+      // No cached data available, create new subscription
+      console.log(`🆕 UserSidebar: Creating new subscription for server ${serverId}...`);
       const userIds = await getUserIdsForServer(serverId);
       await subscribeToContext(serverId, 'server', userIds);
       console.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
@@ -464,8 +479,23 @@ const fetchAndSetUsers = async (serverId: string | null) => {
   }
 };
 
-// Clean watcher for server changes - no debouncing hacks
+// Smart watcher for server changes - only triggers on actual server changes
 watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId) => {
+  // ✅ SMART CACHING: Only act on actual server changes
+  if (newServerId === oldServerId) {
+    return; // No change, skip
+  }
+  
+  console.log(`🔄 UserSidebar: Server changed from ${oldServerId} to ${newServerId}`);
+  
+  // ✅ INSTANT FEEDBACK: Clear loading state immediately if new server has cached data
+  if (newServerId) {
+    const cachedUsers = getUsersInContext(newServerId).value;
+    if (cachedUsers.length > 0) {
+      isLoadingUsers.value = false;
+    }
+  }
+  
   if (oldServerId) {
     await unsubscribeFromContext(oldServerId);
   }
