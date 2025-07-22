@@ -116,7 +116,7 @@
           @click="selectConversation(conversation.id)"
           @mouseenter="handleConversationHover(conversation.id)"
         >
-          <!-- Group Chat Avatar -->
+          <!-- Group Chat Avatar: Uses group icon from metadata -->
           <GroupIcon
             v-if="conversation.type === 'group'"
             :conversation-id="conversation.id"
@@ -127,7 +127,7 @@
             class="conversation-avatar"
           />
 
-          <!-- Direct Chat Avatar -->
+          <!-- Direct Chat Avatar: Uses other user's profile avatar -->
           <Avatar
             v-else
             :src="getOptimizedAvatarUrl(conversation)"

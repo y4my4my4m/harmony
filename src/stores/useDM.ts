@@ -340,7 +340,7 @@ export const useDMStore = defineStore('dm', () => {
             type,
             name,
             updated_at,
-            icon_url
+            metadata
           )
         `)
         .eq('user_id', userId)
@@ -420,12 +420,16 @@ export const useDMStore = defineStore('dm', () => {
         const primaryOtherUserId = otherParticipants[0]
         const lastMessage = lastMessagesByConv.get(conversation.id)
 
+        // Extract icon_url from metadata JSON for group chats
+        const metadata = conversation.metadata || {}
+        const iconUrl = conversation.type === 'group' ? metadata.icon_url : undefined
+
         const dmConversation: DMConversation = {
           id: conversation.id,
           created_at: conversation.created_at,
           type: conversation.type || 'direct',
           name: conversation.name,
-          icon_url: conversation.icon_url, // For group chat icons
+          icon_url: iconUrl, // For group chat icons only
           last_activity: lastMessage?.created_at || conversation.updated_at,
           unread_count: 0, // Will be calculated separately if needed
           participant_count: otherParticipants.length + 1, // +1 for current user
@@ -454,7 +458,7 @@ export const useDMStore = defineStore('dm', () => {
       })
 
       conversations.value = processedConversations
-      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries (optimized - no user profiles, with message previews)`)
+      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries (optimized - no user profiles, with message previews & group icons)`)
       
     } catch (error) {
       console.error('❌ Error fetching conversation metadata:', error)
