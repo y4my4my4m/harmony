@@ -130,8 +130,8 @@
           <!-- Direct Chat Avatar: Uses other user's profile avatar -->
           <Avatar
             v-else
-            :src="getOptimizedAvatarUrl(conversation)"
-            :alt="getOptimizedDisplayName(conversation)"
+            :src="getConversationAvatarUrl(conversation)"
+            :alt="getConversationDisplayName(conversation)"
             size="sm"
             :status="getConversationUserStatus(conversation)"
             class="conversation-avatar"
@@ -147,7 +147,7 @@
                   </template>
                   <!-- Direct Chat Name -->
                   <template v-else>
-                    {{ getOptimizedDisplayName(conversation) }}
+                    {{ getConversationDisplayName(conversation) }}
                   </template>
                 </div>
                 <div v-if="conversation.other_user && !conversation.other_user.is_local && conversation.other_user.domain" 
@@ -221,8 +221,8 @@ const searchTimeout = ref<NodeJS.Timeout | null>(null)
 // Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
 
-// ⚡ OPTIMIZED: Helper functions that handle placeholder data gracefully
-const getOptimizedDisplayName = (conversation: DMConversation): string => {
+// Helper functions for conversation display
+const getConversationDisplayName = (conversation: DMConversation): string => {
   if (!conversation.other_user) return 'Unknown User'
   
   if (conversation.other_user._isPlaceholder) {
@@ -233,7 +233,7 @@ const getOptimizedDisplayName = (conversation: DMConversation): string => {
   return getUserDisplayName(conversation.other_user.id).value || conversation.other_user.display_name || conversation.other_user.username || 'Unknown User'
 }
 
-const getOptimizedAvatarUrl = (conversation: DMConversation): string => {
+const getConversationAvatarUrl = (conversation: DMConversation): string => {
   if (!conversation.other_user) return ''
   
   if (conversation.other_user._isPlaceholder) {
@@ -392,35 +392,26 @@ const getMessagePreviewText = (message: Message): string => {
 const hoveredConversations = ref(new Set<string>())
 
 const handleConversationHover = async (conversationId: string) => {
-  console.log('🖱️ Conversation hovered:', conversationId)
-  
   if (hoveredConversations.value.has(conversationId)) {
-    console.log('⏭️ Already loaded for conversation:', conversationId)
     return // Already loaded
   }
   
   hoveredConversations.value.add(conversationId)
   
   try {
-    console.log('⚡ Loading user profile for hovered conversation:', conversationId)
     // Load user profile for this conversation on demand
     const success = await dmStore.loadConversationUserProfile(conversationId)
     
     if (success) {
-      console.log('✅ User profile loaded for conversation:', conversationId)
-      
       // Also load presence for this specific user if not already loaded
       const conversation = dmStore.conversations.find(c => c.id === conversationId)
       if (conversation?.other_user?.id && !conversation.other_user._isPlaceholder) {
         const { subscribeToDMPresence } = useUserData()
         await subscribeToDMPresence([conversation.other_user.id])
-        console.log('✅ Presence loaded for user:', conversation.other_user.id)
       }
-    } else {
-      console.warn('⚠️ Failed to load user profile for conversation:', conversationId)
     }
   } catch (error) {
-    console.error('❌ Failed to load conversation profile on hover:', conversationId, error)
+    console.error('Failed to load conversation profile on hover:', conversationId, error)
   }
 }
 
