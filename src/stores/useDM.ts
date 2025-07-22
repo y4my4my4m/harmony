@@ -22,6 +22,8 @@ export interface DMUser {
   federated_id?: string
   handle?: string
   color?: string // Optional color for UI
+  // Optimization: Track if this is placeholder data that needs to be loaded
+  _isPlaceholder?: boolean
 }
 
 export interface DMConversation {
@@ -61,6 +63,7 @@ export const useDMStore = defineStore('dm', () => {
   const loadingMessages = ref(false)
   const isSearching = ref(false)
   const allMessagesLoaded = ref(false)
+  const isInitializing = ref(false)
   
   // Professional caching system (following useChat pattern)
   const messageCache = ref<Map<string, DMCache>>(new Map())
@@ -286,7 +289,21 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Actions
-  const initializeDMEnvironment = async (userId: string, forceRefresh = false, metadataOnly = false) => {
+  /**
+   * Initialize DM environment with configurable loading strategies:
+   * - 'lazy': User profiles load only on hover (maximum performance, placeholder UX)
+   * - 'partial': Load user profiles for 20 most recent conversations immediately (balanced)
+   * - 'immediate': Load ALL user profiles right away (best UX, more database load)
+   */
+  const initializeDMEnvironment = async (userId: string, forceRefresh = false, metadataOnly = false, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
+    // Prevent duplicate initialization
+    if (isInitializing.value && !forceRefresh) {
+      console.log('🔄 DM initialization already in progress, skipping duplicate')
+      return
+    }
+    
+    isInitializing.value = true
+    
     try {
       // Clean up any existing subscriptions first
       cleanupRealtimeSubscriptions()
@@ -295,7 +312,7 @@ export const useDMStore = defineStore('dm', () => {
       if (forceRefresh || conversations.value.length === 0) {
         if (metadataOnly) {
           console.log('⚡ Loading DM metadata only (no message content)...')
-          await fetchUserConversationsMetadata(userId)
+          await fetchUserConversationsMetadata(userId, loadStrategy)
         } else {
           console.log('📦 Loading full DM conversations...')
           await fetchUserConversations(userId)
@@ -306,17 +323,19 @@ export const useDMStore = defineStore('dm', () => {
       await setupRealtimeSubscriptions(userId)
     } catch (error) {
       console.error('Failed to initialize DM environment:', error)
+    } finally {
+      isInitializing.value = false
     }
   }
 
-  // ⚡ OPTIMIZED: Fetch only conversation metadata (no message content)
+  // ⚡ OPTIMIZED: Fetch only conversation metadata (no message content, configurable user profile loading)
   // For faster initial load when user isn't actively viewing DMs
-  const fetchUserConversationsMetadata = async (userId: string) => {
+  const fetchUserConversationsMetadata = async (userId: string, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
     try {
       console.log('⚡ Fetching DM conversations metadata only...')
       loadingConversations.value = true
 
-      // Get conversations with minimal data - just what's needed for the sidebar
+      // Step 1: Get conversation metadata in a single query
       const { data: participations, error: participationError } = await supabase
         .from('conversation_participants')
         .select(`
@@ -326,7 +345,8 @@ export const useDMStore = defineStore('dm', () => {
             created_at,
             type,
             name,
-            updated_at
+            updated_at,
+            metadata
           )
         `)
         .eq('user_id', userId)
@@ -338,62 +358,144 @@ export const useDMStore = defineStore('dm', () => {
         return
       }
 
-      console.log(`📝 Found ${participations?.length || 0} conversation metadata entries`)
+      if (!participations || participations.length === 0) {
+        console.log('📝 No conversation metadata found')
+        conversations.value = []
+        return
+      }
 
-      // Transform to simplified conversation objects (metadata only)
-      const conversationPromises = (participations || []).map(async (participation) => {
+      console.log(`📝 Found ${participations.length} conversation metadata entries`)
+
+      // Step 2: Get participant counts and primary other user IDs in bulk
+      const conversationIds = participations.map(p => {
+        const conv = Array.isArray(p.conversations) ? p.conversations[0] : p.conversations
+        return conv.id
+      })
+
+      const { data: participantData, error: participantError } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id, user_id')
+        .in('conversation_id', conversationIds)
+        .neq('user_id', userId)
+        .is('left_at', null)
+
+      if (participantError) {
+        console.warn('⚠️ Error fetching participant data:', participantError)
+      }
+
+      // Group participants by conversation for quick lookup
+      const participantsByConv = new Map<string, string[]>()
+      if (participantData) {
+        for (const participant of participantData) {
+          const convId = participant.conversation_id
+          if (!participantsByConv.has(convId)) {
+            participantsByConv.set(convId, [])
+          }
+          participantsByConv.get(convId)!.push(participant.user_id)
+        }
+      }
+
+      // Step 3: Load last message for each conversation (for preview)
+      const { data: lastMessages, error: messagesError } = await supabase
+        .from('messages')
+        .select('conversation_id, content, created_at, user_id')
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: false })
+
+      if (messagesError) {
+        console.warn('⚠️ Error fetching last messages for preview:', messagesError)
+      }
+
+      // Group last messages by conversation ID
+      const lastMessagesByConv = new Map<string, any>()
+      if (lastMessages) {
+        for (const message of lastMessages) {
+          if (!lastMessagesByConv.has(message.conversation_id)) {
+            lastMessagesByConv.set(message.conversation_id, message)
+          }
+        }
+      }
+
+      // Step 4: Transform to simplified conversation objects (metadata only - NO user profile loading)
+      const processedConversations: DMConversation[] = participations.map((participation) => {
         const conversation = Array.isArray(participation.conversations) 
           ? participation.conversations[0] 
           : participation.conversations
 
-        try {
-          // Get basic info about other participants (just count and primary user for DMs)
-          const { data: otherParticipants, error: othersError } = await supabase
-            .from('conversation_participants')
-            .select('user_id')
-            .eq('conversation_id', conversation.id)
-            .neq('user_id', userId)
-            .is('left_at', null)
-            .limit(1) // Just need one other participant for DM metadata
+        const otherParticipants = participantsByConv.get(conversation.id) || []
+        const primaryOtherUserId = otherParticipants[0]
+        const lastMessage = lastMessagesByConv.get(conversation.id)
 
-          if (othersError) {
-            console.warn('⚠️ Error fetching participants for conversation:', conversation.id, othersError)
-            return null
-          }
+        // Extract icon_url from metadata JSON for group chats
+        const metadata = conversation.metadata || {}
+        const iconUrl = conversation.type === 'group' ? metadata.icon_url : undefined
 
-          // For metadata, we don't need full user profiles - just placeholder info
-          // Full profiles will be loaded when/if the conversation is opened
-          const primaryOtherUserId = otherParticipants?.[0]?.user_id
-
-          const dmConversation: DMConversation = {
-            id: conversation.id,
-            created_at: conversation.created_at,
-            type: conversation.type || 'direct',
-            name: conversation.name,
-            last_activity: conversation.updated_at,
-            unread_count: 0, // Will be calculated separately if needed
-            participant_count: otherParticipants?.length ? otherParticipants.length + 1 : 2,
-            // Minimal other_user info - full data loads on demand
-            other_user: primaryOtherUserId ? {
-              id: primaryOtherUserId,
-              username: 'Loading...', // Placeholder
-              is_online: false,
-              // Full user data will be loaded when conversation is opened
-            } : undefined
-          }
-
-          return dmConversation
-        } catch (error) {
-          console.error('❌ Error processing conversation metadata:', conversation.id, error)
-          return null
+        const dmConversation: DMConversation = {
+          id: conversation.id,
+          created_at: conversation.created_at,
+          type: conversation.type || 'direct',
+          name: conversation.name,
+          icon_url: iconUrl, // For group chat icons only
+          last_activity: lastMessage?.created_at || conversation.updated_at,
+          unread_count: 0, // Will be calculated separately if needed
+          participant_count: otherParticipants.length + 1, // +1 for current user
+          // OPTIMIZED: Include last message for preview without loading full message history
+          last_message: lastMessage ? {
+            id: '', // Don't need full message ID for preview
+            content: lastMessage.content,
+            created_at: lastMessage.created_at,
+            user_id: lastMessage.user_id,
+            conversation_id: lastMessage.conversation_id
+          } : undefined,
+          // OPTIMIZED: No user profile data loaded - just placeholders
+          // Real user data will be loaded lazily when conversation is viewed/hovered
+          other_user: primaryOtherUserId ? {
+            id: primaryOtherUserId,
+            username: '', // Will be loaded on demand
+            display_name: '', // Will be loaded on demand
+            avatar_url: null, // Will be loaded on demand
+            is_online: false, // Will be loaded on demand
+            // Store that this is placeholder data
+            _isPlaceholder: true
+          } : undefined
         }
+
+        return dmConversation
       })
 
-      const processedConversations = (await Promise.all(conversationPromises))
-        .filter(conv => conv !== null) as DMConversation[]
-
       conversations.value = processedConversations
-      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries`)
+      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries (${loadStrategy} loading strategy)`)
+      
+      // OPTIMIZATION: Different loading strategies for user profiles
+      if (loadStrategy === 'immediate') {
+        // Load ALL user profiles immediately
+        const allDirectConversations = processedConversations
+          .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
+          
+        if (allDirectConversations.length > 0) {
+          // Load all user profiles in background
+          setTimeout(() => {
+            loadMultipleConversationUserProfiles(allDirectConversations.map(c => c.id))
+          }, 100)
+        }
+      } else if (loadStrategy === 'partial') {
+        // Load user profiles for most recent conversations immediately for better UX
+        // Keep the rest as lazy-loaded for performance
+         const immediateLoadConversations = processedConversations
+           .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
+           .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()) // Most recent first
+           .slice(0, 20) // Load first 20 most recent direct conversations immediately
+           
+        if (immediateLoadConversations.length > 0) {
+          // Load user profiles for recent conversations in background
+          setTimeout(() => {
+            loadMultipleConversationUserProfiles(immediateLoadConversations.map(c => c.id))
+          }, 100)
+        }
+      } else if (loadStrategy === 'lazy') {
+        // Pure lazy loading - everything loads on hover only
+        console.log(`⚡ Pure lazy loading - user profiles will load on hover only`)
+      }
       
     } catch (error) {
       console.error('❌ Error fetching conversation metadata:', error)
@@ -1182,6 +1284,25 @@ export const useDMStore = defineStore('dm', () => {
     try {
       console.log('🔄 Setting up DM realtime subscriptions for user:', userId)
       
+      // Listen to user profile updates from the centralized cache
+      // This ensures DM conversations update when users change their avatars/names
+      const { userDataService } = await import('@/services/userDataService')
+      userDataService.addEventListener('user-updated', (event: any) => {
+        const { userId: updatedUserId } = event.detail
+        
+        // Update any conversations that have this user
+        const updatedConversations = conversations.value.filter(conv => 
+          conv.other_user?.id === updatedUserId && !conv.other_user._isPlaceholder
+        )
+        
+        if (updatedConversations.length > 0) {
+          // Reload the user profile data for these conversations
+          for (const conv of updatedConversations) {
+            loadConversationUserProfile(conv.id)
+          }
+        }
+      })
+      
       // Subscribe to new conversations - use a unique channel name
       const conversationsChannel = supabase
         .channel(`dm-conversations-${userId}`)
@@ -1908,6 +2029,89 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  // Load user profiles for conversations using centralized cache
+  const loadConversationUserProfile = async (conversationId: string): Promise<boolean> => {
+    try {
+      const conversation = conversations.value.find(c => c.id === conversationId)
+      if (!conversation?.other_user?._isPlaceholder) {
+        return true // Already loaded or no placeholder
+      }
+
+      const { userDataService } = await import('@/services/userDataService')
+      
+      // Use the centralized cache - this loads from DB if needed, uses cache if available
+      const userProfile = await userDataService.fetchUserProfile(conversation.other_user.id)
+      
+      if (userProfile) {
+        // Update conversation with cached user data
+        conversation.other_user = {
+          id: userProfile.id,
+          username: userProfile.username || userProfile.display_name || 'Unknown',
+          display_name: userProfile.display_name,
+          avatar_url: userProfile.avatar_url,
+          is_online: false, // Will be updated by presence if needed
+          domain: userProfile.domain,
+          is_local: userProfile.is_local,
+          federated_id: userProfile.federated_id,
+          handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
+          _isPlaceholder: false
+        }
+        
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      console.error('❌ Failed to load user profile for conversation:', conversationId, error)
+      return false
+    }
+  }
+
+  // Load user profiles for multiple conversations using centralized cache
+  const loadMultipleConversationUserProfiles = async (conversationIds: string[]): Promise<void> => {
+    try {
+      const conversationsToLoad = conversations.value.filter(c => 
+        conversationIds.includes(c.id) && c.other_user?._isPlaceholder
+      )
+      
+      if (conversationsToLoad.length === 0) return
+      
+      const userIds = conversationsToLoad
+        .map(c => c.other_user?.id)
+        .filter((id): id is string => !!id)
+      
+      if (userIds.length === 0) return
+      
+      const { userDataService } = await import('@/services/userDataService')
+      
+      // Use centralized cache - batch loads missing users, uses cache for existing ones
+      const userProfilesMap = await userDataService.fetchMultipleUserProfiles(userIds)
+      
+      // Update conversations with cached user data
+      for (const conversation of conversationsToLoad) {
+        const userProfile = conversation.other_user?.id ? userProfilesMap[conversation.other_user.id] : null
+        
+        if (userProfile && conversation.other_user) {
+          conversation.other_user = {
+            id: userProfile.id,
+            username: userProfile.username || userProfile.display_name || 'Unknown',
+            display_name: userProfile.display_name,
+            avatar_url: userProfile.avatar_url,
+            is_online: false, // Will be updated by presence if needed
+            domain: userProfile.domain,
+            is_local: userProfile.is_local,
+            federated_id: userProfile.federated_id,
+            handle: userProfile.handle || `@${userProfile.username}${userProfile.domain ? '@' + userProfile.domain : ''}`,
+            _isPlaceholder: false
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to batch load user profiles:', error)
+    }
+  }
+
   // Export the conversation store
   return {
     // State
@@ -1946,6 +2150,10 @@ export const useDMStore = defineStore('dm', () => {
     setupConversationSubscription,
     cleanupRealtimeSubscriptions,
     cleanup,
+    
+    // Optimization methods
+    loadConversationUserProfile,
+    loadMultipleConversationUserProfiles,
     
     // Group Chat Functions
     createGroupConversation,

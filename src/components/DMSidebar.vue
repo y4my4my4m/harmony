@@ -114,8 +114,9 @@
             'group-chat': conversation.type === 'group'
           }"
           @click="selectConversation(conversation.id)"
+          @mouseenter="handleConversationHover(conversation.id)"
         >
-          <!-- Group Chat Avatar -->
+          <!-- Group Chat Avatar: Uses group icon from metadata -->
           <GroupIcon
             v-if="conversation.type === 'group'"
             :conversation-id="conversation.id"
@@ -126,11 +127,11 @@
             class="conversation-avatar"
           />
 
-          <!-- Direct Chat Avatar -->
+          <!-- Direct Chat Avatar: Uses other user's profile avatar -->
           <Avatar
             v-else
-            :src="getUserAvatarUrl(conversation.other_user?.id || '').value"
-            :alt="getUserDisplayName(conversation.other_user?.id || '').value"
+            :src="getConversationAvatarUrl(conversation)"
+            :alt="getConversationDisplayName(conversation)"
             size="sm"
             :status="getConversationUserStatus(conversation)"
             class="conversation-avatar"
@@ -146,7 +147,7 @@
                   </template>
                   <!-- Direct Chat Name -->
                   <template v-else>
-                    {{ getUserDisplayName(conversation.other_user?.id || '').value }}
+                    {{ getConversationDisplayName(conversation) }}
                   </template>
                 </div>
                 <div v-if="conversation.other_user && !conversation.other_user.is_local && conversation.other_user.domain" 
@@ -208,7 +209,6 @@ const {
   getUserAvatarUrl, 
   getCurrentUser,
   subscribeToDMPresence,
-  updateDMPresence,
   getPresenceAwareStatus
 } = useUserData()
 
@@ -220,6 +220,29 @@ const searchTimeout = ref<NodeJS.Timeout | null>(null)
 
 // Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
+
+// Helper functions for conversation display
+const getConversationDisplayName = (conversation: DMConversation): string => {
+  if (!conversation.other_user) return 'Unknown User'
+  
+  if (conversation.other_user._isPlaceholder) {
+    return 'Loading...' // Show loading state for placeholder data
+  }
+  
+  // Use the existing helper for loaded data
+  return getUserDisplayName(conversation.other_user.id).value || conversation.other_user.display_name || conversation.other_user.username || 'Unknown User'
+}
+
+const getConversationAvatarUrl = (conversation: DMConversation): string => {
+  if (!conversation.other_user) return ''
+  
+  if (conversation.other_user._isPlaceholder) {
+    return '' // No avatar for placeholder data
+  }
+  
+  // Use the existing helper for loaded data
+  return getUserAvatarUrl(conversation.other_user.id).value || conversation.other_user.avatar_url || ''
+}
 
 // Get user status for avatar display (presence-aware)
 const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
@@ -233,12 +256,18 @@ const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' =
   }
 }
 
-// Get conversation user status
+// Get conversation user status (optimized for placeholder data)
 const getConversationUserStatus = (conversation: DMConversation): 'online' | 'away' | 'busy' | 'offline' => {
   if (!conversation.other_user?.id) {
     console.log('DMSidebar - No other_user.id for conversation:', conversation.id);
     return 'offline';
   }
+  
+  // Don't load presence for placeholder data
+  if (conversation.other_user._isPlaceholder) {
+    return 'offline';
+  }
+  
   return getUserStatus(conversation.other_user.id);
 }
 
@@ -359,27 +388,61 @@ const getMessagePreviewText = (message: Message): string => {
   return 'Message'
 }
 
+// ⚡ OPTIMIZATION: Lazy user profile loading
+const hoveredConversations = ref(new Set<string>())
+
+const handleConversationHover = async (conversationId: string) => {
+  if (hoveredConversations.value.has(conversationId)) {
+    return // Already loaded
+  }
+  
+  hoveredConversations.value.add(conversationId)
+  
+  try {
+    // Load user profile for this conversation on demand
+    const success = await dmStore.loadConversationUserProfile(conversationId)
+    
+    if (success) {
+      // Also load presence for this specific user if not already loaded
+      const conversation = dmStore.conversations.find(c => c.id === conversationId)
+      if (conversation?.other_user?.id && !conversation.other_user._isPlaceholder) {
+        const { subscribeToDMPresence } = useUserData()
+        await subscribeToDMPresence([conversation.other_user.id])
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load conversation profile on hover:', conversationId, error)
+  }
+}
+
 // Lifecycle
 onMounted(async () => {
   const currentUser = getCurrentUser.value
   if (currentUser?.id) {
-    // Use the enhanced initialization that ensures user profiles are loaded
-    await dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id)
-    
-    // Professional DM presence management
-    // Get all conversation partner IDs and subscribe to their presence
-    const conversationUserIds = sortedConversations.value
-      .map(conv => conv.other_user?.id)
-      .filter((id): id is string => !!id)
-    
-    if (conversationUserIds.length > 0) {
-      try {
-        await subscribeToDMPresence(conversationUserIds)
-        console.log(`🗨️ DMSidebar: Tracking presence for ${conversationUserIds.length} conversation partners`)
-      } catch (error) {
-        console.error('Failed to subscribe to DM presence:', error)
+    // OPTIMIZED: Don't initialize DM environment again - BaseLayout already handles it
+    // Just wait for conversations to be available if they're being loaded
+    if (dmStore.loadingConversations) {
+      console.log('⏳ DMSidebar: Waiting for DM conversations to load...')
+      
+      // Wait for conversations to be loaded
+      const checkConversations = () => {
+        return new Promise<void>((resolve) => {
+          const interval = setInterval(() => {
+            if (!dmStore.loadingConversations) {
+              clearInterval(interval)
+              resolve()
+            }
+          }, 50)
+        })
       }
+      
+      await checkConversations()
     }
+    
+    console.log('✅ DMSidebar: Ready with optimized loading')
+    
+    // OPTIMIZED: Don't load all user presence immediately
+    // User profiles and presence will be loaded on-demand when conversations are hovered
   }
 })
 
@@ -389,21 +452,7 @@ onUnmounted(() => {
   }
 })
 
-// Watch for conversation changes and update DM presence
-watch(sortedConversations, async (newConversations) => {
-  const conversationUserIds = newConversations
-    .map(conv => conv.other_user?.id)
-    .filter((id): id is string => !!id)
-  
-  if (conversationUserIds.length > 0) {
-    try {
-      await updateDMPresence(conversationUserIds)
-      console.log(`🗨️ DMSidebar: Updated presence tracking for ${conversationUserIds.length} conversation partners`)
-    } catch (error) {
-      console.error('Failed to update DM presence:', error)
-    }
-  }
-}, { deep: true })
+// OPTIMIZED: Removed automatic presence updates - now handled on-demand during hover
 </script>
 
 <style scoped>
