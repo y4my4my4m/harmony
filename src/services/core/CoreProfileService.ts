@@ -24,6 +24,7 @@
  */
 
 import { supabase } from '@/supabase'
+import { authContextService } from '@/services/AuthContextService'
 import type { Profile } from '@/types'
 
 export interface ProfileData {
@@ -239,12 +240,9 @@ export class CoreProfileService {
    */
   async updateProfile(profileData: ProfileData): Promise<Profile> {
     try {
-      // Authentication verification
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      // Authorization verification
-      const profileId = await this.getCurrentUserProfileId()
+      // Get current user context (auth + profile ID resolved once)
+      const profileId = await authContextService.getCurrentProfileId()
+      const authUser = await authContextService.getCurrentAuthUser()
 
       // Input validation and sanitization
       const sanitizedData = this.sanitizeProfileData(profileData)
@@ -260,7 +258,7 @@ export class CoreProfileService {
           updated_at: new Date().toISOString()
         })
         .eq('id', profileId)
-        .eq('auth_user_id', user.id) // Double verification for security
+        .eq('auth_user_id', authUser.id) // Double verification for security
         .select()
         .single()
 
@@ -291,9 +289,8 @@ export class CoreProfileService {
    */
   async createProfile(profileData: Profile): Promise<Profile> {
     try {
-      // Authentication verification  
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      // Get current user context (auth user resolved once)
+      const authUser = await authContextService.getCurrentAuthUser()
 
       // Input validation and sanitization
       const sanitizedData = this.sanitizeProfileCreationData(profileData)
@@ -306,7 +303,7 @@ export class CoreProfileService {
         .from('profiles')
         .insert({
           ...sanitizedData,
-          auth_user_id: user.id, // Secure user association
+          auth_user_id: authUser.id, // Secure user association
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           is_local: true
@@ -388,26 +385,6 @@ export class CoreProfileService {
   // SECURITY HELPER METHODS
   // =====================================================
 
-  private async getCurrentUserProfileId(): Promise<string> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-
-      if (!profile) throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
-
-      return profile.id
-    } catch (error) {
-      console.error('❌ Core: Failed to get current user profile ID:', error)
-      throw error
-    }
-  }
-
   private sanitizeProfileData(data: ProfileData): ProfileData {
     return {
       username: data.username?.trim().toLowerCase(),
@@ -427,8 +404,7 @@ export class CoreProfileService {
       banner_url: data.banner_url?.trim(),
       bio: data.bio?.trim(),
       color: data.color?.trim(),
-      domain: data.domain?.trim(),
-      is_private: data.is_private || false
+      domain: data.domain?.trim()
     }
   }
 
@@ -439,6 +415,7 @@ export class CoreProfileService {
 
   private sanitizeProfileForPublicView(profile: any): Profile {
     // Remove sensitive fields for public viewing
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { auth_user_id, ...publicProfile } = profile
     return publicProfile
   }
