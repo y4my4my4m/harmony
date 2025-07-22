@@ -78,6 +78,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -85,11 +86,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { useMobileGestures } from '@/composables/useMobileGestures'
 import { useLayoutState } from '@/composables/useLayoutState'
+import { routeAwareInitialization } from '@/services/RouteAwareInitialization'
 
-// Stores
+// Stores and Router
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
 const profileStore = useProfileStore()
+const route = useRoute()
 
 // Composables
 const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
@@ -123,13 +126,13 @@ const isAppReady = computed(() => isAppInitialized.value && hasServersLoaded.val
 const servers = computed(() => serverChannelStore.servers)
 const windowWidth = computed(() => typeof window !== 'undefined' ? window.innerWidth : 768)
 
-// Initialize app
+// ⚡ OPTIMIZED: Route-Aware App Initialization
+// Only loads what's needed for the current route instead of everything
 const initializeApp = async () => {
   try {
     // Wait for auth to be ready if session is null
     if (!authStore.session) {
       console.log('⏳ Waiting for authentication to initialize...')
-      // Wait a bit for auth store to initialize
       await new Promise(resolve => setTimeout(resolve, 100))
     }
 
@@ -137,106 +140,145 @@ const initializeApp = async () => {
     if (!userId) {
       console.log('👤 No user session found, app ready for login')
       isAppInitialized.value = true
-      hasServersLoaded.value = true // Set to true so we don't show loading indefinitely
+      hasServersLoaded.value = true
       return
     }
 
     console.log('🚀 Initializing app for user:', userId)
-
-    // Initialize the user environment which includes server loading
-    await serverChannelStore.initializeUserEnvironment(userId)
     
-    // Initialize the user profile by auth user ID
+    // 🎯 PHASE 1: Determine what to load based on current route
+    const loadingStrategy = routeAwareInitialization.getLoadingStrategy(route)
+    routeAwareInitialization.logStrategy(loadingStrategy)
+
+    // 🎯 PHASE 2: Critical Path Loading (100ms) - Only essentials
+    console.log('⚡ Phase 1: Critical path loading...')
+    
+    // Always load user environment (servers list) and profile - needed for navigation
+    await serverChannelStore.initializeUserEnvironment(userId)
     await profileStore.fetchProfileByAuthUserId(userId)
     
-    // Initialize the user data system (replaces old fragmented system)
-    try {
-      const { useUserData } = await import('@/composables/useUserData')
-      const userData = useUserData()
-      
-      const userProfile = profileStore.profile || {
-        id: userId,
-        username: authStore.session?.user?.user_metadata?.username || 'Unknown',
-        display_name: authStore.session?.user?.user_metadata?.display_name,
-        avatar_url: authStore.session?.user?.user_metadata?.avatar_url
-        // Do NOT set status here - let userDataService load it from database
-      }
-      
-      await userData.initialize(
-        userId, 
-        userProfile.username || userProfile.display_name || 'Unknown',
-        userProfile.avatar_url
-      )
-      console.log('✅ User data system initialized')
-      
-      // Note: Essential presence contexts will be initialized in the global presence system below
-      
-      // Initialize integration between userDataService and serverUsersStore
-      // This ensures all UI views using serverUsersStore get real-time profile updates
-      const { useServerUsersStore } = await import('@/stores/useServerUsers')
-      const serverUsersStore = useServerUsersStore()
-      serverUsersStore.initializeUserDataIntegration()
-      console.log('✅ Server users store integration initialized')
-      
-      // 🎯 CRITICAL: Initialize Global Presence System
-      // This ensures user appears online everywhere, regardless of which page they start on
-      try {
-        console.log('🌐 Initializing global presence system...')
-        
-        // Get all servers user is a member of
-        const serverIds = serverChannelStore.servers.map(server => server.id)
-        
-        // Get all DM conversation partners
-        const { useDMStore } = await import('@/stores/useDM')
-        const dmStore = useDMStore()
-        
-        // Initialize DM environment to load conversations
-        await dmStore.initializeDMEnvironment(userId, false)
-        
-        // Extract conversation partner IDs correctly
-        const conversationUserIds = dmStore.conversations
-          .map(conv => conv.user1 === userId ? conv.user2 : conv.user1)
-          .filter(id => id !== userId)
-        
-        // Subscribe to all user's server contexts immediately
-        for (const serverId of serverIds) {
-          try {
-            const { getUserIdsForServer } = await import('@/services/usersService')
-            const serverUserIds = await getUserIdsForServer(serverId)
-            await userData.subscribeToContext(serverId, 'server', serverUserIds)
-            console.log(`🏠 Server presence initialized: ${serverId} (${serverUserIds.length} members)`)
-          } catch (error) {
-            console.error(`Failed to initialize server presence for ${serverId}:`, error)
-          }
-        }
-        
-        // Subscribe to all DM conversations immediately
-        if (conversationUserIds.length > 0) {
-          await userData.subscribeToDMPresence(conversationUserIds)
-        }
-        
-        // TODO: Initialize friends presence when friends system is implemented
-        // const friendIds = await getFriendsListFromAPI()
-        // if (friendIds.length > 0) {
-        //   await userData.subscribeToFriendsPresence(friendIds)
-        // }
-        
-        console.log('✅ Global presence system initialized')
-        console.log(`📊 Presence tracking: ${serverIds.length} servers, ${conversationUserIds.length} DM partners`)
-      } catch (presenceError) {
-        console.error('❌ Failed to initialize global presence system:', presenceError)
-      }
-    } catch (error) {
-      console.error('❌ Failed to initialize user data system:', error)
+    // Initialize core user data system
+    const { useUserData } = await import('@/composables/useUserData')
+    const userData = useUserData()
+    
+    const userProfile = profileStore.profile || {
+      id: userId,
+      username: authStore.session?.user?.user_metadata?.username || 'Unknown',
+      display_name: authStore.session?.user?.user_metadata?.display_name,
+      avatar_url: authStore.session?.user?.user_metadata?.avatar_url
     }
+    
+    await userData.initialize(
+      userId, 
+      userProfile.username || userProfile.display_name || 'Unknown',
+      userProfile.avatar_url
+    )
+    console.log('✅ User data system initialized')
+    
+    // Initialize server users store integration
+    const { useServerUsersStore } = await import('@/stores/useServerUsers')
+    const serverUsersStore = useServerUsersStore()
+    serverUsersStore.initializeUserDataIntegration()
+    
+    // 🎯 PHASE 3: Content Loading (300ms) - Route-specific data
+    console.log('📦 Phase 2: Content loading based on route...')
+    
+    // ✅ OPTIMIZED: Only load what's needed for current route
+    await initializeRouteSpecificData(userId, loadingStrategy, userData)
+    
+    // 🎯 PHASE 4: Background Loading - Non-critical data
+    console.log('🔄 Phase 3: Background loading...')
+    setTimeout(() => {
+      initializeBackgroundData(userId, loadingStrategy)
+    }, 100) // Let UI render first
 
     hasServersLoaded.value = true
     isAppInitialized.value = true
-    console.log('✅ App initialization complete')
+    console.log('✅ App initialization complete - Route-optimized!')
+    
   } catch (error) {
-    console.error('Failed to initialize app:', error)
-    isAppInitialized.value = true // Still show the app even if servers fail to load
+    console.error('❌ Failed to initialize app:', error)
+    isAppInitialized.value = true
     hasServersLoaded.value = true
+  }
+}
+
+// 🎯 OPTIMIZED: Initialize only route-specific data
+const initializeRouteSpecificData = async (userId: string, strategy: any, userData: any) => {
+  try {
+    if (strategy.routeType === 'server-channel') {
+      // ✅ Load current server presence only
+      console.log('🏠 Loading current server presence only...')
+      if (strategy.currentServerId) {
+        const { getUserIdsForServer } = await import('@/services/usersService')
+        const serverUserIds = await getUserIdsForServer(strategy.currentServerId)
+        await userData.subscribeToContext(strategy.currentServerId, 'server', serverUserIds)
+        console.log(`✅ Current server presence: ${strategy.currentServerId} (${serverUserIds.length} users)`)
+      }
+      
+             // ✅ Load current server emojis only (others load in background)
+       const emojiCache = await import('@/stores/useEmojiCache')
+       const emojiCacheStore = emojiCache.useEmojiCacheStore()
+       const allServerIds = serverChannelStore.servers.map(server => server.id)
+       const otherServerIds = allServerIds.filter(id => id !== strategy.currentServerId)
+       
+       if (strategy.currentServerId) {
+         await emojiCacheStore.initializeSelective(
+           [strategy.currentServerId], // Priority: current server
+           otherServerIds // Background: other servers
+         )
+         console.log(`✅ Current server emojis loaded: ${strategy.currentServerId}`)
+         console.log(`🔄 Other server emojis loading in background: ${otherServerIds.length}`)
+       }
+    }
+    
+    else if (strategy.routeType === 'dm' || strategy.routeType === 'dm-list') {
+      // ✅ Load DM system only when needed
+      console.log('💬 Loading DM system for route...')
+      const { useDMStore } = await import('@/stores/useDM')
+      const dmStore = useDMStore()
+      
+      if (strategy.routeType === 'dm' && strategy.currentConversationId) {
+        // Load specific conversation + DM list metadata
+        await dmStore.initializeDMEnvironmentForDirectAccess(userId, strategy.currentConversationId)
+        console.log(`✅ DM conversation loaded: ${strategy.currentConversationId}`)
+      } else {
+        // Load DM list metadata only (no message content)
+        await dmStore.initializeDMEnvironment(userId, true) // true = metadata only
+        console.log('✅ DM list metadata loaded')
+      }
+      
+      // Subscribe to DM presence
+      const conversationUserIds = dmStore.conversations
+        .map(conv => conv.user1 === userId ? conv.user2 : conv.user1)
+        .filter(id => id !== userId)
+      
+      if (conversationUserIds.length > 0) {
+        await userData.subscribeToDMPresence(conversationUserIds)
+        console.log(`✅ DM presence subscribed: ${conversationUserIds.length} users`)
+      }
+    }
+    
+    // ❌ Don't load presence/emoji data for social routes - not needed
+    
+  } catch (error) {
+    console.error('❌ Failed to initialize route-specific data:', error)
+  }
+}
+
+// 🔄 OPTIMIZED: Background loading of non-critical data
+const initializeBackgroundData = async (userId: string, strategy: any) => {
+  try {
+    console.log('🔄 Background loading: notification count...')
+    
+    // ✅ Load only notification count initially (not full list)
+    const { useNotificationStore } = await import('@/stores/useNotification')
+    const notificationStore = useNotificationStore()
+    await notificationStore.initializeUnreadCountOnly(userId) // New method we'll create
+    
+    console.log('✅ Background loading complete')
+  } catch (error) {
+    console.error('❌ Background loading failed:', error)
   }
 }
 

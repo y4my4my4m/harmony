@@ -151,6 +151,44 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       }
     },
 
+    // ⚡ OPTIMIZED: Initialize with selective server loading
+    async initializeSelective(priorityServerIds: string[] = [], backgroundServerIds: string[] = []) {
+      if (this.isInitialized) return;
+      
+      console.log('🎭 Initializing emoji cache system (selective loading)...');
+      console.log(`⚡ Priority servers: ${priorityServerIds.length}, Background: ${backgroundServerIds.length}`);
+      
+      try {
+        // Load priority servers immediately (current server)
+        if (priorityServerIds.length > 0) {
+          console.log('⚡ Loading priority server emojis...');
+          await this.loadEmojisForServers(priorityServerIds);
+        }
+        
+        // Load background servers after a delay (other servers)
+        if (backgroundServerIds.length > 0) {
+          setTimeout(async () => {
+            console.log('🔄 Loading background server emojis...');
+            await this.loadEmojisForServers(backgroundServerIds);
+          }, 1000); // 1 second delay
+        }
+        
+        // Set up real-time subscriptions
+        this.setupRealtimeSubscriptions();
+        
+        // Schedule periodic cleanup
+        this.scheduleCleanup();
+        
+        this.isInitialized = true;
+        this.lastGlobalUpdate = new Date();
+        
+        console.log('✅ Emoji cache initialized successfully (selective)');
+      } catch (error) {
+        console.error('❌ Failed to initialize emoji cache selectively:', error);
+        throw error;
+      }
+    },
+
     // Fetch metadata for servers to determine what needs updating
     async fetchAllServerMetadata(serverIds: string[]): Promise<Map<string, EmojiMetadata>> {
       const { data, error } = await supabase

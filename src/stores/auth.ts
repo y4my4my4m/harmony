@@ -21,7 +21,8 @@ export const useAuthStore = defineStore('auth', {
       if (this.session?.user?.id) {
         // DO NOT force status to online - let userDataService handle status properly
         this.setupOfflineHandlers(this.session.user.id);
-        await this.initializeNotificationSystem(this.session.user.id);
+        // Note: Notification system is now initialized by RouteAwareInitialization
+        // to only load unread count initially (full list loads on-demand)
       }
 
       supabase.auth.onAuthStateChange(async (_, session) => {
@@ -33,7 +34,7 @@ export const useAuthStore = defineStore('auth', {
         if (session?.user?.id) {
           // User logged in - let userDataService handle status restoration
           this.setupOfflineHandlers(session.user.id);
-          await this.initializeNotificationSystem(session.user.id);
+          // Note: Notification system is now initialized by RouteAwareInitialization
         } else if (wasLoggedIn && previousUserId) {
           // User logged out
           await this.setUserOffline(previousUserId);
