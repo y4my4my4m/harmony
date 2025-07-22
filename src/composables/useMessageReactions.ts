@@ -24,7 +24,7 @@ export default defineComponent({
     const reactionsStore = useReactionsStore();
     const authStore = useAuthStore();
 
-    // Get reactions for this message
+    // ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
     const reactions = computed(() => 
       reactionsStore.getMessageReactions(props.message.id)
     );
@@ -70,21 +70,17 @@ export default defineComponent({
       emit('hide-reaction-tooltip');
     };
 
-    // ✅ PERFORMANCE FIX: Reactions are already loaded by MessageService
-    // Only load if truly missing (handles edge cases)
+    // ✅ UNIFIED ARCHITECTURE: Store is pre-populated by CoreMessageService
+    // Safe to request reactions - will use cached data, no N+1 queries
     onMounted(() => {
-      if (!props.message.reactions || props.message.reactions.length === 0) {
-        const existingReactions = reactionsStore.getMessageReactions(props.message.id);
-        if (existingReactions.length === 0) {
-          reactionsStore.fetchMessageReactions(props.message.id);
-        }
+      if (!reactionsStore.isLoadingReactions(props.message.id)) {
+        reactionsStore.fetchMessageReactions(props.message.id);
       }
     });
 
-    // Watch for message changes and reload reactions only if needed
+    // Watch for message changes and reload reactions if needed
     watch(() => props.message.id, (newMessageId) => {
-      const existingReactions = reactionsStore.getMessageReactions(newMessageId);
-      if (existingReactions.length === 0 && (!props.message.reactions || props.message.reactions.length === 0)) {
+      if (!reactionsStore.isLoadingReactions(newMessageId)) {
         reactionsStore.fetchMessageReactions(newMessageId);
       }
     });

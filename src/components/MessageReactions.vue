@@ -60,7 +60,7 @@ const emit = defineEmits<Emits>();
 const reactionsStore = useReactionsStore();
 const authStore = useAuthStore();
 
-// Get reactions for this message (Discord-style instant feedback)
+// ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
 const reactions = computed(() => {
   try {
     return reactionsStore.getMessageReactions(props.message.id);
@@ -116,26 +116,18 @@ const handleEmojiError = (emoji: Emoji) => {
   console.warn('Failed to load emoji:', emoji);
 };
 
-// ✅ PERFORMANCE FIX: Reactions are already loaded by MessageService
-// No need to fetch them on mount - they come with the message data
-// Only fetch if reactions are actually missing (edge case)
+// ✅ UNIFIED ARCHITECTURE: Reactions store is pre-populated by CoreMessageService  
+// Components can safely request reactions - store has batch-loaded data, no N+1 queries
 onMounted(() => {
-  // Only fetch if message has no reactions but there might be some in the database
-  if (!props.message.reactions || props.message.reactions.length === 0) {
-    // Check if reactions exist in store first (might be loaded already)
-    const existingReactions = reactionsStore.getMessageReactions(props.message.id);
-    if (existingReactions.length === 0) {
-      // Only fetch if truly missing - this handles edge cases like individual message loads
-      reactionsStore.fetchMessageReactions(props.message.id);
-    }
+  // Store is populated by batch loading, but safe to request (will use cache)
+  if (!reactionsStore.isLoadingReactions(props.message.id)) {
+    reactionsStore.fetchMessageReactions(props.message.id);
   }
 });
 
-// Watch for message changes and reload reactions only if needed
+// Watch for message changes and reload reactions if needed
 watch(() => props.message.id, (newMessageId) => {
-  // Only fetch if the new message doesn't have reactions loaded
-  const existingReactions = reactionsStore.getMessageReactions(newMessageId);
-  if (existingReactions.length === 0 && (!props.message.reactions || props.message.reactions.length === 0)) {
+  if (!reactionsStore.isLoadingReactions(newMessageId)) {
     reactionsStore.fetchMessageReactions(newMessageId);
   }
 });

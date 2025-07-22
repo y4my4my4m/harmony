@@ -286,7 +286,7 @@ export const useChatStore = defineStore('chat', {
         }
         
         // ✅ PERFORMANCE FIX: Reactions are already loaded by MessageService
-        // No need to fetch them again here - removing duplicate reaction fetching
+        // Components should use message.reactions directly instead of fetching
 
         // Service already returns messages in chronological order (oldest first)
         const reversedMessages = messages;

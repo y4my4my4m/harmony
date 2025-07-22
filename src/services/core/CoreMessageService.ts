@@ -353,6 +353,30 @@ export class CoreMessageService {
   }
 
   // =====================================================
+  // REACTIONS STORE INTEGRATION
+  // =====================================================
+
+    /**
+   * ✅ ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
+   * This unifies CoreMessageService and ReactionsStore to work together
+   */
+  private async populateReactionsStoreCache(reactionsByMessage: Record<string, any[]>): Promise<void> {
+    try {
+      // Dynamically import to avoid circular dependencies
+      const { useReactionsStore } = await import('@/stores/useReactions')
+      const reactionsStore = useReactionsStore()
+      
+      // Use the store's bulk set method to populate cache
+      reactionsStore.bulkSetReactions(reactionsByMessage)
+      
+      console.log(`✅ Core: Synced ${Object.keys(reactionsByMessage).length} message reactions to store cache`)
+    } catch (error) {
+      console.warn('⚠️ Core: Failed to sync reactions to store cache:', error)
+      // Don't throw - this is not critical to core functionality
+    }
+  }
+
+  // =====================================================
   // MESSAGE LOADING (PURE LOCAL)
   // =====================================================
 
@@ -407,6 +431,10 @@ export class CoreMessageService {
         messageList.forEach(message => {
           message.reactions = reactionsByMessage[message.id] || []
         })
+        
+        // ✅ ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
+        // This ensures components can use reactionsStore.getMessageReactions() seamlessly
+        await this.populateReactionsStoreCache(reactionsByMessage)
       }
 
       console.log(`✅ Core: Loaded ${messageList.length} messages with reactions for channel: ${channelId}`)
@@ -468,6 +496,10 @@ export class CoreMessageService {
         messageList.forEach(message => {
           message.reactions = reactionsByMessage[message.id] || []
         })
+        
+        // ✅ ARCHITECTURE FIX: Populate reactions store cache with batch-loaded data
+        // This ensures components can use reactionsStore.getMessageReactions() seamlessly  
+        await this.populateReactionsStoreCache(reactionsByMessage)
       }
 
       console.log(`✅ Core: Loaded ${messageList.length} messages with reactions for conversation: ${conversationId}`)
