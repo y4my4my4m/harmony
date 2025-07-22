@@ -475,18 +475,6 @@ export const useDMStore = defineStore('dm', () => {
   // Helper: Service-like method to fetch raw conversation data using participant system
   const _fetchRawConversations = async (userId: string) => {
     try {
-      // First, let's check if the conversation_participants table exists and has data
-      const { data: participantCheck, error: participantCheckError } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .limit(1)
-      
-      if (participantCheckError) {
-        console.error('❌ conversation_participants table not accessible:', participantCheckError)
-        // Fallback: This means the migration hasn't been applied yet
-        return []
-      }
-      
       // Simple approach: Query conversations where user is a participant
       const { data: participations, error: participationError } = await supabase
         .from('conversation_participants')
@@ -1369,7 +1357,7 @@ export const useDMStore = defineStore('dm', () => {
     content.forEach(part => {
       if (part.type === 'mention' && part.username) {
         const domain = part.domain || instanceDomain
-        const url = part.url || `https://${domain}/@${part.username}`
+        const url = part.url || `https://${domain}/users/${part.username}`  // ✅ FIX: Use /users/ format
         const name = domain === instanceDomain ? `@${part.username}` : `@${part.username}@${domain}`
         
         if (!processedUrls.has(url)) {

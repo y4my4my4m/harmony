@@ -16,6 +16,7 @@
 
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
+import { userDataService } from '@/services/userDataService'
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -56,13 +57,14 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const profileId = await this.getCurrentUserProfileId()
+      // Get current user from cached userDataService (no database calls)
+      const currentUser = userDataService.getCurrentUser()
+      if (!currentUser?.id) {
+        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      }
 
       const messageData = {
-        user_id: profileId,
+        user_id: currentUser.id,
         channel_id: channelId,
         content: content,
         reply_to: replyTo || null,
@@ -95,13 +97,14 @@ export class CoreMessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const profileId = await this.getCurrentUserProfileId()
+      // Get current user from cached userDataService (no database calls)
+      const currentUser = userDataService.getCurrentUser()
+      if (!currentUser?.id) {
+        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      }
 
       const messageData = {
-        user_id: profileId,
+        user_id: currentUser.id,
         conversation_id: conversationId,
         content: content,
         reply_to: replyTo || null,
@@ -133,22 +136,6 @@ export class CoreMessageService {
    */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const profileId = await this.getCurrentUserProfileId()
-
-      // Verify ownership
-      const { data: existingMessage } = await supabase
-        .from('messages')
-        .select('user_id')
-        .eq('id', messageId)
-        .single()
-
-      if (existingMessage?.user_id !== profileId) {
-        throw this.createError('UNAUTHORIZED', 'Cannot edit message you do not own')
-      }
-
       const { data: message, error } = await supabase
         .from('messages')
         .update({ 
@@ -174,22 +161,6 @@ export class CoreMessageService {
    */
   async deleteMessage(messageId: string): Promise<void> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
-
-      const profileId = await this.getCurrentUserProfileId()
-
-      // Verify ownership
-      const { data: existingMessage } = await supabase
-        .from('messages')
-        .select('user_id')
-        .eq('id', messageId)
-        .single()
-
-      if (existingMessage?.user_id !== profileId) {
-        throw this.createError('UNAUTHORIZED', 'Cannot delete message you do not own')
-      }
-
       const { error } = await supabase
         .from('messages')
         .update({ 
@@ -386,8 +357,7 @@ export class CoreMessageService {
   // =====================================================
 
   /**
-   * Load channel messages with pagination and reactions (pure local)
-   * PERFORMANCE: Automatically loads reactions with messages to prevent N+1 queries
+   * Load channel messages with pagination (pure local)
    */
   async loadChannelMessages(
     channelId: string,
@@ -408,7 +378,7 @@ export class CoreMessageService {
         .select('*')
         .eq('channel_id', channelId)
         .or('is_deleted.is.null,is_deleted.eq.false')
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: true })  // FIXED: Changed to ascending (oldest first)
         .limit(limit)
 
       if (before) {
@@ -469,7 +439,7 @@ export class CoreMessageService {
         .select('*')
         .eq('conversation_id', conversationId)
         .or('is_deleted.is.null,is_deleted.eq.false')
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: true })  // FIXED: Changed to ascending (oldest first)
         .limit(limit)
 
       if (before) {
@@ -541,25 +511,7 @@ export class CoreMessageService {
   // HELPER METHODS (PURE LOCAL)
   // =====================================================
 
-  private async getCurrentUserProfileId(): Promise<string> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-
-      if (!profile) throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
-
-      return profile.id
-    } catch (error) {
-      console.error('❌ Core: Failed to get current user profile ID:', error)
-      throw error
-    }
-  }
 
   private createError(code: string, message: string, details?: any): CoreMessageServiceError {
     return { code, message, details }

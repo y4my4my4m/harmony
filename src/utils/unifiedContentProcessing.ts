@@ -440,7 +440,7 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         // Build proper ActivityPub mention with h-card structure
         const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
         const domain = part.domain || currentDomain;
-        const href = `https://${domain}/@${part.username}`;
+        const href = `https://${domain}/users/${part.username}`;  // ✅ FIX: Use /users/ format
         const displayName = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
         return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
       }
@@ -532,7 +532,7 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
     .map(part => {
       const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
       const domain = part.domain || currentDomain;
-      const href = `https://${domain}/@${part.username}`;
+      const href = `https://${domain}/users/${part.username}`;  // ✅ FIX: Use /users/ format
       const name = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
       
       return {

@@ -183,7 +183,7 @@
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { getProfileWithAvatarUrl, updateProfile, uploadAvatar, uploadBanner } from '@/services/profileService'
+import { getProfileWithAvatarUrl, updateProfile, uploadAvatar, uploadBanner } from '@/services/ProfileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
 import { normalizeBannerForStorage } from '@/utils/bannerUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
