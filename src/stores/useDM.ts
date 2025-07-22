@@ -998,8 +998,11 @@ export const useDMStore = defineStore('dm', () => {
       // Service already handles reactions loading
       // Messages come with properly formatted reactions from the service
       
-      // Service already returns messages in chronological order (oldest first)
-      const reversedMessages = messagesData
+      // Service now returns messages in reverse chronological order (newest first)
+      // Reverse for chronological display (oldest first)
+      const reversedMessages = beforeMessageId === undefined ? 
+        messagesData.reverse() : // Initial load: reverse to get oldest first
+        messagesData // Pagination: keep order for prepending older messages
       const allLoaded = !hasMore
 
       // Ensure all messages have conversation_id set
