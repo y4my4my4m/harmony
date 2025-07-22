@@ -46,10 +46,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
         // Restore last selected server and channel from persistence
         await this.restorePersistedState();
         
-        // Initialize emoji cache with user's servers
-        const emojiCache = useEmojiCacheStore();
-        const serverIds = this.servers.map(server => server.id);
-        await emojiCache.initialize(serverIds);
+        // Note: Emoji cache is now initialized by RouteAwareInitialization
+        // to only load emojis for current server initially
         
         // Mark app as initialized to prevent flash on subsequent loads
         statePersistence.setAppInitialized(true);

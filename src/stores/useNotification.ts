@@ -314,6 +314,72 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    /**
+     * ⚡ OPTIMIZED: Initialize only unread count (not full notification list)
+     * For faster initial page load - full list loads when notification panel is opened
+     */
+    async initializeUnreadCountOnly(userId: string) {
+      if (this.isInitialized) return
+      
+      try {
+        console.log('🔔 Notification Store: Fast initialization (unread count only) for user:', userId)
+        
+        // Check notification permission
+        this.hasPermission = await this.checkNotificationPermission()
+        
+        // Load user preferences (lightweight)
+        await this.loadPreferences(userId)
+        
+        // Get profile ID for queries
+        const profileId = await this.getProfileId(userId)
+        
+        // ✅ Load ONLY unread count (not full notification list)
+        const { data: countData, error: countError } = await supabase
+          .rpc('get_unread_notification_count', { p_user_id: profileId })
+        
+        if (countError) {
+          console.error('Failed to get unread count:', countError)
+          this.unreadCount = 0
+        } else {
+          this.unreadCount = countData || 0
+          console.log(`✅ Unread notification count: ${this.unreadCount}`)
+        }
+        
+        // Setup realtime subscription for new notifications
+        this.setupContextAwareRealtimeSubscription(userId)
+        
+        // Setup DND status check
+        this.setupDndCheck()
+        
+        this.isInitialized = true
+        console.log('✅ Notification Store: Fast initialization complete (unread count only)')
+      } catch (error) {
+        console.error('❌ Notification Store: Failed to initialize unread count:', error)
+        this.unreadCount = 0
+      }
+    },
+
+    /**
+     * ⚡ Load full notification list (called when notification panel is opened)
+     */
+    async loadFullNotificationList(userId: string) {
+      if (this.notifications.length > 0) {
+        console.log('📝 Full notification list already loaded')
+        return
+      }
+      
+      try {
+        this.isLoading = true
+        console.log('📝 Loading full notification list...')
+        await this.fetchNotifications(userId)
+        console.log('✅ Full notification list loaded')
+      } catch (error) {
+        console.error('❌ Failed to load full notification list:', error)
+      } finally {
+        this.isLoading = false
+      }
+    },
+
     async fetchNotifications(userId: string, limit = 50, offset = 0) {
       try {
         console.log('🔄 Fetching notifications via NotificationService:', userId)

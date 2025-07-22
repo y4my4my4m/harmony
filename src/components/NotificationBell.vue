@@ -216,10 +216,16 @@ const activeFilter = computed({
 })
 
 // Methods
-const togglePanel = () => {
+const togglePanel = async () => {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     document.body.style.overflow = 'hidden'
+    
+    // ⚡ OPTIMIZED: Load full notification list only when panel is opened
+    if (authStore.session?.user?.id && notifications.value.length === 0) {
+      console.log('📝 Loading full notification list on panel open...')
+      await notificationStore.loadFullNotificationList(authStore.session.user.id)
+    }
   } else {
     document.body.style.overflow = ''
   }

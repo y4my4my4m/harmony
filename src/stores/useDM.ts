@@ -286,18 +286,119 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   // Actions
-  const initializeDMEnvironment = async (userId: string, forceRefresh = false) => {
+  const initializeDMEnvironment = async (userId: string, forceRefresh = false, metadataOnly = false) => {
     try {
       // Clean up any existing subscriptions first
       cleanupRealtimeSubscriptions()
       
       // Only fetch conversations if we don't have them or force refresh is requested
       if (forceRefresh || conversations.value.length === 0) {
-        await fetchUserConversations(userId)
+        if (metadataOnly) {
+          console.log('⚡ Loading DM metadata only (no message content)...')
+          await fetchUserConversationsMetadata(userId)
+        } else {
+          console.log('📦 Loading full DM conversations...')
+          await fetchUserConversations(userId)
+        }
       }
+      
+      // Set up realtime subscriptions (always needed for new messages/updates)
       await setupRealtimeSubscriptions(userId)
     } catch (error) {
       console.error('Failed to initialize DM environment:', error)
+    }
+  }
+
+  // ⚡ OPTIMIZED: Fetch only conversation metadata (no message content)
+  // For faster initial load when user isn't actively viewing DMs
+  const fetchUserConversationsMetadata = async (userId: string) => {
+    try {
+      console.log('⚡ Fetching DM conversations metadata only...')
+      loadingConversations.value = true
+
+      // Get conversations with minimal data - just what's needed for the sidebar
+      const { data: participations, error: participationError } = await supabase
+        .from('conversation_participants')
+        .select(`
+          conversation_id,
+          conversations!inner(
+            id,
+            created_at,
+            type,
+            name,
+            updated_at
+          )
+        `)
+        .eq('user_id', userId)
+        .is('left_at', null)
+        .limit(50) // Reasonable limit for metadata
+
+      if (participationError) {
+        console.error('❌ Error fetching conversation metadata:', participationError)
+        return
+      }
+
+      console.log(`📝 Found ${participations?.length || 0} conversation metadata entries`)
+
+      // Transform to simplified conversation objects (metadata only)
+      const conversationPromises = (participations || []).map(async (participation) => {
+        const conversation = Array.isArray(participation.conversations) 
+          ? participation.conversations[0] 
+          : participation.conversations
+
+        try {
+          // Get basic info about other participants (just count and primary user for DMs)
+          const { data: otherParticipants, error: othersError } = await supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conversation.id)
+            .neq('user_id', userId)
+            .is('left_at', null)
+            .limit(1) // Just need one other participant for DM metadata
+
+          if (othersError) {
+            console.warn('⚠️ Error fetching participants for conversation:', conversation.id, othersError)
+            return null
+          }
+
+          // For metadata, we don't need full user profiles - just placeholder info
+          // Full profiles will be loaded when/if the conversation is opened
+          const primaryOtherUserId = otherParticipants?.[0]?.user_id
+
+          const dmConversation: DMConversation = {
+            id: conversation.id,
+            created_at: conversation.created_at,
+            type: conversation.type || 'direct',
+            name: conversation.name,
+            last_activity: conversation.updated_at,
+            unread_count: 0, // Will be calculated separately if needed
+            participant_count: otherParticipants?.length ? otherParticipants.length + 1 : 2,
+            // Minimal other_user info - full data loads on demand
+            other_user: primaryOtherUserId ? {
+              id: primaryOtherUserId,
+              username: 'Loading...', // Placeholder
+              is_online: false,
+              // Full user data will be loaded when conversation is opened
+            } : undefined
+          }
+
+          return dmConversation
+        } catch (error) {
+          console.error('❌ Error processing conversation metadata:', conversation.id, error)
+          return null
+        }
+      })
+
+      const processedConversations = (await Promise.all(conversationPromises))
+        .filter(conv => conv !== null) as DMConversation[]
+
+      conversations.value = processedConversations
+      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries`)
+      
+    } catch (error) {
+      console.error('❌ Error fetching conversation metadata:', error)
+    } finally {
+      loadingConversations.value = false
     }
   }
 
