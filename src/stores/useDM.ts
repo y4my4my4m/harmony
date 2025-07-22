@@ -1000,6 +1000,15 @@ export const useDMStore = defineStore('dm', () => {
       
       // Service now returns messages in reverse chronological order (newest first)
       // Reverse for chronological display (oldest first)
+      /*
+       * The conditional logic below determines the ordering of messages based on the context:
+       * - Initial load (beforeMessageId is undefined): Messages are reversed to display them 
+       *   in chronological order (oldest first). This ensures the conversation starts with 
+       *   the oldest messages, providing a natural reading flow.
+       * - Pagination (beforeMessageId is defined): Messages are kept in their original order 
+       *   because they are prepended to the existing list of older messages. Reversing them 
+       *   would disrupt the chronological order of the conversation.
+       */
       const reversedMessages = beforeMessageId === undefined ? 
         messagesData.reverse() : // Initial load: reverse to get oldest first
         messagesData // Pagination: keep order for prepending older messages
