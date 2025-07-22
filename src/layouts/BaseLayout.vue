@@ -250,7 +250,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
     else if (strategy.routeType === 'dm' || strategy.routeType === 'dm-list') {
-      console.log('💬 Loading DM route (dm, emojiCache, theme, reactions)...')
+      console.log(`💬 Loading DM route (${strategy.routeType}) - dm, emojiCache, theme, reactions...`)
       
       // ✅ ROUTE-SPECIFIC STORES: Only load what's needed for DMs
       const [emojiCache, { useDMStore }, { useReactionsStore }, { useThemeStore }] = await Promise.all([
@@ -276,15 +276,21 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         console.log(`✅ Basic emoji support loaded for DMs`)
       }
       
-      // Initialize DM functionality
+      // Initialize DM functionality with detailed logging
       if (strategy.routeType === 'dm' && strategy.currentConversationId) {
+        console.log(`🎯 Loading specific DM conversation: ${strategy.currentConversationId}`)
         // Load specific conversation + DM list metadata
         await dmStore.initializeDMEnvironmentForDirectAccess(userId, strategy.currentConversationId)
         console.log(`✅ DM conversation loaded: ${strategy.currentConversationId}`)
-      } else {
+      } else if (strategy.routeType === 'dm-list') {
+        console.log('🎯 Loading DM list metadata only (optimized)')
         // Load DM list metadata only (no message content)
         await dmStore.initializeDMEnvironment(userId, false, true) // false = forceRefresh, true = metadataOnly
         console.log('✅ DM list metadata loaded')
+      } else {
+        console.log('🎯 Generic DM route - loading full DM environment')
+        await dmStore.initializeDMEnvironment(userId, false, false) // Full loading as fallback
+        console.log('✅ Full DM environment loaded')
       }
       
       // OPTIMIZED: Only subscribe to DM presence for specific DM conversation routes

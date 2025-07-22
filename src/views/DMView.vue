@@ -117,8 +117,8 @@ const existingParticipants = computed(() => {
     {
       id: currentUser.id,
       username: currentUser.username || '',
-      display_name: currentUser.display_name,
-      avatar_url: currentUser.avatar_url,
+      display_name: currentUser.displayName,
+      avatar_url: currentUser.avatarUrl,
       is_local: true,
       domain: null,
       handle: `@${currentUser.username}`
@@ -208,11 +208,17 @@ const handleConversationCreated = async (newConversationId: string) => {
 // Watch for conversation changes
 watch(() => route.params.conversationId, loadMessages, { immediate: true })
 
-// Initialize DM environment on mount
+// Initialize DM environment on mount as fallback (BaseLayout should handle it, but ensure it's loaded)
 onMounted(async () => {
   const userId = authStore.session?.user?.id
   if (userId) {
-    await dmStore.initializeDMEnvironment(userId)
+    // Only initialize if conversations aren't already loaded
+    if (dmStore.conversations.length === 0 && !dmStore.loadingConversations) {
+      console.log('🔄 DMView: Fallback DM initialization (BaseLayout may not have loaded DMs)')
+      await dmStore.initializeDMEnvironment(userId, false, true) // metadata only as fallback
+    } else {
+      console.log('✅ DMView: DMs already loaded by BaseLayout')
+    }
   }
 })
 </script>
