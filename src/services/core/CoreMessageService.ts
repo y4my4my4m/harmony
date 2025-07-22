@@ -357,8 +357,7 @@ export class CoreMessageService {
   // =====================================================
 
   /**
-   * Load channel messages with pagination and reactions (pure local)
-   * PERFORMANCE: Automatically loads reactions with messages to prevent N+1 queries
+   * Load channel messages with pagination (pure local)
    */
   async loadChannelMessages(
     channelId: string,
@@ -379,7 +378,7 @@ export class CoreMessageService {
         .select('*')
         .eq('channel_id', channelId)
         .or('is_deleted.is.null,is_deleted.eq.false')
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: true })  // FIXED: Changed to ascending (oldest first)
         .limit(limit)
 
       if (before) {
@@ -440,7 +439,7 @@ export class CoreMessageService {
         .select('*')
         .eq('conversation_id', conversationId)
         .or('is_deleted.is.null,is_deleted.eq.false')
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: true })  // FIXED: Changed to ascending (oldest first)
         .limit(limit)
 
       if (before) {
