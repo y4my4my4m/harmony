@@ -262,14 +262,27 @@
       const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
         console.log('🔧 Using unified content parsing for:', input);
         
-        // Use efficient batch mention resolution
-        const userDataMap = await resolveMentionsUserData(input);
-        
-        // Parse with unified system
-        const result = await parseContentToMessageParts(input, userDataMap);
-        
-        console.log('🔧 Final parsed message parts:', result);
-        return result;
+        try {
+          // Use efficient batch mention resolution
+          const userDataMap = await resolveMentionsUserData(input);
+          
+          // Parse with unified system
+          const result = await parseContentToMessageParts(input, userDataMap);
+          
+          console.log('🔧 Final parsed message parts:', result);
+          
+          // CRITICAL: Ensure we always return a valid MessagePart array
+          if (!Array.isArray(result)) {
+            console.error('❌ parseContentToMessageParts returned non-array:', result);
+            throw new Error('Content parsing failed - not an array');
+          }
+          
+          return result;
+        } catch (error) {
+          console.error('❌ Content parsing failed for input:', input, error);
+          // Fallback: create a simple text MessagePart
+          return [{ type: 'text', text: input }];
+        }
       };
 
 
