@@ -388,7 +388,28 @@ export const useDMStore = defineStore('dm', () => {
         }
       }
 
-      // Step 3: Transform to simplified conversation objects (metadata only - NO user profile loading)
+      // Step 3: Load last message for each conversation (for preview)
+      const { data: lastMessages, error: messagesError } = await supabase
+        .from('messages')
+        .select('conversation_id, content, created_at, user_id')
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: false })
+
+      if (messagesError) {
+        console.warn('⚠️ Error fetching last messages for preview:', messagesError)
+      }
+
+      // Group last messages by conversation ID
+      const lastMessagesByConv = new Map<string, any>()
+      if (lastMessages) {
+        for (const message of lastMessages) {
+          if (!lastMessagesByConv.has(message.conversation_id)) {
+            lastMessagesByConv.set(message.conversation_id, message)
+          }
+        }
+      }
+
+      // Step 4: Transform to simplified conversation objects (metadata only - NO user profile loading)
       const processedConversations: DMConversation[] = participations.map((participation) => {
         const conversation = Array.isArray(participation.conversations) 
           ? participation.conversations[0] 
@@ -396,15 +417,24 @@ export const useDMStore = defineStore('dm', () => {
 
         const otherParticipants = participantsByConv.get(conversation.id) || []
         const primaryOtherUserId = otherParticipants[0]
+        const lastMessage = lastMessagesByConv.get(conversation.id)
 
         const dmConversation: DMConversation = {
           id: conversation.id,
           created_at: conversation.created_at,
           type: conversation.type || 'direct',
           name: conversation.name,
-          last_activity: conversation.updated_at,
+          last_activity: lastMessage?.created_at || conversation.updated_at,
           unread_count: 0, // Will be calculated separately if needed
           participant_count: otherParticipants.length + 1, // +1 for current user
+          // OPTIMIZED: Include last message for preview without loading full message history
+          last_message: lastMessage ? {
+            id: '', // Don't need full message ID for preview
+            content: lastMessage.content,
+            created_at: lastMessage.created_at,
+            user_id: lastMessage.user_id,
+            conversation_id: lastMessage.conversation_id
+          } : undefined,
           // OPTIMIZED: No user profile data loaded - just placeholders
           // Real user data will be loaded lazily when conversation is viewed/hovered
           other_user: primaryOtherUserId ? {
@@ -422,7 +452,7 @@ export const useDMStore = defineStore('dm', () => {
       })
 
       conversations.value = processedConversations
-      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries (optimized - no user profiles)`)
+      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries (optimized - no user profiles, with message previews)`)
       
     } catch (error) {
       console.error('❌ Error fetching conversation metadata:', error)
@@ -1948,8 +1978,7 @@ export const useDMStore = defineStore('dm', () => {
 
       console.log('⚡ Loading user profile for conversation:', conversationId)
 
-      const { useUserDataService } = await import('@/services/userDataService')
-      const userDataService = useUserDataService()
+      const { userDataService } = await import('@/services/userDataService')
       
       // Load the real user profile
       const userProfile = await userDataService.getUserProfile(conversation.other_user.id)
@@ -2000,8 +2029,7 @@ export const useDMStore = defineStore('dm', () => {
       
       if (userIds.length === 0) return
       
-      const { useUserDataService } = await import('@/services/userDataService')
-      const userDataService = useUserDataService()
+      const { userDataService } = await import('@/services/userDataService')
       
       // Load all user profiles in batch
       const userProfiles = await userDataService.getUserProfiles(userIds)
