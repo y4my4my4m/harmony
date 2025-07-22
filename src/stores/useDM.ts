@@ -479,8 +479,8 @@ export const useDMStore = defineStore('dm', () => {
           }, 100)
         }
       } else if (loadStrategy === 'partial') {
-                 // Load user profiles for most recent conversations immediately for better UX
-         // Keep the rest as lazy-loaded for performance
+        // Load user profiles for most recent conversations immediately for better UX
+        // Keep the rest as lazy-loaded for performance
          const immediateLoadConversations = processedConversations
            .filter(conv => conv.type === 'direct' && conv.other_user?._isPlaceholder)
            .sort((a, b) => new Date(b.last_activity || b.created_at).getTime() - new Date(a.last_activity || a.created_at).getTime()) // Most recent first
