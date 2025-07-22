@@ -133,6 +133,16 @@ export const useAuthStore = defineStore('auth', {
         await this.setUserOffline(this.session.user.id);
       }
       this.cleanupOfflineHandlers();
+      
+      // ✅ PERFORMANCE FIX: Cleanup state persistence before logout
+      try {
+        const { statePersistence } = await import('@/services/StatePersistence')
+        await statePersistence.cleanup()
+        console.log('✅ State persistence cleaned up on logout')
+      } catch (error) {
+        console.error('❌ Error cleaning up state persistence:', error)
+      }
+      
       // should make it async but for some reason it's bugging...
       supabase.auth.signOut();
       this.session = null;

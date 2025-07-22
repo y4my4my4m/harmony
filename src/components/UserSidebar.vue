@@ -408,15 +408,23 @@ const fetchAndSetUsers = async (serverId: string | null) => {
   console.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
   
   if (serverId) {
-    // Check if context is already subscribed (global presence may have already done this)
-    const users = getUsersInContext(serverId).value;
+    // ✅ PERFORMANCE FIX: Wait a bit for context to be established by BaseLayout
+    // This prevents the race condition where UserSidebar mounts before context is ready
+    let users = getUsersInContext(serverId).value;
+    
+    // If no users found, wait a short time for BaseLayout to establish context
+    if (users.length === 0) {
+      console.log(`⏳ UserSidebar: Waiting for server context to be established...`);
+      await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+      users = getUsersInContext(serverId).value;
+    }
     
     if (users.length > 0) {
       console.log(`📋 Server context already initialized: ${serverId} (${users.length} members) - using existing subscription`);
       return;
     }
     
-    // Context not initialized, subscribe to it
+    // Context still not initialized, subscribe to it
     const userIds = await getUserIdsForServer(serverId);
     await subscribeToContext(serverId, 'server', userIds);
     console.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);

@@ -261,6 +261,28 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
     }
     
+    // ✅ PERFORMANCE FIX: Initialize emojis for unknown routes too
+    // Since app always loads a default server, we need emojis
+    else if (strategy.routeType === 'other' && serverChannelStore.servers.length > 0) {
+      console.log('🎭 Loading emojis for default server on unknown route...')
+      const emojiCache = await import('@/stores/useEmojiCache')
+      const emojiCacheStore = emojiCache.useEmojiCacheStore()
+      const allServerIds = serverChannelStore.servers.map(server => server.id)
+      
+      // Use current server or first server as default
+      const defaultServerId = serverChannelStore.currentServerId || allServerIds[0]
+      const otherServerIds = allServerIds.filter(id => id !== defaultServerId)
+      
+      if (defaultServerId) {
+        await emojiCacheStore.initializeSelective(
+          [defaultServerId], // Priority: default server
+          otherServerIds // Background: other servers
+        )
+        console.log(`✅ Default server emojis loaded: ${defaultServerId}`)
+        console.log(`🔄 Other server emojis loading in background: ${otherServerIds.length}`)
+      }
+    }
+    
     // ❌ Don't load presence/emoji data for social routes - not needed
     
   } catch (error) {
@@ -311,6 +333,15 @@ watch(() => authStore.session, async (newSession, oldSession) => {
       console.log('✅ Global presence cleanup completed')
     } catch (error) {
       console.error('Failed to cleanup user data:', error)
+    }
+    
+    // ✅ PERFORMANCE FIX: Cleanup state persistence
+    try {
+      const { statePersistence } = await import('@/services/StatePersistence')
+      await statePersistence.cleanup()
+      console.log('✅ State persistence cleanup completed')
+    } catch (error) {
+      console.error('Failed to cleanup state persistence:', error)
     }
     
     isAppInitialized.value = false
