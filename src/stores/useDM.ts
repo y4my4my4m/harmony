@@ -1186,8 +1186,10 @@ export const useDMStore = defineStore('dm', () => {
       // 2. Federation delivery (federate_dm_message trigger)
       // No manual frontend calls needed!
 
-      // Real-time subscription will handle adding to cache via addMessageToCache
-      // Don't manually add here to prevent duplicates
+      // ✅ IMMEDIATELY add to cache for local display (don't wait for real-time)
+      // This ensures the user sees their message right away
+      addMessageToCache(message)
+      console.log('✅ Added sent message to local cache for immediate display')
 
       return true
     } catch (error: any) {
