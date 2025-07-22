@@ -339,7 +339,8 @@ export const useDMStore = defineStore('dm', () => {
             created_at,
             type,
             name,
-            updated_at
+            updated_at,
+            icon_url
           )
         `)
         .eq('user_id', userId)
@@ -424,6 +425,7 @@ export const useDMStore = defineStore('dm', () => {
           created_at: conversation.created_at,
           type: conversation.type || 'direct',
           name: conversation.name,
+          icon_url: conversation.icon_url, // For group chat icons
           last_activity: lastMessage?.created_at || conversation.updated_at,
           unread_count: 0, // Will be calculated separately if needed
           participant_count: otherParticipants.length + 1, // +1 for current user
@@ -1973,15 +1975,17 @@ export const useDMStore = defineStore('dm', () => {
     try {
       const conversation = conversations.value.find(c => c.id === conversationId)
       if (!conversation?.other_user?._isPlaceholder) {
+        console.log('⏭️ User profile already loaded for conversation:', conversationId, conversation?.other_user)
         return true // Already loaded or no placeholder
       }
 
-      console.log('⚡ Loading user profile for conversation:', conversationId)
+      console.log('⚡ Loading user profile for conversation:', conversationId, 'current placeholder:', conversation.other_user)
 
       const { userDataService } = await import('@/services/userDataService')
       
-      // Load the real user profile
-      const userProfile = await userDataService.getUserProfile(conversation.other_user.id)
+      // Load the real user profile from database
+      const userProfile = await userDataService.fetchUserProfile(conversation.other_user.id)
+      console.log('📋 Received user profile:', userProfile)
       
       if (userProfile) {
         // Update the conversation with real user data
@@ -1999,7 +2003,7 @@ export const useDMStore = defineStore('dm', () => {
           _isPlaceholder: false
         }
         
-        console.log('✅ User profile loaded for conversation:', conversationId)
+        console.log('✅ User profile loaded for conversation:', conversationId, 'updated other_user:', conversation.other_user)
         return true
       }
       
@@ -2031,12 +2035,12 @@ export const useDMStore = defineStore('dm', () => {
       
       const { userDataService } = await import('@/services/userDataService')
       
-      // Load all user profiles in batch
-      const userProfiles = await userDataService.getUserProfiles(userIds)
+      // Load all user profiles in batch from database
+      const userProfilesMap = await userDataService.fetchMultipleUserProfiles(userIds)
       
       // Update conversations with real user data
       for (const conversation of conversationsToLoad) {
-        const userProfile = userProfiles.find(u => u.id === conversation.other_user?.id)
+        const userProfile = conversation.other_user?.id ? userProfilesMap[conversation.other_user.id] : null
         
         if (userProfile && conversation.other_user) {
           conversation.other_user = {

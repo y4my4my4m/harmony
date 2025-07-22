@@ -392,24 +392,35 @@ const getMessagePreviewText = (message: Message): string => {
 const hoveredConversations = ref(new Set<string>())
 
 const handleConversationHover = async (conversationId: string) => {
+  console.log('🖱️ Conversation hovered:', conversationId)
+  
   if (hoveredConversations.value.has(conversationId)) {
+    console.log('⏭️ Already loaded for conversation:', conversationId)
     return // Already loaded
   }
   
   hoveredConversations.value.add(conversationId)
   
   try {
+    console.log('⚡ Loading user profile for hovered conversation:', conversationId)
     // Load user profile for this conversation on demand
-    await dmStore.loadConversationUserProfile(conversationId)
+    const success = await dmStore.loadConversationUserProfile(conversationId)
     
-    // Also load presence for this specific user if not already loaded
-    const conversation = dmStore.conversations.find(c => c.id === conversationId)
-    if (conversation?.other_user?.id && !conversation.other_user._isPlaceholder) {
-      const { subscribeToDMPresence } = useUserData()
-      await subscribeToDMPresence([conversation.other_user.id])
+    if (success) {
+      console.log('✅ User profile loaded for conversation:', conversationId)
+      
+      // Also load presence for this specific user if not already loaded
+      const conversation = dmStore.conversations.find(c => c.id === conversationId)
+      if (conversation?.other_user?.id && !conversation.other_user._isPlaceholder) {
+        const { subscribeToDMPresence } = useUserData()
+        await subscribeToDMPresence([conversation.other_user.id])
+        console.log('✅ Presence loaded for user:', conversation.other_user.id)
+      }
+    } else {
+      console.warn('⚠️ Failed to load user profile for conversation:', conversationId)
     }
   } catch (error) {
-    console.error('Failed to load conversation profile on hover:', conversationId, error)
+    console.error('❌ Failed to load conversation profile on hover:', conversationId, error)
   }
 }
 
