@@ -2,44 +2,30 @@ import { useReactionsStore } from '@/stores/useReactions';
 
 /**
  * Utility to manage reaction cache cleanup
+ * Note: The reactions store handles its own internal cleanup automatically
  */
 export class ReactionCacheManager {
-  private cleanupInterval: number | null = null;
-  private readonly CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
-
   /**
-   * Start periodic cache cleanup
+   * Clear optimistic state for a specific message
+   * This is useful when you know a message has been deleted or needs fresh data
    */
-  startCleanup() {
-    if (this.cleanupInterval) return;
-
-    this.cleanupInterval = window.setInterval(() => {
-      const reactionsStore = useReactionsStore();
-      reactionsStore.cleanupCache();
-      console.log('🧹 Reaction cache cleanup completed');
-    }, this.CLEANUP_INTERVAL);
-
-    console.log('🧹 Reaction cache cleanup started');
-  }
-
-  /**
-   * Stop periodic cache cleanup
-   */
-  stopCleanup() {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
-      console.log('🧹 Reaction cache cleanup stopped');
-    }
-  }
-
-  /**
-   * Manually trigger cache cleanup
-   */
-  cleanupNow() {
+  clearOptimisticState(messageId: string) {
     const reactionsStore = useReactionsStore();
-    reactionsStore.cleanupCache();
-    console.log('🧹 Manual reaction cache cleanup completed');
+    reactionsStore.clearOptimisticState(messageId);
+    console.log(`🧹 Cleared optimistic state for message ${messageId}`);
+  }
+
+  /**
+   * Clear all cached reactions data
+   * Only use this in extreme cases (user logout, data corruption, etc.)
+   */
+  clearAllCache() {
+    const reactionsStore = useReactionsStore();
+    // Force clear all cached data
+    Object.keys(reactionsStore.reactionsByMessage).forEach(messageId => {
+      reactionsStore.clearOptimisticState(messageId);
+    });
+    console.log('🧹 Cleared all reaction cache data');
   }
 }
 
