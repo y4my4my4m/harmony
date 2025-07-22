@@ -283,18 +283,23 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         console.log(`✅ DM conversation loaded: ${strategy.currentConversationId}`)
       } else {
         // Load DM list metadata only (no message content)
-        await dmStore.initializeDMEnvironment(userId, true) // true = metadata only
+        await dmStore.initializeDMEnvironment(userId, false, true) // false = forceRefresh, true = metadataOnly
         console.log('✅ DM list metadata loaded')
       }
       
-      // Subscribe to DM presence
-      const conversationUserIds = dmStore.conversations
-        .map(conv => conv.user1 === userId ? conv.user2 : conv.user1)
-        .filter(id => id !== userId)
-      
-      if (conversationUserIds.length > 0) {
-        await userData.subscribeToDMPresence(conversationUserIds)
-        console.log(`✅ DM presence subscribed: ${conversationUserIds.length} users`)
+      // OPTIMIZED: Only subscribe to DM presence for specific DM conversation routes
+      // For dm-list, we'll load presence on-demand when conversations are hovered/opened
+      if (strategy.routeType === 'dm' && strategy.currentConversationId) {
+        const conversationUserIds = dmStore.conversations
+          .map(conv => conv.user1 === userId ? conv.user2 : conv.user1)
+          .filter(id => id !== userId)
+        
+        if (conversationUserIds.length > 0) {
+          await userData.subscribeToDMPresence(conversationUserIds)
+          console.log(`✅ DM presence subscribed: ${conversationUserIds.length} users`)
+        }
+      } else if (strategy.routeType === 'dm-list') {
+        console.log('⚡ Skipping DM presence for dm-list route (loaded on-demand)')
       }
     }
     
