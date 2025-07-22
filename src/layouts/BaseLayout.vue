@@ -168,10 +168,12 @@ const initializeApp = async () => {
       avatar_url: authStore.session?.user?.user_metadata?.avatar_url
     }
     
+    // ✅ PERFORMANCE FIX: Pass already-loaded profile to avoid duplicate database query
     await userData.initialize(
       userId, 
       userProfile.username || userProfile.display_name || 'Unknown',
-      userProfile.avatar_url
+      userProfile.avatar_url,
+      userProfile // Pass the full profile to prevent duplicate loading
     )
     console.log('✅ User data system initialized')
     
@@ -274,7 +276,14 @@ const initializeBackgroundData = async (userId: string, strategy: any) => {
     // ✅ Load only notification count initially (not full list)
     const { useNotificationStore } = await import('@/stores/useNotification')
     const notificationStore = useNotificationStore()
-    await notificationStore.initializeUnreadCountOnly(userId) // New method we'll create
+    await notificationStore.initializeUnreadCountOnly(userId)
+    
+    // ✅ PERFORMANCE FIX: Move activity tracking to background
+    console.log('🎯 Starting activity tracking...')
+    const { useUserData } = await import('@/composables/useUserData')
+    const userData = useUserData()
+    await userData.initializeBackgroundFeatures()
+    console.log('✅ Activity tracking started')
     
     console.log('✅ Background loading complete')
   } catch (error) {

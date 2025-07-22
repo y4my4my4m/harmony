@@ -285,9 +285,8 @@ export const useChatStore = defineStore('chat', {
           await serverUsersStore.fetchMultipleUserProfiles(Array.from(userIds));
         }
         
-        // Fetch reactions for all messages in batch
-        const messageIds = messages.map(m => m.id);
-        await reactionsStore.fetchMultipleMessageReactions(messageIds);
+        // ✅ PERFORMANCE FIX: Reactions are already loaded by MessageService
+        // No need to fetch them again here - removing duplicate reaction fetching
 
         // Service already returns messages in chronological order (oldest first)
         const reversedMessages = messages;

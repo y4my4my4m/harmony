@@ -116,14 +116,28 @@ const handleEmojiError = (emoji: Emoji) => {
   console.warn('Failed to load emoji:', emoji);
 };
 
-// Fetch reactions on mount
+// ✅ PERFORMANCE FIX: Reactions are already loaded by MessageService
+// No need to fetch them on mount - they come with the message data
+// Only fetch if reactions are actually missing (edge case)
 onMounted(() => {
-  reactionsStore.fetchMessageReactions(props.message.id);
+  // Only fetch if message has no reactions but there might be some in the database
+  if (!props.message.reactions || props.message.reactions.length === 0) {
+    // Check if reactions exist in store first (might be loaded already)
+    const existingReactions = reactionsStore.getMessageReactions(props.message.id);
+    if (existingReactions.length === 0) {
+      // Only fetch if truly missing - this handles edge cases like individual message loads
+      reactionsStore.fetchMessageReactions(props.message.id);
+    }
+  }
 });
 
-// Watch for message changes and reload reactions if needed
+// Watch for message changes and reload reactions only if needed
 watch(() => props.message.id, (newMessageId) => {
-  reactionsStore.fetchMessageReactions(newMessageId);
+  // Only fetch if the new message doesn't have reactions loaded
+  const existingReactions = reactionsStore.getMessageReactions(newMessageId);
+  if (existingReactions.length === 0 && (!props.message.reactions || props.message.reactions.length === 0)) {
+    reactionsStore.fetchMessageReactions(newMessageId);
+  }
 });
 </script>
 

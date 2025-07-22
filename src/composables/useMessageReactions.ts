@@ -70,14 +70,23 @@ export default defineComponent({
       emit('hide-reaction-tooltip');
     };
 
-    // Load reactions when component mounts
+    // ✅ PERFORMANCE FIX: Reactions are already loaded by MessageService
+    // Only load if truly missing (handles edge cases)
     onMounted(() => {
-      reactionsStore.fetchMessageReactions(props.message.id);
+      if (!props.message.reactions || props.message.reactions.length === 0) {
+        const existingReactions = reactionsStore.getMessageReactions(props.message.id);
+        if (existingReactions.length === 0) {
+          reactionsStore.fetchMessageReactions(props.message.id);
+        }
+      }
     });
 
-    // Watch for message changes and reload reactions if needed
+    // Watch for message changes and reload reactions only if needed
     watch(() => props.message.id, (newMessageId) => {
-      reactionsStore.fetchMessageReactions(newMessageId);
+      const existingReactions = reactionsStore.getMessageReactions(newMessageId);
+      if (existingReactions.length === 0 && (!props.message.reactions || props.message.reactions.length === 0)) {
+        reactionsStore.fetchMessageReactions(newMessageId);
+      }
     });
 
     return {

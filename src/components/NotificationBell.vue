@@ -318,10 +318,14 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
-// Initialize notifications when user is logged in
+// ✅ PERFORMANCE FIX: Don't duplicate notification initialization
+// BaseLayout already handles initial notification loading in background
 onMounted(() => {
-  if (authStore.session?.user?.id) {
-    notificationStore.initialize(authStore.session.user.id)
+  if (authStore.session?.user?.id && !notificationStore.isInitialized) {
+    // Only initialize if not already done by BaseLayout
+    // This handles edge cases where NotificationBell mounts before BaseLayout completes
+    console.log('🔔 NotificationBell: Fallback initialization (BaseLayout not complete yet)')
+    notificationStore.initializeUnreadCountOnly(authStore.session.user.id)
   }
   
   document.addEventListener('click', handleClickOutside)
