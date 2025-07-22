@@ -201,36 +201,40 @@ BEGIN
                 v_attachments := extract_activitypub_attachments(NEW.content);
                 v_tags := extract_all_activitypub_tags(NEW.content);
                 
-                -- Create Note object (DM format)
+                -- Create Note object (DM format) - MATCH WORKING EXAMPLE EXACTLY
                 v_note_object := jsonb_build_object(
                     'id', v_message_url,
                     'type', 'Note', 
-                    'published', NEW.created_at::text,
+                    'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
                     'attributedTo', v_sender_url,
                     'content', v_html_content,
                     'url', v_message_url,
                     'to', jsonb_build_array(v_recipient_url),
-                    'cc', '[]'::jsonb
+                    'cc', jsonb_build_array(),  -- Empty array, not '[]'::jsonb
+                    'tag', jsonb_build_array(
+                        jsonb_build_object(
+                            'type', 'Mention',
+                            'href', v_recipient_url,
+                            'name', '@' || v_recipient_profile.username || '@' || v_recipient_profile.domain
+                        )
+                    )
                 );
                 
-                -- Add attachments and tags if present
+                -- Add attachments if present
                 IF v_attachments IS NOT NULL AND jsonb_array_length(v_attachments) > 0 THEN
                     v_note_object := v_note_object || jsonb_build_object('attachment', v_attachments);
                 END IF;
                 
-                IF v_tags IS NOT NULL AND jsonb_array_length(v_tags) > 0 THEN
-                    v_note_object := v_note_object || jsonb_build_object('tag', v_tags);
-                END IF;
-                
-                -- Create Activity wrapper
+                -- Create Activity wrapper - MATCH WORKING EXAMPLE EXACTLY
                 v_activity := jsonb_build_object(
-                    'id', v_activity_id_text,  -- ActivityPub ID goes in the JSON
+                    'id', v_activity_id_text,
                     'type', 'Create',
                     'actor', v_sender_url,
-                    'published', NEW.created_at::text,
+                    'published', to_char(NEW.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
                     'object', v_note_object,
                     'to', jsonb_build_array(v_recipient_url),
-                    'cc', '[]'::jsonb
+                    'cc', jsonb_build_array(),  -- Empty array, not '[]'::jsonb
+                    '@context', 'https://www.w3.org/ns/activitystreams'
                 );
                 
                 -- Queue for delivery to recipient's inbox
