@@ -349,6 +349,15 @@ export const useReactionsStore = defineStore('reactions', () => {
      // Utils
      clearOptimisticState: (messageId: string) => {
        optimisticReactions.value.delete(messageId)
+     },
+     
+     // ✅ ARCHITECTURE FIX: Bulk set reactions from CoreMessageService batch loading
+     bulkSetReactions: (reactionsData: Record<string, any[]>) => {
+       const now = Date.now()
+       Object.entries(reactionsData).forEach(([messageId, reactions]) => {
+         reactionsByMessage.value.set(messageId, reactions)
+         lastFetched.value.set(messageId, now)
+       })
      }
    }
 })

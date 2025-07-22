@@ -318,11 +318,10 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
-// Initialize notifications when user is logged in
+// ✅ CLEAN ARCHITECTURE: NotificationBell is pure reactive display component
+// BaseLayout handles ALL notification initialization - we just display current state
 onMounted(() => {
-  if (authStore.session?.user?.id) {
-    notificationStore.initialize(authStore.session.user.id)
-  }
+  console.log('🔔 NotificationBell: Mounted as reactive display component')
   
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeydown)

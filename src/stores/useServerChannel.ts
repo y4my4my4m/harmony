@@ -142,6 +142,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
     },
 
     setCurrentServer(serverId: string): void {
+      // ✅ SMART CACHING: Prevent setting the same server twice
+      if (this.currentServerId === serverId) {
+        console.log(`💾 Server ${serverId} already selected, skipping duplicate set`);
+        return;
+      }
+      
       const server = this.servers.find(s => s.id === serverId);
       if (server) {
         this.currentServerId = serverId;

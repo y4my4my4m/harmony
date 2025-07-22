@@ -64,8 +64,14 @@
 
     <!-- User Groups -->
     <div class="user-groups" v-if="props.visible">
+      <!-- Loading Indicator -->
+      <div v-if="isLoadingUsers" class="loading-indicator">
+        <div class="loading-spinner"></div>
+        <span>Loading users...</span>
+      </div>
+      
       <!-- Online Users -->
-      <div v-if="groupedUsers.online.length > 0" class="user-group">
+      <div v-if="!isLoadingUsers && groupedUsers.online.length > 0" class="user-group">
         <button 
           @click="toggleGroup('online')"
           class="group-header"
@@ -103,7 +109,7 @@
       </div>
 
       <!-- Away Users -->
-      <div v-if="groupedUsers.away.length > 0" class="user-group">
+      <div v-if="!isLoadingUsers && groupedUsers.away.length > 0" class="user-group">
         <button 
           @click="toggleGroup('away')"
           class="group-header"
@@ -141,7 +147,7 @@
       </div>
 
       <!-- Busy Users -->
-      <div v-if="groupedUsers.busy.length > 0" class="user-group">
+      <div v-if="!isLoadingUsers && groupedUsers.busy.length > 0" class="user-group">
         <button 
           @click="toggleGroup('busy')"
           class="group-header"
@@ -179,7 +185,7 @@
       </div>
 
       <!-- Offline Users -->
-      <div v-if="groupedUsers.offline.length > 0" class="user-group">
+      <div v-if="!isLoadingUsers && groupedUsers.offline.length > 0" class="user-group">
         <button 
           @click="toggleGroup('offline')"
           class="group-header"
@@ -278,6 +284,8 @@ const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
 const searchQuery = ref('');
+const isLoadingUsers = ref(false);
+const lastFetchedServerId = ref<string | null>(null);
 
 // Group collapse state
 const collapsedGroups = ref({
@@ -287,22 +295,31 @@ const collapsedGroups = ref({
   offline: true // Start with offline collapsed
 });
 
-// Clean user data from unified system - always accurate and real-time
+// Smart cached user data - shows cached data immediately, updates in background
 const users = computed(() => {
   const serverId = serverChannelStore.currentServerId;
   if (!serverId) {
-    console.log('🔍 UserSidebar: No current server ID');
     return [];
   }
   
-  // Get users from context first
+  // Get users from context first (this is our cached data)
   const contextUsers = getUsersInContext(serverId).value;
-  console.log(`🔍 UserSidebar: Server ${serverId} users from context:`, contextUsers.length, contextUsers);
   
-  // Fallback to all users if context is empty  
-  if (contextUsers.length === 0) {
-    const allUsers = getAllUsers.value;
-    console.log(`🔍 UserSidebar: Fallback to all users:`, allUsers.length, allUsers);
+  // ✅ SMART CACHING: Only log when context changes significantly (not on every presence update)
+  if (contextUsers.length > 0) {
+    // Use cached context data immediately - no logging spam during presence updates
+    return contextUsers;
+  }
+  
+  // Only show loading state if we're actively loading and have no cached data
+  if (isLoadingUsers.value) {
+    return []; // Show loading spinner
+  }
+  
+  // Fallback only if we have no context data and aren't loading
+  const allUsers = getAllUsers.value;
+  if (allUsers.length > 0) {
+    console.log(`🔄 UserSidebar: Using fallback data for server ${serverId}: ${allUsers.length} users`);
     
     // Convert to legacy format for compatibility
     return allUsers.map(userData => ({
@@ -314,7 +331,7 @@ const users = computed(() => {
     }));
   }
   
-  return contextUsers;
+  return [];
 });
 
 // Filter users based on search query
@@ -408,23 +425,77 @@ const fetchAndSetUsers = async (serverId: string | null) => {
   console.log(`🔍 UserSidebar fetchAndSetUsers called (${fetchCallCounter} times) for server:`, serverId);
   
   if (serverId) {
-    // Check if context is already subscribed (global presence may have already done this)
-    const users = getUsersInContext(serverId).value;
-    
-    if (users.length > 0) {
-      console.log(`📋 Server context already initialized: ${serverId} (${users.length} members) - using existing subscription`);
+    // ✅ DEBOUNCE: Prevent duplicate calls for the same server
+    if (lastFetchedServerId.value === serverId && isLoadingUsers.value) {
+      console.log(`⏭️ UserSidebar: Already loading server ${serverId}, skipping duplicate call`);
       return;
     }
     
-    // Context not initialized, subscribe to it
-    const userIds = await getUserIdsForServer(serverId);
-    await subscribeToContext(serverId, 'server', userIds);
-    console.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
+    lastFetchedServerId.value = serverId;
+    
+    // ✅ SMART CACHING: Check if we already have users for this server
+    let users = getUsersInContext(serverId).value;
+    
+    if (users.length > 0) {
+      console.log(`💾 UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
+      isLoadingUsers.value = false; // Ensure loading state is cleared
+      return; // Use cached data, no loading needed
+    }
+    
+    // Only show loading if we truly have no data for this server
+    console.log(`🔄 UserSidebar: No cached users found, loading for server ${serverId}...`);
+    isLoadingUsers.value = true;
+    
+    try {
+      // Wait briefly for BaseLayout to establish context (for initial app load)
+      if (users.length === 0) {
+        console.log(`⏳ UserSidebar: Waiting for server context to be established...`);
+        
+        // Shorter wait time since we're being smarter about caching
+        const maxWaitTime = 500; // 500ms max for server switches
+        const checkInterval = 50; // Check every 50ms
+        let waitTime = 0;
+        
+        while (users.length === 0 && waitTime < maxWaitTime) {
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          waitTime += checkInterval;
+          users = getUsersInContext(serverId).value;
+        }
+        
+        if (users.length > 0) {
+          console.log(`✅ UserSidebar: Server context ready after ${waitTime}ms wait`);
+          return; // Found cached data during wait
+        }
+      }
+      
+      // No cached data available, create new subscription
+      console.log(`🆕 UserSidebar: Creating new subscription for server ${serverId}...`);
+      const userIds = await getUserIdsForServer(serverId);
+      await subscribeToContext(serverId, 'server', userIds);
+      console.log(`📋 Server user subscription ready: ${serverId} (${userIds.length} members)`);
+    } finally {
+      isLoadingUsers.value = false;
+    }
   }
 };
 
-// Clean watcher for server changes - no debouncing hacks
+// Smart watcher for server changes - only triggers on actual server changes
 watch(() => serverChannelStore.currentServerId, async (newServerId, oldServerId) => {
+  // ✅ SMART CACHING: Only act on actual server changes
+  if (newServerId === oldServerId) {
+    return; // No change, skip
+  }
+  
+  console.log(`🔄 UserSidebar: Server changed from ${oldServerId} to ${newServerId}`);
+  
+  // ✅ INSTANT FEEDBACK: Clear loading state immediately if new server has cached data
+  if (newServerId) {
+    const cachedUsers = getUsersInContext(newServerId).value;
+    if (cachedUsers.length > 0) {
+      isLoadingUsers.value = false;
+    }
+  }
+  
   if (oldServerId) {
     await unsubscribeFromContext(oldServerId);
   }
@@ -632,6 +703,31 @@ const closeInviteModal = () => {
 
 .user-groups::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Loading Indicator */
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-left: 2px solid var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .user-group {
