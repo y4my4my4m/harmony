@@ -250,7 +250,7 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
     }
     
     else if (strategy.routeType === 'dm' || strategy.routeType === 'dm-list') {
-      console.log('💬 Loading DM route (dm, emojiCache, theme, reactions)...')
+      console.log(`💬 Loading DM route (${strategy.routeType}) - dm, emojiCache, theme, reactions...`)
       
       // ✅ ROUTE-SPECIFIC STORES: Only load what's needed for DMs
       const [emojiCache, { useDMStore }, { useReactionsStore }, { useThemeStore }] = await Promise.all([
@@ -276,25 +276,36 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         console.log(`✅ Basic emoji support loaded for DMs`)
       }
       
-      // Initialize DM functionality
+      // Initialize DM functionality with detailed logging
       if (strategy.routeType === 'dm' && strategy.currentConversationId) {
+        console.log(`🎯 Loading specific DM conversation: ${strategy.currentConversationId}`)
         // Load specific conversation + DM list metadata
         await dmStore.initializeDMEnvironmentForDirectAccess(userId, strategy.currentConversationId)
         console.log(`✅ DM conversation loaded: ${strategy.currentConversationId}`)
+      } else if (strategy.routeType === 'dm-list') {
+        console.log('🎯 Loading DM list metadata only (optimized)')
+        // Load DM list metadata with immediate user profile loading for better UX
+        await dmStore.initializeDMEnvironment(userId, false, true, 'immediate') // immediate = load all user profiles right away
+        console.log('✅ DM list metadata loaded with immediate user profiles')
       } else {
-        // Load DM list metadata only (no message content)
-        await dmStore.initializeDMEnvironment(userId, true) // true = metadata only
-        console.log('✅ DM list metadata loaded')
+        console.log('🎯 Generic DM route - loading full DM environment')
+        await dmStore.initializeDMEnvironment(userId, false, false, 'partial') // Full loading as fallback with partial user loading
+        console.log('✅ Full DM environment loaded')
       }
       
-      // Subscribe to DM presence
-      const conversationUserIds = dmStore.conversations
-        .map(conv => conv.user1 === userId ? conv.user2 : conv.user1)
-        .filter(id => id !== userId)
-      
-      if (conversationUserIds.length > 0) {
-        await userData.subscribeToDMPresence(conversationUserIds)
-        console.log(`✅ DM presence subscribed: ${conversationUserIds.length} users`)
+      // OPTIMIZED: Only subscribe to DM presence for specific DM conversation routes
+      // For dm-list, we'll load presence on-demand when conversations are hovered/opened
+      if (strategy.routeType === 'dm' && strategy.currentConversationId) {
+        const conversationUserIds = dmStore.conversations
+          .map(conv => conv.user1 === userId ? conv.user2 : conv.user1)
+          .filter(id => id !== userId)
+        
+        if (conversationUserIds.length > 0) {
+          await userData.subscribeToDMPresence(conversationUserIds)
+          console.log(`✅ DM presence subscribed: ${conversationUserIds.length} users`)
+        }
+      } else if (strategy.routeType === 'dm-list') {
+        console.log('⚡ Skipping DM presence for dm-list route (loaded on-demand)')
       }
     }
     
