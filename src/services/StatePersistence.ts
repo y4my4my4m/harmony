@@ -177,7 +177,7 @@ class StatePersistenceService {
         await this.saveState()
         this.pendingSave = false
       }
-    }, 100) // 100ms debounce
+    }, 500) // 500ms debounce for better batching during initialization
   }
 
   /**

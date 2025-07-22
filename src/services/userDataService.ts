@@ -33,6 +33,10 @@ class UserDataService extends EventTarget {
   // Cache settings
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
   private readonly HEARTBEAT_INTERVAL = 30 * 1000 // 30 seconds
+  
+  // Presence sync debouncing
+  private presenceSyncTimeouts = new Map<string, NodeJS.Timeout>()
+  private readonly PRESENCE_SYNC_DEBOUNCE = 200 // 200ms debounce for presence sync
   private heartbeatTimer: NodeJS.Timeout | null = null
   private heartbeatFailures = 0
   private readonly MAX_HEARTBEAT_FAILURES = 3
@@ -560,9 +564,25 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Handle server presence sync
+   * Handle server presence sync with debouncing to prevent excessive syncs
    */
   private handleServerSync(serverId: string): void {
+    // ✅ PERFORMANCE FIX: Debounce presence sync to prevent double syncs
+    const existingTimeout = this.presenceSyncTimeouts.get(serverId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+    }
+    
+    this.presenceSyncTimeouts.set(serverId, setTimeout(() => {
+      this.executeServerSync(serverId)
+      this.presenceSyncTimeouts.delete(serverId)
+    }, this.PRESENCE_SYNC_DEBOUNCE))
+  }
+  
+  /**
+   * Execute the actual server sync (separated for debouncing)
+   */
+  private executeServerSync(serverId: string): void {
     const context = this.contexts.get(serverId)
     if (!context?.channel) {
       console.warn('⚠️ No context or channel found for server sync:', serverId)
@@ -1177,6 +1197,12 @@ class UserDataService extends EventTarget {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
     }
+    
+    // ✅ PERFORMANCE FIX: Clear any pending presence sync timeouts
+    for (const timeout of this.presenceSyncTimeouts.values()) {
+      clearTimeout(timeout)
+    }
+    this.presenceSyncTimeouts.clear()
     
     // Unsubscribe from all contexts
     for (const context of this.contexts.values()) {
