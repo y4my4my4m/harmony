@@ -57,29 +57,38 @@ function classifyActivityPubActivity(activity: ActivityPubActivity): ActivityCla
   const object = activity.object
   const to = object.to || []
   const cc = object.cc || []
+  const allRecipients = [...to, ...cc]
   
-  // Rule 1: Contains 'Public' → Public Post
-  if (to.includes('https://www.w3.org/ns/activitystreams#Public') || 
-      cc.includes('https://www.w3.org/ns/activitystreams#Public')) {
-    return { type: 'public_post', recipients: to.concat(cc), isDirectMessage: false, confidence: 1.0 }
+  // Rule 1: Contains 'Public' in 'to' → Public Post
+  if (to.includes('https://www.w3.org/ns/activitystreams#Public')) {
+    return { type: 'public_post', recipients: allRecipients, isDirectMessage: false, confidence: 1.0 }
   }
   
-  // Rule 2: Only specific users addressed + no followers → Private Mention
-  const hasFollowersUrl = [...to, ...cc].some(addr => addr.includes('/followers'))
-  const totalRecipients = to.length + cc.length
-  const hasLocalRecipients = [...to, ...cc].some(addr => addr.includes(ourDomain))
-  
-  if (!hasFollowersUrl && totalRecipients <= 10 && hasLocalRecipients) {
-    return { type: 'private_mention', recipients: to.concat(cc), isDirectMessage: true, confidence: 0.9 }
+  // Rule 2: Contains 'Public' in 'cc' → Unlisted Post (still public)
+  if (cc.includes('https://www.w3.org/ns/activitystreams#Public')) {
+    return { type: 'public_post', recipients: allRecipients, isDirectMessage: false, confidence: 1.0 }
   }
   
-  // Rule 3: Fallback based on recipient count
-  return { 
-    type: totalRecipients <= 5 ? 'private_mention' : 'public_post',
-    recipients: to.concat(cc),
-    isDirectMessage: totalRecipients <= 5,
-    confidence: 0.7
+  // Rule 3: Contains followers collection URL → Followers-only Post
+  const hasFollowersUrl = allRecipients.some(addr => 
+    typeof addr === 'string' && addr.includes('/followers')
+  )
+  if (hasFollowersUrl) {
+    return { type: 'public_post', recipients: allRecipients, isDirectMessage: false, confidence: 1.0 }
   }
+  
+  // Rule 4: Only specific actor URLs → Direct Message
+  // Per ActivityPub spec: no Public, no followers collection = direct message
+  const hasLocalRecipients = allRecipients.some(addr => 
+    typeof addr === 'string' && addr.includes(ourDomain)
+  )
+  
+  if (hasLocalRecipients) {
+    return { type: 'private_mention', recipients: allRecipients, isDirectMessage: true, confidence: 1.0 }
+  }
+  
+  // Rule 5: No local recipients → Not our concern
+  return { type: 'public_post', recipients: allRecipients, isDirectMessage: false, confidence: 0.1 }
 }
 ```
 
