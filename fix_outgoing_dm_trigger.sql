@@ -19,7 +19,6 @@ DROP TRIGGER IF EXISTS trigger_unified_notification_messages ON messages;
 -- Drop the broken dispatcher function (from migration 080)
 DROP FUNCTION IF EXISTS handle_messages();
 
-RAISE NOTICE '🧹 Cleaned all existing message triggers';
 
 -- =====================================================
 -- STEP 2: Create the CORRECT outgoing message trigger
@@ -35,7 +34,6 @@ CREATE TRIGGER trg_handle_outgoing_messages
 COMMENT ON TRIGGER trg_handle_outgoing_messages ON messages IS 
 'FIXED: Only triggers for outgoing local messages (metadata.federated != true). Prevents federation loops and ensures DM federation works.';
 
-RAISE NOTICE '✅ Created outgoing message trigger with WHEN clause';
 
 -- =====================================================
 -- STEP 3: Create notification trigger (separate from federation)
@@ -49,8 +47,6 @@ CREATE TRIGGER trg_handle_message_federation
 
 COMMENT ON TRIGGER trg_handle_message_federation ON messages IS 
 'Handles local notifications for all messages (both local and federated)';
-
-RAISE NOTICE '✅ Created message notification trigger';
 
 -- =====================================================
 -- STEP 4: Verification and diagnostics
@@ -103,23 +99,11 @@ BEGIN
         RAISE EXCEPTION 'Failed to create notification trigger!';
     END IF;
     
-    RAISE NOTICE '🎯 SUCCESS: Outgoing DM federation should now work!';
 END $$;
 
 -- =====================================================
 -- STEP 5: Test case examples
 -- =====================================================
 
-DO $$
-BEGIN
-    RAISE NOTICE '';
-    RAISE NOTICE '🔍 TESTING GUIDE:';
-    RAISE NOTICE '1. Send a DM to a remote user';
-    RAISE NOTICE '2. Check for log: "📮 Queued DM for immediate Edge Function delivery"';
-    RAISE NOTICE '3. Check federation_delivery_queue table for new entries';
-    RAISE NOTICE '4. Check supabase edge function logs for delivery attempts';
-    RAISE NOTICE '';
-    RAISE NOTICE '✅ If you see these logs, outgoing federation is working!';
-END $$;
 
 COMMIT;
