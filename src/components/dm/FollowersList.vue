@@ -57,7 +57,8 @@
     </div>
 
     <!-- Users Grid -->
-    <div v-else class="users-grid">        <div 
+    <div v-else class="users-grid">
+        <div 
           v-for="user in followingUsers" 
           :key="user.id"
           class="user-card"
@@ -66,12 +67,10 @@
         <!-- Avatar with Status -->
         <div class="user-avatar-container">
           <Avatar 
-            v-if="user.avatar_url" 
             :src="user.avatar_url" 
+            :status="getUserOnlineStatus(user.id) ? 'online' : 'offline'"
             :alt="user.display_name || user.username"
-            @error="handleImageError"
           />
-          <div class="status-indicator offline"></div>
         </div>
 
         <!-- User Info -->
@@ -82,10 +81,6 @@
           <p class="user-handle" :style="{ color: user.color || '#888' }">
             {{ formatUserHandle(user) }}
           </p>
-          <div class="user-status">
-            <span class="status-dot offline"></span>
-            <span class="status-text">Following</span>
-          </div>
         </div>
 
         <!-- Hover Action -->
@@ -127,7 +122,6 @@ import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import { useUserData } from '@/composables/useUserData'
 import { services } from '@/services'
-import { formatDistanceToNow } from 'date-fns'
 import type { Profile } from '@/types'
 import Avatar from '../common/Avatar.vue'
 
@@ -136,10 +130,11 @@ const emit = defineEmits<{
   conversationStarted: [conversationId: string]
 }>()
 
+
 // Stores & Composables
 const dmStore = useDMStore()
 const authStore = useAuthStore()
-const { getCurrentUser } = useUserData()
+const { getCurrentUser, isUserOnline } = useUserData()
 const router = useRouter()
 const toast = useToast()
 
@@ -220,10 +215,6 @@ const startConversation = async (user: Profile) => {
   }
 }
 
-const getAvatarFallback = (name: string): string => {
-  return name.substring(0, 2).toUpperCase()
-}
-
 const formatUserHandle = (user: Profile): string => {
   if (user.domain && !user.is_local) {
     return `@${user.username}@${user.domain}`
@@ -231,18 +222,8 @@ const formatUserHandle = (user: Profile): string => {
   return `@${user.username}`
 }
 
-const handleImageError = (event: Event) => {
-  const img = event.target as HTMLImageElement
-  img.style.display = 'none'
-  
-  // Show fallback avatar
-  const container = img.parentElement
-  if (container) {
-    const fallback = container.querySelector('.user-avatar-fallback')
-    if (fallback) {
-      (fallback as HTMLElement).style.display = 'flex'
-    }
-  }
+const getUserOnlineStatus = (userId: string): boolean => {
+  return isUserOnline(userId).value
 }
 
 // Initialize
@@ -396,15 +377,23 @@ onMounted(() => {
 
 /* Users Grid */
 .users-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  display:flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  /* display: grid; */
+  /* grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); */
   gap: 16px;
   padding: 24px;
-  max-width: 1200px;
+  width: 100%;
+  /* max-width: 1200px; */
   margin: 0 auto;
 }
 
 .user-card {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
   position: relative;
   padding: 20px;
   background: var(--background-secondary);
@@ -435,42 +424,6 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.user-avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid var(--border-color);
-}
-
-.user-avatar-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-primary);
-  color: white;
-  font-weight: 600;
-  font-size: 20px;
-}
-
-.status-indicator {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid var(--background-secondary);
-}
-
-.status-indicator.online {
-  background: var(--status-online);
-}
-
-.status-indicator.offline {
-  background: var(--status-offline);
-}
-
 .user-info {
   flex: 1;
 }
@@ -487,29 +440,6 @@ onMounted(() => {
   font-size: 13px;
   margin: 0 0 8px;
   font-family: 'JetBrains Mono', monospace;
-}
-
-.user-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--status-offline);
-}
-
-.status-dot.online {
-  background: var(--status-online);
-}
-
-.status-text {
-  line-height: 1;
 }
 
 /* Hover Actions */
@@ -629,11 +559,6 @@ onMounted(() => {
   
   .user-card {
     padding: 12px;
-  }
-  
-  .user-avatar {
-    width: 48px;
-    height: 48px;
   }
   
   .user-name {
