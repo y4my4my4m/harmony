@@ -53,7 +53,7 @@ serve(async (req: Request) => {
 
     console.log('📥 Received activity:', JSON.stringify(activity, null, 2))
 
-    // ✅ Store the activity using database function (idempotent - FIXES CONSTRAINT ERROR)
+    // ✅ Store the activity using database function (idempotent)
     const actorUrl = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || ''
     const originDomain = actorUrl ? new URL(actorUrl).hostname : null
     
@@ -85,8 +85,7 @@ serve(async (req: Request) => {
       console.log('✅ Successfully stored activity (new or idempotent):', activity.id)
     }
 
-    // ✅ Process the activity based on type - VALIDATION ONLY
-    // Database triggers will handle the actual business logic
+    // ✅ Process the activity based on type and classification
     let isValid = false
     try {
       switch (activity.type) {
@@ -96,11 +95,13 @@ serve(async (req: Request) => {
         case 'Accept':
         case 'Reject':
         case 'Undo':
-        case 'Create':
         case 'Update':
         case 'Delete':
         case 'Like':
         case 'Announce':
+          isValid = true // Basic validation passed, let database handle business logic
+          break
+        case 'Create':
           isValid = true // Basic validation passed, let database handle business logic
           break
         default:
