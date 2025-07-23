@@ -651,7 +651,7 @@ const formatNumber = (num: number): string => {
 .suggested-users {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .instance-info {

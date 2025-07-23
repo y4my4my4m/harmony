@@ -17,8 +17,7 @@
           v-if="conversation.type === 'group'"
           :conversation-id="conversation.id"
           :icon-path="conversation.icon_url"
-          size="md"
-          class="conversation-avatar"
+          size="sm"
         />
 
         <!-- Direct Chat Avatar -->
@@ -44,17 +43,12 @@
           <template v-if="conversation.type === 'group'">
             <h2 class="conversation-name group-name">
               {{ conversation.name || getDefaultGroupName() }}
-              <button class="edit-group-name-btn" @click="showGroupSettings = true" title="Edit group settings">
-                <Icon name="settings" />
-              </button>
             </h2>
             <div class="conversation-status">
               <span class="participant-count">
+                <Icon name="users" :size="12" class="members-icon" />
                 {{ conversation.participant_count || 0 }} member{{ (conversation.participant_count || 0) !== 1 ? 's' : '' }}
               </span>
-              <button class="participants-btn" @click="showParticipants = !showParticipants" title="View participants">
-                <Icon name="users" />
-              </button>
             </div>
           </template>
 
@@ -87,7 +81,7 @@
         @click="$emit('add-user')"
         title="Add people to conversation"
       >
-        <svg viewBox="0 0 24 24" class="add-user-icon">
+        <svg viewBox="0 0 24 24" class="add-user-icon" style="width:24px; height:24px;">
           <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
         </svg>
       </button>
@@ -97,9 +91,7 @@
         @click="$emit('toggle-voice-panel')"
         title="Start voice call"
       >
-        <svg viewBox="0 0 24 24" class="voice-icon">
-          <path d="M7,4A2,2 0 0,0 5,6V10A2,2 0 0,0 7,12H9V16A2,2 0 0,0 11,18H13A2,2 0 0,0 15,16V12H17A2,2 0 0,0 19,10V6A2,2 0 0,0 17,4H7M7,6H17V10H15V16H11V10H9V8H15V6H7V8H9V10H7V6Z" fill="currentColor"/>
-        </svg>
+        <Icon name="phone" :size="16" />
       </button>
       
       <button 
@@ -112,15 +104,65 @@
         </svg>
       </button>
       
-      <button 
-        class="action-btn more-btn"
-        @click="handleMoreClick"
-        title="More options"
-      >
-        <svg viewBox="0 0 24 24" class="more-icon">
-          <path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" fill="currentColor"/>
-        </svg>
-      </button>
+      <div class="more-options-container">
+        <button 
+          class="action-btn more-btn"
+          @click="handleMoreClick"
+          title="More options"
+          :class="{ active: showOptionsMenu }"
+        >
+          <svg viewBox="0 0 24 24" class="more-icon">
+            <path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" fill="currentColor"/>
+          </svg>
+        </button>
+
+        <!-- Options Menu -->
+        <div v-if="showOptionsMenu" class="actions-menu" v-click-outside="closeActionsMenu" ref="optionsMenuRef">
+          <!-- Group Settings (only for group chats) -->
+          <button 
+            v-if="conversation.type === 'group'"
+            class="action-item"
+            @click="openGroupSettings"
+          >
+            <Icon name="settings" :size="16" />
+            <span>Group Settings</span>
+          </button>
+          
+          <!-- Search in Conversation -->
+          <button class="action-item" @click="handleSearchClick">
+            <Icon name="search" :size="16" />
+            <span>Search Messages</span>
+          </button>
+          
+          <!-- Notification Settings -->
+          <button class="action-item" @click="handleNotificationSettings">
+            <Icon name="bell" :size="16" />
+            <span>Notification Settings</span>
+          </button>
+          
+          <div class="menu-separator"></div>
+          
+          <!-- Leave Group (only for group chats) -->
+          <button 
+            v-if="conversation.type === 'group'"
+            class="action-item danger"
+            @click="handleLeaveGroup"
+          >
+            <Icon name="log-out" :size="16" />
+            <span>Leave Group</span>
+          </button>
+          
+          <!-- Close DM (for direct messages) -->
+          <button 
+            v-else
+            class="action-item danger"
+            @click="handleCloseDM"
+          >
+            <Icon name="x" :size="16" />
+            <span>Close DM</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -159,6 +201,7 @@ const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
   'group-updated': []
+  'add-user': []
 }>()
 
 // Use clean status system
@@ -173,10 +216,10 @@ const {
 const showSearchModal = ref(false)
 const showOptionsMenu = ref(false)
 const presenceInitialized = ref(false)
+const optionsMenuRef = ref<HTMLElement>()
 
 // Group chat state
 const showGroupSettings = ref(false)
-const showParticipants = ref(false)
 
 // Methods
 function handleGroupUpdated() {
@@ -303,8 +346,33 @@ const handleSearchClick = () => {
   showSearchModal.value = true
 }
 
-const handleMoreClick = () => {
+const handleMoreClick = (event: Event) => {
+  event.stopPropagation()
   showOptionsMenu.value = !showOptionsMenu.value
+}
+
+const closeActionsMenu = () => {
+  showOptionsMenu.value = false
+}
+
+const openGroupSettings = () => {
+  showGroupSettings.value = true
+  showOptionsMenu.value = false
+}
+
+const handleNotificationSettings = () => {
+  console.log('Notification settings clicked')
+  showOptionsMenu.value = false
+}
+
+const handleLeaveGroup = () => {
+  console.log('Leave group clicked')
+  showOptionsMenu.value = false
+}
+
+const handleCloseDM = () => {
+  console.log('Close DM clicked')
+  showOptionsMenu.value = false
 }
 
 // Group chat methods
@@ -517,6 +585,57 @@ const getDefaultGroupName = (): string => {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
+}
+
+.more-options-container {
+  position: relative;
+}
+
+.actions-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2);
+  min-width: 190px;
+  z-index: 10;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-base);
+}
+
+.action-item:hover {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+}
+
+.action-item.danger {
+  color: var(--error-primary);
+}
+
+.action-item.danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.menu-separator {
+  height: 1px;
+  background: var(--border-color);
+  margin: 8px 16px;
 }
 
 /* Mobile styles */

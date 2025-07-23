@@ -605,8 +605,30 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 
 .users-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .users-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .users-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .users-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
 }
 
 .instance-badge {
@@ -949,9 +971,7 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
     gap: 8px;
   }
   
-  .users-grid {
-    grid-template-columns: 1fr;
-  }
+
   
   .tab-btn {
     padding: 0.75rem 1rem;
