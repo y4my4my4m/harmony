@@ -1009,8 +1009,8 @@ export const useDMStore = defineStore('dm', () => {
        *   because they are prepended to the existing list of older messages. Reversing them 
        *   would disrupt the chronological order of the conversation.
        */
-              // Messages now come in correct order (oldest first) from service
-        const orderedMessages = messagesData
+      // Messages now come in correct order (oldest first) from service
+      const orderedMessages = messagesData
       const allLoaded = !hasMore
 
       // Ensure all messages have conversation_id set

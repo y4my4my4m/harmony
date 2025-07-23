@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Quick test script to verify post creation works after the fixes
-import { createClient } from '@supabase/supabase-js'
+const { createClient } = require('@supabase/supabase-js')
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'http://localhost:8000'
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
