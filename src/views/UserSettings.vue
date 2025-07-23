@@ -334,7 +334,7 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
   
   try {
     loading.value = true
-    await updateProfile(authStore.session.user.id, updatedProfile)
+    await updateProfile(updatedProfile)
     profile.value = { ...profile.value, ...updatedProfile } as User
     
     // Broadcast profile updates to all connected clients for real-time updates
@@ -360,10 +360,15 @@ const handleAvatarUpload = async (file: File) => {
   
   try {
     loading.value = true
-    const filePath = await uploadAvatar(authStore.session.user.id, file)
+    const result = await uploadAvatar(file, authStore.session.user.id)
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Upload failed')
+    }
+    
     // Ensure we normalize the avatar URL for storage
-    const normalizedPath = normalizeAvatarForStorage(filePath)
-    await updateProfile(authStore.session.user.id, { avatar_url: normalizedPath || undefined })
+    const normalizedPath = normalizeAvatarForStorage(result.url || '')
+    await updateProfile({ avatar_url: normalizedPath || undefined })
     profile.value = { ...profile.value, avatar_url: normalizedPath } as User
     
     // Broadcast avatar update to all connected clients for real-time updates
@@ -391,15 +396,20 @@ const handleBannerUpload = async (file: File) => {
   try {
     loading.value = true
     console.log('📤 Uploading banner to storage...')
-    const filePath = await uploadBanner(authStore.session.user.id, file)
-    console.log('✅ Banner uploaded to:', filePath)
+    const result = await uploadBanner(file, authStore.session.user.id)
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Upload failed')
+    }
+    
+    console.log('✅ Banner uploaded to:', result.url)
     
     // Ensure we normalize the banner URL for storage
-    const normalizedPath = normalizeBannerForStorage(filePath)
+    const normalizedPath = normalizeBannerForStorage(result.url || '')
     console.log('🔄 Normalized path:', normalizedPath)
     
     console.log('💾 Updating profile with banner...')
-    await updateProfile(authStore.session.user.id, { banner_url: normalizedPath || undefined })
+    await updateProfile({ banner_url: normalizedPath || undefined })
     profile.value = { ...profile.value, banner_url: normalizedPath } as User
     
     // Broadcast banner update to all connected clients for real-time updates
@@ -497,7 +507,7 @@ onMounted(async () => {
   if (authStore.session?.user) {
     try {
       loading.value = true
-      profile.value = await getProfileWithAvatarUrl(authStore.session.user.id)
+      profile.value = await getProfileWithAvatarUrl(authStore.session.user.id) as User
     } catch (error) {
       console.error('Error fetching profile:', error)
       toast.error('Failed to load profile')
