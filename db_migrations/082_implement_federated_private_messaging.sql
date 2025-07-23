@@ -300,7 +300,7 @@ BEGIN
   CASE v_federation_type
     WHEN 'chat_local_only' THEN
       -- Local chat: notifications only, no federation
-      PERFORM send_notification_to_user(
+      PERFORM send_notification(
         'message',
         (SELECT ARRAY_AGG(sm.user_id) 
          FROM server_members sm 
@@ -324,7 +324,7 @@ BEGIN
       
     WHEN 'dm_local_only' THEN
       -- Local DM: notifications only, no federation
-      PERFORM send_notification_to_user(
+      PERFORM send_notification(
         'dm',
         (SELECT ARRAY_AGG(cp.user_id) 
          FROM conversation_participants cp 
@@ -350,7 +350,7 @@ BEGIN
     WHEN 'dm_federated' THEN
       IF v_is_federated_incoming THEN
         -- Incoming federated DM: notifications only
-        PERFORM send_notification_to_user(
+        PERFORM send_notification(
           'dm',
           (SELECT ARRAY_AGG(cp.user_id) 
            FROM conversation_participants cp 
@@ -377,7 +377,7 @@ BEGIN
       ELSE
         -- Outgoing federated DM: notifications + federation
         -- Notifications for local users
-        PERFORM send_notification_to_user(
+        PERFORM send_notification(
           'dm',
           (SELECT ARRAY_AGG(cp.user_id) 
            FROM conversation_participants cp 
