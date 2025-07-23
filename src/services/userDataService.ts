@@ -303,25 +303,39 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Setup selective global presence channel - only for connectivity, not user tracking
+   * Setup global presence channel for cross-context online/offline tracking
+   * This ensures users appear online to everyone regardless of what section they're in
    */
   private async setupGlobalPresence(): Promise<void> {
     if (!this.currentUserId) return
     
-    // Use a lightweight global channel only for current user's connectivity
-    this.globalChannel = supabase.channel(`user-presence:${this.currentUserId}`)
+    // 🌐 GLOBAL PRESENCE SYSTEM - Discord/Slack style
+    // Track basic online/offline status across all contexts
+    this.globalChannel = supabase.channel('harmony-global-presence')
+      .on('presence', { event: 'sync' }, () => {
+        console.log('🌐 Global presence sync')
+        this.handleGlobalPresenceSync()
+      })
+      .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => {
+        console.log('🌐 Users joined global presence:', newPresences.length)
+        this.handleGlobalPresenceJoin(newPresences)
+      })
+      .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
+        console.log('🌐 Users left global presence:', leftPresences.length)
+        this.handleGlobalPresenceLeave(leftPresences)
+      })
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Personal presence channel connected')
-          await this.trackCurrentUser()
+          console.log('✅ Global presence channel connected')
+          await this.trackCurrentUserGlobally()
         }
       })
   }
   
   /**
-   * Track current user connectivity (lightweight)
+   * Track current user in global presence (cross-context online status)
    */
-  private async trackCurrentUser(): Promise<void> {
+  private async trackCurrentUserGlobally(): Promise<void> {
     if (!this.globalChannel || !this.currentUserId) return
     
     const userData = this.users.get(this.currentUserId)
@@ -335,13 +349,146 @@ class UserDataService extends EventTarget {
       return
     }
     
-    // Just maintain basic connectivity, detailed presence handled by context channels
+    // Track basic presence info globally
     await this.globalChannel.track({
       user_id: this.currentUserId,
+      username: userData.username,
+      display_name: userData.displayName,
+      avatar_url: userData.avatarUrl,
+      status: userData.status,
       online_at: new Date().toISOString()
     })
     
-    console.log('✅ Current user connectivity tracked')
+    console.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]} - now visible to all users regardless of their current view`)
+  }
+  
+  /**
+   * Handle global presence sync - update basic online/offline status
+   */
+  private handleGlobalPresenceSync(): void {
+    if (!this.globalChannel) return
+    
+    const state = this.globalChannel.presenceState()
+    console.log('🌐 Global presence sync with', Object.keys(state).length, 'users')
+    
+    // Track which users are globally online
+    const globallyOnlineUserIds = new Set<string>()
+    
+    Object.values(state).forEach((presences: any[]) => {
+      presences.forEach((presence: any) => {
+        if (presence.user_id) {
+          globallyOnlineUserIds.add(presence.user_id)
+          this.updateUserFromGlobalPresence(presence.user_id, presence)
+        }
+      })
+    })
+    
+    // Mark users not in global presence as offline (but preserve their status if it's not Online)
+    this.users.forEach((userData, userId) => {
+      if (userId !== this.currentUserId && !globallyOnlineUserIds.has(userId)) {
+        // Only update isOnline, don't change status unless it was Online
+        if (userData.isOnline) {
+          userData.isOnline = false
+          userData.lastSeen = new Date().toISOString()
+          
+          // Only change status to Offline if they were Online (preserve Away/Busy)
+          if (userData.status === UserStatus.Online) {
+            userData.status = UserStatus.Offline
+          }
+          
+          this.emitEvent('user-updated', { userId })
+        }
+      }
+    })
+    
+    console.log(`✅ Global presence: ${globallyOnlineUserIds.size} users online globally`)
+  }
+  
+  /**
+   * Handle users joining global presence
+   */
+  private handleGlobalPresenceJoin(newPresences: any[]): void {
+    newPresences.forEach((presence: any) => {
+      if (presence.user_id) {
+        this.updateUserFromGlobalPresence(presence.user_id, presence)
+        console.log(`🌐 User ${presence.user_id} joined global presence - now globally online`)
+      }
+    })
+  }
+  
+  /**
+   * Handle users leaving global presence
+   */
+  private handleGlobalPresenceLeave(leftPresences: any[]): void {
+    leftPresences.forEach((presence: any) => {
+      if (presence.user_id && presence.user_id !== this.currentUserId) {
+        const userData = this.users.get(presence.user_id)
+        if (userData) {
+          userData.isOnline = false
+          userData.lastSeen = new Date().toISOString()
+          
+          // Only change status to Offline if they were Online (preserve Away/Busy)
+          if (userData.status === UserStatus.Online) {
+            userData.status = UserStatus.Offline
+          }
+          
+          // 🔥 CRITICAL FIX: Force UI updates for global presence changes
+          console.log(`🌐 Global presence leave: User ${presence.user_id} went offline`)
+          this.emitEvent('user-updated', { userId: presence.user_id })
+          this.emitEvent('global-presence-updated', { userId: presence.user_id, isOnline: false })
+        }
+      }
+    })
+  }
+  
+  /**
+   * Update user data from global presence
+   */
+  private updateUserFromGlobalPresence(userId: string, presence: any): void {
+    const existing = this.users.get(userId)
+    const userStatus = presence.status ?? existing?.status ?? UserStatus.Online
+    
+    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION  
+    // If user has status set to Offline (invisible), don't show them as online
+    // This should never happen due to trackCurrentUserGlobally() checks, but handle it as safety net
+    if (userStatus === UserStatus.Offline) {
+      console.log(`👻 User ${userId} has offline status in global presence - skipping update (they should be invisible)`)
+      // If they exist in our cache, mark them as offline
+      if (existing) {
+        existing.isOnline = false
+        existing.lastSeen = presence.online_at || new Date().toISOString()
+        this.emitEvent('user-updated', { userId })
+        this.emitEvent('global-presence-updated', { userId, isOnline: false })
+      }
+      return
+    }
+    
+    const userData: UserData = {
+      id: userId,
+      username: presence.username || existing?.username || 'Unknown',
+      displayName: presence.display_name || presence.username || existing?.displayName || 'Unknown',
+      avatarUrl: presence.avatar_url || existing?.avatarUrl,
+      bannerUrl: existing?.bannerUrl,
+      bio: existing?.bio,
+      color: existing?.color,
+      domain: existing?.domain,
+      isLocal: existing?.isLocal || false,
+      status: userStatus,
+      isOnline: true, // They're in global presence with a visible status, so they're online
+      lastSeen: presence.online_at || new Date().toISOString(),
+      lastHeartbeat: presence.online_at || new Date().toISOString(),
+      lastCacheUpdate: new Date().toISOString(),
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      source: 'presence' // Global presence is still presence source
+    }
+    
+    this.users.set(userId, userData)
+    
+    // 🔥 CRITICAL FIX: Force UI updates for global presence changes
+    // This ensures that users see each other online regardless of current view
+    console.log(`🌐 Global presence update: User ${userId} is now online with status ${UserStatus[userStatus]} (source: global_presence)`)
+    this.emitEvent('user-updated', { userId })
+    this.emitEvent('global-presence-updated', { userId, isOnline: true })
   }
   
   // Global presence sync handlers removed - we now only track context-specific users
@@ -351,6 +498,21 @@ class UserDataService extends EventTarget {
    */
   private updateUserFromPresence(userId: string, presence: any): void {
     const existing = this.users.get(userId)
+    const userStatus = presence.status ?? existing?.status ?? UserStatus.Online
+    
+    // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION  
+    // If user has status set to Offline (invisible), don't show them as online
+    // This should never happen due to untrackFromAllPresenceChannels() calls, but handle it as safety net
+    if (userStatus === UserStatus.Offline) {
+      console.log(`👻 User ${userId} has offline status in context presence - skipping update (they should be invisible)`)
+      // If they exist in our cache, mark them as offline
+      if (existing) {
+        existing.isOnline = false
+        existing.lastSeen = presence.online_at || new Date().toISOString()
+        this.emitEvent('user-updated', { userId })
+      }
+      return
+    }
     
     const userData: UserData = {
       id: userId,
@@ -362,8 +524,8 @@ class UserDataService extends EventTarget {
       color: existing?.color,
       domain: existing?.domain || 'har.mony.lol',
       isLocal: existing?.isLocal || false,
-      status: presence.status ?? existing?.status ?? UserStatus.Online,
-      isOnline: true,
+      status: userStatus,
+      isOnline: true, // They're in context presence with a visible status, so they're online
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
       lastCacheUpdate: new Date().toISOString(),
@@ -387,7 +549,7 @@ class UserDataService extends EventTarget {
         if (userData) {
           try {
             userData.lastHeartbeat = new Date().toISOString()
-            await this.trackCurrentUser()
+            await this.trackCurrentUserGlobally()
             
             // Reset failure count on successful heartbeat
             this.heartbeatFailures = 0
@@ -1031,7 +1193,7 @@ class UserDataService extends EventTarget {
     
     // Track in global presence if available
     if (this.globalChannel) {
-      await this.trackCurrentUser()
+      await this.trackCurrentUserGlobally()
     }
     
     // Track in all context-specific presence channels (servers, DMs)
@@ -1184,6 +1346,28 @@ class UserDataService extends EventTarget {
    */
   private emitEvent(type: string, data: any): void {
     this.dispatchEvent(new CustomEvent(type, { detail: data }))
+  }
+  
+  /**
+   * 🔥 CRITICAL FIX: Force refresh global presence
+   * Call this when user navigates between different view contexts
+   * to ensure they remain visible to others regardless of current view
+   */
+  async refreshGlobalPresence(): Promise<void> {
+    if (!this.initialized || !this.currentUserId) {
+      console.warn('⚠️ Cannot refresh global presence - service not initialized')
+      return
+    }
+    
+    console.log('🔄 Refreshing global presence to ensure cross-context visibility...')
+    
+    // Re-track in global presence
+    if (this.globalChannel) {
+      await this.trackCurrentUserGlobally()
+      console.log('✅ Global presence refreshed - user is visible across all contexts')
+    } else {
+      console.warn('⚠️ Global presence channel not available')
+    }
   }
   
   /**

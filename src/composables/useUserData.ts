@@ -26,7 +26,8 @@ export function useUserData() {
       { type: 'status-changed', listener: triggerUpdate },
       { type: 'presence-sync', listener: triggerUpdate },
       { type: 'data-refreshed', listener: triggerUpdate },
-      { type: 'context-updated', listener: triggerUpdate }
+      { type: 'context-updated', listener: triggerUpdate },
+      { type: 'global-presence-updated', listener: triggerUpdate } // 🔥 CRITICAL FIX: Listen for global presence changes
     ]
     
     listeners.forEach(({ type, listener }) => {
@@ -556,6 +557,10 @@ export function useUserData() {
     subscribeToProfilePresence,
     subscribeToFriendsPresence,
     getPresenceAwareStatus,
+    refreshGlobalPresence: async () => {
+      await ensureInitialized()
+      return await userDataService.refreshGlobalPresence()
+    },
     
     // Context Management
     unsubscribeFromProfilePresence,

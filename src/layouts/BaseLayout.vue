@@ -188,6 +188,12 @@ const initializeApp = async () => {
     // ✅ OPTIMIZED: Only load what's needed for current route
     await initializeRouteSpecificData(userId, loadingStrategy, userData)
     
+    // 🔥 CRITICAL FIX: Ensure global presence is active regardless of current view
+    // This fixes the issue where users only appear online after visiting specific contexts
+    console.log('🌐 Ensuring global presence is active for cross-context visibility...')
+    await userData.refreshGlobalPresence()
+    console.log('✅ Global presence confirmed - user is visible to all contexts')
+    
     // 🎯 PHASE 4: Background Loading - Non-critical data
     console.log('🔄 Phase 3: Background loading...')
     setTimeout(() => {
@@ -370,6 +376,53 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       }
     }
     
+    // ✅ BASELINE GLOBAL PRESENCE: Load users for cross-context online status
+    // This ensures users can see each other online regardless of what section they're in
+    console.log('🌐 Loading baseline users for global presence...')
+    
+    const allServers = serverChannelStore.servers
+    const baselineUserIds = new Set<string>()
+    
+    // Collect user IDs from all servers the user is in (for global online presence)
+    for (const server of allServers) {
+      try {
+        const { getUserIdsForServer } = await import('@/services/usersService')
+        const serverUserIds = await getUserIdsForServer(server.id)
+        serverUserIds.forEach(id => baselineUserIds.add(id))
+      } catch (error) {
+        console.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
+      }
+    }
+    
+    // Also load DM contacts for global presence
+    try {
+      const { useDMStore } = await import('@/stores/useDM')
+      const dmStore = useDMStore()
+      
+      // Get DM contacts without loading full conversations
+      const { data: conversations } = await supabase
+        .from('conversations')
+        .select('user1, user2')
+        .or(`user1.eq.${userId},user2.eq.${userId}`)
+        .limit(100) // Reasonable limit
+      
+      if (conversations) {
+        conversations.forEach(conv => {
+          const contactId = conv.user1 === userId ? conv.user2 : conv.user1
+          baselineUserIds.add(contactId)
+        })
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load DM contacts for global presence:', error)
+    }
+    
+    // Load baseline user data for global presence (minimal profile info)
+    if (baselineUserIds.size > 0) {
+      console.log(`🌐 Loading ${baselineUserIds.size} users for global presence...`)
+      await userData.ensureUsersLoaded(Array.from(baselineUserIds))
+      console.log(`✅ Baseline users loaded for global presence`)
+    }
+    
   } catch (error) {
     console.error('❌ Failed to initialize route-specific data:', error)
   }
@@ -431,6 +484,22 @@ watch(() => authStore.session, async (newSession, oldSession) => {
     
     isAppInitialized.value = false
     hasServersLoaded.value = false
+  }
+})
+
+// 🔥 CRITICAL FIX: Watch for route changes and refresh global presence
+// This ensures users remain visible globally when navigating between different contexts
+watch(() => route.name, async (newRouteName, oldRouteName) => {
+  if (newRouteName !== oldRouteName && isAppInitialized.value && authStore.session?.user?.id) {
+    console.log(`🌐 Route changed from ${String(oldRouteName)} to ${String(newRouteName)} - refreshing global presence`)
+    try {
+      const { useUserData } = await import('@/composables/useUserData')
+      const userData = useUserData()
+      await userData.refreshGlobalPresence()
+      console.log('✅ Global presence refreshed on route change - user remains visible across contexts')
+    } catch (error) {
+      console.error('Failed to refresh global presence on route change:', error)
+    }
   }
 })
 
