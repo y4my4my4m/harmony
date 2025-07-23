@@ -5,6 +5,16 @@
 BEGIN;
 
 -- =====================================================
+-- PHASE 0: DROP TRIGGERS THAT DEPEND ON FUNCTIONS WE'RE REMOVING
+-- =====================================================
+
+-- Drop any triggers that might depend on deprecated functions
+DROP TRIGGER IF EXISTS trg_process_ap_activity_on_update ON ap_activities;
+DROP TRIGGER IF EXISTS trg_handle_chat_mention_notifications ON messages;
+DROP TRIGGER IF EXISTS trg_handle_mention_notifications ON posts;
+DROP TRIGGER IF EXISTS trg_handle_reaction_notifications ON reactions;
+
+-- =====================================================
 -- PHASE 1: DEPRECATED CONTENT CONVERSION FUNCTIONS
 -- =====================================================
 
@@ -20,9 +30,9 @@ DROP FUNCTION IF EXISTS convert_ap_dm_to_jsonb(text, jsonb, text);
 DROP FUNCTION IF EXISTS create_notification(uuid, varchar, varchar, text, jsonb);
 DROP FUNCTION IF EXISTS create_notification_structured(uuid, varchar, jsonb, uuid, uuid, uuid, uuid, varchar);
 DROP FUNCTION IF EXISTS create_simple_activitypub_notification(uuid, varchar, jsonb);
-DROP FUNCTION IF EXISTS handle_chat_mention_notifications();
-DROP FUNCTION IF EXISTS handle_mention_notifications();
-DROP FUNCTION IF EXISTS handle_reaction_notifications();
+DROP FUNCTION IF EXISTS handle_chat_mention_notifications() CASCADE;
+DROP FUNCTION IF EXISTS handle_mention_notifications() CASCADE;
+DROP FUNCTION IF EXISTS handle_reaction_notifications() CASCADE;
 
 -- =====================================================
 -- PHASE 3: HTTP SIGNATURE FUNCTIONS (Moved to Edge Functions)
@@ -37,7 +47,7 @@ DROP FUNCTION IF EXISTS validate_http_signature(text, text, text);
 -- =====================================================
 
 DROP FUNCTION IF EXISTS fetch_and_create_actor_profile(text);
-DROP FUNCTION IF EXISTS process_ap_activity_on_update();
+DROP FUNCTION IF EXISTS process_ap_activity_on_update() CASCADE;
 
 -- =====================================================
 -- PHASE 5: USER1/USER2 LEGACY FUNCTIONS
@@ -127,6 +137,11 @@ BEGIN
     RAISE NOTICE 'Total functions remaining: %', total_functions;
     RAISE NOTICE 'Total triggers remaining: %', total_triggers;
     RAISE NOTICE 'Estimated reduction: ~25 functions + ~15 triggers removed';
+    RAISE NOTICE '';
+    RAISE NOTICE '🔧 DEPENDENCY HANDLING:';
+    RAISE NOTICE '  ✅ Dropped dependent triggers first';
+    RAISE NOTICE '  ✅ Used CASCADE for stubborn dependencies';
+    RAISE NOTICE '  ✅ Safe cleanup without errors';
     RAISE NOTICE '';
     RAISE NOTICE '🎯 KEPT ALL WORKING FUNCTIONS:';
     RAISE NOTICE '  ✅ classify_activitypub_activity()';
