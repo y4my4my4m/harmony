@@ -41,12 +41,12 @@ process_incoming_private_message(activity_id, activity_data, actor_profile_id, i
 handle_message_federation() → Routes based on type and direction (incoming/outgoing)
 ```
 
-#### **3. Conversation System** (`db_migrations/083_ensure_conversation_participants_table.sql`)
+#### **3. Conversation System** (Already Exists ✅)
 ```sql
--- ✅ Modern conversation_participants table
--- ✅ Migration from old user1/user2 system
--- ✅ Full RLS security policies
--- ✅ Performance indexes
+-- ✅ conversation_participants table already exists and is properly configured
+-- ✅ Already migrated from old user1/user2 system (Migration 013)
+-- ✅ Full RLS security policies already in place
+-- ✅ Performance indexes already created
 ```
 
 ---
@@ -91,11 +91,10 @@ graph LR
 
 ## 🚀 **Deployment Instructions**
 
-### **Step 1: Apply Database Migrations**
+### **Step 1: Apply Database Migration**
 ```bash
-# Apply the federated messaging migrations
+# Apply the federated messaging migration (conversation_participants already exists)
 psql -h YOUR_DB_HOST -U postgres -d YOUR_DB_NAME -f db_migrations/082_implement_federated_private_messaging.sql
-psql -h YOUR_DB_HOST -U postgres -d YOUR_DB_NAME -f db_migrations/083_ensure_conversation_participants_table.sql
 ```
 
 ### **Step 2: Deploy Edge Function**
@@ -121,7 +120,7 @@ JOIN pg_class c ON t.tgrelid = c.oid
 WHERE c.relname IN ('messages', 'ap_activities') 
 AND t.tgname IN ('trg_handle_message_federation', 'trg_process_ap_activity_on_update');
 
--- Check conversation_participants table
+-- Verify conversation_participants table (already exists)
 SELECT COUNT(*) FROM conversation_participants;
 ```
 
