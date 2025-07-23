@@ -12,7 +12,7 @@
 
 #### **1. Enhanced Inbox Edge Function** (`supabase/functions/inbox/index.ts`)
 ```typescript
-// ✅ ActivityPub-compliant classification
+// ✅ ActivityPub-compliant classification (DRY - single place only)
 function classifyActivityPubActivity(activity, ourDomain): ActivityClassification {
   // Rule 1: 'Public' in 'to' → Public Post
   // Rule 2: 'Public' in 'cc' → Unlisted Post  
@@ -20,11 +20,11 @@ function classifyActivityPubActivity(activity, ourDomain): ActivityClassificatio
   // Rule 4: Only specific actors → Direct Message (Private Mention)
 }
 
-// ✅ Intelligent routing
+// ✅ Clean routing with no duplication
 if (classification.isDirectMessage) {
-  await processPrivateMessage() // → messages table → DM system
+  await supabase.rpc('process_incoming_private_message', {...}) // → DM system
 } else {
-  await processPublicPost()     // → posts table → ActivityPub system
+  // → existing ActivityPub system
 }
 ```
 
@@ -33,10 +33,10 @@ if (classification.isDirectMessage) {
 -- ✅ Federation type determination
 determine_message_federation_type(message_id) → 'chat_local_only' | 'dm_local_only' | 'dm_federated'
 
--- ✅ DM conversation management  
+-- ✅ DM conversation management (DRY helper)
 get_or_create_dm_conversation(user1_id, user2_id) → conversation_id
 
--- ✅ Incoming private message processor
+-- ✅ Focused private message processor (no duplicate classification)
 process_incoming_private_message(activity_id, activity_data, actor_profile_id, instance_domain)
 
 -- ✅ Unified message federation trigger

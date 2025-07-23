@@ -445,59 +445,9 @@ COMMENT ON TRIGGER trg_handle_message_federation ON messages IS
 -- 6. ActivityPub Activity Processing Integration
 -- =================================================================
 
--- Update the activity processing to handle private messages
-CREATE OR REPLACE FUNCTION process_create_activity(
-  p_activity_id UUID,
-  p_activity_data JSONB,
-  p_actor_profile profiles%ROWTYPE,
-  p_instance_domain TEXT
-) RETURNS VOID
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_object JSONB;
-  v_to JSONB;
-  v_cc JSONB;
-  v_is_direct_message BOOLEAN := false;
-BEGIN
-  v_object := p_activity_data->'object';
-  v_to := COALESCE(v_object->'to', '[]'::jsonb);
-  v_cc := COALESCE(v_object->'cc', '[]'::jsonb);
-  
-  -- Determine if this is a direct message using ActivityPub spec
-  -- No 'Public' in to/cc AND no followers URL = direct message
-  IF NOT (
-    v_to ? 'https://www.w3.org/ns/activitystreams#Public' OR
-    v_cc ? 'https://www.w3.org/ns/activitystreams#Public' OR
-    EXISTS (
-      SELECT 1 FROM jsonb_array_elements_text(v_to || v_cc) AS addr
-      WHERE addr LIKE '%/followers'
-    )
-  ) THEN
-    v_is_direct_message := true;
-  END IF;
-  
-  IF v_is_direct_message THEN
-    -- Route to private message system
-    RAISE NOTICE '📨 Processing as private message';
-    PERFORM process_incoming_private_message(
-      p_activity_id,
-      p_activity_data,
-      p_actor_profile.id,
-      p_instance_domain
-    );
-  ELSE
-    -- Route to public post system (use existing ActivityPub processing)
-    RAISE NOTICE '📢 Processing as public post';
-    -- This will be handled by the existing ActivityPub activity processing system
-    -- The activity is already stored and will be processed by existing triggers
-  END IF;
-END;
-$$;
-
-COMMENT ON FUNCTION process_create_activity(UUID, JSONB, profiles, TEXT) IS 
-'Routes Create activities to either private message or public post system based on ActivityPub addressing';
+-- Classification is now handled in the TypeScript inbox function
+-- This eliminates duplication and keeps the logic in one place
+-- The inbox directly calls process_incoming_private_message for DMs
 
 -- =================================================================
 -- 7. Verification and Logging
@@ -521,6 +471,10 @@ BEGIN
   
   IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'handle_message_federation') THEN
     RAISE EXCEPTION 'Critical function handle_message_federation not created';
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'get_or_create_dm_conversation') THEN
+    RAISE EXCEPTION 'Critical function get_or_create_dm_conversation not created';
   END IF;
   
   -- Verify trigger exists

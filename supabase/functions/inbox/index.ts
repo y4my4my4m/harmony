@@ -235,7 +235,7 @@ async function processCreateActivity(supabase: any, activity: ActivityPubActivit
       }
       
       // Call the database function to process the private message
-      const { error: processError } = await supabase.rpc('process_create_activity', {
+      const { error: processError } = await supabase.rpc('process_incoming_private_message', {
         p_activity_id: storedActivity.id,
         p_activity_data: activity,
         p_actor_profile_id: storedActivity.actor_id,
