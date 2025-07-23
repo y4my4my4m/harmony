@@ -10,33 +10,31 @@
 
 ### **✅ Core Components Delivered**
 
-#### **1. Enhanced Inbox Edge Function** (`supabase/functions/inbox/index.ts`)
+#### **1. Inbox Edge Function** (`supabase/functions/inbox/index.ts`)
 ```typescript
-// ✅ ActivityPub-compliant classification (DRY - single place only)
-function classifyActivityPubActivity(activity, ourDomain): ActivityClassification {
-  // Rule 1: 'Public' in 'to' → Public Post
-  // Rule 2: 'Public' in 'cc' → Unlisted Post  
-  // Rule 3: '/followers' URL → Followers-only Post
-  // Rule 4: Only specific actors → Direct Message (Private Mention)
-}
+// ✅ Simple, clean - no changes needed!
+// Uses existing upsert_ap_activity approach
+// Database handles all classification and routing automatically
 
-// ✅ Clean routing with no duplication
-if (classification.isDirectMessage) {
-  await supabase.rpc('process_incoming_private_message', {...}) // → DM system
-} else {
-  // → existing ActivityPub system
-}
+await supabase.rpc('upsert_ap_activity', {...})
+// → Database triggers handle everything automatically
 ```
 
 #### **2. Database Functions** (`db_migrations/082_implement_federated_private_messaging.sql`)
 ```sql
--- ✅ Federation type determination
+-- ✅ ActivityPub classification (in database where it belongs)
+classify_activitypub_activity(activity_data, instance_domain) → is_direct_message
+
+-- ✅ Automatic activity processing trigger
+process_ap_activity_on_update() → Routes Create activities automatically
+
+-- ✅ Federation type determination  
 determine_message_federation_type(message_id) → 'chat_local_only' | 'dm_local_only' | 'dm_federated'
 
--- ✅ DM conversation management (DRY helper)
+-- ✅ DM conversation management
 get_or_create_dm_conversation(user1_id, user2_id) → conversation_id
 
--- ✅ Focused private message processor (no duplicate classification)
+-- ✅ Private message processor
 process_incoming_private_message(activity_id, activity_data, actor_profile_id, instance_domain)
 
 -- ✅ Unified message federation trigger
@@ -59,12 +57,14 @@ handle_message_federation() → Routes based on type and direction (incoming/out
 ```mermaid
 graph LR
     A[Remote User] -->|Private Mention| B[Inbox Edge Function]
-    B -->|ActivityPub Classification| C{Is Direct Message?}
-    C -->|Yes| D[process_incoming_private_message]
-    D -->|Create DM| E[Messages Table]
-    E -->|Trigger| F[handle_message_federation]
-    F -->|Notifications| G[Local User]
-    C -->|No| H[Public Post System]
+    B -->|upsert_ap_activity| C[ap_activities Table]
+    C -->|status='processing'| D[Database Trigger]
+    D -->|classify_activitypub_activity| E{Is Direct Message?}
+    E -->|Yes| F[process_incoming_private_message]
+    F -->|Create DM| G[Messages Table]
+    G -->|Trigger| H[handle_message_federation]
+    H -->|Notifications| I[Local User]
+    E -->|No| J[Public Post System]
 ```
 
 ### **Outgoing DM Messages**
@@ -108,16 +108,18 @@ supabase functions deploy inbox
 ```sql
 -- Check that all functions exist
 SELECT proname FROM pg_proc WHERE proname IN (
+  'classify_activitypub_activity',
   'determine_message_federation_type',
   'process_incoming_private_message', 
   'handle_message_federation',
   'get_or_create_dm_conversation'
 );
 
--- Check that trigger exists
+-- Check that triggers exist
 SELECT tgname FROM pg_trigger t
 JOIN pg_class c ON t.tgrelid = c.oid
-WHERE c.relname = 'messages' AND t.tgname = 'trg_handle_message_federation';
+WHERE c.relname IN ('messages', 'ap_activities') 
+AND t.tgname IN ('trg_handle_message_federation', 'trg_process_ap_activity_on_update');
 
 -- Check conversation_participants table
 SELECT COUNT(*) FROM conversation_participants;

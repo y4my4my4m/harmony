@@ -442,12 +442,153 @@ COMMENT ON TRIGGER trg_handle_message_federation ON messages IS
 'Modern unified message federation trigger - handles chat (local-only) and DM (federation-capable) with proper incoming/outgoing logic';
 
 -- =================================================================
--- 6. ActivityPub Activity Processing Integration
+-- 6. Enhanced ActivityPub Activity Processing
 -- =================================================================
 
--- Classification is now handled in the TypeScript inbox function
--- This eliminates duplication and keeps the logic in one place
--- The inbox directly calls process_incoming_private_message for DMs
+-- Add ActivityPub classification to the existing activity processing
+-- This integrates seamlessly with the existing upsert_ap_activity flow
+
+CREATE OR REPLACE FUNCTION classify_activitypub_activity(
+  p_activity_data JSONB,
+  p_instance_domain TEXT
+) RETURNS TABLE (
+  is_direct_message BOOLEAN,
+  confidence NUMERIC
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  v_object JSONB;
+  v_to JSONB;
+  v_cc JSONB;
+  v_all_recipients TEXT[];
+BEGIN
+  v_object := CASE 
+    WHEN jsonb_typeof(p_activity_data->'object') = 'string' THEN 
+      jsonb_build_object('to', '[]'::jsonb, 'cc', '[]'::jsonb)
+    ELSE 
+      p_activity_data->'object'
+  END;
+  
+  v_to := COALESCE(v_object->'to', '[]'::jsonb);
+  v_cc := COALESCE(v_object->'cc', '[]'::jsonb);
+  
+  -- Extract all recipients
+  SELECT array_agg(value::text)
+  INTO v_all_recipients
+  FROM jsonb_array_elements_text(v_to || v_cc);
+  
+  -- Rule 1: Contains 'Public' in 'to' → Public Post
+  IF v_to ? 'https://www.w3.org/ns/activitystreams#Public' THEN
+    RETURN QUERY SELECT false::boolean, 1.0::numeric;
+    RETURN;
+  END IF;
+  
+  -- Rule 2: Contains 'Public' in 'cc' → Unlisted Post (still public)
+  IF v_cc ? 'https://www.w3.org/ns/activitystreams#Public' THEN
+    RETURN QUERY SELECT false::boolean, 1.0::numeric;
+    RETURN;
+  END IF;
+  
+  -- Rule 3: Contains followers collection URL → Followers-only Post
+  IF EXISTS (
+    SELECT 1 FROM unnest(v_all_recipients) AS addr
+    WHERE addr LIKE '%/followers'
+  ) THEN
+    RETURN QUERY SELECT false::boolean, 1.0::numeric;
+    RETURN;
+  END IF;
+  
+  -- Rule 4: Check for local recipients (direct message)
+  IF EXISTS (
+    SELECT 1 FROM unnest(v_all_recipients) AS addr
+    WHERE addr LIKE '%' || p_instance_domain || '%'
+  ) THEN
+    RETURN QUERY SELECT true::boolean, 1.0::numeric;
+    RETURN;
+  END IF;
+  
+  -- Rule 5: No local recipients → Not our concern (treat as public)
+  RETURN QUERY SELECT false::boolean, 0.1::numeric;
+END;
+$$;
+
+COMMENT ON FUNCTION classify_activitypub_activity(JSONB, TEXT) IS 
+'Classifies ActivityPub activities according to specification - compatible with Mastodon, Misskey, Pleroma';
+
+-- =================================================================
+-- Enhanced Activity Processing Trigger
+-- =================================================================
+
+-- Create or replace the activity processing function to handle Create activities
+CREATE OR REPLACE FUNCTION process_ap_activity_on_update()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_classification RECORD;
+  v_instance_domain TEXT;
+BEGIN
+  -- Only process when status changes to 'processing'
+  IF OLD.status != 'processing' AND NEW.status = 'processing' THEN
+    
+    -- Get instance domain
+    v_instance_domain := COALESCE(
+      (SELECT setting_value FROM instance_settings WHERE setting_key = 'domain'),
+      'har.mony.lol'
+    );
+    
+    -- Handle Create activities with classification
+    IF NEW.ap_type = 'Create' THEN
+      
+      -- Classify the activity
+      SELECT * INTO v_classification
+      FROM classify_activitypub_activity(NEW.activity_data, v_instance_domain);
+      
+      IF v_classification.is_direct_message THEN
+        -- Route to private message system
+        RAISE NOTICE '📨 Processing Create activity as private message (confidence: %)', v_classification.confidence;
+        
+        PERFORM process_incoming_private_message(
+          NEW.id,
+          NEW.activity_data,
+          NEW.actor_id,
+          v_instance_domain
+        );
+        
+        -- Mark as completed
+        UPDATE ap_activities 
+        SET status = 'completed', processed_at = NOW()
+        WHERE id = NEW.id;
+        
+      ELSE
+        -- Route to existing public post system
+        RAISE NOTICE '📢 Processing Create activity as public post (confidence: %)', v_classification.confidence;
+        
+        -- Let existing ActivityPub processing handle this
+        -- The activity will be processed by existing triggers/functions
+      END IF;
+      
+    END IF;
+    
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+-- Create the trigger if it doesn't exist
+DROP TRIGGER IF EXISTS trg_process_ap_activity_on_update ON ap_activities;
+
+CREATE TRIGGER trg_process_ap_activity_on_update
+  AFTER UPDATE ON ap_activities
+  FOR EACH ROW
+  EXECUTE FUNCTION process_ap_activity_on_update();
+
+COMMENT ON TRIGGER trg_process_ap_activity_on_update ON ap_activities IS 
+'Automatically processes ActivityPub activities and routes Create activities based on ActivityPub classification';
 
 -- =================================================================
 -- 7. Verification and Logging
@@ -477,7 +618,11 @@ BEGIN
     RAISE EXCEPTION 'Critical function get_or_create_dm_conversation not created';
   END IF;
   
-  -- Verify trigger exists
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'classify_activitypub_activity') THEN
+    RAISE EXCEPTION 'Critical function classify_activitypub_activity not created';
+  END IF;
+  
+  -- Verify triggers exist
   IF NOT EXISTS (
     SELECT 1 FROM pg_trigger t
     JOIN pg_class c ON t.tgrelid = c.oid
@@ -486,6 +631,16 @@ BEGIN
     AND t.tgenabled = 'O'
   ) THEN
     RAISE EXCEPTION 'Critical trigger trg_handle_message_federation not created';
+  END IF;
+  
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON t.tgrelid = c.oid
+    WHERE c.relname = 'ap_activities' 
+    AND t.tgname = 'trg_process_ap_activity_on_update'
+    AND t.tgenabled = 'O'
+  ) THEN
+    RAISE EXCEPTION 'Critical trigger trg_process_ap_activity_on_update not created';
   END IF;
   
   RAISE NOTICE '✅ All critical components verified successfully';
