@@ -536,7 +536,7 @@ BEGIN
     
     -- Get instance domain
     v_instance_domain := COALESCE(
-      (SELECT setting_value FROM instance_settings WHERE setting_key = 'domain'),
+      trim(both '"' from (SELECT config_value FROM instance_config WHERE config_key = 'domain')),
       'har.mony.lol'
     );
     
