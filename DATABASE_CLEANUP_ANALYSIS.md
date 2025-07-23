@@ -286,6 +286,18 @@ pg_dump --schema-only --section=pre-data harmony_db | grep "CREATE.*FUNCTION" > 
 
 ---
 
+## **🚨 CRITICAL: Federation Loop Fix Required FIRST!**
+
+**⚠️ BEFORE running cleanup, you MUST fix the federation loop vulnerability!**
+
+**See**: `FEDERATION_LOOP_FIX.md` for the critical fix that prevents infinite federation loops.
+
+**Deploy Order:**
+1. **FIRST**: `db_migrations/091_fix_federation_loops.sql` 🚨 **CRITICAL**
+2. **THEN**: `db_migrations/090_deprecated_function_cleanup.sql`
+
+---
+
 ## **🎯 READY-TO-RUN CLEANUP MIGRATION**
 
 **File**: `db_migrations/090_deprecated_function_cleanup.sql`
