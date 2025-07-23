@@ -73,6 +73,7 @@
         v-if="isFederatedUser && !isCurrentUser && showFollowBtn"
         @click.stop="handleFollowToggle"
         :disabled="isFollowLoading"
+        :title="followButtonText"
         class="action-btn follow-btn"
         :class="{ following: isFollowing, loading: isFollowLoading }"
       >
@@ -86,6 +87,7 @@
       <button
         v-if="!isFederatedUser && !isCurrentUser"
         @click.stop="handleMessage"
+        title="Message"
         class="action-btn message-btn"
       >
         <Icon name="message-circle" />
@@ -96,6 +98,7 @@
       <button
         v-if="isFederatedUser && !isCurrentUser"
         @click.stop="handleMention"
+        title="Mention"
         class="action-btn mention-btn"
       >
         <Icon name="at-sign" />
@@ -420,9 +423,46 @@ const vClickOutside = {
 
 .profile-card.compact {
   padding: var(--space-3);
-  flex-direction: row;
+  flex-direction: column;
   gap: var(--space-3);
-  align-items: center;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.compact .avatar-section {
+  align-self: center;
+}
+
+.compact .user-info {
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.compact .name-section {
+  margin-bottom: var(--space-2);
+}
+
+.compact .display-name {
+  font-size: var(--font-size-sm);
+  margin-bottom: 2px;
+  justify-content: center;
+}
+
+.compact .user-handle {
+  font-size: var(--font-size-xs);
+}
+
+.compact .stats-section {
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.compact .actions-section {
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .profile-card.no-actions .actions-section {
@@ -459,16 +499,8 @@ const vClickOutside = {
   min-width: 0;
 }
 
-.compact .user-info {
-  margin-bottom: 0;
-}
-
 .name-section {
   margin-bottom: var(--space-2);
-}
-
-.compact .name-section {
-  margin-bottom: 0;
 }
 
 .display-name {
@@ -480,11 +512,6 @@ const vClickOutside = {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-}
-
-.compact .display-name {
-  font-size: var(--font-size-sm);
-  margin-bottom: 2px;
 }
 
 .verified-badge {
@@ -499,10 +526,6 @@ const vClickOutside = {
   color: var(--text-secondary);
   margin: 0;
   font-weight: var(--font-weight-medium);
-}
-
-.compact .user-handle {
-  font-size: var(--font-size-xs);
 }
 
 /* ===== BIO SECTION ===== */
@@ -544,26 +567,36 @@ const vClickOutside = {
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
-  margin-bottom: var(--space-2);
-}
-
-.compact .stats-section {
-  gap: var(--space-2);
-  margin-bottom: 0;
-}
-
-.stat {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
-.compact .stat {
-  font-size: 11px;
+.stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
 }
 
 .stat strong {
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
+}
+
+.compact .stats-section {
+  font-size: var(--font-size-xs);
+  gap: var(--space-2);
+}
+
+.compact .stat {
+  text-align: center;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.compact .stat strong {
+  font-size: var(--font-size-sm);
+  line-height: 1;
 }
 
 /* ===== ACTIONS SECTION ===== */
@@ -576,7 +609,7 @@ const vClickOutside = {
 .action-btn {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -587,6 +620,23 @@ const vClickOutside = {
   cursor: pointer;
   transition: all var(--transition-base);
   white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+  justify-content: center;
+}
+
+.compact .action-btn {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  gap: var(--space-1);
+}
+
+.compact .action-btn span {
+  display: none;
+}
+
+.compact .action-btn[title] {
+  position: relative;
 }
 
 .action-btn:hover {
@@ -705,10 +755,21 @@ const vClickOutside = {
   
   .stats-section {
     gap: var(--space-2);
+    justify-content: center;
   }
   
   .actions-section {
     flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  
+  .compact .action-btn {
+    min-width: 40px;
+    padding: var(--space-2);
+  }
+  
+  .compact .stats-section {
+    gap: var(--space-1);
   }
 }
 </style>
