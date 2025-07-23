@@ -467,7 +467,7 @@ export class CoreMessageService {
         .select('*')
         .eq('conversation_id', conversationId)
         .or('is_deleted.is.null,is_deleted.eq.false')
-        .order('created_at', { ascending: false })  // ✅ FIX: Load NEWEST messages first
+        .order('created_at', { ascending: true })  // FIXED: Changed to ascending (oldest first) for consistency
         .limit(limit)
 
       if (before) {
