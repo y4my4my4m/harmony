@@ -222,7 +222,7 @@ export class InteractionService {
   }
 
   /**
-   * Get following (delegated to core service)
+   * Get following (simple, professional approach)
    * PRESERVES: Exact same API and return type
    */
   async getFollowing(
@@ -237,16 +237,81 @@ export class InteractionService {
     total: number;
   }> {
     try {
-      console.log(`🚀 Simplified: Getting following for user: ${userId}`)
+      console.log(`🚀 Simple: Getting following for user: ${userId}`)
 
-      // Delegate to core service (no federation needed for reads)
-      const result = await coreInteractionService.getFollowing(userId, options)
+      const { limit = 20, offset = 0 } = options
 
-      console.log(`✅ Simplified: Retrieved ${result.following.length} following`)
+      // Simple direct query - exactly what we need, nothing more
+      const { data: followingData, error } = await supabase
+        .from('follows')
+        .select(`
+          following_id,
+          profiles!follows_following_id_fkey (
+            id,
+            username,
+            display_name,
+            avatar_url,
+            is_local,
+            domain
+          )
+        `)
+        .eq('follower_id', userId)
+        .eq('status', 'accepted')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+
+      if (error) {
+        console.error('❌ Database error:', error)
+        throw this.createError('FOLLOWING_FAILED', 'Failed to load following', error)
+      }
+
+      // Simple transformation - no over-engineering
+      const following: Profile[] = (followingData || []).map(follow => {
+        const profile = follow.profiles as any // Supabase typing issue - profiles is actually a single object
+        return {
+          id: profile.id,
+          username: profile.username,
+          display_name: profile.display_name,
+          avatar_url: profile.avatar_url,
+          is_local: profile.is_local,
+          domain: profile.domain,
+          handle: profile.is_local ? `@${profile.username}` : `@${profile.username}@${profile.domain}`,
+          // Default values for missing fields - simple and clean
+          bio: undefined,
+          banner_url: undefined,
+          status: undefined,
+          color: undefined,
+          is_admin: false,
+          federated_id: undefined,
+          ap_id: undefined,
+          followers_count: undefined,
+          following_count: undefined,
+          posts_count: undefined,
+          created_at: undefined,
+          updated_at: undefined
+        } as Profile
+      })
+
+      // Get total count efficiently
+      const { count: totalCount } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', userId)
+        .eq('status', 'accepted')
+
+      const hasMore = (offset + limit) < (totalCount || 0)
+
+      const result = {
+        following,
+        hasMore,
+        total: totalCount || 0
+      }
+
+      console.log(`✅ Simple: Retrieved ${result.following.length} following users`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to get following:', error)
+      console.error('❌ Simple: Failed to get following:', error)
       throw error
     }
   }
@@ -270,11 +335,46 @@ export class InteractionService {
     try {
       console.log(`🚀 Simplified: Getting follow requests`)
 
-      // Delegate to core service (no federation needed for reads)
-      const result = await coreInteractionService.getFollowRequests(options)
+      const { limit = 20 } = options
+      
+      // Delegate to core service (adjust parameter format)
+      const result = await coreInteractionService.getFollowRequests(limit)
 
-      console.log(`✅ Simplified: Retrieved ${result.requests.length} follow requests`)
-      return result
+      // Transform FollowRequestUser objects to expected format
+      const transformedRequests = result.requests.map((request) => ({
+        id: request.id, // Using id as the request ID
+        follower: {
+          id: request.id,
+          username: request.username,
+          display_name: request.display_name,
+          avatar_url: request.avatar_url,
+          domain: request.domain,
+          is_local: request.is_local,
+          bio: undefined,
+          banner_url: undefined,
+          status: undefined,
+          color: undefined,
+          is_admin: false,
+          federated_id: undefined,
+          ap_id: undefined,
+          followers_count: undefined,
+          following_count: undefined,
+          posts_count: undefined,
+          created_at: undefined,
+          updated_at: undefined,
+          handle: request.is_local ? `@${request.username}` : `@${request.username}@${request.domain}`
+        } as Profile,
+        created_at: request.requested_at
+      }))
+
+      const transformedResult = {
+        requests: transformedRequests,
+        hasMore: result.hasMore,
+        total: result.requests.length // Note: This is not the true total, just current batch size
+      }
+
+      console.log(`✅ Simplified: Retrieved ${transformedResult.requests.length} follow requests`)
+      return transformedResult
 
     } catch (error) {
       console.error('❌ Simplified: Failed to get follow requests:', error)

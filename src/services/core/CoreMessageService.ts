@@ -543,7 +543,29 @@ export class CoreMessageService {
   // HELPER METHODS (PURE LOCAL)
   // =====================================================
 
+  /**
+   * Get current user's profile ID
+   * Used for reactions and other user-specific operations
+   */
+  private async getCurrentUserProfileId(): Promise<string> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
 
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single()
+
+      if (!profile) throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
+
+      return profile.id
+    } catch (error) {
+      console.error('❌ Core: Failed to get current user profile ID:', error)
+      throw error
+    }
+  }
 
   private createError(code: string, message: string, details?: any): CoreMessageServiceError {
     return { code, message, details }

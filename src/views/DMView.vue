@@ -28,7 +28,15 @@
 
     <!-- DM Content -->
     <div class="dm-content">
+      <!-- Show FollowersList when no conversation is selected -->
+      <FollowersList
+        v-if="!currentConversation"
+        @conversation-started="handleConversationStarted"
+      />
+      
+      <!-- Show chat when conversation is selected -->
       <UnifiedContentArea
+        v-else
         mode="chat"
         :chat-messages="chatMessages"
         :is-loading="isLoading"
@@ -59,6 +67,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import DMHeader from '@/components/dm/DMHeader.vue'
+import FollowersList from '@/components/dm/FollowersList.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
@@ -194,6 +203,12 @@ const handleUsersAdded = async (conversationId: string, userIds: string[]) => {
       console.error('Failed to refresh conversation after adding users:', error)
     }
   }
+}
+
+const handleConversationStarted = async (conversationId: string) => {
+  // Navigation is already handled by the FollowersList component
+  // This method exists for consistency and potential future use
+  console.log('Conversation started:', conversationId)
 }
 
 const handleConversationCreated = async (newConversationId: string) => {

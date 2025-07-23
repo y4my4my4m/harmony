@@ -337,6 +337,12 @@ const currentServerData = computed(() => {
   };
 });
 
+// --- HELPER FUNCTIONS ---
+const getReplyUserId = (replyMessageId: string) => {
+  const message = props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId];
+  return message?.user_id || 'unknown';
+};
+
 // --- WATCHERS ---
 watch(() => props.messages, (newMessages) => {
   if (!newMessages || !Array.isArray(newMessages)) {
@@ -615,11 +621,6 @@ const handleReplyClick = async (replyMessageId: string) => {
   if (!chatStore.currentChannelId) return;
   const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
   if (!success) console.warn(`Could not jump to message: ${replyMessageId}`);
-};
-
-const getReplyUserId = (replyMessageId: string) => {
-  const message = props.messages.find(msg => msg.id === replyMessageId) || replyMessages.value[replyMessageId];
-  return message?.user_id || 'unknown';
 };
 
 const fetchReplyMessageIfNeeded = async (replyMessageId: string) => {
