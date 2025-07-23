@@ -92,6 +92,64 @@ DROP FUNCTION IF EXISTS process_ap_activity_on_update(); -- Conflicts with worki
 
 ---
 
+## **🔥 DEPRECATED TRIGGERS TO REMOVE**
+
+### **1. Duplicate Federation Triggers (Post-Consolidation)**
+```sql
+-- ❌ DEPRECATED: Multiple triggers causing double federation
+DROP TRIGGER IF EXISTS trigger_unified_content_federation ON posts;
+DROP TRIGGER IF EXISTS handle_post_federation_trigger ON posts;
+DROP TRIGGER IF EXISTS trigger_unified_message_federation ON messages;
+DROP TRIGGER IF EXISTS trigger_handle_outgoing_messages ON messages;
+
+-- ✅ KEEP: Modern specific triggers
+-- trg_handle_post_federation ✅
+-- trg_handle_message_federation ✅
+```
+
+### **2. Old Interaction Federation Triggers**
+```sql
+-- ❌ DEPRECATED: Old unified approach
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_reactions ON reactions;
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_follows ON follows;
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_post_interactions ON post_interactions;
+DROP TRIGGER IF EXISTS handle_post_reactions_federation_trigger ON post_interactions;
+
+-- ✅ KEEP: Working specific triggers (if any exist)
+```
+
+### **3. Duplicate Notification Triggers**
+```sql
+-- ❌ DEPRECATED: Multiple notification triggers
+DROP TRIGGER IF EXISTS trigger_unified_notification_reactions ON reactions;
+DROP TRIGGER IF EXISTS trigger_unified_notification_processing_reactions ON reactions;
+DROP TRIGGER IF EXISTS handle_chat_mention_notifications_trigger ON messages;
+DROP TRIGGER IF EXISTS handle_local_post_mention_notifications_trigger ON posts;
+DROP TRIGGER IF EXISTS trigger_reaction_notifications ON reactions;
+
+-- ✅ KEEP: Single unified notification system
+```
+
+### **4. Broken/Test Triggers (My Mistakes)**
+```sql
+-- ❌ REMOVE: Broken triggers I created
+DROP TRIGGER IF EXISTS trg_handle_messages ON messages;
+DROP TRIGGER IF EXISTS trg_handle_outgoing_messages ON messages;
+DROP TRIGGER IF EXISTS trigger_reactions_federation ON reactions;
+DROP TRIGGER IF EXISTS handle_reactions_federation_trigger ON reactions;
+```
+
+### **5. Old Legacy Triggers (Pre-Refactor)**
+```sql
+-- ❌ DEPRECATED: Old scattered approach
+DROP TRIGGER IF EXISTS follows_federation_trigger ON follows;
+DROP TRIGGER IF EXISTS unified_activitypub_interaction_processing ON post_interactions;
+DROP TRIGGER IF EXISTS unified_activitypub_reply_processing ON posts;
+DROP TRIGGER IF EXISTS profile_update_federation_trigger ON profiles;
+```
+
+---
+
 ## **✅ FUNCTIONS TO KEEP** 
 
 ### **Core ActivityPub Processing**
@@ -157,18 +215,39 @@ DROP FUNCTION IF EXISTS get_conversation_by_users(uuid, uuid);
 DROP FUNCTION IF EXISTS create_conversation_old(uuid, uuid);
 ```
 
+### **Phase 5: Trigger Cleanup** ⏱️ *5 minutes*
+```sql
+-- Drop duplicate federation triggers
+DROP TRIGGER IF EXISTS trigger_unified_content_federation ON posts;
+DROP TRIGGER IF EXISTS handle_post_federation_trigger ON posts;
+DROP TRIGGER IF EXISTS trigger_unified_message_federation ON messages;
+
+-- Drop broken/test triggers  
+DROP TRIGGER IF EXISTS trg_handle_messages ON messages;
+DROP TRIGGER IF EXISTS trg_handle_outgoing_messages ON messages;
+DROP TRIGGER IF EXISTS trigger_reactions_federation ON reactions;
+
+-- Drop old interaction triggers
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_reactions ON reactions;
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_follows ON follows;
+```
+
 ---
 
 ## **📊 EXPECTED RESULTS**
 
 ### **Before Cleanup**
 - **Total Functions**: ~160
+- **Total Triggers**: ~32 (from migrations analysis)
 - **Deprecated Functions**: ~25-30
+- **Deprecated Triggers**: ~15-20
 - **Maintenance Burden**: High
 
 ### **After Cleanup**
 - **Total Functions**: ~130-135
+- **Total Triggers**: ~10-15 (working triggers only)
 - **Deprecated Functions**: 0
+- **Deprecated Triggers**: 0
 - **Maintenance Burden**: Low
 - **Code Quality**: Professional & DRY
 
@@ -269,12 +348,59 @@ DROP FUNCTION IF EXISTS test_activitypub_parsing();
 DROP FUNCTION IF EXISTS validate_migration_state();
 
 -- =====================================================
+-- PHASE 7: DUPLICATE FEDERATION TRIGGERS
+-- =====================================================
+
+DROP TRIGGER IF EXISTS trigger_unified_content_federation ON posts;
+DROP TRIGGER IF EXISTS handle_post_federation_trigger ON posts;
+DROP TRIGGER IF EXISTS trigger_unified_message_federation ON messages;
+DROP TRIGGER IF EXISTS trigger_handle_outgoing_messages ON messages;
+
+-- =====================================================
+-- PHASE 8: OLD INTERACTION FEDERATION TRIGGERS
+-- =====================================================
+
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_reactions ON reactions;
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_follows ON follows;
+DROP TRIGGER IF EXISTS trigger_unified_interaction_federation_post_interactions ON post_interactions;
+DROP TRIGGER IF EXISTS handle_post_reactions_federation_trigger ON post_interactions;
+
+-- =====================================================
+-- PHASE 9: DUPLICATE NOTIFICATION TRIGGERS
+-- =====================================================
+
+DROP TRIGGER IF EXISTS trigger_unified_notification_reactions ON reactions;
+DROP TRIGGER IF EXISTS trigger_unified_notification_processing_reactions ON reactions;
+DROP TRIGGER IF EXISTS handle_chat_mention_notifications_trigger ON messages;
+DROP TRIGGER IF EXISTS handle_local_post_mention_notifications_trigger ON posts;
+DROP TRIGGER IF EXISTS trigger_reaction_notifications ON reactions;
+
+-- =====================================================
+-- PHASE 10: BROKEN/TEST TRIGGERS (My Mistakes)
+-- =====================================================
+
+DROP TRIGGER IF EXISTS trg_handle_messages ON messages;
+DROP TRIGGER IF EXISTS trg_handle_outgoing_messages ON messages;
+DROP TRIGGER IF EXISTS trigger_reactions_federation ON reactions;
+DROP TRIGGER IF EXISTS handle_reactions_federation_trigger ON reactions;
+
+-- =====================================================
+-- PHASE 11: OLD LEGACY TRIGGERS (Pre-Refactor)
+-- =====================================================
+
+DROP TRIGGER IF EXISTS follows_federation_trigger ON follows;
+DROP TRIGGER IF EXISTS unified_activitypub_interaction_processing ON post_interactions;
+DROP TRIGGER IF EXISTS unified_activitypub_reply_processing ON posts;
+DROP TRIGGER IF EXISTS profile_update_federation_trigger ON profiles;
+
+-- =====================================================
 -- VERIFICATION
 -- =====================================================
 
 DO $$
 DECLARE
     total_functions INTEGER;
+    total_triggers INTEGER;
 BEGIN
     SELECT COUNT(*) INTO total_functions
     FROM pg_proc p
@@ -282,9 +408,17 @@ BEGIN
     WHERE n.nspname = 'public'
     AND p.prokind = 'f';
     
+    SELECT COUNT(*) INTO total_triggers
+    FROM pg_trigger t
+    JOIN pg_class c ON t.tgrelid = c.oid
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE n.nspname = 'public'
+    AND NOT t.tgisinternal;
+    
     RAISE NOTICE '✅ Cleanup Complete!';
     RAISE NOTICE 'Total functions remaining: %', total_functions;
-    RAISE NOTICE 'Estimated reduction: ~25 deprecated functions removed';
+    RAISE NOTICE 'Total triggers remaining: %', total_triggers;
+    RAISE NOTICE 'Estimated reduction: ~25 functions + ~15 triggers removed';
     RAISE NOTICE '';
     RAISE NOTICE '🎯 KEPT ALL WORKING FUNCTIONS:';
     RAISE NOTICE '  ✅ classify_activitypub_activity()';
@@ -294,12 +428,19 @@ BEGIN
     RAISE NOTICE '  ✅ convert_ap_to_jsonb()';
     RAISE NOTICE '  ✅ convert_jsonb_to_ap()';
     RAISE NOTICE '';
+    RAISE NOTICE '🎯 KEPT WORKING TRIGGERS:';
+    RAISE NOTICE '  ✅ trg_handle_post_federation';
+    RAISE NOTICE '  ✅ trg_handle_message_federation';
+    RAISE NOTICE '  ✅ Working notification triggers';
+    RAISE NOTICE '';
     RAISE NOTICE '🗑️ REMOVED ALL DEPRECATED:';
     RAISE NOTICE '  ❌ parse_activitypub_content_to_jsonb()';
-    RAISE NOTICE '  ❌ convert_unified_content_to_activitypub_html()';
     RAISE NOTICE '  ❌ create_notification_structured()';
     RAISE NOTICE '  ❌ create_http_signature()';
     RAISE NOTICE '  ❌ fetch_and_create_actor_profile()';
+    RAISE NOTICE '  ❌ trigger_unified_content_federation';
+    RAISE NOTICE '  ❌ trigger_unified_interaction_federation_*';
+    RAISE NOTICE '  ❌ handle_post_federation_trigger';
     RAISE NOTICE '';
     RAISE NOTICE '💪 Database is now cleaner and more maintainable!';
 END $$;
@@ -320,6 +461,16 @@ JOIN pg_namespace n ON p.pronamespace = n.oid
 WHERE n.nspname = 'public' AND p.prokind = 'f';
 ```
 
+### **Trigger Count Check**
+```sql
+-- Should show ~10-15 triggers (down from ~32)
+SELECT COUNT(*) as total_triggers
+FROM pg_trigger t
+JOIN pg_class c ON t.tgrelid = c.oid
+JOIN pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = 'public' AND NOT t.tgisinternal;
+```
+
 ### **Core Function Verification**
 ```sql
 -- Verify all critical functions still exist
@@ -336,6 +487,21 @@ AND proname IN (
 );
 ```
 
+### **Core Trigger Verification**
+```sql
+-- Verify critical triggers still exist
+SELECT t.tgname, c.relname as table_name
+FROM pg_trigger t
+JOIN pg_class c ON t.tgrelid = c.oid
+JOIN pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = 'public' 
+AND NOT t.tgisinternal
+AND t.tgname IN (
+    'trg_handle_post_federation',
+    'trg_handle_message_federation'
+);
+```
+
 ### **No References Check**
 ```sql
 -- Verify no views reference deleted functions
@@ -343,6 +509,15 @@ SELECT schemaname, viewname
 FROM pg_views 
 WHERE definition LIKE '%parse_activitypub_content_to_jsonb%'
    OR definition LIKE '%create_notification_structured%';
+
+-- Verify no old triggers remain
+SELECT t.tgname, c.relname as table_name
+FROM pg_trigger t
+JOIN pg_class c ON t.tgrelid = c.oid
+JOIN pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = 'public' 
+AND NOT t.tgisinternal
+AND (t.tgname LIKE '%unified%' OR t.tgname LIKE '%old%' OR t.tgname LIKE '%deprecated%');
 ```
 
 ---
@@ -350,7 +525,9 @@ WHERE definition LIKE '%parse_activitypub_content_to_jsonb%'
 ## **🏆 SUCCESS CRITERIA**
 
 - ✅ **~25 deprecated functions removed**
+- ✅ **~15 deprecated triggers removed**
 - ✅ **All working functions preserved**
+- ✅ **All working triggers preserved**
 - ✅ **No broken references**
 - ✅ **Database size reduced**
 - ✅ **Maintenance burden decreased**
