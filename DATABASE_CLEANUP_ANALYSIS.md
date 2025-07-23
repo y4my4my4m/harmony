@@ -294,16 +294,16 @@ pg_dump --schema-only --section=pre-data harmony_db | grep "CREATE.*FUNCTION" > 
 
 **Deploy Order:**
 1. **FIRST**: `db_migrations/091_fix_federation_loops.sql` 🚨 **CRITICAL**
-2. **THEN**: `db_migrations/090_deprecated_function_cleanup.sql`
+2. **THEN**: `db_migrations/092_deprecated_function_cleanup.sql`
 
 ---
 
 ## **🎯 READY-TO-RUN CLEANUP MIGRATION**
 
-**File**: `db_migrations/090_deprecated_function_cleanup.sql`
+**File**: `db_migrations/092_deprecated_function_cleanup.sql`
 
 ```sql
--- Migration 090: Comprehensive Deprecated Function Cleanup
+-- Migration 092: Comprehensive Deprecated Function Cleanup
 -- Removes all deprecated functions identified in DATABASE_CLEANUP_ANALYSIS.md
 
 BEGIN;
