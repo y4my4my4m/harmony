@@ -4,7 +4,7 @@ import type { User } from '@/types';
 import { UserStatus } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-import { updateUserStatus } from '@/services/profileService';
+import { updateUserStatus } from '@/services/ProfileService';
 import { getMembershipService } from '@/services/membershipService';
 import { userDataService } from '@/services/userDataService';
   

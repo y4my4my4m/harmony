@@ -24,7 +24,7 @@ export default defineComponent({
     const reactionsStore = useReactionsStore();
     const authStore = useAuthStore();
 
-    // Get reactions for this message
+    // ✅ UNIFIED ARCHITECTURE: Always use reactions store (populated by CoreMessageService)
     const reactions = computed(() => 
       reactionsStore.getMessageReactions(props.message.id)
     );
@@ -70,14 +70,19 @@ export default defineComponent({
       emit('hide-reaction-tooltip');
     };
 
-    // Load reactions when component mounts
+    // ✅ UNIFIED ARCHITECTURE: Store is pre-populated by CoreMessageService
+    // Safe to request reactions - will use cached data, no N+1 queries
     onMounted(() => {
-      reactionsStore.fetchMessageReactions(props.message.id);
+      if (!reactionsStore.isLoadingReactions(props.message.id)) {
+        reactionsStore.fetchMessageReactions(props.message.id);
+      }
     });
 
     // Watch for message changes and reload reactions if needed
     watch(() => props.message.id, (newMessageId) => {
-      reactionsStore.fetchMessageReactions(newMessageId);
+      if (!reactionsStore.isLoadingReactions(newMessageId)) {
+        reactionsStore.fetchMessageReactions(newMessageId);
+      }
     });
 
     return {

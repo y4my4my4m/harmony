@@ -1,0 +1,714 @@
+<template>
+  <div 
+    class="profile-card" 
+    :class="{ 
+      compact: isCompact, 
+      interactive: isInteractive,
+      'no-actions': !showActions 
+    }" 
+    @click="handleClick"
+  >
+    <!-- Avatar Section -->
+    <div class="avatar-section">
+      <div class="avatar-wrapper">
+        <Avatar
+          :src="user.avatar_url"
+          :alt="displayName"
+          :size="avatarSize"
+          :status="userPresenceStatus"
+          :interactive="isInteractive"
+        />
+        <div v-if="hasStatusBadge" class="status-badge">
+          <Icon :name="statusBadgeIcon" class="status-icon" />
+        </div>
+      </div>
+    </div>
+
+    <!-- User Information -->
+    <div class="user-info">
+      <div class="name-section">
+        <h3 class="display-name" :style="{ color: user.color || undefined }">
+          {{ displayName }}
+          <Icon v-if="isVerified" name="verified" class="verified-badge" />
+        </h3>
+        <p class="user-handle">{{ displayHandle }}</p>
+      </div>
+
+      <!-- Bio (non-compact only) -->
+      <div v-if="!isCompact && displayBio" class="bio-section">
+        <p class="bio-text">{{ truncatedBio }}</p>
+      </div>
+
+      <!-- Roles/Badges (non-compact only) -->
+      <div v-if="!isCompact && userRoles.length > 0" class="roles-section">
+        <div
+          v-for="role in userRoles"
+          :key="role.id"
+          class="role-badge"
+          :style="{ backgroundColor: role.color, borderColor: role.color + '33' }"
+        >
+          {{ role.name }}
+        </div>
+      </div>
+
+      <!-- Stats (always show) -->
+      <div v-if="hasStats" class="stats-section">
+        <!-- Standard Social Stats (for all users) -->
+        <span class="stat">
+          <strong>{{ formatNumber(user.followers_count || 0) }}</strong> followers
+        </span>
+        <span class="stat">
+          <strong>{{ formatNumber(user.following_count || 0) }}</strong> following
+        </span>
+        <span class="stat">
+          <strong>{{ formatNumber(user.posts_count || 0) }}</strong> monies
+        </span>
+      </div>
+    </div>
+
+    <!-- Actions Section -->
+    <div v-if="showActions" class="actions-section">
+      <!-- Follow/Unfollow (federated users only) -->
+      <button
+        v-if="isFederatedUser && !isCurrentUser && showFollowBtn"
+        @click.stop="handleFollowToggle"
+        :disabled="isFollowLoading"
+        class="action-btn follow-btn"
+        :class="{ following: isFollowing, loading: isFollowLoading }"
+      >
+        <Icon v-if="isFollowLoading" name="loader" class="spinning" />
+        <Icon v-else-if="isFollowing" name="user-check" />
+        <Icon v-else name="user-plus" />
+        <span>{{ followButtonText }}</span>
+      </button>
+
+      <!-- Message (local users only) -->
+      <button
+        v-if="!isFederatedUser && !isCurrentUser"
+        @click.stop="handleMessage"
+        class="action-btn message-btn"
+      >
+        <Icon name="message-circle" />
+        <span>Message</span>
+      </button>
+
+      <!-- Mention (federated users only) -->
+      <button
+        v-if="isFederatedUser && !isCurrentUser"
+        @click.stop="handleMention"
+        class="action-btn mention-btn"
+      >
+        <Icon name="at-sign" />
+        <span>Mention</span>
+      </button>
+
+      <!-- More Actions Menu -->
+      <div v-if="showMoreActions && !isCurrentUser" class="more-actions">
+        <button
+          @click.stop="showActionsMenu = !showActionsMenu"
+          class="action-btn more-btn"
+          :class="{ active: showActionsMenu }"
+        >
+          <Icon name="more-horizontal" />
+        </button>
+        
+        <div v-if="showActionsMenu" class="actions-menu" v-click-outside="closeActionsMenu">
+          <button @click="handleViewProfile" class="action-item">
+            <Icon name="user" />
+            <span>View Profile</span>
+          </button>
+          
+          <button @click="handleMute" class="action-item">
+            <Icon name="volume-x" />
+            <span>{{ isMuted ? 'Unmute' : 'Mute' }}</span>
+          </button>
+          
+          <button @click="handleBlock" class="action-item danger">
+            <Icon name="user-x" />
+            <span>{{ isBlocked ? 'Unblock' : 'Block' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Instance Badge (federated users only) -->
+    <div v-if="isFederatedUser && !user.is_local && showInstanceBadge" class="instance-badge">
+      <Icon name="federation" />
+      <span>{{ user.domain }}</span>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { useActivityPubStore } from '@/stores/useActivityPub'
+import { useUserData } from '@/composables/useUserData'
+import { usePostInteractions } from '@/composables/usePostInteractions'
+import Avatar from './Avatar.vue'
+import Icon from './Icon.vue'
+import type { User, FederatedUser } from '@/types'
+
+// ===== INTERFACE =====
+interface Props {
+  user: User | FederatedUser
+  isCompact?: boolean
+  isInteractive?: boolean
+  showActions?: boolean
+  showFollowBtn?: boolean
+  showMoreActions?: boolean
+  showInstanceBadge?: boolean
+  hasStats?: boolean
+  maxBioLength?: number
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  isCompact: false,
+  isInteractive: true,
+  showActions: true,
+  showFollowBtn: true,
+  showMoreActions: true,
+  showInstanceBadge: true,
+  hasStats: true,
+  maxBioLength: 120
+})
+
+const emit = defineEmits<{
+  click: [user: User | FederatedUser]
+  follow: [userId: string]
+  unfollow: [userId: string]
+  message: [user: User | FederatedUser]
+  mention: [user: FederatedUser]
+  mute: [userId: string]
+  unmute: [userId: string]
+  block: [userId: string]
+  unblock: [userId: string]
+}>()
+
+// ===== DEPENDENCIES =====
+const router = useRouter()
+const authStore = useAuthStore()
+const activityPubStore = useActivityPubStore()
+const { getPresenceAwareStatus } = useUserData()
+const { toggleFollow, getLoadingState } = usePostInteractions()
+
+// ===== STATE =====
+const showActionsMenu = ref(false)
+
+// ===== TYPE GUARDS =====
+const isFederatedUser = computed(() => {
+  return 'handle' in props.user
+})
+
+// ===== COMPUTED PROPERTIES =====
+const isCurrentUser = computed(() => {
+  return props.user.id === authStore.session?.user?.id
+})
+
+const displayName = computed(() => {
+  return props.user.display_name || props.user.username || 'Unknown User'
+})
+
+const displayHandle = computed(() => {
+  if (isFederatedUser.value) {
+    return (props.user as FederatedUser).handle
+  }
+  return `@${props.user.username || 'unknown'}`
+})
+
+const displayBio = computed(() => {
+  return props.user.bio || ''
+})
+
+const truncatedBio = computed(() => {
+  if (!displayBio.value) return ''
+  return displayBio.value.length > props.maxBioLength 
+    ? displayBio.value.substring(0, props.maxBioLength) + '...' 
+    : displayBio.value
+})
+
+const userRoles = computed(() => {
+  return props.user.roles || []
+})
+
+const isVerified = computed(() => {
+  return (props.user as any).verified || false
+})
+
+const hasStatusBadge = computed(() => {
+  // Add logic for special status badges (bot, moderator, etc.)
+  return false
+})
+
+const statusBadgeIcon = computed(() => {
+  return 'bot'
+})
+
+const avatarSize = computed(() => {
+  return props.isCompact ? 'md' : 'lg'
+})
+
+const userPresenceStatus = computed(() => {
+  if (isFederatedUser.value) return undefined
+  return getPresenceAwareStatus(props.user.id).value
+})
+
+const isFollowLoading = computed(() => {
+  return getLoadingState().follow
+})
+
+const isFollowing = computed(() => {
+  if (!isFederatedUser.value) return false
+  return activityPubStore.isFollowing(props.user.id)
+})
+
+const isMuted = computed(() => {
+  return activityPubStore.isMuted(props.user.id)
+})
+
+const isBlocked = computed(() => {
+  return activityPubStore.isBlocked(props.user.id)
+})
+
+const followButtonText = computed(() => {
+  if (isFollowLoading.value) return 'Loading...'
+  return isFollowing.value ? 'Following' : 'Follow'
+})
+
+// ===== METHODS =====
+const formatNumber = (num: number): string => {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+  return num.toString()
+}
+
+const formatJoinDate = (dateString: string | undefined) => {
+  if (!dateString) return 'Unknown'
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short',
+    day: 'numeric' 
+  })
+}
+
+const formatVoiceTime = (minutes: number | undefined) => {
+  if (!minutes) return '0m'
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}h ${remainingMinutes}m`
+}
+
+const handleClick = () => {
+  if (props.isInteractive) {
+    emit('click', props.user)
+  }
+}
+
+const handleFollowToggle = async () => {
+  if (!isFederatedUser.value || isFollowLoading.value) return
+  
+  try {
+    const result = await toggleFollow(props.user.id)
+    
+    if (result.following) {
+      emit('follow', props.user.id)
+    } else {
+      emit('unfollow', props.user.id)
+    }
+  } catch (error) {
+    console.error('Failed to toggle follow:', error)
+  }
+}
+
+const handleMessage = () => {
+  emit('message', props.user)
+  router.push(`/dm/${props.user.id}`)
+}
+
+const handleMention = () => {
+  if (isFederatedUser.value) {
+    emit('mention', props.user as FederatedUser)
+  }
+}
+
+const handleViewProfile = () => {
+  if (isFederatedUser.value) {
+    const federatedUser = props.user as FederatedUser
+    router.push(`/social/profile/${federatedUser.handle}`)
+  } else {
+    emit('click', props.user)
+  }
+  closeActionsMenu()
+}
+
+const handleMute = async () => {
+  try {
+    if (isMuted.value) {
+      await activityPubStore.unmuteUser(props.user.id)
+      emit('unmute', props.user.id)
+    } else {
+      await activityPubStore.muteUser(props.user.id)
+      emit('mute', props.user.id)
+    }
+  } catch (error) {
+    console.error('Failed to toggle mute:', error)
+  }
+  closeActionsMenu()
+}
+
+const handleBlock = async () => {
+  try {
+    if (isBlocked.value) {
+      await activityPubStore.unblockUser(props.user.id)
+      emit('unblock', props.user.id)
+    } else {
+      await activityPubStore.blockUser(props.user.id)
+      emit('block', props.user.id)
+    }
+  } catch (error) {
+    console.error('Failed to toggle block:', error)
+  }
+  closeActionsMenu()
+}
+
+const closeActionsMenu = () => {
+  showActionsMenu.value = false
+}
+
+// ===== DIRECTIVES =====
+const vClickOutside = {
+  mounted(el: HTMLElement, binding: any) {
+    el._clickOutsideHandler = (event: Event) => {
+      if (!(el === event.target || el.contains(event.target as Node))) {
+        binding.value()
+      }
+    }
+    document.addEventListener('click', el._clickOutsideHandler)
+  },
+  unmounted(el: HTMLElement) {
+    document.removeEventListener('click', el._clickOutsideHandler)
+  }
+}
+</script>
+
+<style scoped>
+/* ===== BASE STYLES ===== */
+.profile-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  transition: all var(--transition-base);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.profile-card.interactive {
+  cursor: pointer;
+}
+
+.profile-card.interactive:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.profile-card.compact {
+  padding: var(--space-3);
+  flex-direction: row;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.profile-card.no-actions .actions-section {
+  display: none;
+}
+
+/* ===== AVATAR SECTION ===== */
+.avatar-section {
+  flex-shrink: 0;
+}
+
+.avatar-wrapper {
+  position: relative;
+}
+
+.status-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: var(--background-primary);
+  border-radius: 50%;
+  padding: 2px;
+}
+
+.status-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--harmony-primary);
+}
+
+/* ===== USER INFO ===== */
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.compact .user-info {
+  margin-bottom: 0;
+}
+
+.name-section {
+  margin-bottom: var(--space-2);
+}
+
+.compact .name-section {
+  margin-bottom: 0;
+}
+
+.display-name {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-1) 0;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.compact .display-name {
+  font-size: var(--font-size-sm);
+  margin-bottom: 2px;
+}
+
+.verified-badge {
+  width: 16px;
+  height: 16px;
+  color: var(--success-primary);
+  flex-shrink: 0;
+}
+
+.user-handle {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.compact .user-handle {
+  font-size: var(--font-size-xs);
+}
+
+/* ===== BIO SECTION ===== */
+.bio-section {
+  margin-bottom: var(--space-2);
+}
+
+.bio-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ===== ROLES SECTION ===== */
+.roles-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  background: rgba(88, 101, 242, 0.1);
+  border: 1px solid rgba(88, 101, 242, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+/* ===== STATS SECTION ===== */
+.stats-section {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.compact .stats-section {
+  gap: var(--space-2);
+  margin-bottom: 0;
+}
+
+.stat {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.compact .stat {
+  font-size: 11px;
+}
+
+.stat strong {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ===== ACTIONS SECTION ===== */
+.actions-section {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--background-primary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.action-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.follow-btn {
+  background: var(--harmony-primary);
+  border-color: var(--harmony-primary);
+  color: white;
+}
+
+.follow-btn:hover {
+  background: var(--harmony-primary-hover, #4f46e5);
+  border-color: var(--harmony-primary-hover, #4f46e5);
+}
+
+.follow-btn.following {
+  background: var(--background-secondary);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.follow-btn.following:hover {
+  background: var(--background-tertiary);
+  border-color: var(--border-hover);
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ===== MORE ACTIONS ===== */
+.more-actions {
+  position: relative;
+}
+
+.more-btn.active {
+  background: var(--background-tertiary);
+  border-color: var(--border-hover);
+}
+
+.actions-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2);
+  min-width: 150px;
+  z-index: 10;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-base);
+}
+
+.action-item:hover {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+}
+
+.action-item.danger {
+  color: var(--error-primary);
+}
+
+.action-item.danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* ===== INSTANCE BADGE ===== */
+.instance-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: rgba(88, 101, 242, 0.1);
+  border: 1px solid rgba(88, 101, 242, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .profile-card:not(.compact) {
+    padding: var(--space-3);
+  }
+  
+  .stats-section {
+    gap: var(--space-2);
+  }
+  
+  .actions-section {
+    flex-wrap: wrap;
+  }
+}
+</style>

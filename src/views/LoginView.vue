@@ -9,7 +9,7 @@ import { useRouter } from 'vue-router';
 import AuthComponent from '@/components/AuthComponent.vue';
 import { useAuthStore } from '@/stores/auth';
 import { UserStatus } from '@/types';
-import { updateUserStatus } from '@/services/profileService';
+import { updateUserStatus } from '@/services/ProfileService';
 
 export default defineComponent({
   name: 'LoginView',

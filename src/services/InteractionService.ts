@@ -1,0 +1,315 @@
+/**
+ * InteractionService - Simplified user interactions (TRUSTS DATABASE TRIGGERS)
+ * 
+ * OPTIMIZATION: Simplified to trust your excellent database federation triggers
+ * - CoreInteractionService: Pure local database operations
+ * - Database triggers: handle_unified_interaction_federation() / handle_follows_federation()
+ * - NO manual federation decisions or activity creation needed
+ * 
+ * PRESERVED APIs: 
+ * - ✅ Same method signatures as before
+ * - ✅ Same return types and error formats
+ * - ✅ Same relationship handling and approval logic
+ * - ✅ Same local-first design (immediate UI updates)
+ * 
+ * SIMPLIFIED ARCHITECTURE:
+ * - Trust database triggers for all federation (follows, blocks, etc.)
+ * - Eliminate unnecessary federation service calls
+ * - Reduce database round trips significantly
+ */
+
+import { supabase } from '@/supabase'
+import type { Profile } from '@/types'
+
+// Import only core service - database handles federation
+import { coreInteractionService } from './core'
+
+export interface FollowResult {
+  following: boolean
+  pending?: boolean
+  followCount?: number
+}
+
+export interface RelationshipInfo {
+  following: boolean
+  followedBy: boolean
+  blocking: boolean
+  muting: boolean
+  followingPending: boolean
+  followedByPending: boolean
+}
+
+export class InteractionService {
+  private static instance: InteractionService
+
+  static getInstance(): InteractionService {
+    if (!InteractionService.instance) {
+      InteractionService.instance = new InteractionService()
+    }
+    return InteractionService.instance
+  }
+
+  // =====================================================
+  // FOLLOW MANAGEMENT (SIMPLIFIED: TRUST DATABASE TRIGGERS)
+  // =====================================================
+
+  /**
+   * Follow/unfollow a user (simplified: database triggers handle federation)
+   * PRESERVES: Exact same API and return type
+   */
+  async toggleFollow(targetUserId: string): Promise<FollowResult> {
+    try {
+      console.log(`🚀 Simplified: Toggling follow for user: ${targetUserId}`)
+
+      // Get current user for validation
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+
+      const profileId = await this.getCurrentUserProfileId()
+
+      if (profileId === targetUserId) {
+        throw this.createError('INVALID_ACTION', 'Cannot follow yourself')
+      }
+
+      // Just toggle the follow - database triggers handle federation automatically
+      const result = await coreInteractionService.toggleFollow(targetUserId)
+
+      console.log(`✅ Simplified: Follow toggled - database handling federation: ${result.following ? 'following' : 'unfollowed'}`)
+      return result
+
+    } catch (error) {
+      console.error('❌ Simplified: Failed to toggle follow:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Accept a follow request (simplified: database triggers handle federation)
+   * PRESERVES: Exact same API and return type
+   */
+  async acceptFollowRequest(followerUserId: string): Promise<void> {
+    try {
+      console.log(`🚀 Simplified: Accepting follow request from: ${followerUserId}`)
+
+      // Just accept the follow request - database triggers handle federation automatically
+      await coreInteractionService.acceptFollowRequest(followerUserId)
+
+      console.log(`✅ Simplified: Follow request accepted - database handling federation: ${followerUserId}`)
+
+    } catch (error) {
+      console.error('❌ Simplified: Failed to accept follow request:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Reject a follow request (simplified: database triggers handle federation)
+   * PRESERVES: Exact same API and return type
+   */
+  async rejectFollowRequest(followerUserId: string): Promise<void> {
+    try {
+      console.log(`🚀 Simplified: Rejecting follow request from: ${followerUserId}`)
+
+      // Just reject the follow request - database triggers handle federation automatically
+      await coreInteractionService.rejectFollowRequest(followerUserId)
+
+      console.log(`✅ Simplified: Follow request rejected - database handling federation: ${followerUserId}`)
+
+    } catch (error) {
+      console.error('❌ Simplified: Failed to reject follow request:', error)
+      throw error
+    }
+  }
+
+  // =====================================================
+  // BLOCKING & MUTING (SIMPLIFIED: TRUST DATABASE TRIGGERS)
+  // =====================================================
+
+  /**
+   * Block/unblock a user (simplified: database triggers handle federation)
+   * PRESERVES: Exact same API and return type
+   */
+  async toggleBlock(targetUserId: string): Promise<{ blocking: boolean }> {
+    try {
+      console.log(`🚀 Simplified: Toggling block for user: ${targetUserId}`)
+
+      // Just toggle the block - database triggers handle federation automatically
+      const result = await coreInteractionService.toggleBlock(targetUserId)
+
+      console.log(`✅ Simplified: Block toggled - database handling federation: ${result.blocking ? 'blocked' : 'unblocked'}`)
+      return result
+
+    } catch (error) {
+      console.error('❌ Simplified: Failed to toggle block:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Mute/unmute a user (local-only: no federation needed)
+   * PRESERVES: Exact same API and return type
+   */
+  async toggleMute(targetUserId: string): Promise<{ muting: boolean }> {
+    try {
+      console.log(`🚀 Simplified: Toggling mute for user: ${targetUserId}`)
+
+      // Muting is always local-only (by design)
+      const result = await coreInteractionService.toggleMute(targetUserId)
+
+      console.log(`✅ Simplified: Mute toggled (local-only): ${result.muting ? 'muted' : 'unmuted'}`)
+      return result
+
+    } catch (error) {
+      console.error('❌ Simplified: Failed to toggle mute:', error)
+      throw error
+    }
+  }
+
+  // =====================================================
+  // RELATIONSHIP QUERIES (DELEGATED TO CORE SERVICE)
+  // =====================================================
+
+  /**
+   * Get user relationships (delegated to core service)
+   * PRESERVES: Exact same API and return type
+   */
+  async getUserRelationships(userIds: string[]): Promise<{
+    [userId: string]: RelationshipInfo;
+  }> {
+    try {
+      console.log(`🚀 Simplified: Getting relationships for ${userIds.length} users`)
+
+      // Delegate to core service (no federation needed for reads)
+      const relationships = await coreInteractionService.getUserRelationships(userIds)
+
+      console.log(`✅ Simplified: Retrieved relationships for ${Object.keys(relationships).length} users`)
+      return relationships
+
+    } catch (error) {
+      console.error('❌ Simplified: Failed to get user relationships:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get followers (delegated to core service)
+   * PRESERVES: Exact same API and return type
+   */
+  async getFollowers(
+    userId: string,
+    options: {
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<{
+    followers: Profile[];
+    hasMore: boolean;
+    total: number;
+  }> {
+    try {
+      console.log(`🚀 Simplified: Getting followers for user: ${userId}`)
+
+      // Delegate to core service (no federation needed for reads)
+      const result = await coreInteractionService.getFollowers(userId, options)
+
+      console.log(`✅ Simplified: Retrieved ${result.followers.length} followers`)
+      return result
+
+    } catch (error) {
+      console.error('❌ Simplified: Failed to get followers:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get following (delegated to core service)
+   * PRESERVES: Exact same API and return type
+   */
+  async getFollowing(
+    userId: string,
+    options: {
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<{
+    following: Profile[];
+    hasMore: boolean;
+    total: number;
+  }> {
+    try {
+      console.log(`🚀 Simplified: Getting following for user: ${userId}`)
+
+      // Delegate to core service (no federation needed for reads)
+      const result = await coreInteractionService.getFollowing(userId, options)
+
+      console.log(`✅ Simplified: Retrieved ${result.following.length} following`)
+      return result
+
+    } catch (error) {
+      console.error('❌ Simplified: Failed to get following:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get follow requests (delegated to core service)
+   * PRESERVES: Exact same API and return type
+   */
+  async getFollowRequests(options: {
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{
+    requests: Array<{
+      id: string;
+      follower: Profile;
+      created_at: string;
+    }>;
+    hasMore: boolean;
+    total: number;
+  }> {
+    try {
+      console.log(`🚀 Simplified: Getting follow requests`)
+
+      // Delegate to core service (no federation needed for reads)
+      const result = await coreInteractionService.getFollowRequests(options)
+
+      console.log(`✅ Simplified: Retrieved ${result.requests.length} follow requests`)
+      return result
+
+    } catch (error) {
+      console.error('❌ Simplified: Failed to get follow requests:', error)
+      throw error
+    }
+  }
+
+  // =====================================================
+  // UTILITY METHODS (PRESERVED)
+  // =====================================================
+
+  private async getCurrentUserProfileId(): Promise<string> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (error || !profile) {
+      throw this.createError('PROFILE_NOT_FOUND', 'User profile not found')
+    }
+
+    return profile.id
+  }
+
+  private createError(code: string, message: string, details?: any): Error {
+    const error = new Error(message) as any
+    error.code = code
+    error.details = details
+    return error
+  }
+}
+
+// Export singleton instance
+export const interactionService = InteractionService.getInstance()

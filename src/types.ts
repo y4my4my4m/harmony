@@ -185,6 +185,17 @@ export interface Reaction {
   emoji: Emoji; // doesn't exist in the database, we're transforming it
   reactions: Reaction[]; // doesn't exist in the database, we're transforming it
 }
+
+// ReactionGroup represents an aggregated group of reactions for a specific emoji
+export interface ReactionGroup {
+  emoji_id: string;
+  emoji: Emoji;
+  count: number;
+  reactions: Array<{
+    reaction_id: string;
+    user_id: string;
+  }>;
+}
 export interface Message {
   id: string;
   created_at: Date;
@@ -307,14 +318,13 @@ export interface Notification {
   id: string;
   user_id: string;
   type: NotificationType;
-  title: string;
-  message?: string;
   data: NotificationData;
   is_read: boolean;
   is_clicked: boolean;
-  created_at?: string;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
   expires_at: string;
+  read_at?: string;
 }
 
 export type NotificationType = 

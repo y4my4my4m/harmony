@@ -12,7 +12,17 @@
       </button>
       
       <div class="conversation-info">
-        <div class="conversation-avatar">
+        <!-- Group Chat Avatar -->
+        <GroupIcon
+          v-if="conversation.type === 'group'"
+          :conversation-id="conversation.id"
+          :icon-path="conversation.icon_url"
+          size="md"
+          class="conversation-avatar"
+        />
+
+        <!-- Direct Chat Avatar -->
+        <div v-else class="conversation-avatar">
           <Avatar
             :src="getAvatarUrl(conversation.other_user?.avatar_url)"
             :alt="getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'User'"
@@ -28,27 +38,60 @@
             <Icon name="globe" />
           </div>
         </div>
+
         <div class="conversation-details">
-          <h2 class="conversation-name">
-            {{ getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}
-          </h2>
-          <div class="conversation-status">
-            <!-- Show federated handle for remote users -->
-            <span v-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#5865F2' }">
-              {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
-            </span>
-            <span v-else-if="otherUserStatus !== 'offline'" class="status">
-              {{ getStatusText(otherUserStatus) }}
-            </span>
-            <span v-else class="status">
-              Last seen {{ formatLastSeen(conversation.other_user?.last_seen) }}
-            </span>
-          </div>
+          <!-- Group Chat Title -->
+          <template v-if="conversation.type === 'group'">
+            <h2 class="conversation-name group-name">
+              {{ conversation.name || getDefaultGroupName() }}
+              <button class="edit-group-name-btn" @click="showGroupSettings = true" title="Edit group settings">
+                <Icon name="settings" />
+              </button>
+            </h2>
+            <div class="conversation-status">
+              <span class="participant-count">
+                {{ conversation.participant_count || 0 }} member{{ (conversation.participant_count || 0) !== 1 ? 's' : '' }}
+              </span>
+              <button class="participants-btn" @click="showParticipants = !showParticipants" title="View participants">
+                <Icon name="users" />
+              </button>
+            </div>
+          </template>
+
+          <!-- Direct Chat Title -->
+          <template v-else>
+            <h2 class="conversation-name">
+              {{ getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'Loading...' }}
+            </h2>
+            <div class="conversation-status">
+              <!-- Show federated handle for remote users -->
+              <span v-if="isFederatedUser" class="federated-handle" :style="{ color: conversation.other_user?.color || '#5865F2' }">
+                {{ conversation.other_user?.handle || `@${conversation.other_user?.username}@${conversation.other_user?.domain}` }}
+              </span>
+              <span v-else-if="otherUserStatus !== 'offline'" class="status">
+                {{ getStatusText(otherUserStatus) }}
+              </span>
+              <span v-else class="status">
+                Last seen {{ formatLastSeen(conversation.other_user?.last_seen) }}
+              </span>
+            </div>
+          </template>
         </div>
       </div>
     </div>
 
     <div class="header-actions">
+      <!-- Add User Button (for group chat invitation) -->
+      <button 
+        class="action-btn add-user-btn"
+        @click="$emit('add-user')"
+        title="Add people to conversation"
+      >
+        <svg viewBox="0 0 24 24" class="add-user-icon">
+          <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z" fill="currentColor"/>
+        </svg>
+      </button>
+      
       <button 
         class="action-btn voice-btn"
         @click="$emit('toggle-voice-panel')"
@@ -80,12 +123,24 @@
       </button>
     </div>
   </div>
+
+  <!-- Group Settings Modal -->
+  <GroupSettingsModal
+    :show="showGroupSettings"
+    :conversation="conversation"
+    :conversation-id="conversation.id"
+    :participants="conversation.participants || []"
+    @close="showGroupSettings = false"
+    @updated="handleGroupUpdated"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import GroupIcon from '@/components/common/GroupIcon.vue'
+import GroupSettingsModal from '@/components/dm/GroupSettingsModal.vue'
 import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
@@ -103,6 +158,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
+  'group-updated': []
 }>()
 
 // Use clean status system
@@ -117,6 +173,15 @@ const {
 const showSearchModal = ref(false)
 const showOptionsMenu = ref(false)
 const presenceInitialized = ref(false)
+
+// Group chat state
+const showGroupSettings = ref(false)
+const showParticipants = ref(false)
+
+// Methods
+function handleGroupUpdated() {
+  emit('group-updated')
+}
 
 // Professional presence management for DM header
 // Always ensure the conversation partner is tracked for presence
@@ -241,6 +306,24 @@ const handleSearchClick = () => {
 const handleMoreClick = () => {
   showOptionsMenu.value = !showOptionsMenu.value
 }
+
+// Group chat methods
+const getDefaultGroupName = (): string => {
+  if (props.conversation.participants && props.conversation.participants.length > 0) {
+    // Show first few participant names
+    const names = props.conversation.participants
+      .slice(0, 3)
+      .map(p => p.display_name || p.username)
+      .join(', ')
+    
+    if (props.conversation.participants.length > 3) {
+      return `${names}, and ${props.conversation.participants.length - 3} others`
+    }
+    return names
+  }
+  
+  return `Group Chat (${props.conversation.participant_count || 0} members)`
+}
 </script>
 
 <style scoped>
@@ -294,6 +377,37 @@ const handleMoreClick = () => {
 .conversation-avatar {
   position: relative;
   flex-shrink: 0;
+}
+
+
+
+.group-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-group-name-btn,
+.participants-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.edit-group-name-btn:hover,
+.participants-btn:hover {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+}
+
+.participant-count {
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .conversation-details {

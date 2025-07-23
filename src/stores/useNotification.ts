@@ -4,6 +4,7 @@ import router from '@/router'
 import { useAuthStore } from './auth'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
+import { services } from '@/services'
 import type { 
   Notification, 
   NotificationType,
@@ -43,7 +44,8 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_reblog: 'reaction',
   activitypub_mention: 'mention',
   activitypub_reply: 'reply',
-  activitypub_follow_request: 'friend_request'
+  activitypub_follow_request: 'friend_request',
+  error: 'server_update' // Map error notifications to server_update sound
 }
 
 // Default notification preferences
@@ -312,27 +314,87 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
 
+    /**
+     * ⚡ OPTIMIZED: Initialize only unread count (not full notification list)
+     * For faster initial page load - full list loads when notification panel is opened
+     */
+    async initializeUnreadCountOnly(userId: string) {
+      if (this.isInitialized) return
+      
+      try {
+        console.log('🔔 Notification Store: Fast initialization (unread count only) for user:', userId)
+        
+        // Check notification permission
+        this.hasPermission = await this.checkNotificationPermission()
+        
+        // Load user preferences (lightweight)
+        await this.loadPreferences(userId)
+        
+        // Get profile ID for queries
+        const profileId = await this.getProfileId(userId)
+        
+        // ✅ Load ONLY unread count (not full notification list)
+        const { data: countData, error: countError } = await supabase
+          .rpc('get_unread_notification_count', { p_user_id: profileId })
+        
+        if (countError) {
+          console.error('Failed to get unread count:', countError)
+          this.unreadCount = 0
+        } else {
+          this.unreadCount = countData || 0
+          console.log(`✅ Unread notification count: ${this.unreadCount}`)
+        }
+        
+        // Setup realtime subscription for new notifications
+        this.setupContextAwareRealtimeSubscription(userId)
+        
+        // Setup DND status check
+        this.setupDndCheck()
+        
+        this.isInitialized = true
+        console.log('✅ Notification Store: Fast initialization complete (unread count only)')
+      } catch (error) {
+        console.error('❌ Notification Store: Failed to initialize unread count:', error)
+        this.unreadCount = 0
+      }
+    },
+
+    /**
+     * ⚡ Load full notification list (called when notification panel is opened)
+     */
+    async loadFullNotificationList(userId: string) {
+      if (this.notifications.length > 0) {
+        console.log('📝 Full notification list already loaded')
+        return
+      }
+      
+      try {
+        this.isLoading = true
+        console.log('📝 Loading full notification list...')
+        await this.fetchNotifications(userId)
+        console.log('✅ Full notification list loaded')
+      } catch (error) {
+        console.error('❌ Failed to load full notification list:', error)
+      } finally {
+        this.isLoading = false
+      }
+    },
+
     async fetchNotifications(userId: string, limit = 50, offset = 0) {
       try {
-        console.log('🔔 Fetching notifications for user:', userId)
+        console.log('🔄 Fetching notifications via NotificationService:', userId)
         
         // Get the profile ID for this auth user ID
         const profileId = await this.getProfileId(userId)
         console.log('🔄 Using profile ID for notifications:', profileId)
         
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', profileId)
-          .order('created_at', { ascending: false })
-          .limit(limit)
+        // Use NotificationService for consistent notification management
+        const data = await services.notifications.fetchNotifications(profileId, {
+          limit,
+          offset
+        })
 
-        if (error) {
-          console.error('❌ Error fetching notifications:', error)
-          throw error
-        }
-
-        console.log(`✅ Fetched ${data?.length || 0} notifications`)
+        console.log(`✅ Fetched ${data?.length || 0} notifications via service layer`)
         
         if (offset === 0) {
           this.notifications = data || []
@@ -345,13 +407,48 @@ export const useNotificationStore = defineStore('notification', {
 
         return data || []
       } catch (error) {
-        console.error('❌ Failed to fetch notifications:', error)
-        // Create mock notifications for development/testing
-        if (process.env.NODE_ENV === 'development') {
-          this.createMockNotifications(userId)
+        console.error('❌ Failed to fetch notifications via service:', error)
+        
+        // Fallback to direct query if service fails
+        try {
+          console.log('🔄 Falling back to direct notification fetch')
+          await this._fetchNotificationsFallback(userId, limit, offset)
+        } catch (fallbackError) {
+          console.error('❌ Fallback fetch also failed:', fallbackError)
+          // Create mock notifications for development/testing
+          if (process.env.NODE_ENV === 'development') {
+            this.createMockNotifications(userId)
+          }
         }
         throw error
       }
+    },
+
+    /**
+     * Fallback method for fetching notifications
+     */
+    async _fetchNotificationsFallback(userId: string, limit = 50, offset = 0) {
+      const profileId = await this.getProfileId(userId)
+      
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', profileId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+      if (error) throw error
+
+      if (offset === 0) {
+        this.notifications = data || []
+      } else {
+        this.notifications.push(...(data || []))
+      }
+
+      this.updateUnreadCount()
+      this.lastFetchedAt = new Date()
+
+      return data || []
     },
 
     /**
@@ -359,10 +456,20 @@ export const useNotificationStore = defineStore('notification', {
      * Database triggers send us structured data, we format messages client-side
      */
     async setupContextAwareRealtimeSubscription(userId: string) {
-      // Clean up existing subscription
+      // ✅ PERFORMANCE FIX: Prevent duplicate subscription setup
       if (this.realtimeSubscription) {
-        console.log('🧹 Cleaning up existing notification subscription')
+        // Check if the existing subscription is for the same user and still active
+        const profileId = await this.getProfileId(userId);
+        const existingChannelName = `harmony-notifications-${profileId}`;
+        if (this.realtimeSubscription.topic === existingChannelName) {
+          console.log('✅ Real-time notification subscription already exists for user, reusing:', userId)
+          return; // Reuse existing subscription
+        }
+        
+        // Only clean up if we're changing users (shouldn't happen in normal flow)
+        console.log('🧹 Cleaning up existing notification subscription for different user')
         supabase.removeChannel(this.realtimeSubscription)
+        this.realtimeSubscription = null
       }
 
       console.log('🔔 Setting up real-time notification subscription for user:', userId)
@@ -691,53 +798,58 @@ export const useNotificationStore = defineStore('notification', {
      * NOTIFICATION MANAGEMENT - UI actions only
      */
     async markAsRead(notificationId: string) {
+      // Find notification for optimistic updates
+      const notification = this.notifications.find(n => n.id === notificationId)
+      
       try {
+        console.log('🔄 Marking notification as read via service:', notificationId)
+        
         // Optimistic update
-        const notification = this.notifications.find(n => n.id === notificationId)
         if (notification) {
           notification.is_read = true
           this.updateUnreadCount()
         }
 
-        console.log(notificationId);
-        const { error } = await supabase
-          .from('notifications')
-          .update({ is_read: true })
-          .eq('id', notificationId)
-
-        if (error) {
-          // Revert on error
-          if (notification) {
-            notification.is_read = false
-            this.updateUnreadCount()
-          }
-          throw error
-        }
+        // Use NotificationService for consistent state management
+        await services.notifications.markAsRead(notificationId)
+        console.log('✅ Notification marked as read via service layer')
       } catch (error) {
-        console.error('Failed to mark notification as read:', error)
+        console.error('❌ Failed to mark notification as read via service:', error)
+        
+        // Revert optimistic update on error
+        if (notification) {
+          notification.is_read = false
+          this.updateUnreadCount()
+        }
+        throw error
       }
     },
 
     async deleteNotification(notificationId: string) {
+      // Find notification and index for optimistic updates
+      const index = this.notifications.findIndex(n => n.id === notificationId)
+      if (index === -1) return
+      
+      const notification = this.notifications[index]
+      
       try {
-        const index = this.notifications.findIndex(n => n.id === notificationId)
-        if (index === -1) return
-        const notification = this.notifications[index]
+        console.log('🔄 Deleting notification via service:', notificationId)
+        
+        // Optimistic update
         this.notifications.splice(index, 1)
         this.updateUnreadCount()
-        const { error } = await supabase
-          .from('notifications')
-          .delete()
-          .eq('id', notificationId)
-        if (error) {
-          // Revert on error
-          this.notifications.splice(index, 0, notification)
-          this.updateUnreadCount()
-          throw error
-        }
+        
+        // Use NotificationService for consistent state management
+        await services.notifications.deleteNotification(notificationId)
+        console.log('✅ Notification deleted via service layer')
       } catch (error) {
-        console.error('Failed to delete notification:', error)
+        console.error('❌ Failed to delete notification via service:', error)
+        
+        // Revert optimistic update on error
+        this.notifications.splice(index, 0, notification)
+        this.updateUnreadCount()
         this.showToast('server_update', 'Failed to delete notification', 'Please try again', 3000)
+        throw error
       }
     },  
 

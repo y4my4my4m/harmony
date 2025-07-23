@@ -162,7 +162,7 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useServerStore } from '@/stores/server'
 import { useServerPermissions } from '@/composables/useServerPermissions'
-import { getProfileWithAvatarUrl } from '@/services/profileService'
+import { getProfileWithAvatarUrl } from '@/services/ProfileService'
 import { useLayoutState } from '@/composables/useLayoutState'
 import type { Server, Emoji } from '@/types'
 

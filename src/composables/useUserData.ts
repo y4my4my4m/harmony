@@ -248,9 +248,17 @@ export function useUserData() {
   /**
    * Initialize the service
    */
-  const initialize = async (userId: string, username: string, avatarUrl?: string) => {
+  const initialize = async (userId: string, username: string, avatarUrl?: string, existingProfile?: any) => {
     ensureInitialized()
-    await userDataService.initialize(userId, username, avatarUrl)
+    await userDataService.initialize(userId, username, avatarUrl, existingProfile)
+  }
+
+  /**
+   * ✅ PERFORMANCE FIX: Initialize background features after critical path
+   */
+  const initializeBackgroundFeatures = async () => {
+    ensureInitialized()
+    await userDataService.initializeBackgroundFeatures()
   }
   
   /**
@@ -501,6 +509,7 @@ export function useUserData() {
   return {
     // Initialization
     initialize,
+    initializeBackgroundFeatures,
     refresh,
     
     // User Data (reactive)

@@ -85,8 +85,9 @@ async function initializeApp() {
     }
     
     // Start reaction cache management
-    reactionCacheManager.startCleanup()
-    console.log('🎯 Reaction cache manager started')
+    // TODO: revisit reactionCacheManager
+    // reactionCacheManager.startCleanup()
+    // console.log('🎯 Reaction cache manager started')
   } catch (error) {
     console.error('❌ Error initializing service worker:', error)
   }

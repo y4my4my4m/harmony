@@ -204,12 +204,12 @@
             </div>
             
             <div v-else class="users-grid">
-              <UserCard
+              <ProfileCard
                 v-for="followedUser in followingUsers"
                 :key="followedUser.id"
                 :user="followedUser"
                 :is-compact="true"
-                @user-click="showUserProfile"
+                @click="showUserProfile"
               />
             </div>
           </div>
@@ -223,12 +223,12 @@
             </div>
             
             <div v-else class="users-grid">
-              <UserCard
+              <ProfileCard
                 v-for="follower in followerUsers"
                 :key="follower.id"
                 :user="follower"
                 :is-compact="true"
-                @user-click="showUserProfile"
+                @click="showUserProfile"
               />
             </div>
           </div>
@@ -256,7 +256,7 @@ import { format } from 'date-fns';
 import MonyHeader from '@/components/activitypub/MonyHeader.vue'
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import MonyContent from '@/components/activitypub/MonyContent.vue';
-import UserCard from '@/components/activitypub/UserCard.vue';
+import ProfileCard from '@/components/common/ProfileCard.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
@@ -620,8 +620,8 @@ const loadFollowing = async () => {
     const following = await activityPubService.getFollowing(user.value.id, { limit: 50 });
     followingUsers.value = following || [];
     
-    console.log(`📊 Loaded ${followingUsers.value.length} following for ${user.value.username}`);
-    console.log('👥 Following users:', followingUsers.value.map(u => u.display_name || u.username));
+    console.log(`📊 Loaded ${followingUsers.value.length} following for ${user.value?.username || 'unknown'}`);
+    console.log('👥 Following users:', followingUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
     
     // Update following count with actual loaded data
     if (user.value) {
@@ -644,8 +644,8 @@ const loadFollowers = async () => {
     const followers = await activityPubService.getFollowers(user.value.id, { limit: 50 });
     followerUsers.value = followers || [];
     
-    console.log(`📊 Loaded ${followerUsers.value.length} followers for ${user.value.username}`);
-    console.log('👥 Follower users:', followerUsers.value.map(u => u.display_name || u.username));
+    console.log(`📊 Loaded ${followerUsers.value.length} followers for ${user.value?.username || 'unknown'}`);
+    console.log('👥 Follower users:', followerUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
     
     // Update followers count with actual loaded data
     if (user.value) {
@@ -837,9 +837,13 @@ watch(() => route.params.handle, (newHandle) => {
 }, { immediate: true });
 
 // Ensure profile loads on mount
-onMounted(() => {
+onMounted(async () => {
   const handle = currentHandle.value;
   console.log(`🔄 UserProfileView mounted with handle: ${handle}`);
+  
+  // Initialize ActivityPub store to load followed users
+  await activityPubStore.initialize();
+  
   if (handle && typeof handle === 'string') {
     loadUserProfile(handle);
   }

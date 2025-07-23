@@ -3,15 +3,26 @@
     <!-- Header -->
     <div class="dm-header">
       <h2 class="dm-title">Direct Messages</h2>
-      <button 
-        class="new-dm-btn"
-        @click="showUserSearch = !showUserSearch"
-        title="Start a new DM"
-      >
-        <svg viewBox="0 0 24 24" class="icon">
-          <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
-        </svg>
-      </button>
+      <div class="header-actions">
+        <button 
+          class="new-dm-btn"
+          @click="showUserSearch = !showUserSearch"
+          title="Start a new DM"
+        >
+          <svg viewBox="0 0 24 24" class="icon">
+            <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button 
+          class="group-chat-btn"
+          @click="showGroupChatModal = true"
+          title="Create group chat"
+        >
+          <svg viewBox="0 0 24 24" class="icon">
+            <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- User Search -->
@@ -99,13 +110,28 @@
           class="conversation-item"
           :class="{ 
             'active': conversation.id === dmStore.currentConversationId,
-            'unread': conversation.unread_count && conversation.unread_count > 0
+            'unread': conversation.unread_count && conversation.unread_count > 0,
+            'group-chat': conversation.type === 'group'
           }"
           @click="selectConversation(conversation.id)"
+          @mouseenter="handleConversationHover(conversation.id)"
         >
+          <!-- Group Chat Avatar: Uses group icon from metadata -->
+          <GroupIcon
+            v-if="conversation.type === 'group'"
+            :conversation-id="conversation.id"
+            :icon-path="conversation.icon_url"
+            size="sm"
+            :show-participant-count="true"
+            :participant-count="conversation.participant_count"
+            class="conversation-avatar"
+          />
+
+          <!-- Direct Chat Avatar: Uses other user's profile avatar -->
           <Avatar
-            :src="getUserAvatarUrl(conversation.other_user?.id || '').value"
-            :alt="getUserDisplayName(conversation.other_user?.id || '').value"
+            v-else
+            :src="getConversationAvatarUrl(conversation)"
+            :alt="getConversationDisplayName(conversation)"
             size="sm"
             :status="getConversationUserStatus(conversation)"
             class="conversation-avatar"
@@ -115,7 +141,14 @@
             <div class="conversation-header">
               <div class="conversation-name-container">
                 <div class="conversation-name">
-                  {{ getUserDisplayName(conversation.other_user?.id || '').value }}
+                  <!-- Group Chat Name -->
+                  <template v-if="conversation.type === 'group'">
+                    {{ conversation.name || getDefaultGroupName(conversation) }}
+                  </template>
+                  <!-- Direct Chat Name -->
+                  <template v-else>
+                    {{ getConversationDisplayName(conversation) }}
+                  </template>
                 </div>
                 <div v-if="conversation.other_user && !conversation.other_user.is_local && conversation.other_user.domain" 
                      class="federated-indicator" 
@@ -145,6 +178,13 @@
         </div>
       </div>
     </div>
+
+    <!-- Group Chat Invite Modal -->
+    <GroupChatInviteModal
+      :show="showGroupChatModal"
+      @close="showGroupChatModal = false"
+      @conversation-created="handleGroupChatCreated"
+    />
   </div>
 </template>
 
@@ -154,6 +194,8 @@ import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
 import type { Message, MessagePart } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
+import GroupIcon from '@/components/common/GroupIcon.vue'
+import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 
 const emit = defineEmits<{
   'conversationSelected': [conversationId: string]
@@ -167,17 +209,40 @@ const {
   getUserAvatarUrl, 
   getCurrentUser,
   subscribeToDMPresence,
-  updateDMPresence,
   getPresenceAwareStatus
 } = useUserData()
 
 // State
 const showUserSearch = ref(false)
+const showGroupChatModal = ref(false)
 const searchQuery = ref('')
 const searchTimeout = ref<NodeJS.Timeout | null>(null)
 
 // Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
+
+// Helper functions for conversation display
+const getConversationDisplayName = (conversation: DMConversation): string => {
+  if (!conversation.other_user) return 'Unknown User'
+  
+  if (conversation.other_user._isPlaceholder) {
+    return 'Loading...' // Show loading state for placeholder data
+  }
+  
+  // Use the existing helper for loaded data
+  return getUserDisplayName(conversation.other_user.id).value || conversation.other_user.display_name || conversation.other_user.username || 'Unknown User'
+}
+
+const getConversationAvatarUrl = (conversation: DMConversation): string => {
+  if (!conversation.other_user) return ''
+  
+  if (conversation.other_user._isPlaceholder) {
+    return '' // No avatar for placeholder data
+  }
+  
+  // Use the existing helper for loaded data
+  return getUserAvatarUrl(conversation.other_user.id).value || conversation.other_user.avatar_url || ''
+}
 
 // Get user status for avatar display (presence-aware)
 const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
@@ -191,12 +256,18 @@ const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' =
   }
 }
 
-// Get conversation user status
+// Get conversation user status (optimized for placeholder data)
 const getConversationUserStatus = (conversation: DMConversation): 'online' | 'away' | 'busy' | 'offline' => {
   if (!conversation.other_user?.id) {
     console.log('DMSidebar - No other_user.id for conversation:', conversation.id);
     return 'offline';
   }
+  
+  // Don't load presence for placeholder data
+  if (conversation.other_user._isPlaceholder) {
+    return 'offline';
+  }
+  
   return getUserStatus(conversation.other_user.id);
 }
 
@@ -241,6 +312,27 @@ const startConversation = async (user: DMUser) => {
 
 const selectConversation = (conversationId: string) => {
   emit('conversationSelected', conversationId)
+}
+
+const handleGroupChatCreated = (conversationId: string) => {
+  selectConversation(conversationId)
+}
+
+const getDefaultGroupName = (conversation: DMConversation): string => {
+  if (conversation.participants && conversation.participants.length > 0) {
+    // Show first few participant names
+    const names = conversation.participants
+      .slice(0, 3)
+      .map(p => p.display_name || p.username)
+      .join(', ')
+    
+    if (conversation.participants.length > 3) {
+      return `${names}, and ${conversation.participants.length - 3} others`
+    }
+    return names
+  }
+  
+  return `Group Chat (${conversation.participant_count || 0} members)`
 }
 
 const formatMessageTime = (timestamp: string): string => {
@@ -296,27 +388,61 @@ const getMessagePreviewText = (message: Message): string => {
   return 'Message'
 }
 
+// ⚡ OPTIMIZATION: Lazy user profile loading
+const hoveredConversations = ref(new Set<string>())
+
+const handleConversationHover = async (conversationId: string) => {
+  if (hoveredConversations.value.has(conversationId)) {
+    return // Already loaded
+  }
+  
+  hoveredConversations.value.add(conversationId)
+  
+  try {
+    // Load user profile for this conversation on demand
+    const success = await dmStore.loadConversationUserProfile(conversationId)
+    
+    if (success) {
+      // Also load presence for this specific user if not already loaded
+      const conversation = dmStore.conversations.find(c => c.id === conversationId)
+      if (conversation?.other_user?.id && !conversation.other_user._isPlaceholder) {
+        const { subscribeToDMPresence } = useUserData()
+        await subscribeToDMPresence([conversation.other_user.id])
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load conversation profile on hover:', conversationId, error)
+  }
+}
+
 // Lifecycle
 onMounted(async () => {
   const currentUser = getCurrentUser.value
   if (currentUser?.id) {
-    // Use the enhanced initialization that ensures user profiles are loaded
-    await dmStore.initializeDMEnvironmentForDirectAccess(currentUser.id)
-    
-    // Professional DM presence management
-    // Get all conversation partner IDs and subscribe to their presence
-    const conversationUserIds = sortedConversations.value
-      .map(conv => conv.other_user?.id)
-      .filter((id): id is string => !!id)
-    
-    if (conversationUserIds.length > 0) {
-      try {
-        await subscribeToDMPresence(conversationUserIds)
-        console.log(`🗨️ DMSidebar: Tracking presence for ${conversationUserIds.length} conversation partners`)
-      } catch (error) {
-        console.error('Failed to subscribe to DM presence:', error)
+    // OPTIMIZED: Don't initialize DM environment again - BaseLayout already handles it
+    // Just wait for conversations to be available if they're being loaded
+    if (dmStore.loadingConversations) {
+      console.log('⏳ DMSidebar: Waiting for DM conversations to load...')
+      
+      // Wait for conversations to be loaded
+      const checkConversations = () => {
+        return new Promise<void>((resolve) => {
+          const interval = setInterval(() => {
+            if (!dmStore.loadingConversations) {
+              clearInterval(interval)
+              resolve()
+            }
+          }, 50)
+        })
       }
+      
+      await checkConversations()
     }
+    
+    console.log('✅ DMSidebar: Ready with optimized loading')
+    
+    // OPTIMIZED: Don't load all user presence immediately
+    // User profiles and presence will be loaded on-demand when conversations are hovered
   }
 })
 
@@ -326,21 +452,7 @@ onUnmounted(() => {
   }
 })
 
-// Watch for conversation changes and update DM presence
-watch(sortedConversations, async (newConversations) => {
-  const conversationUserIds = newConversations
-    .map(conv => conv.other_user?.id)
-    .filter((id): id is string => !!id)
-  
-  if (conversationUserIds.length > 0) {
-    try {
-      await updateDMPresence(conversationUserIds)
-      console.log(`🗨️ DMSidebar: Updated presence tracking for ${conversationUserIds.length} conversation partners`)
-    } catch (error) {
-      console.error('Failed to update DM presence:', error)
-    }
-  }
-}, { deep: true })
+// OPTIMIZED: Removed automatic presence updates - now handled on-demand during hover
 </script>
 
 <style scoped>
@@ -362,6 +474,12 @@ watch(sortedConversations, async (newConversations) => {
   justify-content: space-between;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .dm-title {
   font-size: 16px;
   font-weight: 600;
@@ -369,7 +487,8 @@ watch(sortedConversations, async (newConversations) => {
   margin: 0;
 }
 
-.new-dm-btn {
+.new-dm-btn,
+.group-chat-btn {
   width: 24px;
   height: 24px;
   background: none;
@@ -381,7 +500,8 @@ watch(sortedConversations, async (newConversations) => {
   transition: all 0.15s ease;
 }
 
-.new-dm-btn:hover {
+.new-dm-btn:hover,
+.group-chat-btn:hover {
   color: #ffffff;
   background: var(--h-chat-light, #40444b);
 }
@@ -570,6 +690,8 @@ watch(sortedConversations, async (newConversations) => {
   height: 32px;
   flex-shrink: 0;
 }
+
+
 
 .avatar-image {
   width: 100%;

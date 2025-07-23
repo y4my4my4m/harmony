@@ -8,6 +8,7 @@
         :is-mobile="isMobile"
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-voice-panel="$emit('toggleVoicePanel')"
+        @add-user="showAddUserModal = true"
       />
       <div v-else class="dm-placeholder-header">
         <div class="header-content">
@@ -39,14 +40,26 @@
         @send-message="handleSendMessage"
       />
     </div>
+
+    <!-- Group Chat Invite Modal for Adding Users -->
+    <GroupChatInviteModal
+      :show="showAddUserModal"
+      :conversation-id="currentConversation?.id"
+      :existing-participants="existingParticipants"
+      @close="showAddUserModal = false"
+      @users-added="handleUsersAdded"
+      @conversation-created="handleConversationCreated"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import DMHeader from '@/components/dm/DMHeader.vue'
+import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import { useLayoutState } from '@/composables/useLayoutState'
@@ -72,6 +85,7 @@ const emit = defineEmits<{
 const dmStore = useDMStore()
 const authStore = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 
 // User data
 const { getCurrentUser } = useUserData()
@@ -82,10 +96,44 @@ const { isMobile } = useLayoutState()
 // State
 const isLoading = ref(false)
 const isAtBottom = ref(true)
+const showAddUserModal = ref(false)
+
+// Toast
+const toast = useToast()
 
 // Computed
 const chatMessages = computed(() => dmStore.currentDMMessages)
 const currentConversation = computed(() => dmStore.getCurrentConversation)
+
+const existingParticipants = computed(() => {
+  const conversation = currentConversation.value
+  const currentUser = getCurrentUser.value
+  
+  if (!conversation?.other_user || !currentUser) return []
+  
+  // For now, return basic participant data
+  // In the future, this could be enhanced to fetch from conversation_participants table
+  return [
+    {
+      id: currentUser.id,
+      username: currentUser.username || '',
+      display_name: currentUser.displayName,
+      avatar_url: currentUser.avatarUrl,
+      is_local: true,
+      domain: null,
+      handle: `@${currentUser.username}`
+    },
+    {
+      id: conversation.other_user.id,
+      username: conversation.other_user.username,
+      display_name: conversation.other_user.display_name,
+      avatar_url: conversation.other_user.avatar_url,
+      is_local: conversation.other_user.is_local || false,
+      domain: conversation.other_user.domain,
+      handle: conversation.other_user.handle
+    }
+  ]
+})
 
 // Load messages when route changes
 const loadMessages = async () => {
@@ -131,14 +179,46 @@ const handleSendMessage = async (content: MessagePart[], replyTo?: string) => {
   }
 }
 
+// Group chat methods
+
+const handleUsersAdded = async (conversationId: string, userIds: string[]) => {
+  // Refresh conversation data to show new participants
+  const currentUser = getCurrentUser.value
+  if (currentUser?.id) {
+    try {
+      // Refresh conversation details to get updated participant info
+      await dmStore.fetchConversationDetails(conversationId, currentUser.id)
+      // Optionally reload messages to show the system message about added users
+      await dmStore.fetchConversationMessages(conversationId)
+    } catch (error) {
+      console.error('Failed to refresh conversation after adding users:', error)
+    }
+  }
+}
+
+const handleConversationCreated = async (newConversationId: string) => {
+  // Navigate to the new group conversation
+  try {
+    await router.push(`/dm/${newConversationId}`)
+  } catch (error) {
+    console.error('Failed to navigate to new conversation:', error)
+  }
+}
+
 // Watch for conversation changes
 watch(() => route.params.conversationId, loadMessages, { immediate: true })
 
-// Initialize DM environment on mount
+// Initialize DM environment on mount as fallback (BaseLayout should handle it, but ensure it's loaded)
 onMounted(async () => {
   const userId = authStore.session?.user?.id
   if (userId) {
-    await dmStore.initializeDMEnvironment(userId)
+    // Only initialize if conversations aren't already loaded
+    if (dmStore.conversations.length === 0 && !dmStore.loadingConversations) {
+      console.log('🔄 DMView: Fallback DM initialization (BaseLayout may not have loaded DMs)')
+      await dmStore.initializeDMEnvironment(userId, false, true) // metadata only as fallback
+    } else {
+      console.log('✅ DMView: DMs already loaded by BaseLayout')
+    }
   }
 })
 </script>

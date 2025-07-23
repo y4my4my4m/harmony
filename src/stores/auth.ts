@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
-import { updateUserStatus } from '@/services/profileService';
+import { updateUserStatus } from '@/services/ProfileService';
 import { UserStatus } from '@/types';
 import router from '@/router';
 
@@ -21,7 +21,8 @@ export const useAuthStore = defineStore('auth', {
       if (this.session?.user?.id) {
         // DO NOT force status to online - let userDataService handle status properly
         this.setupOfflineHandlers(this.session.user.id);
-        await this.initializeNotificationSystem(this.session.user.id);
+        // Note: Notification system is now initialized by RouteAwareInitialization
+        // to only load unread count initially (full list loads on-demand)
       }
 
       supabase.auth.onAuthStateChange(async (_, session) => {
@@ -33,7 +34,7 @@ export const useAuthStore = defineStore('auth', {
         if (session?.user?.id) {
           // User logged in - let userDataService handle status restoration
           this.setupOfflineHandlers(session.user.id);
-          await this.initializeNotificationSystem(session.user.id);
+          // Note: Notification system is now initialized by RouteAwareInitialization
         } else if (wasLoggedIn && previousUserId) {
           // User logged out
           await this.setUserOffline(previousUserId);
@@ -132,6 +133,16 @@ export const useAuthStore = defineStore('auth', {
         await this.setUserOffline(this.session.user.id);
       }
       this.cleanupOfflineHandlers();
+      
+      // ✅ PERFORMANCE FIX: Cleanup state persistence before logout
+      try {
+        const { statePersistence } = await import('@/services/StatePersistence')
+        await statePersistence.cleanup()
+        console.log('✅ State persistence cleaned up on logout')
+      } catch (error) {
+        console.error('❌ Error cleaning up state persistence:', error)
+      }
+      
       // should make it async but for some reason it's bugging...
       supabase.auth.signOut();
       this.session = null;

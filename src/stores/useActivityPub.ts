@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
+import { services } from '@/services';
 import router from '@/router';
 // InteractionService removed - using direct database operations
 import type { 
@@ -160,7 +161,13 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Check if user is following another user
      */
     isFollowing: (state) => (userId: string) => {
-      return state.followedUsers.has(userId);
+      const following = state.followedUsers.has(userId);
+      console.log(`🔍 isFollowing check for ${userId}:`, {
+        following,
+        followedUsersSize: state.followedUsers.size,
+        followedUsersList: Array.from(state.followedUsers).slice(0, 5) // First 5 for debug
+      });
+      return following;
     },
 
     /**
@@ -221,6 +228,7 @@ export const useActivityPubStore = defineStore('activitypub', {
         console.log('✅ ActivityPub store initialized successfully');
       } catch (error) {
         console.error('❌ Failed to initialize ActivityPub store:', error);
+        throw error;
       }
     },
 
@@ -1034,7 +1042,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Create a new post (Mony)
      */
     async createPost(postData?: {
-      content?: string;
+      content?: string | MessagePart[];
       visibility?: Post['visibility'];
       content_warning?: string;
       contentWarning?: string;
@@ -1058,9 +1066,20 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Upload media attachments if any
         const mediaUrls = await this.uploadMediaAttachments(mediaAttachments);
 
-        // Use activityPubService to create the post
-        const post = await activityPubService.createPost({
-          content: await this.formatPostContent(content),
+        // Handle content format - content should already be MessagePart[] from component
+        let finalContent: MessagePart[];
+        if (Array.isArray(content)) {
+          // Content is already parsed MessagePart[] from component
+          finalContent = content;
+        } else if (typeof content === 'string') {
+          // Fallback: parse string content (legacy support)
+          finalContent = await this.formatPostContent(content);
+        } else {
+          throw new Error('Invalid content format - must be MessagePart[] or string');
+        }
+        
+        const post = await services.posts.createPost({
+          content: finalContent,
           visibility: visibility,
           content_warning: contentWarning,
           in_reply_to: replyTo,
@@ -1120,7 +1139,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     /**
      * Format post content for storage with mention detection and unified format
      */
-    async formatPostContent(content: string): Promise<any> {
+    async formatPostContent(content: string): Promise<MessagePart[]> {
       // Use the centralized unified content processing utility
       const { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveHashtagsData } = await import('@/utils/unifiedContentProcessing');
       
@@ -1131,29 +1150,23 @@ export const useActivityPubStore = defineStore('activitypub', {
         resolveHashtagsData(content)
       ]);
       
-      return parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
+      return await parseContentToMessageParts(content, usernameToUserDataMap, emojiDataMap, hashtagDataMap);
     },
 
     /**
-     * Load post with author information - clean and professional
+     * Load post with author information - migrated to service layer
      */
     async loadPostWithAuthor(postId: string): Promise<TimelinePost | null> {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('User not authenticated');
-
-        const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
-          p_user_id: user.id,
-          p_timeline_type: 'public',
-          p_limit: 1,
-          p_max_id: null
-        });
-
-        if (error) throw error;
-
-        return data?.find((post: any) => post.id === postId) || null;
+        console.log('🔄 Loading post via PostService:', postId);
+        
+        // Use services.posts for consistent loading with service layer
+        const post = await services.posts.loadPost(postId);
+        
+        console.log('✅ Post loaded via service layer:', post ? 'found' : 'not found');
+        return post;
       } catch (error) {
-        console.error('Failed to load post with author:', error);
+        console.error('❌ Failed to load post via service:', error);
         return null;
       }
     },
@@ -1803,85 +1816,127 @@ export const useActivityPubStore = defineStore('activitypub', {
       */
      async loadFollowedUsers() {
        try {
-         const user = await supabase.auth.getUser();
-         if (!user.data.user) return;
-
-         const { data, error } = await supabase
-           .from('follows')
-           .select('following_id')
-           .eq('follower_id', user.data.user.id)
-           .eq('status', 'accepted');
-
-         if (error) throw error;
-
-         this.followedUsers = new Set(data.map(f => f.following_id));
+         console.log('🔄 Loading followed users via InteractionService');
+         
+                 // Get current user ID via service layer for consistency
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.auth_user_id) {
+          console.log('ℹ️ No current user available, skipping followed users loading');
+          return;
+        }
+        
+        console.log('🔄 Current user for loading followed users:', currentUser.auth_user_id);
+         
+                 // Use InteractionService for consistent relationship management
+        const result = await services.interactions.getFollowing(currentUser.auth_user_id);
+         console.log('🔄 Service result:', result);
+         
+         this.followedUsers = new Set(result.users.map(user => user.id));
+         
+         console.log(`✅ Loaded ${this.followedUsers.size} followed users via service layer`);
+         console.log('✅ followedUsers Set contents:', Array.from(this.followedUsers));
        } catch (error) {
-         console.error('Failed to load followed users:', error);
+         console.error('❌ Failed to load followed users via service:', error);
+         
+         // Fallback to direct query if service fails
+         try {
+           console.log('🔄 Trying fallback method...');
+           await this._loadFollowedUsersFallback();
+           console.log(`✅ Fallback loaded ${this.followedUsers.size} followed users`);
+           console.log('✅ Fallback followedUsers Set contents:', Array.from(this.followedUsers));
+         } catch (fallbackError) {
+           console.error('❌ Fallback loading also failed:', fallbackError);
+         }
        }
      },
 
      /**
-      * Follow a user
+      * Fallback method for loading followed users
+      */
+     async _loadFollowedUsersFallback() {
+       const user = await supabase.auth.getUser();
+       if (!user.data.user) return;
+
+       const { data, error } = await supabase
+         .from('follows')
+         .select('following_id')
+         .eq('follower_id', user.data.user.id)
+         .eq('status', 'accepted');
+
+       if (error) throw error;
+       this.followedUsers = new Set(data.map(f => f.following_id));
+     },
+
+     /**
+      * Follow a user via InteractionService
       */
      async followUser(userId: string) {
        try {
-         // Check if already following to prevent duplicate requests
-         if (this.followedUsers.has(userId)) {
-           console.warn('Already following user:', userId);
-           return;
-         }
-
-         await activityPubService.followUser(userId);
+         console.log('🔄 Following user via InteractionService:', userId);
          
-         this.followedUsers.add(userId);
-         this.followingCount++;
-       } catch (error) {
-         console.error('Failed to follow user:', error);
-         // If "Already following" error, sync our state
-         if (error instanceof Error && error.message.includes('Already following')) {
+         // Use InteractionService for optimistic follow with federation
+         const result = await services.interactions.toggleFollow(userId);
+         
+         if (result.following) {
            this.followedUsers.add(userId);
+           this.followingCount++;
+           console.log('✅ User followed successfully via service layer');
          }
+         
+         return result;
+       } catch (error) {
+         console.error('❌ Failed to follow user via service:', error);
          throw error;
        }
      },
 
      /**
-      * Unfollow a user
+      * Unfollow a user via InteractionService
       */
      async unfollowUser(userId: string) {
        try {
-         // Check if actually following to prevent unnecessary requests
-         if (!this.followedUsers.has(userId)) {
-           console.warn('Not following user:', userId);
-           return;
-         }
-
-         await activityPubService.unfollowUser(userId);
+         console.log('🔄 Unfollowing user via InteractionService:', userId);
          
-         this.followedUsers.delete(userId);
-         this.followingCount--;
+         // Use InteractionService for optimistic unfollow with federation
+         const result = await services.interactions.toggleFollow(userId);
+         
+         if (!result.following) {
+           this.followedUsers.delete(userId);
+           this.followingCount--;
+           console.log('✅ User unfollowed successfully via service layer');
+         }
+         
+         return result;
        } catch (error) {
-         console.error('Failed to unfollow user:', error);
+         console.error('❌ Failed to unfollow user via service:', error);
          throw error;
        }
      },
 
      /**
-      * Toggle follow status for a user (recommended method)
+      * Toggle follow status via InteractionService (recommended method)
       */
      async toggleFollow(userId: string): Promise<{ following: boolean }> {
        try {
-         const isCurrentlyFollowing = this.followedUsers.has(userId);
+         console.log('🔄 Toggling follow via InteractionService:', userId);
          
-         if (isCurrentlyFollowing) {
-           await this.unfollowUser(userId);
-           return { following: false };
+         // Use InteractionService for optimistic toggle with federation
+         const result = await services.interactions.toggleFollow(userId);
+         
+         // Update local state based on result
+         if (result.following) {
+           this.followedUsers.add(userId);
+           if (!this.followedUsers.has(userId)) this.followingCount++;
          } else {
-           await this.followUser(userId);
-           return { following: true };
+           this.followedUsers.delete(userId);
+           this.followingCount--;
          }
+         
+         console.log(`✅ Follow toggled via service: ${result.following ? 'following' : 'unfollowed'}`);
+         return result;
        } catch (error) {
-         console.error('Failed to toggle follow:', error);
+         console.error('❌ Failed to toggle follow via service:', error);
          throw error;
        }
      },
@@ -2037,7 +2092,7 @@ export const useActivityPubStore = defineStore('activitypub', {
            language: 'en'
          };
 
-         const reply = await activityPubService.createPost(replyData);
+         const reply = await services.posts.createPost(replyData);
          
          // Clear conversation cache to force refresh
          this.conversationContexts.clear();
