@@ -633,9 +633,6 @@
     <circle v-if="name === 'search'" cx="11" cy="11" r="8"></circle>
     <path v-if="name === 'search'" d="m21 21-4.35-4.35"></path>
 
-    <!-- Loader/Spinner -->
-    <path v-if="name === 'loader'" d="M21 12a9 9 0 11-6.219-8.56"></path>
-
     <!-- Check -->
     <polyline v-if="name === 'check'" points="20 6 9 17 4 12"></polyline>
 
