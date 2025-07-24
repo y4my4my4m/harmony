@@ -23,9 +23,33 @@ const MESSAGE_TEMPLATES = {
   },
   
   dm: {
-    title: (data: any) => `${data.sender.username} sent you a message`,
-    message: (data: any) => data.message.content_preview || 'Click to view message',
-    shortTitle: (data: any) => `DM from ${data.sender.username}`
+    title: (data: any) => {
+      // Handle both new database format and legacy format
+      const senderUsername = data.sender?.username || data.sender_username || 'Someone'
+      return `${senderUsername} sent you a message`
+    },
+    message: (data: any) => {
+      // Handle different preview formats
+      let preview = data.message?.content_preview || data.preview || data.content_preview
+      
+      // If preview is a JSON string (from database), parse it
+      if (typeof preview === 'string' && preview.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(preview)
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].text) {
+            preview = parsed[0].text
+          }
+        } catch (e) {
+          // Use as-is if parsing fails
+        }
+      }
+      
+      return preview || 'Click to view message'
+    },
+    shortTitle: (data: any) => {
+      const senderUsername = data.sender?.username || data.sender_username || 'Someone'
+      return `DM from ${senderUsername}`
+    }
   },
   
   reaction: {

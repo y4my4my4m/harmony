@@ -518,35 +518,8 @@ export const useNotificationStore = defineStore('notification', {
 
               console.log('🎯 UI Decision:', uiDecision)
 
-              // Show toast notification if appropriate
-              if (uiDecision.showToast) {
-                console.log('🍞 Showing toast notification')
-                this.showToast(
-                  newNotification.type,
-                  formatted.title,
-                  formatted.message,
-                  4000,
-                  NotificationFormatter.getAvatarUrl(newNotification)
-                )
-              } else {
-                console.log('🚫 Toast notification suppressed by UI decision')
-              }
-
-              // Show desktop notification if appropriate
-              if (uiDecision.showDesktop && this.shouldShowDesktopNotification(newNotification.type)) {
-                console.log('🖥️ Showing desktop notification')
-                this.showDesktopNotification(newNotification, formatted)
-              } else {
-                console.log('🚫 Desktop notification suppressed')
-              }
-
-              // Play sound if appropriate
-              if (uiDecision.playSound && this.shouldPlaySound(newNotification.type)) {
-                console.log('🔊 Playing notification sound')
-                this.playNotificationSound(newNotification.type)
-              } else {
-                console.log('🔇 Sound notification suppressed')
-              }
+              // Process notification through unified notification system
+              this.handleRealtimeNotification(newNotification, formatted, uiDecision)
 
             } catch (error) {
               console.error('❌ Error handling real-time notification:', error)
@@ -573,6 +546,65 @@ export const useNotificationStore = defineStore('notification', {
             console.warn('🔒 Real-time subscription closed')
           }
         })
+    },
+
+    /**
+     * Handle realtime notification through unified notification system
+     * This method processes incoming notifications from database triggers
+     * and determines the appropriate UI actions based on user context
+     */
+    handleRealtimeNotification(
+      notification: Notification, 
+      formatted: any, 
+      uiDecision: any
+    ) {
+      try {
+        console.log('🔔 Processing realtime notification through unified system:', {
+          type: notification.type,
+          uiDecision
+        })
+
+        // Show toast notification if appropriate
+        if (uiDecision.showToast) {
+          console.log('🍞 Showing toast notification')
+          this.showToast(
+            notification.type,
+            formatted.title,
+            formatted.message,
+            4000,
+            NotificationFormatter.getAvatarUrl(notification)
+          )
+        } else {
+          console.log('🚫 Toast notification suppressed by UI decision')
+        }
+
+        // Show desktop notification if appropriate
+        if (uiDecision.showDesktop && this.shouldShowDesktopNotification(notification.type)) {
+          console.log('🖥️ Showing desktop notification')
+          this.showDesktopNotification(notification, formatted)
+        } else {
+          console.log('🚫 Desktop notification suppressed')
+        }
+
+        // Play sound if appropriate
+        if (uiDecision.playSound && this.shouldPlaySound(notification.type)) {
+          console.log('🔊 Playing notification sound')
+          this.playNotificationSound(notification.type)
+        } else {
+          console.log('🔇 Sound notification suppressed')
+        }
+
+        console.log('✅ Realtime notification processed successfully through unified system')
+      } catch (error) {
+        console.error('❌ Error processing realtime notification:', error)
+        // Fallback: show minimal toast notification
+        this.showToast(
+          'server_update',
+          'New notification',
+          'A notification was received but could not be processed properly',
+          3000
+        )
+      }
     },
 
     /**
