@@ -102,7 +102,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/useTheme'
 import { useNotificationStore } from '@/stores/useNotification'
-import { AudioThemeService } from '@/services/AudioThemeService'
 import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
 import Icon from '@/components/common/Icon.vue'
 import type { AudioAction } from '@/types'
