@@ -653,6 +653,8 @@
     <line v-if="name === 'globe' || name === 'federation'" x1="2" y1="12" x2="22" y2="12"></line>
     <path v-if="name === 'globe' || name === 'federation'" d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
 
+    <!-- Zap -->
+    <path v-if="name === 'zap'" d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"></path>
 
 </svg>
 </template>
