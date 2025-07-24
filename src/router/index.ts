@@ -95,7 +95,20 @@ const router = createRouter({
         }
       ]
     },
-    // Social Layout Routes
+    // ActivityPub Post Routes (NEW ARCHITECTURE)
+    {
+      path: '/posts/:postId',
+      name: 'PostView',
+      component: () => import('@/views/PostView.vue'),
+      meta: { requiresAuth: true },
+      props: route => ({
+        postId: route.params.postId as string,
+        contextType: (route.query.context as any) || 'thread', // Default to thread when navigating to /posts/:id
+        highlightReply: route.query.highlight as string,
+        timestamp: route.query.t ? parseInt(route.query.t as string) : null
+      })
+    },
+    // Social Layout Routes (Updated to use unified PostView)
     {
       path: '/social',
       component: () => import('@/layouts/SocialLayout.vue'),
@@ -202,17 +215,6 @@ const router = createRouter({
             postId: route.params.postId as string,
             currentView: CurrentView.POST,
             viewType: ViewType.POST
-          })
-        },
-        {
-          path: 'conversation/:postId',
-          name: 'ConversationThread',
-          component: () => import('@/views/ConversationThreadView.vue'),
-          props: route => ({
-            postId: route.params.postId as string,
-            highlightPostId: route.query.highlight as string,
-            fromPostId: route.query.from as string,
-            contextTimestamp: route.query.t ? parseInt(route.query.t as string) : null
           })
         },
         {

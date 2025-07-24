@@ -378,7 +378,7 @@ const isDeleting = ref(false);
 
 
 const handleTimeClick = () => {
-  router.push({ name: 'PostDetail', params: { postId: props.post.id } });
+  router.push({ name: 'PostView', params: { postId: props.post.id } });
 };
 
 // Computed

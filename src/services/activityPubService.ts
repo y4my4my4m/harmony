@@ -12,7 +12,10 @@ import type {
   ActivityPubActivityType,
   ActivityPubObjectType,
   ConversationContext,
-  ConversationThread
+  ConversationThread,
+  PostContextOptions,
+  PostWithContext,
+  ThreadInfo
 } from '@/types';
 
 /**
@@ -314,38 +317,115 @@ export class ActivityPubService {
   }
 
   // =============================================
-  // CONVERSATION AND THREAD METHODS  
+  // POST CONTEXT METHODS (NEW ARCHITECTURE)
   // =============================================
 
   /**
-   * Get conversation context for a post (ancestors and descendants)
+   * Get post with configurable context - main method that replaces separate post/thread methods
+   * Supports all context scenarios: minimal, full thread, ancestors only, descendants only
    */
-  async getConversationContext(postId: string): Promise<ConversationContext> {
+  async getPostWithContext(
+    postId: string, 
+    options: PostContextOptions = {}
+  ): Promise<PostWithContext> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    const {
+      context = 'minimal',
+      highlightReply,
+      maxDepth = 10,
+      includeInteractions = true
+    } = options;
+
     try {
-      const { data, error } = await supabase.rpc('get_conversation_context', {
-        in_post_id: postId,
-        in_user_id: user.id
+      console.log(`🔄 Loading post with context: ${postId} (${context})`);
+      
+      const { data, error } = await supabase.rpc('get_post_with_context', {
+        p_post_id: postId,
+        p_user_id: user.id,
+        p_context_type: context,
+        p_highlight_reply: highlightReply,
+        p_max_depth: maxDepth,
+        p_include_interactions: includeInteractions
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Failed to get post with context:', error);
+        throw error;
+      }
 
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      console.log(`✅ Post with context loaded: ${data.ancestors?.length || 0} ancestors, ${data.descendants?.length || 0} descendants`);
+      
       return {
-        ancestors: data?.ancestors || [],
-        descendants: data?.descendants || []
+        mainPost: data.mainPost,
+        ancestors: data.ancestors || [],
+        descendants: data.descendants || [],
+        threadInfo: data.threadInfo || {
+          totalPosts: 1,
+          participantCount: 1,
+          depth: 0,
+          rootPostId: postId,
+          lastActivity: data.mainPost?.created_at || new Date().toISOString()
+        },
+        highlightedPost: highlightReply,
+        contextType: context
       };
     } catch (error) {
-      console.error('Failed to get conversation context:', error);
-      return { ancestors: [], descendants: [] };
+      console.error('❌ Failed to get post with context:', error);
+      throw error;
     }
   }
 
   /**
+   * Get post in minimal context (just the post itself) - convenience method
+   */
+  async getPost(postId: string, includeInteractions: boolean = true): Promise<TimelinePost> {
+    const result = await this.getPostWithContext(postId, {
+      context: 'minimal',
+      includeInteractions
+    });
+    return result.mainPost;
+  }
+
+  /**
+   * Get full conversation thread - convenience method
+   */
+  async getConversationThread(postId: string): Promise<PostWithContext> {
+    return this.getPostWithContext(postId, {
+      context: 'thread',
+      includeInteractions: true
+    });
+  }
+
+  /**
+   * Get conversation context (ancestors + descendants) - convenience method for compatibility
+   */
+  async getConversationContext(postId: string): Promise<ConversationContext> {
+    const result = await this.getPostWithContext(postId, {
+      context: 'thread',
+      includeInteractions: true
+    });
+    
+    return {
+      ancestors: result.ancestors,
+      descendants: result.descendants
+    };
+  }
+
+  // =============================================
+  // LEGACY METHODS (DEPRECATED - Use getPostWithContext instead)
+  // =============================================
+
+  /**
+   * @deprecated Use getPostWithContext with context: 'thread' instead
    * Get full conversation thread for a post
    */
-  async getConversationThread(conversationId: string): Promise<ConversationThread> {
+  async getConversationThreadLegacy(conversationId: string): Promise<ConversationThread> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
@@ -598,30 +678,6 @@ export class ActivityPubService {
     if (error) throw error;
 
     return data as Post[];
-  }
-
-  /**
-   * Get post by ID
-   */
-  async getPost(postId: string): Promise<Post | null> {
-    const { data, error } = await supabase
-      .from('posts')
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local
-        )
-      `)
-      .eq('id', postId)
-      .eq('is_deleted', false)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') return null; // Not found
-      throw error;
-    }
-
-    return data as Post;
   }
 
   /**

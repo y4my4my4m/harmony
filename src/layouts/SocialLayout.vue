@@ -240,8 +240,9 @@ const routeBasedProps = computed(() => {
     'SocialInstances': { currentView: 'instances', viewType: 'explore' },
     
     // Post routes
-    'PostDetail': { currentView: 'post', viewType: 'post' },
-    'ConversationThread': { currentView: 'conversation', viewType: 'conversation' },
+    'PostView': { currentView: 'post', viewType: 'post' },
+    'PostDetail': { currentView: 'post', viewType: 'post' }, // Legacy support
+    'ConversationThread': { currentView: 'conversation', viewType: 'conversation' }, // Legacy support
     
     // Legacy routes
     'Social': { currentView: 'home', viewType: 'timeline' },
