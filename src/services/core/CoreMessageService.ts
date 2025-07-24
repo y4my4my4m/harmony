@@ -140,7 +140,6 @@ export class CoreMessageService {
         .from('messages')
         .update({ 
           content: newContent,
-          updated_at: new Date().toISOString()
         })
         .eq('id', messageId)
         .select('*')
