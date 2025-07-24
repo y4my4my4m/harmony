@@ -1,58 +1,58 @@
 <template>
-  <div 
+  <div
     class="harmony-voice-card"
     :class="{
-      'speaking': isSpeaking,
-      'muted': userState.isMuted,
-      'deafened': userState.isDeafened,
+      speaking: isSpeaking,
+      muted: props.userState.isMuted,
+      deafened: props.userState.isDeafened,
       'video-enabled': hasVideo,
-      'screen-sharing': userState.isScreenSharing,
-      'self': isSelf,
-      'connection-poor': connectionState === 'disconnected' || connectionState === 'failed'
+      'screen-sharing': props.userState.isScreenSharing,
+      self: props.isSelf,
+      'connection-poor': props.connectionState === 'disconnected' || props.connectionState === 'failed',
     }"
   >
     <!-- Video Container -->
-    <div v-if="hasVideo || userState.isScreenSharing" class="video-container">
+    <div v-if="hasVideo || props.userState.isScreenSharing" class="video-container">
       <video
         ref="videoElement"
         :srcObject="userStream"
         autoplay
         playsinline
-        :muted="isSelf"
+        :muted="props.isSelf"
         class="video-stream"
         @loadedmetadata="onVideoLoaded"
       />
-      
+
       <!-- Video Overlay -->
       <div class="video-overlay">
         <!-- Screen share indicator -->
-        <div v-if="userState.isScreenSharing" class="screen-share-indicator">
+        <div v-if="props.userState.isScreenSharing" class="screen-share-indicator">
           <Icon name="screen-share" />
           <span>Screen Sharing</span>
         </div>
-        
+
         <!-- Connection quality indicator -->
         <div class="connection-indicator" :class="connectionQuality">
           <div class="connection-dots">
             <span v-for="i in 3" :key="i"></span>
           </div>
         </div>
-        
+
         <!-- Self controls -->
-        <div v-if="isSelf" class="video-controls">
-          <button 
-            @click="$emit('toggle-video')"
+        <div v-if="props.isSelf" class="video-controls">
+          <button
+            @click="emit('toggle-video')"
             class="control-btn"
-            :class="{ active: userState.isVideoEnabled && !userState.isScreenSharing }"
-            :title="userState.isVideoEnabled && !userState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
+            :class="{ active: props.userState.isVideoEnabled && !props.userState.isScreenSharing }"
+            :title="props.userState.isVideoEnabled && !props.userState.isScreenSharing ? 'Turn off camera' : 'Turn on camera'"
           >
             <Icon name="camera" />
           </button>
-          <button 
-            @click="$emit('toggle-screen-share')"
+          <button
+            @click="emit('toggle-screen-share')"
             class="control-btn"
-            :class="{ active: userState.isScreenSharing }"
-            :title="userState.isScreenSharing ? 'Stop screen share' : 'Share screen'"
+            :class="{ active: props.userState.isScreenSharing }"
+            :title="props.userState.isScreenSharing ? 'Stop screen share' : 'Share screen'"
           >
             <Icon name="screen-share" />
           </button>
@@ -65,34 +65,29 @@
       <div class="avatar-wrapper">
         <!-- User avatar -->
         <div class="avatar-frame" :class="{ speaking: isSpeaking }">
-          <Avatar
-            :src="userProfile.avatar_url"
-            :alt="displayName"
-            size="xl"
-            class="user-avatar"
-          />
-          
+          <Avatar :src="props.userProfile.avatar_url" :alt="displayName" size="xl" class="user-avatar" />
+
           <!-- Voice activity ring -->
           <div class="voice-ring" :style="{ '--intensity': voiceIntensity }">
             <svg class="voice-ring-svg" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="45" class="voice-ring-bg" />
-              <circle 
-                cx="50" 
-                cy="50" 
-                r="45" 
+              <circle
+                cx="50"
+                cy="50"
+                r="45"
                 class="voice-ring-active"
                 :style="{ strokeDashoffset: voiceRingOffset }"
               />
             </svg>
           </div>
         </div>
-        
+
         <!-- Status indicators -->
         <div class="status-indicators">
-          <div v-if="userState.isMuted" class="status-badge muted" title="Muted">
+          <div v-if="props.userState.isMuted" class="status-badge muted" title="Muted">
             <Icon name="mic-off" />
           </div>
-          <div v-if="userState.isDeafened" class="status-badge deafened" title="Deafened">
+          <div v-if="props.userState.isDeafened" class="status-badge deafened" title="Deafened">
             <Icon name="headphones-off" />
           </div>
           <div v-if="connectionQuality === 'poor'" class="status-badge connection-poor" title="Poor connection">
@@ -114,175 +109,146 @@
 
     <!-- Audio Visualizer -->
     <div v-if="isSpeaking && !hasVideo" class="audio-visualizer">
-      <div 
-        v-for="i in 5" 
+      <div
+        v-for="i in 5"
         :key="i"
         class="audio-bar"
-        :style="{ 
+        :style="{
           '--delay': `${i * 100}ms`,
-          '--height': `${getBarHeight(i)}%`
+          '--height': `${getBarHeight(i)}%`,
         }"
       ></div>
     </div>
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, computed, ref, watch, type PropType } from 'vue';
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
-export default defineComponent({
-  name: 'UnifiedVoiceUserCard',
-  components: { Icon, Avatar },
-  
-  props: {
-    userState: {
-      type: Object as PropType<UserMediaState>,
-      required: true
-    },
-    userProfile: {
-      type: Object,
-      required: true
-    },
-    userStream: {
-      type: MediaStream,
-      default: null
-    },
-    isSelf: {
-      type: Boolean,
-      default: false
-    },
-    connectionState: {
-      type: String,
-      default: 'connected'
+// =============================================================================
+// PROPS & EMITS
+// =============================================================================
+
+interface UserProfile {
+  avatar_url: string;
+  display_name?: string;
+  username?: string;
+  // Add other profile properties as needed
+}
+
+const props = defineProps<{
+  userState: UserMediaState;
+  userProfile: UserProfile;
+  userStream?: MediaStream | null;
+  isSelf?: boolean;
+  connectionState?: string;
+}>();
+
+const emit = defineEmits<{
+  (e: 'toggle-video'): void;
+  (e: 'toggle-screen-share'): void;
+}>();
+
+// =============================================================================
+// REFS
+// =============================================================================
+
+const videoElement = ref<HTMLVideoElement | null>(null);
+
+// =============================================================================
+// COMPUTED PROPERTIES
+// =============================================================================
+
+const displayName = computed(() => {
+  return props.userProfile.display_name || props.userProfile.username || 'Unknown User';
+});
+
+const isSpeaking = computed(() => {
+  if (props.isSelf) {
+    // For self user, use audioLevel-based detection to feel more responsive
+    return props.userState.audioLevel > 20 && !props.userState.isMuted;
+  }
+  // For peer users, rely on the state provided by the WebRTC service
+  return props.userState.isSpeaking;
+});
+
+const voiceIntensity = computed(() => {
+  return Math.min(props.userState.audioLevel / 100, 1);
+});
+
+const hasVideo = computed(() => {
+  return (
+    !!props.userStream?.getVideoTracks().length &&
+    (props.userState.isVideoEnabled || props.userState.isScreenSharing)
+  );
+});
+
+const connectionQuality = computed(() => {
+  if (props.connectionState === 'connecting') return 'connecting';
+  if (props.connectionState === 'disconnected' || props.connectionState === 'failed') return 'poor';
+  // Note: This is a simplistic check. Real-world quality might come from WebRTC stats.
+  if (props.userState.audioLevel > 30) return 'excellent';
+  if (props.userState.audioLevel > 15) return 'good';
+  return 'fair';
+});
+
+const userStatus = computed(() => {
+  if (props.userState.isScreenSharing) return 'Screen sharing';
+  if (props.userState.isVideoEnabled && !props.userState.isScreenSharing) return 'Camera on';
+  if (props.userState.isDeafened) return 'Deafened';
+  if (props.userState.isMuted) return 'Muted';
+  if (isSpeaking.value) return 'Speaking';
+  return 'In voice';
+});
+
+// Voice ring animation
+const voiceRingOffset = computed(() => {
+  const circumference = 2 * Math.PI * 45; // 2 * pi * radius
+  const progress = voiceIntensity.value;
+  return circumference - progress * circumference;
+});
+
+// =============================================================================
+// METHODS
+// =============================================================================
+
+// Audio bar heights for visualization
+const getBarHeight = (barIndex: number) => {
+  const baseHeight = 20;
+  const intensity = voiceIntensity.value;
+  // Add some pseudo-random variation to make it look more dynamic
+  const variation = Math.sin(Date.now() / 150 + barIndex * 0.5) * 0.4;
+  return Math.max(baseHeight + intensity * 80 + variation * 30, 15);
+};
+
+const onVideoLoaded = () => {
+  console.log('📹 Video loaded for user:', props.userState.userId);
+};
+
+// =============================================================================
+// WATCHERS
+// =============================================================================
+
+// Update video element when stream changes
+watch(
+  () => props.userStream,
+  (newStream) => {
+    if (videoElement.value) {
+      // The stream is assigned directly. A check for video-only vs. screen share
+      // stream can be done here if needed (e.g., to prevent echo).
+      // For simplicity, we assign the stream as is, assuming the parent handles
+      // audio track logic correctly (e.g. local streams are muted).
+      videoElement.value.srcObject = newStream ?? null;
+      console.log(`📹 Updating stream for user ${props.userState.userId}. Has stream: ${!!newStream}`);
     }
   },
-  
-  emits: ['toggle-video', 'toggle-screen-share'],
-  
-  setup(props) {
-    const videoElement = ref<HTMLVideoElement | null>(null);
-    
-    // =============================================================================
-    // COMPUTED PROPERTIES
-    // =============================================================================
-    
-    const displayName = computed(() => {
-      return props.userProfile.display_name || props.userProfile.username || 'Unknown User';
-    });
-    
-    const isSpeaking = computed(() => {
-      if (props.isSelf) {
-        // For self user, use audioLevel-based detection
-        return props.userState.audioLevel > 20 && !props.userState.isMuted;
-      } else {
-        // For peer users, use the userState.isSpeaking property
-        return props.userState.isSpeaking;
-      }
-    });
-    
-    const voiceIntensity = computed(() => {
-      return Math.min(props.userState.audioLevel / 100, 1);
-    });
-    
-    const hasVideo = computed(() => {
-      return props.userStream?.getVideoTracks().length > 0 && 
-             (props.userState.isVideoEnabled || props.userState.isScreenSharing);
-    });
-    
-    const connectionQuality = computed(() => {
-      if (props.connectionState === 'connecting') return 'connecting';
-      if (props.connectionState === 'disconnected' || props.connectionState === 'failed') return 'poor';
-      if (props.userState.audioLevel > 30) return 'excellent';
-      if (props.userState.audioLevel > 15) return 'good';
-      return 'fair';
-    });
-    
-    const userStatus = computed(() => {
-      if (props.userState.isScreenSharing) return 'Screen sharing';
-      if (props.userState.isVideoEnabled && !props.userState.isScreenSharing) return 'Camera on';
-      if (props.userState.isDeafened) return 'Deafened';
-      if (props.userState.isMuted) return 'Muted';
-      if (isSpeaking.value) return 'Speaking';
-      return 'In voice';
-    });
-    
-    // Voice ring animation
-    const voiceRingOffset = computed(() => {
-      const circumference = 2 * Math.PI * 45;
-      const progress = voiceIntensity.value;
-      return circumference - (progress * circumference);
-    });
-    
-    // Audio bar heights for visualization
-    const getBarHeight = (barIndex: number) => {
-      const baseHeight = 20;
-      const intensity = voiceIntensity.value;
-      const variation = Math.sin(Date.now() / 150 + barIndex * 0.5) * 0.4;
-      return Math.max(baseHeight + (intensity * 80) + (variation * 30), 15);
-    };
-    
-    // =============================================================================
-    // METHODS
-    // =============================================================================
-    
-    const onVideoLoaded = () => {
-      console.log('📹 Video loaded for user:', props.userState.userId);
-    };
-    
-    // =============================================================================
-    // WATCHERS
-    // =============================================================================
-    
-    // Update video element when stream changes
-    watch(() => props.userStream, (newStream) => {
-      if (videoElement.value) {
-        let displayStream: MediaStream | null = null;
-        
-        if (newStream) {
-          const videoTracks = newStream.getVideoTracks();
-          const audioTracks = newStream.getAudioTracks();
-          
-          if (videoTracks.length > 0) {
-            if (props.userState.isScreenSharing && audioTracks.length > 0) {
-              // For screensharing, include both video and system audio
-              displayStream = newStream;
-              console.log('📺 Screen share stream with audio for user:', props.userState.userId, {
-                videoTracks: videoTracks.length,
-                audioTracks: audioTracks.length
-              });
-            } else {
-              // For regular video, only show video (no audio to prevent echo)
-              displayStream = new MediaStream(videoTracks);
-              console.log('📹 Video-only stream for user:', props.userState.userId, {
-                videoTracks: displayStream.getVideoTracks().length,
-                excludedAudioTracks: audioTracks.length
-              });
-            }
-          }
-        }
-        
-        videoElement.value.srcObject = displayStream;
-      }
-    }, { immediate: true });
-    
-    return {
-      videoElement,
-      displayName,
-      isSpeaking,
-      voiceIntensity,
-      hasVideo,
-      connectionQuality,
-      userStatus,
-      voiceRingOffset,
-      getBarHeight,
-      onVideoLoaded
-    };
-  }
-});
+  { immediate: true }
+);
 </script>
+
 
 <style scoped>
 .harmony-voice-card {
@@ -294,17 +260,13 @@ export default defineComponent({
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   overflow: hidden;
   min-height: 200px;
-  box-shadow: 
-    0 4px 16px rgba(0, 0, 0, 0.3),
-    0 1px 4px rgba(0, 0, 0, 0.2),
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .harmony-voice-card:hover {
   transform: translateY(-2px);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 4px 16px rgba(0, 0, 0, 0.3),
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
@@ -312,9 +274,7 @@ export default defineComponent({
 .harmony-voice-card.speaking {
   border-color: #00d4aa;
   background: linear-gradient(145deg, #1a2f2a, #2a4a3f);
-  box-shadow: 
-    0 4px 16px rgba(0, 212, 170, 0.3),
-    0 0 32px rgba(0, 212, 170, 0.1),
+  box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3), 0 0 32px rgba(0, 212, 170, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
@@ -323,16 +283,6 @@ export default defineComponent({
   border-color: #5865f2;
   background: linear-gradient(145deg, #1e2140, #2a2d50);
 }
-
-/* Self user speaking - higher specificity */
-/* .harmony-voice-card.self.speaking {
-  border-color: #00d4aa !important;
-  background: linear-gradient(145deg, #1a2f2a, #2a4a3f) !important;
-  box-shadow: 
-    0 4px 16px rgba(0, 212, 170, 0.3),
-    0 0 32px rgba(0, 212, 170, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-} */
 
 /* Connection states */
 .harmony-voice-card.connection-poor {
@@ -366,13 +316,7 @@ export default defineComponent({
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.1) 0%,
-    transparent 30%,
-    transparent 70%,
-    rgba(0, 0, 0, 0.8) 100%
-  );
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.8) 100%);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -395,9 +339,9 @@ export default defineComponent({
 }
 
 .connection-indicator {
-  align-self: flex-end;
-  align-self: flex-start;
-  margin-top: auto;
+  position: absolute;
+  top: 12px;
+  right: 12px;
 }
 
 .connection-dots {
@@ -417,7 +361,7 @@ export default defineComponent({
   background: #00d4aa;
 }
 
-.connection-indicator.good .connection-dots span:nth-child(-n+2) {
+.connection-indicator.good .connection-dots span:nth-child(-n + 2) {
   background: #faa61a;
 }
 
@@ -437,7 +381,8 @@ export default defineComponent({
 .video-controls {
   display: flex;
   gap: 8px;
-  align-self: flex-end;
+  align-self: center;
+  margin-top: auto;
   pointer-events: auto;
 }
 
@@ -490,6 +435,7 @@ export default defineComponent({
   border-radius: 50%;
   background: linear-gradient(145deg, #40444b, #2f3136);
   transition: all 0.3s ease;
+  padding: 4px; /* Add padding for the ring to sit inside */
 }
 
 .avatar-frame.speaking {
@@ -497,14 +443,13 @@ export default defineComponent({
   box-shadow: 0 0 20px rgba(0, 212, 170, 0.4);
 }
 
-
 /* Voice Ring */
 .voice-ring {
   position: absolute;
   top: -8px;
   left: -8px;
-  right: -8px;
-  bottom: -8px;
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
@@ -531,7 +476,7 @@ export default defineComponent({
   stroke: #00d4aa;
   stroke-width: 3;
   stroke-linecap: round;
-  stroke-dasharray: 283;
+  stroke-dasharray: 283; /* Circumference of a circle with r=45 */
   transition: stroke-dashoffset 0.15s ease;
   filter: drop-shadow(0 0 6px #00d4aa);
 }
@@ -630,13 +575,25 @@ export default defineComponent({
 
 /* Animations */
 @keyframes pulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.1); }
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
 }
 
 @keyframes audioWave {
-  0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(1.4); }
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.4);
+  }
 }
 
 /* Responsive */
@@ -645,22 +602,26 @@ export default defineComponent({
     min-height: 160px;
     padding: 12px;
   }
-  
-  .video-container,
-  .avatar-container {
+
+  .video-container {
     height: 120px;
   }
-  
+
+  .avatar-container {
+    height: auto;
+    margin-bottom: 30px;
+  }
+
   .avatar-frame {
     width: 60px;
     height: 60px;
   }
-  
+
   .username {
     font-size: 13px;
   }
-  
-  .user-status {
+
+  .harmony-voice-card-user-status {
     font-size: 11px;
   }
 }
