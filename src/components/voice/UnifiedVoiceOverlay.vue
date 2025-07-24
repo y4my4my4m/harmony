@@ -82,10 +82,6 @@
         <div v-if="voiceStore.layoutMode === 'speaker' && featuredSpeaker" class="featured-speaker">
           <UnifiedVoiceUserCard
             :user-state="featuredSpeaker"
-            :user-profile="voiceStore.getUserProfile(featuredSpeaker.userId)"
-            :user-stream="voiceStore.getUserStream(featuredSpeaker.userId) || undefined"
-            :is-self="featuredSpeaker.userId === voiceStore.localState.userId"
-            :connection-state="getConnectionState(featuredSpeaker.userId)"
             @toggle-video="voiceStore.toggleVideo"
             @toggle-screen-share="voiceStore.toggleScreenShare"
             class="featured-card"
@@ -104,10 +100,6 @@
               v-for="participant in displayedParticipants"
               :key="participant.userId"
               :user-state="participant"
-              :user-profile="voiceStore.getUserProfile(participant.userId)"
-              :user-stream="voiceStore.getUserStream(participant.userId) || undefined"
-              :is-self="participant.userId === voiceStore.localState.userId"
-              :connection-state="getConnectionState(participant.userId)"
               @toggle-video="voiceStore.toggleVideo"
               @toggle-screen-share="voiceStore.toggleScreenShare"
               class="participant-card"
@@ -278,16 +270,6 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     // =============================================================================
     // METHODS
     // =============================================================================
-    
-    const getConnectionState = (userId: string): string => {
-      // For self, always connected when in channel
-      if (userId === voiceStore.localState.userId) {
-        return voiceStore.isConnected ? 'connected' : 'disconnected';
-      }
-      
-      // For others, would need to track from WebRTC service
-      return 'connected'; // Simplified for now
-    };
     
     const handleBackdropClick = () => {
       minimizeOverlay();
