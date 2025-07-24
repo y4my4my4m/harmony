@@ -1139,7 +1139,6 @@ class UserDataService extends EventTarget {
         .from('profiles')
         .update({ 
           status,
-          updated_at: new Date().toISOString()
         })
         .eq('id', this.currentUserId)
         .select('status')

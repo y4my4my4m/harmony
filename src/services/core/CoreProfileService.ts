@@ -255,7 +255,6 @@ export class CoreProfileService {
         .from('profiles')
         .update({
           ...sanitizedData,
-          updated_at: new Date().toISOString()
         })
         .eq('id', profileId)
         .eq('auth_user_id', authUser.id) // Double verification for security
@@ -304,8 +303,6 @@ export class CoreProfileService {
         .insert({
           ...sanitizedData,
           auth_user_id: authUser.id, // Secure user association
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
           is_local: true
         })
         .select()

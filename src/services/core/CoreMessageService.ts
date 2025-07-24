@@ -165,7 +165,6 @@ export class CoreMessageService {
         .update({ 
           content: [{ type: 'text', text: '[deleted]' }] as MessagePart[],
           is_deleted: true,
-          updated_at: new Date().toISOString()
         })
         .eq('id', messageId)
 

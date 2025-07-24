@@ -975,7 +975,6 @@ class AdminService {
         .from('federated_instances')
         .update({
           ...updates,
-          updated_at: new Date().toISOString()
         })
         .eq('id', instanceId)
         .select()

@@ -448,56 +448,69 @@ const typeIcon = computed(() => {
   position: absolute;
   bottom: -4px;
   right: -4px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  /* border-radius: 50%; */
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--h-chat);
+  /* border: 2px solid var(--h-chat); */
   font-size: 8px;
   color: #ffffff;
   z-index: 4;
 }
 
-.overlay--mention,
-.overlay--activitypub_mention {
-  background: linear-gradient(135deg, #9647f0, #5a1c7e);
+.overlay--mention svg,
+.overlay--activitypub_mention svg{
+  /* background: linear-gradient(135deg, #9647f0, #5a1c7e); */
+  fill: #9647f0;
 }
 
-.overlay--dm,
-.overlay--activitypub_dm {
-  background: linear-gradient(135deg, #7289da, #5865f2);
+.overlay--dm svg,
+.overlay--activitypub_dm svg{
+  /* background: linear-gradient(135deg, #7289da, #5865f2); */
+  fill: #7289da;
+  stroke: #d5d8e6;
 }
 
-.overlay--reaction,
-.overlay--activitypub_reaction {
-  background: linear-gradient(135deg, #faa61a, #f39c12);
+.overlay--reaction svg,
+.overlay--reaction .reactionIcon path,
+.overlay--activitypub_reaction svg,
+.overlay--activitypub_reaction .reactionIcon path{
+  /* background: linear-gradient(135deg, #faa61a, #f39c12); */
+  fill: #faa61a!important;
 }
 
-.overlay--reply,
-.overlay--activitypub_reply {
-  background: linear-gradient(135deg, #43b581, #00b894);
+.overlay--reply svg,
+.overlay--activitypub_reply svg {
+  /* background: linear-gradient(135deg, #43b581, #00b894); */
+  fill: #43b581;
 }
 
-.overlay--server_invite {
-  background: linear-gradient(135deg, #9c88ff, #7c3aed);
+.overlay--server_invite svg {
+  /* background: linear-gradient(135deg, #9c88ff, #7c3aed); */
+  fill: #9c88ff;
 }
 
-.overlay--voice_channel_activity {
-  background: linear-gradient(135deg, #1dd1a1, #55a3ff);
+.overlay--voice_channel_activity svg {
+  /* background: linear-gradient(135deg, #1dd1a1, #55a3ff); */
+  fill: #1dd1a1;
 }
 
-.overlay--emoji_added {
-  background: linear-gradient(135deg, #fd79a8, #e84393);
+.overlay--emoji_added svg {
+  /* background: linear-gradient(135deg, #fd79a8, #e84393); */
+  fill: #fd79a8;
 }
 
-.overlay--activitypub_favorite {
-  background: linear-gradient(135deg, #d6a811, #ff8d30);
+.overlay--activitypub_favorite svg,
+.overlay--activitypub_favorite .reactionIcon path {
+  /* background: linear-gradient(135deg, #d6a811, #ff8d30); */
+  fill: #d6a811!important;
 }
 
-.overlay--activitypub_follow {
-  background: linear-gradient(180deg, #117dd6, #30a2ff);
+.overlay--activitypub_follow svg {
+  /* background: linear-gradient(180deg, #117dd6, #30a2ff); */
+  fill: #117dd6;
 }
 
 .type-icon {

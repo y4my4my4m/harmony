@@ -269,7 +269,6 @@ export class NotificationService {
         .upsert({
           user_id: userId,
           ...preferences,
-          updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
         })

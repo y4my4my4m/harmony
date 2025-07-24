@@ -1506,8 +1506,6 @@ export class ActivityPubService {
       followers_count: 0,
       following_count: 0,
       posts_count: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
     })) || [];
   }
 
@@ -1737,7 +1735,6 @@ export class ActivityPubService {
 
     // Prepare update data
     const updateData: any = {
-      updated_at: new Date().toISOString()
     };
 
     if (updates.content !== undefined) {

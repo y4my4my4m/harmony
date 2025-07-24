@@ -219,7 +219,6 @@ export class CoreInteractionService {
         .from('follows')
         .update({ 
           status: 'accepted',
-          updated_at: new Date().toISOString()
         })
         .eq('follower_id', followerUserId)
         .eq('following_id', profileId) // Security: Ensure we own the target profile

@@ -64,7 +64,6 @@ export class ConversationService {
         posts: posts,
         reply_count: posts.length - 1,
         created_at: posts[0]?.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString()
       };
       
     } catch (error) {
