@@ -45,6 +45,14 @@ export default defineConfig({
     ],
   },
   build: {
+    rollupOptions: {
+      external: [
+        // 'some-package', // uncomment and add packages to externalize here
+      ],
+      output: {
+        // Your output options here
+      }
+    },
     // Tauri uses Chromium on Windows and WebKit on macOS and Linux
     target: process.env.TAURI_PLATFORM == 'windows' ? 'chrome105' : 'safari16',
     // don't minify for debug builds
