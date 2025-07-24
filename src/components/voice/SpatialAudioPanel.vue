@@ -264,6 +264,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { useEventListener } from '@vueuse/core';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useAuthStore } from '@/stores/auth';
@@ -562,6 +563,8 @@ const updateGridSize = () => {
   }
 };
 
+useEventListener(window, 'resize', updateGridSize);
+
 // Watch for spatial audio toggle
 watch(() => spatialStore.settings.enabled, (enabled) => {
   if (enabled) {
@@ -612,12 +615,10 @@ onMounted(() => {
       spatialStore.initializeUserPosition(participant.userId);
     });
     
-    window.addEventListener('resize', updateGridSize);
   });
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', updateGridSize);
   stopSpatialUpdateTimer();
   stopSettingsUpdateTimer();
   spatialStore.endDrag();

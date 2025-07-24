@@ -174,16 +174,17 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useUserData } from '@/composables/useUserData';
-import UnifiedVoiceOverlay from './UnifiedVoiceOverlay.vue';
-import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
-import SpatialAudioPanel from './SpatialAudioPanel.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+
+const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
+const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
+const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel.vue'));
 
 // =============================================================================
 // STORE INSTANCES
