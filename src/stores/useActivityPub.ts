@@ -18,7 +18,10 @@ import type {
   Notification,
   ConversationThread,
   ConversationContext,
-  ReplyContext
+  ReplyContext,
+  PostWithContext,
+  PostContextOptions,
+  MessagePart
 } from '@/types';
 
 interface ActivityPubState {
@@ -1806,9 +1809,7 @@ export const useActivityPubStore = defineStore('activitypub', {
       this.localFeed.posts = this.localFeed.posts.filter(p => p.id !== postId);
       
       // Remove from user feeds
-      this.userFeeds.forEach(feed => {
-        feed.posts = feed.posts.filter(p => p.id !== postId);
-      });
+      this.userFeeds.forEach(feed => feed.posts.filter(p => p.id !== postId));
     },
 
          /**
@@ -2113,9 +2114,9 @@ export const useActivityPubStore = defineStore('activitypub', {
        
        try {
          // Navigate to post detail view
-         console.log(`🧭 Attempting to navigate to PostDetail route`);
+         console.log(`🧭 Attempting to navigate to PostView route`);
          router.push({
-           name: 'PostDetail',
+           name: 'PostView',
            params: { postId }
          });
          console.log(`✅ Navigation initiated successfully`);
@@ -2158,5 +2159,25 @@ export const useActivityPubStore = defineStore('activitypub', {
      },
 
 
-   }
- });
+     /**
+      * Get post with configurable context - main method for new architecture
+      * Supports all context scenarios: minimal, full thread, ancestors only, descendants only
+      */
+     async getPostWithContext(
+       postId: string, 
+       options: PostContextOptions = {}
+     ): Promise<PostWithContext> {
+       try {
+         console.log(`🔄 Store: Loading post ${postId} with context: ${options.context || 'minimal'}`);
+         
+         const result = await activityPubService.getPostWithContext(postId, options);
+         
+         console.log(`✅ Store: Post with context loaded successfully`);
+         return result;
+       } catch (error) {
+         console.error('❌ Store: Failed to get post with context:', error);
+         throw error;
+       }
+     },
+  }
+});

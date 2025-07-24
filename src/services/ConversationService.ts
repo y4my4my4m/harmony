@@ -212,7 +212,7 @@ export class ConversationService {
         success: true,
         conversationRootId,
         route: {
-          name: 'ConversationThread',
+          name: 'PostView',
           params: { 
             postId: conversationRootId
           },
@@ -223,7 +223,7 @@ export class ConversationService {
           }
         },
         fallbackRoute: {
-          name: 'PostDetail',
+          name: 'PostView',
           params: { postId }
         }
       };
@@ -235,7 +235,7 @@ export class ConversationService {
         success: false,
         error: error,
         fallbackRoute: {
-          name: 'PostDetail',
+          name: 'PostView',
           params: { postId }
         }
       };

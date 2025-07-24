@@ -887,6 +887,40 @@ export interface ConversationContext {
   descendants: TimelinePost[]; // Replies to this post (going down the chain)
 }
 
+// =============================================
+// POST CONTEXT TYPES (NEW ARCHITECTURE)
+// =============================================
+
+export type PostContextType = 'minimal' | 'thread' | 'ancestors' | 'descendants';
+
+export interface PostContextOptions {
+  context?: PostContextType;
+  highlightReply?: string;
+  maxDepth?: number;
+  includeInteractions?: boolean;
+}
+
+export interface ThreadInfo {
+  totalPosts: number;
+  participantCount: number;
+  depth: number;
+  rootPostId: string;
+  lastActivity: string;
+}
+
+export interface PostWithContext {
+  mainPost: TimelinePost;
+  ancestors: TimelinePost[];
+  descendants: TimelinePost[];
+  threadInfo: ThreadInfo;
+  highlightedPost?: string;
+  contextType: PostContextType;
+}
+
+// =============================================
+// END POST CONTEXT TYPES
+// =============================================
+
 // Post composer state
 export interface PostComposerState {
   content: string;
