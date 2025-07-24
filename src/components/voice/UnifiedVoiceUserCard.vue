@@ -7,8 +7,8 @@
       deafened: props.userState.isDeafened,
       'video-enabled': hasVideo,
       'screen-sharing': props.userState.isScreenSharing,
-      self: props.isSelf,
-      'connection-poor': props.connectionState === 'disconnected' || props.connectionState === 'failed',
+      self: isSelf,
+      'connection-poor': connectionState === 'disconnected',
     }"
   >
     <!-- Video Container -->
@@ -18,7 +18,7 @@
         :srcObject="userStream"
         autoplay
         playsinline
-        :muted="props.isSelf"
+        :muted="isSelf"
         class="video-stream"
         @loadedmetadata="onVideoLoaded"
       />
@@ -39,7 +39,7 @@
         </div>
 
         <!-- Self controls -->
-        <div v-if="props.isSelf" class="video-controls">
+        <div v-if="isSelf" class="video-controls">
           <button
             @click="emit('toggle-video')"
             class="control-btn"
@@ -65,7 +65,12 @@
       <div class="avatar-wrapper">
         <!-- User avatar -->
         <div class="avatar-frame" :class="{ speaking: isSpeaking }">
-          <Avatar :src="props.userProfile.avatar_url" :alt="displayName" size="xl" class="user-avatar" />
+          <Avatar 
+            :src="userProfile?.avatar_url || '/default_avatar.png'" 
+            :alt="displayName" 
+            size="xl" 
+            class="user-avatar" 
+          />
 
           <!-- Voice activity ring -->
           <div class="voice-ring" :style="{ '--intensity': voiceIntensity }">
@@ -125,6 +130,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { useUserData } from '@/composables/useUserData';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
@@ -132,25 +139,21 @@ import Avatar from '@/components/common/Avatar.vue';
 // PROPS & EMITS
 // =============================================================================
 
-interface UserProfile {
-  avatar_url: string;
-  display_name?: string;
-  username?: string;
-  // Add other profile properties as needed
-}
-
 const props = defineProps<{
   userState: UserMediaState;
-  userProfile: UserProfile;
-  userStream?: MediaStream | null;
-  isSelf?: boolean;
-  connectionState?: string;
 }>();
 
 const emit = defineEmits<{
   (e: 'toggle-video'): void;
   (e: 'toggle-screen-share'): void;
 }>();
+
+// =============================================================================
+// STORES & COMPOSABLES
+// =============================================================================
+
+const voiceStore = useUnifiedVoiceChannelStore();
+const { getUserProfile } = useUserData();
 
 // =============================================================================
 // REFS
@@ -162,12 +165,64 @@ const videoElement = ref<HTMLVideoElement | null>(null);
 // COMPUTED PROPERTIES
 // =============================================================================
 
+// Get user profile data
+const userProfile = computed(() => {
+  try {
+    // getUserProfile returns a computed ref, so we need to access .value
+    const profileData = getUserProfile(props.userState.userId).value;
+    
+    // Debug logging for troubleshooting
+    if (!profileData) {
+      console.warn(`No profile data found for user ${props.userState.userId}`);
+    }
+    
+    // Ensure we always return a valid profile object
+    const result = {
+      display_name: profileData?.display_name || null,
+      username: profileData?.username || 'Unknown User',
+      avatar_url: profileData?.avatar_url || '/default_avatar.png'
+    };
+    
+    return result;
+  } catch (error) {
+    console.warn('Error getting user profile for voice card:', error);
+    return {
+      display_name: null,
+      username: 'Unknown User',
+      avatar_url: '/default_avatar.png'
+    };
+  }
+});
+
+// Get user stream
+const userStream = computed(() => {
+  return voiceStore.getUserStream(props.userState.userId);
+});
+
+// Check if this is the current user
+const isSelf = computed(() => {
+  return props.userState.userId === voiceStore.localState.userId;
+});
+
+// Get connection state
+const connectionState = computed(() => {
+  // For self, always connected when in channel
+  if (isSelf.value) {
+    return voiceStore.isConnected ? 'connected' : 'disconnected';
+  }
+  
+  // For others, would need to track from WebRTC service
+  return 'connected'; // Simplified for now
+});
+
 const displayName = computed(() => {
-  return props.userProfile.display_name || props.userProfile.username || 'Unknown User';
+  const profile = userProfile.value;
+  if (!profile) return 'Unknown User';
+  return profile.display_name || profile.username || 'Unknown User';
 });
 
 const isSpeaking = computed(() => {
-  if (props.isSelf) {
+  if (isSelf.value) {
     // For self user, use audioLevel-based detection to feel more responsive
     return props.userState.audioLevel > 20 && !props.userState.isMuted;
   }
@@ -181,17 +236,17 @@ const voiceIntensity = computed(() => {
 
 const hasVideo = computed(() => {
   return (
-    !!props.userStream?.getVideoTracks().length &&
+    !!userStream.value?.getVideoTracks().length &&
     (props.userState.isVideoEnabled || props.userState.isScreenSharing)
   );
 });
 
 const connectionQuality = computed(() => {
-  if (props.connectionState === 'connecting') return 'connecting';
-  if (props.connectionState === 'disconnected' || props.connectionState === 'failed') return 'poor';
+  const state = connectionState.value;
   // Note: This is a simplistic check. Real-world quality might come from WebRTC stats.
   if (props.userState.audioLevel > 30) return 'excellent';
   if (props.userState.audioLevel > 15) return 'good';
+  if (state === 'disconnected') return 'poor';
   return 'fair';
 });
 
@@ -234,7 +289,7 @@ const onVideoLoaded = () => {
 
 // Update video element when stream changes
 watch(
-  () => props.userStream,
+  () => userStream.value,
   (newStream) => {
     if (videoElement.value) {
       // The stream is assigned directly. A check for video-only vs. screen share
@@ -418,7 +473,6 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 40px;
 }
 
 .avatar-wrapper {
@@ -430,12 +484,15 @@ watch(
 
 .avatar-frame {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 82px;
+  height: 82px;
   border-radius: 50%;
   background: linear-gradient(145deg, #40444b, #2f3136);
   transition: all 0.3s ease;
-  padding: 4px; /* Add padding for the ring to sit inside */
+  padding: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .avatar-frame.speaking {
@@ -443,6 +500,9 @@ watch(
   box-shadow: 0 0 20px rgba(0, 212, 170, 0.4);
 }
 
+.user-avatar {
+  padding: 2px;
+}
 /* Voice Ring */
 .voice-ring {
   position: absolute;
@@ -519,7 +579,7 @@ watch(
   text-align: center;
   position: relative;
   padding-bottom: 0px;
-  bottom: 20px;
+  top: 20px;
   margin: 0 auto;
   width: 100%;
 }

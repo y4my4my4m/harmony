@@ -7,8 +7,8 @@
       <div class="user-section">
         <div class="user-avatar-container">
           <Avatar
-            :src="currentUserProfile.avatar_url"
-            :alt="currentUserProfile.display_name || 'User'"
+            :src="currentUserProfile?.avatar_url || '/default_avatar.png'"
+            :alt="currentUserProfile?.display_name || 'User'"
             size="sm"
             class="user-avatar"
             :class="{ speaking: isCurrentUserSpeaking }"
@@ -16,7 +16,7 @@
           <div v-if="isCurrentUserSpeaking" class="speaking-ring"></div>
         </div>
         <div class="user-details">
-          <span class="user-name">{{ currentUserProfile.display_name || currentUserProfile.username }}</span>
+          <span class="user-name">{{ currentUserProfile?.display_name || currentUserProfile?.username || 'Unknown User' }}</span>
           <span class="channel-name">{{ channelName }}</span>
         </div>
       </div>
@@ -211,19 +211,24 @@ const currentUserId = computed(() => authStore.session?.user?.id);
 
 const currentUserProfile = computed(() => {
   if (!currentUserId.value) {
-    return { display_name: 'Unknown', username: 'Unknown', avatar_url: null };
+    return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.png' };
   }
   
-  const user = getUser(currentUserId.value).value
-  if (!user) {
-    return { display_name: 'Unknown', username: 'Unknown', avatar_url: null };
+  try {
+    const user = getUser(currentUserId.value)?.value;
+    if (!user) {
+      return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.png' };
+    }
+    
+    return {
+      display_name: user.displayName || null,
+      username: user.username || 'Unknown',
+      avatar_url: user.avatarUrl || '/default_avatar.png'
+    };
+  } catch (error) {
+    console.warn('Error getting current user profile for voice dock:', error);
+    return { display_name: 'Unknown', username: 'Unknown', avatar_url: '/default_avatar.png' };
   }
-  
-  return {
-    display_name: user.displayName,
-    username: user.username,
-    avatar_url: user.avatarUrl
-  };
 });
 
 const isCurrentUserSpeaking = computed(() => {
