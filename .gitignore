@@ -37,3 +37,5 @@ coverage
 
 
 docs/.vitepress/cache
+docker
+docker-compose.yml
