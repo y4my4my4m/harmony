@@ -466,13 +466,6 @@
     <polyline v-if="name === 'reblog'" points="7 23 3 19 7 15"></polyline>
     <path v-if="name === 'reblog'" d="M21 13v2a4 4 0 0 1-4 4H3"></path>
     
-    <!-- Federation (Share) -->
-    <circle v-if="name === 'federation'" cx="18" cy="5" r="3"></circle>
-    <circle v-if="name === 'federation'" cx="6" cy="12" r="3"></circle>
-    <circle v-if="name === 'federation'" cx="18" cy="19" r="3"></circle>
-    <line v-if="name === 'federation'" x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-    <line v-if="name === 'federation'" x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-    
     <!-- Reply (Message Square) -->
     <path v-if="name === 'reply'" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
     
