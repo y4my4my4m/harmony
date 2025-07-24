@@ -42,11 +42,6 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       'simple-peer',
-      // Ensure voice-related dependencies are pre-bundled to avoid runtime import issues
-      '@/stores/unifiedVoiceChannel',
-      '@/stores/spatialAudio',
-      '@/services/unifiedWebRTC',
-      '@/services/spatialAudio'
     ],
   },
   build: {
@@ -56,52 +51,5 @@ export default defineConfig({
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          // Voice-related chunks - keep together to avoid dependency issues
-          'voice-core': [
-            './src/stores/unifiedVoiceChannel.ts',
-            './src/stores/spatialAudio.ts',
-            './src/services/unifiedWebRTC.ts',
-            './src/services/spatialAudio.ts'
-          ],
-          'voice-ui': [
-            './src/components/voice/UnifiedVoiceDock.vue',
-            './src/components/voice/UnifiedVoiceOverlay.vue',
-            './src/components/voice/VoiceSettingsPanel.vue',
-            './src/components/voice/SpatialAudioPanel.vue',
-            './src/components/voice/UnifiedVoiceUserCard.vue'
-          ],
-          // Store chunks to avoid dual import issues
-          'stores-core': [
-            './src/stores/useTheme.ts',
-            './src/stores/useEmojiCache.ts',
-            './src/stores/useReactions.ts'
-          ],
-          'stores-communication': [
-            './src/stores/useChat.ts',
-            './src/stores/useDM.ts',
-            './src/stores/useActivityPub.ts'
-          ],
-          // Service chunks
-          'services-core': [
-            './src/services/StatePersistence.ts',
-            './src/services/ViewContextTracker.ts',
-            './src/services/usersService.ts'
-          ]
-        },
-        // Ensure voice chunks are loaded in the right order
-        chunkFileNames: (chunkInfo) => {
-          if (chunkInfo.name === 'voice-core') {
-            return 'assets/voice-core-[hash].js';
-          }
-          if (chunkInfo.name === 'voice-ui') {
-            return 'assets/voice-ui-[hash].js';
-          }
-          return 'assets/[name]-[hash].js';
-        }
-      }
-    }
   },
 })
