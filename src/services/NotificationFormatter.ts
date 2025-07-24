@@ -6,6 +6,7 @@
  */
 
 import type { Notification, NotificationType } from '@/types'
+import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 
 export interface NotificationMessage {
   title: string
@@ -233,10 +234,17 @@ export class NotificationFormatter {
    */
   static getAvatarUrl(notification: Notification): string {
     const data = notification.data
-    return data.sender?.avatar_url || data.reactor?.avatar_url || data.inviter?.avatar_url ||
-           // ActivityPub notifications  
-           data.actor?.avatar_url ||
-           data.follower?.avatar_url || data.user?.avatar_url || data.author?.avatar_url || '/default_avatar.png'
+    const avatar =
+      data.sender?.avatar_url ||
+      data.reactor?.avatar_url ||
+      data.inviter?.avatar_url ||
+      // ActivityPub notifications
+      data.actor?.avatar_url ||
+      data.follower?.avatar_url ||
+      data.user?.avatar_url ||
+      data.author?.avatar_url
+
+    return utilGetAvatarUrl(avatar) || '/default_avatar.png'
   }
   
   /**

@@ -130,7 +130,7 @@
           />
 
           <!-- Unified Notifications Section -->
-          <UnifiedNotificationSettings 
+          <NotificationSettings 
             v-else-if="activeSection === 'notifications'"
             :loading="loading"
             @update-notifications="handleNotificationsUpdate"
@@ -196,7 +196,7 @@ import UserAccountSettings from '@/components/settings/user/UserAccountSettings.
 import PrivacySettings from '@/components/settings/user/PrivacySettings.vue'
 import AppearanceSettings from '@/components/settings/user/AppearanceSettings.vue'
 import AudioThemeSettings from '@/components/settings/user/AudioThemeSettings.vue'
-import UnifiedNotificationSettings from '@/components/settings/user/UnifiedNotificationSettings.vue'
+import NotificationSettings from '@/components/settings/user/NotificationSettings.vue'
 import VoiceVideoSettings from '@/components/settings/user/VoiceVideoSettings.vue'
 import KeybindSettings from '@/components/settings/user/KeybindSettings.vue'
 import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
