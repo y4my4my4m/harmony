@@ -44,7 +44,8 @@
     "vue-router": "^4.2.5",
     "vue-toastification": "next",
     "vue3-lazyload": "^0.3.8",
-    "vuedraggable": "next"
+    "vuedraggable": "next",
+    "@vueuse/core": "^10.7.2"
   },
   "devDependencies": {
     "@microsoft/api-extractor": "^7.52.8",
