@@ -135,21 +135,53 @@ export class PostService {
   }
 
   /**
-   * Toggle share/reblog on a post (simplified: database triggers handle federation)
-   * PRESERVES: Exact same API and return type
+   * Toggle share/reblog on a post - delegates to ActivityPub service for proper implementation
+   * @deprecated Use services.activityPub.toggleReblog() directly for new code
    */
   async toggleShare(postId: string): Promise<{ shared: boolean; newCount: number }> {
     try {
-      console.log(`🚀 Simplified: Toggling share for post: ${postId}`)
+      console.log(`🚀 PostService: Delegating reblog to ActivityPub service for post: ${postId}`)
 
-      // Just toggle the share - database triggers handle federation automatically
-      const result = await corePostService.toggleShare(postId)
+      // Import ActivityPub service dynamically to avoid circular dependencies
+      const { activityPubService } = await import('./activityPubService')
+      const result = await activityPubService.toggleReblog(postId)
 
-      console.log(`✅ Simplified: Post share toggled - database handling federation: ${result.shared ? 'shared' : 'unshared'}`)
-      return result
+      console.log(`✅ PostService: Reblog delegated to ActivityPub service: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
+      
+      // Return in the expected format for backward compatibility
+      return { 
+        shared: result.reblogged, 
+        newCount: 0 // TODO: Get actual count from database if needed
+      }
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to toggle share:', error)
+      console.error('❌ PostService: Failed to toggle reblog via ActivityPub service:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Toggle reblog/boost on a post (ActivityPub Announce activity)
+   * PRESERVES: Exact same API and return type
+   */
+  async toggleReblog(postId: string): Promise<{ reblogged: boolean; newCount: number }> {
+    try {
+      console.log(`🚀 PostService: Toggling reblog for post: ${postId}`)
+
+      // Import ActivityPub service dynamically to avoid circular dependencies
+      const { activityPubService } = await import('./activityPubService')
+      const result = await activityPubService.toggleReblog(postId)
+
+      console.log(`✅ PostService: Reblog toggled: ${result.reblogged ? 'reblogged' : 'unreblogged'}`)
+      
+      // Return in the expected format for the UI
+      return { 
+        reblogged: result.reblogged, 
+        newCount: 0 // TODO: Get actual count from database if needed
+      }
+
+    } catch (error) {
+      console.error('❌ PostService: Failed to toggle reblog:', error)
       throw error
     }
   }
@@ -267,6 +299,10 @@ export class PostService {
       
       // Delegate to core service (no federation needed for reads)
       const post = await corePostService.loadPost(postId)
+      
+      if (!post) {
+        throw this.createError('POST_NOT_FOUND', `Post not found: ${postId}`)
+      }
       
       console.log(`✅ Simplified: Post loaded successfully`)
       return post

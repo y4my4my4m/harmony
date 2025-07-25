@@ -223,6 +223,14 @@
         </div>
       </div>
 
+      <!-- Post Reactions (Emoji Reactions) - Above action buttons -->
+      <PostReactions
+        ref="postReactionsRef"
+        :post="post"
+        @show-reaction-tooltip="handleShowReactionTooltip"
+        @hide-reaction-tooltip="handleHideReactionTooltip"
+      />
+
       <!-- Action Buttons -->
       <div class="post-actions">
         <button 
@@ -255,6 +263,15 @@
         </button>
 
         <button 
+          ref="emojiTriggerRef"
+          class="action-button add-reaction-button"
+          @click="() => handleShowEmojiPicker(post)"
+          title="Add reaction"
+        >
+          <Icon name="plus" />
+        </button>
+
+        <button 
           class="action-button bookmark-button"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
           @click="toggleBookmark(post.id)"
@@ -262,6 +279,7 @@
         >
           <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
+
         <div class="action-menu">
           <button 
             class="action-button menu-button" 
@@ -321,6 +339,16 @@
       @cancel="handleDeleteCancel"
       @close="handleDeleteCancel"
     />
+
+    <!-- Emoji Popup for reactions -->
+    <EmojiPopup
+      v-if="showEmojiPopup"
+      :trigger-element="emojiTriggerRef"
+      :position="'above'"
+      :is-reaction="true"
+      @send-emoji="handleEmojiSelected"
+      @reset-emoji-icon-clicked="closeEmojiPopup"
+    />
   </article>
 </template>
 
@@ -332,6 +360,7 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
+import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
 // Components
@@ -339,7 +368,9 @@ import MonyContent from './MonyContent.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import InlineReplyComposer from './InlineReplyComposer.vue';
+import PostReactions from './PostReactions.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
+import EmojiPopup from '@/components/EmojiPopup.vue';
 import router from '@/router';
 
 // Props
@@ -375,6 +406,11 @@ const showMenu = ref(false);
 const showInlineReply = ref(false);
 const showDeleteConfirmation = ref(false);
 const isDeleting = ref(false);
+
+// Emoji picker state
+const emojiTriggerRef = ref<HTMLElement>();
+const postReactionsRef = ref<InstanceType<typeof PostReactions>>();
+const showEmojiPopup = ref(false);
 
 
 const handleTimeClick = () => {
@@ -559,6 +595,59 @@ const handleReplySent = (reply: any) => {
   console.log('Reply sent:', reply);
   showInlineReply.value = false;
   // Could emit a success event or update local state here
+};
+
+const handleShowEmojiPicker = (post: TimelinePost) => {
+  console.log('Show emoji picker for post:', post.id);
+  showEmojiPopup.value = true;
+};
+
+const closeEmojiPopup = () => {
+  showEmojiPopup.value = false;
+};
+
+const handleEmojiSelected = async (emoji: any) => {
+  console.log('Emoji selected:', emoji);
+  
+  const currentUser = getCurrentUser.value;
+  if (!currentUser) {
+    console.warn('User not authenticated');
+    return;
+  }
+  
+  try {
+    // Add emoji reaction via Supabase RPC
+    const { error } = await supabase.rpc('add_post_emoji_reaction', {
+      p_user_id: currentUser.id,
+      p_post_id: props.post.id,
+      p_emoji_id: emoji.id || null,
+      p_custom_emoji_content: emoji.native || emoji.name || null
+    });
+
+    if (error) {
+      console.error('Failed to add emoji reaction:', error);
+    } else {
+      console.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+      // Close the popup after successful reaction
+      closeEmojiPopup();
+      // Refresh the reactions display
+      if (postReactionsRef.value) {
+        await postReactionsRef.value.loadReactions();
+      }
+    }
+  } catch (error) {
+    console.error('Error adding emoji reaction:', error);
+  }
+};
+
+const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
+  console.log('Show reaction tooltip:', reaction);
+  // This could show a tooltip with who reacted
+};
+
+const handleHideReactionTooltip = () => {
+  console.log('Hide reaction tooltip');
+  // This hides the reaction tooltip
 };
 
 const onEdit = () => {
@@ -1046,8 +1135,9 @@ const handleHashtagClick = (tag: string) => {
   position: absolute;
   top: 100%;
   right: 0;
-  background-color: #1f2937;
-  border: 1px solid #374151;
+  backdrop-filter: blur(3px);
+  background-color: var(--background-primary-alpha);
+  border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   padding: 0.5rem;
   min-width: 150px;
@@ -1072,7 +1162,7 @@ const handleHashtagClick = (tag: string) => {
 }
 
 .dropdown-item:hover {
-  background-color: #374151;
+  background-color: var(--background-secondary-alpha);
 }
 
 .dropdown-item.danger {
