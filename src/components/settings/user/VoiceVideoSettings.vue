@@ -7,16 +7,15 @@
       </p>
     </div>
     
-    <VoiceSettingsPanel 
-      mode="inline"
-      :show-header="false"
-      @update-settings="handleSettingsUpdate"
+    <VoiceSettingsInline 
+      :loading="loading"
+      @update-voice-settings="handleSettingsUpdate"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import VoiceSettingsPanel from '@/components/voice/VoiceSettingsPanel.vue';
+import VoiceSettingsInline from './VoiceSettingsInline.vue';
 
 interface Props {
   loading: boolean

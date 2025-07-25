@@ -18,7 +18,7 @@
           
           <div class="setting-group">
             <label class="setting-label">Input Device</label>
-            <select v-model="selectedInputDevice" class="setting-select">
+            <select v-model="selectedInputDevice" class="setting-select" @change="updateInputDevice">
               <option v-for="device in inputDevices" :key="device.deviceId" :value="device.deviceId">
                 {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}` }}
               </option>
@@ -27,7 +27,7 @@
 
           <div class="setting-group">
             <label class="setting-label">Output Device</label>
-            <select v-model="selectedOutputDevice" class="setting-select">
+            <select v-model="selectedOutputDevice" class="setting-select" @change="updateOutputDevice">
               <option v-for="device in outputDevices" :key="device.deviceId" :value="device.deviceId">
                 {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}` }}
               </option>
@@ -414,6 +414,54 @@ export default defineComponent({
     };
 
     // Settings update handlers
+    const updateInputDevice = async () => {
+      if (!selectedInputDevice.value) return;
+      
+      try {
+        // Use the WebRTC service method to properly switch devices
+        await unifiedWebRTC.updateInputDevice(selectedInputDevice.value);
+        console.log('✅ [VoiceSettingsPanel] Successfully switched to new input device');
+      } catch (error) {
+        console.error('❌ [VoiceSettingsPanel] Failed to switch input device:', error);
+      }
+      
+      // Save to localStorage
+      try {
+        const existing = localStorage.getItem('harmony-voice-settings');
+        const settings = existing ? JSON.parse(existing) : {};
+        settings.selectedInputDevice = selectedInputDevice.value;
+        localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
+      } catch (error) {
+        console.warn('Failed to save input device:', error);
+      }
+      
+      emit('update-settings', { type: 'inputDevice', value: selectedInputDevice.value });
+    };
+
+    const updateOutputDevice = async () => {
+      if (!selectedOutputDevice.value) return;
+      
+      try {
+        // Use the WebRTC service method to properly switch output devices
+        await unifiedWebRTC.updateOutputDevice(selectedOutputDevice.value);
+        console.log('✅ [VoiceSettingsPanel] Successfully switched to new output device');
+      } catch (error) {
+        console.error('❌ [VoiceSettingsPanel] Failed to switch output device:', error);
+      }
+      
+      // Save to localStorage
+      try {
+        const existing = localStorage.getItem('harmony-voice-settings');
+        const settings = existing ? JSON.parse(existing) : {};
+        settings.selectedOutputDevice = selectedOutputDevice.value;
+        localStorage.setItem('harmony-voice-settings', JSON.stringify(settings));
+      } catch (error) {
+        console.warn('Failed to save output device:', error);
+      }
+      
+      emit('update-settings', { type: 'outputDevice', value: selectedOutputDevice.value });
+    };
+
     const updateInputVolume = () => {
       // Save to localStorage
       try {
@@ -535,6 +583,8 @@ export default defineComponent({
       previewStream,
       previewVideo,
       testMicrophone,
+      updateInputDevice,
+      updateOutputDevice,
       updateInputVolume,
       updateOutputVolume,
       updateAudioSettings,
