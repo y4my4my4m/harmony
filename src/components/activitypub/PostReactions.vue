@@ -44,8 +44,26 @@
 </template>
 
 <script setup lang="ts">
-import type { TimelinePost } from '@/types'
-import { usePostReactions } from '@/composables/usePostReactions'
+import { computed, onMounted, onUnmounted, watch, ref } from 'vue';
+import { useAuthStore } from '@/stores/auth';
+import { supabase } from '@/supabase';
+import type { TimelinePost } from '@/types';
+
+interface PostEmojiReaction {
+  emoji_id: string | null
+  emoji_name: string | null
+  emoji_url?: string | null
+  custom_emoji_content?: string | null
+  reaction_count: number
+  user_reactions: Array<{
+    user_id: string
+    username: string
+    display_name: string
+    avatar_url: string
+    created_at: string
+  }>
+  current_user_reacted: boolean
+}
 
 interface Props {
   post: TimelinePost;
@@ -53,7 +71,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'show-reaction-tooltip', event: MouseEvent, reaction: any): void;
+  (e: 'show-reaction-tooltip', event: MouseEvent, reaction: PostEmojiReaction): void;
   (e: 'hide-reaction-tooltip'): void;
 }
 
@@ -63,16 +81,90 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
-// Use the professional composable following chat patterns
-const {
-  reactions,
-  isLoadingReactions,
-  handleReactionClick,
-  formatReactionTooltip
-} = usePostReactions(props)
+const authStore = useAuthStore();
 
-// Show reaction tooltip with user details  
-const showTooltip = (event: MouseEvent, reaction: any) => {
+// Reactive state
+const reactions = ref<PostEmojiReaction[]>([]);
+const isLoadingReactions = ref(false);
+
+// Get current user ID
+const currentUserId = computed(() => 
+  authStore.session?.user?.id
+);
+
+// Load reactions for this post
+const loadReactions = async () => {
+  if (!props.post?.id) return;
+  
+  isLoadingReactions.value = true;
+  try {
+    const { data, error } = await supabase.rpc('get_post_emoji_reactions', {
+      p_post_id: props.post.id,
+      p_user_limit: 5
+    });
+
+    if (error) {
+      console.error('Failed to load post reactions:', error);
+      return;
+    }
+
+    // Transform database response to component format
+    reactions.value = (data || []).map((item: any) => ({
+      emoji_id: item.emoji_id,
+      emoji_name: item.emoji_name,
+      emoji_url: item.emoji_url,
+      custom_emoji_content: item.custom_emoji_content,
+      reaction_count: item.reaction_count,
+      user_reactions: item.user_reactions || [],
+      current_user_reacted: item.current_user_reacted
+    }));
+
+    console.log(`📊 Loaded ${reactions.value.length} reaction types for post ${props.post.id}`);
+  } catch (error) {
+    console.error('Error loading post reactions:', error);
+  } finally {
+    isLoadingReactions.value = false;
+  }
+};
+
+// Handle reaction click (add/remove)
+const handleReactionClick = async (reaction: PostEmojiReaction) => {
+  if (!currentUserId.value) {
+    console.warn('User not authenticated');
+    return;
+  }
+  
+  try {
+    if (reaction.current_user_reacted) {
+      // Remove reaction
+      await supabase.rpc('remove_post_emoji_reaction', {
+        p_user_id: currentUserId.value,
+        p_post_id: props.post.id,
+        p_emoji_id: reaction.emoji_id || null,
+        p_custom_emoji_content: reaction.custom_emoji_content || null
+      });
+      console.log(`➖ Removed reaction ${reaction.emoji_name} from post ${props.post.id}`);
+    } else {
+      // Add reaction
+      await supabase.rpc('add_post_emoji_reaction', {
+        p_user_id: currentUserId.value,
+        p_post_id: props.post.id,
+        p_emoji_id: reaction.emoji_id || null,
+        p_custom_emoji_content: reaction.custom_emoji_content || null
+      });
+      console.log(`➕ Added reaction ${reaction.emoji_name} to post ${props.post.id}`);
+    }
+    
+    // Reload reactions to show updated state
+    await loadReactions();
+    
+  } catch (error) {
+    console.error('Failed to toggle reaction:', error);
+  }
+};
+
+// Show reaction tooltip with user details
+const showTooltip = (event: MouseEvent, reaction: PostEmojiReaction) => {
   emit('show-reaction-tooltip', event, reaction);
 };
 
@@ -82,14 +174,53 @@ const hideTooltip = () => {
 };
 
 // Handle emoji loading errors
-const handleEmojiError = (reaction: any) => {
+const handleEmojiError = (reaction: PostEmojiReaction) => {
   console.warn('Failed to load emoji:', reaction);
 };
 
+// Load reactions when component mounts
+onMounted(() => {
+  loadReactions();
+  
+  // Subscribe to realtime updates for emoji reactions on this post
+  const channel = supabase
+    .channel(`post_reactions_${props.post.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'post_interactions',
+        filter: `post_id=eq.${props.post.id}`
+      },
+      (payload) => {
+        console.log('🔔 Realtime reaction update:', payload);
+        // Reload reactions when any interaction changes for this post
+        if (payload.new?.interaction_type === 'emoji_reaction' || 
+            payload.old?.interaction_type === 'emoji_reaction') {
+          loadReactions();
+        }
+      }
+    )
+    .subscribe();
+
+  // Cleanup subscription on unmount
+  onUnmounted(() => {
+    supabase.removeChannel(channel);
+  });
+});
+
+// Reload reactions when post changes
+watch(() => props.post.id, () => {
+  if (props.post.id) {
+    loadReactions();
+  }
+});
+
 // Expose methods for parent components
 defineExpose({
-  // Not needed anymore - store handles everything
-})
+  loadReactions
+});
 </script>
 
 <style scoped>
