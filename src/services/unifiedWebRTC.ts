@@ -754,26 +754,49 @@ export class UnifiedWebRTCService {
 
   private async initializeLocalAudio(): Promise<void> {
     try {
+      // Get new audio stream with updated constraints and selected device
       const { inputDevice } = this.getSelectedDevices();
-      
-      // Build audio constraints with device selection
       const audioConstraints: MediaTrackConstraints = {
         ...this.audioConstraints
       };
-      
-      // Add device ID if specified
+
+      // Add device ID if specified, but use 'ideal' for graceful fallback
       if (inputDevice) {
-        audioConstraints.deviceId = { exact: inputDevice };
-        console.log('🎤 Using selected input device:', inputDevice);
+        audioConstraints.deviceId = { ideal: inputDevice };
+        console.log('🎤 Using selected input device for constraint update:', inputDevice);
       }
-      
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
-        video: false
-      });
-      
-      this.localStream = stream;
-      
+
+      let newAudioStream: MediaStream;
+
+      try {
+        // Try with the selected device first
+        newAudioStream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+          video: false
+        });
+      } catch (error) {
+        console.warn('⚠️ Failed to use selected device during constraint update, falling back to default:', error);
+        
+        // Clear the invalid device ID and save
+        this.selectedInputDevice = null;
+        this.saveAudioSettings();
+        
+        // Fallback to default device
+        const fallbackConstraints: MediaTrackConstraints = {
+          ...this.audioConstraints
+          // No deviceId - let browser choose
+        };
+        
+        newAudioStream = await navigator.mediaDevices.getUserMedia({
+          audio: fallbackConstraints,
+          video: false
+        });
+        
+        console.log('✅ Using default audio device as fallback during constraint update');
+      }
+
+      this.localStream = newAudioStream;
+
       // Ensure audio track is enabled based on mute state
       const audioTrack = this.localStream.getAudioTracks()[0];
       if (audioTrack) {
@@ -791,7 +814,6 @@ export class UnifiedWebRTCService {
       throw error;
     }
   }
-
   private setupAudioLevelMonitoring(): void {
     if (!this.localStream) return;
     

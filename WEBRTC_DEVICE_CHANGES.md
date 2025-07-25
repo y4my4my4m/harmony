@@ -248,7 +248,7 @@ async updateVideoDevice(deviceId: string): Promise<void> {
 
 ## 5. Update the `initializeLocalAudio()` method
 
-Replace the `initializeLocalAudio()` method content (around line 609) with:
+Replace the `initializeLocalAudio()` method content (around line 755) with this version that includes fallback logic:
 
 ```typescript
 private async initializeLocalAudio(): Promise<void> {
@@ -260,16 +260,40 @@ private async initializeLocalAudio(): Promise<void> {
       ...this.audioConstraints
     };
     
-    // Add device ID if specified
+    // Add device ID if specified, but use 'ideal' instead of 'exact' for graceful fallback
     if (inputDevice) {
-      audioConstraints.deviceId = { exact: inputDevice };
+      audioConstraints.deviceId = { ideal: inputDevice };
       console.log('🎤 Using selected input device:', inputDevice);
     }
     
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: audioConstraints,
-      video: false
-    });
+    let stream: MediaStream;
+    
+    try {
+      // Try with the selected device first
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: audioConstraints,
+        video: false
+      });
+    } catch (error) {
+      console.warn('⚠️ Failed to use selected device, falling back to default:', error);
+      
+      // Clear the invalid device ID and save
+      this.selectedInputDevice = null;
+      this.saveAudioSettings();
+      
+      // Fallback to default device (no deviceId constraint)
+      const fallbackConstraints: MediaTrackConstraints = {
+        ...this.audioConstraints
+        // No deviceId - let browser choose
+      };
+      
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: fallbackConstraints,
+        video: false
+      });
+      
+      console.log('✅ Using default audio device as fallback');
+    }
     
     this.localStream = stream;
     
@@ -281,12 +305,6 @@ private async initializeLocalAudio(): Promise<void> {
     }
     
     this.setupAudioLevelMonitoring();
-    
-    // console.log('🎤 Local audio initialized with tracks:', {
-    //   audioTracks: this.localStream.getAudioTracks().length,
-    //   videoTracks: this.localStream.getVideoTracks().length,
-    //   totalTracks: this.localStream.getTracks().length
-    // });
     
     // Emit initial local stream for UI
     this.emit('local-stream-changed', this.localStream);
@@ -300,7 +318,7 @@ private async initializeLocalAudio(): Promise<void> {
 
 ## 6. Update the `updateAudioConstraints()` method
 
-Replace the getUserMedia call in `updateAudioConstraints()` method (around line 1240) with:
+Replace the getUserMedia call in `updateAudioConstraints()` method (around line 1240) with this version that includes fallback logic:
 
 ```typescript
 // Get new audio stream with updated constraints and selected device
@@ -309,18 +327,65 @@ const audioConstraints: MediaTrackConstraints = {
   ...this.audioConstraints
 };
 
-// Add device ID if specified
+// Add device ID if specified, but use 'ideal' for graceful fallback
 if (inputDevice) {
-  audioConstraints.deviceId = { exact: inputDevice };
+  audioConstraints.deviceId = { ideal: inputDevice };
   console.log('🎤 Using selected input device for constraint update:', inputDevice);
 }
 
-const newAudioStream = await navigator.mediaDevices.getUserMedia({
-  audio: audioConstraints,
-  video: false
-});
+let newAudioStream: MediaStream;
+
+try {
+  // Try with the selected device first
+  newAudioStream = await navigator.mediaDevices.getUserMedia({
+    audio: audioConstraints,
+    video: false
+  });
+} catch (error) {
+  console.warn('⚠️ Failed to use selected device during constraint update, falling back to default:', error);
+  
+  // Clear the invalid device ID and save
+  this.selectedInputDevice = null;
+  this.saveAudioSettings();
+  
+  // Fallback to default device
+  const fallbackConstraints: MediaTrackConstraints = {
+    ...this.audioConstraints
+    // No deviceId - let browser choose
+  };
+  
+  newAudioStream = await navigator.mediaDevices.getUserMedia({
+    audio: fallbackConstraints,
+    video: false
+  });
+  
+  console.log('✅ Using default audio device as fallback during constraint update');
+}
 ```
 
 Also, you need to **remove the call to `this.loadDeviceSettings()`** from the constructor since we're now using the existing `loadAudioSettings()` method.
+
+## Quick Fix for Current Issue
+
+If you want to quickly fix the current issue without applying all changes, you can:
+
+1. **Clear the invalid device settings** by running this in the browser console:
+   ```javascript
+   localStorage.removeItem('harmony-voice-settings');
+   ```
+
+2. **Or just change the deviceId constraint** in the current `initializeLocalAudio()` method from:
+   ```typescript
+   audioConstraints.deviceId = { exact: inputDevice };
+   ```
+   to:
+   ```typescript
+   audioConstraints.deviceId = { ideal: inputDevice };
+   ```
+
+The key changes that fix the issue:
+- **Use `ideal` instead of `exact`** for device constraints (allows fallback)
+- **Add try/catch around getUserMedia** to handle device failures gracefully
+- **Clear invalid device IDs** when they fail so we don't keep trying them
 
 These changes will enable proper device switching that propagates to active WebRTC streams and peer connections.
