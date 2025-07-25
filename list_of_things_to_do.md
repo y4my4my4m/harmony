@@ -116,15 +116,9 @@ supabase-edge-functions  |
 
 ^ make these misskey reactions work for messages and posts
 
-
-38. profileService is probably not needed anymore, we should use the new userDataService and ensure all components use the same source of truth for user, it's doing weird things like signing avatar URLs, and its not using the optmized versions, no cache either? etc...
-
 39. add a limit of "unique" reactions per post/message, like max 20 different reactions (with unlimited counters on each)
 
 40. notification should be smart in case a user spams a reaction, it should only show the first one and then ignore the rest, so that we don't spam the user with notifications, until a time threshold is reached (like  2min) and then it can show the next one, but not more than 3 in a row or something like that
-
-
-41. send_accept_activity_for_follow is still using the automatic and returning http_sign_ stuff with edge functions, clean up.
 
 42. we have ap_activities and federation_delivery_queue, we should merge them into one table, federation_delivery_queue should be the main table and ap_activities should be a view or something, so that we can have all activities in one place and not have to query two tables for federation
 
