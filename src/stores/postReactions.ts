@@ -242,6 +242,22 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
         if (error) throw error
       }
 
+      // Trigger federation for the reaction (async, don't block UI)
+      try {
+        const { FederationActivityService } = await import('@/services/federation/FederationActivityService')
+        const federationService = FederationActivityService.getInstance()
+        await federationService.createPostReactionActivity(
+          postId, 
+          emoji.id || emoji.native || emoji.name || 'unknown', // Handle different emoji types
+          userId, 
+          operation
+        )
+        console.log(`✅ Federation: Post reaction ${operation} activity created for post ${postId}`)
+      } catch (federationError) {
+        console.warn('⚠️ Federation failed, but local reaction succeeded:', federationError)
+        // Don't fail the entire operation if federation fails - user experience first!
+      }
+
       // DON'T refresh real data - just keep the optimistic state!
       // This prevents flashing just like messages reactions
       

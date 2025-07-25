@@ -88,25 +88,33 @@ serve(async (req: Request) => {
     // ✅ Process the activity based on type and classification
     let isValid = false
     try {
-      switch (activity.type) {
-        case 'Follow':
-          isValid = await processFollowActivity(supabase, activity, ourDomain)
-          break
-        case 'Accept':
-        case 'Reject':
-        case 'Undo':
-        case 'Update':
-        case 'Delete':
-        case 'Like':
-        case 'Announce':
-          isValid = true // Basic validation passed, let database handle business logic
-          break
-        case 'Create':
-          isValid = true // Basic validation passed, let database handle business logic
-          break
-        default:
-          console.log(`❌ Unhandled activity type: ${activity.type}`)
-          isValid = false
+      // Check if this is an emoji reaction first (can be EmojiReact, Like with emoji, or Undo)
+      const { data: isEmojiReaction } = await supabase
+        .rpc('is_emoji_reaction_activity', { p_activity: activity })
+      
+      if (isEmojiReaction) {
+        isValid = await processEmojiReactionActivity(supabase, activity, actorUrl, originDomain)
+      } else {
+        switch (activity.type) {
+          case 'Follow':
+            isValid = await processFollowActivity(supabase, activity, ourDomain)
+            break
+          case 'Accept':
+          case 'Reject':
+          case 'Undo':
+          case 'Update':
+          case 'Delete':
+          case 'Like':
+          case 'Announce':
+            isValid = true // Basic validation passed, let database handle business logic
+            break
+          case 'Create':
+            isValid = true // Basic validation passed, let database handle business logic
+            break
+          default:
+            console.log(`❌ Unhandled activity type: ${activity.type}`)
+            isValid = false
+        }
       }
 
       if (isValid) {
@@ -178,4 +186,36 @@ async function processFollowActivity(supabase: any, activity: ActivityPubActivit
 
   console.log(`✅ Valid follow activity for user: ${followingMatch[1]}`)
   return true
+}
+
+// ✅ Process emoji reaction activities (EmojiReact, Like with emoji, Undo)
+async function processEmojiReactionActivity(supabase: any, activity: ActivityPubActivity, actorUrl: string, originDomain: string | null) {
+  try {
+    console.log(`🎭 Processing emoji reaction activity: ${activity.type} from ${actorUrl}`)
+    
+    const { data: result, error } = await supabase
+      .rpc('process_incoming_emoji_reaction', {
+        p_activity_id: activity.id,
+        p_activity: activity,
+        p_actor_uri: actorUrl,
+        p_actor_domain: originDomain
+      })
+    
+    if (error) {
+      console.error('❌ Failed to process emoji reaction:', error)
+      return false
+    }
+    
+    if (result) {
+      console.log(`✅ Successfully processed emoji reaction: ${activity.id}`)
+      return true
+    } else {
+      console.log(`⚠️ Emoji reaction processing returned false: ${activity.id}`)
+      return false
+    }
+    
+  } catch (error) {
+    console.error('❌ Error processing emoji reaction:', error)
+    return false
+  }
 }
