@@ -653,6 +653,12 @@
     <!-- Zap -->
     <path v-if="name === 'zap'" d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"></path>
 
+    <!-- Log-in -->
+    <path v-if="name === 'log-in'" d="m10 17 5-5-5-5"/>
+    <path v-if="name === 'log-in'" d="M15 12H3"/>
+    <path v-if="name === 'log-in'" d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+
+
 </svg>
 </template>
 

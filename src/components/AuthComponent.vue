@@ -1055,6 +1055,14 @@ onMounted(async () => {
     margin: 0 8px;
     border-radius: 16px;
   }
+  .auth-branding,
+  .auth-panel {
+    padding: 0;
+  }
+
+  .auth-panel {
+    align-items: flex-start;
+  }
   
   .form-title {
     font-size: 1.5rem;
@@ -1064,6 +1072,14 @@ onMounted(async () => {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .brand-subtitle,
+  .brand-logo {
+    display: none;
+  }
+  .divider {
+    margin: 0;
   }
 }
 </style>

@@ -44,8 +44,8 @@ const route = useRoute()
 
 // Auth route detection
 const isAuthRoute = computed(() => {
-  const authRoutes = ['/login', '/register', '/new-profile']
-  return authRoutes.includes(route.path)
+  const authRoutes = ['/login', '/register', '/new-profile', '/404-public']
+  return authRoutes.includes(route.path) || route.name === 'NotFoundPublic'
 })
 
 // Global modal state
