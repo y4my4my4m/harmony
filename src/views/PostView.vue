@@ -276,9 +276,14 @@ const loadPostWithContext = async () => {
     isLoading.value = true;
     error.value = null;
     
-    console.log(`🔄 Loading post ${props.postId} with context: ${props.contextType}`);
+    // Get postId from props or route params as fallback
+    const postId = props.postId || route.params.postId as string;
     
-    const result = await activityPub.getPostWithContext(props.postId, {
+    if (!postId) {
+      throw new Error('No postId provided in props or route params');
+    }
+    
+    const result = await activityPub.getPostWithContext(postId, {
       context: props.contextType,
       highlightReply: props.highlightReply,
       maxDepth: maxThreadDepth.value,
