@@ -196,15 +196,7 @@ const toggleMic = async () => {
 
 const toggleHeadphones = async () => {
   try {
-    const wasDeafened = voiceChannelStore.localState.isDeafened
     await voiceChannelStore.toggleDeafen()
-    
-    // Play appropriate sound effect using theme system
-    if (wasDeafened) {
-      themeStore.testAudio('ui_success') // Undeafened - positive sound
-    } else {
-      themeStore.testAudio('ui_click') // Deafened - neutral sound
-    }
   } catch (error) {
     console.error('Failed to toggle deafen:', error)
   }
