@@ -514,7 +514,18 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      // Validate required fields
+      // Check event type first and handle DELETE events early
+      console.log('💫 Event type check:', payload.event, 'interaction data:', interaction);
+      
+      // For DELETE events, we only get minimal data (usually just ID)
+      // Skip processing if we don't have enough information
+      if (payload.event === 'DELETE') {
+        console.log('💫 DELETE event detected, skipping detailed processing (insufficient data in payload.old)');
+        console.log('💫 This is normal behavior - DELETE events only provide minimal data');
+        return;
+      }
+
+      // Validate required fields (only for non-DELETE events)
       if (!interaction.post_id) {
         console.error('❌ Missing post_id in interaction:', interaction);
         return;

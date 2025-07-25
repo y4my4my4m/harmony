@@ -46,6 +46,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch, ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { useThemeStore } from '@/stores/useTheme';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
@@ -82,6 +83,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const authStore = useAuthStore();
+const themeStore = useThemeStore();
 
 // Reactive state
 const reactions = ref<PostEmojiReaction[]>([]);
@@ -135,6 +137,14 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
   }
   
   try {
+    // Play audio feedback immediately for better UX
+    try {
+      await themeStore.testAudio('reaction');
+    } catch (audioError) {
+      console.warn('Failed to play reaction audio:', audioError);
+      // Don't block the reaction if audio fails
+    }
+    
     if (reaction.current_user_reacted) {
       // Remove reaction
       await supabase.rpc('remove_post_emoji_reaction', {
@@ -160,6 +170,12 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
     
   } catch (error) {
     console.error('Failed to toggle reaction:', error);
+    // Play error sound if available
+    try {
+      await themeStore.testAudio('ui_error');
+    } catch (audioError) {
+      console.warn('Failed to play error audio:', audioError);
+    }
   }
 };
 

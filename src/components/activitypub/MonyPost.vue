@@ -383,6 +383,7 @@ import { computed, ref } from 'vue';
 import { useUserData } from '@/composables/useUserData';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
+import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -422,6 +423,7 @@ const emit = defineEmits<{
 const { getCurrentUser } = useUserData();
 const activityPubStore = useActivityPubStore();
 const notificationStore = useNotificationStore();
+const themeStore = useThemeStore();
 
 // Composables for clean interaction handling
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
@@ -655,6 +657,14 @@ const handleEmojiSelected = async (emoji: any) => {
   }
   
   try {
+    // Play audio feedback immediately for better UX
+    try {
+      await themeStore.testAudio('reaction');
+    } catch (audioError) {
+      console.warn('Failed to play reaction audio:', audioError);
+      // Don't block the reaction if audio fails
+    }
+    
     // Use the PostReactions composable instead of direct Supabase calls
     if (postReactionsRef.value?.handleEmojiSelected) {
       const success = await postReactionsRef.value.handleEmojiSelected(emoji);
@@ -673,13 +683,29 @@ const handleEmojiSelected = async (emoji: any) => {
 
       if (error) {
         console.error('Failed to add emoji reaction:', error);
+        // Play error sound if available
+        try {
+          await themeStore.testAudio('ui_error');
+        } catch (audioError) {
+          console.warn('Failed to play error audio:', audioError);
+        }
       } else {
         console.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
         closeEmojiPopup();
+        // Refresh the reactions display
+        if (postReactionsRef.value) {
+          await postReactionsRef.value.loadReactions();
+        }
       }
     }
   } catch (error) {
     console.error('Error adding emoji reaction:', error);
+    // Play error sound if available
+    try {
+      await themeStore.testAudio('ui_error');
+    } catch (audioError) {
+      console.warn('Failed to play error audio:', audioError);
+    }
   }
 };
 
