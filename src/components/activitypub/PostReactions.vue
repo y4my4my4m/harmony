@@ -86,8 +86,9 @@ const authStore = useAuthStore();
 const themeStore = useThemeStore();
 
 // Reactive state
-const reactions = ref<PostEmojiReaction[]>([]);
-const isLoadingReactions = ref(false);
+const postReactionsStore = usePostReactionsStore();
+const reactions = computed(() => postReactionsStore.reactions);
+const isLoadingReactions = computed(() => postReactionsStore.isLoadingReactions);
 
 // Get current user ID
 const currentUserId = computed(() => 
