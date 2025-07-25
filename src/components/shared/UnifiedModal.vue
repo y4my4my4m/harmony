@@ -388,6 +388,7 @@ onUnmounted(() => {
 .modal-container {
   transform-origin: center;
   will-change: transform, opacity;
+  background: var(--background-primary-alpha);
 }
 
 /* Focus management */

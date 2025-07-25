@@ -8,6 +8,7 @@ import { supabase } from '@/supabase';
 import { activityPubService } from '@/services/activityPubService';
 import { services } from '@/services';
 import router from '@/router';
+import { usePostReactionsStore } from '@/stores/postReactions';
 // InteractionService removed - using direct database operations
 import type { 
   Post, 
@@ -216,6 +217,9 @@ export const useActivityPubStore = defineStore('activitypub', {
     async initialize() {
       try {
         console.log('🌐 Initializing ActivityPub store...');
+        
+        // Initialize post reactions store for batch loading
+        const postReactionsStore = usePostReactionsStore();
         
         // Load user relationships and counts
         await this.loadFollowedUsers();
@@ -514,7 +518,18 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      // Validate required fields
+      // Check event type first and handle DELETE events early
+      console.log('💫 Event type check:', payload.event, 'interaction data:', interaction);
+      
+      // For DELETE events, we only get minimal data (usually just ID)
+      // Skip processing if we don't have enough information
+      if (payload.event === 'DELETE') {
+        console.log('💫 DELETE event detected, skipping detailed processing (insufficient data in payload.old)');
+        console.log('💫 This is normal behavior - DELETE events only provide minimal data');
+        return;
+      }
+
+      // Validate required fields (only for non-DELETE events)
       if (!interaction.post_id) {
         console.error('❌ Missing post_id in interaction:', interaction);
         return;
@@ -938,6 +953,15 @@ export const useActivityPubStore = defineStore('activitypub', {
           }
         );
         
+        // BATCH LOAD REACTIONS for all posts to prevent N+1 queries
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          const postIds = posts.map(p => p.id)
+          console.log(`🔄 Batch loading reactions for ${postIds.length} home timeline posts`)
+          // Force batch fetch to ensure reactions load before components render
+          await postReactionsStore.fetchMultiplePostReactions(postIds, true)
+        }
+        
         if (maxId) {
           this.homeFeed.posts.push(...posts);
         } else {
@@ -967,6 +991,15 @@ export const useActivityPubStore = defineStore('activitypub', {
           limit: 20,
           max_id: maxId
         });
+        
+        // BATCH LOAD REACTIONS for all posts to prevent N+1 queries
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          const postIds = posts.map(p => p.id)
+          console.log(`🔄 Batch loading reactions for ${postIds.length} public timeline posts`)
+          // Force batch fetch to ensure reactions load before components render
+          await postReactionsStore.fetchMultiplePostReactions(postIds, true)
+        }
         
         if (maxId) {
           this.publicFeed.posts.push(...posts);
@@ -1022,6 +1055,15 @@ export const useActivityPubStore = defineStore('activitypub', {
           limit: 20,
           max_id: maxId
         });
+        
+        // BATCH LOAD REACTIONS for all posts to prevent N+1 queries
+        if (posts.length > 0) {
+          const postReactionsStore = usePostReactionsStore();
+          const postIds = posts.map(p => p.id)
+          console.log(`🔄 Batch loading reactions for ${postIds.length} local timeline posts`)
+          // Force batch fetch to ensure reactions load before components render
+          await postReactionsStore.fetchMultiplePostReactions(postIds, true)
+        }
         
         if (maxId) {
           this.localFeed.posts.push(...posts);

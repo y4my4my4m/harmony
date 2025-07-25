@@ -140,10 +140,10 @@ export function usePostInteractions() {
   }
 
   /**
-   * Toggle reblog (share) status for a post
+   * Toggle reblog (boost) status for a post
    * Now using service layer for consistent error handling and optimistic updates
    */
-  const toggleReblog = async (post: TimelinePost | string): Promise<{ success: boolean; shared?: boolean; newCount?: number; error?: string }> => {
+  const toggleReblog = async (post: TimelinePost | string): Promise<{ success: boolean; reblogged?: boolean; newCount?: number; error?: string }> => {
     const postId = typeof post === 'string' ? post : post.id
     
     if (!postId) {
@@ -153,11 +153,12 @@ export function usePostInteractions() {
 
     isReblogLoading.value = true
     try {
-      const result = await services.posts.toggleShare(postId)
-      console.log(`✅ Reblog toggled for post ${postId}:`, result.shared ? 'Shared' : 'Unshared')
+      const result = await services.posts.toggleReblog(postId)
+      console.log(`✅ Reblog toggled for post ${postId}:`, result.reblogged ? 'Reblogged' : 'Unreblogged')
+      
       return { 
         success: true, 
-        shared: result.shared,
+        reblogged: result.reblogged,
         newCount: result.newCount
       }
     } catch (error) {

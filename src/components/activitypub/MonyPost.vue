@@ -223,6 +223,14 @@
         </div>
       </div>
 
+      <!-- Post Reactions (Emoji Reactions) - Above action buttons -->
+      <PostReactions
+        ref="postReactionsRef"
+        :post="post"
+        @show-reaction-tooltip="handleShowReactionTooltip"
+        @hide-reaction-tooltip="handleHideReactionTooltip"
+      />
+
       <!-- Action Buttons -->
       <div class="post-actions">
         <button 
@@ -255,6 +263,15 @@
         </button>
 
         <button 
+          ref="emojiTriggerRef"
+          class="action-button add-reaction-button"
+          @click="() => handleShowEmojiPicker(post)"
+          title="Add reaction"
+        >
+          <Icon name="plus" />
+        </button>
+
+        <button 
           class="action-button bookmark-button"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
           @click="toggleBookmark(post.id)"
@@ -262,6 +279,7 @@
         >
           <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
         </button>
+
         <div class="action-menu">
           <button 
             class="action-button menu-button" 
@@ -321,6 +339,42 @@
       @cancel="handleDeleteCancel"
       @close="handleDeleteCancel"
     />
+
+    <!-- Emoji Popup for reactions -->
+    <EmojiPopup
+      v-if="showEmojiPopup"
+      :trigger-element="emojiTriggerRef"
+      :position="'above'"
+      :is-reaction="true"
+      :close-emoji-list="closeEmojiPopup"
+      @send-emoji="handleEmojiSelected"
+      @reset-emoji-icon-clicked="closeEmojiPopup"
+    />
+
+    <!-- Tooltip for reactions -->
+    <div
+      v-if="tooltip.visible"
+      class="reaction-tooltip"
+      :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
+    >
+      <div class="tooltip-header">
+        <img 
+          v-if="tooltip.emoji?.url"
+          :src="tooltip.emoji.url"
+          :alt="tooltip.emoji.name || 'emoji'"
+          class="tooltip-emoji"
+        />
+        <span class="emoji-name">:{{ tooltip.emoji?.name }}:</span>
+      </div>
+      <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
+        <Avatar 
+          :src="user.avatarUrl"
+          size="xs"
+          class="tooltip-avatar"
+        />
+        <span>{{ user.displayName }}</span>
+      </div>
+    </div>
   </article>
 </template>
 
@@ -329,9 +383,11 @@ import { computed, ref } from 'vue';
 import { useUserData } from '@/composables/useUserData';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
+import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import ConversationService from '@/services/ConversationService';
 import { formatDistanceToNow, format } from 'date-fns';
+import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
 // Components
@@ -339,7 +395,9 @@ import MonyContent from './MonyContent.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import InlineReplyComposer from './InlineReplyComposer.vue';
+import PostReactions from './PostReactions.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
+import EmojiPopup from '@/components/EmojiPopup.vue';
 import router from '@/router';
 
 // Props
@@ -365,6 +423,7 @@ const emit = defineEmits<{
 const { getCurrentUser } = useUserData();
 const activityPubStore = useActivityPubStore();
 const notificationStore = useNotificationStore();
+const themeStore = useThemeStore();
 
 // Composables for clean interaction handling
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
@@ -375,6 +434,21 @@ const showMenu = ref(false);
 const showInlineReply = ref(false);
 const showDeleteConfirmation = ref(false);
 const isDeleting = ref(false);
+
+// Emoji picker state
+const emojiTriggerRef = ref<HTMLElement>();
+const postReactionsRef = ref<InstanceType<typeof PostReactions>>();
+const showEmojiPopup = ref(false);
+
+// Tooltip state for reaction tooltips
+const tooltip = ref({
+  visible: false,
+  content: [] as { id: string; displayName: string; avatarUrl: string; userColor?: string; }[],
+  x: 0,
+  y: 0,
+  emoji: null as any,
+});
+const tooltipTimer = ref<NodeJS.Timeout | null>(null);
 
 
 const handleTimeClick = () => {
@@ -559,6 +633,112 @@ const handleReplySent = (reply: any) => {
   console.log('Reply sent:', reply);
   showInlineReply.value = false;
   // Could emit a success event or update local state here
+};
+
+const handleShowEmojiPicker = (post: TimelinePost) => {
+  console.log('Show emoji picker for post:', post.id);
+  console.log('emojiTriggerRef:', emojiTriggerRef.value);
+  console.log('Current showEmojiPopup:', showEmojiPopup.value);
+  showEmojiPopup.value = true;
+  console.log('Set showEmojiPopup to:', showEmojiPopup.value);
+};
+
+const closeEmojiPopup = () => {
+  showEmojiPopup.value = false;
+};
+
+const handleEmojiSelected = async (emoji: any) => {
+  console.log('Emoji selected:', emoji);
+  
+  const currentUser = getCurrentUser.value;
+  if (!currentUser) {
+    console.warn('User not authenticated');
+    return;
+  }
+  
+  try {
+    // Play audio feedback immediately for better UX
+    try {
+      await themeStore.testAudio('reaction');
+    } catch (audioError) {
+      console.warn('Failed to play reaction audio:', audioError);
+      // Don't block the reaction if audio fails
+    }
+    
+    // Use the PostReactions composable instead of direct Supabase calls
+    if (postReactionsRef.value?.handleEmojiSelected) {
+      const success = await postReactionsRef.value.handleEmojiSelected(emoji);
+      if (success) {
+        console.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        closeEmojiPopup();
+      }
+    } else {
+      // Fallback to direct API call
+      const { error } = await supabase.rpc('add_post_emoji_reaction', {
+        p_user_id: currentUser.id,
+        p_post_id: props.post.id,
+        p_emoji_id: emoji.id || null,
+        p_custom_emoji_content: emoji.native || emoji.name || null
+      });
+
+      if (error) {
+        console.error('Failed to add emoji reaction:', error);
+        // Play error sound if available
+        try {
+          await themeStore.testAudio('ui_error');
+        } catch (audioError) {
+          console.warn('Failed to play error audio:', audioError);
+        }
+      } else {
+        console.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        closeEmojiPopup();
+        // Refresh the reactions display
+        if (postReactionsRef.value) {
+          await postReactionsRef.value.loadReactions();
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error adding emoji reaction:', error);
+    // Play error sound if available
+    try {
+      await themeStore.testAudio('ui_error');
+    } catch (audioError) {
+      console.warn('Failed to play error audio:', audioError);
+    }
+  }
+};
+
+const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  
+  // Transform user_reactions to the format needed for tooltip
+  const usersDetails = (reaction.user_reactions || []).map((ur: any) => ({
+    id: ur.user_id,
+    displayName: ur.display_name || ur.username || 'Unknown User',
+    avatarUrl: ur.avatar_url || '',
+    userColor: ur.user_color || '#ffffff'
+  }));
+  
+  // Show tooltip after a delay
+  tooltipTimer.value = setTimeout(() => {
+    tooltip.value = { 
+      visible: true, 
+      content: usersDetails, 
+      x: event.clientX, 
+      y: event.clientY, 
+      emoji: {
+        name: reaction.emoji_name,
+        url: reaction.emoji_url
+      }
+    };
+  }, 500);
+};
+
+const handleHideReactionTooltip = () => {
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  tooltipTimer.value = null;
+  tooltip.value.visible = false;
 };
 
 const onEdit = () => {
@@ -1046,8 +1226,9 @@ const handleHashtagClick = (tag: string) => {
   position: absolute;
   top: 100%;
   right: 0;
-  background-color: #1f2937;
-  border: 1px solid #374151;
+  backdrop-filter: blur(3px);
+  background-color: var(--background-primary-alpha);
+  border: 1px solid var(--border-color);
   border-radius: 0.5rem;
   padding: 0.5rem;
   min-width: 150px;
@@ -1072,7 +1253,7 @@ const handleHashtagClick = (tag: string) => {
 }
 
 .dropdown-item:hover {
-  background-color: #374151;
+  background-color: var(--background-secondary-alpha);
 }
 
 .dropdown-item.danger {
@@ -1180,5 +1361,52 @@ const handleHashtagClick = (tag: string) => {
   .action-button {
     padding: 0.375rem;
   }
+}
+
+/* Reaction Tooltip Styles */
+.reaction-tooltip {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  max-width: 200px;
+  box-shadow: var(--shadow-large);
+  pointer-events: none;
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.tooltip-emoji {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.emoji-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.tooltip-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.tooltip-avatar {
+  flex-shrink: 0;
 }
 </style>
