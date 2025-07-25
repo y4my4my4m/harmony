@@ -499,7 +499,6 @@ onMounted(loadPostWithContext);
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--color-bg-primary);
 }
 
 .post-header {
@@ -612,6 +611,39 @@ onMounted(loadPostWithContext);
   padding: 0;
 }
 
+.post-container {
+  display: flex;
+  flex-direction: column;
+  align-content: center;
+}
+
+.thread-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.highlighted-post .mony-post {
+  box-shadow: 0 0 16px 5px rgba(88, 101, 242, 0.25);
+  border: 1px solid var(--harmony-primary, #5865f2);
+  border-radius: 12px;
+}
+
+.scroll-highlight {
+  animation: highlight-pulse 2s ease-in-out;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% { 
+    border-color: var(--h-brand, #5865f2);
+    box-shadow: 0 0 20px rgba(88, 101, 242, 0.3);
+  }
+  50% { 
+    border-color: var(--h-brand, #5865f2);
+    box-shadow: 0 0 30px rgba(88, 101, 242, 0.5);
+  }
+}
+
 .loading-state,
 .error-state {
   display: flex;
@@ -662,7 +694,10 @@ onMounted(loadPostWithContext);
 }
 
 .post-container {
-  max-width: 100%;
+  width: 600px;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1rem;
 }
 
 .section-header {
