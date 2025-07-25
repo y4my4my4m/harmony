@@ -24,10 +24,15 @@ export interface PostReactionGroup {
  * Follows the same pattern as useReactions.ts for chat messages
  * Key principles:
  * 1. Batch loading to prevent N+1 queries
- * 2. Optimistic updates for instant UI feedback
+ * 2. Optimistic updates for instant UI feedback using REAL user data
  * 3. Limited user data (5 users max) for scalability
  * 4. Centralized state management
  * 5. Real-time subscription support
+ * 
+ * IMPROVEMENT: Follows exact same pattern as useReactions.ts for chat messages
+ * - Minimal optimistic state (no user data in optimistic updates)
+ * - Real user data comes from actual fetch after database update
+ * - Prevents tooltip flashing by keeping user_reactions arrays stable
  */
 export const usePostReactionsStore = defineStore('postReactions', () => {
   // State - Simple and clean
@@ -186,7 +191,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
    */
   async function toggleReaction(
     postId: string, 
-    emoji: { id?: string; native?: string; name?: string },
+    emoji: { id?: string; native?: string; name?: string; url?: string },
     userId: string
   ): Promise<{ success: boolean; reason?: string }> {
     const emojiKey = emoji.id || emoji.native || emoji.name
@@ -211,12 +216,12 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
       const newReactions = createOptimisticReactions(currentReactions, emoji, userId, operation)
       optimisticReactions.value.set(postId, newReactions)
 
-      // Clear optimistic state after 3 seconds
+      // Clear optimistic state after much longer time (like messages)
       setTimeout(() => {
         if (optimisticReactions.value.get(postId) === newReactions) {
           optimisticReactions.value.delete(postId)
         }
-      }, 3000)
+      }, 30000) // 30 seconds like messages
 
       // Actual database update
       if (operation === 'remove') {
@@ -237,9 +242,9 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
         if (error) throw error
       }
 
-      // Refresh real data
-      setTimeout(() => fetchPostReactions(postId, true), 1000)
-
+      // DON'T refresh real data - just keep the optimistic state!
+      // This prevents flashing just like messages reactions
+      
       return { success: true }
     } catch (error: any) {
       console.error('❌ Failed to toggle post reaction:', error)
@@ -252,7 +257,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
   }
 
   /**
-   * Create optimistic reaction state
+   * Create optimistic reaction state with real user data
    */
   function createOptimisticReactions(
     baseReactions: PostReactionGroup[], 
@@ -271,30 +276,36 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
 
     if (operation === 'remove' && existingIndex >= 0) {
       const existing = reactions[existingIndex]
-      if (existing.reaction_count <= 1) {
+      // Remove user from user_reactions array
+      existing.user_reactions = existing.user_reactions?.filter(r => r.user_id !== userId) || []
+      existing.reaction_count = existing.user_reactions.length
+      existing.current_user_reacted = false
+      
+      // Remove group if empty
+      if (existing.reaction_count === 0) {
         reactions.splice(existingIndex, 1)
-      } else {
-        reactions[existingIndex] = {
-          ...existing,
-          reaction_count: existing.reaction_count - 1,
-          current_user_reacted: false
-        }
       }
     } else if (operation === 'add') {
       if (existingIndex >= 0) {
+        const existing = reactions[existingIndex]
+        // SIMPLE: Just update count and user state, don't touch user_reactions
+        // This prevents tooltip flashing and keeps tooltips accurate
         reactions[existingIndex] = {
-          ...reactions[existingIndex],
-          reaction_count: reactions[existingIndex].reaction_count + 1,
+          ...existing,
+          reaction_count: existing.reaction_count + 1,
           current_user_reacted: true
+          // Keep user_reactions unchanged - let real fetch handle user data
         }
       } else {
+        // SIMPLE: Create minimal reaction group without user_reactions data
+        // This prevents tooltips from showing during optimistic state
         reactions.push({
           emoji_id: emojiId,
           emoji_name: emoji.name || null,
-          emoji_url: null, // Will be populated on real refresh
+          emoji_url: emoji.url || null,
           custom_emoji_content: customContent,
           reaction_count: 1,
-          user_reactions: [],
+          user_reactions: [], // Empty - will be populated by real fetch  
           current_user_reacted: true
         })
       }
@@ -304,7 +315,7 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
   }
 
   /**
-   * Real-time update handler
+   * Real-time update handler - smart handling for optimistic state
    */
   async function handleRealtimeUpdate(payload: any): Promise<void> {
     const postId = payload.new?.post_id || payload.old?.post_id
@@ -313,13 +324,39 @@ export const usePostReactionsStore = defineStore('postReactions', () => {
 
     console.log('🔄 Realtime reaction update for post:', postId)
     
-    // If we have optimistic state, delay to prevent flash
+    // If we have optimistic state, enhance it with real user data instead of ignoring
     if (optimisticReactions.value.has(postId)) {
-      setTimeout(() => {
-        if (!optimisticReactions.value.has(postId)) {
-          fetchPostReactions(postId, true)
+      console.log('🔄 Enhancing optimistic state with real user data from realtime')
+      
+      // Fetch fresh data to get real user information for tooltips
+      lastFetched.value.delete(postId)
+      await fetchPostReactions(postId, true)
+      
+      // Get the fresh real data
+      const realData = reactionsByPost.value.get(postId) || []
+      const optimisticData = optimisticReactions.value.get(postId) || []
+      
+      // Merge: keep optimistic counts/states but use real user_reactions for tooltips
+      const enhancedOptimistic = optimisticData.map(optReaction => {
+        const realReaction = realData.find(r => 
+          (r.emoji_id === optReaction.emoji_id) || 
+          (r.custom_emoji_content === optReaction.custom_emoji_content)
+        )
+        
+        if (realReaction) {
+          // Use real user_reactions data but keep optimistic counts/state
+          return {
+            ...optReaction,
+            user_reactions: realReaction.user_reactions // Real user data for tooltips!
+          }
         }
-      }, 2000)
+        
+        return optReaction
+      })
+      
+      // Update optimistic state with enhanced data
+      optimisticReactions.value.set(postId, enhancedOptimistic)
+      console.log('✅ Enhanced optimistic state with real user data')
       return
     }
     

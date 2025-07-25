@@ -44,9 +44,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch, ref } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/useTheme';
+import { usePostReactionsStore } from '@/stores/postReactions';
 import { supabase } from '@/supabase';
 import type { TimelinePost } from '@/types';
 
@@ -84,56 +85,37 @@ const emit = defineEmits<Emits>();
 
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
-
-// Reactive state
 const postReactionsStore = usePostReactionsStore();
-const reactions = computed(() => postReactionsStore.reactions);
-const isLoadingReactions = computed(() => postReactionsStore.isLoadingReactions);
+
+// Use store-based reactions with safety checks
+const reactions = computed(() => {
+  if (!props.post?.id) return [];
+  const storeReactions = postReactionsStore.getPostReactions(props.post.id);
+  return Array.isArray(storeReactions) ? storeReactions : [];
+});
+const isLoadingReactions = computed(() => {
+  if (!props.post?.id) return false;
+  return postReactionsStore.isLoadingReactions(props.post.id);
+});
 
 // Get current user ID
 const currentUserId = computed(() => 
   authStore.session?.user?.id
 );
 
-// Load reactions for this post
-const loadReactions = async () => {
-  if (!props.post?.id) return;
-  
-  isLoadingReactions.value = true;
-  try {
-    const { data, error } = await supabase.rpc('get_post_emoji_reactions', {
-      p_post_id: props.post.id,
-      p_user_limit: 5
-    });
+// REMOVED: Individual reaction loading - now handled by batch fetch from timeline
+// This prevents N+1 queries by relying on batch fetch from the parent timeline
 
-    if (error) {
-      console.error('Failed to load post reactions:', error);
-      return;
-    }
-
-    // Transform database response to component format
-    reactions.value = (data || []).map((item: any) => ({
-      emoji_id: item.emoji_id,
-      emoji_name: item.emoji_name,
-      emoji_url: item.emoji_url,
-      custom_emoji_content: item.custom_emoji_content,
-      reaction_count: item.reaction_count,
-      user_reactions: item.user_reactions || [],
-      current_user_reacted: item.current_user_reacted
-    }));
-
-    console.log(`📊 Loaded ${reactions.value.length} reaction types for post ${props.post.id}`);
-  } catch (error) {
-    console.error('Error loading post reactions:', error);
-  } finally {
-    isLoadingReactions.value = false;
-  }
-};
-
-// Handle reaction click (add/remove)
+// Handle reaction click (add/remove) using the store
 const handleReactionClick = async (reaction: PostEmojiReaction) => {
   if (!currentUserId.value) {
     console.warn('User not authenticated');
+    return;
+  }
+  
+  // Safety check for reaction object
+  if (!reaction || typeof reaction !== 'object') {
+    console.warn('Invalid reaction object:', reaction);
     return;
   }
   
@@ -146,28 +128,26 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
       // Don't block the reaction if audio fails
     }
     
-    if (reaction.current_user_reacted) {
-      // Remove reaction
-      await supabase.rpc('remove_post_emoji_reaction', {
-        p_user_id: currentUserId.value,
-        p_post_id: props.post.id,
-        p_emoji_id: reaction.emoji_id || null,
-        p_custom_emoji_content: reaction.custom_emoji_content || null
-      });
-      console.log(`➖ Removed reaction ${reaction.emoji_name} from post ${props.post.id}`);
-    } else {
-      // Add reaction
-      await supabase.rpc('add_post_emoji_reaction', {
-        p_user_id: currentUserId.value,
-        p_post_id: props.post.id,
-        p_emoji_id: reaction.emoji_id || null,
-        p_custom_emoji_content: reaction.custom_emoji_content || null
-      });
-      console.log(`➕ Added reaction ${reaction.emoji_name} to post ${props.post.id}`);
-    }
+    // Use the store to toggle the reaction
+    const emoji = {
+      id: reaction.emoji_id,
+      native: reaction.custom_emoji_content,
+      name: reaction.emoji_name,
+      url: reaction.emoji_url
+    };
     
-    // Reload reactions to show updated state
-    await loadReactions();
+    const result = await postReactionsStore.toggleReaction(
+      props.post.id,
+      emoji,
+      currentUserId.value
+    );
+    
+    if (result.success) {
+      const action = reaction.current_user_reacted ? 'Removed' : 'Added';
+      console.log(`${action === 'Added' ? '➕' : '➖'} ${action} reaction ${reaction.emoji_name} to post ${props.post.id}`);
+    } else {
+      console.warn('Failed to toggle reaction:', result.reason);
+    }
     
   } catch (error) {
     console.error('Failed to toggle reaction:', error);
@@ -195,9 +175,38 @@ const handleEmojiError = (reaction: PostEmojiReaction) => {
   console.warn('Failed to load emoji:', reaction);
 };
 
+// Handle emoji selection from parent components (like MonyPost)
+const handleEmojiSelected = async (emoji: any): Promise<boolean> => {
+  if (!currentUserId.value) {
+    console.warn('User not authenticated');
+    return false;
+  }
+  
+  try {
+    const result = await postReactionsStore.toggleReaction(
+      props.post.id,
+      emoji,
+      currentUserId.value
+    );
+    
+    if (result.success) {
+      console.log(`➕ Added reaction ${emoji.name} to post ${props.post.id}`);
+      return true;
+    } else {
+      console.warn('Failed to add reaction:', result.reason);
+      return false;
+    }
+    
+  } catch (error) {
+    console.error('Failed to add emoji reaction:', error);
+    return false;
+  }
+};
+
 // Load reactions when component mounts
 onMounted(() => {
-  loadReactions();
+  // REMOVED individual loading - rely on batch fetch from timeline for performance
+  // loadReactions();
   
   // Subscribe to realtime updates for emoji reactions on this post
   const channel = supabase
@@ -212,10 +221,10 @@ onMounted(() => {
       },
       (payload) => {
         console.log('🔔 Realtime reaction update:', payload);
-        // Reload reactions when any interaction changes for this post
+        // Use store's realtime handler for proper optimistic state management
         if (payload.new?.interaction_type === 'emoji_reaction' || 
             payload.old?.interaction_type === 'emoji_reaction') {
-          loadReactions();
+          postReactionsStore.handleRealtimeUpdate(payload);
         }
       }
     )
@@ -227,16 +236,17 @@ onMounted(() => {
   });
 });
 
+// REMOVED: Individual loading on post change - batch fetch handles this
 // Reload reactions when post changes
-watch(() => props.post.id, () => {
-  if (props.post.id) {
-    loadReactions();
-  }
-});
+// watch(() => props.post.id, () => {
+//   if (props.post.id) {
+//     loadReactions();
+//   }
+// });
 
-// Expose methods for parent components
+// Expose methods for parent components (removed loadReactions since it's handled by batch fetch)
 defineExpose({
-  loadReactions
+  handleEmojiSelected
 });
 </script>
 
