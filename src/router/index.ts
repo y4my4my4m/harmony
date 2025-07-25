@@ -95,18 +95,20 @@ const router = createRouter({
         }
       ]
     },
-    // ActivityPub Post Routes (NEW ARCHITECTURE)
+    // ActivityPub Post Routes (redirect to social layout)
     {
       path: '/posts/:postId',
       name: 'PostView',
-      component: () => import('@/views/PostView.vue'),
-      meta: { requiresAuth: true },
-      props: route => ({
-        postId: route.params.postId as string,
-        contextType: (route.query.context as any) || 'thread', // Default to thread when navigating to /posts/:id
-        highlightReply: route.query.highlight as string,
-        timestamp: route.query.t ? parseInt(route.query.t as string) : null
-      })
+      redirect: route => {
+        const postId = route.params.postId as string;
+        const query = route.query;
+        return {
+          name: 'PostDetail',
+          params: { postId },
+          query
+        };
+      },
+      meta: { requiresAuth: true }
     },
     // Social Layout Routes (Updated to use unified PostView)
     {
@@ -210,9 +212,12 @@ const router = createRouter({
         {
           path: 'post/:postId',
           name: 'PostDetail',
-          component: () => import('@/views/PostDetailView.vue'),
+          component: () => import('@/views/PostView.vue'),
           props: route => ({
             postId: route.params.postId as string,
+            contextType: (route.query.context as any) || 'thread', // Default to thread
+            highlightReply: route.query.highlight as string,
+            timestamp: route.query.t ? parseInt(route.query.t as string) : null,
             currentView: CurrentView.POST,
             viewType: ViewType.POST
           })

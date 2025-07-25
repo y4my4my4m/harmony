@@ -284,10 +284,10 @@ const showConversation = (postId: string) => {
   console.log(`🧭 Router available:`, !!router);
   try {
     router.push({ 
-      name: 'PostView', 
+      name: 'PostDetail', 
       params: { postId } 
     });
-    console.log(`✅ Navigation to PostView attempted`);
+    console.log(`✅ Navigation to PostDetail attempted`);
   } catch (error) {
     console.error(`❌ Navigation failed:`, error);
   }

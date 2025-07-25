@@ -342,12 +342,12 @@ export class ActivityPubService {
       console.log(`🔄 Loading post with context: ${postId} (${context})`);
       
       const { data, error } = await supabase.rpc('get_post_with_context', {
-        p_post_id: postId,
-        p_user_id: user.id,
         p_context_type: context,
         p_highlight_reply: highlightReply,
+        p_include_interactions: includeInteractions,
         p_max_depth: maxDepth,
-        p_include_interactions: includeInteractions
+        p_post_id: postId,
+        p_user_id: user.id
       });
 
       if (error) {
