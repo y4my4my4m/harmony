@@ -350,6 +350,31 @@
       @send-emoji="handleEmojiSelected"
       @reset-emoji-icon-clicked="closeEmojiPopup"
     />
+
+    <!-- Tooltip for reactions -->
+    <div
+      v-if="tooltip.visible"
+      class="reaction-tooltip"
+      :style="{ top: tooltip.y + 10 + 'px', left: tooltip.x + 'px' }"
+    >
+      <div class="tooltip-header">
+        <img 
+          v-if="tooltip.emoji?.url"
+          :src="tooltip.emoji.url"
+          :alt="tooltip.emoji.name || 'emoji'"
+          class="tooltip-emoji"
+        />
+        <span class="emoji-name">:{{ tooltip.emoji?.name }}:</span>
+      </div>
+      <div v-for="user in tooltip.content" :key="user.id" class="tooltip-user">
+        <Avatar 
+          :src="user.avatarUrl"
+          size="xs"
+          class="tooltip-avatar"
+        />
+        <span>{{ user.displayName }}</span>
+      </div>
+    </div>
   </article>
 </template>
 
@@ -412,6 +437,16 @@ const isDeleting = ref(false);
 const emojiTriggerRef = ref<HTMLElement>();
 const postReactionsRef = ref<InstanceType<typeof PostReactions>>();
 const showEmojiPopup = ref(false);
+
+// Tooltip state for reaction tooltips
+const tooltip = ref({
+  visible: false,
+  content: [] as { id: string; displayName: string; avatarUrl: string; userColor?: string; }[],
+  x: 0,
+  y: 0,
+  emoji: null as any,
+});
+const tooltipTimer = ref<NodeJS.Timeout | null>(null);
 
 
 const handleTimeClick = () => {
@@ -620,23 +655,27 @@ const handleEmojiSelected = async (emoji: any) => {
   }
   
   try {
-    // Add emoji reaction via Supabase RPC
-    const { error } = await supabase.rpc('add_post_emoji_reaction', {
-      p_user_id: currentUser.id,
-      p_post_id: props.post.id,
-      p_emoji_id: emoji.id || null,
-      p_custom_emoji_content: emoji.native || emoji.name || null
-    });
-
-    if (error) {
-      console.error('Failed to add emoji reaction:', error);
+    // Use the PostReactions composable instead of direct Supabase calls
+    if (postReactionsRef.value?.handleEmojiSelected) {
+      const success = await postReactionsRef.value.handleEmojiSelected(emoji);
+      if (success) {
+        console.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        closeEmojiPopup();
+      }
     } else {
-      console.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
-      // Close the popup after successful reaction
-      closeEmojiPopup();
-      // Refresh the reactions display
-      if (postReactionsRef.value) {
-        await postReactionsRef.value.loadReactions();
+      // Fallback to direct API call
+      const { error } = await supabase.rpc('add_post_emoji_reaction', {
+        p_user_id: currentUser.id,
+        p_post_id: props.post.id,
+        p_emoji_id: emoji.id || null,
+        p_custom_emoji_content: emoji.native || emoji.name || null
+      });
+
+      if (error) {
+        console.error('Failed to add emoji reaction:', error);
+      } else {
+        console.log(`✅ Added emoji reaction ${emoji.name} to post ${props.post.id}`);
+        closeEmojiPopup();
       }
     }
   } catch (error) {
@@ -645,13 +684,35 @@ const handleEmojiSelected = async (emoji: any) => {
 };
 
 const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
-  console.log('Show reaction tooltip:', reaction);
-  // This could show a tooltip with who reacted
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  
+  // Transform user_reactions to the format needed for tooltip
+  const usersDetails = (reaction.user_reactions || []).map((ur: any) => ({
+    id: ur.user_id,
+    displayName: ur.display_name || ur.username || 'Unknown User',
+    avatarUrl: ur.avatar_url || '',
+    userColor: ur.user_color || '#ffffff'
+  }));
+  
+  // Show tooltip after a delay
+  tooltipTimer.value = setTimeout(() => {
+    tooltip.value = { 
+      visible: true, 
+      content: usersDetails, 
+      x: event.clientX, 
+      y: event.clientY, 
+      emoji: {
+        name: reaction.emoji_name,
+        url: reaction.emoji_url
+      }
+    };
+  }, 500);
 };
 
 const handleHideReactionTooltip = () => {
-  console.log('Hide reaction tooltip');
-  // This hides the reaction tooltip
+  if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
+  tooltipTimer.value = null;
+  tooltip.value.visible = false;
 };
 
 const onEdit = () => {
@@ -1274,5 +1335,52 @@ const handleHashtagClick = (tag: string) => {
   .action-button {
     padding: 0.375rem;
   }
+}
+
+/* Reaction Tooltip Styles */
+.reaction-tooltip {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  max-width: 200px;
+  box-shadow: var(--shadow-large);
+  pointer-events: none;
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.tooltip-emoji {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.emoji-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.tooltip-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.tooltip-avatar {
+  flex-shrink: 0;
 }
 </style>

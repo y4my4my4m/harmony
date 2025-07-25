@@ -1,5 +1,5 @@
 <template>
-  <div v-if="showReactions" class="post-reactions">
+  <div v-if="reactions.length > 0" class="post-reactions">
     <div class="reactions-container">
       <!-- Loading state -->
       <div v-if="isLoadingReactions && reactions.length === 0" class="reaction-loading">
@@ -12,7 +12,7 @@
         :key="reaction.emoji_id || reaction.custom_emoji_content"
         class="reaction"
         :class="{ 
-          'reacted': reaction.user_reacted,
+          'reacted': reaction.current_user_reacted,
           'loading': isLoadingReactions 
         }"
         @click="handleReactionClick(reaction)"
@@ -37,31 +37,15 @@
         <!-- Fallback for missing emoji -->
         <span v-else class="missing-emoji" :title="`Emoji not found: ${reaction.emoji_name}`">?</span>
         
-        <span class="reaction-count">{{ reaction.count }}</span>
+        <span class="reaction-count">{{ reaction.reaction_count }}</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch, ref } from 'vue';
-import { useAuthStore } from '@/stores/auth';
-import { supabase } from '@/supabase';
-import type { TimelinePost } from '@/types';
-
-interface PostEmojiReaction {
-  emoji_id: string
-  emoji_name: string
-  emoji_url?: string
-  custom_emoji_content?: string
-  count: number
-  user_reactions: Array<{
-    user_id: string
-    username: string
-    display_name: string
-  }>
-  user_reacted: boolean
-}
+import type { TimelinePost } from '@/types'
+import { usePostReactions } from '@/composables/usePostReactions'
 
 interface Props {
   post: TimelinePost;
@@ -69,7 +53,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'show-reaction-tooltip', event: MouseEvent, reaction: PostEmojiReaction): void;
+  (e: 'show-reaction-tooltip', event: MouseEvent, reaction: any): void;
   (e: 'hide-reaction-tooltip'): void;
 }
 
@@ -79,91 +63,16 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
-const authStore = useAuthStore();
+// Use the professional composable following chat patterns
+const {
+  reactions,
+  isLoadingReactions,
+  handleReactionClick,
+  formatReactionTooltip
+} = usePostReactions(props)
 
-// Reactive state
-const reactions = ref<PostEmojiReaction[]>([]);
-const isLoadingReactions = ref(false);
-
-// Get current user ID
-const currentUserId = computed(() => 
-  authStore.session?.user?.id
-);
-
-// Load reactions for this post
-const loadReactions = async () => {
-  if (!props.post?.id) return;
-  
-  isLoadingReactions.value = true;
-  try {
-    const { data, error } = await supabase.rpc('get_post_emoji_reactions', {
-      p_post_id: props.post.id
-    });
-
-    if (error) {
-      console.error('Failed to load post reactions:', error);
-      return;
-    }
-
-    // Transform database response to component format
-    reactions.value = (data || []).map((item: any) => ({
-      emoji_id: item.emoji_id,
-      emoji_name: item.emoji_name,
-      emoji_url: item.emoji_url,
-      custom_emoji_content: item.custom_emoji_content,
-      count: item.reaction_count,
-      user_reactions: item.user_reactions || [],
-      user_reacted: currentUserId.value ? 
-        (item.user_reactions || []).some((ur: any) => ur.user_id === currentUserId.value) : 
-        false
-    }));
-
-    console.log(`📊 Loaded ${reactions.value.length} reaction types for post ${props.post.id}`);
-  } catch (error) {
-    console.error('Error loading post reactions:', error);
-  } finally {
-    isLoadingReactions.value = false;
-  }
-};
-
-// Handle reaction click (add/remove)
-const handleReactionClick = async (reaction: PostEmojiReaction) => {
-  if (!currentUserId.value) {
-    console.warn('User not authenticated');
-    return;
-  }
-  
-  try {
-    if (reaction.user_reacted) {
-      // Remove reaction
-      await supabase.rpc('remove_post_emoji_reaction', {
-        p_user_id: currentUserId.value,
-        p_post_id: props.post.id,
-        p_emoji_id: reaction.emoji_id || null,
-        p_custom_emoji_content: reaction.custom_emoji_content || null
-      });
-      console.log(`➖ Removed reaction ${reaction.emoji_name} from post ${props.post.id}`);
-    } else {
-      // Add reaction
-      await supabase.rpc('add_post_emoji_reaction', {
-        p_user_id: currentUserId.value,
-        p_post_id: props.post.id,
-        p_emoji_id: reaction.emoji_id || null,
-        p_custom_emoji_content: reaction.custom_emoji_content || null
-      });
-      console.log(`➕ Added reaction ${reaction.emoji_name} to post ${props.post.id}`);
-    }
-    
-    // Reload reactions to show updated state
-    await loadReactions();
-    
-  } catch (error) {
-    console.error('Failed to toggle reaction:', error);
-  }
-};
-
-// Show reaction tooltip with user details
-const showTooltip = (event: MouseEvent, reaction: PostEmojiReaction) => {
+// Show reaction tooltip with user details  
+const showTooltip = (event: MouseEvent, reaction: any) => {
   emit('show-reaction-tooltip', event, reaction);
 };
 
@@ -173,31 +82,19 @@ const hideTooltip = () => {
 };
 
 // Handle emoji loading errors
-const handleEmojiError = (reaction: PostEmojiReaction) => {
+const handleEmojiError = (reaction: any) => {
   console.warn('Failed to load emoji:', reaction);
 };
 
-// Load reactions when component mounts
-onMounted(() => {
-  loadReactions();
-});
-
-// Reload reactions when post changes
-watch(() => props.post.id, () => {
-  if (props.post.id) {
-    loadReactions();
-  }
-});
-
 // Expose methods for parent components
 defineExpose({
-  loadReactions
-});
+  // Not needed anymore - store handles everything
+})
 </script>
 
 <style scoped>
 .post-reactions {
-  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 .reactions-container {
@@ -214,7 +111,7 @@ defineExpose({
   padding: 4px 8px;
   background-color: var(--background-quinary);
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.875rem;
   transition: all 0.15s ease-out;
