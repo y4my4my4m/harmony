@@ -346,6 +346,7 @@
       :trigger-element="emojiTriggerRef"
       :position="'above'"
       :is-reaction="true"
+      :close-emoji-list="closeEmojiPopup"
       @send-emoji="handleEmojiSelected"
       @reset-emoji-icon-clicked="closeEmojiPopup"
     />
@@ -599,7 +600,10 @@ const handleReplySent = (reply: any) => {
 
 const handleShowEmojiPicker = (post: TimelinePost) => {
   console.log('Show emoji picker for post:', post.id);
+  console.log('emojiTriggerRef:', emojiTriggerRef.value);
+  console.log('Current showEmojiPopup:', showEmojiPopup.value);
   showEmojiPopup.value = true;
+  console.log('Set showEmojiPopup to:', showEmojiPopup.value);
 };
 
 const closeEmojiPopup = () => {
