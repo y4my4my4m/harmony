@@ -294,6 +294,36 @@ const router = createRouter({
       component: () => import('@/views/NewProfile.vue'),
       meta: { requiresAuth: true }
     },
+    // 404 Routes - Authenticated users (with app layout)
+    {
+      path: '/404',
+      name: 'NotFound',
+      component: () => import('@/views/NotFoundView.vue'),
+      meta: { requiresAuth: true }
+    },
+    // 404 Routes - Unauthenticated users (auth layout)
+    {
+      path: '/404-public',
+      name: 'NotFoundPublic',
+      component: () => import('@/views/NotFoundView.vue'),
+      meta: { requiresAuth: false }
+    },
+    // Catch-all route for undefined routes
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'CatchAll',
+      redirect: () => {
+        // Determine if user is authenticated
+        const authStore = useAuthStore();
+        const isLoggedIn = authStore.isLoggedIn;
+        
+        if (isLoggedIn) {
+          return { name: 'NotFound' };
+        } else {
+          return { name: 'NotFoundPublic' };
+        }
+      }
+    }
   ],
 });
 
