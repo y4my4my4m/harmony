@@ -182,7 +182,7 @@ watch(() => props.message.id, (newMessageId) => {
 }
 
 .reaction-emoji {
-  width: 16px;
+  max-width: 64px;
   height: 16px;
   object-fit: contain;
   flex-shrink: 0;

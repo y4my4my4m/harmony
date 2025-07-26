@@ -25,15 +25,24 @@ export async function deliverActivity(
     console.log(`🚀 Delivering activity ${item.activity_id} to ${item.target_inbox_url}`)
     console.log(`📋 Item details: actor=${item.actor_username}@${item.actor_domain}, attempts=${item.attempts}`)
 
-    // Get activity data from ap_activities table
-    console.log(`📄 Getting activity data for ${item.activity_id}...`)
-    const rawActivityData = await getActivityData(supabase, item.activity_id)
-    console.log(`✅ Got activity data: type=${rawActivityData.type}, actor=${rawActivityData.actor}`)
-    
-    // Normalize URLs to ensure avatars and banners use optimized public URLs
-    console.log(`🔧 Normalizing activity URLs for federation delivery...`)
-    const activityData = normalizeActivityUrls(supabase, rawActivityData)
-    console.log(`✅ Normalized activity URLs`)
+    // Get activity data - first try from queue item, then from ap_activities table
+    let activityData
+    if (item.activity_data) {
+      // For emoji reactions and other activities with inline data
+      console.log(`📄 Using inline activity data from queue item`)
+      activityData = item.activity_data
+      console.log(`✅ Got inline activity data: type=${activityData.type}, actor=${activityData.actor}`)
+    } else {
+      // For posts and other activities stored in ap_activities
+      console.log(`📄 Getting activity data from ap_activities for ${item.activity_id}...`)
+      const rawActivityData = await getActivityData(supabase, item.activity_id)
+      console.log(`✅ Got activity data: type=${rawActivityData.type}, actor=${rawActivityData.actor}`)
+      
+      // Normalize URLs to ensure avatars and banners use optimized public URLs
+      console.log(`🔧 Normalizing activity URLs for federation delivery...`)
+      activityData = normalizeActivityUrls(supabase, rawActivityData)
+      console.log(`✅ Normalized activity URLs`)
+    }
     
     // Get private key for signing
     // console.log(`🔑 Getting private key for ${item.actor_username}...`)

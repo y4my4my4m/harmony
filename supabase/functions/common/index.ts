@@ -22,6 +22,7 @@ export interface DeliveryQueueItem {
   attempts: number
   max_attempts: number
   priority: number
+  activity_data?: any  // For inline activity data (emoji reactions, etc.)
 }
 
 export interface DeliveryResult {

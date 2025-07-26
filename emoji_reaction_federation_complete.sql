@@ -47,9 +47,12 @@ DECLARE
     v_reaction_content text;
 BEGIN
     -- Get instance domain
-    SELECT config_value->>'domain' INTO v_instance_domain
+    SELECT config_value::text INTO v_instance_domain
     FROM instance_config 
-    WHERE config_key = 'federation_settings';
+    WHERE config_key = 'domain';
+    
+    -- Remove JSON quotes if present
+    v_instance_domain := trim(both '"' from v_instance_domain);
     
     -- Get sender profile
     SELECT * INTO v_sender_profile 
@@ -82,14 +85,15 @@ BEGIN
         WHERE id = p_emoji_id;
         
         IF FOUND THEN
-            v_reaction_content := ':' || v_emoji_info.name || ':';
+            -- Use only the base name (without domain) for federation
+            v_reaction_content := ':' || split_part(v_emoji_info.name, '@', 1) || ':';
             v_emoji_object := jsonb_build_object(
                 'type', 'Emoji',
-                'name', ':' || v_emoji_info.name || ':',
+                'name', ':' || split_part(v_emoji_info.name, '@', 1) || ':',
                 'icon', jsonb_build_object(
                     'type', 'Image',
                     'url', v_emoji_info.url,
-                    'mediaType', COALESCE(v_emoji_info.content_type, 'image/png')
+                    'mediaType', 'image/png'
                 )
             );
         ELSE
@@ -166,7 +170,6 @@ DECLARE
     v_activity jsonb;
     v_target_post RECORD;
     v_target_domains text[];
-    v_activity_id text;
     v_is_undo boolean := false;
     v_interaction_record RECORD;
 BEGIN
@@ -202,70 +205,87 @@ BEGIN
     
     -- Build ActivityPub activity
     BEGIN
-        v_activity := build_emoji_reaction_activity(
-            v_interaction_record.id,
-            v_interaction_record.user_id,
-            v_interaction_record.post_id,
-            v_interaction_record.emoji_id,
-            v_interaction_record.custom_emoji_content,
-            v_is_undo
-        );
-        
-        v_activity_id := v_activity->>'id';
-        
-        -- Determine target domains for federation
-        -- For now, federate to all known instances that might be interested
-        SELECT ARRAY(
-            SELECT DISTINCT domain
+        -- Get sender profile details for federation
+        DECLARE
+            v_sender_profile RECORD;
+            v_instance_domain text;
+        BEGIN
+            -- Get sender profile
+            SELECT * INTO v_sender_profile 
             FROM profiles 
-            WHERE domain IS NOT NULL 
-            AND domain != ''
-            AND is_local = false
-            LIMIT 50  -- Reasonable limit to avoid overwhelming the system
-        ) INTO v_target_domains;
-        
-        -- Add to federation delivery queue
-        IF array_length(v_target_domains, 1) > 0 THEN
-            INSERT INTO federation_delivery_queue (
-                activity_id,
-                activity_type,
-                activity_data,
-                target_domains,
-                actor_id,
-                object_id,
-                object_type,
-                priority,
-                max_attempts,
-                status,
-                metadata
-            ) VALUES (
-                v_activity_id,
-                CASE WHEN v_is_undo THEN 'Undo' ELSE 'EmojiReact' END,
-                v_activity,
-                v_target_domains,
+            WHERE id = v_interaction_record.user_id AND is_local = true;
+            
+            IF NOT FOUND THEN
+                RAISE LOG 'Sender profile not found for reaction federation: %', v_interaction_record.user_id;
+                RETURN COALESCE(NEW, OLD);
+            END IF;
+            
+            -- Get instance domain
+            SELECT config_value::text INTO v_instance_domain
+            FROM instance_config 
+            WHERE config_key = 'domain';
+            
+            -- Remove JSON quotes if present
+            v_instance_domain := trim(both '"' from v_instance_domain);
+            
+            v_activity := build_emoji_reaction_activity(
+                v_interaction_record.id,
                 v_interaction_record.user_id,
-                v_target_post.id,
-                'Note',
-                'normal',
-                5,
-                'pending',
-                jsonb_build_object(
-                    'reaction_type', CASE 
-                        WHEN v_interaction_record.emoji_id IS NOT NULL THEN 'custom_emoji' 
-                        ELSE 'unicode_emoji' 
-                    END,
-                    'emoji_content', COALESCE(
-                        (SELECT ':' || name || ':' FROM emojis WHERE id = v_interaction_record.emoji_id),
-                        v_interaction_record.custom_emoji_content
-                    ),
-                    'post_visibility', v_target_post.visibility,
-                    'federation_scope', 'public'
-                )
+                v_interaction_record.post_id,
+                v_interaction_record.emoji_id,
+                v_interaction_record.custom_emoji_content,
+                v_is_undo
             );
             
-            RAISE LOG 'Queued emoji reaction federation: % to % domains', 
-                v_activity_id, array_length(v_target_domains, 1);
-        END IF;
+            -- Determine target domains for federation
+            -- For now, federate to all known instances that might be interested
+            SELECT ARRAY(
+                SELECT DISTINCT domain
+                FROM profiles 
+                WHERE domain IS NOT NULL 
+                AND domain != ''
+                AND is_local = false
+                LIMIT 50  -- Reasonable limit to avoid overwhelming the system
+            ) INTO v_target_domains;
+            
+            -- Add to federation delivery queue (one row per target domain)
+            IF array_length(v_target_domains, 1) > 0 THEN
+                -- Get sender profile details for actor fields
+                DECLARE
+                    v_domain_inbox text;
+                    v_target_domain text;
+                BEGIN
+                    FOREACH v_target_domain IN ARRAY v_target_domains LOOP
+                        v_domain_inbox := 'https://' || v_target_domain || '/inbox';
+                        
+                        INSERT INTO federation_delivery_queue (
+                            activity_data,
+                            target_domain,
+                            target_inbox_url,
+                            actor_username,
+                            actor_domain,
+                            status,
+                            priority,
+                            attempts,
+                            next_attempt_at
+                        ) VALUES (
+                            v_activity,
+                            v_target_domain,
+                            v_domain_inbox,
+                            v_sender_profile.username,
+                            v_instance_domain,
+                            'pending',
+                            5,
+                            0,
+                            NOW()
+                        );
+                    END LOOP;
+                    
+                    RAISE LOG 'Queued emoji reaction federation to % domains', 
+                        array_length(v_target_domains, 1);
+                END;
+            END IF;
+        END;
         
     EXCEPTION WHEN OTHERS THEN
         -- Log error but don't block the interaction
