@@ -2,6 +2,23 @@
 -- Run this migration to add federation support for emoji reactions
 
 -- =====================================================
+-- ADD DOMAIN COLUMN TO EMOJIS TABLE
+-- =====================================================
+
+-- Add domain column to emojis table to support federated emojis
+ALTER TABLE emojis ADD COLUMN IF NOT EXISTS domain text;
+
+-- Create index for efficient lookups of federated emojis
+CREATE INDEX IF NOT EXISTS idx_emojis_domain_name ON emojis(domain, name);
+
+-- Create unique constraint to prevent duplicate emojis from same domain
+-- For local emojis (domain IS NULL), allow duplicates for now since they might exist
+-- For federated emojis (domain IS NOT NULL), enforce uniqueness per domain
+CREATE UNIQUE INDEX IF NOT EXISTS idx_emojis_unique_federated_domain_name 
+ON emojis(domain, name) 
+WHERE domain IS NOT NULL;
+
+-- =====================================================
 -- OUTGOING REACTION FEDERATION
 -- =====================================================
 
@@ -263,14 +280,13 @@ $$;
 -- INCOMING REACTION FEDERATION  
 -- =====================================================
 
--- Function to resolve ActivityPub emoji to local emoji_id or custom content
+-- Function to resolve ActivityPub emoji to local emoji_id (creating if needed)
 CREATE OR REPLACE FUNCTION resolve_activitypub_emoji(
     p_emoji_tag jsonb,
     p_content text,
     p_actor_domain text
 ) RETURNS TABLE(emoji_id uuid, custom_emoji_content text)
 LANGUAGE plpgsql
-STABLE
 AS $$
 DECLARE
     v_emoji_name text;
@@ -278,7 +294,7 @@ DECLARE
     v_local_emoji_id uuid;
     v_custom_content text;
 BEGIN
-    -- Handle custom emoji from tag
+    -- Handle custom emoji from tag (Mastodon/Pleroma style)
     IF p_emoji_tag IS NOT NULL AND p_emoji_tag->>'type' = 'Emoji' THEN
         v_emoji_name := p_emoji_tag->>'name';
         v_emoji_url := p_emoji_tag->'icon'->>'url';
@@ -286,30 +302,46 @@ BEGIN
         -- Remove colons from emoji name if present
         v_emoji_name := trim(both ':' from v_emoji_name);
         
-        -- Try to find matching local emoji by name
+        -- Try to find existing federated emoji
         SELECT id INTO v_local_emoji_id
         FROM emojis
-        WHERE name = v_emoji_name
-        AND (domain IS NULL OR domain = p_actor_domain)
-        LIMIT 1;
+        WHERE name = v_emoji_name AND domain = p_actor_domain;
         
-        IF v_local_emoji_id IS NOT NULL THEN
-            -- Found local emoji match
-            emoji_id := v_local_emoji_id;
-            custom_emoji_content := NULL;
-            RETURN NEXT;
-            RETURN;
+        IF v_local_emoji_id IS NULL THEN
+            -- Try to create new federated emoji
+            BEGIN
+                INSERT INTO emojis (name, url, domain, usage_count, last_used)
+                VALUES (v_emoji_name, v_emoji_url, p_actor_domain, 1, NOW())
+                RETURNING id INTO v_local_emoji_id;
+            EXCEPTION WHEN unique_violation THEN
+                -- Another process created the same emoji, find it
+                SELECT id INTO v_local_emoji_id
+                FROM emojis
+                WHERE name = v_emoji_name AND domain = p_actor_domain;
+                
+                IF v_local_emoji_id IS NOT NULL THEN
+                    -- Update usage stats and URL for existing emoji
+                    UPDATE emojis 
+                    SET usage_count = usage_count + 1, 
+                        last_used = NOW(),
+                        url = v_emoji_url  -- Update URL in case it changed
+                    WHERE id = v_local_emoji_id;
+                END IF;
+            END;
         ELSE
-            -- Store as custom emoji with domain prefix for uniqueness
-            v_custom_content := ':' || v_emoji_name || '@' || p_actor_domain || ':';
-            emoji_id := NULL;
-            custom_emoji_content := v_custom_content;
-            RETURN NEXT;
-            RETURN;
+            -- Update usage stats for existing emoji
+            UPDATE emojis 
+            SET usage_count = usage_count + 1, last_used = NOW()
+            WHERE id = v_local_emoji_id;
         END IF;
+        
+        emoji_id := v_local_emoji_id;
+        custom_emoji_content := NULL;
+        RETURN NEXT;
+        RETURN;
     END IF;
     
-    -- Handle unicode emoji content
+    -- Handle unicode emoji content or shortcodes
     IF p_content IS NOT NULL AND length(p_content) > 0 THEN
         -- Check if it's a simple unicode emoji (common case)
         IF length(p_content) <= 4 AND p_content ~ '^[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{1F1E0}-\x{1F1FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]+$' THEN
@@ -319,24 +351,34 @@ BEGIN
             RETURN;
         END IF;
         
-        -- Handle shortcode format like :emoji_name:
+        -- Handle shortcode format like :emoji_name: (could be local or from Misskey)
         IF p_content ~ '^:[a-zA-Z0-9_]+:$' THEN
             v_emoji_name := trim(both ':' from p_content);
             
-            -- Try to find local emoji
+            -- First try to find federated emoji from this domain
             SELECT id INTO v_local_emoji_id
             FROM emojis
-            WHERE name = v_emoji_name
-            AND domain IS NULL  -- Local emojis only
-            LIMIT 1;
+            WHERE name = v_emoji_name AND domain = p_actor_domain;
+            
+            -- If not found, try to find local emoji
+            IF v_local_emoji_id IS NULL THEN
+                SELECT id INTO v_local_emoji_id
+                FROM emojis
+                WHERE name = v_emoji_name AND domain IS NULL;
+            END IF;
             
             IF v_local_emoji_id IS NOT NULL THEN
+                -- Found existing emoji (local or federated)
+                UPDATE emojis 
+                SET usage_count = usage_count + 1, last_used = NOW()
+                WHERE id = v_local_emoji_id;
+                
                 emoji_id := v_local_emoji_id;
                 custom_emoji_content := NULL;
                 RETURN NEXT;
                 RETURN;
             ELSE
-                -- Store as-is if no local match
+                -- Store as custom content if no emoji found
                 emoji_id := NULL;
                 custom_emoji_content := p_content;
                 RETURN NEXT;
@@ -344,7 +386,7 @@ BEGIN
             END IF;
         END IF;
         
-        -- Fallback: store content as-is
+        -- Fallback: store content as-is for unicode emojis
         emoji_id := NULL;
         custom_emoji_content := p_content;
         RETURN NEXT;
@@ -373,7 +415,7 @@ DECLARE
     v_emoji_content text;
     v_emoji_tag jsonb;
     v_emoji_resolution RECORD;
-    v_existing_reaction_id uuid;
+    v_rows_affected integer;
     v_is_undo boolean := false;
     v_inner_object jsonb;
 BEGIN
@@ -423,23 +465,56 @@ BEGIN
         RETURN false;
     END IF;
     
-    -- Find the actor profile (must exist from previous processing)
+    -- Find or create the actor profile
     SELECT * INTO v_actor_profile
     FROM profiles
-    WHERE federated_id = p_actor_uri OR ap_id = p_actor_uri;
+    WHERE federated_id = p_actor_uri;
     
     IF NOT FOUND THEN
-        RAISE LOG 'Actor profile not found for emoji reaction: %', p_actor_uri;
-        RETURN false;
+        -- Actor doesn't exist, create it by fetching from remote
+        DECLARE
+            v_actor_response jsonb;
+            v_actor_username text;
+            v_actor_domain text;
+            v_new_profile_id uuid;
+        BEGIN
+            -- Parse domain from actor URI
+            v_actor_domain := split_part(split_part(p_actor_uri, '://', 2), '/', 1);
+            
+            -- Try to extract username from URI path
+            v_actor_username := split_part(p_actor_uri, '/', array_length(string_to_array(p_actor_uri, '/'), 1));
+            
+            -- Create a basic federated profile for this actor
+            SELECT create_federated_profile(
+                p_username := COALESCE(v_actor_username, 'unknown'),
+                p_display_name := COALESCE(v_actor_username, 'Remote User'),
+                p_domain := v_actor_domain,
+                p_federated_id := p_actor_uri,
+                p_bio := 'Federated ActivityPub user'
+            ) INTO v_new_profile_id;
+            
+            -- Now fetch the created profile
+            SELECT * INTO v_actor_profile
+            FROM profiles
+            WHERE id = v_new_profile_id;
+            
+            RAISE LOG 'Created federated profile for actor: % (id: %)', p_actor_uri, v_new_profile_id;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE LOG 'Failed to create federated profile for actor: % - %', p_actor_uri, SQLERRM;
+            RETURN false;
+        END;
     END IF;
     
     -- Find the target post
     SELECT * INTO v_target_post
     FROM posts
-    WHERE ap_id = v_object_id OR id::text = v_object_id;
+    WHERE ap_id = v_object_id 
+       OR id::text = v_object_id
+       OR (v_object_id ~ '^https?://[^/]+/posts/([a-f0-9-]{36})$' 
+           AND id::text = substring(v_object_id from '^https?://[^/]+/posts/([a-f0-9-]{36})$'));
     
     IF NOT FOUND THEN
-        RAISE LOG 'Target post not found for emoji reaction: %', v_object_id;
+        RAISE LOG 'Target post not found for emoji reaction: % (checked ap_id and extracted UUID)', v_object_id;
         RETURN false;
     END IF;
     
@@ -470,9 +545,9 @@ BEGIN
             (emoji_id IS NULL AND custom_emoji_content = v_emoji_resolution.custom_emoji_content)
         );
         
-        GET DIAGNOSTICS v_existing_reaction_id = ROW_COUNT;
+        GET DIAGNOSTICS v_rows_affected = ROW_COUNT;
         
-        IF v_existing_reaction_id > 0 THEN
+        IF v_rows_affected > 0 THEN
             RAISE LOG 'Removed federated emoji reaction: % from % on post %', 
                 v_emoji_content, p_actor_uri, v_target_post.id;
         ELSE
@@ -509,12 +584,11 @@ BEGIN
                 'processed_at', NOW()
             )
         )
-        ON CONFLICT (user_id, post_id, interaction_type, COALESCE(emoji_id::text, ''), COALESCE(custom_emoji_content, ''))
-        DO NOTHING;  -- Ignore duplicates
+        ON CONFLICT (ap_id) DO NOTHING;
         
-        GET DIAGNOSTICS v_existing_reaction_id = ROW_COUNT;
+        GET DIAGNOSTICS v_rows_affected = ROW_COUNT;
         
-        IF v_existing_reaction_id > 0 THEN
+        IF v_rows_affected > 0 THEN
             RAISE LOG 'Added federated emoji reaction: % from % on post %', 
                 v_emoji_content, p_actor_uri, v_target_post.id;
         ELSE
@@ -524,39 +598,6 @@ BEGIN
         
         RETURN true;
     END IF;
-END;
-$$;
-
--- Function to check if an activity is an emoji reaction
-CREATE OR REPLACE FUNCTION is_emoji_reaction_activity(p_activity jsonb)
-RETURNS boolean
-LANGUAGE plpgsql
-IMMUTABLE
-AS $$
-BEGIN
-    -- Direct EmojiReact activity
-    IF p_activity->>'type' = 'EmojiReact' THEN
-        RETURN true;
-    END IF;
-    
-    -- Like activity with emoji content (Misskey style)
-    IF p_activity->>'type' = 'Like' AND (
-        p_activity->>'content' IS NOT NULL OR
-        p_activity->>'_misskey_reaction' IS NOT NULL
-    ) THEN
-        RETURN true;
-    END IF;
-    
-    -- Undo of emoji reaction
-    IF p_activity->>'type' = 'Undo' AND 
-       p_activity->'object'->>'type' IN ('EmojiReact', 'Like') AND (
-        p_activity->'object'->>'content' IS NOT NULL OR
-        p_activity->'object'->>'_misskey_reaction' IS NOT NULL
-    ) THEN
-        RETURN true;
-    END IF;
-    
-    RETURN false;
 END;
 $$;
 
@@ -577,9 +618,8 @@ CREATE TRIGGER trigger_post_interaction_federation
 
 COMMENT ON FUNCTION build_emoji_reaction_activity IS 'Builds ActivityPub EmojiReact activity from local emoji reaction. Supports both custom and unicode emojis with Misskey/Pleroma compatibility.';
 COMMENT ON FUNCTION handle_post_interaction_federation IS 'Handles automatic federation of emoji reactions. Triggers on post_interactions INSERT/DELETE for emoji_reaction type.';
-COMMENT ON FUNCTION resolve_activitypub_emoji IS 'Resolves ActivityPub emoji tags and content to local emoji_id or custom_emoji_content. Handles custom emojis, unicode emojis, and shortcodes.';
+COMMENT ON FUNCTION resolve_activitypub_emoji IS 'Resolves ActivityPub emoji tags and content to local emoji_id by creating federated emoji records as needed. Handles custom emojis, unicode emojis, and shortcodes.';
 COMMENT ON FUNCTION process_incoming_emoji_reaction IS 'Processes incoming EmojiReact and Like activities from ActivityPub federation. Handles both creation and removal (Undo) of emoji reactions.';
-COMMENT ON FUNCTION is_emoji_reaction_activity IS 'Checks if an ActivityPub activity is an emoji reaction (EmojiReact, Like with emoji content, or Undo thereof).';
 COMMENT ON TRIGGER trigger_post_interaction_federation ON post_interactions IS 'Automatically federates emoji reactions to ActivityPub network when users add/remove reactions.';
 
 -- =====================================================
@@ -596,8 +636,7 @@ WHERE proname IN (
     'build_emoji_reaction_activity',
     'handle_post_interaction_federation', 
     'resolve_activitypub_emoji',
-    'process_incoming_emoji_reaction',
-    'is_emoji_reaction_activity'
+    'process_incoming_emoji_reaction'
 )
 ORDER BY proname;
 

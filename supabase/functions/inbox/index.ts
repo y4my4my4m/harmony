@@ -85,36 +85,46 @@ serve(async (req: Request) => {
       console.log('✅ Successfully stored activity (new or idempotent):', activity.id)
     }
 
-    // ✅ Process the activity based on type and classification
+    // ✅ Process the activity based on type
     let isValid = false
     try {
-      // Check if this is an emoji reaction first (can be EmojiReact, Like with emoji, or Undo)
-      const { data: isEmojiReaction } = await supabase
-        .rpc('is_emoji_reaction_activity', { p_activity: activity })
-      
-      if (isEmojiReaction) {
-        isValid = await processEmojiReactionActivity(supabase, activity, actorUrl, originDomain)
-      } else {
-        switch (activity.type) {
-          case 'Follow':
-            isValid = await processFollowActivity(supabase, activity, ourDomain)
-            break
-          case 'Accept':
-          case 'Reject':
-          case 'Undo':
-          case 'Update':
-          case 'Delete':
-          case 'Like':
-          case 'Announce':
-            isValid = true // Basic validation passed, let database handle business logic
-            break
-          case 'Create':
-            isValid = true // Basic validation passed, let database handle business logic
-            break
-          default:
-            console.log(`❌ Unhandled activity type: ${activity.type}`)
-            isValid = false
+      switch (activity.type) {
+        case 'Follow':
+          isValid = await processFollowActivity(supabase, activity, ourDomain)
+          break
+        case 'Like':
+          // Check if this Like has emoji content (emoji reaction)
+          if ((activity as any).content || (activity as any)._misskey_reaction) {
+            isValid = await processEmojiReactionActivity(supabase, activity, actorUrl, originDomain)
+          } else {
+            isValid = true // Regular like, let database handle it
+          }
+          break
+        case 'EmojiReact':
+          isValid = await processEmojiReactionActivity(supabase, activity, actorUrl, originDomain)
+          break
+        case 'Undo': {
+          // Check if undoing an emoji reaction
+          const innerObject = activity.object as any
+          if (innerObject?.type === 'EmojiReact' || 
+              (innerObject?.type === 'Like' && (innerObject.content || innerObject._misskey_reaction))) {
+            isValid = await processEmojiReactionActivity(supabase, activity, actorUrl, originDomain)
+          } else {
+            isValid = true // Regular undo, let database handle it
+          }
+          break
         }
+        case 'Accept':
+        case 'Reject':
+        case 'Update':
+        case 'Delete':
+        case 'Announce':
+        case 'Create':
+          isValid = true // Basic validation passed, let database handle business logic
+          break
+        default:
+          console.log(`❌ Unhandled activity type: ${activity.type}`)
+          isValid = false
       }
 
       if (isValid) {
@@ -210,7 +220,7 @@ async function processEmojiReactionActivity(supabase: any, activity: ActivityPub
       console.log(`✅ Successfully processed emoji reaction: ${activity.id}`)
       return true
     } else {
-      console.log(`⚠️ Emoji reaction processing returned false: ${activity.id}`)
+      console.log(`⚠️ Emoji reaction processing returned false: ${activity.id} ${activity.type} ${actorUrl} ${originDomain}`)
       return false
     }
     
