@@ -1,4 +1,27 @@
--- Complete emoji reaction federation implementation
+-- =====================================================
+-- EMOJI REACTION FEDERATION - COMPLETE IMPLEMENTATION
+-- =====================================================
+-- 
+-- This migration implements full bidirectional federation for emoji reactions
+-- 
+-- FEATURES:
+-- - Outgoing reactions: Local reactions federated to ActivityPub network
+-- - Incoming reactions: Remote ActivityPub reactions processed and stored
+-- - Custom emoji support: Both local and federated custom emojis
+-- - Unicode emoji support: Standard unicode emojis work seamlessly  
+-- - Misskey compatibility: Special _misskey_reaction field for better integration
+-- - Mastodon/Pleroma support: Standard ActivityPub EmojiReact activities
+-- - Unique activity IDs: Prevents reaction conflicts and overwrites
+-- - Domain-aware emoji storage: Federated emojis stored with source domain
+-- - Real-time federation: Automatic trigger-based federation on reaction changes
+-- 
+-- BEHAVIOR:
+-- - One reaction per user per post (standard ActivityPub behavior)
+-- - Each reaction generates individual ActivityPub activity
+-- - Reactions on local posts are federated to known instances
+-- - Remote reactions on local posts are accepted and displayed
+-- - Emoji names are clean (no @domain suffixes in federation)
+-- 
 -- Run this migration to add federation support for emoji reactions
 
 -- =====================================================
@@ -75,9 +98,8 @@ BEGIN
     -- Build URLs
     v_sender_url := 'https://' || v_instance_domain || '/users/' || v_sender_profile.username;
     v_post_url := COALESCE(v_target_post.ap_id, 'https://' || v_instance_domain || '/posts/' || v_target_post.id);
-    v_activity_id := v_sender_url || '#emoji-reaction-' || p_interaction_id;
     
-    -- Handle emoji information
+    -- Handle emoji information first to build a specific activity ID
     IF p_emoji_id IS NOT NULL THEN
         -- Custom server emoji
         SELECT * INTO v_emoji_info
@@ -85,17 +107,20 @@ BEGIN
         WHERE id = p_emoji_id;
         
         IF FOUND THEN
-            -- Use only the base name (without domain) for federation
-            v_reaction_content := ':' || split_part(v_emoji_info.name, '@', 1) || ':';
+            -- Use the clean emoji name for federation
+            v_reaction_content := ':' || v_emoji_info.name || ':';
             v_emoji_object := jsonb_build_object(
                 'type', 'Emoji',
-                'name', ':' || split_part(v_emoji_info.name, '@', 1) || ':',
+                'name', ':' || v_emoji_info.name || ':',
                 'icon', jsonb_build_object(
                     'type', 'Image',
                     'url', v_emoji_info.url,
                     'mediaType', 'image/png'
                 )
             );
+            
+            -- Build activity ID with emoji name for uniqueness
+            v_activity_id := v_sender_url || '#emoji-reaction-' || v_emoji_info.name || '-' || p_interaction_id;
         ELSE
             RAISE EXCEPTION 'Custom emoji not found: %', p_emoji_id;
         END IF;
@@ -103,6 +128,10 @@ BEGIN
         -- Unicode or text emoji
         v_reaction_content := p_custom_emoji_content;
         v_emoji_object := NULL;
+        
+        -- Build activity ID with emoji content for uniqueness  
+        v_activity_id := v_sender_url || '#emoji-reaction-' || 
+            regexp_replace(p_custom_emoji_content, '[^a-zA-Z0-9]', '', 'g') || '-' || p_interaction_id;
     ELSE
         RAISE EXCEPTION 'Either emoji_id or custom_emoji_content must be provided';
     END IF;
@@ -643,31 +672,55 @@ COMMENT ON FUNCTION process_incoming_emoji_reaction IS 'Processes incoming Emoji
 COMMENT ON TRIGGER trigger_post_interaction_federation ON post_interactions IS 'Automatically federates emoji reactions to ActivityPub network when users add/remove reactions.';
 
 -- =====================================================
--- VERIFICATION QUERIES (OPTIONAL)
+-- VERIFICATION AND SUCCESS
 -- =====================================================
 
--- Test that functions exist
-SELECT 
-    proname,
-    pg_get_function_result(oid) as returns,
-    pg_get_function_arguments(oid) as arguments
-FROM pg_proc 
-WHERE proname IN (
-    'build_emoji_reaction_activity',
-    'handle_post_interaction_federation', 
-    'resolve_activitypub_emoji',
-    'process_incoming_emoji_reaction'
-)
-ORDER BY proname;
-
--- Test that trigger exists
-SELECT 
-    trigger_name,
-    event_manipulation,
-    action_timing,
-    action_statement
-FROM information_schema.triggers 
-WHERE trigger_name = 'trigger_post_interaction_federation';
-
--- Log successful migration
-SELECT 'Emoji reaction federation functions installed successfully!' as status;
+-- Verify that all functions were created successfully
+DO $$
+BEGIN
+    -- Check that all required functions exist
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'build_emoji_reaction_activity'
+    ) THEN
+        RAISE EXCEPTION 'Function build_emoji_reaction_activity was not created';
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'handle_post_interaction_federation'
+    ) THEN
+        RAISE EXCEPTION 'Function handle_post_interaction_federation was not created';
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'resolve_activitypub_emoji'
+    ) THEN
+        RAISE EXCEPTION 'Function resolve_activitypub_emoji was not created';
+    END IF;
+    
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'process_incoming_emoji_reaction'
+    ) THEN
+        RAISE EXCEPTION 'Function process_incoming_emoji_reaction was not created';
+    END IF;
+    
+    -- Check that trigger exists
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.triggers 
+        WHERE trigger_name = 'trigger_post_interaction_federation'
+    ) THEN
+        RAISE EXCEPTION 'Trigger trigger_post_interaction_federation was not created';
+    END IF;
+    
+    -- Check that domain column was added to emojis table
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'emojis' AND column_name = 'domain'
+    ) THEN
+        RAISE EXCEPTION 'Domain column was not added to emojis table';
+    END IF;
+    
+    RAISE NOTICE '✅ Emoji reaction federation migration completed successfully!';
+    RAISE NOTICE '📡 All functions, triggers, and schema changes are in place';
+    RAISE NOTICE '🎉 Emoji reactions will now federate to/from ActivityPub network';
+END;
+$$;
