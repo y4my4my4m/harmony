@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: harmony-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: harmony
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harmony_dev_password}
+      POSTGRES_DB: harmony
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./harmonious/supabase_schema_backup_latest.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - harmony-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harmony"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and queues
+  redis:
+    image: redis:7-alpine
+    container_name: harmony-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - harmony-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: harmony-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:3001}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      INSTANCE_DOMAIN: ${INSTANCE_DOMAIN:-localhost}
+      INSTANCE_NAME: ${INSTANCE_NAME:-Harmony}
+      INSTANCE_DESCRIPTION: ${INSTANCE_DESCRIPTION:-A federated social platform}
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      LOG_LEVEL: info
+    ports:
+      - "3001:3001"
+    networks:
+      - harmony-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Frontend (Vue3 app)
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: harmony-frontend
+    restart: unless-stopped
+    environment:
+      VITE_SUPABASE_URL: ${SUPABASE_URL}
+      VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      VITE_API_URL: ${API_BASE_URL:-http://localhost:3001}
+    ports:
+      - "8080:80"
+    networks:
+      - harmony-network
+    depends_on:
+      - backend
+
+networks:
+  harmony-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+

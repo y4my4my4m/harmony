@@ -86,12 +86,24 @@
         </svg>
       </button>
       
+      <!-- Voice Call Button -->
       <button 
         class="action-btn voice-btn"
-        @click="$emit('toggle-voice-panel')"
-        title="Start voice call"
+        :class="{ active: isInVoiceCall }"
+        @click="toggleVoiceCall"
+        :title="isInVoiceCall ? 'End voice call' : 'Start voice call'"
       >
-        <Icon name="phone" :size="16" />
+        <Icon :name="isInVoiceCall ? 'phone-off' : 'phone'" :size="16" />
+      </button>
+      
+      <!-- Video Call Button -->
+      <button 
+        class="action-btn video-btn"
+        :class="{ active: isInVideoCall }"
+        @click="toggleVideoCall"
+        :title="isInVideoCall ? 'End video call' : 'Start video call'"
+      >
+        <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
       </button>
       
       <button 
@@ -186,6 +198,10 @@ import GroupSettingsModal from '@/components/dm/GroupSettingsModal.vue'
 import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
+import { unifiedWebRTCService } from '@/services/unifiedWebRTC'
+import { useToast } from 'vue-toastification'
+
+const toast = useToast()
 
 // Props
 interface Props {
@@ -203,6 +219,10 @@ const emit = defineEmits<{
   'group-updated': []
   'add-user': []
 }>()
+
+// Voice/Video Call State
+const isInVoiceCall = ref(false)
+const isInVideoCall = ref(false)
 
 // Use clean status system
 const { 
@@ -373,6 +393,63 @@ const handleLeaveGroup = () => {
 const handleCloseDM = () => {
   console.log('Close DM clicked')
   showOptionsMenu.value = false
+}
+
+// Voice/Video Call Functions
+const toggleVoiceCall = async () => {
+  try {
+    if (isInVoiceCall.value) {
+      // End call
+      console.log('📞 Ending voice call...')
+      await unifiedWebRTCService.leaveChannel()
+      isInVoiceCall.value = false
+      isInVideoCall.value = false
+      toast.info('Call ended')
+    } else {
+      // Start voice call
+      console.log('📞 Starting voice call...')
+      
+      // Create a virtual channel for this DM conversation
+      const dmChannelId = `dm-${props.conversation.id}`
+      const currentUserId = props.conversation.current_user_id
+      
+      if (!currentUserId) {
+        toast.error('Authentication required')
+        return
+      }
+      
+      await unifiedWebRTCService.joinChannel(dmChannelId, currentUserId)
+      isInVoiceCall.value = true
+      toast.success('Voice call started')
+    }
+  } catch (error) {
+    console.error('Error toggling voice call:', error)
+    toast.error('Failed to start call')
+  }
+}
+
+const toggleVideoCall = async () => {
+  try {
+    if (!isInVoiceCall.value) {
+      // Need to start voice call first
+      await toggleVoiceCall()
+    }
+    
+    if (isInVideoCall.value) {
+      // Turn off video
+      await unifiedWebRTCService.toggleVideo()
+      isInVideoCall.value = false
+      toast.info('Video disabled')
+    } else {
+      // Turn on video
+      await unifiedWebRTCService.toggleVideo()
+      isInVideoCall.value = true
+      toast.success('Video enabled')
+    }
+  } catch (error) {
+    console.error('Error toggling video:', error)
+    toast.error('Failed to toggle video')
+  }
 }
 
 // Group chat methods

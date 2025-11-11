@@ -1,0 +1,128 @@
+import { Router, Request, Response } from 'express';
+import { getSupabaseClient } from '../config/supabase.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { SignatureService } from './SignatureService.js';
+import { ActivityProcessor } from './ActivityProcessor.js';
+import { logger } from '../utils/logger.js';
+
+const router = Router();
+
+/**
+ * Shared inbox endpoint
+ * POST /api/activitypub/inbox
+ */
+router.post(
+  '/api/activitypub/inbox',
+  asyncHandler(async (req: Request, res: Response) => {
+    await handleInbox(req, res, null);
+  })
+);
+
+/**
+ * User inbox endpoint
+ * POST /users/:username/inbox
+ */
+router.post(
+  '/users/:username/inbox',
+  asyncHandler(async (req: Request, res: Response) => {
+    await handleInbox(req, res, req.params.username);
+  })
+);
+
+/**
+ * Common inbox handler
+ */
+async function handleInbox(
+  req: Request,
+  res: Response,
+  username: string | null
+): Promise<void> {
+  const activity = req.body;
+
+  // Validate activity structure
+  if (!activity || !activity.type || !activity.actor) {
+    res.status(400).json({ error: 'Invalid activity' });
+    return;
+  }
+
+  logger.info(`📥 Received ${activity.type} activity from ${activity.actor}`);
+
+  // Verify HTTP signature (optional but recommended)
+  const signature = req.headers.signature as string;
+  if (signature) {
+    const verification = await SignatureService.verifySignature(
+      signature,
+      req.headers as Record<string, string>,
+      req.method,
+      req.path
+    );
+
+    if (!verification.verified) {
+      logger.warn(`⚠️  Signature verification failed for ${activity.actor}`);
+      // Note: Some implementations don't sign properly, so we log but don't reject
+    } else {
+      logger.info(`✅ Signature verified for ${activity.actor}`);
+    }
+  }
+
+  // If username specified, verify activity is addressed to them
+  if (username) {
+    const supabase = getSupabaseClient();
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('federated_id')
+      .eq('username', username)
+      .eq('is_local', true)
+      .single();
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Check if activity is addressed to this user
+    const to = Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean);
+    const cc = Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean);
+    const recipients = [...to, ...cc];
+
+    if (!recipients.includes(user.federated_id) && activity.type !== 'Follow') {
+      logger.warn(`Activity not addressed to ${username}`);
+    }
+  }
+
+  // Store activity in database (idempotent)
+  const supabase = getSupabaseClient();
+  const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
+  const originDomain = actorUrl ? new URL(actorUrl).hostname : null;
+
+  const { error: storeError } = await supabase.rpc('upsert_ap_activity', {
+    p_ap_id: activity.id,
+    p_ap_type: activity.type,
+    p_actor_ap_id: actorUrl,
+    p_activity_data: activity,
+    p_origin_domain: originDomain,
+    p_to_addresses: Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean),
+    p_cc_addresses: Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean),
+    p_is_local: false,
+  });
+
+  if (storeError) {
+    logger.error('Failed to store activity:', storeError);
+    res.status(500).json({ error: 'Failed to store activity' });
+    return;
+  }
+
+  // Process activity
+  try {
+    await ActivityProcessor.processIncomingActivity(activity);
+    logger.info(`✅ Processed ${activity.type} activity`);
+    res.status(202).json({ message: 'Activity accepted' });
+  } catch (error) {
+    logger.error('Failed to process activity:', error);
+    // Still return success to sender (we've stored it)
+    res.status(202).json({ message: 'Activity accepted' });
+  }
+}
+
+export default router;
+

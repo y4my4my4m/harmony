@@ -54,6 +54,7 @@ export class MessageService {
    * Send a channel message (local-only: no federation needed)
    */
   async sendChannelMessage(
+    serverId: string,
     channelId: string,
     content: MessagePart[],
     replyTo?: string
@@ -62,7 +63,7 @@ export class MessageService {
       console.log(`🚀 Simplified: Sending channel message to: ${channelId}`)
 
       // Channel messages are local-only (no federation by design)
-      const message = await coreMessageService.sendChannelMessage(channelId, content, replyTo)
+      const message = await coreMessageService.sendChannelMessage(serverId, channelId, content, replyTo)
 
       console.log(`✅ Simplified: Channel message sent successfully (local-only): ${message.id}`)
       return message

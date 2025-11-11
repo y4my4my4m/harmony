@@ -354,6 +354,12 @@ export class UnifiedWebRTCService {
   async toggleVideo(): Promise<boolean> {
     try {
       if (!this.localMediaState.isVideoEnabled) {
+        // Disable screenshare first if active
+        if (this.localMediaState.isScreenSharing) {
+          console.log('🎥 Disabling screenshare before enabling camera...');
+          await this.toggleScreenShare();
+        }
+        
         // Enable video
         console.log('🎥 Enabling video camera...');
         
@@ -384,7 +390,15 @@ export class UnifiedWebRTCService {
         console.log('✅ Video track obtained:', videoTrack.getSettings());
         
         if (this.localStream) {
-          // Add video track to local stream
+          // Remove any existing video tracks first (important!)
+          const existingVideoTracks = this.localStream.getVideoTracks();
+          existingVideoTracks.forEach(track => {
+            console.log('🛑 Stopping and removing old video track:', track.id);
+            track.stop();
+            this.localStream!.removeTrack(track);
+          });
+          
+          // Add new video track to local stream
           this.localStream.addTrack(videoTrack);
           this.localMediaState.isVideoEnabled = true;
           
@@ -399,14 +413,16 @@ export class UnifiedWebRTCService {
               const existingSenders = conn.peerConnection.getSenders();
               const videoSender = existingSenders.find(s => s.track?.kind === 'video');
               
-              if (videoSender) {
+              if (videoSender && videoSender.track) {
                 // Replace existing video track
+                console.log('🔄 Replacing existing video track for peer:', userId);
                 await videoSender.replaceTrack(videoTrack);
-                console.log('🔄 Replaced video track for peer:', userId);
+                console.log('✅ Replaced video track for peer:', userId);
               } else {
                 // Add new video track
+                console.log('➕ Adding new video track for peer:', userId);
                 conn.peerConnection.addTrack(videoTrack, this.localStream);
-                console.log('➕ Added new video track for peer:', userId);
+                console.log('✅ Added new video track for peer:', userId);
               }
               
               // Force renegotiation for video track
@@ -509,15 +525,23 @@ export class UnifiedWebRTCService {
         const screenAudioTrack = screenStream.getAudioTracks()[0]; // System audio
         
         if (this.localStream && screenVideoTrack) {
+          // If camera was enabled, turn it off first
+          if (this.localMediaState.isVideoEnabled && !this.localMediaState.isScreenSharing) {
+            console.log('📷 Camera was enabled, disabling before screenshare...');
+            this.localMediaState.isVideoEnabled = false;
+          }
+          
           // Remove existing video tracks (keep microphone audio)
           const videoTracks = this.localStream.getVideoTracks();
           videoTracks.forEach(track => {
+            console.log('🛑 Stopping and removing video track for screenshare:', track.id);
             track.stop();
             this.localStream!.removeTrack(track);
           });
           
           // Add screen video track
           this.localStream.addTrack(screenVideoTrack);
+          console.log('✅ Added screen video track');
           
           // Add screen audio track if available (system audio)
           if (screenAudioTrack) {
@@ -526,7 +550,7 @@ export class UnifiedWebRTCService {
           }
           
           this.localMediaState.isScreenSharing = true;
-          this.localMediaState.isVideoEnabled = true;
+          this.localMediaState.isVideoEnabled = false; // Not camera, it's screenshare!
           
           // Replace tracks in peer connections
           this.connections.forEach(async (conn) => {
