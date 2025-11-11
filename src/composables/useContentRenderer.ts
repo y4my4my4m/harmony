@@ -143,8 +143,17 @@ export function useContentRenderer(
     // Build mention display from parts
     const username = mention.username || 'unknown';
     const domain = mention.domain;
-    const isLocal = mention.isLocal ?? (!domain || domain === (import.meta.env.VITE_DOMAIN || 'har.mony.lol'));
+    const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
     
+    // Determine if user is local
+    // A user is local if:
+    // 1. isLocal is explicitly true, OR
+    // 2. domain is not set, OR
+    // 3. domain matches the current instance domain
+    const isLocal = mention.isLocal === true || !domain || domain === currentDomain;
+    
+    // For local users: show @username
+    // For remote users: show @username@domain
     return isLocal ? `@${username}` : `@${username}@${domain}`;
   };
 
@@ -215,11 +224,19 @@ export function useContentRenderer(
         
         case 'mention': {
           const displayText = formatMentionDisplay(part);
+          // Escape HTML entities in the display text
+          const escapedDisplayText = displayText
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+          
           const dataAttrs = renderOptions.enableClickHandlers 
-            ? `data-user-id="${part.userId || ''}" data-handle="${displayText}"` 
+            ? `data-user-id="${part.userId || ''}" data-handle="${escapedDisplayText}"` 
             : '';
           
-          return `<span class="mention" ${dataAttrs}>${displayText}</span>`;
+          return `<span class="mention" ${dataAttrs}>${escapedDisplayText}</span>`;
         }
         
         case 'emoji': {
