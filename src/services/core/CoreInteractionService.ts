@@ -139,10 +139,10 @@ export class CoreInteractionService {
         following = false
         console.log(`✅ Core: Successfully unfollowed user: ${targetUserId}`)
       } else {
-        // Verify target user exists and is not blocked
+        // Verify target user exists and check approval settings
         const { data: targetUser, error: userError } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, manually_approves_followers')
           .eq('id', targetUserId)
           .single()
 
@@ -162,9 +162,8 @@ export class CoreInteractionService {
           throw this.createError('BLOCKED_BY_USER', 'Cannot follow user who has blocked you')
         }
 
-        // Determine if approval is required (for private accounts)
-        // TODO: Re-enable when is_private column is added
-        const requiresApproval = false // targetUser.is_private || false
+        // Determine if approval is required (ActivityPub standard)
+        const requiresApproval = targetUser.manually_approves_followers || false
         const status = requiresApproval ? 'pending' : 'accepted'
 
         // Create follow with secure insertion

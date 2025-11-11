@@ -1,0 +1,55 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║           🎯 TEST THIS FIX NOW! 🎯                                ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+The bookmark/like/reblog icon issue should be FIXED!
+
+What I Changed:
+═══════════════════════════════════════════════════════════════════
+
+ALL timeline queries now:
+  1. Fetch your interactions (LEFT JOIN)
+  2. Process into boolean flags
+  3. Set is_bookmarked, is_favorited, is_reblogged
+
+Files Updated:
+  ✅ src/services/activityPubService.ts (5 methods)
+  ✅ src/stores/useActivityPub.ts (reactivity fix)
+
+How To Test:
+═══════════════════════════════════════════════════════════════════
+
+1. Bookmark a post (if not already bookmarked)
+2. REFRESH the page (Ctrl+R or F5)
+3. Look at the post - bookmark icon should be FILLED! ⭐
+4. Same for likes (heart) and reblogs!
+
+Expected Behavior:
+═══════════════════════════════════════════════════════════════════
+
+Before refresh: Icons fill when clicked ✅ (real-time works)
+After refresh:  Icons STAY filled ✅ (was broken, now fixed!)
+
+If It Works:
+═══════════════════════════════════════════════════════════════════
+
+🎉 Bookmark icon bug SOLVED!
+🎉 Like icon bug SOLVED!
+🎉 Reblog icon bug SOLVED!
+
+All from fixing the initial query to include YOUR interactions!
+
+If Still Broken:
+═══════════════════════════════════════════════════════════════════
+
+Check console log - look for:
+  "Public timeline loaded: X posts (with user interactions)"
+
+If you see that, the query works!
+Then issue is component rendering - share the log!
+
+╔══════════════════════════════════════════════════════════════════╗
+║  REFRESH YOUR APP NOW AND TEST! 🧪                                ║
+╚══════════════════════════════════════════════════════════════════╝
