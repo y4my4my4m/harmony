@@ -198,7 +198,7 @@ import GroupSettingsModal from '@/components/dm/GroupSettingsModal.vue'
 import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
-import { unifiedWebRTCService } from '@/services/unifiedWebRTC'
+import { unifiedWebRTC } from '@/services/unifiedWebRTC'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
@@ -401,7 +401,7 @@ const toggleVoiceCall = async () => {
     if (isInVoiceCall.value) {
       // End call
       console.log('📞 Ending voice call...')
-      await unifiedWebRTCService.leaveChannel()
+      await unifiedWebRTC.leaveChannel()
       isInVoiceCall.value = false
       isInVideoCall.value = false
       toast.info('Call ended')
@@ -418,7 +418,7 @@ const toggleVoiceCall = async () => {
         return
       }
       
-      await unifiedWebRTCService.joinChannel(dmChannelId, currentUserId)
+      await unifiedWebRTC.joinChannel(dmChannelId, currentUserId)
       isInVoiceCall.value = true
       toast.success('Voice call started')
     }

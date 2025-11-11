@@ -142,7 +142,7 @@ export class CoreInteractionService {
         // Verify target user exists and is not blocked
         const { data: targetUser, error: userError } = await supabase
           .from('profiles')
-          .select('id, is_private')
+          .select('id')
           .eq('id', targetUserId)
           .single()
 
@@ -163,7 +163,8 @@ export class CoreInteractionService {
         }
 
         // Determine if approval is required (for private accounts)
-        const requiresApproval = targetUser.is_private || false
+        // TODO: Re-enable when is_private column is added
+        const requiresApproval = false // targetUser.is_private || false
         const status = requiresApproval ? 'pending' : 'accepted'
 
         // Create follow with secure insertion
