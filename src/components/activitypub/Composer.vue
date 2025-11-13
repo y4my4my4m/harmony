@@ -157,7 +157,7 @@
                 <button
                   ref="gifTriggerRef"
                   class="option-button"
-                  @click="state.showGiphyPicker = !state.showGiphyPicker"
+                  @click="toggleGifPicker"
                   title="Add GIF"
                 >
                   <GifIcon />
@@ -167,7 +167,7 @@
                 <button
                   ref="emojiTriggerRef"
                   class="option-button"
-                  @click="state.showEmojiPicker = !state.showEmojiPicker"
+                  @click="toggleEmojiPicker"
                   title="Add emoji"
                 >
                   <EmojiUI />
@@ -198,7 +198,7 @@
               <div class="visibility-selector">
                 <button
                   class="visibility-button"
-                  @click="state.showVisibilityMenu = !state.showVisibilityMenu"
+                  @click="toggleVisibilityMenu"
                   :title="state.visibilityOptions.find(v => v.value === state.visibility)?.label"
                 >
                   <Icon :name="state.visibilityOptions.find(v => v.value === state.visibility)?.icon || 'globe'" />
@@ -260,7 +260,7 @@
         <Teleport to="body">
           <EmojiPopup
             v-if="state.showEmojiPicker"
-            @sendEmoji="actions.insertEmoji"
+            @sendEmoji="handleEmojiInsert"
             :closeEmojiList="() => state.showEmojiPicker = false"
             :position="'above'"
             :triggerElement="emojiTriggerRef || undefined"
@@ -271,7 +271,7 @@
         <Teleport to="body">
           <GifComponent
             v-if="state.showGiphyPicker"
-            @sendGif="actions.insertGif"
+            @sendGif="handleGifInsert"
             :closeGiphy="() => state.showGiphyPicker = false"
             :position="'above'"
             :triggerElement="gifTriggerRef || undefined"
@@ -461,13 +461,49 @@ const closeVisibilityMenu = () => {
   state.showVisibilityMenu = false;
 };
 
+const toggleVisibilityMenu = () => {
+  // Close other pickers when opening visibility menu
+  state.showEmojiPicker = false;
+  state.showGiphyPicker = false;
+  state.showVisibilityMenu = !state.showVisibilityMenu;
+};
+
+const toggleEmojiPicker = () => {
+  // Close other pickers when opening emoji picker
+  state.showVisibilityMenu = false;
+  state.showGiphyPicker = false;
+  state.showEmojiPicker = !state.showEmojiPicker;
+};
+
+const toggleGifPicker = () => {
+  // Close other pickers when opening GIF picker
+  state.showVisibilityMenu = false;
+  state.showEmojiPicker = false;
+  state.showGiphyPicker = !state.showGiphyPicker;
+};
+
 const handleOverlayClick = () => {
   if (props.mode === 'modal') {
     handleClose();
   }
 };
 
+const handleEmojiInsert = (emoji: any) => {
+  actions.insertEmoji(emoji);
+  state.showEmojiPicker = false;
+};
+
+const handleGifInsert = (gif: any) => {
+  actions.insertGif(gif);
+  state.showGiphyPicker = false;
+};
+
 const handleClose = () => {
+  // Close all pickers
+  state.showEmojiPicker = false;
+  state.showGiphyPicker = false;
+  state.showVisibilityMenu = false;
+  
   if (state.content.trim() && !isPosting.value) {
     // Save as draft
     state.isDraft = true;
@@ -835,7 +871,7 @@ const vClickOutside = {
 
 .visibility-menu {
   position: absolute;
-  bottom: 100%;
+  top: 100%;
   right: 0;
   background-color: #1f2937;
   border: 1px solid #374151;
@@ -844,7 +880,7 @@ const vClickOutside = {
   min-width: 250px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   z-index: 10;
-  margin-bottom: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .visibility-option {

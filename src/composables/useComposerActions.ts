@@ -33,7 +33,6 @@ export function useComposerActions(options: ComposerActionsOptions) {
       const emojiText = `:${emoji.name}:`;
       options.content.value += emojiText;
       options.onContentUpdate?.(options.content.value);
-      options.showEmojiPicker.value = false;
       return;
     }
 
@@ -47,8 +46,6 @@ export function useComposerActions(options: ComposerActionsOptions) {
     nextTick(() => {
       richEditor.focus?.();
     });
-    
-    options.showEmojiPicker.value = false;
   };
 
   /**
@@ -60,8 +57,6 @@ export function useComposerActions(options: ComposerActionsOptions) {
     
     options.content.value = currentContent + (currentContent ? '\n' : '') + gifUrl;
     options.onContentUpdate?.(options.content.value);
-    
-    options.showGiphyPicker.value = false;
     
     nextTick(() => {
       const richEditor = options.richEditorRef.value;
