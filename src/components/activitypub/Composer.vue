@@ -147,117 +147,123 @@
 
             <!-- Compose Options Toolbar -->
             <div class="compose-options">
-              <!-- Media Upload -->
-              <input
-                ref="fileInputRef"
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                class="hidden"
-                @change="actions.handleFileUpload"
-              />
-              <button
-                class="option-button"
-                @click="triggerFileUpload"
-                :disabled="!canAddMedia"
-                title="Add media"
-              >
-                <Icon name="image" />
-              </button>
-
-              <!-- GIF Picker -->
-              <button
-                ref="gifTriggerRef"
-                class="option-button"
-                @click="toggleGifPicker"
-                title="Add GIF"
-              >
-                <GifIcon />
-              </button>
-
-              <!-- Emoji Picker -->
-              <button
-                ref="emojiTriggerRef"
-                class="option-button"
-                @click="toggleEmojiPicker"
-                title="Add emoji"
-              >
-                <EmojiUI />
-              </button>
-
-              <!-- Content Warning -->
-              <button
-                class="option-button"
-                :class="{ active: showContentWarning }"
-                @click="toggleContentWarning"
-                title="Add content warning"
-              >
-                <Icon name="alert-triangle" />
-              </button>
-
-              <!-- Sensitive Content -->
-              <button
-                class="option-button"
-                :class="{ active: isSensitive }"
-                @click="isSensitive = !isSensitive"
-                title="Mark as sensitive"
-              >
-                <Icon name="eye-off" />
-              </button>
-              
-              <!-- Visibility Selector -->
-              <div class="visibility-selector">
+              <!-- Left: Toolbar Buttons -->
+              <div class="option-group">
+                <!-- Media Upload -->
+                <input
+                  ref="fileInputRef"
+                  type="file"
+                  multiple
+                  accept="image/*,video/*"
+                  class="hidden"
+                  @change="actions.handleFileUpload"
+                />
                 <button
                   class="option-button"
-                  @click.stop="toggleVisibilityMenu"
-                  :title="visibilityOptions.find(v => v.value === visibility)?.label"
+                  @click="triggerFileUpload"
+                  :disabled="!canAddMedia"
+                  title="Add media"
                 >
-                  <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
+                  <Icon name="image" />
                 </button>
 
-                <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
+                <!-- GIF Picker -->
+                <button
+                  ref="gifTriggerRef"
+                  class="option-button"
+                  @click="toggleGifPicker"
+                  title="Add GIF"
+                >
+                  <GifIcon />
+                </button>
+
+                <!-- Emoji Picker -->
+                <button
+                  ref="emojiTriggerRef"
+                  class="option-button"
+                  @click="toggleEmojiPicker"
+                  title="Add emoji"
+                >
+                  <EmojiUI />
+                </button>
+
+                <!-- Content Warning -->
+                <button
+                  class="option-button"
+                  :class="{ active: showContentWarning }"
+                  @click="toggleContentWarning"
+                  title="Add content warning"
+                >
+                  <Icon name="alert-triangle" />
+                </button>
+
+                <!-- Sensitive Content -->
+                <button
+                  class="option-button"
+                  :class="{ active: isSensitive }"
+                  @click="isSensitive = !isSensitive"
+                  title="Mark as sensitive"
+                >
+                  <Icon name="eye-off" />
+                </button>
+                
+                <!-- Visibility Selector -->
+                <div class="visibility-selector">
                   <button
-                    v-for="option in visibilityOptions"
-                    :key="option.value"
-                    class="visibility-option"
-                    :class="{ active: visibility === option.value }"
-                    @click.stop="setVisibility(option.value)"
+                    class="option-button"
+                    @click.stop="toggleVisibilityMenu"
+                    :title="visibilityOptions.find(v => v.value === visibility)?.label"
                   >
-                    <Icon :name="option.icon" />
-                    <div class="option-details">
-                      <div class="option-label">{{ option.label }}</div>
-                      <div class="option-description">{{ option.description }}</div>
-                    </div>
-                    <Icon v-if="visibility === option.value" name="check" :size="16" />
+                    <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
                   </button>
+
+                  <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
+                    <button
+                      v-for="option in visibilityOptions"
+                      :key="option.value"
+                      class="visibility-option"
+                      :class="{ active: visibility === option.value }"
+                      @click.stop="setVisibility(option.value)"
+                    >
+                      <Icon :name="option.icon" />
+                      <div class="option-details">
+                        <div class="option-label">{{ option.label }}</div>
+                        <div class="option-description">{{ option.description }}</div>
+                      </div>
+                      <Icon v-if="visibility === option.value" name="check" :size="16" />
+                    </button>
+                  </div>
                 </div>
               </div>
               
-              <!-- Draft Indicator -->
-              <span v-if="isDraft" class="draft-indicator">
-                <Icon name="save" />
-                Draft saved
-              </span>
-              
-              <!-- Cancel Button (modal only) -->
-              <button
-                v-if="mode === 'modal'"
-                class="cancel-button"
-                @click="handleClose"
-                :disabled="isPosting"
-              >
-                Cancel
-              </button>
-              
-              <!-- Submit Button -->
-              <button
-                class="post-button"
-                :disabled="!canSubmit || isPosting"
-                @click="handleSubmit"
-              >
-                <Icon v-if="isPosting" name="spinner" class="spinning" />
-                <span>{{ submitButtonText }}</span>
-              </button>
+              <!-- Right: Action Buttons -->
+              <div class="action-group">
+                <!-- Draft Indicator -->
+                <span v-if="isDraft" class="draft-indicator">
+                  <Icon name="save" />
+                  Draft saved
+                </span>
+                
+                <!-- Cancel Button (modal only) -->
+                <button
+                  v-if="mode === 'modal'"
+                  class="cancel-button"
+                  @click="handleClose"
+                  :disabled="isPosting"
+                >
+                  Cancel
+                </button>
+                
+                <!-- Submit Button -->
+                <button
+                  class="post-button"
+                  :disabled="!canSubmit || isPosting"
+                  @click="handleSubmit"
+                >
+                  <Icon v-if="isPosting" name="spinner" class="spinning" />
+                  <span>{{ submitButtonText }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -979,7 +985,7 @@ const vClickOutside = {
 .compose-options {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
@@ -990,14 +996,24 @@ const vClickOutside = {
   margin-top: 0.75rem;
 }
 
+.option-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .draft-indicator {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   color: #10b981;
   font-size: 0.75rem;
-  margin-left: auto;
-  margin-right: 0.5rem;
 }
 
 .option-button {
