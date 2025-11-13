@@ -14,6 +14,7 @@
     "diagnose": "tsx diagnose-federation.ts",
     "diagnose-deep": "tsx diagnose-deep.ts",
     "check-remote": "tsx check-remote-users.ts",
+    "check-misskey": "tsx check-misskey-follows.ts",
     "refresh-users": "tsx refresh-remote-users.ts"
   },
   "keywords": ["activitypub", "federation", "fediverse", "mastodon", "misskey"],
