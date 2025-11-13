@@ -414,30 +414,46 @@ export class UnifiedWebRTCService {
               const videoSender = existingSenders.find(s => s.track?.kind === 'video');
               
               if (videoSender && videoSender.track) {
-                // Replace existing video track
+                // Replace existing video track (no renegotiation needed)
                 console.log('🔄 Replacing existing video track for peer:', userId);
                 await videoSender.replaceTrack(videoTrack);
                 console.log('✅ Replaced video track for peer:', userId);
               } else {
-                // Add new video track
+                // Add new video track (requires renegotiation)
                 console.log('➕ Adding new video track for peer:', userId);
                 conn.peerConnection.addTrack(videoTrack, this.localStream);
                 console.log('✅ Added new video track for peer:', userId);
+                
+                // Wait for stable state before renegotiation
+                if (conn.peerConnection.signalingState !== 'stable') {
+                  console.log('⏳ Waiting for stable signaling state before renegotiation...');
+                  await new Promise(resolve => {
+                    const checkState = () => {
+                      if (conn.peerConnection.signalingState === 'stable') {
+                        resolve(true);
+                      } else {
+                        setTimeout(checkState, 100);
+                      }
+                    };
+                    checkState();
+                  });
+                }
+                
+                // Create and send offer for renegotiation
+                console.log('🔄 Creating renegotiation offer for peer:', userId);
+                const offer = await conn.peerConnection.createOffer();
+                await conn.peerConnection.setLocalDescription(offer);
+                
+                this.sendDirectMessage(userId, {
+                  type: 'offer',
+                  from: this.currentUserId!,
+                  to: userId,
+                  data: offer,
+                  timestamp: Date.now()
+                });
+                
+                console.log('✅ Video renegotiation offer sent to:', userId);
               }
-              
-              // Force renegotiation for video track
-              const offer = await conn.peerConnection.createOffer();
-              await conn.peerConnection.setLocalDescription(offer);
-              
-              this.sendDirectMessage(userId, {
-                type: 'offer',
-                from: this.currentUserId!,
-                to: userId,
-                data: offer,
-                timestamp: Date.now()
-              });
-              
-              console.log('✅ Video renegotiation offer sent to:', userId);
             } catch (error) {
               console.error('❌ Error adding video track to peer', userId, ':', error);
             }
@@ -469,7 +485,23 @@ export class UnifiedWebRTCService {
                   console.log('📹 Removing video track from peer:', userId);
                   conn.peerConnection.removeTrack(videoSender);
                   
-                  // Force renegotiation
+                  // Wait for stable state before renegotiation
+                  if (conn.peerConnection.signalingState !== 'stable') {
+                    console.log('⏳ Waiting for stable signaling state before renegotiation...');
+                    await new Promise(resolve => {
+                      const checkState = () => {
+                        if (conn.peerConnection.signalingState === 'stable') {
+                          resolve(true);
+                        } else {
+                          setTimeout(checkState, 100);
+                        }
+                      };
+                      checkState();
+                    });
+                  }
+                  
+                  // Create and send offer for renegotiation
+                  console.log('🔄 Creating renegotiation offer after removing video');
                   const offer = await conn.peerConnection.createOffer();
                   await conn.peerConnection.setLocalDescription(offer);
                   
@@ -480,6 +512,8 @@ export class UnifiedWebRTCService {
                     data: offer,
                     timestamp: Date.now()
                   });
+                  
+                  console.log('✅ Video removal renegotiation offer sent to:', userId);
                 }
               } catch (error) {
                 console.error('❌ Error removing video track from peer', userId, ':', error);

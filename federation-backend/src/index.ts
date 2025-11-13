@@ -20,6 +20,7 @@ import groupRouter from './activitypub/GroupService.js';
 
 // Import database listener
 import { startDatabaseListener } from './listeners/DatabaseListener.js';
+import { DeliveryQueue } from './activitypub/DeliveryQueue.js';
 
 const app: Application = express();
 
@@ -72,6 +73,17 @@ app.listen(PORT, () => {
   startDatabaseListener().catch((error) => {
     logger.error('Failed to start database listener:', error);
   });
+  
+  // Process delivery queue every 30 seconds
+  setInterval(async () => {
+    try {
+      await DeliveryQueue.processQueue();
+    } catch (error) {
+      logger.error('Failed to process delivery queue:', error);
+    }
+  }, 30000); // 30 seconds
+  
+  logger.info('📬 Delivery queue processor started (30s interval)');
 });
 
 // Graceful shutdown
