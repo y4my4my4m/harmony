@@ -233,7 +233,12 @@ function extractContentAsHtml(content: any): string {
   return content
     .map((item) => {
       if (item.type === 'text') {
-        return item.text || '';
+        // Escape HTML entities for safety (match SQL logic)
+        let text = item.text || '';
+        text = text.replace(/&/g, '&amp;');
+        text = text.replace(/</g, '&lt;');
+        text = text.replace(/>/g, '&gt;');
+        return text;
       } 
       else if (item.type === 'mention') {
         // MessagePart format has username and domain
@@ -241,18 +246,22 @@ function extractContentAsHtml(content: any): string {
         const username = item.username || 'unknown';
         const href = `https://${domain}/users/${username}`;
         const displayName = item.isLocal ? `@${username}` : `@${username}@${domain}`;
-        return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
+        // Match SQL: simple <a> tag without h-card wrapper
+        return `<a href="${href}" class="mention">${displayName}</a>`;
       }
       else if (item.type === 'hashtag') {
         const href = `https://${config.INSTANCE_DOMAIN}/tags/${item.name}`;
-        return `<a href="${href}" class="mention hashtag" rel="tag">#<span>${item.name}</span></a>`;
+        return `<a href="${href}" class="mention hashtag" rel="tag">#${item.name}</a>`;
       }
       else if (item.type === 'emoji') {
         // Custom emoji - use :name: syntax, actual emoji data in tags
-        return `:${item.emoji.name}:`;
+        return `:${item.emoji?.name || 'emoji'}:`;
       }
       else if (item.type === 'url') {
-        return `<a href="${item.url}" rel="noopener noreferrer">${item.url}</a>`;
+        const url = item.url || '';
+        // Escape URL
+        const escapedUrl = url.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<a href="${escapedUrl}" rel="noopener noreferrer" target="_blank">${escapedUrl}</a>`;
       }
       return '';
     })
