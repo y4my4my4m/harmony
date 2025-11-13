@@ -84,6 +84,9 @@ export function profileToActor(profile: any): any {
     following: `${userUrl}/following`,
     url: userUrl,
     published: profile.created_at,
+    endpoints: {
+      sharedInbox: `https://${domain}/inbox`,
+    },
   };
 
   // Add icon (avatar)
