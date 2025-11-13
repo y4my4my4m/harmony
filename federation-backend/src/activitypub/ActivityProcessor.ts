@@ -152,6 +152,15 @@ export class ActivityProcessor {
 
       // Determine visibility
       const visibility = this.determineVisibility(object);
+      
+      // Debug logging
+      logger.info(`📬 Processing incoming Note:`, {
+        id: object.id,
+        to: object.to,
+        cc: object.cc,
+        determined_visibility: visibility,
+        has_mentions: object.tag?.some((t: any) => t.type === 'Mention')
+      });
 
       // Create post
       const { error } = await supabase.from('posts').upsert({
