@@ -1,21 +1,21 @@
-<!-- MonyComposer Component - Post creation interface -->
-<!-- Professional, feature-rich composer for the Monyverse -->
+<!-- Composer Component - Unified ActivityPub post/reply composer -->
+<!-- Supports both modal and inline modes, new posts and replies -->
 <template>
-  <Teleport to="body">
-    <div v-if="isOpen" class="composer-overlay" @click.self="onClose">
-      <div class="composer-modal" :class="{ 'is-reply': composerState.in_reply_to }">
+  <component :is="wrapperComponent" v-bind="wrapperProps">
+    <div :class="composerClasses" @click.self="handleOverlayClick">
+      <div :class="contentClasses">
         <!-- Header -->
         <div class="composer-header">
           <h2 class="composer-title">
-            {{ composerState.in_reply_to ? 'Reply to Mony' : 'Create a Mony' }}
+            {{ headerTitle }}
           </h2>
-          <button class="close-button" @click="onClose">
+          <button v-if="mode === 'modal'" class="close-button" @click="handleClose">
             <Icon name="x" />
           </button>
         </div>
 
-        <!-- Reply Context -->
-        <div v-if="replyToPost" class="reply-context">
+        <!-- Reply Context (for replies only) -->
+        <div v-if="type === 'reply' && replyToPost" class="reply-context">
           <div class="reply-thread-line"></div>
           <div class="reply-to-post">
             <Avatar 
@@ -36,7 +36,7 @@
           </div>
         </div>
 
-        <!-- Main Composer -->
+        <!-- Main Composer Body -->
         <div class="composer-body">
           <div class="composer-user">
             <Avatar 
@@ -49,9 +49,9 @@
 
           <div class="composer-input-area">
             <!-- Content Warning Input -->
-            <div v-if="showContentWarning" class="content-warning-input">
+            <div v-if="state.showContentWarning" class="content-warning-input">
               <input
-                v-model="contentWarning"
+                v-model="state.contentWarning"
                 type="text"
                 placeholder="Content warning (optional)"
                 class="cw-input"
@@ -63,87 +63,86 @@
             <div class="text-input-container">
               <RichTextEditor
                 ref="richEditorRef"
-                :model-value="content"
+                :model-value="state.content"
                 :placeholder="placeholder"
                 :max-height="200"
                 :min-height="60"
                 @update:model-value="handleContentUpdate"
-                @input="handleInput"
                 @keydown="handleKeydown"
                 @cursor-position-changed="handleCursorPositionChanged"
+                @paste="actions.handlePaste"
               />
               
               <!-- Character Counter -->
-              <div class="character-counter" :class="characterCounterClass">
-                {{ remainingCharacters }}
+              <div class="character-counter" :class="state.characterCounterClass">
+                {{ state.remainingCharacters }}
               </div>
               
-                        <!-- Auto-suggest dropdown for mentions -->
-          <AutoSuggest
-            :isVisible="autoSuggest.state.value.isActive"
-            :suggestions="autoSuggest.suggestions.value"
-            :position="autoSuggest.state.value.position"
-            :selectedIndex="autoSuggest.state.value.selectedIndex"
-            :headerText="autoSuggest.headerText.value"
-            @select="handleSuggestionSelect"
-          >
-            <template #default="{ suggestion }">
-              <!-- Emoji Suggestion -->
-              <div v-if="suggestion.url && suggestion.emoji" class="suggest-item-content">
-                <img 
-                  :src="suggestion.url" 
-                  :alt="suggestion.name"
-                  class="suggest-icon emoji-icon"
-                />
-                <div class="suggest-text">
-                  <span class="suggest-name">:{{ suggestion.name }}:</span>
-                  <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
-                </div>
-              </div>
-              
-              <!-- User Suggestion -->
-              <div v-else class="suggest-item-content">
-                <Avatar 
-                  v-if="suggestion.avatar || suggestion.avatar_url" 
-                  :src="suggestion.avatar || suggestion.avatar_url" 
-                  :alt="suggestion.display_name || suggestion.username"
-                  class="suggest-icon"
-                  size="sm"
-                />
-                <div class="suggest-text">
-                  <span class="suggest-name">{{ suggestion.display_name || suggestion.username }}</span>
-                  <span v-if="suggestion.username && suggestion.display_name !== suggestion.username" class="suggest-username">@{{ suggestion.username }}</span>
-                  <span v-if="suggestion.handle && suggestion.handle.includes('@')" class="suggest-domain">{{ suggestion.handle }}</span>
-                </div>
-              </div>
-            </template>
-          </AutoSuggest>
+              <!-- Auto-suggest dropdown -->
+              <AutoSuggest
+                :isVisible="autoSuggest.state.value.isActive"
+                :suggestions="autoSuggest.suggestions.value"
+                :position="autoSuggest.state.value.position"
+                :selectedIndex="autoSuggest.state.value.selectedIndex"
+                :headerText="autoSuggest.headerText.value"
+                @select="handleSuggestionSelect"
+              >
+                <template #default="{ suggestion }">
+                  <!-- Emoji Suggestion -->
+                  <div v-if="suggestion.url && suggestion.emoji" class="suggest-item-content">
+                    <img 
+                      :src="suggestion.url" 
+                      :alt="suggestion.name"
+                      class="suggest-icon emoji-icon"
+                    />
+                    <div class="suggest-text">
+                      <span class="suggest-name">:{{ suggestion.name }}:</span>
+                      <span v-if="suggestion.server_name" class="suggest-server">{{ suggestion.server_name }}</span>
+                    </div>
+                  </div>
+                  
+                  <!-- User Suggestion -->
+                  <div v-else class="suggest-item-content">
+                    <Avatar 
+                      v-if="suggestion.avatar || suggestion.avatar_url" 
+                      :src="suggestion.avatar || suggestion.avatar_url" 
+                      :alt="suggestion.display_name || suggestion.username"
+                      class="suggest-icon"
+                      size="sm"
+                    />
+                    <div class="suggest-text">
+                      <span class="suggest-name">{{ suggestion.display_name || suggestion.username }}</span>
+                      <span v-if="suggestion.username && suggestion.display_name !== suggestion.username" class="suggest-username">@{{ suggestion.username }}</span>
+                      <span v-if="suggestion.handle && suggestion.handle.includes('@')" class="suggest-domain">{{ suggestion.handle }}</span>
+                    </div>
+                  </div>
+                </template>
+              </AutoSuggest>
             </div>
 
-            <!-- Media Attachments -->
+            <!-- Media Attachments Preview -->
             <MonyMediaUpload
-              v-if="mediaAttachments.length > 0"
-              :attachments="mediaAttachments"
-              @remove="removeAttachment"
-              @update-description="updateAttachmentDescription"
+              v-if="state.mediaAttachments.length > 0"
+              :attachments="state.mediaAttachments"
+              @remove="state.removeMediaAttachment"
             />
 
-            <!-- Compose Options -->
+            <!-- Compose Options Toolbar -->
             <div class="compose-options">
-              <!-- Media Upload -->
               <div class="option-group">
+                <!-- Media Upload -->
                 <input
                   ref="fileInputRef"
                   type="file"
                   multiple
                   accept="image/*,video/*"
                   class="hidden"
-                  @change="handleFileUpload"
+                  @change="actions.handleFileUpload"
                 />
                 <button
                   class="option-button"
                   @click="triggerFileUpload"
-                  :disabled="mediaAttachments.length >= maxMediaAttachments"
+                  :disabled="!state.canAddMedia"
                   title="Add media"
                 >
                   <Icon name="image" />
@@ -153,7 +152,7 @@
                 <button
                   ref="gifTriggerRef"
                   class="option-button"
-                  @click="showGiphyPicker = !showGiphyPicker"
+                  @click="state.showGiphyPicker = !state.showGiphyPicker"
                   title="Add GIF"
                 >
                   <GifIcon />
@@ -163,7 +162,7 @@
                 <button
                   ref="emojiTriggerRef"
                   class="option-button"
-                  @click="showEmojiPicker = !showEmojiPicker"
+                  @click="state.showEmojiPicker = !state.showEmojiPicker"
                   title="Add emoji"
                 >
                   <EmojiUI />
@@ -172,8 +171,8 @@
                 <!-- Content Warning -->
                 <button
                   class="option-button"
-                  :class="{ active: showContentWarning }"
-                  @click="toggleContentWarning"
+                  :class="{ active: state.showContentWarning }"
+                  @click="state.toggleContentWarning"
                   title="Add content warning"
                 >
                   <Icon name="alert-triangle" />
@@ -182,8 +181,8 @@
                 <!-- Sensitive Content -->
                 <button
                   class="option-button"
-                  :class="{ active: isSensitive }"
-                  @click="isSensitive = !isSensitive"
+                  :class="{ active: state.isSensitive }"
+                  @click="state.isSensitive = !state.isSensitive"
                   title="Mark as sensitive"
                 >
                   <Icon name="eye-off" />
@@ -194,28 +193,28 @@
               <div class="visibility-selector">
                 <button
                   class="visibility-button"
-                  @click="showVisibilityMenu = !showVisibilityMenu"
-                  :title="visibilityOptions.find(v => v.value === visibility)?.label"
+                  @click="state.showVisibilityMenu = !state.showVisibilityMenu"
+                  :title="state.visibilityOptions.find(v => v.value === state.visibility)?.label"
                 >
-                  <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
-                  <span class="hidden sm:inline">{{ visibilityOptions.find(v => v.value === visibility)?.label }}</span>
+                  <Icon :name="state.visibilityOptions.find(v => v.value === state.visibility)?.icon || 'globe'" />
+                  <span class="hidden sm:inline">{{ state.visibilityOptions.find(v => v.value === state.visibility)?.label }}</span>
                   <Icon name="chevron-down" :size="16" />
                 </button>
 
-                <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
+                <div v-if="state.showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
                   <button
-                    v-for="option in visibilityOptions"
+                    v-for="option in state.visibilityOptions"
                     :key="option.value"
                     class="visibility-option"
-                    :class="{ active: visibility === option.value }"
-                    @click="setVisibility(option.value)"
+                    :class="{ active: state.visibility === option.value }"
+                    @click="state.setVisibility(option.value)"
                   >
                     <Icon :name="option.icon" />
                     <div class="option-details">
                       <div class="option-label">{{ option.label }}</div>
                       <div class="option-description">{{ option.description }}</div>
                     </div>
-                    <Icon v-if="visibility === option.value" name="check" :size="16" />
+                    <Icon v-if="state.visibility === option.value" name="check" :size="16" />
                   </button>
                 </div>
               </div>
@@ -226,7 +225,7 @@
         <!-- Footer -->
         <div class="composer-footer">
           <div class="footer-info">
-            <span v-if="isDraft" class="draft-indicator">
+            <span v-if="state.isDraft" class="draft-indicator">
               <Icon name="save" />
               Draft saved
             </span>
@@ -235,7 +234,7 @@
           <div class="footer-actions">
             <button
               class="cancel-button"
-              @click="onClose"
+              @click="handleClose"
               :disabled="isPosting"
             >
               Cancel
@@ -243,11 +242,11 @@
             
             <button
               class="post-button"
-              :disabled="!canPost || isPosting"
-              @click="onSubmit"
+              :disabled="!state.canSubmit || isPosting"
+              @click="handleSubmit"
             >
               <Icon v-if="isPosting" name="spinner" class="spinning" />
-              <span>{{ composerState.in_reply_to ? 'Reply' : 'Mony' }}</span>
+              <span>{{ submitButtonText }}</span>
             </button>
           </div>
         </div>
@@ -255,9 +254,9 @@
         <!-- Emoji Picker -->
         <Teleport to="body">
           <EmojiPopup
-            v-if="showEmojiPicker"
-            @sendEmoji="insertEmoji"
-            :closeEmojiList="() => showEmojiPicker = false"
+            v-if="state.showEmojiPicker"
+            @sendEmoji="actions.insertEmoji"
+            :closeEmojiList="() => state.showEmojiPicker = false"
             :position="'above'"
             :triggerElement="emojiTriggerRef || undefined"
           />
@@ -266,23 +265,28 @@
         <!-- GIF Picker -->
         <Teleport to="body">
           <GifComponent
-            v-if="showGiphyPicker"
-            @sendGif="insertGif"
-            :closeGiphy="() => showGiphyPicker = false"
+            v-if="state.showGiphyPicker"
+            @sendGif="actions.insertGif"
+            :closeGiphy="() => state.showGiphyPicker = false"
             :position="'above'"
             :triggerElement="gifTriggerRef || undefined"
           />
         </Teleport>
       </div>
     </div>
-  </Teleport>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
-import type { PostComposerState, Post } from '@/types';
+import type { TimelinePost, Post } from '@/types';
+
+// Composables
+import { useComposerState } from '@/composables/useComposerState';
+import { useComposerActions } from '@/composables/useComposerActions';
+import { useAutoSuggest } from '@/composables/useAutoSuggest';
+import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 
 // Components
 import MonyContent from './MonyContent.vue';
@@ -296,32 +300,27 @@ import Avatar from '../common/Avatar.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 
-// Composables  
-import { useAutoSuggest } from '@/composables/useAutoSuggest';
-import type { SuggestionItem } from '@/components/AutoSuggest.vue';
-import { activityPubService } from '@/services/activityPubService';
-
-
 // Props
 interface Props {
-  isOpen: boolean;
-  composerState: PostComposerState;
-  isPosting: boolean;
-  replyToPost?: any; // The post being replied to
+  mode: 'modal' | 'inline';
+  type: 'post' | 'reply';
+  replyToPost?: TimelinePost;
+  isOpen?: boolean;
+  defaultVisibility?: Post['visibility'];
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  isOpen: true,
+  defaultVisibility: 'public'
+});
 
 // Emits
 const emit = defineEmits<{
   close: [];
-  submit: [];
-  'update-content': [content: string];
-  'update-visibility': [visibility: Post['visibility']];
+  posted: [post: any];
 }>();
 
 // Store
-const authStore = useAuthStore();
 const profileStore = useProfileStore();
 
 // Refs
@@ -329,12 +328,17 @@ const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const fileInputRef = ref<HTMLInputElement>();
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
+const isPosting = ref(false);
 
-// AutoSuggest setup 
-const getCurrentText = () => content.value || '';
+// State management using composable
+const state = useComposerState({
+  defaultVisibility: props.defaultVisibility
+});
+
+// AutoSuggest setup
+const getCurrentText = () => state.content || '';
 const updateText = (newText: string) => {
-  content.value = newText;
-  emit('update-content', newText);
+  state.content = newText;
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'activitypub',
@@ -343,124 +347,88 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   maxSuggestions: 10
 });
 
-// Remove all the duplicate user search and suggestion combining logic
-// The enhanced composable now handles ActivityPub user search internally
-
-// Watch for mention queries is now handled internally by the composable
-
-// Local state
-const content = ref('');
-const contentWarning = ref('');
-const visibility = ref<Post['visibility']>('public');
-const mediaAttachments = ref<File[]>([]);
-const isSensitive = ref(false);
-const showContentWarning = ref(false);
-const showEmojiPicker = ref(false);
-const showGiphyPicker = ref(false);
-const showVisibilityMenu = ref(false);
-const isDraft = ref(false);
-
-// Constants
-const characterLimit = 500;
-const maxMediaAttachments = 4;
-
-// Computed
-const currentUser = computed(() => {
-  return profileStore.profile;
+// Actions using composable
+const actions = useComposerActions({
+  content: state.content,
+  richEditorRef,
+  showEmojiPicker: state.showEmojiPicker,
+  showGiphyPicker: state.showGiphyPicker,
+  mediaAttachments: state.mediaAttachments,
+  canAddMedia: state.canAddMedia,
+  onContentUpdate: (newContent) => {
+    state.content = newContent;
+  }
 });
 
+// Computed
+const currentUser = computed(() => profileStore.profile);
+
 const placeholder = computed(() => {
-  if (props.composerState.in_reply_to) {
+  if (props.type === 'reply') {
     return 'What\'s your reply?';
   }
   return 'What\'s happening in the Monyverse?';
 });
 
-const remainingCharacters = computed(() => {
-  return characterLimit - content.value.length;
-});
-
-const characterCounterClass = computed(() => {
-  const remaining = remainingCharacters.value;
-  if (remaining < 0) return 'over-limit';
-  if (remaining < 20) return 'warning';
-  return '';
-});
-
-const canPost = computed(() => {
-  return content.value.trim().length > 0 && 
-         content.value.length <= characterLimit &&
-         !props.isPosting;
-});
-
-const visibilityOptions = [
-  {
-    value: 'public' as const,
-    label: 'Public',
-    description: 'Visible to everyone',
-    icon: 'globe'
-  },
-  {
-    value: 'unlisted' as const,
-    label: 'Unlisted',
-    description: 'Not shown in public timelines',
-    icon: 'unlock'
-  },
-  {
-    value: 'followers' as const,
-    label: 'Followers',
-    description: 'Only visible to followers',
-    icon: 'users'
-  },
-  {
-    value: 'direct' as const,
-    label: 'Direct',
-    description: 'Only mentioned users',
-    icon: 'mail'
+const headerTitle = computed(() => {
+  if (props.type === 'reply') {
+    return 'Reply to Mony';
   }
-];
-
-// Watch for prop changes
-watch(() => props.composerState.content, (newContent) => {
-  content.value = newContent;
+  return 'Create a Mony';
 });
 
-watch(() => props.composerState.visibility, (newVisibility) => {
-  visibility.value = newVisibility;
+const submitButtonText = computed(() => {
+  if (isPosting.value) {
+    return props.type === 'reply' ? 'Replying...' : 'Posting...';
+  }
+  return props.type === 'reply' ? 'Reply' : 'Mony';
 });
 
-watch(() => props.composerState.content_warning, (newCw) => {
-  contentWarning.value = newCw || '';
-  showContentWarning.value = !!newCw;
+const wrapperComponent = computed(() => {
+  return props.mode === 'modal' ? 'Teleport' : 'div';
 });
 
-watch(() => props.composerState.is_sensitive, (newSensitive) => {
-  isSensitive.value = newSensitive;
+const wrapperProps = computed(() => {
+  if (props.mode === 'modal') {
+    return { to: 'body' };
+  }
+  return {};
+});
+
+const composerClasses = computed(() => {
+  if (props.mode === 'modal') {
+    return {
+      'composer-overlay': true,
+      'is-modal': true
+    };
+  }
+  return {
+    'composer-inline': true
+  };
+});
+
+const contentClasses = computed(() => {
+  return {
+    'composer-modal': props.mode === 'modal',
+    'composer-inline-content': props.mode === 'inline',
+    'is-reply': props.type === 'reply'
+  };
 });
 
 // Methods
 const handleContentUpdate = (newContent: string) => {
-  content.value = newContent;
-  emit('update-content', newContent);
-};
-
-const handleInput = () => {
-  // Input is handled by handleContentUpdate
+  state.content = newContent;
 };
 
 const handleCursorPositionChanged = (position: number) => {
-  // Handle auto-suggest based on cursor position and current text
   if (richEditorRef.value) {
-    autoSuggest.handleInput(content.value, position);
+    autoSuggest.handleInput(state.content, position);
   }
 };
 
 const handleSuggestionSelect = (suggestion: SuggestionItem) => {
-  // Use the autoSuggest system's built-in selection method
   autoSuggest.selectSuggestion(suggestion);
 };
-
-
 
 const handleKeydown = (event: KeyboardEvent) => {
   // Handle autoSuggest navigation
@@ -469,37 +437,14 @@ const handleKeydown = (event: KeyboardEvent) => {
   
   // Ctrl/Cmd + Enter to post
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-    if (canPost.value) {
-      onSubmit();
+    if (state.canSubmit) {
+      handleSubmit();
     }
   }
   
   // Escape to close
-  if (event.key === 'Escape') {
-    onClose();
-  }
-};
-
-const handlePaste = (event: ClipboardEvent) => {
-  const items = event.clipboardData?.items;
-  if (!items) return;
-
-  for (const item of items) {
-    if (item.type.startsWith('image/')) {
-      const file = item.getAsFile();
-      if (file && mediaAttachments.value.length < maxMediaAttachments) {
-        mediaAttachments.value.push(file);
-      }
-    }
-  }
-};
-
-const autoResize = () => {
-  // RichTextEditor handles its own resizing
-  // This function is kept for compatibility but may not be needed
-  if (richEditorRef.value) {
-    // RichTextEditor component should handle auto-resize internally
-    console.log('autoResize called on RichTextEditor');
+  if (event.key === 'Escape' && props.mode === 'modal') {
+    handleClose();
   }
 };
 
@@ -507,111 +452,70 @@ const triggerFileUpload = () => {
   fileInputRef.value?.click();
 };
 
-const handleFileUpload = (event: Event) => {
-  const files = (event.target as HTMLInputElement).files;
-  if (!files) return;
-
-  for (const file of files) {
-    if (mediaAttachments.value.length >= maxMediaAttachments) break;
-    if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-      mediaAttachments.value.push(file);
-    }
-  }
-};
-
-const removeAttachment = (index: number) => {
-  mediaAttachments.value.splice(index, 1);
-};
-
-const updateAttachmentDescription = () => {
-  // Update attachment description for accessibility
-  // This would be handled by the MonyMediaUpload component
-  // TODO: Implement attachment description updates
-};
-
-const insertEmoji = (emoji: any) => {
-  const richEditor = richEditorRef.value;
-  if (!richEditor) return;
-
-  const emojiText = `:${emoji.name}:`;
-  
-  // For RichTextEditor, we'll insert at the current cursor position
-  // or append to the end if no cursor position is available
-  const currentContent = content.value;
-  content.value = currentContent + emojiText;
-  
-  nextTick(() => {
-    richEditor.focus();
-    handleInput();
-  });
-  
-  showEmojiPicker.value = false;
-};
-
-const insertGif = (gif: any) => {
-  const gifUrl = gif.media_formats.gif.url;
-  
-  // Add GIF as media attachment - reuse the media upload logic
-  const gifAttachment = {
-    url: gifUrl,
-    type: 'image',
-    description: gif.title || 'GIF'
-  };
-  
-  // For now, add it to content as a link
-  const currentContent = content.value;
-  content.value = currentContent + (currentContent ? '\n' : '') + gifUrl;
-  
-  showGiphyPicker.value = false;
-  
-  nextTick(() => {
-    const richEditor = richEditorRef.value;
-    if (richEditor) {
-      richEditor.focus();
-      handleInput();
-    }
-  });
-};
-
-const toggleContentWarning = () => {
-  showContentWarning.value = !showContentWarning.value;
-  if (!showContentWarning.value) {
-    contentWarning.value = '';
-  }
-};
-
-const setVisibility = (newVisibility: Post['visibility']) => {
-  visibility.value = newVisibility;
-  emit('update-visibility', newVisibility);
-  showVisibilityMenu.value = false;
-};
-
 const closeVisibilityMenu = () => {
-  showVisibilityMenu.value = false;
+  state.showVisibilityMenu = false;
 };
 
-const onClose = () => {
-  if (content.value.trim() && !props.isPosting) {
+const handleOverlayClick = () => {
+  if (props.mode === 'modal') {
+    handleClose();
+  }
+};
+
+const handleClose = () => {
+  if (state.content.trim() && !isPosting.value) {
     // Save as draft
-    isDraft.value = true;
+    state.isDraft = true;
     setTimeout(() => {
-      isDraft.value = false;
+      state.isDraft = false;
     }, 2000);
   }
   emit('close');
 };
 
-const onSubmit = () => {
-  if (!canPost.value) return;
-  emit('submit');
+const handleSubmit = async () => {
+  if (!state.canSubmit || isPosting.value) return;
+
+  isPosting.value = true;
+  
+  try {
+    const post = await actions.submitPost(
+      state.visibility,
+      state.contentWarning,
+      state.isSensitive,
+      props.type === 'reply' ? props.replyToPost?.id : undefined
+    );
+
+    // Reset state
+    state.reset();
+    
+    // Emit success
+    emit('posted', post);
+    emit('close');
+  } catch (error) {
+    console.error('Failed to create post:', error);
+    // TODO: Show error toast
+  } finally {
+    isPosting.value = false;
+  }
 };
 
 // Lifecycle
 onMounted(() => {
-  nextTick(() => {
-    richEditorRef.value?.focus();
-    autoResize();
-  });
+  if (props.isOpen && props.mode === 'modal') {
+    nextTick(() => {
+      richEditorRef.value?.focus();
+    });
+  }
+});
+
+// Watch for modal open state
+watch(() => props.isOpen, (isOpen) => {
+  if (isOpen && props.mode === 'modal') {
+    nextTick(() => {
+      richEditorRef.value?.focus();
+    });
+  }
 });
 
 // Click outside directive
@@ -631,6 +535,7 @@ const vClickOutside = {
 </script>
 
 <style scoped>
+/* Modal overlay */
 .composer-overlay {
   position: fixed;
   top: 0;
@@ -645,6 +550,7 @@ const vClickOutside = {
   padding: 1rem;
 }
 
+/* Modal content */
 .composer-modal {
   background-color: var(--background-primary);
   border-radius: 1rem;
@@ -659,13 +565,29 @@ const vClickOutside = {
   max-width: 700px;
 }
 
+/* Inline content */
+.composer-inline {
+  width: 100%;
+}
+
+.composer-inline-content {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background-color: var(--background-primary);
+  padding: 1rem;
+}
+
+/* Header */
 .composer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.5rem 1.5rem 0;
+  padding: 1.5rem 1.5rem 1rem;
   border-bottom: 1px solid var(--border-primary);
-  padding-bottom: 1rem;
+}
+
+.composer-inline-content .composer-header {
+  padding: 0 0 1rem;
 }
 
 .composer-title {
@@ -690,10 +612,15 @@ const vClickOutside = {
   color: white;
 }
 
+/* Reply Context */
 .reply-context {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--border-primary);
   position: relative;
+}
+
+.composer-inline-content .reply-context {
+  padding: 1rem 0;
 }
 
 .reply-thread-line {
@@ -708,14 +635,6 @@ const vClickOutside = {
 .reply-to-post {
   display: flex;
   gap: 0.75rem;
-}
-
-.reply-author-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
 }
 
 .reply-content {
@@ -746,21 +665,19 @@ const vClickOutside = {
   line-height: 1.5;
 }
 
+/* Composer Body */
 .composer-body {
   display: flex;
   gap: 0.75rem;
   padding: 1.5rem;
 }
 
-.composer-user {
-  flex-shrink: 0;
+.composer-inline-content .composer-body {
+  padding: 0;
 }
 
-.user-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
+.composer-user {
+  flex-shrink: 0;
 }
 
 .composer-input-area {
@@ -768,6 +685,7 @@ const vClickOutside = {
   min-width: 0;
 }
 
+/* Content Warning */
 .content-warning-input {
   margin-bottom: 1rem;
 }
@@ -791,32 +709,10 @@ const vClickOutside = {
   border-color: var(--harmony-primary);
 }
 
+/* Text Input */
 .text-input-container {
   position: relative;
   margin-bottom: 1rem;
-}
-
-.text-input {
-  width: 100%;
-  min-height: 120px;
-  padding: 1rem;
-  background-color: transparent;
-  border: 1px solid var(--border-primary);
-  border-radius: 0.5rem;
-  color: white;
-  font-size: 1rem;
-  line-height: 1.5;
-  resize: none;
-  overflow: hidden;
-}
-
-.text-input::placeholder {
-  color: #9ca3af;
-}
-
-.text-input:focus {
-  outline: none;
-  border-color: var(--harmony-primary);
 }
 
 .character-counter {
@@ -835,11 +731,13 @@ const vClickOutside = {
   color: #ef4444;
 }
 
+/* Compose Options */
 .compose-options {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  margin-top: 1rem;
 }
 
 .option-group {
@@ -948,12 +846,17 @@ const vClickOutside = {
   color: #9ca3af;
 }
 
+/* Footer */
 .composer-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--border-primary);
+}
+
+.composer-inline-content .composer-footer {
+  padding: 1rem 0 0;
 }
 
 .footer-info {
@@ -1026,6 +929,42 @@ const vClickOutside = {
   display: none;
 }
 
+/* AutoSuggest styling */
+.suggest-item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.suggest-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.suggest-icon.emoji-icon {
+  border-radius: 0;
+}
+
+.suggest-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.suggest-name {
+  font-weight: 500;
+  color: white;
+}
+
+.suggest-username,
+.suggest-domain,
+.suggest-server {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  margin-left: 0.25rem;
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .composer-overlay {
@@ -1043,13 +982,9 @@ const vClickOutside = {
     padding-right: 1rem;
   }
   
-  .user-avatar {
-    width: 40px;
-    height: 40px;
-  }
-  
   .visibility-button span {
     display: none;
   }
 }
 </style>
+

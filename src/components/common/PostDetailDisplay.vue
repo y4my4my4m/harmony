@@ -52,10 +52,12 @@
 
         <!-- Reply composer (if replying) -->
         <div v-if="showReplyComposer" class="reply-composer">
-          <MonyComposerInline
-            :reply-to="post"
-            @post-created="handleReplyCreated"
-            @cancel="showReplyComposer = false"
+          <Composer
+            mode="inline"
+            type="reply"
+            :reply-to-post="post"
+            @posted="handleReplyCreated"
+            @close="showReplyComposer = false"
           />
         </div>
 
@@ -120,7 +122,7 @@ import type { TimelinePost } from '@/types';
 
 // Components
 import MonyPost from '@/components/activitypub/MonyPost.vue';
-import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue';
+import Composer from '@/components/activitypub/Composer.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Props

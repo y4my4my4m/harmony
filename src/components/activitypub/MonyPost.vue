@@ -322,11 +322,12 @@
     </div>
 
     <!-- Inline Reply Composer -->
-    <InlineReplyComposer 
+    <Composer 
       v-if="showInlineReply"
+      mode="inline"
+      type="reply"
       :reply-to-post="post"
-      :is-visible="showInlineReply"
-      @reply-sent="handleReplySent"
+      @posted="handleReplySent"
       @close="showInlineReply = false"
     />
 
@@ -394,7 +395,7 @@ import type { TimelinePost } from '@/types';
 import MonyContent from './MonyContent.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
-import InlineReplyComposer from './InlineReplyComposer.vue';
+import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import EmojiPopup from '@/components/EmojiPopup.vue';

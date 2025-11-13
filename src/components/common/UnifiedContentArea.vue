@@ -47,7 +47,11 @@
       <div v-else class="content-timeline">
         <!-- Composer (if home timeline) -->
         <div v-if="currentView === 'home'" class="composer-section">
-          <MonyComposerInline @post-created="$emit('post-created', $event)" />
+          <Composer 
+            mode="inline"
+            type="post"
+            @posted="$emit('post-created', $event)"
+          />
         </div>
 
         <!-- Timeline Posts -->
@@ -69,7 +73,7 @@
 
 <script setup lang="ts">
 import ChatComponent from '@/components/ChatComponent.vue'
-import MonyComposerInline from '@/components/activitypub/MonyComposerInline.vue'
+import Composer from '@/components/activitypub/Composer.vue'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
 import PostDetailDisplay from './PostDetailDisplay.vue'
 import PostsContainer from './PostsContainer.vue'
