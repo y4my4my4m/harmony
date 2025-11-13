@@ -372,7 +372,7 @@ COMMENT ON FUNCTION get_system_stats IS
 -- ============================================
 
 -- Automatically update updated_at timestamp
-CREATE FUNCTION update_updated_at_column()
+CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -383,7 +383,7 @@ END;
 $$;
 
 -- Notify federation backend of new events
-CREATE FUNCTION notify_federation_event()
+CREATE OR REPLACE FUNCTION notify_federation_event()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -404,8 +404,128 @@ $$;
 COMMENT ON FUNCTION notify_federation_event IS
 'Notify federation backend of events that need federation (posts, follows, reactions)';
 
+-- Create timeline entries for new posts
+CREATE OR REPLACE FUNCTION create_comprehensive_timeline_entries()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    follower_record RECORD;
+    local_user_record RECORD;
+BEGIN
+    -- Skip deleted posts
+    IF COALESCE(NEW.is_deleted, false) THEN
+        RETURN NEW;
+    END IF;
+    
+    -- Add to author's own home timeline (local authors only)
+    IF NEW.is_local THEN
+        INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+        VALUES (NEW.author_id, NEW.id, 'home', EXTRACT(epoch FROM NEW.created_at) * 1000000)
+        ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
+    END IF;
+    
+    -- Add to followers' home timelines (for all posts - local and federated)
+    IF NEW.visibility IN ('public', 'unlisted') THEN
+        FOR follower_record IN 
+            SELECT f.follower_id 
+            FROM follows f 
+            JOIN profiles p ON f.follower_id = p.id
+            WHERE f.following_id = NEW.author_id 
+              AND f.status = 'accepted'
+              AND p.is_local = true
+              AND f.follower_id != NEW.author_id
+        LOOP
+            INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+            VALUES (follower_record.follower_id, NEW.id, 'home', EXTRACT(epoch FROM NEW.created_at) * 1000000)
+            ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
+        END LOOP;
+    END IF;
+    
+    -- Add to ALL local users' public timeline (for public posts only)
+    IF NEW.visibility = 'public' THEN
+        FOR local_user_record IN
+            SELECT id FROM profiles WHERE is_local = true
+        LOOP
+            INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+            VALUES (local_user_record.id, NEW.id, 'public', EXTRACT(epoch FROM NEW.created_at) * 1000000)
+            ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
+        END LOOP;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION create_comprehensive_timeline_entries IS
+'Creates timeline entries for both local and federated posts';
+
+-- Backfill timeline when following someone
+CREATE OR REPLACE FUNCTION backfill_timeline_on_follow()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    post_record RECORD;
+BEGIN
+    -- Only backfill when follow is accepted and follower is local
+    IF NEW.status != 'accepted' THEN
+        RETURN NEW;
+    END IF;
+    
+    -- Only backfill for local followers
+    IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.follower_id AND is_local = true) THEN
+        RETURN NEW;
+    END IF;
+    
+    -- Add recent posts from followed user to follower's home timeline
+    FOR post_record IN
+        SELECT id, created_at
+        FROM posts
+        WHERE author_id = NEW.following_id
+          AND visibility IN ('public', 'unlisted')
+          AND NOT COALESCE(is_deleted, false)
+        ORDER BY created_at DESC
+        LIMIT 20
+    LOOP
+        INSERT INTO timeline_entries (user_id, post_id, timeline_type, position)
+        VALUES (NEW.follower_id, post_record.id, 'home', EXTRACT(epoch FROM post_record.created_at) * 1000000)
+        ON CONFLICT (user_id, post_id, timeline_type) DO NOTHING;
+    END LOOP;
+    
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION backfill_timeline_on_follow IS
+'Backfills home timeline with recent posts when accepting a follow';
+
+-- Remove posts from timeline when unfollowing
+CREATE OR REPLACE FUNCTION remove_timeline_on_unfollow()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    -- Remove all posts from unfollowed user from the follower's home timeline
+    DELETE FROM timeline_entries
+    WHERE user_id = OLD.follower_id
+      AND timeline_type = 'home'
+      AND post_id IN (
+          SELECT id FROM posts WHERE author_id = OLD.following_id
+      );
+    
+    RETURN OLD;
+END;
+$$;
+
+COMMENT ON FUNCTION remove_timeline_on_unfollow IS
+'Removes posts from home timeline when unfollowing a user';
+
 -- Update post counters automatically
-CREATE FUNCTION update_post_counters()
+CREATE OR REPLACE FUNCTION update_post_counters()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -414,16 +534,16 @@ BEGIN
     -- Increment counter
     UPDATE posts
     SET 
-      reply_count = reply_count + 1,
+      replies_count = replies_count + 1,
       updated_at = NOW()
-    WHERE id = NEW.post_id;
+    WHERE id = NEW.in_reply_to;
   ELSIF TG_OP = 'DELETE' THEN
     -- Decrement counter
     UPDATE posts
     SET 
-      reply_count = GREATEST(0, reply_count - 1),
+      replies_count = GREATEST(0, replies_count - 1),
       updated_at = NOW()
-    WHERE id = OLD.post_id;
+    WHERE id = OLD.in_reply_to;
   END IF;
   
   RETURN COALESCE(NEW, OLD);

@@ -34,7 +34,10 @@ export function postToNote(post: any, author: any): any {
 
   // Add reply info
   if (post.in_reply_to) {
-    note.inReplyTo = post.in_reply_to;
+    // in_reply_to is a UUID - need to get the ap_id of the parent post
+    // For federated posts, this is their original ActivityPub URL
+    // For local posts, this is our generated URL
+    note.inReplyTo = post.in_reply_to; // Will be resolved in createPostActivity
   }
 
   return note;

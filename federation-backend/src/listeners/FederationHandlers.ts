@@ -9,6 +9,7 @@ import {
   createAnnounceActivity as createAnnounce,
 } from '../activitypub/converters/toActivityPub.js';
 import config from '../config/index.js';
+import { getSupabaseClient } from '../config/supabase.js';
 
 /**
  * Create a Create activity for a new post
@@ -19,6 +20,23 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
   const activityId = `${authorUrl}/activities/${post.id}`;
 
   const note = postToNote(post, author);
+  
+  // Fix in_reply_to: Convert UUID to ActivityPub URL
+  if (post.in_reply_to) {
+    const supabase = getSupabaseClient();
+    const { data: parentPost } = await supabase
+      .from('posts')
+      .select('ap_id')
+      .eq('id', post.in_reply_to)
+      .single();
+    
+    if (parentPost?.ap_id) {
+      note.inReplyTo = parentPost.ap_id;
+    } else {
+      // Parent post doesn't have ap_id (shouldn't happen with our trigger, but fallback)
+      note.inReplyTo = `https://${domain}/posts/${post.in_reply_to}`;
+    }
+  }
 
   return {
     '@context': 'https://www.w3.org/ns/activitystreams',
