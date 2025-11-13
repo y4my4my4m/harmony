@@ -289,10 +289,10 @@ const onVideoLoaded = () => {
 // WATCHERS
 // =============================================================================
 
-// Update video element when stream changes
+// Update video element when stream OR state changes
 watch(
-  () => userStream.value,
-  (newStream) => {
+  [() => userStream.value, () => props.userState.isVideoEnabled, () => props.userState.isScreenSharing],
+  ([newStream, isVideoEnabled, isScreenSharing]) => {
     if (videoElement.value) {
       const hasVideoTracks = newStream?.getVideoTracks().length ?? 0;
       
@@ -300,10 +300,10 @@ watch(
         // Has video tracks - update srcObject
         videoElement.value.srcObject = newStream;
         console.log(`📹 Updating video stream for user ${props.userState.userId}. Video tracks: ${hasVideoTracks}`);
-      } else if (!props.userState.isVideoEnabled && !props.userState.isScreenSharing) {
+      } else if (!isVideoEnabled && !isScreenSharing) {
         // No video tracks AND state says off - clear to remove frozen frame
         videoElement.value.srcObject = null;
-        console.log(`📹 Clearing video stream for user ${props.userState.userId} (camera off)`);
+        console.log(`📹 Clearing video stream for user ${props.userState.userId} (camera/screen off)`);
       }
       // else: No tracks yet but state says on - keep old srcObject temporarily (negotiation in progress)
     }
