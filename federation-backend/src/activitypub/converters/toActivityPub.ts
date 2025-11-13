@@ -272,10 +272,20 @@ function extractTags(content: any): any[] {
 
   content.forEach((item) => {
     if (item.type === 'mention') {
+      // Debug logging
+      logger.info('🏷️ Processing mention tag:', {
+        username: item.username,
+        domain: item.domain,
+        isLocal: item.isLocal,
+        userId: item.userId,
+        fullItem: item
+      });
+      
       // MessagePart format uses username and domain, not mention string
       const domain = item.domain || config.INSTANCE_DOMAIN;
-      const href = `https://${domain}/users/${item.username}`;
-      const name = item.isLocal ? `@${item.username}` : `@${item.username}@${item.domain}`;
+      const username = item.username || 'unknown';
+      const href = `https://${domain}/users/${username}`;
+      const name = item.isLocal ? `@${username}` : `@${username}@${domain}`;
       
       tags.push({
         type: 'Mention',

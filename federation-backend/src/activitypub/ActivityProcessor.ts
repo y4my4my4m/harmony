@@ -150,6 +150,14 @@ export class ActivityProcessor {
       // Convert content (returns raw HTML for now)
       const rawContent = noteToContent(object);
       
+      // Debug: Log what we're getting from Misskey/Mastodon
+      logger.info('📝 Raw content from ActivityPub Note:', {
+        contentType: typeof object.content,
+        contentPreview: object.content?.substring(0, 200),
+        hasContent: !!object.content,
+        rawContentParts: rawContent.length
+      });
+      
       // Parse ActivityPub HTML to MessageParts if needed
       // Note: This parsing should ideally happen in the backend, but for now
       // we're storing raw HTML and letting frontend parse it
