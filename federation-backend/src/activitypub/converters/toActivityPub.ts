@@ -218,29 +218,45 @@ export function createDeleteActivity(user: any, objectUrl: string): any {
 }
 
 /**
- * Helper: Extract HTML content from JSONB content
+ * Helper: Extract HTML content from JSONB content (MessagePart[])
+ * Converts to ActivityPub-compatible HTML with mentions, hashtags, and emojis
  */
 function extractContentAsHtml(content: any): string {
   if (typeof content === 'string') {
     return content;
   }
 
-  if (Array.isArray(content)) {
-    return content
-      .map((item) => {
-        if (item.type === 'text') {
-          return item.text;
-        } else if (item.type === 'mention') {
-          return `<a href="${item.url || '#'}" class="mention">@${item.mention}</a>`;
-        } else if (item.type === 'url') {
-          return `<a href="${item.url}">${item.url}</a>`;
-        }
-        return '';
-      })
-      .join('');
+  if (!Array.isArray(content)) {
+    return '';
   }
 
-  return '';
+  return content
+    .map((item) => {
+      if (item.type === 'text') {
+        return item.text || '';
+      } 
+      else if (item.type === 'mention') {
+        // MessagePart format has username and domain
+        const domain = item.domain || config.INSTANCE_DOMAIN;
+        const username = item.username || 'unknown';
+        const href = `https://${domain}/users/${username}`;
+        const displayName = item.isLocal ? `@${username}` : `@${username}@${domain}`;
+        return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
+      }
+      else if (item.type === 'hashtag') {
+        const href = `https://${config.INSTANCE_DOMAIN}/tags/${item.name}`;
+        return `<a href="${href}" class="mention hashtag" rel="tag">#<span>${item.name}</span></a>`;
+      }
+      else if (item.type === 'emoji') {
+        // Custom emoji - use :name: syntax, actual emoji data in tags
+        return `:${item.emoji.name}:`;
+      }
+      else if (item.type === 'url') {
+        return `<a href="${item.url}" rel="noopener noreferrer">${item.url}</a>`;
+      }
+      return '';
+    })
+    .join('');
 }
 
 /**
@@ -301,6 +317,20 @@ function extractTags(content: any): any[] {
         type: 'Hashtag',
         href: href,
         name: `#${item.name}`,
+      });
+    }
+    
+    if (item.type === 'emoji' && item.emoji) {
+      // Custom emoji tag for Misskey/Mastodon compatibility
+      tags.push({
+        type: 'Emoji',
+        id: item.emoji.id || item.emoji.url,
+        name: `:${item.emoji.name}:`,
+        icon: {
+          type: 'Image',
+          mediaType: 'image/png',
+          url: item.emoji.url
+        }
       });
     }
   });
