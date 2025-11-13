@@ -235,10 +235,14 @@ const voiceIntensity = computed(() => {
 });
 
 const hasVideo = computed(() => {
-  return (
-    !!userStream.value?.getVideoTracks().length &&
-    (props.userState.isVideoEnabled || props.userState.isScreenSharing)
-  );
+  // Check if stream has video tracks (most reliable indicator)
+  const hasVideoTracks = !!userStream.value?.getVideoTracks().length;
+  
+  // Also check state flags as fallback
+  const stateIndicatesVideo = props.userState.isVideoEnabled || props.userState.isScreenSharing;
+  
+  // Show video if EITHER condition is true (more reliable for dynamic toggling)
+  return hasVideoTracks || stateIndicatesVideo;
 });
 
 const connectionQuality = computed(() => {
