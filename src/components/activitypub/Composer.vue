@@ -544,21 +544,24 @@ const handleSubmit = async () => {
 // Lifecycle
 onMounted(() => {
   // Pre-populate mention for replies
-  if (props.type === 'reply' && props.replyToPost) {
+  if (props.type === 'reply' && props.replyToPost?.author) {
     const author = props.replyToPost.author;
-    if (author) {
-      const mention = author.domain && !author.is_local 
-        ? `@${author.username}@${author.domain} `
-        : `@${author.username} `;
-      state.content = mention;
-    }
+    const username = author.username || '';
+    const domain = author.domain || '';
+    const isLocal = author.is_local !== false;
+    
+    const mention = (!isLocal && domain)
+      ? `@${username}@${domain} `
+      : `@${username} `;
+    state.content = mention;
   }
 
-  if (props.isOpen && props.mode === 'modal') {
-    nextTick(() => {
+  // Focus editor after mount
+  nextTick(() => {
+    if (props.mode === 'modal' || props.type === 'reply') {
       richEditorRef.value?.focus();
-    });
-  }
+    }
+  });
 });
 
 // Watch for modal open state
@@ -572,17 +575,20 @@ watch(() => props.isOpen, (isOpen) => {
 
 // Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {
-  if (props.type === 'reply' && replyPost && !state.content) {
+  if (props.type === 'reply' && replyPost?.author && state.content === '') {
     const author = replyPost.author;
-    if (author) {
-      const mention = author.domain && !author.is_local 
-        ? `@${author.username}@${author.domain} `
-        : `@${author.username} `;
-      state.content = mention;
-      nextTick(() => {
-        richEditorRef.value?.focus();
-      });
-    }
+    const username = author.username || '';
+    const domain = author.domain || '';
+    const isLocal = author.is_local !== false;
+    
+    const mention = (!isLocal && domain)
+      ? `@${username}@${domain} `
+      : `@${username} `;
+    state.content = mention;
+    
+    nextTick(() => {
+      richEditorRef.value?.focus();
+    });
   }
 });
 
@@ -643,6 +649,7 @@ const vClickOutside = {
   border-radius: 12px;
   background-color: var(--background-primary);
   padding: 1rem;
+  margin-bottom: 1rem;
 }
 
 /* Header */
@@ -652,10 +659,12 @@ const vClickOutside = {
   justify-content: space-between;
   padding: 1.5rem 1.5rem 1rem;
   border-bottom: 1px solid var(--border-primary);
+  margin-bottom: 1rem;
 }
 
 .composer-inline-content .composer-header {
-  padding: 0 0 1rem;
+  padding: 0 0 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .composer-title {
@@ -738,10 +747,12 @@ const vClickOutside = {
   display: flex;
   gap: 0.75rem;
   padding: 1.5rem;
+  margin-bottom: 0;
 }
 
 .composer-inline-content .composer-body {
   padding: 0;
+  margin-bottom: 0;
 }
 
 .composer-user {
@@ -780,7 +791,7 @@ const vClickOutside = {
 /* Text Input */
 .text-input-container {
   position: relative;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .character-counter {

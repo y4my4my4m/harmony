@@ -20,17 +20,17 @@ export function useComposerState(options: ComposerStateOptions = {}) {
   const maxMediaAttachments = options.maxMediaAttachments ?? 4;
 
   // Content state
-  const content = ref('');
-  const contentWarning = ref('');
+  const content = ref<string>('');
+  const contentWarning = ref<string>('');
   const visibility = ref<Post['visibility']>(options.defaultVisibility ?? 'public');
-  const isSensitive = ref(false);
+  const isSensitive = ref<boolean>(false);
   
-  // UI state
-  const showContentWarning = ref(false);
-  const showVisibilityMenu = ref(false);
-  const showEmojiPicker = ref(false);
-  const showGiphyPicker = ref(false);
-  const isDraft = ref(false);
+  // UI state - explicitly set to false to prevent auto-opening
+  const showContentWarning = ref<boolean>(false);
+  const showVisibilityMenu = ref<boolean>(false);
+  const showEmojiPicker = ref<boolean>(false);
+  const showGiphyPicker = ref<boolean>(false);
+  const isDraft = ref<boolean>(false);
   
   // Media state
   const mediaAttachments = ref<MediaAttachment[]>([]);
