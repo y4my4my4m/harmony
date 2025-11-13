@@ -294,18 +294,24 @@ export class ActivityProcessor {
     const { data: post } = await supabase
       .from('posts')
       .select('id')
-      .eq('federated_id', objectUrl)
+      .eq('ap_id', objectUrl)
       .single();
 
     if (post) {
-      // Add reaction to post
-      await supabase.from('post_reactions').upsert({
+      // Add reaction/like to post using post_interactions table
+      await supabase.from('post_interactions').upsert({
         post_id: post.id,
         user_id: user.id,
-        emoji: emoji || '❤️',
+        interaction_type: 'emoji_reaction',
+        emoji_id: null, // Will use custom_emoji_content for remote emojis
+        custom_emoji_content: emoji || '❤️',
+      }, {
+        onConflict: 'post_id,user_id,interaction_type'
       });
 
-      logger.info(`Added reaction to post ${post.id}`);
+      logger.info(`Added reaction to post ${post.id}: ${emoji || '❤️'}`);
+    } else {
+      logger.warn(`Post not found for like: ${objectUrl}`);
     }
   }
 
