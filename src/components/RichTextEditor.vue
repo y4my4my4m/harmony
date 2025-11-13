@@ -305,7 +305,9 @@ const setCursorPosition = (targetPosition: number) => {
 const processMentionsInText = (text: string): DocumentFragment => {
   const fragment = document.createDocumentFragment();
   
-  // Simple regex to match @username or @username@domain format (display format)
+  // Match mentions in ActivityPub format:
+  // @username@domain (remote mention)
+  // @username (local mention)
   const mentionRegex = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
   
   console.log('🔧 processMentionsInText called with:', text);
@@ -326,7 +328,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
     
     // Create mention element with rich metadata
     const username = match[1];
-    const domain = match[2];
+    const domain = match[2]; // Domain can be matched after @ or .
     const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
     fragment.appendChild(mentionElement);
     
@@ -369,10 +371,15 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
     console.error('Error looking up user for mention:', error);
   }
   
+  // Normalize display text to use @ separator (even if user typed with .)
+  const normalizedDisplayText = isLocal 
+    ? `@${username}` 
+    : (domain ? `@${username}@${domain}` : `@${username}`);
+  
   // Store rich metadata in data attributes
   span.setAttribute('data-type', 'mention');
   span.setAttribute('data-username', username);
-  span.setAttribute('data-display-text', displayText);
+  span.setAttribute('data-display-text', normalizedDisplayText);
   
   if (userId) {
     span.setAttribute('data-userid', userId);
@@ -382,12 +389,8 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
   }
   span.setAttribute('data-islocal', isLocal.toString());
   
-  // Display text (what the user sees)
-  if (isLocal) {
-    span.textContent = `@${username}`;
-  } else {
-    span.textContent = domain ? `@${username}@${domain}` : `@${username}`;
-  }
+  // Display text (what the user sees) - use normalized format
+  span.textContent = normalizedDisplayText;
   
   return span;
 };
