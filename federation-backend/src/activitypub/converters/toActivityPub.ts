@@ -274,13 +274,13 @@ function extractTags(content: any): any[] {
   content.forEach((item) => {
     if (item.type === 'mention') {
       // Debug logging
-      logger.info('🏷️ Processing mention tag:', JSON.stringify({
+      logger.info('🏷️ Processing mention tag: ' + JSON.stringify({
         username: item.username,
         domain: item.domain,
         isLocal: item.isLocal,
         userId: item.userId,
         fullItem: item
-      }, null, 2));
+      }));
       
       // MessagePart format uses username and domain, not mention string
       const domain = item.domain || config.INSTANCE_DOMAIN;
