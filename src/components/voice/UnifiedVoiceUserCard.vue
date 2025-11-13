@@ -235,28 +235,13 @@ const voiceIntensity = computed(() => {
 });
 
 const hasVideo = computed(() => {
-  // Prioritize actual stream state (reality) over signaled state
+  // Trust the actual stream tracks (reality trumps state)
   if (userStream.value) {
     const hasVideoTracks = userStream.value.getVideoTracks().length > 0;
-    
-    // If stream exists, trust the tracks (they reflect current reality)
-    if (hasVideoTracks) {
-      return true; // Has video tracks = show video
-    }
-    
-    // Stream exists but no video tracks
-    // Check if state says video should be enabled (track might be coming)
-    if (props.userState.isVideoEnabled || props.userState.isScreenSharing) {
-      // State says video on, but no tracks yet - could be mid-negotiation
-      // Show placeholder to avoid flicker
-      return true;
-    }
-    
-    // Stream exists, no tracks, state says off - definitely hide
-    return false;
+    return hasVideoTracks;
   }
   
-  // No stream yet - rely on state as fallback
+  // No stream yet - rely on state as fallback (for UI hints)
   return props.userState.isVideoEnabled || props.userState.isScreenSharing;
 });
 
@@ -311,12 +296,18 @@ watch(
   () => userStream.value,
   (newStream) => {
     if (videoElement.value) {
-      // The stream is assigned directly. A check for video-only vs. screen share
-      // stream can be done here if needed (e.g., to prevent echo).
-      // For simplicity, we assign the stream as is, assuming the parent handles
-      // audio track logic correctly (e.g. local streams are muted).
-      videoElement.value.srcObject = newStream ?? null;
-      console.log(`📹 Updating stream for user ${props.userState.userId}. Has stream: ${!!newStream}`);
+      // Check if stream has video tracks
+      const hasVideoTracks = newStream?.getVideoTracks().length ?? 0;
+      
+      if (hasVideoTracks > 0) {
+        // Has video tracks - update srcObject
+        videoElement.value.srcObject = newStream;
+        console.log(`📹 Updating video stream for user ${props.userState.userId}. Video tracks: ${hasVideoTracks}`);
+      } else {
+        // No video tracks - clear srcObject to remove frozen frame
+        videoElement.value.srcObject = null;
+        console.log(`📹 Clearing video stream for user ${props.userState.userId} (no video tracks)`);
+      }
     }
   },
   { immediate: true }
