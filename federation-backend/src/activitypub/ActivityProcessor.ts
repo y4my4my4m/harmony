@@ -151,12 +151,13 @@ export class ActivityProcessor {
       const rawContent = noteToContent(object);
       
       // Debug: Log what we're getting from Misskey/Mastodon
-      logger.info('📝 Raw content from ActivityPub Note:', {
+      logger.info('📝 Raw content from ActivityPub Note:', JSON.stringify({
         contentType: typeof object.content,
         contentPreview: object.content?.substring(0, 200),
         hasContent: !!object.content,
-        rawContentParts: rawContent.length
-      });
+        rawContentParts: rawContent.length,
+        rawContentSample: rawContent[0]
+      }, null, 2));
       
       // Parse ActivityPub HTML to MessageParts if needed
       // Note: This parsing should ideally happen in the backend, but for now
@@ -167,13 +168,13 @@ export class ActivityProcessor {
       const visibility = this.determineVisibility(object);
 
       // Debug logging
-      logger.info(`📬 Processing incoming Note:`, {
+      logger.info(`📬 Processing incoming Note:`, JSON.stringify({
         id: object.id,
         to: object.to,
         cc: object.cc,
         determined_visibility: visibility,
         has_mentions: object.tag?.some((t: any) => t.type === 'Mention')
-      });
+      }, null, 2));
 
       // Create post
       const { error } = await supabase.from('posts').upsert({
