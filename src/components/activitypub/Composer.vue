@@ -205,35 +205,33 @@
                 >
                   <Icon name="eye-off" />
                 </button>
-              </div>
-
-              <!-- Visibility Selector -->
-              <div class="visibility-selector">
-                <button
-                  class="visibility-button"
-                  @click.stop="toggleVisibilityMenu"
-                  :title="visibilityOptions.find(v => v.value === visibility)?.label"
-                >
-                  <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
-                  <span class="hidden sm:inline">{{ visibilityOptions.find(v => v.value === visibility)?.label }}</span>
-                  <Icon name="chevron-down" :size="16" />
-                </button>
-
-                <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
+                
+                <!-- Visibility Selector -->
+                <div class="visibility-selector">
                   <button
-                    v-for="option in visibilityOptions"
-                    :key="option.value"
-                    class="visibility-option"
-                    :class="{ active: visibility === option.value }"
-                    @click.stop="setVisibility(option.value)"
+                    class="option-button"
+                    @click.stop="toggleVisibilityMenu"
+                    :title="visibilityOptions.find(v => v.value === visibility)?.label"
                   >
-                    <Icon :name="option.icon" />
-                    <div class="option-details">
-                      <div class="option-label">{{ option.label }}</div>
-                      <div class="option-description">{{ option.description }}</div>
-                    </div>
-                    <Icon v-if="visibility === option.value" name="check" :size="16" />
+                    <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
                   </button>
+
+                  <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
+                    <button
+                      v-for="option in visibilityOptions"
+                      :key="option.value"
+                      class="visibility-option"
+                      :class="{ active: visibility === option.value }"
+                      @click.stop="setVisibility(option.value)"
+                    >
+                      <Icon :name="option.icon" />
+                      <div class="option-details">
+                        <div class="option-label">{{ option.label }}</div>
+                        <div class="option-description">{{ option.description }}</div>
+                      </div>
+                      <Icon v-if="visibility === option.value" name="check" :size="16" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -242,7 +240,7 @@
 
         <!-- Footer -->
         <div class="composer-footer">
-          <div class="footer-info">
+          <div class="footer-left">
             <span v-if="isDraft" class="draft-indicator">
               <Icon name="save" />
               Draft saved
@@ -251,6 +249,7 @@
 
           <div class="footer-actions">
             <button
+              v-if="mode === 'modal'"
               class="cancel-button"
               @click="handleClose"
               :disabled="isPosting"
@@ -1038,23 +1037,6 @@ const vClickOutside = {
   position: relative;
 }
 
-.visibility-button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: #374151;
-  border: 1px solid #4b5563;
-  border-radius: 0.5rem;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.visibility-button:hover {
-  background-color: #4b5563;
-}
-
 .visibility-menu {
   position: absolute;
   top: 100%;
@@ -1110,7 +1092,8 @@ const vClickOutside = {
 .composer-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 0.75rem;
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--border-primary);
 }
@@ -1120,7 +1103,8 @@ const vClickOutside = {
   border-top: none;
 }
 
-.footer-info {
+.footer-left {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1136,7 +1120,8 @@ const vClickOutside = {
 
 .footer-actions {
   display: flex;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .cancel-button {
