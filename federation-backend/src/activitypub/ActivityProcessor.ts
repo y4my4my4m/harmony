@@ -77,17 +77,41 @@ export class ActivityProcessor {
       return;
     }
 
-    // Create follow relationship
+    // Create follow relationship (auto-accept)
     await supabase.from('follows').upsert({
       follower_id: follower.id,
       following_id: following.id,
-      status: 'accepted', // Auto-accept for now
+      status: 'accepted',
       ap_activity_id: activity.id,
     });
 
-    logger.info(`Follow created: ${followerUrl} → ${followingUrl}`);
+    logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`);
 
-    // TODO: Send Accept activity back to follower
+    // Send Accept activity back to follower
+    const { data: followingUser } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', following.id)
+      .single();
+    
+    if (followingUser && followingUser.is_local) {
+      const { createAcceptActivity } = await import('./converters/toActivityPub.js');
+      const { DeliveryQueue } = await import('./DeliveryQueue.js');
+      
+      const acceptActivity = createAcceptActivity(followingUser, activity);
+      
+      // Get follower's inbox
+      const { data: followerUser } = await supabase
+        .from('profiles')
+        .select('inbox_url')
+        .eq('id', follower.id)
+        .single();
+      
+      if (followerUser?.inbox_url) {
+        await DeliveryQueue.sendToInbox(followerUser.inbox_url, acceptActivity, followingUser.id);
+        logger.info(`✅ Sent Accept activity to ${followerUrl}`);
+      }
+    }
   }
 
   /**
