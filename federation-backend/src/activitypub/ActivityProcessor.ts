@@ -200,21 +200,26 @@ export class ActivityProcessor {
         has_mentions: object.tag?.some((t: any) => t.type === 'Mention')
       }));
 
-      // Create post
-      const { error } = await supabase.from('posts').upsert({
-        ap_id: object.id,
-        author_id: author.id,
-        content,
-        visibility,
-        is_local: false,
-        in_reply_to: object.inReplyTo,
-        created_at: object.published || new Date().toISOString(),
-      });
-
-      if (error) {
-        logger.error('Failed to create post from activity:', error);
+      // Route direct messages to messages table, everything else to posts
+      if (visibility === 'direct' || visibility === 'private') {
+        await this.handleDirectMessage(object, author.id, content);
       } else {
-        logger.info(`Created post from ${object.id}`);
+        // Create post
+        const { error } = await supabase.from('posts').upsert({
+          ap_id: object.id,
+          author_id: author.id,
+          content,
+          visibility,
+          is_local: false,
+          in_reply_to: object.inReplyTo,
+          created_at: object.published || new Date().toISOString(),
+        });
+
+        if (error) {
+          logger.error('Failed to create post from activity:', error);
+        } else {
+          logger.info(`Created post from ${object.id}`);
+        }
       }
     }
   }
@@ -472,6 +477,97 @@ export class ActivityProcessor {
       logger.info(`Created remote user: ${actorUrl}`);
     } catch (error) {
       logger.error(`Error fetching remote actor ${actorUrl}:`, error);
+    }
+  }
+
+  /**
+   * Handle direct message (store in messages table instead of posts)
+   */
+  private static async handleDirectMessage(
+    object: any,
+    authorId: string,
+    content: any[]
+  ): Promise<void> {
+    const supabase = getSupabaseClient();
+    
+    // Extract mentioned users (recipients)
+    const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
+    const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
+    const allRecipients = [...to, ...cc];
+    
+    // Get local user IDs from the recipient URLs
+    const recipientIds: string[] = [];
+    for (const recipientUrl of allRecipients) {
+      if (typeof recipientUrl !== 'string') continue;
+      
+      const { data: recipient } = await supabase
+        .from('profiles')
+        .select('id, is_local')
+        .eq('federated_id', recipientUrl)
+        .single();
+      
+      if (recipient?.is_local) {
+        recipientIds.push(recipient.id);
+      }
+    }
+    
+    if (recipientIds.length === 0) {
+      logger.warn(`Direct message ${object.id} has no local recipients`);
+      return;
+    }
+    
+    // For each local recipient, find or create DM conversation
+    for (const recipientId of recipientIds) {
+      // Find existing DM conversation between author and recipient
+      const { data: existingConv } = await supabase
+        .from('dm_conversations')
+        .select('id')
+        .or(`and(user1_id.eq.${authorId},user2_id.eq.${recipientId}),and(user1_id.eq.${recipientId},user2_id.eq.${authorId})`)
+        .single();
+      
+      let conversationId = existingConv?.id;
+      
+      // Create conversation if it doesn't exist
+      if (!conversationId) {
+        const { data: newConv, error: convError } = await supabase
+          .from('dm_conversations')
+          .insert({
+            user1_id: authorId,
+            user2_id: recipientId,
+          })
+          .select('id')
+          .single();
+        
+        if (convError) {
+          logger.error(`Failed to create DM conversation:`, convError);
+          continue;
+        }
+        
+        conversationId = newConv.id;
+        logger.info(`Created DM conversation ${conversationId} between ${authorId} and ${recipientId}`);
+      }
+      
+      // Store message in messages table
+      const { error: messageError } = await supabase
+        .from('messages')
+        .insert({
+          user_id: authorId,
+          conversation_id: conversationId,
+          content,
+          metadata: {
+            ap_id: object.id,
+            from_domain: new URL(object.attributedTo || object.actor).hostname,
+            original_url: object.url || object.id,
+            published: object.published,
+          },
+          created_at: object.published || new Date().toISOString(),
+        });
+      
+      if (messageError) {
+        logger.error(`Failed to create DM from activity:`, messageError);
+      } else {
+        logger.info(`Created DM in conversation ${conversationId} from ${object.id}`);
+      }
     }
   }
 

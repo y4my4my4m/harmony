@@ -252,6 +252,7 @@ export class DeliveryQueue {
 
   /**
    * Broadcast activity to all followers of a user
+   * Uses shared inbox when available to optimize delivery (one request per server)
    */
   static async broadcastToFollowers(
     userId: string,
@@ -259,14 +260,16 @@ export class DeliveryQueue {
   ): Promise<void> {
     const supabase = getSupabaseClient();
 
-    // Get all followers' inbox URLs
+    // Get all followers' inbox URLs (both individual and shared)
     const { data: follows } = await supabase
       .from('follows')
       .select(`
         follower_id,
         profiles!follows_follower_id_fkey (
           inbox_url,
-          is_local
+          shared_inbox_url,
+          is_local,
+          domain
         )
       `)
       .eq('following_id', userId)
@@ -277,18 +280,54 @@ export class DeliveryQueue {
       return;
     }
 
-    // Filter remote followers and enqueue deliveries
-    let enqueued = 0;
+    // Group followers by their preferred inbox (shared inbox preferred)
+    const inboxMap = new Map<string, { inbox: string; type: 'shared' | 'individual' }>();
+    
     for (const follow of follows) {
       const follower = (follow as any).profiles;
       
-      if (!follower.is_local && follower.inbox_url) {
-        await this.enqueue(activityData, follower.inbox_url, userId);
-        enqueued++;
+      if (follower.is_local) {
+        continue; // Skip local followers
+      }
+      
+      // Prefer shared inbox, fall back to individual inbox
+      const preferredInbox = follower.shared_inbox_url || follower.inbox_url;
+      
+      if (preferredInbox) {
+        const inboxType = follower.shared_inbox_url ? 'shared' : 'individual';
+        
+        if (!inboxMap.has(preferredInbox)) {
+          inboxMap.set(preferredInbox, {
+            inbox: preferredInbox,
+            type: inboxType,
+          });
+        }
+      } else {
+        logger.warn(`Follower from ${follower.domain} has no inbox URL configured`);
       }
     }
 
-    logger.info(`Enqueued broadcast to ${enqueued} remote followers`);
+    // Enqueue deliveries (one per unique inbox)
+    let enqueued = 0;
+    let sharedInboxCount = 0;
+    let individualInboxCount = 0;
+    
+    for (const [inbox, { type }] of inboxMap) {
+      await this.enqueue(activityData, inbox, userId);
+      enqueued++;
+      
+      if (type === 'shared') {
+        sharedInboxCount++;
+      } else {
+        individualInboxCount++;
+      }
+    }
+
+    logger.info(
+      `Enqueued broadcast to ${enqueued} inboxes ` +
+      `(${sharedInboxCount} shared, ${individualInboxCount} individual) ` +
+      `for ${follows.length} remote followers`
+    );
   }
 
   /**
