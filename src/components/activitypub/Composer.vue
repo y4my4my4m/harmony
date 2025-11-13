@@ -125,6 +125,11 @@
               v-if="state.mediaAttachments.length > 0"
               :attachments="state.mediaAttachments"
               @remove="state.removeMediaAttachment"
+              @update-description="(index, desc) => {
+                if (state.mediaAttachments[index]) {
+                  state.mediaAttachments[index].description = desc;
+                }
+              }"
             />
 
             <!-- Compose Options Toolbar -->
@@ -502,6 +507,17 @@ const handleSubmit = async () => {
 
 // Lifecycle
 onMounted(() => {
+  // Pre-populate mention for replies
+  if (props.type === 'reply' && props.replyToPost) {
+    const author = props.replyToPost.author;
+    if (author) {
+      const mention = author.domain && !author.is_local 
+        ? `@${author.username}@${author.domain} `
+        : `@${author.username} `;
+      state.content = mention;
+    }
+  }
+
   if (props.isOpen && props.mode === 'modal') {
     nextTick(() => {
       richEditorRef.value?.focus();
@@ -515,6 +531,22 @@ watch(() => props.isOpen, (isOpen) => {
     nextTick(() => {
       richEditorRef.value?.focus();
     });
+  }
+});
+
+// Watch for reply context changes (when opening reply composer)
+watch(() => props.replyToPost, (replyPost) => {
+  if (props.type === 'reply' && replyPost && !state.content) {
+    const author = replyPost.author;
+    if (author) {
+      const mention = author.domain && !author.is_local 
+        ? `@${author.username}@${author.domain} `
+        : `@${author.username} `;
+      state.content = mention;
+      nextTick(() => {
+        richEditorRef.value?.focus();
+      });
+    }
   }
 });
 
@@ -757,6 +789,7 @@ const vClickOutside = {
   cursor: pointer;
   border-radius: 0.5rem;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .option-button:hover {
@@ -772,6 +805,11 @@ const vClickOutside = {
 .option-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Ensure buttons are visible in inline mode */
+.composer-inline-content .option-button {
+  display: flex;
 }
 
 .visibility-selector {

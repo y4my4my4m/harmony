@@ -86,6 +86,19 @@ export async function startDatabaseListener(): Promise<void> {
       {
         event: 'INSERT',
         schema: 'public',
+        table: 'post_interactions',
+        filter: 'interaction_type=eq.favorite',
+      },
+      async (payload) => {
+        logger.info('⭐ New favorite/like detected:', payload.new.id);
+        await handleNewReaction(payload.new);
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
         table: 'follows',
       },
       async (payload) => {
@@ -122,18 +135,30 @@ export async function startDatabaseListener(): Promise<void> {
 /**
  * Handle new post creation
  */
-async function handleNewPost(post: any): Promise<void> {
+async function handleNewPost(postEvent: any): Promise<void> {
   try {
     // Check if post should be federated
-    if (!post.is_local || !['public', 'unlisted'].includes(post.visibility)) {
-      logger.debug(`Skipping federation for post ${post.id}: not public or local`);
+    if (!postEvent.is_local || !['public', 'unlisted'].includes(postEvent.visibility)) {
+      logger.debug(`Skipping federation for post ${postEvent.id}: not public or local`);
       return;
     }
 
-    logger.info(`🌐 Federating new post: ${post.id}`);
+    logger.info(`🌐 Federating new post: ${postEvent.id}`);
+
+    // Get full post data (realtime events might not include all columns)
+    const supabase = getSupabaseClient();
+    const { data: post } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', postEvent.id)
+      .single();
+
+    if (!post) {
+      logger.error(`Post not found: ${postEvent.id}`);
+      return;
+    }
 
     // Get author profile
-    const supabase = getSupabaseClient();
     const { data: author } = await supabase
       .from('profiles')
       .select('*')
