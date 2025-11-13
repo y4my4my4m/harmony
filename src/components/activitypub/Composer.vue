@@ -14,8 +14,8 @@
           </button>
         </div>
 
-        <!-- Reply Context (for replies only) -->
-        <div v-if="type === 'reply' && replyToPost" class="reply-context">
+        <!-- Reply Context (for modal replies only) -->
+        <div v-if="type === 'reply' && replyToPost && mode === 'modal'" class="reply-context">
           <div class="reply-thread-line"></div>
           <div class="reply-to-post">
             <Avatar 
@@ -42,7 +42,7 @@
             <Avatar 
               :src="currentUser?.avatar_url"
               :alt="currentUser?.display_name || currentUser?.username"
-              size="md"
+              :size="mode === 'inline' && type === 'reply' ? 'sm' : 'md'"
               :interactive="true"
             />
           </div>
@@ -198,7 +198,7 @@
               <div class="visibility-selector">
                 <button
                   class="visibility-button"
-                  @click="toggleVisibilityMenu"
+                  @click.stop="toggleVisibilityMenu"
                   :title="visibilityOptions.find(v => v.value === visibility)?.label"
                 >
                   <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
@@ -212,7 +212,7 @@
                     :key="option.value"
                     class="visibility-option"
                     :class="{ active: visibility === option.value }"
-                    @click="setVisibility(option.value)"
+                    @click.stop="setVisibility(option.value)"
                   >
                     <Icon :name="option.icon" />
                     <div class="option-details">
@@ -717,7 +717,7 @@ const vClickOutside = {
   border-radius: 12px;
   background-color: var(--background-primary);
   padding: 1rem;
-  margin-bottom: 1rem;
+  margin: 1rem 0;
 }
 
 /* Header */
@@ -731,8 +731,7 @@ const vClickOutside = {
 }
 
 .composer-inline-content .composer-header {
-  padding: 0 0 0.75rem;
-  margin-bottom: 0.75rem;
+  display: none;
 }
 
 .composer-title {
@@ -820,7 +819,7 @@ const vClickOutside = {
 
 .composer-inline-content .composer-body {
   padding: 0;
-  margin-bottom: 0;
+  gap: 0.5rem;
 }
 
 .composer-user {
@@ -834,7 +833,11 @@ const vClickOutside = {
 
 /* Content Warning */
 .content-warning-input {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.composer-inline-content .content-warning-input {
+  margin-bottom: 0.5rem;
 }
 
 .cw-input {
@@ -859,6 +862,10 @@ const vClickOutside = {
 /* Text Input */
 .text-input-container {
   position: relative;
+  margin-bottom: 0.5rem;
+}
+
+.composer-inline-content .text-input-container {
   margin-bottom: 0.75rem;
 }
 
@@ -884,7 +891,12 @@ const vClickOutside = {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
+}
+
+.composer-inline-content .compose-options {
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .option-group {
@@ -1009,7 +1021,8 @@ const vClickOutside = {
 }
 
 .composer-inline-content .composer-footer {
-  padding: 1rem 0 0;
+  padding: 0.75rem 0 0;
+  border-top: none;
 }
 
 .footer-info {
