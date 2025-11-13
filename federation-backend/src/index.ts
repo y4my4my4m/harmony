@@ -32,7 +32,11 @@ app.use(cors({
 }));
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
+// ActivityPub uses application/activity+json and application/ld+json
+app.use(express.json({ 
+  limit: '10mb',
+  type: ['application/json', 'application/activity+json', 'application/ld+json']
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Compression

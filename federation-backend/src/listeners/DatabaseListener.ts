@@ -27,34 +27,29 @@ export async function startDatabaseListener(): Promise<void> {
   const channel = supabase
     .channel('federation-events')
     
-    // Channel messages (smart routed)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'messages',
-        filter: 'channel_id=neq.null',
-      },
-      async (payload) => {
-        if (payload.eventType === 'INSERT') {
-          // Trigger will handle notification if needed
-          // This is just for logging
-          logger.debug('📝 Channel message created:', payload.new.id);
-        }
-      }
-    )
+    // Listen to ALL posts first (for debugging)
     .on(
       'postgres_changes',
       {
         event: 'INSERT',
         schema: 'public',
         table: 'posts',
-        filter: 'is_local=eq.true',
       },
       async (payload) => {
-        logger.info('📝 New post detected:', payload.new.id);
-        await handleNewPost(payload.new);
+        logger.info('📬 REALTIME: Post INSERT received:', {
+          id: payload.new.id,
+          is_local: payload.new.is_local,
+          visibility: payload.new.visibility,
+          author_id: payload.new.author_id
+        });
+        
+        // Only process local public/unlisted posts
+        if (payload.new.is_local && ['public', 'unlisted'].includes(payload.new.visibility)) {
+          logger.info('📝 Processing post for federation:', payload.new.id);
+          await handleNewPost(payload.new);
+        } else {
+          logger.debug(`Skipping post: is_local=${payload.new.is_local}, visibility=${payload.new.visibility}`);
+        }
       }
     )
     .on(

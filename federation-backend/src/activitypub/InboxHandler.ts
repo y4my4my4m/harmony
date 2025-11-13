@@ -54,11 +54,13 @@ async function handleInbox(
   const activity = req.body;
 
   logger.info(`🔍 handleInbox called for user: ${username || 'shared inbox'}`);
-  logger.info(`📦 Activity body:`, JSON.stringify(activity).substring(0, 200));
+  logger.info(`📦 Raw body type: ${typeof activity}, is null: ${activity === null}, is undefined: ${activity === undefined}`);
+  logger.info(`📦 Activity body:`, activity ? JSON.stringify(activity).substring(0, 500) : 'EMPTY OR NULL');
 
   // Validate activity structure
   if (!activity || !activity.type || !activity.actor) {
-    logger.error(`❌ Invalid activity structure`);
+    logger.error(`❌ Invalid activity structure - type: ${activity?.type}, actor: ${activity?.actor}`);
+    logger.error(`Full body received:`, JSON.stringify(activity));
     res.status(400).json({ error: 'Invalid activity' });
     return;
   }

@@ -16,6 +16,11 @@ export const getSupabaseClient = (): SupabaseClient => {
           autoRefreshToken: false,
           persistSession: false,
         },
+        realtime: {
+          params: {
+            eventsPerSecond: 10,
+          },
+        },
       }
     );
   }
