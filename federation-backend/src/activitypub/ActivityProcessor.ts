@@ -516,57 +516,46 @@ export class ActivityProcessor {
       return;
     }
     
-    // For each local recipient, find or create DM conversation
+    // For each local recipient, find or create DM conversation using the database function
     for (const recipientId of recipientIds) {
-      // Find existing DM conversation between author and recipient
-      const { data: existingConv } = await supabase
-        .from('dm_conversations')
-        .select('id')
-        .or(`and(user1_id.eq.${authorId},user2_id.eq.${recipientId}),and(user1_id.eq.${recipientId},user2_id.eq.${authorId})`)
-        .single();
-      
-      let conversationId = existingConv?.id;
-      
-      // Create conversation if it doesn't exist
-      if (!conversationId) {
-        const { data: newConv, error: convError } = await supabase
-          .from('dm_conversations')
-          .insert({
-            user1_id: authorId,
-            user2_id: recipientId,
-          })
-          .select('id')
-          .single();
+      try {
+        // Use the existing get_or_create_conversation function
+        const { data: conversationId, error: convError } = await supabase
+          .rpc('get_or_create_conversation', {
+            user1_uuid: authorId,
+            user2_uuid: recipientId
+          });
         
-        if (convError) {
-          logger.error(`Failed to create DM conversation:`, convError);
+        if (convError || !conversationId) {
+          logger.error(`Failed to get/create conversation:`, convError);
           continue;
         }
         
-        conversationId = newConv.id;
-        logger.info(`Created DM conversation ${conversationId} between ${authorId} and ${recipientId}`);
-      }
-      
-      // Store message in messages table
-      const { error: messageError } = await supabase
-        .from('messages')
-        .insert({
-          user_id: authorId,
-          conversation_id: conversationId,
-          content,
-          metadata: {
-            ap_id: object.id,
-            from_domain: new URL(object.attributedTo || object.actor).hostname,
-            original_url: object.url || object.id,
-            published: object.published,
-          },
-          created_at: object.published || new Date().toISOString(),
-        });
-      
-      if (messageError) {
-        logger.error(`Failed to create DM from activity:`, messageError);
-      } else {
-        logger.info(`Created DM in conversation ${conversationId} from ${object.id}`);
+        logger.info(`Using conversation ${conversationId} for DM`);
+        
+        // Store message in messages table
+        const { error: messageError } = await supabase
+          .from('messages')
+          .insert({
+            user_id: authorId,
+            conversation_id: conversationId,
+            content,
+            metadata: {
+              ap_id: object.id,
+              from_domain: new URL(object.attributedTo || object.actor).hostname,
+              original_url: object.url || object.id,
+              published: object.published,
+            },
+            created_at: object.published || new Date().toISOString(),
+          });
+        
+        if (messageError) {
+          logger.error(`Failed to create DM from activity:`, messageError);
+        } else {
+          logger.info(`✅ Created DM in conversation ${conversationId} from ${object.id}`);
+        }
+      } catch (error) {
+        logger.error(`Error handling DM for recipient ${recipientId}:`, error);
       }
     }
   }
