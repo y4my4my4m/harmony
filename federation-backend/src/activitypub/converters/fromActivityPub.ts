@@ -1,20 +1,96 @@
 /**
- * Convert ActivityPub Note to internal post/message format (JSONB)
- * Returns the HTML as-is for frontend parsing with convertActivityPubHTMLToMessageParts
+ * Convert ActivityPub Note to internal MessagePart[] format
+ * Parses HTML and tags to create structured content
  */
 export function noteToContent(note: any): any[] {
-  // Don't parse here - just return the HTML content
-  // The frontend will parse it properly with convertActivityPubHTMLToMessageParts
-  // which handles mentions, hashtags, and formatting correctly
+  const parts: any[] = [];
   
-  if (note.content) {
-    return [{
-      type: 'text',
-      text: note.content
-    }];
+  if (!note.content) {
+    return [{ type: 'text', text: '' }];
   }
   
-  return [{ type: 'text', text: '' }];
+  // Parse HTML content using a simple regex-based parser
+  // This extracts text and mentions while preserving order
+  const html = note.content;
+  const mentionTags = new Map<string, any>();
+  
+  // Build mention map from tags
+  if (note.tag && Array.isArray(note.tag)) {
+    note.tag.forEach((tag: any) => {
+      if (tag.type === 'Mention' && tag.href && tag.name) {
+        // Store by the text content (@user@domain)
+        mentionTags.set(tag.name, tag);
+      }
+    });
+  }
+  
+  // Simple HTML to text parser that handles mentions
+  let textContent = html;
+  
+  // Remove <p> tags
+  textContent = textContent.replace(/<\/?p>/g, '');
+  
+  // Extract mentions and their positions
+  const mentionRegex = /<a[^>]*class="[^"]*mention[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g;
+  const segments: Array<{type: 'text' | 'mention', content: string, href?: string}> = [];
+  
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = mentionRegex.exec(html)) !== null) {
+    // Add text before mention
+    if (match.index > lastIndex) {
+      const textBefore = html.substring(lastIndex, match.index).replace(/<[^>]*>/g, '');
+      if (textBefore.trim()) {
+        segments.push({ type: 'text', content: textBefore });
+      }
+    }
+    
+    // Add mention
+    segments.push({
+      type: 'mention',
+      content: match[2], // @user@domain text
+      href: match[1]
+    });
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < html.length) {
+    const remaining = html.substring(lastIndex).replace(/<[^>]*>/g, '');
+    if (remaining.trim()) {
+      segments.push({ type: 'text', content: remaining });
+    }
+  }
+  
+  // Convert segments to MessageParts
+  segments.forEach(segment => {
+    if (segment.type === 'text') {
+      parts.push({
+        type: 'text',
+        text: segment.content
+      });
+    } else if (segment.type === 'mention') {
+      // Parse @username@domain
+      const mentionMatch = segment.content.match(/^@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?$/);
+      if (mentionMatch) {
+        const username = mentionMatch[1];
+        const domain = mentionMatch[2];
+        
+        parts.push({
+          type: 'mention',
+          username: username,
+          domain: domain || 'har.mony.lol',
+          isLocal: !domain,
+          userId: segment.href,
+          displayName: username
+        });
+      }
+    }
+  });
+  
+  return parts.length > 0 ? parts : [{ type: 'text', text: textContent }];
 }
 
 /**
