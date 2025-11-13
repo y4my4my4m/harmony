@@ -68,8 +68,9 @@ export class SignatureService {
 
     const url = new URL(targetUrl);
     const date = new Date().toUTCString();
+    const requestTarget = `${method.toLowerCase()} ${url.pathname}${url.search}`;
     
-    // Create headers object
+    // Create headers object (order matters for Misskey!)
     const headers: Record<string, string> = {
       'Host': url.host,
       'Date': date,
@@ -85,10 +86,20 @@ export class SignatureService {
       headers['Digest'] = digest;
     }
 
-    // Build signing string
-    const signingString = Object.entries(headers)
-      .map(([key, value]) => `${key.toLowerCase()}: ${value}`)
-      .join('\n');
+    // Build signing string including (request-target) for Misskey
+    const signedHeaders = ['(request-target)', 'host', 'date'];
+    if (digest) {
+      signedHeaders.push('digest');
+    }
+    
+    const signingParts = [`(request-target): ${requestTarget}`];
+    signedHeaders.slice(1).forEach(header => {
+      if (headers[header.charAt(0).toUpperCase() + header.slice(1)]) {
+        signingParts.push(`${header}: ${headers[header.charAt(0).toUpperCase() + header.slice(1)]}`);
+      }
+    });
+    
+    const signingString = signingParts.join('\n');
 
     // Sign the string
     const sign = crypto.createSign('SHA256');
@@ -97,12 +108,12 @@ export class SignatureService {
 
     const signature = sign.sign(privateKey, 'base64');
 
-    // Create signature header
+    // Create signature header (must include (request-target) for Misskey)
     const keyId = `https://${user.domain}/users/${user.username}#main-key`;
     const signatureHeader = [
       `keyId="${keyId}"`,
       'algorithm="rsa-sha256"',
-      `headers="${Object.keys(headers).map(k => k.toLowerCase()).join(' ')}"`,
+      `headers="${signedHeaders.join(' ')}"`,
       `signature="${signature}"`,
     ].join(',');
 

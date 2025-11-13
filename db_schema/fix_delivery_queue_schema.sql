@@ -4,19 +4,19 @@
 -- Ensure the table has all columns that DeliveryQueue code expects
 -- ============================================
 
--- Add last_attempt_at column if it doesn't exist
+-- Add missing columns that DeliveryQueue code expects
 ALTER TABLE federation_delivery_queue 
 ADD COLUMN IF NOT EXISTS last_attempt_at timestamp with time zone;
 
--- Add activity_data column if using activity_id reference instead
+ALTER TABLE federation_delivery_queue 
+ADD COLUMN IF NOT EXISTS next_retry_at timestamp with time zone;
+
 ALTER TABLE federation_delivery_queue 
 ADD COLUMN IF NOT EXISTS activity_data jsonb;
 
--- Add sender_id column if it doesn't exist
 ALTER TABLE federation_delivery_queue 
 ADD COLUMN IF NOT EXISTS sender_id uuid;
 
--- Ensure target_inbox column exists (some schemas might call it target_inbox_url)
 ALTER TABLE federation_delivery_queue 
 ADD COLUMN IF NOT EXISTS target_inbox text;
 

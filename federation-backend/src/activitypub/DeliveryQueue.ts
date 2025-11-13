@@ -43,10 +43,14 @@ export class DeliveryQueue {
     
     // Immediate delivery failed - queue it for retry
     const supabase = getSupabaseClient();
+    
+    // Extract domain from inbox URL
+    const targetDomain = new URL(targetInbox).hostname;
 
     const { error } = await supabase.from('federation_delivery_queue').insert({
       activity_data: activityData,
       target_inbox: targetInbox,
+      target_domain: targetDomain,
       sender_id: senderId,
       priority,
       status: 'pending',
