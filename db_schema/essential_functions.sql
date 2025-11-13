@@ -13,7 +13,7 @@
 
 -- Note: Run drop_all_overloads_first.sql BEFORE this file!
 
-CREATE FUNCTION get_or_create_conversation(
+CREATE OR REPLACE FUNCTION get_or_create_conversation(
   user1_uuid UUID,
   user2_uuid UUID
 ) RETURNS UUID
@@ -68,7 +68,7 @@ COMMENT ON FUNCTION get_or_create_conversation IS
 -- 2. USER UTILITIES
 -- ============================================
 
-CREATE FUNCTION get_user_handle(p_user_id UUID)
+CREATE OR REPLACE FUNCTION get_user_handle(p_user_id UUID)
 RETURNS TEXT
 LANGUAGE sql
 STABLE
@@ -81,7 +81,7 @@ $$;
 COMMENT ON FUNCTION get_user_handle IS 
 'Get user handle in username@domain format';
 
-CREATE FUNCTION is_local_user(p_user_id UUID)
+CREATE OR REPLACE FUNCTION is_local_user(p_user_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -98,7 +98,7 @@ COMMENT ON FUNCTION is_local_user IS
 -- 3. SEARCH
 -- ============================================
 
-CREATE FUNCTION search_users(
+CREATE OR REPLACE FUNCTION search_users(
   p_query TEXT,
   p_limit INT DEFAULT 20,
   p_local_only BOOLEAN DEFAULT false
@@ -132,7 +132,7 @@ COMMENT ON FUNCTION search_users IS
 -- 4. TIMELINE/FEED
 -- ============================================
 
-CREATE FUNCTION get_timeline(
+CREATE OR REPLACE FUNCTION get_timeline(
   p_user_id UUID,
   p_limit INT DEFAULT 50,
   p_before TIMESTAMP DEFAULT NOW()
@@ -160,7 +160,7 @@ COMMENT ON FUNCTION get_timeline IS
 -- 5. HASHTAG UTILITIES
 -- ============================================
 
-CREATE FUNCTION extract_hashtags_from_content(p_content JSONB)
+CREATE OR REPLACE FUNCTION extract_hashtags_from_content(p_content JSONB)
 RETURNS TEXT[]
 LANGUAGE plpgsql
 IMMUTABLE
@@ -193,7 +193,7 @@ $$;
 COMMENT ON FUNCTION extract_hashtags_from_content IS
 'Extract hashtags from JSONB content array';
 
-CREATE FUNCTION get_trending_hashtags(
+CREATE OR REPLACE FUNCTION get_trending_hashtags(
   p_days INT DEFAULT 7,
   p_limit INT DEFAULT 20
 )
@@ -225,7 +225,7 @@ COMMENT ON FUNCTION get_trending_hashtags IS
 -- 6. SYSTEM UTILITIES
 -- ============================================
 
-CREATE FUNCTION create_system_message(
+CREATE OR REPLACE FUNCTION create_system_message(
   p_channel_id UUID,
   p_message_type TEXT,
   p_data JSONB
@@ -258,7 +258,7 @@ $$;
 COMMENT ON FUNCTION create_system_message IS
 'Create system message (user joined, user left, etc.)';
 
-CREATE FUNCTION create_default_server_structure(p_server_id UUID)
+CREATE OR REPLACE FUNCTION create_default_server_structure(p_server_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -283,7 +283,7 @@ COMMENT ON FUNCTION create_default_server_structure IS
 -- 7. NOTIFICATIONS
 -- ============================================
 
-CREATE FUNCTION create_notification_structured(
+CREATE OR REPLACE FUNCTION create_notification_structured(
   p_user_id UUID,
   p_type VARCHAR,
   p_data JSONB DEFAULT '{}'::JSONB
@@ -307,7 +307,7 @@ $$;
 COMMENT ON FUNCTION create_notification_structured IS
 'Create notification with structured data';
 
-CREATE FUNCTION get_unread_notification_count(p_user_id UUID)
+CREATE OR REPLACE FUNCTION get_unread_notification_count(p_user_id UUID)
 RETURNS INTEGER
 LANGUAGE sql
 STABLE
@@ -324,7 +324,7 @@ COMMENT ON FUNCTION get_unread_notification_count IS
 -- 8. MAINTENANCE/CLEANUP (Called by cron)
 -- ============================================
 
-CREATE FUNCTION cleanup_old_notifications()
+CREATE OR REPLACE FUNCTION cleanup_old_notifications()
 RETURNS INTEGER
 LANGUAGE plpgsql
 AS $$
@@ -350,7 +350,7 @@ COMMENT ON FUNCTION cleanup_old_notifications IS
 -- 9. STATS/ADMIN
 -- ============================================
 
-CREATE FUNCTION get_system_stats()
+CREATE OR REPLACE FUNCTION get_system_stats()
 RETURNS JSONB
 LANGUAGE sql
 STABLE
