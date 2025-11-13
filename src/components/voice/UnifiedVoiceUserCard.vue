@@ -235,14 +235,29 @@ const voiceIntensity = computed(() => {
 });
 
 const hasVideo = computed(() => {
-  // Check if stream has video tracks (most reliable indicator)
-  const hasVideoTracks = !!userStream.value?.getVideoTracks().length;
+  // Prioritize actual stream state (reality) over signaled state
+  if (userStream.value) {
+    const hasVideoTracks = userStream.value.getVideoTracks().length > 0;
+    
+    // If stream exists, trust the tracks (they reflect current reality)
+    if (hasVideoTracks) {
+      return true; // Has video tracks = show video
+    }
+    
+    // Stream exists but no video tracks
+    // Check if state says video should be enabled (track might be coming)
+    if (props.userState.isVideoEnabled || props.userState.isScreenSharing) {
+      // State says video on, but no tracks yet - could be mid-negotiation
+      // Show placeholder to avoid flicker
+      return true;
+    }
+    
+    // Stream exists, no tracks, state says off - definitely hide
+    return false;
+  }
   
-  // Also check state flags as fallback
-  const stateIndicatesVideo = props.userState.isVideoEnabled || props.userState.isScreenSharing;
-  
-  // Show video if EITHER condition is true (more reliable for dynamic toggling)
-  return hasVideoTracks || stateIndicatesVideo;
+  // No stream yet - rely on state as fallback
+  return props.userState.isVideoEnabled || props.userState.isScreenSharing;
 });
 
 const connectionQuality = computed(() => {
