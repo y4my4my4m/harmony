@@ -82,15 +82,30 @@ export async function startDatabaseListener(): Promise<void> {
         await handleNewFollow(payload.new);
       }
     )
-    .subscribe((status) => {
+    .subscribe((status, err) => {
+      logger.info(`📡 Realtime subscription status: ${status}`);
+      
+      if (err) {
+        logger.error('❌ Realtime subscription error:', err);
+      }
+      
       if (status === 'SUBSCRIBED') {
         logger.info('✅ Database listener active - watching for federation events');
       } else if (status === 'CHANNEL_ERROR') {
-        logger.error('❌ Database listener error');
+        logger.error('❌ Database listener channel error');
+      } else if (status === 'TIMED_OUT') {
+        logger.error('❌ Database listener timed out');
+      } else if (status === 'CLOSED') {
+        logger.warn('⚠️  Database listener closed');
       }
     });
 
   logger.info('🎧 Database listener subscribed to federation events');
+  
+  // Log channel state after a moment
+  setTimeout(() => {
+    logger.info(`📊 Channel state: ${channel.state}`);
+  }, 2000);
 }
 
 /**

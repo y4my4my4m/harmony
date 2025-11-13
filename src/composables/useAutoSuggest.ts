@@ -232,12 +232,12 @@ export function useAutoSuggest(
         }
         
         return {
-          id: user.id,
-          display_name: user.display_name,
-          username: user.username,
+        id: user.id,
+        display_name: user.display_name,
+        username: user.username,
           avatar: user.avatar_url,
           handle: handle,
-          user: user
+        user: user
         };
       }).slice(0, finalConfig.maxSuggestions);
     }

@@ -423,7 +423,7 @@ export class UnifiedWebRTCService {
                 console.log('➕ Adding new video track for peer:', userId);
                 conn.peerConnection.addTrack(videoTrack, this.localStream);
                 console.log('✅ Added new video track for peer:', userId);
-                
+              
                 // Wait for stable state before renegotiation
                 if (conn.peerConnection.signalingState !== 'stable') {
                   console.log('⏳ Waiting for stable signaling state before renegotiation...');
@@ -441,18 +441,18 @@ export class UnifiedWebRTCService {
                 
                 // Create and send offer for renegotiation
                 console.log('🔄 Creating renegotiation offer for peer:', userId);
-                const offer = await conn.peerConnection.createOffer();
-                await conn.peerConnection.setLocalDescription(offer);
-                
-                this.sendDirectMessage(userId, {
-                  type: 'offer',
-                  from: this.currentUserId!,
-                  to: userId,
-                  data: offer,
-                  timestamp: Date.now()
-                });
-                
-                console.log('✅ Video renegotiation offer sent to:', userId);
+              const offer = await conn.peerConnection.createOffer();
+              await conn.peerConnection.setLocalDescription(offer);
+              
+              this.sendDirectMessage(userId, {
+                type: 'offer',
+                from: this.currentUserId!,
+                to: userId,
+                data: offer,
+                timestamp: Date.now()
+              });
+              
+              console.log('✅ Video renegotiation offer sent to:', userId);
               }
             } catch (error) {
               console.error('❌ Error adding video track to peer', userId, ':', error);

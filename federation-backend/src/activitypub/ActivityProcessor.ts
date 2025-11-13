@@ -152,7 +152,7 @@ export class ActivityProcessor {
 
       // Determine visibility
       const visibility = this.determineVisibility(object);
-      
+
       // Debug logging
       logger.info(`📬 Processing incoming Note:`, {
         id: object.id,
