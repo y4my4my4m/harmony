@@ -23,11 +23,27 @@ export async function startDatabaseListener(): Promise<void> {
 
   const supabase = getSupabaseClient();
 
-  // Subscribe to real-time changes for federation events
+  // Subscribe to real-time changes for federation events  
   const channel = supabase
     .channel('federation-events')
     
-    // Listen to ALL posts first (for debugging)
+    // DEBUG: Listen to ALL events on ALL tables to see if realtime works at all
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: '*',
+      },
+      async (payload) => {
+        logger.info(`🔔 REALTIME EVENT: ${payload.eventType} on ${payload.table}`, {
+          id: payload.new?.id || payload.old?.id,
+          table: payload.table
+        });
+      }
+    )
+    
+    // Listen to posts
     .on(
       'postgres_changes',
       {
