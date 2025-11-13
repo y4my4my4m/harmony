@@ -314,7 +314,7 @@ export class DeliveryQueue {
     
     for (const [inbox, { type }] of inboxMap) {
       await this.enqueue(activityData, inbox, userId);
-      enqueued++;
+        enqueued++;
       
       if (type === 'shared') {
         sharedInboxCount++;

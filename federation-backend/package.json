@@ -12,6 +12,8 @@
     "lint": "eslint src --ext .ts",
     "format": "prettier --write src/**/*.ts",
     "diagnose": "tsx diagnose-federation.ts",
+    "diagnose-deep": "tsx diagnose-deep.ts",
+    "check-remote": "tsx check-remote-users.ts",
     "refresh-users": "tsx refresh-remote-users.ts"
   },
   "keywords": ["activitypub", "federation", "fediverse", "mastodon", "misskey"],
