@@ -67,7 +67,7 @@ pm2 restart federation-backend
 ### Step 2: Refresh Remote Profiles ⏳ (CRITICAL)
 ```bash
 cd ~/harmony/federation-backend
-node refresh-remote-users.js
+npm run refresh-users
 ```
 
 ### Step 3: Verify HTTPS ⏳

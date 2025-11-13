@@ -6,7 +6,7 @@ After deploying the fixes, run these quick tests to verify everything works:
 
 ```bash
 cd ~/harmony/federation-backend
-node refresh-remote-users.js
+npm run refresh-users
 ```
 
 This ensures all remote users have proper inbox URLs.
@@ -60,10 +60,10 @@ Look for:
 ```bash
 # Check if Misskey follower has inbox URLs
 cd ~/harmony/federation-backend
-node diagnose-federation.js
+npm run diagnose
 
 # Look for Misskey users with "MISSING" inbox URLs
-# If found, run refresh script again
+# If found, run: npm run refresh-users
 ```
 
 ### Profile images not showing?

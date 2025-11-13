@@ -132,7 +132,7 @@ INSERT INTO messages (
 **Usage**:
 ```bash
 cd federation-backend
-node refresh-remote-users.js
+npm run refresh-users
 ```
 
 **What it does**:
@@ -295,7 +295,7 @@ Verify all activity and object URLs use HTTPS.
 
 2. If shared_inbox_url is NULL, run refresh script:
    ```bash
-   node refresh-remote-users.js
+   npm run refresh-users
    ```
 
 3. Check delivery logs for errors:

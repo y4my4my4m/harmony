@@ -75,7 +75,7 @@ pm2 restart federation-backend
 # systemctl restart harmony-federation
 
 # CRITICAL: Refresh all remote user profiles
-node refresh-remote-users.js
+npm run refresh-users
 ```
 
 ### 2. Verify Deployment
@@ -173,9 +173,9 @@ After deployment and running `refresh-remote-users.js`:
 ### If Misskey still not receiving:
 ```bash
 cd ~/harmony/federation-backend
-node diagnose-federation.js y4my4m
+npm run diagnose y4my4m
 # Look for Misskey users with "MISSING" inbox URLs
-# If found, run: node refresh-remote-users.js
+# If found, run: npm run refresh-users
 ```
 
 ### If profile images not showing:
@@ -211,10 +211,10 @@ These require additional work in future sessions:
 cd ~/harmony && git pull && cd federation-backend && pm2 restart federation-backend
 
 # Refresh profiles (RUN THIS AFTER DEPLOY!)
-node refresh-remote-users.js
+npm run refresh-users
 
 # Diagnose issues
-node diagnose-federation.js y4my4m
+npm run diagnose y4my4m
 
 # Check logs
 pm2 logs federation-backend
