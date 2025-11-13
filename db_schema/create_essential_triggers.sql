@@ -12,10 +12,6 @@ DROP TRIGGER IF EXISTS remove_timeline_on_unfollow_trigger ON follows;
 CREATE TRIGGER update_post_reply_counter_trigger
     AFTER INSERT OR DELETE ON posts
     FOR EACH ROW
-    WHEN (
-        (TG_OP = 'INSERT' AND NEW.in_reply_to IS NOT NULL) OR
-        (TG_OP = 'DELETE' AND OLD.in_reply_to IS NOT NULL)
-    )
     EXECUTE FUNCTION update_post_counters();
 
 -- Backfill timeline when following someone (on INSERT or UPDATE to accepted)
