@@ -16,6 +16,7 @@ import { computed, type Ref } from 'vue';
 import type { MessagePart } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -90,19 +91,8 @@ export function useContentRenderer(
     
     // Already MessagePart[]
     if (Array.isArray(rawContent)) {
-      // Check if any text parts contain HTML and parse them
-      const processed = rawContent.flatMap(part => {
-        if (part.type === 'text' && part.text && part.text.includes('<')) {
-          // Looks like HTML - parse it
-          console.log('🔍 Parsing ActivityPub HTML in text part:', part.text.substring(0, 100));
-          const { convertActivityPubHTMLToMessageParts } = require('@/utils/unifiedContentProcessing');
-          const parsed = convertActivityPubHTMLToMessageParts(part.text);
-          console.log('✅ Parsed to MessageParts:', parsed);
-          return parsed;
-        }
-        return [part];
-      });
-      return processed;
+      // No need to parse here anymore - backend does it
+      return rawContent;
     }
     
     // String content - needs parsing
@@ -113,11 +103,7 @@ export function useContentRenderer(
           return normalizeContent(parsed); // Recursively normalize
         }
       } catch {
-        // Plain text string - check if it's HTML
-        if (rawContent.includes('<')) {
-          const { convertActivityPubHTMLToMessageParts } = require('@/utils/unifiedContentProcessing');
-          return convertActivityPubHTMLToMessageParts(rawContent);
-        }
+        // Plain text string
         return [{ type: 'text', text: rawContent }];
       }
     }
