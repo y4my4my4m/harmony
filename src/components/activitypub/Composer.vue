@@ -147,124 +147,118 @@
 
             <!-- Compose Options Toolbar -->
             <div class="compose-options">
-              <div class="option-group">
-                <!-- Media Upload -->
-                <input
-                  ref="fileInputRef"
-                  type="file"
-                  multiple
-                  accept="image/*,video/*"
-                  class="hidden"
-                  @change="actions.handleFileUpload"
-                />
+              <!-- Media Upload -->
+              <input
+                ref="fileInputRef"
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                class="hidden"
+                @change="actions.handleFileUpload"
+              />
+              <button
+                class="option-button"
+                @click="triggerFileUpload"
+                :disabled="!canAddMedia"
+                title="Add media"
+              >
+                <Icon name="image" />
+              </button>
+
+              <!-- GIF Picker -->
+              <button
+                ref="gifTriggerRef"
+                class="option-button"
+                @click="toggleGifPicker"
+                title="Add GIF"
+              >
+                <GifIcon />
+              </button>
+
+              <!-- Emoji Picker -->
+              <button
+                ref="emojiTriggerRef"
+                class="option-button"
+                @click="toggleEmojiPicker"
+                title="Add emoji"
+              >
+                <EmojiUI />
+              </button>
+
+              <!-- Content Warning -->
+              <button
+                class="option-button"
+                :class="{ active: showContentWarning }"
+                @click="toggleContentWarning"
+                title="Add content warning"
+              >
+                <Icon name="alert-triangle" />
+              </button>
+
+              <!-- Sensitive Content -->
+              <button
+                class="option-button"
+                :class="{ active: isSensitive }"
+                @click="isSensitive = !isSensitive"
+                title="Mark as sensitive"
+              >
+                <Icon name="eye-off" />
+              </button>
+              
+              <!-- Visibility Selector -->
+              <div class="visibility-selector">
                 <button
                   class="option-button"
-                  @click="triggerFileUpload"
-                  :disabled="!canAddMedia"
-                  title="Add media"
+                  @click.stop="toggleVisibilityMenu"
+                  :title="visibilityOptions.find(v => v.value === visibility)?.label"
                 >
-                  <Icon name="image" />
+                  <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
                 </button>
 
-                <!-- GIF Picker -->
-                <button
-                  ref="gifTriggerRef"
-                  class="option-button"
-                  @click="toggleGifPicker"
-                  title="Add GIF"
-                >
-                  <GifIcon />
-                </button>
-
-                <!-- Emoji Picker -->
-                <button
-                  ref="emojiTriggerRef"
-                  class="option-button"
-                  @click="toggleEmojiPicker"
-                  title="Add emoji"
-                >
-                  <EmojiUI />
-                </button>
-
-                <!-- Content Warning -->
-                <button
-                  class="option-button"
-                  :class="{ active: showContentWarning }"
-                  @click="toggleContentWarning"
-                  title="Add content warning"
-                >
-                  <Icon name="alert-triangle" />
-                </button>
-
-                <!-- Sensitive Content -->
-                <button
-                  class="option-button"
-                  :class="{ active: isSensitive }"
-                  @click="isSensitive = !isSensitive"
-                  title="Mark as sensitive"
-                >
-                  <Icon name="eye-off" />
-                </button>
-                
-                <!-- Visibility Selector -->
-                <div class="visibility-selector">
+                <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
                   <button
-                    class="option-button"
-                    @click.stop="toggleVisibilityMenu"
-                    :title="visibilityOptions.find(v => v.value === visibility)?.label"
+                    v-for="option in visibilityOptions"
+                    :key="option.value"
+                    class="visibility-option"
+                    :class="{ active: visibility === option.value }"
+                    @click.stop="setVisibility(option.value)"
                   >
-                    <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
+                    <Icon :name="option.icon" />
+                    <div class="option-details">
+                      <div class="option-label">{{ option.label }}</div>
+                      <div class="option-description">{{ option.description }}</div>
+                    </div>
+                    <Icon v-if="visibility === option.value" name="check" :size="16" />
                   </button>
-
-                  <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
-                    <button
-                      v-for="option in visibilityOptions"
-                      :key="option.value"
-                      class="visibility-option"
-                      :class="{ active: visibility === option.value }"
-                      @click.stop="setVisibility(option.value)"
-                    >
-                      <Icon :name="option.icon" />
-                      <div class="option-details">
-                        <div class="option-label">{{ option.label }}</div>
-                        <div class="option-description">{{ option.description }}</div>
-                      </div>
-                      <Icon v-if="visibility === option.value" name="check" :size="16" />
-                    </button>
-                  </div>
                 </div>
               </div>
+              
+              <!-- Draft Indicator -->
+              <span v-if="isDraft" class="draft-indicator">
+                <Icon name="save" />
+                Draft saved
+              </span>
+              
+              <!-- Cancel Button (modal only) -->
+              <button
+                v-if="mode === 'modal'"
+                class="cancel-button"
+                @click="handleClose"
+                :disabled="isPosting"
+              >
+                Cancel
+              </button>
+              
+              <!-- Submit Button -->
+              <button
+                class="post-button"
+                :disabled="!canSubmit || isPosting"
+                @click="handleSubmit"
+              >
+                <Icon v-if="isPosting" name="spinner" class="spinning" />
+                <span>{{ submitButtonText }}</span>
+              </button>
             </div>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="composer-footer">
-          <div class="footer-left">
-            <span v-if="isDraft" class="draft-indicator">
-              <Icon name="save" />
-              Draft saved
-            </span>
-          </div>
-
-          <div class="footer-actions">
-            <button
-              v-if="mode === 'modal'"
-              class="cancel-button"
-              @click="handleClose"
-              :disabled="isPosting"
-            >
-              Cancel
-            </button>
-            
-            <button
-              class="post-button"
-              :disabled="!canSubmit || isPosting"
-              @click="handleSubmit"
-            >
-              <Icon v-if="isPosting" name="spinner" class="spinning" />
-              <span>{{ submitButtonText }}</span>
-            </button>
           </div>
         </div>
 
@@ -487,7 +481,7 @@ const handleKeydown = (event: KeyboardEvent) => {
   
   // Ctrl/Cmd + Enter to post
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-    if (state.canSubmit) {
+    if (canSubmit.value) {
       handleSubmit();
     }
   }
@@ -734,7 +728,7 @@ watch(() => props.replyToPost, (replyPost) => {
 
 // Click outside directive
 const vClickOutside = {
-  mounted(el: HTMLElement, binding: any) {
+  mounted(el: HTMLElement & { _clickOutsideHandler?: (event: Event) => void }, binding: any) {
     el._clickOutsideHandler = (event: Event) => {
       if (!(el === event.target || el.contains(event.target as Node))) {
         binding.value();
@@ -742,8 +736,10 @@ const vClickOutside = {
     };
     document.addEventListener('click', el._clickOutsideHandler);
   },
-  unmounted(el: HTMLElement) {
-    document.removeEventListener('click', el._clickOutsideHandler);
+  unmounted(el: HTMLElement & { _clickOutsideHandler?: (event: Event) => void }) {
+    if (el._clickOutsideHandler) {
+      document.removeEventListener('click', el._clickOutsideHandler);
+    }
   }
 };
 </script>
@@ -983,19 +979,25 @@ const vClickOutside = {
 .compose-options {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: flex-end;
+  gap: 0.5rem;
   margin-top: 0.5rem;
 }
 
 .composer-inline-content .compose-options {
   padding-top: 0.75rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 0.75rem;
 }
 
-.option-group {
+.draft-indicator {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.35rem;
+  color: #10b981;
+  font-size: 0.75rem;
+  margin-left: auto;
+  margin-right: 0.5rem;
 }
 
 .option-button {
@@ -1088,41 +1090,7 @@ const vClickOutside = {
   color: #9ca3af;
 }
 
-/* Footer */
-.composer-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border-primary);
-}
-
-.composer-inline-content .composer-footer {
-  padding: 0.75rem 0 0;
-  border-top: none;
-}
-
-.footer-left {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.draft-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #10b981;
-  font-size: 0.875rem;
-}
-
-.footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
+/* Footer - removed, merged with compose-options */
 
 .cancel-button {
   padding: 0.5rem 1rem;
