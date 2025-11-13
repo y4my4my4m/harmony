@@ -1,4 +1,5 @@
 import config from '../../config/index.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Convert internal post format to ActivityPub Note
