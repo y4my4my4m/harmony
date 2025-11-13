@@ -466,15 +466,28 @@ const createProfile = async () => {
       color: selectedColor.value,
     });
 
+    // Get instance domain from config
+    const { data: instanceConfig } = await supabase
+      .from('instance_config')
+      .select('config_value')
+      .eq('config_key', 'domain')
+      .single();
+    
+    const instanceDomain = instanceConfig?.config_value 
+      ? (typeof instanceConfig.config_value === 'string' 
+          ? instanceConfig.config_value 
+          : instanceConfig.config_value.toString().replace(/"/g, ''))
+      : 'localhost';
+
     const profileData = {
       id: authStore.session.user.id, // Keep using auth user ID as profile ID for compatibility
       auth_user_id: authStore.session.user.id, // Also set the new auth_user_id field
-      username: username.value,
+      username: username.value.trim().toLowerCase(),
       display_name: displayName.value.trim(),
       bio: bio.value.trim() || undefined,
       color: selectedColor.value,
       is_local: true, // This is a local user
-      domain: 'har.mony.lol', // Set default domain
+      domain: instanceDomain, // Get from instance config
     };
 
     console.log('Calling profileStore.createProfile...');

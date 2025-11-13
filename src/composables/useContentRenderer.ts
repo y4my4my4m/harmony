@@ -16,6 +16,7 @@ import { computed, type Ref } from 'vue';
 import type { MessagePart } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { convertActivityPubHTMLToMessageParts } from '@/utils/unifiedContentProcessing';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -90,6 +91,7 @@ export function useContentRenderer(
     
     // Already MessagePart[]
     if (Array.isArray(rawContent)) {
+      // No need to parse here anymore - backend does it
       return rawContent;
     }
     
@@ -98,10 +100,10 @@ export function useContentRenderer(
       try {
         const parsed = JSON.parse(rawContent);
         if (Array.isArray(parsed)) {
-          return parsed;
+          return normalizeContent(parsed); // Recursively normalize
         }
       } catch {
-        // Plain text string - return as single text part
+        // Plain text string
         return [{ type: 'text', text: rawContent }];
       }
     }
@@ -143,8 +145,17 @@ export function useContentRenderer(
     // Build mention display from parts
     const username = mention.username || 'unknown';
     const domain = mention.domain;
-    const isLocal = mention.isLocal ?? (!domain || domain === (import.meta.env.VITE_DOMAIN || 'har.mony.lol'));
+    const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
     
+    // Determine if user is local
+    // A user is local if:
+    // 1. isLocal is explicitly true, OR
+    // 2. domain is not set, OR
+    // 3. domain matches the current instance domain
+    const isLocal = mention.isLocal === true || !domain || domain === currentDomain;
+    
+    // For local users: show @username
+    // For remote users: show @username@domain
     return isLocal ? `@${username}` : `@${username}@${domain}`;
   };
 
@@ -215,11 +226,19 @@ export function useContentRenderer(
         
         case 'mention': {
           const displayText = formatMentionDisplay(part);
+          // Escape HTML entities in the display text
+          const escapedDisplayText = displayText
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+          
           const dataAttrs = renderOptions.enableClickHandlers 
-            ? `data-user-id="${part.userId || ''}" data-handle="${displayText}"` 
+            ? `data-user-id="${part.userId || ''}" data-handle="${escapedDisplayText}"` 
             : '';
           
-          return `<span class="mention" ${dataAttrs}>${displayText}</span>`;
+          return `<span class="mention" ${dataAttrs}>${escapedDisplayText}</span>`;
         }
         
         case 'emoji': {

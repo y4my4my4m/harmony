@@ -549,12 +549,96 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
 /**
  * Convert ActivityPub HTML content back to MessagePart[] format
  * This is used when receiving federated content from remote instances
- * Note: This is a simplified version - the inbox function handles complex parsing
+ * Properly parses ActivityPub HTML with mentions, hashtags, and text
  */
 export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[] {
-  // For now, return as text - the inbox function handles proper HTML parsing
-  // This can be enhanced later for more sophisticated parsing
-  return [{ type: 'text', text: html }];
+  if (!html) return [{ type: 'text', text: '' }];
+  
+  // Create a DOM parser to extract structured content
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const parts: MessagePart[] = [];
+  
+  // Walk through the DOM and extract parts
+  const walkNode = (node: Node): void => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      if (text.trim()) {
+        // Don't parse mentions in plain text - they should be in <a> tags
+        // If they're not in tags, it means the sender didn't properly format them
+        // Just pass through as text
+        parts.push({ type: 'text', text });
+      }
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as HTMLElement;
+      
+      // Skip h-card wrapper - process its children directly
+      if (element.classList.contains('h-card')) {
+        node.childNodes.forEach(walkNode);
+        return;
+      }
+      
+      // Check if this is a mention link (ActivityPub format: <span class="h-card"><a class="u-url mention">@user@domain</a></span>)
+      if (element.tagName === 'A' && element.classList.contains('mention')) {
+        const href = element.getAttribute('href') || '';
+        const text = element.textContent || '';
+        
+        // Parse @username@domain format
+        const mentionMatch = text.match(/^@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?$/);
+        if (mentionMatch) {
+          const username = mentionMatch[1];
+          const domain = mentionMatch[2];
+          const currentDomain = import.meta.env.VITE_DOMAIN || 'har.mony.lol';
+          
+          parts.push({
+            type: 'mention',
+            userId: href, // Use href as fallback ID
+            username: username,
+            domain: domain || currentDomain,
+            isLocal: !domain || domain === currentDomain,
+            displayName: username
+          });
+          return; // Don't process children
+        }
+      }
+      
+      // Check if this is a hashtag
+      if (element.tagName === 'A' && element.classList.contains('hashtag')) {
+        const text = element.textContent || '';
+        const tagMatch = text.match(/^#(\w+)$/);
+        if (tagMatch) {
+          parts.push({
+            type: 'hashtag',
+            name: tagMatch[1]
+          });
+          return;
+        }
+      }
+      
+      // Handle line breaks
+      if (element.tagName === 'BR') {
+        parts.push({ type: 'text', text: '\n' });
+        return;
+      }
+      
+      // Handle paragraphs
+      if (element.tagName === 'P') {
+        node.childNodes.forEach(walkNode);
+        // Add newline after paragraph if not the last element
+        if (element.nextSibling) {
+          parts.push({ type: 'text', text: '\n' });
+        }
+        return;
+      }
+      
+      // Process children recursively for other elements
+      node.childNodes.forEach(walkNode);
+    }
+  };
+  
+  walkNode(doc.body);
+  
+  return parts.length > 0 ? parts : [{ type: 'text', text: html }];
 }
 
 /**

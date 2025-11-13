@@ -224,14 +224,22 @@ export function useAutoSuggest(
         
     } else if (finalConfig.mode === 'activitypub') {
       // ActivityPub mode: Use dynamic search results (no server filtering needed)
-      return activityPubUsers.value.map(user => ({
+      return activityPubUsers.value.map(user => {
+        // Ensure handle has leading @ if database doesn't include it
+        let handle = user.handle || `@${user.username}${!user.is_local && user.domain ? '@' + user.domain : ''}`;
+        if (!handle.startsWith('@')) {
+          handle = '@' + handle;
+        }
+        
+        return {
         id: user.id,
         display_name: user.display_name,
         username: user.username,
-        avatar: user.avatar_url, // Fix: Use avatar_url for avatar field
-        handle: user.handle || `@${user.username}${!user.is_local && user.domain ? '@' + user.domain : ''}`,
+          avatar: user.avatar_url,
+          handle: handle,
         user: user
-      })).slice(0, finalConfig.maxSuggestions);
+        };
+      }).slice(0, finalConfig.maxSuggestions);
     }
 
     return [];
@@ -500,6 +508,13 @@ export function useAutoSuggest(
       } else if (state.value.triggerType === 'mention') {
         if (finalConfig.mode === 'activitypub') {
           insertText = suggestion.handle || `@${suggestion.username}`;
+          console.log('🔧 ActivityPub mention insert:', {
+            handle: suggestion.handle,
+            username: suggestion.username,
+            domain: suggestion.user?.domain,
+            is_local: suggestion.user?.is_local,
+            insertText
+          });
         } else {
           // Chat mode: use display_text for what user sees
           if (suggestion.display_text) {

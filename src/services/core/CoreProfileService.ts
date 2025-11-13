@@ -104,7 +104,6 @@ export class CoreProfileService {
           followers_count,
           following_count,
           posts_count,
-          is_private,
           is_verified
         `)
         .eq('id', profileId)
@@ -209,10 +208,10 @@ export class CoreProfileService {
         .or(`username.ilike.%${sanitizedQuery}%,display_name.ilike.%${sanitizedQuery}%`)
         .limit(secureLimit)
 
-      // Privacy filtering - exclude private profiles unless specifically requested
-      if (!includePrivate) {
-        queryBuilder = queryBuilder.or('is_private.is.null,is_private.eq.false')
-      }
+      // Privacy filtering - removed (column doesn't exist yet)
+      // if (!includePrivate) {
+      //   queryBuilder = queryBuilder.or('is_private.is.null,is_private.eq.false')
+      // }
 
       const { data: profiles, error } = await queryBuilder
 

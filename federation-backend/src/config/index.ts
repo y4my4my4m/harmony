@@ -1,0 +1,57 @@
+import { config as dotenvConfig } from 'dotenv';
+import { z } from 'zod';
+
+// Load environment variables
+dotenvConfig();
+
+// Environment validation schema
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.string().transform(Number).default('3001'),
+  API_BASE_URL: z.string().url().default('http://localhost:3001'),
+  
+  // Supabase
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_ANON_KEY: z.string(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string(),
+  
+  // Instance
+  INSTANCE_DOMAIN: z.string(),
+  INSTANCE_NAME: z.string().default('Harmony'),
+  INSTANCE_DESCRIPTION: z.string().default('A federated social platform'),
+  
+  // Redis
+  REDIS_URL: z.string().default('redis://localhost:6379'),
+  
+  // Security
+  JWT_SECRET: z.string().optional(),
+  CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  
+  // Rate Limiting
+  RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'),
+  RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
+  
+  // Logging
+  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+});
+
+// Validate and export configuration
+const parseEnv = () => {
+  try {
+    return envSchema.parse(process.env);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.error('❌ Invalid environment variables:');
+      error.errors.forEach((err) => {
+        console.error(`  - ${err.path.join('.')}: ${err.message}`);
+      });
+      process.exit(1);
+    }
+    throw error;
+  }
+};
+
+export const config = parseEnv();
+
+export default config;
+

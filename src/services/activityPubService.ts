@@ -175,18 +175,43 @@ export class ActivityPubService {
     const limit = options.limit || 20;
     const max_id = options.max_id || null;
 
-    const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
-      p_user_id: user.id,
-      p_timeline_type: 'public',
-      p_limit: limit,
-      p_max_id: max_id
-    });
+    // Direct query with user interactions
+    let query = supabase
+      .from('posts')
+      .select(`
+        *,
+        author:profiles!posts_author_id_fkey(
+          id, username, display_name, avatar_url, color, domain, is_local
+        ),
+        my_interactions:post_interactions!left(interaction_type, emoji_id)
+      `)
+      .eq('my_interactions.user_id', user.id)
+      .in('visibility', ['public', 'unlisted'])
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (max_id) {
+      query = query.lt('id', max_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
-    console.log(`📊 Public timeline loaded: ${data?.length || 0} posts`);
+    // Process user interactions into boolean flags
+    const posts = (data || []).map(post => {
+      const interactions = post.my_interactions || [];
+      return {
+        ...post,
+        is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+        is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+        is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+      };
+    });
+
+    console.log(`📊 Public timeline loaded: ${posts.length} posts (with user interactions)`);
     
-    return data || [];
+    return posts;
   }
 
   /**
@@ -199,17 +224,39 @@ export class ActivityPubService {
     const limit = options.limit || 20;
     
     try {
-      // Use the same RPC function as local timeline to get proper user interaction states
-      const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
-        p_user_id: user.id,
-        p_timeline_type: 'public', 
-        p_limit: limit,
-        p_max_id: options.max_id || null
-      });
+      // Direct query with user interactions
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(
+            id, username, display_name, avatar_url, color, domain, is_local
+          ),
+          my_interactions:post_interactions!left(interaction_type, emoji_id)
+        `)
+        .eq('my_interactions.user_id', user.id)
+        .in('visibility', ['public', 'unlisted'])
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (options.max_id) {
+        query = query.lt('id', options.max_id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
-      const posts = data || [];
+      // Process user interactions into boolean flags
+      const posts = (data || []).map(post => {
+        const interactions = post.my_interactions || [];
+        return {
+          ...post,
+          is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+          is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+          is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+        };
+      });
       
       // DEBUG: Log ALL posts returned by RPC to see if our post is there
       console.log(`🔍 DEBUG - RPC returned ${posts.length} posts total`);
@@ -283,22 +330,47 @@ export class ActivityPubService {
 
     const limit = options.limit || 20;
 
-    // FIXED: Always use get_timeline_posts_with_interactions to ensure user interaction states
-    // The cache system was missing is_favorited, is_reblogged, is_bookmarked properties
-    console.log('🔄 Loading local timeline with user interaction states');
-    const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
-      p_user_id: user.id,
-      p_timeline_type: 'local', 
-      p_limit: limit,
-      p_max_id: options.max_id || null
-    });
+    // Direct query for local timeline with user interactions
+    console.log('🔄 Loading local timeline with direct query');
+    
+    let query = supabase
+      .from('posts')
+      .select(`
+        *,
+        author:profiles!posts_author_id_fkey(
+          id, username, display_name, avatar_url, color, domain, is_local
+        ),
+        my_interactions:post_interactions!left(interaction_type, emoji_id)
+      `)
+      .eq('my_interactions.user_id', user.id)
+      .eq('is_local', true)
+      .in('visibility', ['public', 'unlisted'])
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (options.max_id) {
+      query = query.lt('id', options.max_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
+
+    // Process user interactions into boolean flags
+    const posts = (data || []).map(post => {
+      const interactions = post.my_interactions || [];
+      return {
+        ...post,
+        is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+        is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+        is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+      };
+    });
     
     // DEBUG: Verify all posts are truly local
-    const localCount = data?.filter((p: any) => p.is_local).length || 0;
-    const federatedCount = data?.filter((p: any) => !p.is_local).length || 0;
-    console.log(`📊 Local timeline loaded: ${data?.length || 0} posts total (${localCount} local, ${federatedCount} federated)`);
+    const localCount = posts.filter((p: any) => p.is_local).length || 0;
+    const federatedCount = posts.filter((p: any) => !p.is_local).length || 0;
+    console.log(`📊 Local timeline loaded: ${posts.length} posts total (${localCount} local, ${federatedCount} federated) with user interactions`);
     
     if (federatedCount > 0) {
       console.warn(`⚠️ WARNING: Local timeline contains ${federatedCount} federated posts! These should be filtered out.`);
@@ -313,7 +385,7 @@ export class ActivityPubService {
       });
     }
     
-    return data || [];
+    return posts;
   }
 
   // =============================================
@@ -1512,16 +1584,79 @@ export class ActivityPubService {
     const limit = options.limit || 20;
     const max_id = options.max_id || null;
 
-    const { data, error } = await supabase.rpc('get_timeline_posts_with_interactions', {
-      p_user_id: userId,
-      p_timeline_type: timelineType,
-      p_limit: limit,
-      p_max_id: max_id
-    });
+    // Build query based on timeline type
+    let query = supabase.from('posts');
+
+    if (timelineType === 'home') {
+      // Get following list
+      const { data: follows } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', userId)
+        .eq('status', 'accepted');
+
+      const followingIds = follows?.map(f => f.following_id) || [];
+      followingIds.push(userId); // Include own posts
+
+      query = query
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(
+            id, username, display_name, avatar_url, color, domain, is_local
+          ),
+          my_interactions:post_interactions!left(interaction_type, emoji_id)
+        `)
+        .eq('my_interactions.user_id', userId)
+        .in('author_id', followingIds);
+    } else if (timelineType === 'local') {
+      query = query
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(
+            id, username, display_name, avatar_url, color, domain, is_local
+          ),
+          my_interactions:post_interactions!left(interaction_type, emoji_id)
+        `)
+        .eq('my_interactions.user_id', userId)
+        .eq('is_local', true);
+    } else {
+      // public
+      query = query
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(
+            id, username, display_name, avatar_url, color, domain, is_local
+          ),
+          my_interactions:post_interactions!left(interaction_type, emoji_id)
+        `)
+        .eq('my_interactions.user_id', userId)
+        .in('visibility', ['public', 'unlisted']);
+    }
+
+    query = query
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (max_id) {
+      query = query.lt('id', max_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
-    return data || [];
+    // Process user interactions into boolean flags
+    const posts = (data || []).map(post => {
+      const interactions = post.my_interactions || [];
+      return {
+        ...post,
+        is_bookmarked: interactions.some(i => i.interaction_type === 'bookmark'),
+        is_favorited: interactions.some(i => i.interaction_type === 'favorite'),
+        is_reblogged: interactions.some(i => i.interaction_type === 'reblog'),
+      };
+    });
+
+    return posts;
   }
 
   /**

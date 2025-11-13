@@ -235,10 +235,12 @@ const voiceIntensity = computed(() => {
 });
 
 const hasVideo = computed(() => {
-  return (
-    !!userStream.value?.getVideoTracks().length &&
-    (props.userState.isVideoEnabled || props.userState.isScreenSharing)
-  );
+  const hasVideoTracks = userStream.value?.getVideoTracks().length ?? 0;
+  const stateIndicatesVideo = props.userState.isVideoEnabled || props.userState.isScreenSharing;
+  
+  // Show video if tracks exist OR state says video is on
+  // This handles both turn-on (state first) and turn-off (tracks removed first)
+  return hasVideoTracks > 0 || stateIndicatesVideo;
 });
 
 const connectionQuality = computed(() => {
@@ -287,17 +289,23 @@ const onVideoLoaded = () => {
 // WATCHERS
 // =============================================================================
 
-// Update video element when stream changes
+// Update video element when stream OR state changes
 watch(
-  () => userStream.value,
-  (newStream) => {
+  [() => userStream.value, () => props.userState.isVideoEnabled, () => props.userState.isScreenSharing],
+  ([newStream, isVideoEnabled, isScreenSharing]) => {
     if (videoElement.value) {
-      // The stream is assigned directly. A check for video-only vs. screen share
-      // stream can be done here if needed (e.g., to prevent echo).
-      // For simplicity, we assign the stream as is, assuming the parent handles
-      // audio track logic correctly (e.g. local streams are muted).
-      videoElement.value.srcObject = newStream ?? null;
-      console.log(`📹 Updating stream for user ${props.userState.userId}. Has stream: ${!!newStream}`);
+      const hasVideoTracks = newStream?.getVideoTracks().length ?? 0;
+      
+      if (hasVideoTracks > 0) {
+        // Has video tracks - update srcObject
+        videoElement.value.srcObject = newStream;
+        console.log(`📹 Updating video stream for user ${props.userState.userId}. Video tracks: ${hasVideoTracks}`);
+      } else if (!isVideoEnabled && !isScreenSharing) {
+        // No video tracks AND state says off - clear to remove frozen frame
+        videoElement.value.srcObject = null;
+        console.log(`📹 Clearing video stream for user ${props.userState.userId} (camera/screen off)`);
+      }
+      // else: No tracks yet but state says on - keep old srcObject temporarily (negotiation in progress)
     }
   },
   { immediate: true }

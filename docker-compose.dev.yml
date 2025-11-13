@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Redis for development
+  redis:
+    image: redis:7-alpine
+    container_name: harmony-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - harmony-dev-network
+
+  # Backend API (development mode with hot reload)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: harmony-backend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      API_BASE_URL: http://localhost:3001
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      INSTANCE_DOMAIN: ${INSTANCE_DOMAIN:-localhost:5173}
+      INSTANCE_NAME: ${INSTANCE_NAME:-Harmony Dev}
+      INSTANCE_DESCRIPTION: ${INSTANCE_DESCRIPTION:-Development instance}
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: http://localhost:5173
+      LOG_LEVEL: debug
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend/src:/app/src:ro
+      - ./backend/logs:/app/logs
+    networks:
+      - harmony-dev-network
+    depends_on:
+      - redis
+    command: npm run dev
+
+networks:
+  harmony-dev-network:
+    driver: bridge
+

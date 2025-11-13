@@ -748,18 +748,24 @@ export const useActivityPubStore = defineStore('activitypub', {
           }
           
           // Update interaction state only for current user based on event
+          // Force Vue reactivity by creating new object reference
           if (isCurrentUser) {
+            const updates: any = {};
             switch (interactionType) {
               case 'favorite':
-                post.is_favorited = eventType === 'INSERT';
+                updates.is_favorited = eventType === 'INSERT';
                 break;
               case 'reblog':
-                post.is_reblogged = eventType === 'INSERT';
+                updates.is_reblogged = eventType === 'INSERT';
                 break;
               case 'bookmark':
-                post.is_bookmarked = eventType === 'INSERT';
+                updates.is_bookmarked = eventType === 'INSERT';
                 break;
             }
+            // Apply updates by creating new object (triggers reactivity!)
+            Object.assign(post, updates);
+            
+            console.log(`✅ Updated post.is_${interactionType === 'favorite' ? 'favorited' : interactionType === 'bookmark' ? 'bookmarked' : 'reblogged'}:`, updates);
           }
 
           console.log(`🔍 DEBUG: Realtime update complete:`, {
