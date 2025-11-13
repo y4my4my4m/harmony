@@ -150,6 +150,28 @@ async function handleNewPost(post: any): Promise<void> {
 
     // Broadcast to followers
     await DeliveryQueue.broadcastToFollowers(author.id, activity);
+    
+    // Also deliver to mentioned users (they might not be followers)
+    if (Array.isArray(post.content)) {
+      const mentions = post.content.filter((part: any) => part.type === 'mention');
+      
+      for (const mention of mentions) {
+        if (!mention.isLocal && mention.domain) {
+          // Get mentioned user's inbox
+          const { data: mentionedUser } = await supabase
+            .from('profiles')
+            .select('inbox_url')
+            .eq('username', mention.username)
+            .eq('domain', mention.domain)
+            .single();
+          
+          if (mentionedUser?.inbox_url) {
+            logger.info(`📧 Delivering to mentioned user: ${mention.username}@${mention.domain}`);
+            await DeliveryQueue.sendToInbox(mentionedUser.inbox_url, activity, author.id);
+          }
+        }
+      }
+    }
 
     logger.info(`✅ Post ${post.id} queued for federation`);
   } catch (error) {
