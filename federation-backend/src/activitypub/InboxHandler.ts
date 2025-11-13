@@ -8,12 +8,19 @@ import { logger } from '../utils/logger.js';
 const router = Router();
 
 /**
- * Shared inbox endpoint
- * POST /api/activitypub/inbox
+ * Shared inbox endpoint (standard location)
+ * POST /inbox
  */
 router.post(
-  '/api/activitypub/inbox',
+  '/inbox',
   asyncHandler(async (req: Request, res: Response) => {
+    logger.info(`📮 POST to /inbox (shared inbox) from ${req.ip}`);
+    logger.info(`Headers:`, {
+      'content-type': req.headers['content-type'],
+      'signature': req.headers.signature ? 'present' : 'missing',
+      'digest': req.headers.digest ? 'present' : 'missing',
+      'user-agent': req.headers['user-agent']
+    });
     await handleInbox(req, res, null);
   })
 );
