@@ -90,7 +90,16 @@ export function useContentRenderer(
     
     // Already MessagePart[]
     if (Array.isArray(rawContent)) {
-      return rawContent;
+      // Check if any text parts contain HTML and parse them
+      const processed = rawContent.flatMap(part => {
+        if (part.type === 'text' && part.text && part.text.includes('<')) {
+          // Looks like HTML - parse it
+          const { convertActivityPubHTMLToMessageParts } = require('@/utils/unifiedContentProcessing');
+          return convertActivityPubHTMLToMessageParts(part.text);
+        }
+        return [part];
+      });
+      return processed;
     }
     
     // String content - needs parsing
@@ -98,10 +107,14 @@ export function useContentRenderer(
       try {
         const parsed = JSON.parse(rawContent);
         if (Array.isArray(parsed)) {
-          return parsed;
+          return normalizeContent(parsed); // Recursively normalize
         }
       } catch {
-        // Plain text string - return as single text part
+        // Plain text string - check if it's HTML
+        if (rawContent.includes('<')) {
+          const { convertActivityPubHTMLToMessageParts } = require('@/utils/unifiedContentProcessing');
+          return convertActivityPubHTMLToMessageParts(rawContent);
+        }
         return [{ type: 'text', text: rawContent }];
       }
     }

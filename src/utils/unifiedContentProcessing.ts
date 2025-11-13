@@ -564,10 +564,19 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent || '';
       if (text.trim()) {
+        // Don't parse mentions in plain text - they should be in <a> tags
+        // If they're not in tags, it means the sender didn't properly format them
+        // Just pass through as text
         parts.push({ type: 'text', text });
       }
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const element = node as HTMLElement;
+      
+      // Skip h-card wrapper - process its children directly
+      if (element.classList.contains('h-card')) {
+        node.childNodes.forEach(walkNode);
+        return;
+      }
       
       // Check if this is a mention link (ActivityPub format: <span class="h-card"><a class="u-url mention">@user@domain</a></span>)
       if (element.tagName === 'A' && element.classList.contains('mention')) {

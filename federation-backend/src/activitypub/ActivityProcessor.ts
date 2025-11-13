@@ -147,8 +147,13 @@ export class ActivityProcessor {
         return;
       }
 
-      // Convert content
-      const content = noteToContent(object);
+      // Convert content (returns raw HTML for now)
+      const rawContent = noteToContent(object);
+      
+      // Parse ActivityPub HTML to MessageParts if needed
+      // Note: This parsing should ideally happen in the backend, but for now
+      // we're storing raw HTML and letting frontend parse it
+      const content = rawContent;
 
       // Determine visibility
       const visibility = this.determineVisibility(object);

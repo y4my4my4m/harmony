@@ -272,13 +272,26 @@ function extractTags(content: any): any[] {
 
   content.forEach((item) => {
     if (item.type === 'mention') {
+      // MessagePart format uses username and domain, not mention string
+      const domain = item.domain || config.INSTANCE_DOMAIN;
+      const href = `https://${domain}/users/${item.username}`;
+      const name = item.isLocal ? `@${item.username}` : `@${item.username}@${item.domain}`;
+      
       tags.push({
         type: 'Mention',
-        href: item.url || `https://${item.mention.split('@')[1]}/users/${item.mention.split('@')[0]}`,
-        name: `@${item.mention}`,
+        href: href,
+        name: name,
       });
     }
-    // TODO: Add hashtag support
+    
+    if (item.type === 'hashtag') {
+      const href = `https://${config.INSTANCE_DOMAIN}/tags/${item.name}`;
+      tags.push({
+        type: 'Hashtag',
+        href: href,
+        name: `#${item.name}`,
+      });
+    }
   });
 
   return tags;

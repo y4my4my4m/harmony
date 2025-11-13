@@ -1,50 +1,20 @@
 /**
  * Convert ActivityPub Note to internal post/message format (JSONB)
+ * Returns the HTML as-is for frontend parsing with convertActivityPubHTMLToMessageParts
  */
 export function noteToContent(note: any): any[] {
-  const content: any[] = [];
-
-  // Extract text content
+  // Don't parse here - just return the HTML content
+  // The frontend will parse it properly with convertActivityPubHTMLToMessageParts
+  // which handles mentions, hashtags, and formatting correctly
+  
   if (note.content) {
-    const htmlContent = note.content;
-    // Simple HTML parsing (in production, use a proper HTML parser)
-    const textContent = htmlContent.replace(/<[^>]*>/g, '');
-    
-    if (textContent.trim()) {
-      content.push({
-        type: 'text',
-        text: textContent.trim(),
-      });
-    }
+    return [{
+      type: 'text',
+      text: note.content
+    }];
   }
-
-  // Extract mentions from tags
-  if (note.tag && Array.isArray(note.tag)) {
-    note.tag.forEach((tag: any) => {
-      if (tag.type === 'Mention') {
-        content.push({
-          type: 'mention',
-          mention: tag.name?.replace('@', ''),
-          url: tag.href,
-        });
-      }
-      // TODO: Handle hashtags
-    });
-  }
-
-  // Extract attachments
-  if (note.attachment && Array.isArray(note.attachment)) {
-    note.attachment.forEach((attachment: any) => {
-      content.push({
-        type: 'file',
-        url: attachment.url,
-        fileType: attachment.mediaType || 'application/octet-stream',
-        name: attachment.name,
-      });
-    });
-  }
-
-  return content.length > 0 ? content : [{ type: 'text', text: '' }];
+  
+  return [{ type: 'text', text: '' }];
 }
 
 /**
