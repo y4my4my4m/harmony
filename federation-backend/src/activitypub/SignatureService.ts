@@ -160,14 +160,27 @@ export class SignatureService {
         return { verified: false };
       }
 
-      // Rebuild signing string
+      // Rebuild signing string (handle (request-target) specially)
       const headerList = signedHeaders.split(' ');
-      const signingString = headerList
-        .map((headerName) => {
-          const value = headers[headerName.toLowerCase()];
-          return `${headerName}: ${value}`;
-        })
-        .join('\n');
+      const requestTarget = `${method.toLowerCase()} ${path}`;
+      
+      const signingParts: string[] = [];
+      
+      for (const headerName of headerList) {
+        if (headerName === '(request-target)') {
+          signingParts.push(`(request-target): ${requestTarget}`);
+        } else {
+          // Try both lowercase and capitalized versions
+          const value = headers[headerName.toLowerCase()] || headers[headerName];
+          if (value) {
+            signingParts.push(`${headerName}: ${value}`);
+          } else {
+            logger.warn(`Missing header in signature verification: ${headerName}`);
+          }
+        }
+      }
+      
+      const signingString = signingParts.join('\n');
 
       // Verify signature
       const verify = crypto.createVerify('SHA256');
