@@ -14,7 +14,8 @@ interface QueueItem {
 
 export class DeliveryQueue {
   /**
-   * Add an activity to the delivery queue
+   * Add an activity to the delivery queue and try to deliver immediately
+   * For realtime federation - tries immediate delivery first, queues only if it fails
    */
   static async enqueue(
     activityData: any,
@@ -22,6 +23,25 @@ export class DeliveryQueue {
     senderId: string,
     priority: number = 5
   ): Promise<void> {
+    logger.info(`📤 Attempting immediate delivery to ${targetInbox}`);
+    
+    // Try immediate delivery first (realtime!)
+    try {
+      const success = await this.deliverActivityDirect(
+        activityData,
+        targetInbox,
+        senderId
+      );
+      
+      if (success) {
+        logger.info(`✅ Immediate delivery succeeded to ${targetInbox}`);
+        return; // Success! No need to queue
+      }
+    } catch (error) {
+      logger.warn(`⚠️ Immediate delivery failed, queuing for retry:`, error);
+    }
+    
+    // Immediate delivery failed - queue it for retry
     const supabase = getSupabaseClient();
 
     const { error } = await supabase.from('federation_delivery_queue').insert({
@@ -30,17 +50,18 @@ export class DeliveryQueue {
       sender_id: senderId,
       priority,
       status: 'pending',
-      attempts: 0,
+      attempts: 1, // Already tried once
       max_attempts: 5,
-      next_retry_at: new Date().toISOString(),
+      next_retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // Retry in 5 minutes
+      last_attempt_at: new Date().toISOString(),
     });
 
     if (error) {
-      logger.error('Failed to enqueue delivery:', error);
+      logger.error('Failed to queue delivery for retry:', error);
       throw error;
     }
 
-    logger.info(`Queued delivery to ${targetInbox}`);
+    logger.info(`📋 Queued for retry: ${targetInbox} (will retry in 5 minutes)`);
   }
 
   /**
@@ -91,7 +112,47 @@ export class DeliveryQueue {
   }
 
   /**
-   * Deliver a single activity to a remote inbox
+   * Deliver directly without queue management (for immediate delivery)
+   */
+  private static async deliverActivityDirect(
+    activityData: any,
+    targetInbox: string,
+    senderId: string
+  ): Promise<boolean> {
+    try {
+      // Sign the request
+      const { headers, digest } = await SignatureService.signRequest(
+        targetInbox,
+        'POST',
+        activityData,
+        senderId
+      );
+
+      // Add content-type
+      headers['Content-Type'] = 'application/activity+json';
+
+      // Send request
+      const response = await fetch(targetInbox, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(activityData),
+      });
+
+      if (response.ok || response.status === 202) {
+        logger.info(`✅ Delivered to ${targetInbox} (${response.status})`);
+        return true;
+      } else {
+        logger.warn(`❌ Failed to deliver to ${targetInbox}: ${response.status}`);
+        return false;
+      }
+    } catch (error) {
+      logger.error(`❌ Delivery error to ${targetInbox}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Deliver a single activity to a remote inbox (from queue)
    */
   private static async deliverActivity(item: QueueItem): Promise<boolean> {
     const supabase = getSupabaseClient();

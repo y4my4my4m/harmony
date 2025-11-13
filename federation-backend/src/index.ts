@@ -74,7 +74,8 @@ app.listen(PORT, () => {
     logger.error('Failed to start database listener:', error);
   });
   
-  // Process delivery queue every 30 seconds
+  // Process delivery queue for retries every 30 seconds
+  // Note: New deliveries are attempted immediately, this is only for retrying failed deliveries
   setInterval(async () => {
     try {
       await DeliveryQueue.processQueue();
@@ -83,7 +84,7 @@ app.listen(PORT, () => {
     }
   }, 30000); // 30 seconds
   
-  logger.info('📬 Delivery queue processor started (30s interval)');
+  logger.info('📬 Delivery queue retry processor started (30s interval)');
 });
 
 // Graceful shutdown
