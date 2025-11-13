@@ -151,11 +151,11 @@ async function handleNewReaction(interaction: any): Promise<void> {
     // Get the post to find its author and URL
     const { data: post } = await supabase
       .from('posts')
-      .select('id, author_id, federated_id')
+      .select('id, author_id, ap_id')
       .eq('id', interaction.post_id)
       .single();
 
-    if (!post || !post.federated_id) {
+    if (!post || !post.ap_id) {
       logger.debug('Reaction on non-federated post, skipping');
       return;
     }
@@ -175,7 +175,7 @@ async function handleNewReaction(interaction: any): Promise<void> {
     logger.info(`🌐 Federating reaction: ${interaction.emoji_id} on post ${post.id}`);
 
     // Create Like activity
-    const activity = await createLikeActivity(user, post.federated_id, interaction.emoji_id);
+    const activity = await createLikeActivity(user, post.ap_id, interaction.emoji_id);
 
     // Send to post author's inbox (if remote)
     const { data: postAuthor } = await supabase

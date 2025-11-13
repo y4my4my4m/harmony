@@ -56,7 +56,7 @@ export async function createLikeActivity(
  * Create an Announce activity (reblog)
  */
 export async function createReblogActivity(user: any, post: any): Promise<any> {
-  const objectUrl = post.federated_id || post.id;
+  const objectUrl = post.ap_id || post.id;
   return createAnnounce(user, objectUrl);
 }
 

@@ -164,7 +164,7 @@ export class ActivityProcessor {
 
       // Create post
       const { error } = await supabase.from('posts').upsert({
-        federated_id: object.id,
+        ap_id: object.id,
         author_id: author.id,
         content,
         visibility,

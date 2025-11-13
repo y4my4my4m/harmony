@@ -6,7 +6,7 @@ import config from '../../config/index.js';
 export function postToNote(post: any, author: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
-  const postUrl = post.federated_id || `https://${domain}/posts/${post.id}`;
+  const postUrl = post.ap_id || `https://${domain}/posts/${post.id}`;
 
   const note: any = {
     '@context': 'https://www.w3.org/ns/activitystreams',
