@@ -94,8 +94,11 @@ export function useContentRenderer(
       const processed = rawContent.flatMap(part => {
         if (part.type === 'text' && part.text && part.text.includes('<')) {
           // Looks like HTML - parse it
+          console.log('🔍 Parsing ActivityPub HTML in text part:', part.text.substring(0, 100));
           const { convertActivityPubHTMLToMessageParts } = require('@/utils/unifiedContentProcessing');
-          return convertActivityPubHTMLToMessageParts(part.text);
+          const parsed = convertActivityPubHTMLToMessageParts(part.text);
+          console.log('✅ Parsed to MessageParts:', parsed);
+          return parsed;
         }
         return [part];
       });
