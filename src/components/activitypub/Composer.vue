@@ -49,9 +49,9 @@
 
           <div class="composer-input-area">
             <!-- Content Warning Input -->
-            <div v-if="state.showContentWarning" class="content-warning-input">
+            <div v-if="showContentWarning" class="content-warning-input">
               <input
-                v-model="state.contentWarning"
+                v-model="contentWarning"
                 type="text"
                 placeholder="Content warning (optional)"
                 class="cw-input"
@@ -63,7 +63,7 @@
             <div class="text-input-container">
               <RichTextEditor
                 ref="richEditorRef"
-                :model-value="state.content"
+                :model-value="content"
                 :placeholder="placeholder"
                 :max-height="200"
                 :min-height="60"
@@ -74,8 +74,8 @@
               />
               
               <!-- Character Counter -->
-              <div class="character-counter" :class="state.characterCounterClass">
-                {{ state.remainingCharacters }}
+              <div class="character-counter" :class="characterCounterClass">
+                {{ remainingCharacters }}
               </div>
               
               <!-- Auto-suggest dropdown -->
@@ -122,12 +122,12 @@
 
             <!-- Media Attachments Preview -->
             <MonyMediaUpload
-              v-if="state.mediaAttachments.length > 0"
-              :attachments="state.mediaAttachments"
-              @remove="state.removeMediaAttachment"
+              v-if="mediaAttachments.length > 0"
+              :attachments="mediaAttachments"
+              @remove="removeMediaAttachment"
               @update-description="(index, desc) => {
-                if (state.mediaAttachments[index]) {
-                  state.mediaAttachments[index].description = desc;
+                if (mediaAttachments[index]) {
+                  mediaAttachments[index].description = desc;
                 }
               }"
             />
@@ -147,7 +147,7 @@
                 <button
                   class="option-button"
                   @click="triggerFileUpload"
-                  :disabled="!state.canAddMedia"
+                  :disabled="!canAddMedia"
                   title="Add media"
                 >
                   <Icon name="image" />
@@ -176,8 +176,8 @@
                 <!-- Content Warning -->
                 <button
                   class="option-button"
-                  :class="{ active: state.showContentWarning }"
-                  @click="state.toggleContentWarning"
+                  :class="{ active: showContentWarning }"
+                  @click="toggleContentWarning"
                   title="Add content warning"
                 >
                   <Icon name="alert-triangle" />
@@ -186,8 +186,8 @@
                 <!-- Sensitive Content -->
                 <button
                   class="option-button"
-                  :class="{ active: state.isSensitive }"
-                  @click="state.isSensitive = !state.isSensitive"
+                  :class="{ active: isSensitive }"
+                  @click="isSensitive = !isSensitive"
                   title="Mark as sensitive"
                 >
                   <Icon name="eye-off" />
@@ -199,27 +199,27 @@
                 <button
                   class="visibility-button"
                   @click="toggleVisibilityMenu"
-                  :title="state.visibilityOptions.find(v => v.value === state.visibility)?.label"
+                  :title="visibilityOptions.find(v => v.value === visibility)?.label"
                 >
-                  <Icon :name="state.visibilityOptions.find(v => v.value === state.visibility)?.icon || 'globe'" />
-                  <span class="hidden sm:inline">{{ state.visibilityOptions.find(v => v.value === state.visibility)?.label }}</span>
+                  <Icon :name="visibilityOptions.find(v => v.value === visibility)?.icon || 'globe'" />
+                  <span class="hidden sm:inline">{{ visibilityOptions.find(v => v.value === visibility)?.label }}</span>
                   <Icon name="chevron-down" :size="16" />
                 </button>
 
-                <div v-if="state.showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
+                <div v-if="showVisibilityMenu" class="visibility-menu" v-click-outside="closeVisibilityMenu">
                   <button
-                    v-for="option in state.visibilityOptions"
+                    v-for="option in visibilityOptions"
                     :key="option.value"
                     class="visibility-option"
-                    :class="{ active: state.visibility === option.value }"
-                    @click="state.setVisibility(option.value)"
+                    :class="{ active: visibility === option.value }"
+                    @click="setVisibility(option.value)"
                   >
                     <Icon :name="option.icon" />
                     <div class="option-details">
                       <div class="option-label">{{ option.label }}</div>
                       <div class="option-description">{{ option.description }}</div>
                     </div>
-                    <Icon v-if="state.visibility === option.value" name="check" :size="16" />
+                    <Icon v-if="visibility === option.value" name="check" :size="16" />
                   </button>
                 </div>
               </div>
@@ -230,7 +230,7 @@
         <!-- Footer -->
         <div class="composer-footer">
           <div class="footer-info">
-            <span v-if="state.isDraft" class="draft-indicator">
+            <span v-if="isDraft" class="draft-indicator">
               <Icon name="save" />
               Draft saved
             </span>
@@ -247,7 +247,7 @@
             
             <button
               class="post-button"
-              :disabled="!state.canSubmit || isPosting"
+              :disabled="!canSubmit || isPosting"
               @click="handleSubmit"
             >
               <Icon v-if="isPosting" name="spinner" class="spinning" />
@@ -259,9 +259,9 @@
         <!-- Emoji Picker -->
         <Teleport to="body">
           <EmojiPopup
-            v-if="state.showEmojiPicker"
+            v-if="showEmojiPicker"
             @sendEmoji="handleEmojiInsert"
-            :closeEmojiList="() => state.showEmojiPicker = false"
+            :closeEmojiList="() => showEmojiPicker = false"
             :position="'above'"
             :triggerElement="emojiTriggerRef || undefined"
           />
@@ -270,9 +270,9 @@
         <!-- GIF Picker -->
         <Teleport to="body">
           <GifComponent
-            v-if="state.showGiphyPicker"
+            v-if="showGiphyPicker"
             @sendGif="handleGifInsert"
-            :closeGiphy="() => state.showGiphyPicker = false"
+            :closeGiphy="() => showGiphyPicker = false"
             :position="'above'"
             :triggerElement="gifTriggerRef || undefined"
           />
@@ -288,7 +288,6 @@ import { useProfileStore } from '@/stores/useProfile';
 import type { TimelinePost, Post } from '@/types';
 
 // Composables
-import { useComposerState } from '@/composables/useComposerState';
 import { useComposerActions } from '@/composables/useComposerActions';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
@@ -335,15 +334,48 @@ const emojiTriggerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const isPosting = ref(false);
 
-// State management using composable
-const state = useComposerState({
-  defaultVisibility: props.defaultVisibility
+// Direct state management (no composable to avoid ref confusion)
+const content = ref('');
+const contentWarning = ref('');
+const visibility = ref<Post['visibility']>(props.defaultVisibility || 'public');
+const isSensitive = ref(false);
+const showContentWarning = ref(false);
+const showVisibilityMenu = ref(false);
+const showEmojiPicker = ref(false);
+const showGiphyPicker = ref(false);
+const isDraft = ref(false);
+const mediaAttachments = ref<any[]>([]);
+
+// Constants
+const characterLimit = 500;
+const maxMediaAttachments = 4;
+
+// Computed
+const remainingCharacters = computed(() => characterLimit - content.value.length);
+const characterCounterClass = computed(() => {
+  const remaining = remainingCharacters.value;
+  if (remaining < 0) return 'over-limit';
+  if (remaining < 20) return 'warning';
+  return '';
 });
+const canSubmit = computed(() => {
+  const hasContent = content.value.trim().length > 0 || mediaAttachments.value.length > 0;
+  const withinLimit = content.value.length <= characterLimit;
+  return hasContent && withinLimit;
+});
+const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttachments);
+
+const visibilityOptions = [
+  { value: 'public' as const, label: 'Public', description: 'Visible to everyone', icon: 'globe' },
+  { value: 'unlisted' as const, label: 'Unlisted', description: 'Not shown in public timelines', icon: 'unlock' },
+  { value: 'followers' as const, label: 'Followers', description: 'Only visible to followers', icon: 'users' },
+  { value: 'direct' as const, label: 'Direct', description: 'Only mentioned users', icon: 'mail' }
+];
 
 // AutoSuggest setup
-const getCurrentText = () => state.content.value || '';
+const getCurrentText = () => content.value || '';
 const updateText = (newText: string) => {
-  state.content.value = newText;
+  content.value = newText;
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'activitypub',
@@ -354,14 +386,14 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
 
 // Actions using composable
 const actions = useComposerActions({
-  content: state.content,
+  content,
   richEditorRef,
-  showEmojiPicker: state.showEmojiPicker,
-  showGiphyPicker: state.showGiphyPicker,
-  mediaAttachments: state.mediaAttachments,
-  canAddMedia: state.canAddMedia,
+  showEmojiPicker,
+  showGiphyPicker,
+  mediaAttachments,
+  canAddMedia,
   onContentUpdate: (newContent) => {
-    state.content.value = newContent;
+    content.value = newContent;
   }
 });
 
@@ -422,12 +454,12 @@ const contentClasses = computed(() => {
 
 // Methods
 const handleContentUpdate = (newContent: string) => {
-  state.content.value = newContent;
+  content.value = newContent;
 };
 
 const handleCursorPositionChanged = (position: number) => {
   if (richEditorRef.value) {
-    autoSuggest.handleInput(state.content.value, position);
+    autoSuggest.handleInput(content.value, position);
   }
 };
 
@@ -457,29 +489,46 @@ const triggerFileUpload = () => {
   fileInputRef.value?.click();
 };
 
+const setVisibility = (newVisibility: Post['visibility']) => {
+  visibility.value = newVisibility;
+  showVisibilityMenu.value = false;
+};
+
+const toggleContentWarning = () => {
+  showContentWarning.value = !showContentWarning.value;
+  if (!showContentWarning.value) {
+    contentWarning.value = '';
+  }
+};
+
+const removeMediaAttachment = (index: number) => {
+  const media = mediaAttachments.value[index];
+  if (media.url?.startsWith('blob:')) {
+    URL.revokeObjectURL(media.url);
+  }
+  mediaAttachments.value.splice(index, 1);
+};
+
 const closeVisibilityMenu = () => {
-  state.showVisibilityMenu.value = false;
+  showVisibilityMenu.value = false;
 };
 
 const toggleVisibilityMenu = () => {
-  // Close other pickers when opening visibility menu
-  state.showEmojiPicker.value = false;
-  state.showGiphyPicker.value = false;
-  state.showVisibilityMenu.value = !state.showVisibilityMenu.value;
+  showEmojiPicker.value = false;
+  showGiphyPicker.value = false;
+  showVisibilityMenu.value = !showVisibilityMenu.value;
 };
 
 const toggleEmojiPicker = () => {
-  // Close other pickers when opening emoji picker
-  state.showVisibilityMenu.value = false;
-  state.showGiphyPicker.value = false;
-  state.showEmojiPicker.value = !state.showEmojiPicker.value;
+  showVisibilityMenu.value = false;
+  showGiphyPicker.value = false;
+  showEmojiPicker.value = !showEmojiPicker.value;
 };
 
 const toggleGifPicker = () => {
-  // Close other pickers when opening GIF picker
-  state.showVisibilityMenu.value = false;
-  state.showEmojiPicker.value = false;
-  state.showGiphyPicker.value = !state.showGiphyPicker.value;
+  showVisibilityMenu.value = false;
+  showEmojiPicker.value = false;
+  showGiphyPicker.value = !showGiphyPicker.value;
 };
 
 const handleOverlayClick = () => {
@@ -490,45 +539,64 @@ const handleOverlayClick = () => {
 
 const handleEmojiInsert = (emoji: any) => {
   actions.insertEmoji(emoji);
-  state.showEmojiPicker.value = false;
+  showEmojiPicker.value = false;
 };
 
 const handleGifInsert = (gif: any) => {
   actions.insertGif(gif);
-  state.showGiphyPicker.value = false;
+  showGiphyPicker.value = false;
 };
 
 const handleClose = () => {
   // Close all pickers
-  state.showEmojiPicker.value = false;
-  state.showGiphyPicker.value = false;
-  state.showVisibilityMenu.value = false;
+  showEmojiPicker.value = false;
+  showGiphyPicker.value = false;
+  showVisibilityMenu.value = false;
   
-  if (state.content.value.trim() && !isPosting.value) {
+  if (content.value.trim() && !isPosting.value) {
     // Save as draft
-    state.isDraft.value = true;
+    isDraft.value = true;
     setTimeout(() => {
-      state.isDraft.value = false;
+      isDraft.value = false;
     }, 2000);
   }
   emit('close');
 };
 
+const resetComposer = () => {
+  content.value = '';
+  contentWarning.value = '';
+  visibility.value = props.defaultVisibility || 'public';
+  isSensitive.value = false;
+  showContentWarning.value = false;
+  showVisibilityMenu.value = false;
+  showEmojiPicker.value = false;
+  showGiphyPicker.value = false;
+  isDraft.value = false;
+  
+  mediaAttachments.value.forEach(media => {
+    if (media.url?.startsWith('blob:')) {
+      URL.revokeObjectURL(media.url);
+    }
+  });
+  mediaAttachments.value = [];
+};
+
 const handleSubmit = async () => {
-  if (!state.canSubmit.value || isPosting.value) return;
+  if (!canSubmit.value || isPosting.value) return;
 
   isPosting.value = true;
   
   try {
     const post = await actions.submitPost(
-      state.visibility.value,
-      state.contentWarning.value,
-      state.isSensitive.value,
+      visibility.value,
+      contentWarning.value,
+      isSensitive.value,
       props.type === 'reply' ? props.replyToPost?.id : undefined
     );
 
     // Reset state
-    state.reset();
+    resetComposer();
     
     // Emit success
     emit('posted', post);
@@ -553,7 +621,7 @@ onMounted(() => {
     const mention = (!isLocal && domain)
       ? `@${username}@${domain} `
       : `@${username} `;
-    state.content.value = mention;
+    content.value = mention;
   }
 
   // Focus editor after mount
@@ -575,7 +643,7 @@ watch(() => props.isOpen, (isOpen) => {
 
 // Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {
-  if (props.type === 'reply' && replyPost?.author && state.content.value === '') {
+  if (props.type === 'reply' && replyPost?.author && content.value === '') {
     const author = replyPost.author;
     const username = author.username || '';
     const domain = author.domain || '';
@@ -584,7 +652,7 @@ watch(() => props.replyToPost, (replyPost) => {
     const mention = (!isLocal && domain)
       ? `@${username}@${domain} `
       : `@${username} `;
-    state.content.value = mention;
+    content.value = mention;
     
     nextTick(() => {
       richEditorRef.value?.focus();
