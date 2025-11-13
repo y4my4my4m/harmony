@@ -25,72 +25,70 @@ This backend handles ONLY ActivityPub federation. It does NOT handle:
 - Send to remote instances
 - Handle retries
 
+✅ **Federated Discord Servers** (Innovation!)
+- Servers as ActivityPub Groups
+- Smart local-first routing
+- Efficient batching by instance
+- Multi-instance communities
+
 ✅ **Incoming Activities**
 - Receive from remote instances
 - Verify signatures
 - Process activities
 - Write to database
 
+---
+
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ or Bun
-- Supabase project
-- Redis (optional, for queue processing)
+- Node.js 18+
+- Supabase running (Docker or cloud)
 
 ### Installation
 
 ```bash
-cd backend
+# 1. Install dependencies
 npm install
+
+# 2. Configure environment
+cp .env.example .env
+nano .env  # Add your Supabase keys (NEVER commit .env!)
+
+# 3. Start development server
+npm run dev
 ```
 
 ### Configuration
 
-Copy `.env.example` to `.env` and configure:
+**IMPORTANT**: Never commit `.env` with real keys!
 
-```bash
-cp .env.example .env
-```
+Copy `.env.example` and fill in:
+- `SUPABASE_URL` - Your Supabase URL
+- `SUPABASE_SERVICE_ROLE_KEY` - From Supabase dashboard (KEEP SECRET!)
+- `INSTANCE_DOMAIN` - Your actual domain
 
-Required environment variables:
-- `SUPABASE_URL` - Your Supabase project URL
-- `SUPABASE_SERVICE_ROLE_KEY` - Service role key from Supabase
-- `INSTANCE_DOMAIN` - Your instance domain
+---
 
-### Development
+## Running Options
 
+### Option 1: Direct (Development)
 ```bash
 npm run dev
 ```
 
-Server runs on `http://localhost:3001`
-
-### Build
-
+### Option 2: Docker (Production)
 ```bash
-npm run build
-npm start
+docker compose up -d
 ```
 
-## Project Structure
+### Option 3: Docker Dev (Hot Reload)
+```bash
+docker compose -f docker-compose.dev.yml up
+```
 
-```
-backend/
-├── src/
-│   ├── config/          # Configuration and Supabase client
-│   ├── controllers/     # Request handlers
-│   ├── services/        # Business logic
-│   ├── routes/          # API routes
-│   ├── middleware/      # Express middleware
-│   ├── utils/           # Utilities (logger, cache)
-│   ├── types/           # TypeScript types
-│   └── index.ts         # App entry point
-├── dist/                # Compiled output
-├── logs/                # Log files
-└── package.json
-```
+---
 
 ## Endpoints
 
@@ -98,52 +96,90 @@ backend/
 - `GET /.well-known/webfinger` - WebFinger discovery
 - `GET /.well-known/nodeinfo` - NodeInfo metadata
 - `GET /nodeinfo/2.0` - NodeInfo 2.0
-- `GET /users/:username` - Actor endpoint
-- `POST /inbox` - Shared inbox
+- `GET /users/:username` - User Actor
 - `POST /users/:username/inbox` - User inbox
 - `GET /users/:username/outbox` - User outbox
-- `GET /users/:username/followers` - Followers collection
-- `GET /users/:username/following` - Following collection
+- `GET /servers/:serverId` - Server as Group
+- `POST /servers/:serverId/inbox` - Server inbox
+- `GET /servers/:serverId/outbox` - Server outbox
+- `POST /inbox` - Shared inbox
 
 ### Management
 - `GET /health` - Health check
-- `POST /api/activitypub/process-delivery` - Manually trigger delivery queue
+- `POST /api/activitypub/process-delivery` - Manual delivery trigger
 
-## Authentication
+---
 
-All authenticated endpoints require a Bearer token:
+## Security
 
+**⚠️ NEVER commit these to git**:
+- `.env` file
+- `SUPABASE_SERVICE_ROLE_KEY`
+- Production credentials
+
+The `.gitignore` is configured to exclude:
+- `.env`
+- `.env.local`
+- `.env.production`
+
+**Always use `.env.example` for documentation!**
+
+---
+
+## Docker Setup
+
+### Using Docker Compose
+
+```bash
+# 1. Create .env file (from .env.example)
+cp .env.example .env
+nano .env  # Add your keys
+
+# 2. Start
+docker compose up -d
+
+# 3. View logs
+docker compose logs -f
+
+# 4. Stop
+docker compose down
 ```
-Authorization: Bearer <supabase-jwt-token>
+
+### Environment Variables
+
+Docker Compose reads from `.env` file automatically!
+
+**Never put real keys in docker-compose.yml!**
+
+---
+
+## Development
+
+```bash
+# Hot reload (watches for file changes)
+npm run dev
+
+# Build for production
+npm run build
+
+# Run production build
+npm start
+
+# Type checking
+npm run type-check
 ```
 
-## Rate Limits
+---
 
-- General API: 100 requests per 15 minutes
-- Auth endpoints: 5 requests per 15 minutes
-- Profile updates: 10 per minute
-- Messages: 20 per 10 seconds
-- Posts: 10 per minute
-
-## Error Handling
-
-All errors return JSON:
-
-```json
-{
-  "success": false,
-  "error": "Error message"
-}
-```
-
-## Logging
+## Logs
 
 Logs are written to:
 - `logs/combined.log` - All logs
-- `logs/error.log` - Error logs only
+- `logs/error.log` - Errors only
 - Console (development)
+
+---
 
 ## License
 
 MIT
-
