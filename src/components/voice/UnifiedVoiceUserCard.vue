@@ -235,14 +235,12 @@ const voiceIntensity = computed(() => {
 });
 
 const hasVideo = computed(() => {
-  // Trust the actual stream tracks (reality trumps state)
-  if (userStream.value) {
-    const hasVideoTracks = userStream.value.getVideoTracks().length > 0;
-    return hasVideoTracks;
-  }
+  const hasVideoTracks = userStream.value?.getVideoTracks().length ?? 0;
+  const stateIndicatesVideo = props.userState.isVideoEnabled || props.userState.isScreenSharing;
   
-  // No stream yet - rely on state as fallback (for UI hints)
-  return props.userState.isVideoEnabled || props.userState.isScreenSharing;
+  // Show video if tracks exist OR state says video is on
+  // This handles both turn-on (state first) and turn-off (tracks removed first)
+  return hasVideoTracks > 0 || stateIndicatesVideo;
 });
 
 const connectionQuality = computed(() => {
@@ -296,18 +294,18 @@ watch(
   () => userStream.value,
   (newStream) => {
     if (videoElement.value) {
-      // Check if stream has video tracks
       const hasVideoTracks = newStream?.getVideoTracks().length ?? 0;
       
       if (hasVideoTracks > 0) {
         // Has video tracks - update srcObject
         videoElement.value.srcObject = newStream;
         console.log(`📹 Updating video stream for user ${props.userState.userId}. Video tracks: ${hasVideoTracks}`);
-      } else {
-        // No video tracks - clear srcObject to remove frozen frame
+      } else if (!props.userState.isVideoEnabled && !props.userState.isScreenSharing) {
+        // No video tracks AND state says off - clear to remove frozen frame
         videoElement.value.srcObject = null;
-        console.log(`📹 Clearing video stream for user ${props.userState.userId} (no video tracks)`);
+        console.log(`📹 Clearing video stream for user ${props.userState.userId} (camera off)`);
       }
+      // else: No tracks yet but state says on - keep old srcObject temporarily (negotiation in progress)
     }
   },
   { immediate: true }
