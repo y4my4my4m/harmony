@@ -4,18 +4,18 @@
   <component :is="wrapperComponent" v-bind="wrapperProps">
     <div :class="composerClasses" @click.self="handleOverlayClick">
       <div :class="contentClasses">
-        <!-- Header (modal only) -->
-        <div v-if="mode === 'modal'" class="composer-header">
+        <!-- Header -->
+        <div class="composer-header">
           <h2 class="composer-title">
             {{ headerTitle }}
           </h2>
-          <button class="close-button" @click="handleClose">
+          <button v-if="mode === 'modal'" class="close-button" @click="handleClose">
             <Icon name="x" />
           </button>
         </div>
 
-        <!-- Reply Context (for modal replies only) -->
-        <div v-if="type === 'reply' && replyToPost && mode === 'modal'" class="reply-context">
+        <!-- Reply Context (for replies only) -->
+        <div v-if="type === 'reply' && replyToPost" class="reply-context">
           <div class="reply-thread-line"></div>
           <div class="reply-to-post">
             <Avatar 
@@ -38,7 +38,7 @@
 
         <!-- Main Composer Body -->
         <div class="composer-body">
-          <div v-if="mode === 'modal'" class="composer-user">
+          <div class="composer-user">
             <Avatar 
               :src="currentUser?.avatar_url"
               :alt="currentUser?.display_name || currentUser?.username"
@@ -607,7 +607,6 @@ const vClickOutside = {
   border-radius: 12px;
   background-color: var(--background-primary);
   padding: 1rem;
-  margin-top: 0.5rem;
 }
 
 /* Header */
@@ -707,12 +706,6 @@ const vClickOutside = {
 
 .composer-inline-content .composer-body {
   padding: 0;
-  gap: 0;
-}
-
-/* Hide user avatar in inline mode - already obvious */
-.composer-inline-content .composer-user {
-  display: none;
 }
 
 .composer-user {
@@ -754,10 +747,6 @@ const vClickOutside = {
   margin-bottom: 1rem;
 }
 
-.composer-inline-content .text-input-container {
-  margin-bottom: 0.5rem;
-}
-
 .character-counter {
   position: absolute;
   bottom: 0.75rem;
@@ -781,11 +770,6 @@ const vClickOutside = {
   justify-content: space-between;
   gap: 1rem;
   margin-top: 1rem;
-  flex-wrap: wrap;
-}
-
-.composer-inline-content .compose-options {
-  margin-top: 0.75rem;
 }
 
 .option-group {
@@ -911,8 +895,6 @@ const vClickOutside = {
 
 .composer-inline-content .composer-footer {
   padding: 1rem 0 0;
-  border-top: none;
-  margin-top: 0.5rem;
 }
 
 .footer-info {
