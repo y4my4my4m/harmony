@@ -10,7 +10,9 @@
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "format": "prettier --write src/**/*.ts"
+    "format": "prettier --write src/**/*.ts",
+    "diagnose": "tsx diagnose-federation.ts",
+    "refresh-users": "tsx refresh-remote-users.ts"
   },
   "keywords": ["activitypub", "federation", "fediverse", "mastodon", "misskey"],
   "author": "",

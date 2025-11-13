@@ -1,8 +1,8 @@
 /**
  * Diagnostic script to check federation data
- * Run with: node diagnose-federation.js [username]
+ * Run with: npm run diagnose [username]
  * 
- * Example: node diagnose-federation.js y4my4m
+ * Example: npm run diagnose y4my4m
  */
 
 import { getSupabaseClient } from './src/config/supabase.js';
@@ -50,7 +50,7 @@ async function diagnose() {
     .eq('status', 'accepted');
   
   console.log(`Found ${followers?.length || 0} followers:\n`);
-  followers?.forEach(f => {
+  followers?.forEach((f: any) => {
     const profile = f.profiles;
     console.log(`User: ${profile.username}@${profile.domain}`);
     console.log(`  Is Local: ${profile.is_local}`);
@@ -83,7 +83,7 @@ async function diagnose() {
     .eq('status', 'accepted');
   
   console.log(`Following ${following?.length || 0} users:\n`);
-  following?.forEach(f => {
+  following?.forEach((f: any) => {
     const profile = f.profiles;
     console.log(`User: ${profile.username}@${profile.domain}`);
     console.log(`  Is Local: ${profile.is_local}`);
@@ -111,7 +111,7 @@ async function diagnose() {
   
   if (withoutInbox > 0) {
     console.log('\n⚠️  WARNING: Some remote users missing inbox URLs!');
-    console.log('Run: node refresh-remote-users.js');
+    console.log('Run: npm run refresh-users');
   }
 }
 

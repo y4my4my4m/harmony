@@ -2,7 +2,7 @@
  * Utility to refresh remote user profile data
  * Fetches actor data from remote servers and updates inbox URLs
  * 
- * Run with: node refresh-remote-users.js
+ * Run with: npm run refresh-users
  */
 
 import { getSupabaseClient } from './src/config/supabase.js';
@@ -11,7 +11,7 @@ import { logger } from './src/utils/logger.js';
 
 const supabase = getSupabaseClient();
 
-async function refreshRemoteUser(userId, federatedId) {
+async function refreshRemoteUser(userId: string, federatedId: string): Promise<boolean> {
   try {
     logger.info(`Fetching actor data for: ${federatedId}`);
     
