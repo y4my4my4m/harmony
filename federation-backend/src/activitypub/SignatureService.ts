@@ -41,16 +41,30 @@ export class SignatureService {
   ): Promise<{ headers: Record<string, string>; digest?: string }> {
     const supabase = getSupabaseClient();
 
-    // Get user's private key
-    const { data: user, error } = await supabase
+    // Get user profile
+    const { data: user, error: userError } = await supabase
       .from('profiles')
-      .select('private_key, username, domain')
+      .select('username, domain')
       .eq('id', userId)
       .single();
 
-    if (error || !user || !user.private_key) {
+    if (userError || !user) {
+      throw new AppError(500, 'User not found');
+    }
+
+    // Get user's private key from user_private_keys table
+    const { data: keyData, error: keyError } = await supabase
+      .from('user_private_keys')
+      .select('private_key')
+      .eq('user_id', userId)
+      .single();
+
+    if (keyError || !keyData || !keyData.private_key) {
+      logger.error(`Failed to get private key for user ${userId}:`, keyError);
       throw new AppError(500, 'User private key not found');
     }
+    
+    const privateKey = keyData.private_key;
 
     const url = new URL(targetUrl);
     const date = new Date().toUTCString();
@@ -81,7 +95,7 @@ export class SignatureService {
     sign.update(signingString);
     sign.end();
 
-    const signature = sign.sign(user.private_key, 'base64');
+    const signature = sign.sign(privateKey, 'base64');
 
     // Create signature header
     const keyId = `https://${user.domain}/users/${user.username}#main-key`;
