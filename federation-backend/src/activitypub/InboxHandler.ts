@@ -25,6 +25,13 @@ router.post(
 router.post(
   '/users/:username/inbox',
   asyncHandler(async (req: Request, res: Response) => {
+    logger.info(`📮 POST to /users/${req.params.username}/inbox from ${req.ip}`);
+    logger.info(`Headers:`, {
+      'content-type': req.headers['content-type'],
+      'signature': req.headers.signature ? 'present' : 'missing',
+      'digest': req.headers.digest ? 'present' : 'missing',
+      'user-agent': req.headers['user-agent']
+    });
     await handleInbox(req, res, req.params.username);
   })
 );
@@ -39,8 +46,12 @@ async function handleInbox(
 ): Promise<void> {
   const activity = req.body;
 
+  logger.info(`🔍 handleInbox called for user: ${username || 'shared inbox'}`);
+  logger.info(`📦 Activity body:`, JSON.stringify(activity).substring(0, 200));
+
   // Validate activity structure
   if (!activity || !activity.type || !activity.actor) {
+    logger.error(`❌ Invalid activity structure`);
     res.status(400).json({ error: 'Invalid activity' });
     return;
   }
