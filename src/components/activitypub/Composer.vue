@@ -60,7 +60,14 @@
             </div>
 
             <!-- Main Text Input -->
-            <div class="text-input-container">
+            <div 
+              class="text-input-container"
+              :class="{ 'is-dragging': isDragging }"
+              @dragenter.prevent="handleDragEnter"
+              @dragover.prevent="handleDragOver"
+              @dragleave.prevent="handleDragLeave"
+              @drop.prevent="handleDrop"
+            >
               <RichTextEditor
                 ref="richEditorRef"
                 :model-value="content"
@@ -72,6 +79,12 @@
                 @cursor-position-changed="handleCursorPositionChanged"
                 @paste="actions.handlePaste"
               />
+              
+              <!-- Drag & Drop Overlay -->
+              <div v-if="isDragging" class="drag-drop-overlay">
+                <Icon name="upload" :size="32" />
+                <span>Drop images or videos here</span>
+              </div>
               
               <!-- Character Counter -->
               <div class="character-counter" :class="characterCounterClass">
@@ -333,6 +346,7 @@ const fileInputRef = ref<HTMLInputElement>();
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const isPosting = ref(false);
+const isDragging = ref(false);
 
 // Direct state management (no composable to avoid ref confusion)
 const content = ref('');
@@ -489,6 +503,63 @@ const triggerFileUpload = () => {
   fileInputRef.value?.click();
 };
 
+// Drag and drop handlers
+const handleDragEnter = (event: DragEvent) => {
+  event.preventDefault();
+  // Only show overlay for image/video files
+  const items = event.dataTransfer?.items;
+  if (items) {
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/') || item.type.startsWith('video/')) {
+        isDragging.value = true;
+        break;
+      }
+    }
+  }
+};
+
+const handleDragOver = (event: DragEvent) => {
+  event.preventDefault();
+};
+
+const handleDragLeave = (event: DragEvent) => {
+  event.preventDefault();
+  const currentTarget = event.currentTarget as HTMLElement;
+  const relatedTarget = event.relatedTarget as Node | null;
+  if (!currentTarget?.contains(relatedTarget)) {
+    isDragging.value = false;
+  }
+};
+
+const handleDrop = async (event: DragEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  isDragging.value = false;
+
+  const files = event.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+
+  // Filter for images and videos only
+  const mediaFiles = Array.from(files).filter(
+    file => file.type.startsWith('image/') || file.type.startsWith('video/')
+  );
+
+  if (mediaFiles.length === 0) {
+    console.warn('Only images and videos can be dropped');
+    return;
+  }
+
+  // Create mock event for handleFileUpload
+  const mockEvent = {
+    target: {
+      files: mediaFiles,
+      value: ''
+    }
+  } as any;
+
+  await actions.handleFileUpload(mockEvent);
+};
+
 const setVisibility = (newVisibility: Post['visibility']) => {
   visibility.value = newVisibility;
   showVisibilityMenu.value = false;
@@ -520,15 +591,17 @@ const toggleVisibilityMenu = () => {
 };
 
 const toggleEmojiPicker = () => {
+  const wasOpen = showEmojiPicker.value;
   showVisibilityMenu.value = false;
   showGiphyPicker.value = false;
-  showEmojiPicker.value = !showEmojiPicker.value;
+  showEmojiPicker.value = !wasOpen;
 };
 
 const toggleGifPicker = () => {
+  const wasOpen = showGiphyPicker.value;
   showVisibilityMenu.value = false;
   showEmojiPicker.value = false;
-  showGiphyPicker.value = !showGiphyPicker.value;
+  showGiphyPicker.value = !wasOpen;
 };
 
 const handleOverlayClick = () => {
@@ -867,6 +940,28 @@ const vClickOutside = {
 
 .composer-inline-content .text-input-container {
   margin-bottom: 0.75rem;
+}
+
+.text-input-container.is-dragging {
+  border: 2px dashed var(--harmony-primary);
+  border-radius: 0.5rem;
+  background-color: rgba(88, 101, 242, 0.05);
+}
+
+.drag-drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 0.5rem;
+  color: white;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10;
 }
 
 .character-counter {
