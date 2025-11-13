@@ -341,9 +341,9 @@ const state = useComposerState({
 });
 
 // AutoSuggest setup
-const getCurrentText = () => state.content || '';
+const getCurrentText = () => state.content.value || '';
 const updateText = (newText: string) => {
-  state.content = newText;
+  state.content.value = newText;
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'activitypub',
@@ -361,7 +361,7 @@ const actions = useComposerActions({
   mediaAttachments: state.mediaAttachments,
   canAddMedia: state.canAddMedia,
   onContentUpdate: (newContent) => {
-    state.content = newContent;
+    state.content.value = newContent;
   }
 });
 
@@ -422,12 +422,12 @@ const contentClasses = computed(() => {
 
 // Methods
 const handleContentUpdate = (newContent: string) => {
-  state.content = newContent;
+  state.content.value = newContent;
 };
 
 const handleCursorPositionChanged = (position: number) => {
   if (richEditorRef.value) {
-    autoSuggest.handleInput(state.content, position);
+    autoSuggest.handleInput(state.content.value, position);
   }
 };
 
@@ -458,28 +458,28 @@ const triggerFileUpload = () => {
 };
 
 const closeVisibilityMenu = () => {
-  state.showVisibilityMenu = false;
+  state.showVisibilityMenu.value = false;
 };
 
 const toggleVisibilityMenu = () => {
   // Close other pickers when opening visibility menu
-  state.showEmojiPicker = false;
-  state.showGiphyPicker = false;
-  state.showVisibilityMenu = !state.showVisibilityMenu;
+  state.showEmojiPicker.value = false;
+  state.showGiphyPicker.value = false;
+  state.showVisibilityMenu.value = !state.showVisibilityMenu.value;
 };
 
 const toggleEmojiPicker = () => {
   // Close other pickers when opening emoji picker
-  state.showVisibilityMenu = false;
-  state.showGiphyPicker = false;
-  state.showEmojiPicker = !state.showEmojiPicker;
+  state.showVisibilityMenu.value = false;
+  state.showGiphyPicker.value = false;
+  state.showEmojiPicker.value = !state.showEmojiPicker.value;
 };
 
 const toggleGifPicker = () => {
   // Close other pickers when opening GIF picker
-  state.showVisibilityMenu = false;
-  state.showEmojiPicker = false;
-  state.showGiphyPicker = !state.showGiphyPicker;
+  state.showVisibilityMenu.value = false;
+  state.showEmojiPicker.value = false;
+  state.showGiphyPicker.value = !state.showGiphyPicker.value;
 };
 
 const handleOverlayClick = () => {
@@ -490,40 +490,40 @@ const handleOverlayClick = () => {
 
 const handleEmojiInsert = (emoji: any) => {
   actions.insertEmoji(emoji);
-  state.showEmojiPicker = false;
+  state.showEmojiPicker.value = false;
 };
 
 const handleGifInsert = (gif: any) => {
   actions.insertGif(gif);
-  state.showGiphyPicker = false;
+  state.showGiphyPicker.value = false;
 };
 
 const handleClose = () => {
   // Close all pickers
-  state.showEmojiPicker = false;
-  state.showGiphyPicker = false;
-  state.showVisibilityMenu = false;
+  state.showEmojiPicker.value = false;
+  state.showGiphyPicker.value = false;
+  state.showVisibilityMenu.value = false;
   
-  if (state.content.trim() && !isPosting.value) {
+  if (state.content.value.trim() && !isPosting.value) {
     // Save as draft
-    state.isDraft = true;
+    state.isDraft.value = true;
     setTimeout(() => {
-      state.isDraft = false;
+      state.isDraft.value = false;
     }, 2000);
   }
   emit('close');
 };
 
 const handleSubmit = async () => {
-  if (!state.canSubmit || isPosting.value) return;
+  if (!state.canSubmit.value || isPosting.value) return;
 
   isPosting.value = true;
   
   try {
     const post = await actions.submitPost(
-      state.visibility,
-      state.contentWarning,
-      state.isSensitive,
+      state.visibility.value,
+      state.contentWarning.value,
+      state.isSensitive.value,
       props.type === 'reply' ? props.replyToPost?.id : undefined
     );
 
@@ -553,7 +553,7 @@ onMounted(() => {
     const mention = (!isLocal && domain)
       ? `@${username}@${domain} `
       : `@${username} `;
-    state.content = mention;
+    state.content.value = mention;
   }
 
   // Focus editor after mount
@@ -575,7 +575,7 @@ watch(() => props.isOpen, (isOpen) => {
 
 // Watch for reply context changes (when opening reply composer)
 watch(() => props.replyToPost, (replyPost) => {
-  if (props.type === 'reply' && replyPost?.author && state.content === '') {
+  if (props.type === 'reply' && replyPost?.author && state.content.value === '') {
     const author = replyPost.author;
     const username = author.username || '';
     const domain = author.domain || '';
@@ -584,7 +584,7 @@ watch(() => props.replyToPost, (replyPost) => {
     const mention = (!isLocal && domain)
       ? `@${username}@${domain} `
       : `@${username} `;
-    state.content = mention;
+    state.content.value = mention;
     
     nextTick(() => {
       richEditorRef.value?.focus();
