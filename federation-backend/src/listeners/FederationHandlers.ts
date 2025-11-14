@@ -64,11 +64,10 @@ export function createFollowActivity(follower: any, following: any): any {
 export async function createLikeActivity(
   user: any,
   objectUrl: string,
-  emojiId: string
+  emojiContent: string,
+  emojiData?: { name: string; url: string }
 ): Promise<any> {
-  // Get emoji details if it's a custom emoji
-  // For now, just use the emoji_id as emoji
-  return createLike(user, objectUrl, emojiId);
+  return createLike(user, objectUrl, emojiContent, emojiData);
 }
 
 /**

@@ -162,13 +162,24 @@ export function createAcceptActivity(actor: any, followActivity: any): any {
 /**
  * Create a Like activity (for reactions)
  */
-export function createLikeActivity(user: any, objectUrl: string, emoji?: string): any {
+export function createLikeActivity(
+  user: any, 
+  objectUrl: string, 
+  emojiContent?: string,
+  emojiData?: { name: string; url: string }
+): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
   const activityId = `${userUrl}/likes/${Date.now()}`;
 
   const activity: any = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      {
+        'toot': 'http://joinmastodon.org/ns#',
+        'Emoji': 'toot:Emoji'
+      }
+    ],
     id: activityId,
     type: 'Like',
     actor: userUrl,
@@ -176,9 +187,21 @@ export function createLikeActivity(user: any, objectUrl: string, emoji?: string)
   };
 
   // Add emoji for Misskey-style reactions
-  if (emoji) {
-    activity.content = emoji;
-    activity._misskey_reaction = emoji;
+  if (emojiContent) {
+    activity.content = emojiContent;
+    activity._misskey_reaction = emojiContent;
+    
+    // Add custom emoji tag for proper federation
+    if (emojiData) {
+      activity.tag = [{
+        type: 'Emoji',
+        name: emojiContent,
+        icon: {
+          type: 'Image',
+          url: emojiData.url
+        }
+      }];
+    }
   }
 
   return activity;

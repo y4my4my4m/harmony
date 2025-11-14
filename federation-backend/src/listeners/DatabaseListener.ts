@@ -247,10 +247,27 @@ async function handleNewReaction(interaction: any): Promise<void> {
       return;
     }
 
-    logger.info(`🌐 Federating reaction: ${interaction.emoji_id} on post ${post.id}`);
+    // Get emoji data if it's a custom emoji
+    let emojiContent = interaction.custom_emoji_content; // For unicode emojis
+    let emojiData = null;
+    
+    if (interaction.emoji_id) {
+      const { data: emoji } = await supabase
+        .from('emojis')
+        .select('name, url')
+        .eq('id', interaction.emoji_id)
+        .single();
+      
+      if (emoji) {
+        emojiData = emoji;
+        emojiContent = `:${emoji.name}:`; // Misskey format
+      }
+    }
+    
+    logger.info(`🌐 Federating reaction: ${emojiContent} on post ${post.id}`);
 
-    // Create Like activity
-    const activity = await createLikeActivity(user, post.ap_id, interaction.emoji_id);
+    // Create Like activity with proper emoji data
+    const activity = await createLikeActivity(user, post.ap_id, emojiContent, emojiData);
 
     // Send to post author's inbox (if remote)
     const { data: postAuthor } = await supabase

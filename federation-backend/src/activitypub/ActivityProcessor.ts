@@ -304,12 +304,31 @@ export class ActivityProcessor {
       return;
     }
 
-    // Find target post
-    const { data: post } = await supabase
+    // Find target post - try multiple methods
+    let post = null;
+    
+    // Method 1: Try by ap_id
+    const { data: postByApId } = await supabase
       .from('posts')
       .select('id')
       .eq('ap_id', objectUrl)
-      .single();
+      .maybeSingle();
+    
+    post = postByApId;
+    
+    // Method 2: If not found, try extracting UUID from URL
+    if (!post && objectUrl.includes('/posts/')) {
+      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        const postId = uuidMatch[1];
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('id', postId)
+          .maybeSingle();
+        post = postById;
+      }
+    }
 
     if (post) {
       // Add reaction/like to post using post_interactions table
