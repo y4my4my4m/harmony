@@ -564,7 +564,6 @@ const createProfile = async () => {
         if (uploadResult.success && uploadResult.url) {
           // Update profile with avatar URL
           await profileStore.updateProfile({
-            id: authStore.session.user.id,
             avatar_url: uploadResult.url,
             username: username.value,
             display_name: displayName.value.trim(),
@@ -589,7 +588,6 @@ const createProfile = async () => {
         if (uploadResult.success && uploadResult.url) {
           // Update profile with banner URL
           await profileStore.updateProfile({
-            id: authStore.session.user.id,
             banner_url: uploadResult.url,
             username: username.value,
             display_name: displayName.value.trim(),
