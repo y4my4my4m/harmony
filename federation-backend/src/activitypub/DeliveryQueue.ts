@@ -283,10 +283,10 @@ export class DeliveryQueue {
     // Log each follow record separately to ensure it prints
     logger.info(`=== RAW FOLLOWS DATA (${follows?.length || 0} records) ===`);
     follows?.forEach((f, i) => {
-      logger.info(`Follow ${i + 1}:`, {
+      logger.info(`Follow ${i + 1}: ${JSON.stringify({
         follower_id: (f as any).follower_id,
         profile_data: (f as any).profiles
-      });
+      }, null, 2)}`);
     });
     logger.info(`=== END RAW FOLLOWS DATA ===`);
 
