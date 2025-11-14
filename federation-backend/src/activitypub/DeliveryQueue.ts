@@ -280,7 +280,15 @@ export class DeliveryQueue {
       return;
     }
 
-    logger.debug(`Raw follows data from DB:`, JSON.stringify(follows, null, 2));
+    // Log each follow record separately to ensure it prints
+    logger.info(`=== RAW FOLLOWS DATA (${follows?.length || 0} records) ===`);
+    follows?.forEach((f, i) => {
+      logger.info(`Follow ${i + 1}:`, {
+        follower_id: (f as any).follower_id,
+        profile_data: (f as any).profiles
+      });
+    });
+    logger.info(`=== END RAW FOLLOWS DATA ===`);
 
     if (!follows || follows.length === 0) {
       logger.info('No followers to broadcast to');
