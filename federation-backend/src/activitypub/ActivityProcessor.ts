@@ -333,11 +333,39 @@ export class ActivityProcessor {
     }
 
     if (post) {
-      // Build metadata with emoji URL for remote custom emojis
-      const metadata: any = {};
-      if (emojiUrl) {
-        metadata.remote_emoji_url = emojiUrl;
-        metadata.remote_emoji_name = emojiName;
+      let emojiId = null;
+      
+      // For custom emojis with URLs, create/get local emoji entry
+      if (emojiUrl && emojiName) {
+        // Check if emoji already exists
+        const { data: existingEmoji } = await supabase
+          .from('emojis')
+          .select('id')
+          .eq('url', emojiUrl)
+          .maybeSingle();
+        
+        if (existingEmoji) {
+          emojiId = existingEmoji.id;
+        } else {
+          // Create new emoji entry for this remote custom emoji
+          const cleanName = emojiName.replace(/:/g, ''); // Remove colons
+          const { data: newEmoji } = await supabase
+            .from('emojis')
+            .insert({
+              name: cleanName,
+              url: emojiUrl,
+              server_id: null, // Global/federated emoji
+              created_by: user.id,
+              is_animated: emojiUrl.endsWith('.gif') || emojiUrl.includes('.apng'),
+            })
+            .select('id')
+            .single();
+          
+          if (newEmoji) {
+            emojiId = newEmoji.id;
+            logger.info(`✨ Created local emoji entry for remote emoji: ${cleanName}`);
+          }
+        }
       }
       
       // Add reaction/like to post using post_interactions table
@@ -345,9 +373,8 @@ export class ActivityProcessor {
         post_id: post.id,
         user_id: user.id,
         interaction_type: 'emoji_reaction',
-        emoji_id: null, // Remote custom emojis don't have local emoji_id
+        emoji_id: emojiId, // Use created/found emoji ID
         custom_emoji_content: emoji || '❤️',
-        metadata: Object.keys(metadata).length > 0 ? metadata : null,
         is_local: false,
       }, {
         onConflict: 'post_id,user_id,interaction_type'

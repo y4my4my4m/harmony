@@ -1,5 +1,4 @@
--- Fix get_post_emoji_reactions to show remote emoji URLs from metadata
--- Drop old versions first to avoid ambiguity
+-- Restore working version with ONLY remote emoji URL support added
 DROP FUNCTION IF EXISTS public.get_post_emoji_reactions(uuid);
 DROP FUNCTION IF EXISTS public.get_post_emoji_reactions(uuid, integer);
 
@@ -18,12 +17,8 @@ BEGIN
     SELECT 
         pi.emoji_id,
         e.name::text as emoji_name,
-        -- For remote custom emojis, use metadata.remote_emoji_url; otherwise use local emoji url
-        -- Use MAX to handle grouped rows
-        COALESCE(
-          e.url::text,
-          MAX(pi.metadata->>'remote_emoji_url')
-        ) as emoji_url,
+        -- ONLY CHANGE: Support remote emoji URLs from metadata
+        COALESCE(e.url::text, MAX(pi.metadata->>'remote_emoji_url')) as emoji_url,
         pi.custom_emoji_content,
         COUNT(*)::bigint as reaction_count,
         -- Only include limited user data for tooltips
@@ -50,11 +45,11 @@ BEGIN
         ) as user_reactions,
         -- Check if current user has reacted with this emoji
         CASE 
-            WHEN current_profile_id IS NULL THEN false
+            WHEN current_user_id IS NULL THEN false
             ELSE EXISTS(
                 SELECT 1 FROM post_interactions check_pi
                 WHERE check_pi.post_id = p_post_id
-                  AND check_pi.user_id = current_profile_id
+                  AND check_pi.user_id = current_user_id
                   AND check_pi.interaction_type = 'emoji_reaction'
                   AND (
                       (pi.emoji_id IS NOT NULL AND check_pi.emoji_id = pi.emoji_id) OR
@@ -71,10 +66,7 @@ BEGIN
 END;
 $function$;
 
-COMMENT ON FUNCTION get_post_emoji_reactions IS 
-  'Gets emoji reactions for a post, including remote custom emoji URLs from metadata';
-
--- Also update the batch version
+-- Also update batch version
 DROP FUNCTION IF EXISTS public.get_batch_post_emoji_reactions(uuid[]);
 DROP FUNCTION IF EXISTS public.get_batch_post_emoji_reactions(uuid[], integer);
 
@@ -94,15 +86,11 @@ BEGIN
         pi.post_id,
         pi.emoji_id,
         e.name::text as emoji_name,
-        -- For remote custom emojis, use metadata.remote_emoji_url; otherwise use local emoji url
-        -- Use MAX to handle grouped rows
-        COALESCE(
-          e.url::text,
-          MAX(pi.metadata->>'remote_emoji_url')
-        ) as emoji_url,
+        -- ONLY CHANGE: Support remote emoji URLs from metadata
+        COALESCE(e.url::text, MAX(pi.metadata->>'remote_emoji_url')) as emoji_url,
         pi.custom_emoji_content,
         COUNT(*)::bigint as reaction_count,
-        -- Only include limited user data for tooltips (efficient)
+        -- Limited user data for tooltips
         (
             SELECT jsonb_agg(
                 jsonb_build_object(
@@ -124,13 +112,13 @@ BEGIN
               )
             LIMIT p_user_limit
         ) as user_reactions,
-        -- Check if current user has reacted with this emoji
+        -- Check if current user has reacted
         CASE 
-            WHEN current_profile_id IS NULL THEN false
+            WHEN current_user_id IS NULL THEN false
             ELSE EXISTS(
                 SELECT 1 FROM post_interactions check_pi
                 WHERE check_pi.post_id = pi.post_id
-                  AND check_pi.user_id = current_profile_id
+                  AND check_pi.user_id = current_user_id
                   AND check_pi.interaction_type = 'emoji_reaction'
                   AND (
                       (pi.emoji_id IS NOT NULL AND check_pi.emoji_id = pi.emoji_id) OR
@@ -146,7 +134,4 @@ BEGIN
     ORDER BY pi.post_id, reaction_count DESC, MIN(pi.created_at) ASC;
 END;
 $function$;
-
-COMMENT ON FUNCTION get_batch_post_emoji_reactions IS 
-  'Batch fetch emoji reactions for multiple posts efficiently, including remote custom emoji URLs';
 
