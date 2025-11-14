@@ -244,21 +244,23 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async loadFollowCounts() {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) return;
+        // Get current user PROFILE ID (not auth.uid!)
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.id) return;
 
         // Get following count
         const { count: followingCount } = await supabase
           .from('follows')
           .select('*', { count: 'exact', head: true })
-          .eq('follower_id', user.data.user.id)
+          .eq('follower_id', currentUser.id)
           .eq('status', 'accepted');
 
         // Get followers count
         const { count: followersCount } = await supabase
           .from('follows')
           .select('*', { count: 'exact', head: true })
-          .eq('following_id', user.data.user.id)
+          .eq('following_id', currentUser.id)
           .eq('status', 'accepted');
 
         this.followingCount = followingCount || 0;
@@ -1892,18 +1894,18 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          console.log('🔄 Loading followed users via InteractionService');
          
-                 // Get current user ID via service layer for consistency
+         // Get current user PROFILE ID (not auth_user_id!)
         const { userDataService } = await import('@/services/userDataService');
         const currentUser = userDataService.getCurrentUser();
-        if (!currentUser?.auth_user_id) {
+        if (!currentUser?.id) {
           console.log('ℹ️ No current user available, skipping followed users loading');
           return;
         }
         
-        console.log('🔄 Current user for loading followed users:', currentUser.auth_user_id);
+        console.log('🔄 Current user PROFILE ID for loading followed users:', currentUser.id);
          
-                 // Use InteractionService for consistent relationship management
-        const result = await services.interactions.getFollowing(currentUser.auth_user_id);
+         // Use InteractionService with PROFILE ID
+        const result = await services.interactions.getFollowing(currentUser.id);
          console.log('🔄 Service result:', result);
          
          this.followedUsers = new Set(result.users.map(user => user.id));
@@ -1929,13 +1931,15 @@ export const useActivityPubStore = defineStore('activitypub', {
       * Fallback method for loading followed users
       */
     async _loadFollowedUsersFallback() {
-      const user = await supabase.auth.getUser();
-      if (!user.data.user) return;
+      // Get current user PROFILE ID
+      const { userDataService } = await import('@/services/userDataService');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
 
       const { data, error } = await supabase
         .from('follows')
         .select('following_id')
-        .eq('follower_id', user.data.user.id)
+        .eq('follower_id', currentUser.id)
         .eq('status', 'accepted');
 
       if (error) throw error;

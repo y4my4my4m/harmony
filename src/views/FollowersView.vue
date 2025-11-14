@@ -291,6 +291,10 @@ onMounted(async () => {
   max-width: 600px;
   margin: 0 auto;
   padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .view-header {
@@ -430,6 +434,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: visible;
 }
 
 .user-item {

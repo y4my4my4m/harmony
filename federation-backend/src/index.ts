@@ -9,6 +9,7 @@ import { apiLimiter } from './middleware/rateLimit.js';
 
 // Import routes
 import healthRouter from './routes/health.js';
+import keysRouter from './routes/keys.js';
 
 // Import ActivityPub routes (FEDERATION ONLY!)
 import webFingerRouter from './activitypub/WebFingerService.js';
@@ -50,6 +51,9 @@ app.use((req, res, next) => {
 
 // Health check (no rate limit)
 app.use('/health', healthRouter);
+
+// API routes
+app.use('/api/keys', keysRouter);
 
 // ActivityPub routes (FEDERATION ONLY - no rate limit)
 app.use('/', webFingerRouter);

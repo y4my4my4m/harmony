@@ -571,12 +571,20 @@ const createProfile = async () => {
       color: selectedColor.value,
       is_local: true, // This is a local user
       domain: instanceDomain, // Get from instance config
+      federated_id: `https://${instanceDomain}/users/${username.value.trim().toLowerCase()}`, // Set federated_id directly
+      inbox_url: `https://${instanceDomain}/users/${username.value.trim().toLowerCase()}/inbox`,
+      outbox_url: `https://${instanceDomain}/users/${username.value.trim().toLowerCase()}/outbox`,
+      followers_url: `https://${instanceDomain}/users/${username.value.trim().toLowerCase()}/followers`,
+      following_url: `https://${instanceDomain}/users/${username.value.trim().toLowerCase()}/following`,
     };
 
     console.log('Calling profileStore.createProfile...');
     creationStep.value = 'Setting up your profile...';
     const result = await profileStore.createProfile(profileData);
     console.log('Profile creation result:', result);
+    
+    // ActivityPub keys are generated lazily by federation-backend when first needed
+    // This keeps profile creation fast and non-blocking
     
     // Handle avatar upload if file exists
     if (avatarFile.value && result) {
