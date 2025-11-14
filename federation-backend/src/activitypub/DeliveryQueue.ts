@@ -281,16 +281,6 @@ export class DeliveryQueue {
       return;
     }
 
-    // Log each follow record separately to ensure it prints
-    logger.info(`=== RAW FOLLOWS DATA (${follows?.length || 0} records) ===`);
-    follows?.forEach((f, i) => {
-      logger.info(`Follow ${i + 1}: ${JSON.stringify({
-        follower_id: (f as any).follower_id,
-        profile_data: (f as any).profiles
-      }, null, 2)}`);
-    });
-    logger.info(`=== END RAW FOLLOWS DATA ===`);
-
     if (!follows || follows.length === 0) {
       logger.info('No followers to broadcast to');
       return;
@@ -302,29 +292,17 @@ export class DeliveryQueue {
     for (const follow of follows) {
       const follower = (follow as any).follower;
       
-      logger.debug(`Processing follower:`, {
-        follower_id: (follow as any).follower_id,
-        follower_data: follower,
-        is_local: follower?.is_local,
-        domain: follower?.domain,
-        inbox_url: follower?.inbox_url,
-        shared_inbox_url: follower?.shared_inbox_url
-      });
-      
       if (!follower) {
         logger.warn(`Follower profile is null for follower_id: ${(follow as any).follower_id}`);
         continue;
       }
       
       if (follower.is_local) {
-        logger.debug(`Skipping local follower: ${follower.domain}`);
         continue; // Skip local followers
       }
       
       // Prefer shared inbox, fall back to individual inbox
       const preferredInbox = follower.shared_inbox_url || follower.inbox_url;
-      
-      logger.debug(`Preferred inbox for ${follower.domain}: ${preferredInbox}`);
       
       if (preferredInbox) {
         const inboxType = follower.shared_inbox_url ? 'shared' : 'individual';
@@ -334,16 +312,11 @@ export class DeliveryQueue {
             inbox: preferredInbox,
             type: inboxType,
           });
-          logger.debug(`Added inbox to map: ${preferredInbox} (${inboxType})`);
-        } else {
-          logger.debug(`Inbox already in map: ${preferredInbox}`);
         }
       } else {
         logger.warn(`Follower from ${follower.domain} has no inbox URL configured`);
       }
     }
-    
-    logger.debug(`Final inbox map:`, Array.from(inboxMap.entries()));
 
     // Enqueue deliveries (one per unique inbox)
     let enqueued = 0;

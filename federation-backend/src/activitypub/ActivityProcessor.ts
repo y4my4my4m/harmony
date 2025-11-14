@@ -94,7 +94,7 @@ export class ActivityProcessor {
       return;
     }
 
-    logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`, followResult);
+    logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`);
 
     // Send Accept activity back to follower
     const { data: followingUser } = await supabase
