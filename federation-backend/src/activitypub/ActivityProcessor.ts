@@ -364,7 +364,6 @@ export class ActivityProcessor {
               name: cleanName,
               url: emojiUrl,
               server_id: null, // Global/federated emoji
-              created_by: user.id,
               is_animated: emojiUrl.endsWith('.gif') || emojiUrl.includes('.apng'),
             })
             .select('id')
@@ -382,15 +381,13 @@ export class ActivityProcessor {
       // Add reaction/like to post using post_interactions table
       logger.info(`💾 Inserting reaction: emoji_id=${emojiId}, custom_content=${emoji}`);
       
-      const { error: interactionError } = await supabase.from('post_interactions').upsert({
+      const { error: interactionError } = await supabase.from('post_interactions').insert({
         post_id: post.id,
         user_id: user.id,
         interaction_type: 'emoji_reaction',
         emoji_id: emojiId, // Use created/found emoji ID
         custom_emoji_content: emoji || '❤️',
         is_local: false,
-      }, {
-        onConflict: 'post_id,user_id,interaction_type'
       });
 
       if (interactionError) {
