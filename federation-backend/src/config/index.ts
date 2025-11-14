@@ -14,6 +14,9 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string(),
   SUPABASE_SERVICE_ROLE_KEY: z.string(),
+  // Public Supabase URL (for federation - can be different from internal URL)
+  // If not set, defaults to SUPABASE_URL
+  PUBLIC_SUPABASE_URL: z.string().url().optional(),
   
   // Instance
   INSTANCE_DOMAIN: z.string(),
@@ -38,7 +41,14 @@ const envSchema = z.object({
 // Validate and export configuration
 const parseEnv = () => {
   try {
-    return envSchema.parse(process.env);
+    const parsed = envSchema.parse(process.env);
+    
+    // If PUBLIC_SUPABASE_URL is not set, use SUPABASE_URL
+    if (!parsed.PUBLIC_SUPABASE_URL) {
+      parsed.PUBLIC_SUPABASE_URL = parsed.SUPABASE_URL;
+    }
+    
+    return parsed;
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.error('❌ Invalid environment variables:');

@@ -175,10 +175,72 @@ Should now show:
 
 ---
 
+---
+
+## 4. ⚠️ **Critical: Relative vs Absolute URLs**
+
+**Problem**: Avatar/banner URLs stored as:
+- **Local users**: Relative paths (`user-id/avatar.webp`)
+- **Remote users**: Absolute URLs (`https://mastodon.social/...`)
+
+When federating, we were sending relative paths which other instances can't access!
+
+**Fix**: Created `urlUtils.ts` with URL normalization:
+
+```typescript
+export function getFullAvatarUrl(avatarUrl: string | null): string | null {
+  // Already absolute URL (remote user) - return as-is
+  if (avatarUrl.startsWith('http')) return avatarUrl;
+  
+  // Relative path (local user) - convert to full Supabase URL
+  if (avatarUrl.includes('/')) {
+    const { data } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(avatarUrl);
+    return data.publicUrl;
+  }
+  
+  return null;
+}
+```
+
+Updated `profileToActor()` to use these utilities before sending to federation.
+
+**Result**: 
+- Local users: `user-id/avatar.webp` → `https://project.supabase.co/storage/v1/object/public/avatars/user-id/avatar.webp`
+- Remote users: `https://mastodon.social/...` → `https://mastodon.social/...` (unchanged)
+
+---
+
+## Files Changed
+
+1. **`federation-backend/src/activitypub/converters/toActivityPub.ts`**
+   - Fixed column names: `avatar` → `avatar_url`, `banner` → `banner_url`
+   - Added `createUpdateActivity()` function
+   - Added URL normalization for images
+   
+2. **`federation-backend/src/listeners/FederationHandlers.ts`**
+   - Added `createProfileUpdateActivity()` wrapper
+   - Added import for `createUpdateActivity`
+
+3. **`federation-backend/src/listeners/DatabaseListener.ts`**
+   - Added UPDATE listener for `profiles` table
+   - Added `handleProfileUpdate()` handler function
+
+4. **`federation-backend/src/activitypub/ActivityProcessor.ts`**
+   - Fixed incoming profile updates: `avatar` → `avatar_url`, `banner` → `banner_url`
+
+5. **`federation-backend/src/utils/urlUtils.ts`** ⭐ NEW
+   - `getFullAvatarUrl()` - converts relative paths to full URLs
+   - `getFullBannerUrl()` - same for banners
+
+---
+
 ## Summary
 
 ✅ **Issue 1 Fixed**: Profile pictures now properly advertised to federated instances  
 ✅ **Issue 2 Fixed**: Profile updates now federate to followers  
+✅ **Issue 3 Fixed**: Relative paths converted to absolute URLs for federation
 ✅ **Bonus**: Incoming profile updates also work correctly
 
 **Restart Required**: Yes, restart the federation backend to pick up changes.

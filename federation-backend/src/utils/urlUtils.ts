@@ -6,6 +6,23 @@ import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 
 /**
+ * Replace internal Supabase URL with public URL
+ * Handles cases where SUPABASE_URL is localhost but PUBLIC_SUPABASE_URL is the public domain
+ */
+function makeUrlPublic(url: string): string {
+  const internalUrl = config.SUPABASE_URL;
+  const publicUrl = config.PUBLIC_SUPABASE_URL;
+  
+  // If they're the same, no replacement needed
+  if (internalUrl === publicUrl) {
+    return url;
+  }
+  
+  // Replace internal URL with public URL
+  return url.replace(internalUrl, publicUrl!);
+}
+
+/**
  * Convert avatar_url to full absolute URL for federation
  * Handles:
  * - Relative paths (local users): "user-id/avatar.webp" -> full Supabase URL
@@ -29,7 +46,8 @@ export function getFullAvatarUrl(avatarUrl: string | null | undefined): string |
       .from('avatars')
       .getPublicUrl(avatarUrl);
     
-    return data.publicUrl;
+    // Replace localhost with public URL if needed
+    return makeUrlPublic(data.publicUrl);
   }
 
   // If it's a local asset path (starts with /), make it absolute
@@ -62,7 +80,8 @@ export function getFullBannerUrl(bannerUrl: string | null | undefined): string |
       .from('banners')
       .getPublicUrl(bannerUrl);
     
-    return data.publicUrl;
+    // Replace localhost with public URL if needed
+    return makeUrlPublic(data.publicUrl);
   }
 
   // If it's a local asset path (starts with /), make it absolute

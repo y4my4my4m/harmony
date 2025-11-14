@@ -339,11 +339,11 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
     }
 
     logger.info(`🌐 Federating profile update: ${newProfile.username}`);
-    logger.debug('Changed fields:', {
-      display_name: oldProfile.display_name !== newProfile.display_name,
-      bio: oldProfile.bio !== newProfile.bio,
-      avatar_url: oldProfile.avatar_url !== newProfile.avatar_url,
-      banner_url: oldProfile.banner_url !== newProfile.banner_url,
+    logger.info('Changed fields:', {
+      display_name: oldProfile.display_name !== newProfile.display_name ? `"${oldProfile.display_name}" → "${newProfile.display_name}"` : 'no change',
+      bio: oldProfile.bio !== newProfile.bio ? 'changed' : 'no change',
+      avatar_url: oldProfile.avatar_url !== newProfile.avatar_url ? `"${oldProfile.avatar_url}" → "${newProfile.avatar_url}"` : 'no change',
+      banner_url: oldProfile.banner_url !== newProfile.banner_url ? `"${oldProfile.banner_url}" → "${newProfile.banner_url}"` : 'no change',
     });
 
     const supabase = getSupabaseClient();
@@ -363,6 +363,17 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
     // Create Update activity
     const { createProfileUpdateActivity } = await import('./FederationHandlers.js');
     const activity = createProfileUpdateActivity(profile);
+
+    // Log what we're sending
+    logger.info('Update activity object:', {
+      id: activity.id,
+      type: activity.type,
+      actor: activity.actor,
+      hasIcon: !!activity.object.icon,
+      iconUrl: activity.object.icon?.url,
+      hasImage: !!activity.object.image,
+      imageUrl: activity.object.image?.url,
+    });
 
     // Broadcast to followers
     await DeliveryQueue.broadcastToFollowers(profile.id, activity);
