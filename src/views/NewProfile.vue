@@ -118,7 +118,8 @@
               <div class="input-feedback">
                 <span class="char-count">{{ username.length }}/24</span>
                 <span v-if="usernameError" class="error-text">{{ usernameError }}</span>
-                <span v-else-if="username" class="success-text">✓ Available</span>
+                <span v-else-if="checkingUsername" class="checking-text">Checking...</span>
+                <span v-else-if="usernameAvailable" class="success-text">✓ Available</span>
               </div>
             </div>
 
@@ -275,6 +276,7 @@ import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { uploadAvatar } from '@/utils/fileUpload';
 import { uploadBanner } from '@/utils/bannerUtils';
+import { supabase } from '@/supabase';
 
 const username = ref('');
 const displayName = ref('');
@@ -287,6 +289,8 @@ const bannerPreview = ref<string | null>(null);
 const selectedColor = ref('#5865f2');
 const usernameError = ref('');
 const displayNameError = ref('');
+const usernameAvailable = ref(false);
+const checkingUsername = ref(false);
 
 const domain = import.meta.env.VITE_DOMAIN;
 const profileStore = useProfileStore();
@@ -297,6 +301,8 @@ const toast = useToast();
 const avatarInput = ref<HTMLInputElement>();
 const bannerInput = ref<HTMLInputElement>();
 const colorInput = ref<HTMLInputElement>();
+
+let usernameCheckTimeout: NodeJS.Timeout | null = null;
 
 const colorPresets = [
   '#5865f2', '#57f287', '#fee75c', '#eb459e', '#ed4245',
@@ -314,7 +320,7 @@ const formattedUsername = computed(() => {
 const canProceed = computed(() => {
   switch (currentStep.value) {
     case 1: return true; // Avatar is optional
-    case 2: return displayName.value.trim() && username.value.trim() && !usernameError.value && !displayNameError.value;
+    case 2: return displayName.value.trim() && username.value.trim() && !usernameError.value && !displayNameError.value && usernameAvailable.value && !checkingUsername.value;
     case 3: return true;
     default: return false;
   }
@@ -402,20 +408,75 @@ const useDefaultBanner = () => {
   bannerPreview.value = null;
 };
 
+const checkUsernameAvailability = async (usernameToCheck: string) => {
+  if (usernameToCheck.length < 3) {
+    return;
+  }
+
+  checkingUsername.value = true;
+  usernameAvailable.value = false;
+
+  try {
+    // Check if username exists in database
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('username', usernameToCheck.toLowerCase())
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error checking username availability:', error);
+      usernameError.value = 'Error checking username availability';
+      checkingUsername.value = false;
+      return;
+    }
+
+    if (data) {
+      // Username already exists
+      usernameError.value = 'Username is already taken';
+      usernameAvailable.value = false;
+    } else {
+      // Username is available
+      usernameError.value = '';
+      usernameAvailable.value = true;
+    }
+  } catch (error) {
+    console.error('Exception checking username:', error);
+    usernameError.value = 'Error checking username availability';
+  } finally {
+    checkingUsername.value = false;
+  }
+};
+
 const formatUsername = (event: Event) => {
   const target = event.target as HTMLInputElement;
   let value = target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
   
-  // Validate username
-  if (value.length < 3 && value.length > 0) {
-    usernameError.value = 'Username must be at least 3 characters';
-  } else if (value.length === 0) {
-    usernameError.value = 'Username is required';
-  } else {
-    usernameError.value = '';
+  username.value = value;
+  usernameAvailable.value = false;
+  
+  // Clear any existing timeout
+  if (usernameCheckTimeout) {
+    clearTimeout(usernameCheckTimeout);
   }
   
-  username.value = value;
+  // Validate username format
+  if (value.length < 3 && value.length > 0) {
+    usernameError.value = 'Username must be at least 3 characters';
+    checkingUsername.value = false;
+    return;
+  } else if (value.length === 0) {
+    usernameError.value = 'Username is required';
+    checkingUsername.value = false;
+    return;
+  }
+  
+  // Debounce the availability check
+  usernameError.value = '';
+  checkingUsername.value = true;
+  usernameCheckTimeout = setTimeout(() => {
+    checkUsernameAvailability(value);
+  }, 500);
 };
 
 const validateDisplayName = () => {
@@ -609,7 +670,8 @@ const createProfile = async () => {
   justify-content: center;
   padding: 20px;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   width: 100%;
 }
 
@@ -652,9 +714,12 @@ const createProfile = async () => {
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   width: 100%;
   max-width: 500px;
+  max-height: 95vh;
   padding: 40px;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .profile-creation-card::before {
@@ -670,6 +735,7 @@ const createProfile = async () => {
 .card-header {
   text-align: center;
   margin-bottom: 40px;
+  flex-shrink: 0;
 }
 
 .logo-section {
@@ -752,6 +818,32 @@ const createProfile = async () => {
   font-size: 12px;
   color: #b9bbbe;
   font-weight: 500;
+}
+
+.card-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  margin-right: -4px;
+}
+
+.card-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.card-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.card-content::-webkit-scrollbar-thumb {
+  background: rgba(88, 101, 242, 0.5);
+  border-radius: 3px;
+}
+
+.card-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(88, 101, 242, 0.7);
 }
 
 .step-content {
@@ -1119,6 +1211,12 @@ const createProfile = async () => {
   font-weight: 500;
 }
 
+.checking-text {
+  font-size: 12px;
+  color: #f0b232;
+  font-weight: 500;
+}
+
 .customization-section {
   display: flex;
   flex-direction: column;
@@ -1248,6 +1346,7 @@ const createProfile = async () => {
   display: flex;
   gap: 16px;
   margin-top: 40px;
+  flex-shrink: 0;
 }
 
 .action-btn {
@@ -1314,11 +1413,15 @@ const createProfile = async () => {
 
 @media (max-width: 768px) {
   .new-profile-container {
-    padding: 16px;
+    padding: 12px;
+    align-items: flex-start;
+    padding-top: 20px;
   }
   
   .profile-creation-card {
     padding: 24px;
+    max-width: 100%;
+    max-height: 96vh;
   }
   
   .welcome-title {
@@ -1333,15 +1436,229 @@ const createProfile = async () => {
     width: 36px;
     height: 36px;
   }
+
+  .card-header {
+    margin-bottom: 24px;
+  }
+
+  .step-header {
+    margin-bottom: 20px;
+  }
+
+  .card-actions {
+    margin-top: 28px;
+  }
 }
 
 @media (max-width: 480px) {
+  .new-profile-container {
+    padding: 8px;
+    padding-top: 16px;
+  }
+
+  .profile-creation-card {
+    padding: 20px;
+    max-height: 97vh;
+  }
+
   .card-actions {
     flex-direction: column;
+    gap: 12px;
   }
   
   .color-options {
     grid-template-columns: repeat(5, 1fr);
+  }
+
+  .card-header {
+    margin-bottom: 16px;
+  }
+
+  .step-header {
+    margin-bottom: 16px;
+  }
+
+  .step-header h2 {
+    font-size: 20px;
+  }
+
+  .step-header p {
+    font-size: 13px;
+  }
+
+  .welcome-title {
+    font-size: 22px;
+  }
+
+  .logo-icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .card-actions {
+    margin-top: 20px;
+  }
+
+  .form-section {
+    gap: 20px;
+  }
+
+  .customization-section {
+    gap: 24px;
+  }
+
+  .avatar-section {
+    gap: 20px;
+  }
+}
+
+@media (max-width: 400px) {
+  .new-profile-container {
+    padding: 4px;
+    padding-top: 12px;
+  }
+
+  .profile-creation-card {
+    padding: 16px;
+    max-height: 98vh;
+  }
+
+  .welcome-title {
+    font-size: 20px;
+  }
+
+  .banner-preview {
+    width: 100%;
+    max-width: 250px;
+  }
+
+  .color-options {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .card-header {
+    margin-bottom: 12px;
+  }
+
+  .step-header {
+    margin-bottom: 12px;
+  }
+
+  .card-actions {
+    margin-top: 16px;
+  }
+
+  .form-section {
+    gap: 16px;
+  }
+
+  .customization-section {
+    gap: 20px;
+  }
+
+  .avatar-section {
+    gap: 16px;
+  }
+
+  .logo-section {
+    margin-bottom: 16px;
+  }
+
+  .progress-indicator {
+    gap: 8px;
+  }
+}
+
+@media (max-height: 700px) {
+  .new-profile-container {
+    align-items: flex-start;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .profile-creation-card {
+    margin: 0;
+    max-height: 96vh;
+  }
+
+  .card-header {
+    margin-bottom: 16px;
+  }
+
+  .logo-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .welcome-title {
+    font-size: 22px;
+    margin: 0 0 4px;
+  }
+
+  .logo-section {
+    margin-bottom: 16px;
+  }
+
+  .card-actions {
+    margin-top: 20px;
+  }
+
+  .step-header {
+    margin-bottom: 16px;
+  }
+
+  .form-section {
+    gap: 18px;
+  }
+
+  .customization-section {
+    gap: 24px;
+  }
+
+  .avatar-section {
+    gap: 18px;
+  }
+}
+
+@media (max-height: 600px) {
+  .profile-creation-card {
+    max-height: 97vh;
+    padding: 20px;
+  }
+
+  .card-header {
+    margin-bottom: 12px;
+  }
+
+  .logo-section {
+    margin-bottom: 12px;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .welcome-title {
+    font-size: 20px;
+  }
+
+  .step-header {
+    margin-bottom: 12px;
+  }
+
+  .step-header h2 {
+    font-size: 18px;
+  }
+
+  .card-actions {
+    margin-top: 16px;
+    gap: 10px;
+  }
+
+  .action-btn {
+    padding: 12px 20px;
   }
 }
 </style>
