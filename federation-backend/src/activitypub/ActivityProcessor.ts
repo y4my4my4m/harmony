@@ -364,7 +364,8 @@ export class ActivityProcessor {
               name: cleanName,
               url: emojiUrl,
               server_id: null, // Global/federated emoji
-              is_animated: emojiUrl.endsWith('.gif') || emojiUrl.includes('.apng'),
+              uploader: user.id,
+              domain: new URL(emojiUrl).hostname, // Extract domain from URL
             })
             .select('id')
             .single();
@@ -380,6 +381,20 @@ export class ActivityProcessor {
       
       // Add reaction/like to post using post_interactions table
       logger.info(`💾 Inserting reaction: emoji_id=${emojiId}, custom_content=${emoji}`);
+      
+      // Check if reaction already exists to avoid duplicates
+      const { data: existing } = await supabase
+        .from('post_interactions')
+        .select('id')
+        .eq('post_id', post.id)
+        .eq('user_id', user.id)
+        .eq('interaction_type', 'emoji_reaction')
+        .maybeSingle();
+      
+      if (existing) {
+        logger.info(`🔄 Reaction already exists for user ${user.id} on post ${post.id}`);
+        return;
+      }
       
       const { error: interactionError } = await supabase.from('post_interactions').insert({
         post_id: post.id,
