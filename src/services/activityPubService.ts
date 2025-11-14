@@ -875,12 +875,11 @@ export class ActivityPubService {
       `)
       .eq('following_id', userId)
       .eq('status', 'accepted')
+      .eq('follower.is_local', false)  // Only show federated followers
       .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) throw error;
-    console.log(`👥 Followers loaded for user ${userId}: ${data?.length || 0}`);
-    console.log('Followers data:', data);
 
     return (data?.map((follow: any) => ({
       ...follow.follower,
@@ -904,6 +903,7 @@ export class ActivityPubService {
       `)
       .eq('follower_id', userId)
       .eq('status', 'accepted')
+      .eq('following.is_local', false)  // Only show federated users
       .order('created_at', { ascending: false })
       .limit(limit);
 

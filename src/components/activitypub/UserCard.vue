@@ -203,9 +203,11 @@ const handleUserClick = () => {
   router.push({ name: 'UserProfile', params: { handle: handle.value } });
 };
 
+let followInProgress = false;
 const handleFollowToggle = async () => {
-  if (getLoadingState().follow) return;
+  if (getLoadingState().follow || followInProgress) return;
   
+  followInProgress = true;
   try {
     const result = await toggleFollow(props.user.id);
     
@@ -218,6 +220,8 @@ const handleFollowToggle = async () => {
     }
   } catch (error) {
     console.error('Failed to toggle follow:', error);
+  } finally {
+    followInProgress = false;
   }
 };
 

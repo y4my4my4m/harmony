@@ -312,9 +312,11 @@ const handleClick = () => {
   }
 }
 
+let followInProgress = false;
 const handleFollowToggle = async () => {
-  if (!isFederatedUser(props.user) || isFollowLoading.value) return
+  if (!isFederatedUser(props.user) || isFollowLoading.value || followInProgress) return
   
+  followInProgress = true;
   isFollowLoading.value = true
   try {
     // Just call toggleFollow - let it handle the logic
@@ -331,6 +333,7 @@ const handleFollowToggle = async () => {
     console.error('Failed to toggle follow:', error)
   } finally {
     isFollowLoading.value = false
+    followInProgress = false;
   }
 }
 

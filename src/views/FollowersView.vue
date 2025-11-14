@@ -283,7 +283,12 @@ watch(() => props.view, (newView) => {
 });
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  // Ensure activityPubStore is initialized with followed users
+  if (activityPubStore.followedUsers.size === 0 && authStore.session?.user) {
+    await activityPubStore.loadFollowedUsers();
+  }
+  
   loadCounts();
   loadUsers(true);
 });

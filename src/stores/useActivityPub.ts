@@ -1897,19 +1897,28 @@ export const useActivityPubStore = defineStore('activitypub', {
      /**
       * Fallback method for loading followed users
       */
-     async _loadFollowedUsersFallback() {
-       const user = await supabase.auth.getUser();
-       if (!user.data.user) return;
+    async _loadFollowedUsersFallback() {
+      const user = await supabase.auth.getUser();
+      if (!user.data.user) return;
 
-       const { data, error } = await supabase
-         .from('follows')
-         .select('following_id')
-         .eq('follower_id', user.data.user.id)
-         .eq('status', 'accepted');
+      const { data, error } = await supabase
+        .from('follows')
+        .select(`
+          following_id,
+          following:profiles!follows_following_id_fkey(is_local)
+        `)
+        .eq('follower_id', user.data.user.id)
+        .eq('status', 'accepted');
 
-       if (error) throw error;
-       this.followedUsers = new Set(data.map(f => f.following_id));
-     },
+      if (error) throw error;
+      
+      // Only add federated (non-local) users to the Set
+      this.followedUsers = new Set(
+        data
+          .filter((f: any) => f.following && !f.following.is_local)
+          .map(f => f.following_id)
+      );
+    },
 
      /**
       * Follow a user via InteractionService
