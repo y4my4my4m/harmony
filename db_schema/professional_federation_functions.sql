@@ -80,6 +80,7 @@ DECLARE
   v_emoji_name text;
   v_emoji_url text;
   v_post_ap_id text;
+  v_is_local boolean;
 BEGIN
   -- Get instance domain
   SELECT trim(both '"' from config_value::text) INTO v_instance_domain
@@ -94,11 +95,21 @@ BEGIN
   v_activity_ap_id := 'https://' || v_instance_domain || '/activities/' || gen_random_uuid();
 
   -- Get user's federated ID
-  SELECT federated_id INTO v_user_federated_id
+  -- For LOCAL users: build from username if federated_id not set (handles race conditions)
+  -- For REMOTE users: federated_id MUST be set (we got it when creating their profile)
+  SELECT 
+    CASE 
+      WHEN is_local = true OR is_local IS NULL THEN
+        COALESCE(federated_id, 'https://' || v_instance_domain || '/users/' || username)
+      ELSE
+        federated_id  -- Remote users must have their actual federated_id from their instance
+    END,
+    is_local
+  INTO v_user_federated_id, v_is_local
   FROM profiles WHERE id = p_user_id;
 
   IF v_user_federated_id IS NULL THEN
-    RAISE EXCEPTION 'User % does not have a federated ID', p_user_id;
+    RAISE EXCEPTION 'User % does not have a valid federated ID (is_local: %)', p_user_id, v_is_local;
   END IF;
 
   -- Get post ActivityPub ID

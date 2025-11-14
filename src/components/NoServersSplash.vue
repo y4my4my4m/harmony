@@ -136,7 +136,8 @@ const getParticleStyle = (index: number) => {
   justify-content: center;
   padding: 20px;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .background-overlay {
@@ -223,9 +224,12 @@ const getParticleStyle = (index: number) => {
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   width: 100%;
   max-width: 800px;
+  max-height: 95vh;
   padding: 48px;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: auto;
 }
 
 .splash-card::before {
@@ -486,11 +490,14 @@ const getParticleStyle = (index: number) => {
 
 @media (max-width: 768px) {
   .no-servers-container {
-    padding: 16px;
+    padding: 12px;
+    align-items: flex-start;
+    padding-top: 20px;
   }
   
   .splash-card {
     padding: 32px 24px;
+    max-height: 96vh;
   }
   
   .welcome-title {
@@ -506,9 +513,27 @@ const getParticleStyle = (index: number) => {
     width: 100px;
     height: 100px;
   }
+  
+  .welcome-section {
+    margin-bottom: 32px;
+  }
+
+  .action-cards {
+    margin-bottom: 28px;
+  }
 }
 
 @media (max-width: 480px) {
+  .no-servers-container {
+    padding: 8px;
+    padding-top: 16px;
+  }
+
+  .splash-card {
+    padding: 24px 20px;
+    max-height: 97vh;
+  }
+
   .welcome-title {
     font-size: 28px;
   }
@@ -520,6 +545,49 @@ const getParticleStyle = (index: number) => {
   .card-features {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .welcome-section {
+    margin-bottom: 24px;
+  }
+
+  .action-cards {
+    margin-bottom: 24px;
+  }
+
+  .logo-container {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
+  }
+
+  .welcome-subtitle {
+    font-size: 16px;
+  }
+}
+
+@media (max-height: 700px) {
+  .no-servers-container {
+    align-items: flex-start;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .splash-card {
+    max-height: 96vh;
+    padding: 28px;
+  }
+
+  .welcome-section {
+    margin-bottom: 24px;
+  }
+
+  .action-cards {
+    margin-bottom: 24px;
+  }
+
+  .info-section {
+    padding-top: 20px;
   }
 }
 </style>

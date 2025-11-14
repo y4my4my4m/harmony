@@ -9,6 +9,21 @@
 
     <!-- Main content -->
     <div class="profile-creation-card">
+      <!-- Loading overlay -->
+      <div v-if="isCreatingProfile" class="creation-loading-overlay">
+        <div class="loading-content">
+          <div class="harmony-spinner">
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+            <svg viewBox="0 0 24 24" class="harmony-logo">
+              <path d="M12 2L2 7v10c0 5.55 3.84 9.74 9 11 5.16-1.26 9-5.45 9-11V7l-10-5z" fill="currentColor"/>
+            </svg>
+          </div>
+          <p class="loading-text">{{ creationStep }}</p>
+        </div>
+      </div>
+
       <!-- Header section -->
       <div class="card-header">
         <div class="logo-section">
@@ -253,7 +268,7 @@
         <button 
           @click="nextStep" 
           class="action-btn primary"
-          :disabled="!canProceed"
+          :disabled="!canProceed || isCreatingProfile"
         >
           {{ currentStep === 3 ? 'Create Profile' : 'Continue' }}
           <svg v-if="currentStep < 3" viewBox="0 0 24 24" class="btn-icon">
@@ -291,6 +306,8 @@ const usernameError = ref('');
 const displayNameError = ref('');
 const usernameAvailable = ref(false);
 const checkingUsername = ref(false);
+const isCreatingProfile = ref(false);
+const creationStep = ref('');
 
 const domain = import.meta.env.VITE_DOMAIN;
 const profileStore = useProfileStore();
@@ -517,6 +534,10 @@ const createProfile = async () => {
     return;
   }
 
+  // Set loading state
+  isCreatingProfile.value = true;
+  creationStep.value = 'Creating profile...';
+
   // Add loading state and better error handling
   try {
     console.log('Creating profile with data:', {
@@ -528,6 +549,7 @@ const createProfile = async () => {
     });
 
     // Get instance domain from config
+    creationStep.value = 'Configuring instance...';
     const { data: instanceConfig } = await supabase
       .from('instance_config')
       .select('config_value')
@@ -552,21 +574,21 @@ const createProfile = async () => {
     };
 
     console.log('Calling profileStore.createProfile...');
+    creationStep.value = 'Setting up your profile...';
     const result = await profileStore.createProfile(profileData);
     console.log('Profile creation result:', result);
     
     // Handle avatar upload if file exists
     if (avatarFile.value && result) {
       console.log('Uploading avatar...');
+      creationStep.value = 'Uploading avatar...';
       try {
         const uploadResult = await uploadAvatar(avatarFile.value, authStore.session.user.id);
         
         if (uploadResult.success && uploadResult.url) {
-          // Update profile with avatar URL
+          // Update profile with avatar URL only
           await profileStore.updateProfile({
-            avatar_url: uploadResult.url,
-            username: username.value,
-            display_name: displayName.value.trim(),
+            avatar_url: uploadResult.url
           });
           console.log('Avatar uploaded successfully:', uploadResult.url);
         } else {
@@ -582,15 +604,14 @@ const createProfile = async () => {
     // Handle banner upload if file exists
     if (bannerFile.value && result) {
       console.log('Uploading banner...');
+      creationStep.value = 'Uploading banner...';
       try {
         const uploadResult = await uploadBanner(bannerFile.value, authStore.session.user.id);
         
         if (uploadResult.success && uploadResult.url) {
-          // Update profile with banner URL
+          // Update profile with banner URL only
           await profileStore.updateProfile({
-            banner_url: uploadResult.url,
-            username: username.value,
-            display_name: displayName.value.trim(),
+            banner_url: uploadResult.url
           });
           console.log('Banner uploaded successfully:', uploadResult.url);
         } else {
@@ -604,6 +625,7 @@ const createProfile = async () => {
     }
 
     // Update userDataService with the new profile data to prevent "Unknown" user display
+    creationStep.value = 'Finalizing...';
     try {
       const { useUserData } = await import('@/composables/useUserData');
       const userData = useUserData();
@@ -655,6 +677,9 @@ const createProfile = async () => {
     }
     
     toast.error(errorMessage);
+  } finally {
+    isCreatingProfile.value = false;
+    creationStep.value = '';
   }
 };
 </script>
@@ -728,6 +753,94 @@ const createProfile = async () => {
   right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(88, 101, 242, 0.5), transparent);
+}
+
+/* Loading Overlay */
+.creation-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(47, 49, 54, 0.98);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  border-radius: 24px;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.harmony-spinner {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  animation: spin-ring 2s linear infinite;
+}
+
+.spinner-ring:nth-child(1) {
+  border-top-color: #5865f2;
+  animation-duration: 1.5s;
+}
+
+.spinner-ring:nth-child(2) {
+  border-right-color: #7289da;
+  animation-duration: 2s;
+  animation-direction: reverse;
+}
+
+.spinner-ring:nth-child(3) {
+  border-bottom-color: #00d4ff;
+  animation-duration: 2.5s;
+}
+
+@keyframes spin-ring {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.harmony-logo {
+  width: 40px;
+  height: 40px;
+  color: #ffffff;
+  filter: drop-shadow(0 0 10px rgba(88, 101, 242, 0.5));
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.loading-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: #ffffff;
+  margin: 0;
+  animation: fade-in-out 2s ease-in-out infinite;
+}
+
+@keyframes fade-in-out {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .card-header {
