@@ -106,6 +106,18 @@ export async function startDatabaseListener(): Promise<void> {
         await handleNewFollow(payload.new);
       }
     )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+      },
+      async (payload) => {
+        logger.info('📝 Profile update detected:', payload.new.id);
+        await handleProfileUpdate(payload.old, payload.new);
+      }
+    )
     .subscribe((status, err) => {
       logger.info(`📡 Realtime subscription status: ${status}`);
       
@@ -300,6 +312,64 @@ async function handleNewFollow(follow: any): Promise<void> {
     }
   } catch (error) {
     logger.error('Failed to handle new follow:', error);
+  }
+}
+
+/**
+ * Handle profile update
+ */
+async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<void> {
+  try {
+    // Only federate updates for local users
+    if (!newProfile.is_local) {
+      logger.debug('Profile update for remote user, skipping');
+      return;
+    }
+
+    // Check if any federable fields changed
+    const fieldsChanged = 
+      oldProfile.display_name !== newProfile.display_name ||
+      oldProfile.bio !== newProfile.bio ||
+      oldProfile.avatar_url !== newProfile.avatar_url ||
+      oldProfile.banner_url !== newProfile.banner_url;
+
+    if (!fieldsChanged) {
+      logger.debug('No federable fields changed, skipping');
+      return;
+    }
+
+    logger.info(`🌐 Federating profile update: ${newProfile.username}`);
+    logger.debug('Changed fields:', {
+      display_name: oldProfile.display_name !== newProfile.display_name,
+      bio: oldProfile.bio !== newProfile.bio,
+      avatar_url: oldProfile.avatar_url !== newProfile.avatar_url,
+      banner_url: oldProfile.banner_url !== newProfile.banner_url,
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Get full profile data (realtime might not include all fields)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', newProfile.id)
+      .single();
+
+    if (!profile) {
+      logger.error(`Profile not found: ${newProfile.id}`);
+      return;
+    }
+
+    // Create Update activity
+    const { createProfileUpdateActivity } = await import('./FederationHandlers.js');
+    const activity = createProfileUpdateActivity(profile);
+
+    // Broadcast to followers
+    await DeliveryQueue.broadcastToFollowers(profile.id, activity);
+
+    logger.info(`✅ Profile update for ${profile.username} queued for federation`);
+  } catch (error) {
+    logger.error('Failed to handle profile update:', error);
   }
 }
 

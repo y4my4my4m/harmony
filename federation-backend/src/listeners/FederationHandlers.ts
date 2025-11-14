@@ -7,6 +7,7 @@ import {
   createFollowActivity as createFollow,
   createLikeActivity as createLike,
   createAnnounceActivity as createAnnounce,
+  createUpdateActivity,
 } from '../activitypub/converters/toActivityPub.js';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
@@ -76,5 +77,12 @@ export async function createLikeActivity(
 export async function createReblogActivity(user: any, post: any): Promise<any> {
   const objectUrl = post.ap_id || post.id;
   return createAnnounce(user, objectUrl);
+}
+
+/**
+ * Create an Update activity (profile updates)
+ */
+export function createProfileUpdateActivity(profile: any): any {
+  return createUpdateActivity(profile);
 }
 

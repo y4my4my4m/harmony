@@ -1,5 +1,6 @@
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
+import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
 
 /**
  * Convert internal post format to ActivityPub Note
@@ -94,21 +95,21 @@ export function profileToActor(profile: any): any {
     },
   };
 
-  // Add icon (avatar)
-  if (profile.avatar) {
+  // Add icon (avatar) - convert to full URL if relative path
+  const avatarUrl = getFullAvatarUrl(profile.avatar_url);
+  if (avatarUrl) {
     actor.icon = {
       type: 'Image',
-      mediaType: 'image/png',
-      url: profile.avatar,
+      url: avatarUrl,
     };
   }
 
-  // Add banner
-  if (profile.banner) {
+  // Add banner - convert to full URL if relative path
+  const bannerUrl = getFullBannerUrl(profile.banner_url);
+  if (bannerUrl) {
     actor.image = {
       type: 'Image',
-      mediaType: 'image/png',
-      url: profile.banner,
+      url: bannerUrl,
     };
   }
 
@@ -217,6 +218,29 @@ export function createDeleteActivity(user: any, objectUrl: string): any {
     type: 'Delete',
     actor: userUrl,
     object: objectUrl,
+  };
+}
+
+/**
+ * Create an Update activity (for profile updates)
+ */
+export function createUpdateActivity(profile: any): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const userUrl = `https://${domain}/users/${profile.username}`;
+  const activityId = `${userUrl}/updates/${Date.now()}`;
+
+  // Create the updated Actor object
+  const actor = profileToActor(profile);
+
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: activityId,
+    type: 'Update',
+    actor: userUrl,
+    published: new Date().toISOString(),
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: [`${userUrl}/followers`],
+    object: actor,
   };
 }
 

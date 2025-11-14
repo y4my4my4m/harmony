@@ -1142,15 +1142,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Close composer
         this.closeComposer();
 
-        // Add to local feeds immediately for better UX (realtime will handle this too)
-        // Post is already in timeline format from service
-        this.homeFeed.posts.unshift(post);
-        if (visibility === 'public') {
-          this.publicFeed.posts.unshift(post);
-          if (post.is_local) {
-            this.localFeed.posts.unshift(post);
-          }
-        }
+        // Don't add to feeds manually - let realtime handle it to avoid duplicates
+        // The database triggers will create timeline_entries, and realtime will update the UI
+        // This prevents the double-post issue
 
         return post;
       } catch (error) {

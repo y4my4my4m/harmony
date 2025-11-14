@@ -240,8 +240,8 @@ export class ActivityProcessor {
         .update({
           display_name: profileData.display_name,
           bio: profileData.bio,
-          avatar: profileData.avatar,
-          banner: profileData.banner,
+          avatar_url: profileData.avatar,
+          banner_url: profileData.banner,
           public_key: profileData.public_key,
         })
         .eq('federated_id', object.id);

@@ -26,18 +26,35 @@ const MESSAGE_TEMPLATES = {
     title: (data: any) => {
       // Handle both new database format and legacy format
       const senderUsername = data.sender?.username || data.sender_username || 'Someone'
-      return `${senderUsername} sent you a message`
+      const domain = data.sender?.domain
+      const handle = domain ? `@${domain}` : ''
+      return `${senderUsername}${handle} sent you a message`
     },
     message: (data: any) => {
-      // Handle different preview formats
+      // Handle MessagePart[] content from federated DMs
+      const content = data.message?.content || data.content
+      
+      if (Array.isArray(content)) {
+        // Convert MessagePart[] to plain text
+        return content.map(part => {
+          if (part.type === 'text') return part.text
+          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+          if (part.type === 'emoji') return `:${part.emoji.name}:`
+          if (part.type === 'hashtag') return `#${part.name}`
+          if (part.type === 'url') return part.url
+          return ''
+        }).join('').trim() || 'Click to view message'
+      }
+      
+      // Fallback for string content
       let preview = data.message?.content_preview || data.preview || data.content_preview
       
-      // If preview is a JSON string (from database), parse it
+      // If preview is a JSON string, parse it
       if (typeof preview === 'string' && preview.startsWith('[')) {
         try {
           const parsed = JSON.parse(preview)
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].text) {
-            preview = parsed[0].text
+          if (Array.isArray(parsed)) {
+            return parsed.map(p => p.text || '').join('').trim()
           }
         } catch (e) {
           // Use as-is if parsing fails
