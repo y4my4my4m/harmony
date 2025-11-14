@@ -441,15 +441,17 @@ export const useActivityPubStore = defineStore('activitypub', {
     async handleRealtimeFollowCreate(follow: any) {
       console.log('👥 New follow relationship:', follow);
       
-      const currentUser = await supabase.auth.getUser();
-      if (!currentUser.data.user) return;
+      // Get current user PROFILE ID
+      const { userDataService } = await import('@/services/userDataService');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
 
       // Update counts based on relationship
-      if (follow.follower_id === currentUser.data.user.id) {
+      if (follow.follower_id === currentUser.id) {
         // Current user started following someone
         this.followingCount++;
         this.followedUsers.add(follow.following_id);
-      } else if (follow.following_id === currentUser.data.user.id) {
+      } else if (follow.following_id === currentUser.id) {
         // Someone started following current user
         this.followersCount++;
         
@@ -464,16 +466,18 @@ export const useActivityPubStore = defineStore('activitypub', {
     async handleRealtimeFollowUpdate(follow: any) {
       console.log('👥 Follow relationship updated:', follow);
       
-      const currentUser = await supabase.auth.getUser();
-      if (!currentUser.data.user) return;
+      // Get current user PROFILE ID
+      const { userDataService } = await import('@/services/userDataService');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
 
       // Handle status changes (accepted/rejected)
       if (follow.status === 'accepted') {
-        if (follow.follower_id === currentUser.data.user.id) {
+        if (follow.follower_id === currentUser.id) {
           this.followedUsers.add(follow.following_id);
         }
       } else if (follow.status === 'rejected') {
-        if (follow.follower_id === currentUser.data.user.id) {
+        if (follow.follower_id === currentUser.id) {
           this.followedUsers.delete(follow.following_id);
         }
       }
@@ -485,15 +489,17 @@ export const useActivityPubStore = defineStore('activitypub', {
     async handleRealtimeFollowDelete(follow: any) {
       console.log('👥 Follow relationship deleted:', follow);
       
-      const currentUser = await supabase.auth.getUser();
-      if (!currentUser.data.user) return;
+      // Get current user PROFILE ID
+      const { userDataService } = await import('@/services/userDataService');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
 
       // Update counts based on relationship
-      if (follow.follower_id === currentUser.data.user.id) {
+      if (follow.follower_id === currentUser.id) {
         // Current user unfollowed someone
         this.followingCount--;
         this.followedUsers.delete(follow.following_id);
-      } else if (follow.following_id === currentUser.data.user.id) {
+      } else if (follow.following_id === currentUser.id) {
         // Someone unfollowed current user
         this.followersCount--;
       }
@@ -1327,21 +1333,23 @@ export const useActivityPubStore = defineStore('activitypub', {
           async (payload) => {
             console.log('👥 Follow relationship update:', payload);
             
-            const currentUser = await supabase.auth.getUser();
-            if (!currentUser.data.user) return;
+            // Get current user PROFILE ID (not auth.uid!)
+            const { userDataService } = await import('@/services/userDataService');
+            const currentUser = userDataService.getCurrentUser();
+            if (!currentUser?.id) return;
             
             const follow = payload.new as any;
             const oldFollow = payload.old as any;
             
-            // Only update if this affects the current user
-            if (payload.eventType === 'INSERT' && follow.follower_id === currentUser.data.user.id) {
+            // Only update if this affects the current user's PROFILE
+            if (payload.eventType === 'INSERT' && follow.follower_id === currentUser.id) {
               console.log('👥 New follow relationship:', follow);
               this.followedUsers.add(follow.following_id);
-            } else if (payload.eventType === 'DELETE' && oldFollow.follower_id === currentUser.data.user.id) {
+            } else if (payload.eventType === 'DELETE' && oldFollow.follower_id === currentUser.id) {
               console.log('👥 Follow relationship deleted:', oldFollow);
               this.followedUsers.delete(oldFollow.following_id);
             } else if (payload.eventType === 'UPDATE') {
-              const isCurrentUserFollower = follow.follower_id === currentUser.data.user.id;
+              const isCurrentUserFollower = follow.follower_id === currentUser.id;
               if (isCurrentUserFollower) {
                 if (follow.status === 'accepted') {
                   this.followedUsers.add(follow.following_id);
