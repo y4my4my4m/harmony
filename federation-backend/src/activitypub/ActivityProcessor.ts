@@ -337,19 +337,28 @@ export class ActivityProcessor {
       
       // For custom emojis with URLs, create/get local emoji entry
       if (emojiUrl && emojiName) {
+        logger.info(`🔍 Looking for existing emoji with URL: ${emojiUrl}`);
+        
         // Check if emoji already exists
-        const { data: existingEmoji } = await supabase
+        const { data: existingEmoji, error: existingError } = await supabase
           .from('emojis')
           .select('id')
           .eq('url', emojiUrl)
           .maybeSingle();
         
+        if (existingError) {
+          logger.error('Error checking for existing emoji:', existingError);
+        }
+        
         if (existingEmoji) {
           emojiId = existingEmoji.id;
+          logger.info(`♻️  Using existing emoji ID: ${emojiId}`);
         } else {
           // Create new emoji entry for this remote custom emoji
           const cleanName = emojiName.replace(/:/g, ''); // Remove colons
-          const { data: newEmoji } = await supabase
+          logger.info(`➕ Creating new emoji entry: ${cleanName}`);
+          
+          const { data: newEmoji, error: insertError } = await supabase
             .from('emojis')
             .insert({
               name: cleanName,
@@ -361,15 +370,19 @@ export class ActivityProcessor {
             .select('id')
             .single();
           
-          if (newEmoji) {
+          if (insertError) {
+            logger.error('❌ Failed to create emoji:', insertError);
+          } else if (newEmoji) {
             emojiId = newEmoji.id;
-            logger.info(`✨ Created local emoji entry for remote emoji: ${cleanName}`);
+            logger.info(`✨ Created local emoji entry for remote emoji: ${cleanName} (ID: ${emojiId})`);
           }
         }
       }
       
       // Add reaction/like to post using post_interactions table
-      await supabase.from('post_interactions').upsert({
+      logger.info(`💾 Inserting reaction: emoji_id=${emojiId}, custom_content=${emoji}`);
+      
+      const { error: interactionError } = await supabase.from('post_interactions').upsert({
         post_id: post.id,
         user_id: user.id,
         interaction_type: 'emoji_reaction',
@@ -380,7 +393,11 @@ export class ActivityProcessor {
         onConflict: 'post_id,user_id,interaction_type'
       });
 
-      logger.info(`Added reaction to post ${post.id}: ${emoji || '❤️'}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
+      if (interactionError) {
+        logger.error('❌ Failed to insert reaction:', interactionError);
+      } else {
+        logger.info(`✅ Added reaction to post ${post.id}: ${emoji || '❤️'}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
+      }
     } else {
       logger.warn(`Post not found for like: ${objectUrl}`);
     }
