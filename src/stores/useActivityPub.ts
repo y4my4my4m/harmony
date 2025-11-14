@@ -1903,21 +1903,14 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       const { data, error } = await supabase
         .from('follows')
-        .select(`
-          following_id,
-          following:profiles!follows_following_id_fkey(is_local)
-        `)
+        .select('following_id')
         .eq('follower_id', user.data.user.id)
         .eq('status', 'accepted');
 
       if (error) throw error;
       
-      // Only add federated (non-local) users to the Set
-      this.followedUsers = new Set(
-        data
-          .filter((f: any) => f.following && !f.following.is_local)
-          .map(f => f.following_id)
-      );
+      // Add all followed users (both local and federated)
+      this.followedUsers = new Set(data.map(f => f.following_id));
     },
 
      /**

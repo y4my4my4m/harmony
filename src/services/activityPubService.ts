@@ -875,16 +875,18 @@ export class ActivityPubService {
       `)
       .eq('following_id', userId)
       .eq('status', 'accepted')
-      .eq('follower.is_local', false)  // Only show federated followers
       .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) throw error;
 
-    return (data?.map((follow: any) => ({
-      ...follow.follower,
-      handle: this.formatUserHandle(follow.follower.username, follow.follower.domain)
-    })) || []) as unknown as FederatedUser[];
+    // Filter out null profiles only
+    return (data
+      ?.filter((follow: any) => follow.follower)
+      .map((follow: any) => ({
+        ...follow.follower,
+        handle: this.formatUserHandle(follow.follower.username, follow.follower.domain)
+      })) || []) as unknown as FederatedUser[];
   }
 
   /**
@@ -903,16 +905,18 @@ export class ActivityPubService {
       `)
       .eq('follower_id', userId)
       .eq('status', 'accepted')
-      .eq('following.is_local', false)  // Only show federated users
       .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) throw error;
 
-    return (data?.map((follow: any) => ({
-      ...follow.following,
-      handle: this.formatUserHandle(follow.following.username, follow.following.domain)
-    })) || []) as unknown as FederatedUser[];
+    // Filter out null profiles only
+    return (data
+      ?.filter((follow: any) => follow.following)
+      .map((follow: any) => ({
+        ...follow.following,
+        handle: this.formatUserHandle(follow.following.username, follow.following.domain)
+      })) || []) as unknown as FederatedUser[];
   }
 
   /**
