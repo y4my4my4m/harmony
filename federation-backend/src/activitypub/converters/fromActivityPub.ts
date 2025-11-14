@@ -249,6 +249,8 @@ export function extractLikeData(activity: any): {
   actorUrl: string;
   objectUrl: string;
   emoji?: string;
+  emojiUrl?: string;
+  emojiName?: string;
 } {
   const data: any = {
     actorUrl: typeof activity.actor === 'string' ? activity.actor : activity.actor.id,
@@ -258,6 +260,16 @@ export function extractLikeData(activity: any): {
   // Misskey-style reaction
   if (activity._misskey_reaction || activity.content) {
     data.emoji = activity._misskey_reaction || activity.content;
+    data.emojiName = data.emoji;
+  }
+  
+  // Extract emoji URL from tag (for custom emojis)
+  if (Array.isArray(activity.tag)) {
+    const emojiTag = activity.tag.find((t: any) => t.type === 'Emoji');
+    if (emojiTag) {
+      data.emojiUrl = emojiTag.icon?.url;
+      data.emojiName = emojiTag.name || data.emoji;
+    }
   }
 
   return data;

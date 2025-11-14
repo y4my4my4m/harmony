@@ -286,7 +286,7 @@ export class ActivityProcessor {
    * Process Like activity (including emoji reactions)
    */
   private static async processLike(activity: any): Promise<void> {
-    const { actorUrl, objectUrl, emoji } = extractLikeData(activity);
+    const { actorUrl, objectUrl, emoji, emojiUrl, emojiName } = extractLikeData(activity);
     const supabase = getSupabaseClient();
 
     // Ensure user exists
@@ -331,18 +331,27 @@ export class ActivityProcessor {
     }
 
     if (post) {
+      // Build metadata with emoji URL for remote custom emojis
+      const metadata: any = {};
+      if (emojiUrl) {
+        metadata.remote_emoji_url = emojiUrl;
+        metadata.remote_emoji_name = emojiName;
+      }
+      
       // Add reaction/like to post using post_interactions table
       await supabase.from('post_interactions').upsert({
         post_id: post.id,
         user_id: user.id,
         interaction_type: 'emoji_reaction',
-        emoji_id: null, // Will use custom_emoji_content for remote emojis
+        emoji_id: null, // Remote custom emojis don't have local emoji_id
         custom_emoji_content: emoji || '❤️',
+        metadata: Object.keys(metadata).length > 0 ? metadata : null,
+        is_local: false,
       }, {
         onConflict: 'post_id,user_id,interaction_type'
       });
 
-      logger.info(`Added reaction to post ${post.id}: ${emoji || '❤️'}`);
+      logger.info(`Added reaction to post ${post.id}: ${emoji || '❤️'}${emojiUrl ? ` (${emojiUrl})` : ''}`);
     } else {
       logger.warn(`Post not found for like: ${objectUrl}`);
     }
