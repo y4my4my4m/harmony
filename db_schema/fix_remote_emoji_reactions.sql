@@ -1,4 +1,8 @@
 -- Fix get_post_emoji_reactions to show remote emoji URLs from metadata
+-- Drop old versions first to avoid ambiguity
+DROP FUNCTION IF EXISTS public.get_post_emoji_reactions(uuid);
+DROP FUNCTION IF EXISTS public.get_post_emoji_reactions(uuid, integer);
+
 CREATE OR REPLACE FUNCTION public.get_post_emoji_reactions(p_post_id uuid, p_user_limit integer DEFAULT 5)
 RETURNS TABLE(emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)
 LANGUAGE plpgsql
@@ -15,9 +19,10 @@ BEGIN
         pi.emoji_id,
         e.name::text as emoji_name,
         -- For remote custom emojis, use metadata.remote_emoji_url; otherwise use local emoji url
+        -- Use MAX to handle grouped rows
         COALESCE(
           e.url::text,
-          pi.metadata->>'remote_emoji_url'
+          MAX(pi.metadata->>'remote_emoji_url')
         ) as emoji_url,
         pi.custom_emoji_content,
         COUNT(*)::bigint as reaction_count,
@@ -45,11 +50,11 @@ BEGIN
         ) as user_reactions,
         -- Check if current user has reacted with this emoji
         CASE 
-            WHEN current_user_id IS NULL THEN false
+            WHEN current_profile_id IS NULL THEN false
             ELSE EXISTS(
                 SELECT 1 FROM post_interactions check_pi
                 WHERE check_pi.post_id = p_post_id
-                  AND check_pi.user_id = current_user_id
+                  AND check_pi.user_id = current_profile_id
                   AND check_pi.interaction_type = 'emoji_reaction'
                   AND (
                       (pi.emoji_id IS NOT NULL AND check_pi.emoji_id = pi.emoji_id) OR
@@ -61,7 +66,7 @@ BEGIN
     LEFT JOIN emojis e ON pi.emoji_id = e.id
     WHERE pi.post_id = p_post_id 
       AND pi.interaction_type = 'emoji_reaction'
-    GROUP BY pi.emoji_id, e.name, e.url, pi.custom_emoji_content, pi.metadata
+    GROUP BY pi.emoji_id, e.name, e.url, pi.custom_emoji_content
     ORDER BY reaction_count DESC, MIN(pi.created_at) ASC;
 END;
 $function$;
@@ -70,6 +75,9 @@ COMMENT ON FUNCTION get_post_emoji_reactions IS
   'Gets emoji reactions for a post, including remote custom emoji URLs from metadata';
 
 -- Also update the batch version
+DROP FUNCTION IF EXISTS public.get_batch_post_emoji_reactions(uuid[]);
+DROP FUNCTION IF EXISTS public.get_batch_post_emoji_reactions(uuid[], integer);
+
 CREATE OR REPLACE FUNCTION public.get_batch_post_emoji_reactions(p_post_ids uuid[], p_user_limit integer DEFAULT 5)
 RETURNS TABLE(post_id uuid, emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)
 LANGUAGE plpgsql
@@ -87,9 +95,10 @@ BEGIN
         pi.emoji_id,
         e.name::text as emoji_name,
         -- For remote custom emojis, use metadata.remote_emoji_url; otherwise use local emoji url
+        -- Use MAX to handle grouped rows
         COALESCE(
           e.url::text,
-          pi.metadata->>'remote_emoji_url'
+          MAX(pi.metadata->>'remote_emoji_url')
         ) as emoji_url,
         pi.custom_emoji_content,
         COUNT(*)::bigint as reaction_count,
@@ -117,11 +126,11 @@ BEGIN
         ) as user_reactions,
         -- Check if current user has reacted with this emoji
         CASE 
-            WHEN current_user_id IS NULL THEN false
+            WHEN current_profile_id IS NULL THEN false
             ELSE EXISTS(
                 SELECT 1 FROM post_interactions check_pi
                 WHERE check_pi.post_id = pi.post_id
-                  AND check_pi.user_id = current_user_id
+                  AND check_pi.user_id = current_profile_id
                   AND check_pi.interaction_type = 'emoji_reaction'
                   AND (
                       (pi.emoji_id IS NOT NULL AND check_pi.emoji_id = pi.emoji_id) OR
@@ -133,7 +142,7 @@ BEGIN
     LEFT JOIN emojis e ON pi.emoji_id = e.id
     WHERE pi.post_id = ANY(p_post_ids)
       AND pi.interaction_type = 'emoji_reaction'
-    GROUP BY pi.post_id, pi.emoji_id, e.name, e.url, pi.custom_emoji_content, pi.metadata
+    GROUP BY pi.post_id, pi.emoji_id, e.name, e.url, pi.custom_emoji_content
     ORDER BY pi.post_id, reaction_count DESC, MIN(pi.created_at) ASC;
 END;
 $function$;

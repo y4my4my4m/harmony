@@ -288,6 +288,8 @@ export class ActivityProcessor {
   private static async processLike(activity: any): Promise<void> {
     const { actorUrl, objectUrl, emoji, emojiUrl, emojiName } = extractLikeData(activity);
     const supabase = getSupabaseClient();
+    
+    logger.info(`📊 Extracted Like data: emoji="${emoji}", emojiUrl="${emojiUrl}", emojiName="${emojiName}"`);
 
     // Ensure user exists
     await this.ensureRemoteUser(actorUrl);
@@ -351,7 +353,7 @@ export class ActivityProcessor {
         onConflict: 'post_id,user_id,interaction_type'
       });
 
-      logger.info(`Added reaction to post ${post.id}: ${emoji || '❤️'}${emojiUrl ? ` (${emojiUrl})` : ''}`);
+      logger.info(`Added reaction to post ${post.id}: ${emoji || '❤️'}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
     } else {
       logger.warn(`Post not found for like: ${objectUrl}`);
     }
