@@ -98,6 +98,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from 'vue-toastification';
 import { activityPubService } from '@/services/activityPubService';
+import { supabase } from '@/supabase';
 import type { FederatedUser } from '@/types';
 
 // Components
@@ -115,11 +116,13 @@ const toast = useToast();
 interface Props {
   userId?: string;
   view?: 'followers' | 'following';
+  userProfile?: any; // Optional: if provided, use its counts instead of querying
 }
 
 const props = withDefaults(defineProps<Props>(), {
   userId: undefined,
-  view: 'followers'
+  view: 'followers',
+  userProfile: undefined
 });
 
 // State
@@ -197,13 +200,27 @@ const loadCounts = async () => {
   if (!targetUserId.value) return;
   
   try {
-    // Load followers count
-    const followers = await activityPubService.getFollowers(targetUserId.value, { limit: 1 });
-    followersCount.value = followers.length;
+    // If user profile data was passed as prop, use it (avoid extra query)
+    if (props.userProfile && props.userProfile.followers_count !== undefined) {
+      followersCount.value = props.userProfile.followers_count || 0;
+      followingCount.value = props.userProfile.following_count || 0;
+      return;
+    }
     
-    // Load following count
-    const following = await activityPubService.getFollowing(targetUserId.value, { limit: 1 });
-    followingCount.value = following.length;
+    // Otherwise, lightweight query for just counts (fast indexed lookup)
+    const { data: userProfile, error } = await supabase
+      .from('profiles')
+      .select('followers_count, following_count')
+      .eq('id', targetUserId.value)
+      .single();
+    
+    if (error) {
+      console.error('Failed to load counts:', error);
+      return;
+    }
+    
+    followersCount.value = userProfile.followers_count || 0;
+    followingCount.value = userProfile.following_count || 0;
   } catch (error) {
     console.error('Failed to load counts:', error);
   }

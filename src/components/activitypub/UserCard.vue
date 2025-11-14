@@ -210,8 +210,10 @@ const handleFollowToggle = async () => {
     const result = await toggleFollow(props.user.id);
     
     if (result.following) {
+      activityPubStore.followedUsers.add(props.user.id);
       emit('follow', props.user.id);
     } else {
+      activityPubStore.followedUsers.delete(props.user.id);
       emit('unfollow', props.user.id);
     }
   } catch (error) {

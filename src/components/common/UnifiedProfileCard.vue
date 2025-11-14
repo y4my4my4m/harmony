@@ -317,12 +317,15 @@ const handleFollowToggle = async () => {
   
   isFollowLoading.value = true
   try {
-    if (isFollowing.value) {
-      await activityPubStore.unfollowUser(props.user.id)
-      emit('unfollow', props.user.id)
-    } else {
-      await activityPubStore.followUser(props.user.id)
+    // Just call toggleFollow - let it handle the logic
+    const result = await services.interactions.toggleFollow(props.user.id)
+    
+    if (result.following) {
+      activityPubStore.followedUsers.add(props.user.id)
       emit('follow', props.user.id)
+    } else {
+      activityPubStore.followedUsers.delete(props.user.id)
+      emit('unfollow', props.user.id)
     }
   } catch (error) {
     console.error('Failed to toggle follow:', error)
