@@ -78,14 +78,23 @@ export class ActivityProcessor {
     }
 
     // Create follow relationship (auto-accept)
-    await supabase.from('follows').upsert({
+    const { data: followResult, error: followError } = await supabase.from('follows').upsert({
       follower_id: follower.id,
       following_id: following.id,
       status: 'accepted',
-      ap_activity_id: activity.id,
-    });
+      ap_id: activity.id,
+      is_local: false,
+      accepted_at: new Date().toISOString()
+    }, {
+      onConflict: 'follower_id,following_id'
+    }).select();
 
-    logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`);
+    if (followError) {
+      logger.error('Failed to create follow relationship:', followError);
+      return;
+    }
+
+    logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`, followResult);
 
     // Send Accept activity back to follower
     const { data: followingUser } = await supabase
