@@ -233,28 +233,20 @@ const loadMore = () => {
 };
 
 // Event handlers
-const handleFollow = async (userId: string) => {
-  try {
-    await activityPubStore.followUser(userId);
-    followingCount.value++;
-  } catch (error) {
-    console.error('Failed to follow user:', error);
-    toast.error('Failed to follow user');
-  }
+const handleFollow = (userId: string) => {
+  // User was followed - just update count
+  // The UserCard already handled the actual follow via toggleFollow
+  followingCount.value++;
 };
 
-const handleUnfollow = async (userId: string) => {
-  try {
-    await activityPubStore.unfollowUser(userId);
-    followingCount.value--;
-    
-    // Remove from following list if currently viewing following
-    if (currentView.value === 'following') {
-      users.value = users.value.filter(u => u.id !== userId);
-    }
-  } catch (error) {
-    console.error('Failed to unfollow user:', error);
-    toast.error('Failed to unfollow user');
+const handleUnfollow = (userId: string) => {
+  // User was unfollowed - just update count and UI
+  // The UserCard already handled the actual unfollow via toggleFollow
+  followingCount.value--;
+  
+  // Remove from following list if currently viewing following
+  if (currentView.value === 'following') {
+    users.value = users.value.filter(u => u.id !== userId);
   }
 };
 

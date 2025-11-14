@@ -198,6 +198,7 @@ const { toggleFollow, getLoadingState } = usePostInteractions()
 
 // ===== STATE =====
 const showActionsMenu = ref(false)
+const followInProgress = ref(false)
 
 // ===== TYPE GUARDS =====
 const isFederatedUser = computed(() => {
@@ -310,11 +311,10 @@ const handleClick = () => {
   }
 }
 
-let followInProgress = false;
 const handleFollowToggle = async () => {
-  if (!isFederatedUser.value || isFollowLoading.value || followInProgress) return
+  if (!isFederatedUser.value || isFollowLoading.value || followInProgress.value) return
   
-  followInProgress = true;
+  followInProgress.value = true;
   try {
     const result = await toggleFollow(props.user.id)
     
@@ -328,7 +328,7 @@ const handleFollowToggle = async () => {
   } catch (error) {
     console.error('Failed to toggle follow:', error)
   } finally {
-    followInProgress = false;
+    followInProgress.value = false;
   }
 }
 

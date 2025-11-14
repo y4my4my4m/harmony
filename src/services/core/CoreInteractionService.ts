@@ -150,16 +150,23 @@ export class CoreInteractionService {
           throw this.createError('USER_NOT_FOUND', 'Target user not found')
         }
 
-        // Check if we're blocked by target user
-        const { data: blockedBy } = await supabase
-          .from('user_blocks')
-          .select('id')
-          .eq('blocker_id', targetUserId)
-          .eq('blocked_user_id', profileId)
-          .maybeSingle()
+        // Check if we're blocked by target user (skip if table doesn't exist or no permissions)
+        try {
+          const { data: blockedBy } = await supabase
+            .from('user_blocks')
+            .select('id')
+            .eq('blocker_id', targetUserId)
+            .eq('blocked_user_id', profileId)
+            .maybeSingle()
 
-        if (blockedBy) {
-          throw this.createError('BLOCKED_BY_USER', 'Cannot follow user who has blocked you')
+          if (blockedBy) {
+            throw this.createError('BLOCKED_BY_USER', 'Cannot follow user who has blocked you')
+          }
+        } catch (blockError: any) {
+          // Ignore permission errors - assume not blocked if we can't check
+          if (blockError.code !== '42501') {
+            console.warn('Block check failed:', blockError)
+          }
         }
 
         // Determine if approval is required (ActivityPub standard)

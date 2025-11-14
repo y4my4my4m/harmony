@@ -1324,9 +1324,32 @@ export const useActivityPubStore = defineStore('activitypub', {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'follows' },
-          (payload) => {
-            console.log('Follow relationship update:', payload);
-            // TODO: Update follow state
+          async (payload) => {
+            console.log('👥 Follow relationship update:', payload);
+            
+            const currentUser = await supabase.auth.getUser();
+            if (!currentUser.data.user) return;
+            
+            const follow = payload.new as any;
+            const oldFollow = payload.old as any;
+            
+            // Only update if this affects the current user
+            if (payload.eventType === 'INSERT' && follow.follower_id === currentUser.data.user.id) {
+              console.log('👥 New follow relationship:', follow);
+              this.followedUsers.add(follow.following_id);
+            } else if (payload.eventType === 'DELETE' && oldFollow.follower_id === currentUser.data.user.id) {
+              console.log('👥 Follow relationship deleted:', oldFollow);
+              this.followedUsers.delete(oldFollow.following_id);
+            } else if (payload.eventType === 'UPDATE') {
+              const isCurrentUserFollower = follow.follower_id === currentUser.data.user.id;
+              if (isCurrentUserFollower) {
+                if (follow.status === 'accepted') {
+                  this.followedUsers.add(follow.following_id);
+                } else {
+                  this.followedUsers.delete(follow.following_id);
+                }
+              }
+            }
           }
         )
         .subscribe();

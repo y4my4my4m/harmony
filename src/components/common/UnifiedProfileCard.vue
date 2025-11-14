@@ -207,6 +207,7 @@ const { getPresenceAwareStatus, isUserOnline } = useUserData()
 // State
 const isFollowLoading = ref(false)
 const showActionsMenu = ref(false)
+const followInProgress = ref(false)
 
 // Type guards
 const isFederatedUser = (user: User | FederatedUser): user is FederatedUser => {
@@ -312,11 +313,10 @@ const handleClick = () => {
   }
 }
 
-let followInProgress = false;
 const handleFollowToggle = async () => {
-  if (!isFederatedUser(props.user) || isFollowLoading.value || followInProgress) return
+  if (!isFederatedUser(props.user) || isFollowLoading.value || followInProgress.value) return
   
-  followInProgress = true;
+  followInProgress.value = true;
   isFollowLoading.value = true
   try {
     // Just call toggleFollow - let it handle the logic
@@ -333,7 +333,7 @@ const handleFollowToggle = async () => {
     console.error('Failed to toggle follow:', error)
   } finally {
     isFollowLoading.value = false
-    followInProgress = false;
+    followInProgress.value = false;
   }
 }
 
