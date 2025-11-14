@@ -261,7 +261,7 @@ export class DeliveryQueue {
     const supabase = getSupabaseClient();
 
     // Get all followers' inbox URLs (both individual and shared)
-    const { data: follows } = await supabase
+    const { data: follows, error: followsError } = await supabase
       .from('follows')
       .select(`
         follower_id,
@@ -275,6 +275,13 @@ export class DeliveryQueue {
       .eq('following_id', userId)
       .eq('status', 'accepted');
 
+    if (followsError) {
+      logger.error('Error fetching followers:', followsError);
+      return;
+    }
+
+    logger.debug(`Raw follows data from DB:`, JSON.stringify(follows, null, 2));
+
     if (!follows || follows.length === 0) {
       logger.info('No followers to broadcast to');
       return;
@@ -286,12 +293,29 @@ export class DeliveryQueue {
     for (const follow of follows) {
       const follower = (follow as any).profiles;
       
+      logger.debug(`Processing follower:`, {
+        follower_id: (follow as any).follower_id,
+        follower_data: follower,
+        is_local: follower?.is_local,
+        domain: follower?.domain,
+        inbox_url: follower?.inbox_url,
+        shared_inbox_url: follower?.shared_inbox_url
+      });
+      
+      if (!follower) {
+        logger.warn(`Follower profile is null for follower_id: ${(follow as any).follower_id}`);
+        continue;
+      }
+      
       if (follower.is_local) {
+        logger.debug(`Skipping local follower: ${follower.domain}`);
         continue; // Skip local followers
       }
       
       // Prefer shared inbox, fall back to individual inbox
       const preferredInbox = follower.shared_inbox_url || follower.inbox_url;
+      
+      logger.debug(`Preferred inbox for ${follower.domain}: ${preferredInbox}`);
       
       if (preferredInbox) {
         const inboxType = follower.shared_inbox_url ? 'shared' : 'individual';
@@ -301,11 +325,16 @@ export class DeliveryQueue {
             inbox: preferredInbox,
             type: inboxType,
           });
+          logger.debug(`Added inbox to map: ${preferredInbox} (${inboxType})`);
+        } else {
+          logger.debug(`Inbox already in map: ${preferredInbox}`);
         }
       } else {
         logger.warn(`Follower from ${follower.domain} has no inbox URL configured`);
       }
     }
+    
+    logger.debug(`Final inbox map:`, Array.from(inboxMap.entries()));
 
     // Enqueue deliveries (one per unique inbox)
     let enqueued = 0;
