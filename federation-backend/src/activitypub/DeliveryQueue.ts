@@ -261,11 +261,12 @@ export class DeliveryQueue {
     const supabase = getSupabaseClient();
 
     // Get all followers' inbox URLs (both individual and shared)
+    // Use inner join syntax instead of foreign key hint to avoid ambiguity
     const { data: follows, error: followsError } = await supabase
       .from('follows')
       .select(`
         follower_id,
-        profiles!follows_follower_id_fkey (
+        follower:profiles!follower_id (
           inbox_url,
           shared_inbox_url,
           is_local,
@@ -299,7 +300,7 @@ export class DeliveryQueue {
     const inboxMap = new Map<string, { inbox: string; type: 'shared' | 'individual' }>();
     
     for (const follow of follows) {
-      const follower = (follow as any).profiles;
+      const follower = (follow as any).follower;
       
       logger.debug(`Processing follower:`, {
         follower_id: (follow as any).follower_id,
