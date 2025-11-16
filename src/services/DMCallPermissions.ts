@@ -27,9 +27,13 @@ class DMCallPermissionService {
     receiverId: string,
     conversationId: string
   ): Promise<CallPermissionCheck> {
+    console.log('🔍 Checking call permissions:', { callerId, receiverId, conversationId })
+    
     try {
       // 1. Check if caller is blocked by receiver
-      const isBlocked = await this.isUserBlocked(callerId, receiverId)
+      console.log('🔍 Checking if caller is blocked...')
+      const isBlocked = await this.isUserBlocked(receiverId, callerId)
+      console.log('🔍 Blocked check result:', isBlocked)
       if (isBlocked) {
         return {
           allowed: false,
@@ -39,7 +43,9 @@ class DMCallPermissionService {
       }
 
       // 2. Check if caller has blocked receiver (shouldn't be able to call)
-      const hasBlockedReceiver = await this.isUserBlocked(receiverId, callerId)
+      console.log('🔍 Checking if caller has blocked receiver...')
+      const hasBlockedReceiver = await this.isUserBlocked(callerId, receiverId)
+      console.log('🔍 Has blocked receiver result:', hasBlockedReceiver)
       if (hasBlockedReceiver) {
         return {
           allowed: false,
@@ -49,7 +55,9 @@ class DMCallPermissionService {
       }
 
       // 3. Check if receiver is in Do Not Disturb mode
+      console.log('🔍 Checking DND status...')
       const isDND = await this.isUserInDND(receiverId)
+      console.log('🔍 DND check result:', isDND)
       if (isDND) {
         return {
           allowed: false,
@@ -59,7 +67,9 @@ class DMCallPermissionService {
       }
 
       // 4. Check if receiver is busy (already in another call)
+      console.log('🔍 Checking busy status...')
       const isBusy = await this.isUserBusy(receiverId)
+      console.log('🔍 Busy check result:', isBusy)
       if (isBusy) {
         return {
           allowed: false,
@@ -69,7 +79,9 @@ class DMCallPermissionService {
       }
 
       // 5. Check if receiver has muted this conversation
+      console.log('🔍 Checking if conversation is muted...')
       const isMuted = await this.isConversationMuted(receiverId, conversationId)
+      console.log('🔍 Muted check result:', isMuted)
       if (isMuted) {
         return {
           allowed: false,
@@ -79,7 +91,9 @@ class DMCallPermissionService {
       }
 
       // 6. Check notification preferences
+      console.log('🔍 Checking notification preferences...')
       const notificationsEnabled = await this.areCallNotificationsEnabled(receiverId)
+      console.log('🔍 Notifications enabled result:', notificationsEnabled)
       if (!notificationsEnabled) {
         return {
           allowed: false,
@@ -89,10 +103,12 @@ class DMCallPermissionService {
       }
 
       // All checks passed
+      console.log('✅ All permission checks passed - call allowed!')
       return { allowed: true }
     } catch (error) {
-      console.error('Error checking call permissions:', error)
+      console.error('❌ Error checking call permissions:', error)
       // On error, allow the call (fail open)
+      console.log('⚠️ Failing open - allowing call despite error')
       return { allowed: true }
     }
   }

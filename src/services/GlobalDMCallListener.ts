@@ -34,12 +34,20 @@ class GlobalDMCallListenerService {
    */
   async initialize(userId: string, conversationIds: string[]): Promise<void> {
     this.currentUserId = userId
-    console.log(`📞 Initializing global call listener for ${conversationIds.length} conversations`)
+    console.log(`📞 GLOBAL CALL LISTENER INITIALIZING for user ${userId}`)
+    console.log(`📞 Subscribing to ${conversationIds.length} conversations:`, conversationIds)
+    
+    if (conversationIds.length === 0) {
+      console.warn('⚠️ No conversations to subscribe to!')
+      return
+    }
     
     // Subscribe to all conversations
     for (const conversationId of conversationIds) {
       this.subscribeToConversation(conversationId)
     }
+    
+    console.log(`✅ Global call listener initialized successfully`)
   }
 
   /**
@@ -48,16 +56,22 @@ class GlobalDMCallListenerService {
   private subscribeToConversation(conversationId: string): void {
     // Skip if already subscribed
     if (this.unsubscribers.has(conversationId)) {
+      console.log(`⚠️ Already subscribed to conversation: ${conversationId}`)
       return
     }
 
+    console.log(`📡 Subscribing to call signals for conversation: ${conversationId}`)
+    
     const unsubscribe = dmCallSignaling.subscribeToConversation(
       conversationId,
-      (signal) => this.handleCallSignal(conversationId, signal)
+      (signal) => {
+        console.log(`📞 Global listener received signal for ${conversationId}:`, signal.type)
+        this.handleCallSignal(conversationId, signal)
+      }
     )
     
     this.unsubscribers.set(conversationId, unsubscribe)
-    console.log(`📡 Subscribed to calls for conversation: ${conversationId}`)
+    console.log(`✅ Successfully subscribed to calls for conversation: ${conversationId}`)
   }
 
   /**
@@ -122,19 +136,30 @@ class GlobalDMCallListenerService {
    * Handle incoming call with permission checks
    */
   private async handleIncomingCall(conversationId: string, signal: CallSignal): Promise<void> {
-    if (!this.currentUserId) return
+    if (!this.currentUserId) {
+      console.error('❌ No current user ID - cannot handle incoming call')
+      return
+    }
 
-    console.log('📞 Incoming call from:', signal.callerId, 'Type:', signal.callType)
+    console.log('📞 INCOMING CALL RECEIVED:', {
+      from: signal.callerId,
+      to: this.currentUserId,
+      type: signal.callType,
+      conversationId
+    })
 
     // Check permissions
+    console.log('🔍 Checking call permissions...')
     const permissionCheck = await dmCallPermissions.canReceiveCall(
       signal.callerId,
       this.currentUserId,
       conversationId
     )
 
+    console.log('🔍 Permission check result:', permissionCheck)
+
     if (!permissionCheck.allowed) {
-      console.log('🚫 Auto-declining call:', permissionCheck.reason)
+      console.log('🚫 Auto-declining call due to:', permissionCheck.reason)
       await dmCallSignaling.declineCall(
         conversationId,
         this.currentUserId,
@@ -142,6 +167,8 @@ class GlobalDMCallListenerService {
       )
       return
     }
+    
+    console.log('✅ Permission checks passed, showing incoming call modal')
 
     // Load caller data
     const { userDataService } = await import('./userDataService')
@@ -162,12 +189,18 @@ class GlobalDMCallListenerService {
     this.incomingCall.value = incomingCallData
     this.showIncomingCallModal.value = true
     
+    console.log('📞 INCOMING CALL MODAL STATE SET:', {
+      show: this.showIncomingCallModal.value,
+      caller: incomingCallData.callerName,
+      hasData: !!this.incomingCall.value
+    })
+    
     // Notify callback if set
     if (this.onIncomingCallCallback) {
       this.onIncomingCallCallback(incomingCallData)
     }
 
-    console.log('📞 Showing incoming call modal')
+    console.log('✅ Incoming call modal should now be visible')
   }
 
   /**
