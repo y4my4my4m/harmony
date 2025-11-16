@@ -73,6 +73,18 @@
     <div v-if="!isMobile" class="user-profile-section">
       <UserProfileComponent />
     </div>
+    
+    <!-- Global Incoming Call Modal (works even when not viewing DM) -->
+    <IncomingCallModal
+      :show="globalDMCallListener.showIncomingCallModal.value"
+      :caller-id="globalDMCallListener.incomingCall.value?.callerId || ''"
+      :caller-name="globalDMCallListener.incomingCall.value?.callerName || 'Unknown'"
+      :caller-avatar="globalDMCallListener.incomingCall.value?.callerAvatar || '/default_avatar.png'"
+      :call-type="globalDMCallListener.incomingCall.value?.callType || 'voice'"
+      :conversation-id="globalDMCallListener.incomingCall.value?.conversationId || ''"
+      @accept="handleGlobalCallAccept"
+      @decline="handleGlobalCallDecline"
+    />
   </div>
 </template>
 
@@ -88,11 +100,18 @@ import { useMobileGestures } from '@/composables/useMobileGestures'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { routeAwareInitialization } from '@/services/RouteAwareInitialization'
 import { supabase } from '@/supabase'
+import { globalDMCallListener } from '@/services/GlobalDMCallListener'
+import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { dmCallSignaling } from '@/services/DMCallSignaling'
+import { useDMStore } from '@/stores/useDM'
 
 // Stores and Router
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
 const profileStore = useProfileStore()
+const dmStore = useDMStore()
+const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 
 // Composables
@@ -126,6 +145,54 @@ const hasServersLoaded = ref(false)
 const isAppReady = computed(() => isAppInitialized.value && hasServersLoaded.value)
 const servers = computed(() => serverChannelStore.servers)
 const windowWidth = computed(() => typeof window !== 'undefined' ? window.innerWidth : 768)
+
+// Global call handlers
+const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
+  const incomingCall = globalDMCallListener.incomingCall.value
+  if (!incomingCall) return
+
+  const currentUserId = authStore.session?.user?.id
+  if (!currentUserId) return
+
+  try {
+    // Send accept signal
+    await dmCallSignaling.acceptCall(incomingCall.conversationId, currentUserId)
+    
+    // Join the voice channel
+    const dmChannelId = `dm-${incomingCall.conversationId}`
+    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+    
+    if (success) {
+      // Enable video if accepting with video
+      if (acceptWithVideo) {
+        await voiceStore.toggleVideo()
+      }
+      
+      voiceStore.isOverlayVisible = true
+    }
+  } catch (error) {
+    console.error('Error accepting call:', error)
+  } finally {
+    globalDMCallListener.dismissIncomingCall()
+  }
+}
+
+const handleGlobalCallDecline = async () => {
+  const incomingCall = globalDMCallListener.incomingCall.value
+  if (!incomingCall) return
+
+  const currentUserId = authStore.session?.user?.id
+  if (!currentUserId) return
+
+  try {
+    // Send decline signal
+    await dmCallSignaling.declineCall(incomingCall.conversationId, currentUserId)
+  } catch (error) {
+    console.error('Error declining call:', error)
+  } finally {
+    globalDMCallListener.dismissIncomingCall()
+  }
+}
 
 // ⚡ OPTIMIZED: Route-Aware App Initialization
 // Only loads what's needed for the current route instead of everything
@@ -298,6 +365,13 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         console.log('🎯 Generic DM route - loading full DM environment')
         await dmStore.initializeDMEnvironment(userId, false, false, 'partial') // Full loading as fallback with partial user loading
         console.log('✅ Full DM environment loaded')
+      }
+      
+      // Initialize global call listener for ALL conversations
+      const conversationIds = dmStore.conversations.map(conv => conv.id)
+      if (conversationIds.length > 0) {
+        await globalDMCallListener.initialize(userId, conversationIds)
+        console.log(`✅ Global call listener initialized for ${conversationIds.length} conversations`)
       }
       
       // OPTIMIZED: Only subscribe to DM presence for specific DM conversation routes
@@ -548,6 +622,9 @@ onBeforeUnmount(() => {
     window.removeEventListener('touchmove', wrappedTouchMove)
     window.removeEventListener('touchend', wrappedTouchEnd)
   }
+  
+  // Cleanup global call listener
+  globalDMCallListener.cleanup()
 })
 </script>
 

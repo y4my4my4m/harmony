@@ -52,12 +52,20 @@ class DMCallSignalingService {
       channel
         .on('broadcast', { event: 'call-signal' }, (payload) => {
           const signal = payload.payload as CallSignal
-          console.log('📞 Received call signal:', signal)
+          console.log('📞 Received call signal:', {
+            conversation: conversationId,
+            type: signal.type,
+            from: signal.callerId,
+            callType: signal.callType
+          })
           
           // Notify all listeners
           const listeners = this.listeners.get(conversationId)
           if (listeners) {
+            console.log(`📞 Notifying ${listeners.size} listener(s)`)
             listeners.forEach(listener => listener(signal))
+          } else {
+            console.warn('📞 No listeners for conversation:', conversationId)
           }
         })
         .subscribe((status) => {
@@ -97,13 +105,20 @@ class DMCallSignalingService {
       return
     }
     
+    console.log('📤 Sending call signal:', {
+      conversation: conversationId,
+      type: signal.type,
+      from: signal.callerId,
+      callType: signal.callType
+    })
+    
     await channel.send({
       type: 'broadcast',
       event: 'call-signal',
       payload: signal
     })
     
-    console.log('📤 Sent call signal:', signal)
+    console.log('✅ Call signal sent successfully')
   }
 
   /**

@@ -64,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import { useThemeStore } from '@/stores/useTheme'
@@ -88,12 +88,14 @@ const emit = defineEmits<{
 const themeStore = useThemeStore()
 let ringtoneInterval: number | null = null
 
-// Play ringtone when call comes in
-onMounted(() => {
-  if (props.show) {
+// Watch for modal showing/hiding
+watch(() => props.show, (isShowing) => {
+  if (isShowing) {
     startRingtone()
+  } else {
+    stopRingtone()
   }
-})
+}, { immediate: true })
 
 // Stop ringtone when component unmounts
 onUnmounted(() => {
