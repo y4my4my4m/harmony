@@ -1180,6 +1180,21 @@ export const useDMStore = defineStore('dm', () => {
     content: MessagePart[],
     replyTo?: string
   ): Promise<boolean> => {
+    // Create optimistic message
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage = {
+      id: tempId,
+      created_at: new Date(),
+      conversation_id: conversationId,
+      user_id: userId,
+      content: content,
+      reply_to: replyTo,
+      sending: true
+    };
+    
+    // Add optimistic message to display immediately
+    addMessageToCache(conversationId, optimisticMessage as any);
+    
     try {
       console.log('🔄 Sending DM message via MessageService:', { conversationId, userId })
       
@@ -1192,6 +1207,9 @@ export const useDMStore = defineStore('dm', () => {
 
       console.log('✅ DM message sent via service layer:', message.id)
       
+      // Remove optimistic message
+      removeMessageFromCache(conversationId, tempId);
+      
       // 🎯 DATABASE TRIGGERS NOW HANDLE:
       // 1. DM notifications (handle_message_notifications trigger)
       // 2. Federation delivery (federate_dm_message trigger)
@@ -1202,6 +1220,8 @@ export const useDMStore = defineStore('dm', () => {
 
       return true
     } catch (error: any) {
+      // Remove optimistic message on error
+      removeMessageFromCache(conversationId, tempId);
       console.error('❌ Failed to send DM message via service:', error)
       throw new Error(error.message || 'Failed to send DM message')
     }

@@ -24,12 +24,12 @@
       <draggable
         v-model="orphanChannels"
         :group="dragGroup"
-        :disabled="!canDragAndDrop"
+        :disabled="!canDragAndDrop || isMobile"
         @start="onDragStart"
         @end="onDragEnd"
         @add="onChannelAddedToOrphans"
         item-key="id"
-        :class="{ 'drag-disabled': !canDragAndDrop }"
+        :class="{ 'drag-disabled': !canDragAndDrop || isMobile }"
         tag="div"
       >
         <template #item="{ element }">
@@ -78,6 +78,12 @@
               </span>
             </div>
           </div>
+          <!-- Voice channel participants -->
+          <VoiceChannelParticipants
+            v-if="element.type === 1 && isUserInVoiceChannel(element.id)"
+            :participants="getVoiceChannelParticipants(element.id)"
+            :session-start-time="getVoiceSessionStartTime(element.id)"
+          />
         </template>
       </draggable>
     </div>
@@ -86,7 +92,7 @@
     <draggable
       v-model="reorderableCategories"
       :group="{ name: 'categories', put: false, pull: false }"
-      :disabled="!canDragAndDrop"
+      :disabled="!canDragAndDrop || isMobile"
       :key="categoriesKey"
       item-key="id"
       tag="div"
@@ -122,7 +128,7 @@
             <draggable
               v-model="getCachedCategoryChannels(category.id).value"
               :group="dragGroup"
-              :disabled="!canDragAndDrop"
+              :disabled="!canDragAndDrop || isMobile"
               @start="onDragStart"
               @end="onDragEnd"
               @add="(evt: any) => onChannelAddedToCategory(evt, category.id)"
@@ -181,6 +187,12 @@
                     </span>
                   </div>
                 </div>
+                <!-- Voice channel participants -->
+                <VoiceChannelParticipants
+                  v-if="channel.type === 1 && isUserInVoiceChannel(channel.id)"
+                  :participants="getVoiceChannelParticipants(channel.id)"
+                  :session-start-time="getVoiceSessionStartTime(channel.id)"
+                />
               </template>
               <!-- Empty state for drag target - only show when dragging channels -->
               <template #footer v-if="getCachedCategoryChannels(category.id).value.length === 0 && dragState.isDragging">
@@ -273,6 +285,7 @@ import SpeakerIcon from '@/components/icons/Speaker.vue';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
+import VoiceChannelParticipants from '@/components/voice/VoiceChannelParticipants.vue';
 import ChannelContextMenu from './ChannelContextMenu.vue';
 import CategoryContextMenu from './CategoryContextMenu.vue';
 import ChannelEditModal from './ChannelEditModal.vue';
@@ -589,6 +602,22 @@ const handleChannelCreated = (channel: Channel) => {
 
 const isUserInVoiceChannel = (channelId: string): boolean => voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId;
 const getUsersInVoiceChannel = (channelId: string): string[] => serverUsersStore.getUsersInVoiceChannel(channelId);
+
+const getVoiceChannelParticipants = (channelId: string) => {
+  // Only return participants if the current user is in this specific channel
+  if (voiceChannelStore.currentChannelId === channelId) {
+    return voiceChannelStore.allParticipants;
+  }
+  return [];
+};
+
+const getVoiceSessionStartTime = (channelId: string) => {
+  // Only return session start time if the current user is in this specific channel
+  if (voiceChannelStore.currentChannelId === channelId) {
+    return voiceChannelStore.sessionStartTime;
+  }
+  return null;
+};
 
 const joinVoiceChannel = async (channelId: string) => {
   if (await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id)) {

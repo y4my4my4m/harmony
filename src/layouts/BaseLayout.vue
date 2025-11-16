@@ -87,6 +87,7 @@ import { useProfileStore } from '@/stores/useProfile'
 import { useMobileGestures } from '@/composables/useMobileGestures'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { routeAwareInitialization } from '@/services/RouteAwareInitialization'
+import { supabase } from '@/supabase'
 
 // Stores and Router
 const serverChannelStore = useServerChannelStore()

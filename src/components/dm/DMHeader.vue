@@ -437,12 +437,12 @@ const toggleVideoCall = async () => {
     
     if (isInVideoCall.value) {
       // Turn off video
-      await unifiedWebRTCService.toggleVideo()
+      await unifiedWebRTC.toggleVideo()
       isInVideoCall.value = false
       toast.info('Video disabled')
     } else {
       // Turn on video
-      await unifiedWebRTCService.toggleVideo()
+      await unifiedWebRTC.toggleVideo()
       isInVideoCall.value = true
       toast.success('Video enabled')
     }

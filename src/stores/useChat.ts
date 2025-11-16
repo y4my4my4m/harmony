@@ -469,6 +469,21 @@ export const useChatStore = defineStore('chat', {
     },
 
     async sendMessage(serverId: string, channelId: string, userId: string, content: Array<Object>, replyTo: string) {
+      // Create optimistic message
+      const tempId = `temp-${Date.now()}`;
+      const optimisticMessage = {
+        id: tempId,
+        created_at: new Date(),
+        channel_id: channelId,
+        user_id: userId,
+        content: content as any,
+        reply_to: replyTo || undefined,
+        sending: true
+      };
+      
+      // Add optimistic message to display immediately
+      this.addMessageToCache(optimisticMessage as any);
+      
       try {
         console.log('🔄 Sending message via MessageService:', { channelId, userId });
         
@@ -480,12 +495,17 @@ export const useChatStore = defineStore('chat', {
           replyTo || undefined
         );
         
-        // Real-time subscription will handle adding to cache
+        // Remove optimistic message
+        this.removeMessageFromCache(tempId);
+        
+        // Add real message (without sending flag)
         this.addMessageToCache(message);
         
         console.log('✅ Message sent via service layer:', message.id);
         return message;
       } catch (error: any) {
+        // Remove optimistic message on error
+        this.removeMessageFromCache(tempId);
         console.error('❌ Error sending message via service:', error);
         throw new Error(error.message || 'Failed to send message');
       }

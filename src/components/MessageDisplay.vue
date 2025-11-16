@@ -116,6 +116,14 @@
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
             />
+            <!-- Inline sending indicator -->
+            <span v-if="message.sending" class="sending-indicator">
+              <svg class="spinner-icon" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="32">
+                  <animate attributeName="stroke-dashoffset" dur="1s" values="32;0;32" repeatCount="indefinite"/>
+                </circle>
+              </svg>
+            </span>
           </div>
         </div>
         
@@ -137,6 +145,14 @@
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
             />
+            <!-- Inline sending indicator -->
+            <span v-if="message.sending" class="sending-indicator">
+              <svg class="spinner-icon" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="32">
+                  <animate attributeName="stroke-dashoffset" dur="1s" values="32;0;32" repeatCount="indefinite"/>
+                </circle>
+              </svg>
+            </span>
           </div>
         </div>
         
@@ -550,11 +566,17 @@ const formatDateSeparator = (timestamp: Date): string => {
 
 // Message Actions (Edit, Delete, React)
 const canEditMessage = (message: Message) => {
-  return authStore.session?.user && (message.user_id === authStore.session.user.id || isCurrentUserServerOwner.value);
+  if (!authStore.session?.user || !message) return false;
+  const currentUserId = authStore.session.user.id;
+  const messageUserId = message.user_id;
+  return messageUserId === currentUserId || isCurrentUserServerOwner.value;
 };
 
 const canDeleteMessage = (message: Message) => {
-  return authStore.session?.user && (message.user_id === authStore.session.user.id || isCurrentUserServerOwner.value);
+  if (!authStore.session?.user || !message) return false;
+  const currentUserId = authStore.session.user.id;
+  const messageUserId = message.user_id;
+  return messageUserId === currentUserId || isCurrentUserServerOwner.value;
 };
 
 
@@ -1235,5 +1257,41 @@ const closeInviteModal = () => {
   .system-timestamp {
     font-size: 0.6875rem;
   }
+}
+
+/* Sending indicator - inline with message content */
+.sending-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  opacity: 0.6;
+  vertical-align: middle;
+}
+
+.spinner-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-secondary);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Ensure message-main uses flex to keep spinner inline */
+.message-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.message-main > :first-child {
+  display: inline;
 }
 </style>
