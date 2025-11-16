@@ -229,11 +229,7 @@ const initializeApp = async () => {
     await serverChannelStore.initializeUserEnvironment(userId)
     await profileStore.fetchProfileByAuthUserId(userId)
     
-    // CRITICAL: Always load DM conversations metadata for global call listener
-    // This ensures call reception works from anywhere in the app
-    console.log('📞 Loading DM conversations for global call reception...')
-    await dmStore.initializeDMEnvironment(userId, false, true, 'immediate')
-    console.log('✅ DM conversations loaded for global call listener')
+    // Note: Global call listener initializes separately via watch (no DM list needed!)
     
     // Initialize core user data system
     const { useUserData } = await import('@/composables/useUserData')
@@ -538,28 +534,15 @@ const initializeBackgroundData = async (userId: string, strategy: any) => {
 
 
 
-// Watch for DM conversations to load and initialize global call listener
-// This runs REGARDLESS of route so calls work everywhere
-watch(() => dmStore.conversations.length, async (count) => {
-  const userId = authStore.session?.user?.id
-  console.log('👀 DM conversations count changed:', count, 'User ID:', userId, 'Already initialized:', globalDMCallListener.isInitialized())
+// Initialize global call listener when user logs in
+// No need to wait for DM conversations!
+watch(() => authStore.session?.user?.id, async (userId) => {
+  console.log('👀 User ID changed:', userId)
   
-  if (count > 0 && userId && !globalDMCallListener.isInitialized()) {
-    const ids = dmStore.conversations.map(conv => conv.id)
-    console.log('📞 ========================================')
-    console.log('📞 INITIALIZING GLOBAL CALL LISTENER NOW')
-    console.log('📞 User:', userId)
-    console.log('📞 Conversation count:', count)
-    console.log('📞 Conversation IDs:', ids)
-    console.log('📞 ========================================')
-    await globalDMCallListener.initialize(userId, ids)
-    console.log('✅ GLOBAL CALL LISTENER INITIALIZED')
-  } else if (count === 0) {
-    console.warn('⚠️ No DM conversations loaded yet')
-  } else if (!userId) {
-    console.warn('⚠️ No user ID available')
-  } else if (globalDMCallListener.isInitialized()) {
-    console.log('ℹ️ Global call listener already initialized')
+  if (userId && !globalDMCallListener.isInitialized()) {
+    console.log('📞 Initializing global call listener for user:', userId)
+    await globalDMCallListener.initialize(userId)
+    console.log('✅ Global call listener ready')
   }
 }, { immediate: true })
 

@@ -576,8 +576,15 @@ const toggleVoiceCall = async () => {
       // Create a virtual channel ID for this DM conversation
       const dmChannelId = `dm-${props.conversation.id}`
       
+      // Get receiver IDs
+      const receiverIds = getReceiverIds()
+      if (receiverIds.length === 0) {
+        toast.error('No participants to call')
+        return
+      }
+      
       // Send call initiation signal to other participant(s)
-      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'voice')
+      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'voice', receiverIds)
       
       // Use the voice store to join (this will show the voice overlay UI)
       // Use 'dm' as serverId to indicate it's a DM call
@@ -658,8 +665,15 @@ const toggleVideoCall = async () => {
       // Start video call (voice + video)
       const dmChannelId = `dm-${props.conversation.id}`
       
+      // Get receiver IDs
+      const receiverIds = getReceiverIds()
+      if (receiverIds.length === 0) {
+        toast.error('No participants to call')
+        return
+      }
+      
       // Send video call initiation signal
-      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'video')
+      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'video', receiverIds)
       
       // Join voice channel
       const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
@@ -688,6 +702,23 @@ const toggleVideoCall = async () => {
   } catch (error) {
     console.error('Error toggling video:', error)
     toast.error('Failed to toggle camera')
+  }
+}
+
+// Get receiver IDs for calling
+const getReceiverIds = (): string[] => {
+  const currentUserId = authStore.session?.user?.id
+  if (!currentUserId) return []
+  
+  if (props.conversation.type === 'group') {
+    // For group chats, call all participants except self
+    return (props.conversation.participants || [])
+      .map(p => p.id || p.user_id)
+      .filter(id => id && id !== currentUserId)
+  } else {
+    // For 1-on-1, call the other user
+    const otherUserId = props.conversation.other_user?.id
+    return otherUserId ? [otherUserId] : []
   }
 }
 

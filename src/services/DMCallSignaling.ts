@@ -123,11 +123,13 @@ class DMCallSignalingService {
 
   /**
    * Initiate a call with timeout
+   * Sends signal to the RECEIVER's user channel (dm-calls:{receiverId})
    */
   async initiateCall(
     conversationId: string,
     callerId: string,
-    callType: 'voice' | 'video'
+    callType: 'voice' | 'video',
+    receiverIds: string[] // Who to call
   ): Promise<void> {
     const signal: CallSignal = {
       type: 'initiate',
@@ -153,7 +155,31 @@ class DMCallSignalingService {
       timeoutTimer
     })
     
-    await this.sendSignal(conversationId, signal)
+    // Send signal to each receiver's user channel
+    for (const receiverId of receiverIds) {
+      await this.sendSignalToUser(receiverId, signal)
+    }
+  }
+  
+  /**
+   * Send signal to a specific user's channel
+   */
+  private async sendSignalToUser(userId: string, signal: CallSignal): Promise<void> {
+    const channelName = `dm-calls:${userId}`
+    console.log(`📤 Sending call signal to user ${userId} on channel ${channelName}`)
+    
+    const tempChannel = supabase.channel(channelName)
+    
+    await tempChannel.send({
+      type: 'broadcast',
+      event: 'incoming-call',
+      payload: signal
+    })
+    
+    console.log('✅ Signal sent to user:', userId)
+    
+    // Unsubscribe temp channel
+    await tempChannel.unsubscribe()
   }
   
   /**
