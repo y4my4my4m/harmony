@@ -123,11 +123,18 @@ class DMCallPermissionService {
         .select('id')
         .eq('blocker_id', blockerId)
         .eq('blocked_user_id', blockedUserId)
-        .single()
+        .maybeSingle() // Use maybeSingle instead of single to handle no results
 
-      return !!data && !error
+      if (error) {
+        console.warn('⚠️ Error checking block status (RLS?):', error.message)
+        // If RLS error, assume not blocked (fail open for calls)
+        return false
+      }
+
+      return !!data
     } catch (error) {
-      // No block found or error
+      console.warn('⚠️ Exception checking block status:', error)
+      // No block found or error - assume not blocked
       return false
     }
   }

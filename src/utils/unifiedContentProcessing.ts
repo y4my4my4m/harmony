@@ -389,14 +389,22 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
       } else {
         // For shortcode, we need to query by name
         try {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from('emojis')
             .select('*')
             .eq('name', emojiIdentifier)
-            .single();
-          emojiData = data;
+            .maybeSingle();
+          
+          if (error) {
+            console.warn('⚠️ Error fetching emoji by shortcode:', emojiIdentifier, error.message);
+          } else if (data) {
+            emojiData = data;
+            console.log('✅ Fetched emoji by shortcode:', emojiIdentifier, data);
+          } else {
+            console.warn('⚠️ Emoji not found by shortcode:', emojiIdentifier);
+          }
         } catch (error) {
-          console.warn('Failed to fetch emoji by shortcode:', emojiIdentifier, error);
+          console.warn('❌ Exception fetching emoji by shortcode:', emojiIdentifier, error);
         }
       }
     }
@@ -404,6 +412,7 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     if (emojiData) {
       parts.push({ type: 'emoji', emoji: emojiData });
     } else {
+      console.warn('⚠️ Emoji not resolved, showing as text:', emojiMatch[0]);
       parts.push({ type: 'text', text: emojiMatch[0] });
     }
     

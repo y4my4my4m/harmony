@@ -367,29 +367,8 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         console.log('✅ Full DM environment loaded')
       }
       
-      // Initialize global call listener for ALL conversations
-      const conversationIds = dmStore.conversations.map(conv => conv.id)
-      console.log('📞 Attempting to initialize global call listener...', {
-        conversationsLoaded: dmStore.conversations.length,
-        conversationIds
-      })
-      
-      if (conversationIds.length > 0) {
-        await globalDMCallListener.initialize(userId, conversationIds)
-        console.log(`✅ Global call listener initialized for ${conversationIds.length} conversations`)
-      } else {
-        console.warn('⚠️ No conversations loaded yet - global call listener not initialized')
-        console.log('💡 Will retry when conversations load...')
-        
-        // Watch for conversations to load
-        watch(() => dmStore.conversations.length, async (count) => {
-          if (count > 0 && !globalDMCallListener.isInitialized()) {
-            const ids = dmStore.conversations.map(conv => conv.id)
-            console.log('📞 Conversations loaded, initializing global call listener now...')
-            await globalDMCallListener.initialize(userId, ids)
-          }
-        }, { immediate: false })
-      }
+      // Note: Global call listener will be initialized after DM conversations load
+      // See the watch below for dynamic initialization
       
       // OPTIMIZED: Only subscribe to DM presence for specific DM conversation routes
       // For dm-list, we'll load presence on-demand when conversations are hovered/opened
@@ -549,6 +528,17 @@ const initializeBackgroundData = async (userId: string, strategy: any) => {
 
 
 
+// Watch for DM conversations to load and initialize global call listener
+// This runs REGARDLESS of route so calls work everywhere
+watch(() => dmStore.conversations.length, async (count) => {
+  const userId = authStore.session?.user?.id
+  if (count > 0 && userId && !globalDMCallListener.isInitialized()) {
+    const ids = dmStore.conversations.map(conv => conv.id)
+    console.log('📞 DM Conversations loaded, initializing GLOBAL call listener...')
+    await globalDMCallListener.initialize(userId, ids)
+  }
+}, { immediate: true })
+
 // Watch for auth changes to reinitialize
 watch(() => authStore.session, async (newSession, oldSession) => {
   // If user just logged in (had no session, now has one)
@@ -577,6 +567,9 @@ watch(() => authStore.session, async (newSession, oldSession) => {
     } catch (error) {
       console.error('Failed to cleanup state persistence:', error)
     }
+    
+    // Cleanup global call listener
+    globalDMCallListener.cleanup()
     
     isAppInitialized.value = false
     hasServersLoaded.value = false
