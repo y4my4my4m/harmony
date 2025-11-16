@@ -219,6 +219,8 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
+import { dmCallPermissions } from '@/services/DMCallPermissions'
+import { userDataService } from '@/services/userDataService'
 
 const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
@@ -315,7 +317,7 @@ const cleanupPresenceTracking = async () => {
 // Call signal subscription
 let callSignalUnsubscribe: (() => void) | null = null
 
-const handleCallSignal = (signal: CallSignal) => {
+const handleCallSignal = async (signal: CallSignal) => {
   const currentUserId = authStore.session?.user?.id
   if (!currentUserId) return
   
@@ -324,7 +326,25 @@ const handleCallSignal = (signal: CallSignal) => {
   
   switch (signal.type) {
     case 'initiate':
-      // Show incoming call modal (will be handled by parent component)
+      // Check permissions before showing incoming call modal
+      const permissionCheck = await dmCallPermissions.canReceiveCall(
+        signal.callerId,
+        currentUserId,
+        signal.conversationId
+      )
+      
+      if (!permissionCheck.allowed) {
+        // Auto-decline with reason
+        console.log('🚫 Auto-declining call:', permissionCheck.reason)
+        await dmCallSignaling.declineCall(
+          signal.conversationId,
+          currentUserId,
+          permissionCheck.reason as any
+        )
+        return
+      }
+      
+      // Show incoming call modal
       emit('incoming-call', {
         callerId: signal.callerId,
         callType: signal.callType,
@@ -334,6 +354,7 @@ const handleCallSignal = (signal: CallSignal) => {
       
     case 'join':
     case 'leave':
+    case 'accept':
       // Update participant count
       updateActiveCallParticipants()
       break
@@ -349,7 +370,21 @@ const handleCallSignal = (signal: CallSignal) => {
       
     case 'decline':
       // Someone declined the call
-      toast.info(`Call declined`)
+      const declineMsg = dmCallPermissions.getDeclineReasonMessage(signal.reason)
+      toast.info(declineMsg)
+      break
+      
+    case 'busy':
+      // User is busy
+      toast.info('User is busy')
+      break
+      
+    case 'timeout':
+      // Call timed out (no answer)
+      if (isInVoiceCall.value) {
+        voiceStore.leaveVoiceChannel()
+      }
+      toast.warning('No answer - call timed out')
       break
   }
 }
@@ -518,6 +553,26 @@ const toggleVoiceCall = async () => {
         return
       }
       
+      // Check if caller is already in another call
+      if (voiceStore.isConnected) {
+        toast.error('You are already in a call')
+        return
+      }
+      
+      // For 1-on-1 DMs, check permissions
+      if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
+        const permissionCheck = await dmCallPermissions.canReceiveCall(
+          currentUserId,
+          props.conversation.other_user.id,
+          props.conversation.id
+        )
+        
+        if (!permissionCheck.allowed) {
+          toast.error(permissionCheck.message || 'Cannot call this user')
+          return
+        }
+      }
+      
       // Create a virtual channel ID for this DM conversation
       const dmChannelId = `dm-${props.conversation.id}`
       
@@ -580,6 +635,26 @@ const toggleVideoCall = async () => {
     }
     
     if (!isInVoiceCall.value) {
+      // Check if caller is already in another call
+      if (voiceStore.isConnected) {
+        toast.error('You are already in a call')
+        return
+      }
+      
+      // For 1-on-1 DMs, check permissions
+      if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
+        const permissionCheck = await dmCallPermissions.canReceiveCall(
+          currentUserId,
+          props.conversation.other_user.id,
+          props.conversation.id
+        )
+        
+        if (!permissionCheck.allowed) {
+          toast.error(permissionCheck.message || 'Cannot call this user')
+          return
+        }
+      }
+      
       // Start video call (voice + video)
       const dmChannelId = `dm-${props.conversation.id}`
       

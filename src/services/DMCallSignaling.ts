@@ -8,11 +8,12 @@ import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface CallSignal {
-  type: 'initiate' | 'accept' | 'decline' | 'end' | 'join' | 'leave'
+  type: 'initiate' | 'accept' | 'decline' | 'end' | 'join' | 'leave' | 'busy' | 'timeout'
   callerId: string
   callType: 'voice' | 'video'
   timestamp: number
   conversationId: string
+  reason?: 'timeout' | 'busy' | 'blocked' | 'dnd' // Decline/busy reasons
 }
 
 export interface ActiveCall {
@@ -22,12 +23,15 @@ export interface ActiveCall {
   callerId: string
   participants: string[] // user IDs currently in call
   startedAt: Date
+  timeoutTimer?: number // Timer ID for call timeout
 }
 
 class DMCallSignalingService {
   private channels: Map<string, RealtimeChannel> = new Map()
   private activeCalls: Map<string, ActiveCall> = new Map()
   private listeners: Map<string, Set<(signal: CallSignal) => void>> = new Map()
+  
+  private readonly CALL_TIMEOUT_MS = 30000 // 30 seconds
 
   /**
    * Subscribe to call signals for a conversation
@@ -103,7 +107,7 @@ class DMCallSignalingService {
   }
 
   /**
-   * Initiate a call
+   * Initiate a call with timeout
    */
   async initiateCall(
     conversationId: string,
@@ -118,6 +122,11 @@ class DMCallSignalingService {
       conversationId
     }
     
+    // Setup timeout timer
+    const timeoutTimer = window.setTimeout(() => {
+      this.handleCallTimeout(conversationId, callerId)
+    }, this.CALL_TIMEOUT_MS)
+    
     // Track active call
     this.activeCalls.set(conversationId, {
       conversationId,
@@ -125,10 +134,36 @@ class DMCallSignalingService {
       callType,
       callerId,
       participants: [callerId],
-      startedAt: new Date()
+      startedAt: new Date(),
+      timeoutTimer
     })
     
     await this.sendSignal(conversationId, signal)
+  }
+  
+  /**
+   * Handle call timeout (no answer after 30 seconds)
+   */
+  private async handleCallTimeout(conversationId: string, callerId: string): Promise<void> {
+    const call = this.activeCalls.get(conversationId)
+    if (!call) return
+    
+    // Only timeout if still ringing (only caller in participants)
+    if (call.participants.length === 1 && call.participants[0] === callerId) {
+      console.log('⏰ Call timeout - no answer')
+      
+      const signal: CallSignal = {
+        type: 'timeout',
+        callerId,
+        callType: call.callType,
+        timestamp: Date.now(),
+        conversationId,
+        reason: 'timeout'
+      }
+      
+      await this.sendSignal(conversationId, signal)
+      this.activeCalls.delete(conversationId)
+    }
   }
 
   /**
@@ -140,6 +175,12 @@ class DMCallSignalingService {
   ): Promise<void> {
     const call = this.activeCalls.get(conversationId)
     if (!call) return
+    
+    // Clear timeout timer since call was answered
+    if (call.timeoutTimer) {
+      clearTimeout(call.timeoutTimer)
+      call.timeoutTimer = undefined
+    }
     
     const signal: CallSignal = {
       type: 'accept',
@@ -162,17 +203,29 @@ class DMCallSignalingService {
    */
   async declineCall(
     conversationId: string,
-    userId: string
+    userId: string,
+    reason?: 'busy' | 'blocked' | 'dnd'
   ): Promise<void> {
+    const call = this.activeCalls.get(conversationId)
+    
+    // Clear timeout timer if exists
+    if (call?.timeoutTimer) {
+      clearTimeout(call.timeoutTimer)
+    }
+    
     const signal: CallSignal = {
-      type: 'decline',
+      type: reason === 'busy' ? 'busy' : 'decline',
       callerId: userId,
       callType: 'voice', // doesn't matter for decline
       timestamp: Date.now(),
-      conversationId
+      conversationId,
+      reason
     }
     
     await this.sendSignal(conversationId, signal)
+    
+    // Remove from active calls
+    this.activeCalls.delete(conversationId)
   }
 
   /**
@@ -182,6 +235,13 @@ class DMCallSignalingService {
     conversationId: string,
     userId: string
   ): Promise<void> {
+    const call = this.activeCalls.get(conversationId)
+    
+    // Clear timeout timer if exists
+    if (call?.timeoutTimer) {
+      clearTimeout(call.timeoutTimer)
+    }
+    
     const signal: CallSignal = {
       type: 'end',
       callerId: userId,
@@ -276,6 +336,13 @@ class DMCallSignalingService {
    * Cleanup all channels
    */
   cleanup(): void {
+    // Clear all timeout timers
+    this.activeCalls.forEach(call => {
+      if (call.timeoutTimer) {
+        clearTimeout(call.timeoutTimer)
+      }
+    })
+    
     this.channels.forEach(channel => channel.unsubscribe())
     this.channels.clear()
     this.listeners.clear()
