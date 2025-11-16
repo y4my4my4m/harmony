@@ -101,9 +101,9 @@
         class="action-btn video-btn"
         :class="{ active: isInVideoCall }"
         @click="toggleVideoCall"
-        :title="isInVideoCall ? 'End video call' : 'Start video call'"
+        :title="isInVideoCall ? 'Turn off camera' : 'Start video call'"
       >
-        <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
+        <Icon :name="isInVideoCall ? 'camera-off' : 'camera'" :size="16" />
       </button>
       
       <button 
@@ -199,9 +199,11 @@ import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { unifiedWebRTC } from '@/services/unifiedWebRTC'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
+const voiceStore = useUnifiedVoiceChannelStore()
 
 // Props
 interface Props {
@@ -220,9 +222,9 @@ const emit = defineEmits<{
   'add-user': []
 }>()
 
-// Voice/Video Call State
-const isInVoiceCall = ref(false)
-const isInVideoCall = ref(false)
+// Voice/Video Call State - synced with voice store
+const isInVoiceCall = computed(() => voiceStore.isConnected && voiceStore.currentChannelId?.startsWith('dm-'))
+const isInVideoCall = computed(() => voiceStore.localState.isVideoEnabled)
 
 // Use clean status system
 const { 
@@ -401,15 +403,13 @@ const toggleVoiceCall = async () => {
     if (isInVoiceCall.value) {
       // End call
       console.log('📞 Ending voice call...')
-      await unifiedWebRTC.leaveChannel()
-      isInVoiceCall.value = false
-      isInVideoCall.value = false
+      await voiceStore.leaveVoiceChannel()
       toast.info('Call ended')
     } else {
       // Start voice call
-      console.log('📞 Starting voice call...')
+      console.log('📞 Starting DM voice call...')
       
-      // Create a virtual channel for this DM conversation
+      // Create a virtual channel ID for this DM conversation
       const dmChannelId = `dm-${props.conversation.id}`
       const currentUserId = props.conversation.current_user_id
       
@@ -418,9 +418,17 @@ const toggleVoiceCall = async () => {
         return
       }
       
-      await unifiedWebRTC.joinChannel(dmChannelId, currentUserId)
-      isInVoiceCall.value = true
-      toast.success('Voice call started')
+      // Use the voice store to join (this will show the voice overlay UI)
+      // Use 'dm' as serverId to indicate it's a DM call
+      const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+      
+      if (success) {
+        toast.success('Voice call started')
+        // Show the voice overlay
+        voiceStore.isOverlayVisible = true
+      } else {
+        toast.error('Failed to start call')
+      }
     }
   } catch (error) {
     console.error('Error toggling voice call:', error)
@@ -431,24 +439,27 @@ const toggleVoiceCall = async () => {
 const toggleVideoCall = async () => {
   try {
     if (!isInVoiceCall.value) {
-      // Need to start voice call first
+      // Start voice call first with video enabled
       await toggleVoiceCall()
+      // Wait a bit for call to establish
+      await new Promise(resolve => setTimeout(resolve, 500))
     }
     
-    if (isInVideoCall.value) {
-      // Turn off video
-      await unifiedWebRTC.toggleVideo()
-      isInVideoCall.value = false
-      toast.info('Video disabled')
+    // Toggle video
+    await voiceStore.toggleVideo()
+    
+    if (voiceStore.localState.isVideoEnabled) {
+      toast.success('Camera on')
+      // Show the voice overlay if not already visible
+      if (!voiceStore.isOverlayVisible) {
+        voiceStore.isOverlayVisible = true
+      }
     } else {
-      // Turn on video
-      await unifiedWebRTC.toggleVideo()
-      isInVideoCall.value = true
-      toast.success('Video enabled')
+      toast.info('Camera off')
     }
   } catch (error) {
     console.error('Error toggling video:', error)
-    toast.error('Failed to toggle video')
+    toast.error('Failed to toggle camera')
   }
 }
 
