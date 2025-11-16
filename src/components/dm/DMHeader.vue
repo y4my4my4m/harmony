@@ -45,7 +45,11 @@
               {{ conversation.name || getDefaultGroupName() }}
             </h2>
             <div class="conversation-status">
-              <span class="participant-count">
+              <span v-if="activeCallParticipantCount > 0" class="call-status">
+                <Icon name="phone" :size="12" class="call-icon" />
+                {{ activeCallParticipantCount }} in call
+              </span>
+              <span v-else class="participant-count">
                 <Icon name="users" :size="12" class="members-icon" />
                 {{ conversation.participant_count || 0 }} member{{ (conversation.participant_count || 0) !== 1 ? 's' : '' }}
               </span>
@@ -86,8 +90,20 @@
         </svg>
       </button>
       
+      <!-- Join Call Button (for group calls when call is active but user not in it) -->
+      <button
+        v-if="hasActiveCallNotJoined"
+        class="action-btn join-call-btn"
+        @click="joinActiveCall"
+        title="Join call"
+      >
+        <Icon name="phone" :size="16" />
+        <span class="join-text">Join Call</span>
+      </button>
+      
       <!-- Voice Call Button -->
       <button 
+        v-else
         class="action-btn voice-btn"
         :class="{ active: isInVoiceCall }"
         @click="toggleVoiceCall"
@@ -200,10 +216,16 @@ import type { DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { unifiedWebRTC } from '@/services/unifiedWebRTC'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
+import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 
 const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
+const authStore = useAuthStore()
+
+// Active call tracking
+const activeCallParticipantCount = ref(0)
 
 // Props
 interface Props {
@@ -214,17 +236,26 @@ interface Props {
 const props = defineProps<Props>()
 
 // Emits
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
   'group-updated': []
   'add-user': []
+  'incoming-call': [payload: { callerId: string, callType: 'voice' | 'video', conversationId: string }]
 }>()
 
 // Voice/Video Call State - synced with voice store
 const isInVoiceCall = computed(() => voiceStore.isConnected && voiceStore.currentChannelId?.startsWith('dm-'))
 const isInVideoCall = computed(() => voiceStore.localState.isVideoEnabled)
+
+// Active call state for group DMs
+const hasActiveCallNotJoined = computed(() => {
+  const hasActiveCall = dmCallSignaling.hasActiveCall(props.conversation.id)
+  const isUserInCall = isInVoiceCall.value
+  const isGroupConversation = props.conversation.type === 'group'
+  
+  return isGroupConversation && hasActiveCall && !isUserInCall
+})
 
 // Use clean status system
 const { 
@@ -281,9 +312,73 @@ const cleanupPresenceTracking = async () => {
   }
 }
 
+// Call signal subscription
+let callSignalUnsubscribe: (() => void) | null = null
+
+const handleCallSignal = (signal: CallSignal) => {
+  const currentUserId = authStore.session?.user?.id
+  if (!currentUserId) return
+  
+  // Don't show notifications for our own signals
+  if (signal.callerId === currentUserId) return
+  
+  switch (signal.type) {
+    case 'initiate':
+      // Show incoming call modal (will be handled by parent component)
+      emit('incoming-call', {
+        callerId: signal.callerId,
+        callType: signal.callType,
+        conversationId: signal.conversationId
+      })
+      break
+      
+    case 'join':
+    case 'leave':
+      // Update participant count
+      updateActiveCallParticipants()
+      break
+      
+    case 'end':
+      // Call ended by someone else
+      if (isInVoiceCall.value) {
+        voiceStore.leaveVoiceChannel()
+        toast.info('Call ended')
+      }
+      activeCallParticipantCount.value = 0
+      break
+      
+    case 'decline':
+      // Someone declined the call
+      toast.info(`Call declined`)
+      break
+  }
+}
+
+const updateActiveCallParticipants = () => {
+  const participants = dmCallSignaling.getCallParticipants(props.conversation.id)
+  activeCallParticipantCount.value = participants.length
+}
+
+const subscribeToCallSignals = () => {
+  callSignalUnsubscribe = dmCallSignaling.subscribeToConversation(
+    props.conversation.id,
+    handleCallSignal
+  )
+  // Update initial participant count
+  updateActiveCallParticipants()
+}
+
+const unsubscribeFromCallSignals = () => {
+  if (callSignalUnsubscribe) {
+    callSignalUnsubscribe()
+    callSignalUnsubscribe = null
+  }
+}
+
 // Initialize presence tracking when component loads
 onMounted(() => {
   initializePresenceTracking()
+  subscribeToCallSignals()
 })
 
 // Watch for conversation changes to update presence tracking
@@ -306,6 +401,7 @@ watch(
 // Cleanup when component unmounts
 onUnmounted(() => {
   cleanupPresenceTracking()
+  unsubscribeFromCallSignals()
 })
 
 // Computed
@@ -403,27 +499,37 @@ const toggleVoiceCall = async () => {
     if (isInVoiceCall.value) {
       // End call
       console.log('📞 Ending voice call...')
+      
+      const currentUserId = authStore.session?.user?.id
+      if (currentUserId) {
+        // Send end signal to other participants
+        await dmCallSignaling.endCall(props.conversation.id, currentUserId)
+      }
+      
       await voiceStore.leaveVoiceChannel()
       toast.info('Call ended')
     } else {
       // Start voice call
       console.log('📞 Starting DM voice call...')
       
-      // Create a virtual channel ID for this DM conversation
-      const dmChannelId = `dm-${props.conversation.id}`
-      const currentUserId = props.conversation.current_user_id
-      
+      const currentUserId = authStore.session?.user?.id
       if (!currentUserId) {
         toast.error('Authentication required')
         return
       }
+      
+      // Create a virtual channel ID for this DM conversation
+      const dmChannelId = `dm-${props.conversation.id}`
+      
+      // Send call initiation signal to other participant(s)
+      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'voice')
       
       // Use the voice store to join (this will show the voice overlay UI)
       // Use 'dm' as serverId to indicate it's a DM call
       const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
       
       if (success) {
-        toast.success('Voice call started')
+        toast.success('Calling...')
         // Show the voice overlay
         voiceStore.isOverlayVisible = true
       } else {
@@ -436,26 +542,73 @@ const toggleVoiceCall = async () => {
   }
 }
 
-const toggleVideoCall = async () => {
+// Join an active call (for group DMs)
+const joinActiveCall = async () => {
   try {
-    if (!isInVoiceCall.value) {
-      // Start voice call first with video enabled
-      await toggleVoiceCall()
-      // Wait a bit for call to establish
-      await new Promise(resolve => setTimeout(resolve, 500))
+    const currentUserId = authStore.session?.user?.id
+    if (!currentUserId) {
+      toast.error('Authentication required')
+      return
     }
     
-    // Toggle video
-    await voiceStore.toggleVideo()
+    const dmChannelId = `dm-${props.conversation.id}`
     
-    if (voiceStore.localState.isVideoEnabled) {
-      toast.success('Camera on')
-      // Show the voice overlay if not already visible
-      if (!voiceStore.isOverlayVisible) {
+    // Send join signal
+    await dmCallSignaling.joinCall(props.conversation.id, currentUserId)
+    
+    // Join the voice channel
+    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+    
+    if (success) {
+      toast.success('Joined call')
+      voiceStore.isOverlayVisible = true
+    } else {
+      toast.error('Failed to join call')
+    }
+  } catch (error) {
+    console.error('Error joining call:', error)
+    toast.error('Failed to join call')
+  }
+}
+
+const toggleVideoCall = async () => {
+  try {
+    const currentUserId = authStore.session?.user?.id
+    if (!currentUserId) {
+      toast.error('Authentication required')
+      return
+    }
+    
+    if (!isInVoiceCall.value) {
+      // Start video call (voice + video)
+      const dmChannelId = `dm-${props.conversation.id}`
+      
+      // Send video call initiation signal
+      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'video')
+      
+      // Join voice channel
+      const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+      
+      if (success) {
+        // Enable video immediately
+        await voiceStore.toggleVideo()
+        toast.success('Starting video call...')
         voiceStore.isOverlayVisible = true
+      } else {
+        toast.error('Failed to start call')
       }
     } else {
-      toast.info('Camera off')
+      // Toggle video in ongoing call
+      await voiceStore.toggleVideo()
+      
+      if (voiceStore.localState.isVideoEnabled) {
+        toast.success('Camera on')
+        if (!voiceStore.isOverlayVisible) {
+          voiceStore.isOverlayVisible = true
+        }
+      } else {
+        toast.info('Camera off')
+      }
     }
   } catch (error) {
     console.error('Error toggling video:', error)
@@ -563,6 +716,58 @@ const getDefaultGroupName = (): string => {
 
 .participant-count {
   color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.call-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #43b581;
+  font-size: 14px;
+  font-weight: 600;
+  animation: pulse-text 2s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.call-icon {
+  color: #43b581;
+}
+
+.join-call-btn {
+  background: #43b581 !important;
+  color: white !important;
+  padding: 8px 16px !important;
+  width: auto !important;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  animation: pulse-button 2s ease-in-out infinite;
+}
+
+.join-call-btn:hover {
+  background: #369968 !important;
+  transform: translateY(-1px);
+}
+
+@keyframes pulse-button {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(67, 181, 129, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(67, 181, 129, 0);
+  }
+}
+
+.join-text {
   font-size: 14px;
 }
 

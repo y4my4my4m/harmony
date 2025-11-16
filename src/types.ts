@@ -525,6 +525,9 @@ export type AudioAction =
   // Voice/Video actions
   | 'voice_connect'
   | 'voice_disconnect'
+  | 'call_incoming'
+  | 'call_outgoing'
+  | 'call_ended'
   | 'mic_on'
   | 'mic_off'
   | 'deafen_on'
