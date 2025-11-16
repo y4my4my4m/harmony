@@ -225,6 +225,12 @@ const initializeApp = async () => {
     await serverChannelStore.initializeUserEnvironment(userId)
     await profileStore.fetchProfileByAuthUserId(userId)
     
+    // CRITICAL: Always load DM conversations metadata for global call listener
+    // This ensures call reception works from anywhere in the app
+    console.log('📞 Loading DM conversations for global call reception...')
+    await dmStore.initializeDMEnvironment(userId, false, true, 'immediate')
+    console.log('✅ DM conversations loaded for global call listener')
+    
     // Initialize core user data system
     const { useUserData } = await import('@/composables/useUserData')
     const userData = useUserData()

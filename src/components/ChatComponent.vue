@@ -74,6 +74,7 @@
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
   import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
+  import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 
   // FIXME: probably breaking the __TAURI__ implementation if we declare it here
   declare const __TAURI__: any;
@@ -265,8 +266,24 @@
         // Use efficient batch mention resolution
         const userDataMap = await resolveMentionsUserData(input);
         
-        // Parse with unified system
-        const result = await parseContentToMessageParts(input, userDataMap);
+        // Build emoji data map from loaded emojis
+        const emojiDataMap: Record<string, any> = {};
+        const emojiCacheStore = useEmojiCacheStore();
+        
+        if (emojiCacheStore.resolvedEmojis) {
+          Object.values(emojiCacheStore.resolvedEmojis).forEach((serverEmojis: any) => {
+            serverEmojis.emojis.forEach((emoji: any) => {
+              // Map both by ID and by name for lookups
+              emojiDataMap[emoji.id] = emoji;
+              emojiDataMap[emoji.name] = emoji;
+            });
+          });
+        }
+        
+        console.log('🔧 Emoji data map size:', Object.keys(emojiDataMap).length / 2); // Divide by 2 since we map twice
+        
+        // Parse with unified system (now with emoji data)
+        const result = await parseContentToMessageParts(input, userDataMap, emojiDataMap);
         
         console.log('🔧 Final parsed message parts:', result);
         return result;

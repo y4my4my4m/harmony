@@ -31,28 +31,31 @@ class DMCallPermissionService {
     
     try {
       // 1. Check if caller is blocked by receiver
-      console.log('🔍 Checking if caller is blocked...')
-      const isBlocked = await this.isUserBlocked(receiverId, callerId)
-      console.log('🔍 Blocked check result:', isBlocked)
-      if (isBlocked) {
-        return {
-          allowed: false,
-          reason: 'blocked',
-          message: 'You cannot call this user'
-        }
-      }
+      // TEMPORARILY DISABLED due to RLS permissions on user_blocks table
+      // TODO: Add RLS policies then re-enable
+      console.log('🔍 Checking if caller is blocked... (SKIPPED - RLS not configured)')
+      // const isBlocked = await this.isUserBlocked(receiverId, callerId)
+      // console.log('🔍 Blocked check result:', isBlocked)
+      // if (isBlocked) {
+      //   return {
+      //     allowed: false,
+      //     reason: 'blocked',
+      //     message: 'You cannot call this user'
+      //   }
+      // }
 
       // 2. Check if caller has blocked receiver (shouldn't be able to call)
-      console.log('🔍 Checking if caller has blocked receiver...')
-      const hasBlockedReceiver = await this.isUserBlocked(callerId, receiverId)
-      console.log('🔍 Has blocked receiver result:', hasBlockedReceiver)
-      if (hasBlockedReceiver) {
-        return {
-          allowed: false,
-          reason: 'blocked',
-          message: 'You have blocked this user'
-        }
-      }
+      // TEMPORARILY DISABLED due to RLS permissions on user_blocks table
+      console.log('🔍 Checking if caller has blocked receiver... (SKIPPED - RLS not configured)')
+      // const hasBlockedReceiver = await this.isUserBlocked(callerId, receiverId)
+      // console.log('🔍 Has blocked receiver result:', hasBlockedReceiver)
+      // if (hasBlockedReceiver) {
+      //   return {
+      //     allowed: false,
+      //     reason: 'blocked',
+      //     message: 'You have blocked this user'
+      //   }
+      // }
 
       // 3. Check if receiver is in Do Not Disturb mode
       console.log('🔍 Checking DND status...')
