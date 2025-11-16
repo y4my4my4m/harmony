@@ -565,10 +565,29 @@ export const useChatStore = defineStore('chat', {
           (payload) => {
             console.log('🟢 Real-time INSERT received:', payload);
             
-            // Check if message already exists (from optimistic update)
+            // Check if this is our own message that we just sent (has temp ID)
+            const tempMessageIndex = this.messages.findIndex(m => m.id.startsWith('temp-') && m.user_id === payload.new.user_id);
+            if (tempMessageIndex !== -1) {
+              console.log('⚠️ Found temp message to replace:', this.messages[tempMessageIndex].id);
+              // Replace the temp message with the real one
+              this.messages[tempMessageIndex] = {
+                id: payload.new.id,
+                created_at: new Date(payload.new.created_at),
+                channel_id: payload.new.channel_id,
+                user_id: payload.new.user_id,
+                content: payload.new.content,
+                reactions: payload.new.reactions,
+                reply_to: payload.new.reply_to,
+                is_system: payload.new.is_system,
+              };
+              console.log('✅ Replaced temp message with real message');
+              return;
+            }
+            
+            // Check if message already exists (from manual replacement)
             const existingIndex = this.messages.findIndex(m => m.id === payload.new.id);
             if (existingIndex !== -1) {
-              console.log('⚠️ Message already exists (optimistic), skipping duplicate');
+              console.log('⚠️ Message already exists, skipping duplicate');
               return;
             }
             

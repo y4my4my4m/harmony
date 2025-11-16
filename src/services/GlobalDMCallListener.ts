@@ -189,11 +189,23 @@ class GlobalDMCallListenerService {
     this.incomingCall.value = incomingCallData
     this.showIncomingCallModal.value = true
     
-    console.log('📞 INCOMING CALL MODAL STATE SET:', {
-      show: this.showIncomingCallModal.value,
-      caller: incomingCallData.callerName,
-      hasData: !!this.incomingCall.value
-    })
+    console.log('📞 ====== INCOMING CALL MODAL STATE SET ======')
+    console.log('📞 Show value:', this.showIncomingCallModal.value)
+    console.log('📞 Caller name:', incomingCallData.callerName)
+    console.log('📞 Call data:', incomingCallData)
+    console.log('📞 ===========================================')
+    
+    // Force reactivity update
+    console.log('📞 Modal should be visible NOW!')
+    
+    // Debug: Check if modal component exists in DOM
+    setTimeout(() => {
+      const modalElements = document.querySelectorAll('.incoming-call-overlay')
+      console.log('📞 Incoming call modal elements in DOM:', modalElements.length)
+      if (modalElements.length === 0) {
+        console.error('❌ MODAL NOT IN DOM - Component may not be rendering!')
+      }
+    }, 100)
     
     // Notify callback if set
     if (this.onIncomingCallCallback) {

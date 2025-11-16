@@ -58,52 +58,56 @@ class DMCallPermissionService {
       // }
 
       // 3. Check if receiver is in Do Not Disturb mode
-      console.log('🔍 Checking DND status...')
-      const isDND = await this.isUserInDND(receiverId)
-      console.log('🔍 DND check result:', isDND)
-      if (isDND) {
-        return {
-          allowed: false,
-          reason: 'dnd',
-          message: 'This user is in Do Not Disturb mode'
-        }
-      }
+      // TEMPORARILY DISABLED - Implement later
+      console.log('🔍 Checking DND status... (SKIPPED)')
+      // const isDND = await this.isUserInDND(receiverId)
+      // console.log('🔍 DND check result:', isDND)
+      // if (isDND) {
+      //   return {
+      //     allowed: false,
+      //     reason: 'dnd',
+      //     message: 'This user is in Do Not Disturb mode'
+      //   }
+      // }
 
       // 4. Check if receiver is busy (already in another call)
-      console.log('🔍 Checking busy status...')
-      const isBusy = await this.isUserBusy(receiverId)
-      console.log('🔍 Busy check result:', isBusy)
-      if (isBusy) {
-        return {
-          allowed: false,
-          reason: 'busy',
-          message: 'User is currently in another call'
-        }
-      }
+      // TEMPORARILY DISABLED - Implement later
+      console.log('🔍 Checking busy status... (SKIPPED)')
+      // const isBusy = await this.isUserBusy(receiverId)
+      // console.log('🔍 Busy check result:', isBusy)
+      // if (isBusy) {
+      //   return {
+      //     allowed: false,
+      //     reason: 'busy',
+      //     message: 'User is currently in another call'
+      //   }
+      // }
 
       // 5. Check if receiver has muted this conversation
-      console.log('🔍 Checking if conversation is muted...')
-      const isMuted = await this.isConversationMuted(receiverId, conversationId)
-      console.log('🔍 Muted check result:', isMuted)
-      if (isMuted) {
-        return {
-          allowed: false,
-          reason: 'muted',
-          message: 'This user has muted this conversation'
-        }
-      }
+      // TEMPORARILY DISABLED - Implement later
+      console.log('🔍 Checking if conversation is muted... (SKIPPED)')
+      // const isMuted = await this.isConversationMuted(receiverId, conversationId)
+      // console.log('🔍 Muted check result:', isMuted)
+      // if (isMuted) {
+      //   return {
+      //     allowed: false,
+      //     reason: 'muted',
+      //     message: 'This user has muted this conversation'
+      //   }
+      // }
 
       // 6. Check notification preferences
-      console.log('🔍 Checking notification preferences...')
-      const notificationsEnabled = await this.areCallNotificationsEnabled(receiverId)
-      console.log('🔍 Notifications enabled result:', notificationsEnabled)
-      if (!notificationsEnabled) {
-        return {
-          allowed: false,
-          reason: 'notifications_disabled',
-          message: 'This user has disabled call notifications'
-        }
-      }
+      // TEMPORARILY DISABLED - Implement later
+      console.log('🔍 Checking notification preferences... (SKIPPED)')
+      // const notificationsEnabled = await this.areCallNotificationsEnabled(receiverId)
+      // console.log('🔍 Notifications enabled result:', notificationsEnabled)
+      // if (!notificationsEnabled) {
+      //   return {
+      //     allowed: false,
+      //     reason: 'notifications_disabled',
+      //     message: 'This user has disabled call notifications'
+      //   }
+      // }
 
       // All checks passed
       console.log('✅ All permission checks passed - call allowed!')

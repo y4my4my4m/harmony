@@ -74,14 +74,14 @@
       <UserProfileComponent />
     </div>
     
-    <!-- Global Incoming Call Modal (works even when not viewing DM) -->
+    <!-- Global Incoming Call Modal (ALWAYS rendered, shows based on prop) -->
     <IncomingCallModal
-      :show="globalDMCallListener.showIncomingCallModal.value"
-      :caller-id="globalDMCallListener.incomingCall.value?.callerId || ''"
-      :caller-name="globalDMCallListener.incomingCall.value?.callerName || 'Unknown'"
-      :caller-avatar="globalDMCallListener.incomingCall.value?.callerAvatar || '/default_avatar.png'"
-      :call-type="globalDMCallListener.incomingCall.value?.callType || 'voice'"
-      :conversation-id="globalDMCallListener.incomingCall.value?.conversationId || ''"
+      :show="showGlobalIncomingCall"
+      :caller-id="globalIncomingCallData?.callerId || ''"
+      :caller-name="globalIncomingCallData?.callerName || 'Unknown'"
+      :caller-avatar="globalIncomingCallData?.callerAvatar || '/default_avatar.png'"
+      :call-type="globalIncomingCallData?.callType || 'voice'"
+      :conversation-id="globalIncomingCallData?.conversationId || ''"
       @accept="handleGlobalCallAccept"
       @decline="handleGlobalCallDecline"
     />
@@ -128,6 +128,10 @@ const {
   toggleMobileProfile,
   closeMobileSidebars
 } = useLayoutState()
+
+// Global call state (reactive references from the global listener)
+const showGlobalIncomingCall = globalDMCallListener.showIncomingCallModal
+const globalIncomingCallData = globalDMCallListener.incomingCall
 
 
 // Emit events
@@ -538,10 +542,24 @@ const initializeBackgroundData = async (userId: string, strategy: any) => {
 // This runs REGARDLESS of route so calls work everywhere
 watch(() => dmStore.conversations.length, async (count) => {
   const userId = authStore.session?.user?.id
+  console.log('👀 DM conversations count changed:', count, 'User ID:', userId, 'Already initialized:', globalDMCallListener.isInitialized())
+  
   if (count > 0 && userId && !globalDMCallListener.isInitialized()) {
     const ids = dmStore.conversations.map(conv => conv.id)
-    console.log('📞 DM Conversations loaded, initializing GLOBAL call listener...')
+    console.log('📞 ========================================')
+    console.log('📞 INITIALIZING GLOBAL CALL LISTENER NOW')
+    console.log('📞 User:', userId)
+    console.log('📞 Conversation count:', count)
+    console.log('📞 Conversation IDs:', ids)
+    console.log('📞 ========================================')
     await globalDMCallListener.initialize(userId, ids)
+    console.log('✅ GLOBAL CALL LISTENER INITIALIZED')
+  } else if (count === 0) {
+    console.warn('⚠️ No DM conversations loaded yet')
+  } else if (!userId) {
+    console.warn('⚠️ No user ID available')
+  } else if (globalDMCallListener.isInitialized()) {
+    console.log('ℹ️ Global call listener already initialized')
   }
 }, { immediate: true })
 
