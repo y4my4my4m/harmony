@@ -86,11 +86,36 @@ export async function startDatabaseListener(): Promise<void> {
       {
         event: 'INSERT',
         schema: 'public',
+        table: 'post_interactions',
+        filter: 'interaction_type=eq.favorite',
+      },
+      async (payload) => {
+        logger.info('⭐ New favorite/like detected:', payload.new.id);
+        await handleNewReaction(payload.new);
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
         table: 'follows',
       },
       async (payload) => {
         logger.info('👥 New follow detected:', payload.new.id);
         await handleNewFollow(payload.new);
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+      },
+      async (payload) => {
+        logger.info('📝 Profile update detected:', payload.new.id);
+        await handleProfileUpdate(payload.old, payload.new);
       }
     )
     .subscribe((status, err) => {
@@ -122,18 +147,30 @@ export async function startDatabaseListener(): Promise<void> {
 /**
  * Handle new post creation
  */
-async function handleNewPost(post: any): Promise<void> {
+async function handleNewPost(postEvent: any): Promise<void> {
   try {
     // Check if post should be federated
-    if (!post.is_local || !['public', 'unlisted'].includes(post.visibility)) {
-      logger.debug(`Skipping federation for post ${post.id}: not public or local`);
+    if (!postEvent.is_local || !['public', 'unlisted'].includes(postEvent.visibility)) {
+      logger.debug(`Skipping federation for post ${postEvent.id}: not public or local`);
       return;
     }
 
-    logger.info(`🌐 Federating new post: ${post.id}`);
+    logger.info(`🌐 Federating new post: ${postEvent.id}`);
+
+    // Get full post data (realtime events might not include all columns)
+    const supabase = getSupabaseClient();
+    const { data: post } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', postEvent.id)
+      .single();
+
+    if (!post) {
+      logger.error(`Post not found: ${postEvent.id}`);
+      return;
+    }
 
     // Get author profile
-    const supabase = getSupabaseClient();
     const { data: author } = await supabase
       .from('profiles')
       .select('*')
@@ -210,10 +247,27 @@ async function handleNewReaction(interaction: any): Promise<void> {
       return;
     }
 
-    logger.info(`🌐 Federating reaction: ${interaction.emoji_id} on post ${post.id}`);
+    // Get emoji data if it's a custom emoji
+    let emojiContent = interaction.custom_emoji_content; // For unicode emojis
+    let emojiData = null;
+    
+    if (interaction.emoji_id) {
+      const { data: emoji } = await supabase
+        .from('emojis')
+        .select('name, url')
+        .eq('id', interaction.emoji_id)
+        .single();
+      
+      if (emoji) {
+        emojiData = emoji;
+        emojiContent = `:${emoji.name}:`; // Misskey format
+      }
+    }
+    
+    logger.info(`🌐 Federating reaction: ${emojiContent} on post ${post.id}`);
 
-    // Create Like activity
-    const activity = await createLikeActivity(user, post.ap_id, interaction.emoji_id);
+    // Create Like activity with proper emoji data
+    const activity = await createLikeActivity(user, post.ap_id, emojiContent, emojiData);
 
     // Send to post author's inbox (if remote)
     const { data: postAuthor } = await supabase
@@ -275,6 +329,75 @@ async function handleNewFollow(follow: any): Promise<void> {
     }
   } catch (error) {
     logger.error('Failed to handle new follow:', error);
+  }
+}
+
+/**
+ * Handle profile update
+ */
+async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<void> {
+  try {
+    // Only federate updates for local users
+    if (!newProfile.is_local) {
+      logger.debug('Profile update for remote user, skipping');
+      return;
+    }
+
+    // Check if any federable fields changed
+    const fieldsChanged = 
+      oldProfile.display_name !== newProfile.display_name ||
+      oldProfile.bio !== newProfile.bio ||
+      oldProfile.avatar_url !== newProfile.avatar_url ||
+      oldProfile.banner_url !== newProfile.banner_url;
+
+    if (!fieldsChanged) {
+      logger.debug('No federable fields changed, skipping');
+      return;
+    }
+
+    logger.info(`🌐 Federating profile update: ${newProfile.username}`);
+    logger.info('Changed fields:', {
+      display_name: oldProfile.display_name !== newProfile.display_name ? `"${oldProfile.display_name}" → "${newProfile.display_name}"` : 'no change',
+      bio: oldProfile.bio !== newProfile.bio ? 'changed' : 'no change',
+      avatar_url: oldProfile.avatar_url !== newProfile.avatar_url ? `"${oldProfile.avatar_url}" → "${newProfile.avatar_url}"` : 'no change',
+      banner_url: oldProfile.banner_url !== newProfile.banner_url ? `"${oldProfile.banner_url}" → "${newProfile.banner_url}"` : 'no change',
+    });
+
+    const supabase = getSupabaseClient();
+
+    // Get full profile data (realtime might not include all fields)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', newProfile.id)
+      .single();
+
+    if (!profile) {
+      logger.error(`Profile not found: ${newProfile.id}`);
+      return;
+    }
+
+    // Create Update activity
+    const { createProfileUpdateActivity } = await import('./FederationHandlers.js');
+    const activity = createProfileUpdateActivity(profile);
+
+    // Log what we're sending
+    logger.info('Update activity object:', {
+      id: activity.id,
+      type: activity.type,
+      actor: activity.actor,
+      hasIcon: !!activity.object.icon,
+      iconUrl: activity.object.icon?.url,
+      hasImage: !!activity.object.image,
+      imageUrl: activity.object.image?.url,
+    });
+
+    // Broadcast to followers
+    await DeliveryQueue.broadcastToFollowers(profile.id, activity);
+
+    logger.info(`✅ Profile update for ${profile.username} queued for federation`);
+  } catch (error) {
+    logger.error('Failed to handle profile update:', error);
   }
 }
 

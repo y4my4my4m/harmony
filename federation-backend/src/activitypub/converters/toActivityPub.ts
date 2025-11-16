@@ -1,5 +1,6 @@
 import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
+import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
 
 /**
  * Convert internal post format to ActivityPub Note
@@ -34,7 +35,10 @@ export function postToNote(post: any, author: any): any {
 
   // Add reply info
   if (post.in_reply_to) {
-    note.inReplyTo = post.in_reply_to;
+    // in_reply_to is a UUID - need to get the ap_id of the parent post
+    // For federated posts, this is their original ActivityPub URL
+    // For local posts, this is our generated URL
+    note.inReplyTo = post.in_reply_to; // Will be resolved in createPostActivity
   }
 
   return note;
@@ -91,21 +95,21 @@ export function profileToActor(profile: any): any {
     },
   };
 
-  // Add icon (avatar)
-  if (profile.avatar) {
+  // Add icon (avatar) - convert to full URL if relative path
+  const avatarUrl = getFullAvatarUrl(profile.avatar_url);
+  if (avatarUrl) {
     actor.icon = {
       type: 'Image',
-      mediaType: 'image/png',
-      url: profile.avatar,
+      url: avatarUrl,
     };
   }
 
-  // Add banner
-  if (profile.banner) {
+  // Add banner - convert to full URL if relative path
+  const bannerUrl = getFullBannerUrl(profile.banner_url);
+  if (bannerUrl) {
     actor.image = {
       type: 'Image',
-      mediaType: 'image/png',
-      url: profile.banner,
+      url: bannerUrl,
     };
   }
 
@@ -158,13 +162,24 @@ export function createAcceptActivity(actor: any, followActivity: any): any {
 /**
  * Create a Like activity (for reactions)
  */
-export function createLikeActivity(user: any, objectUrl: string, emoji?: string): any {
+export function createLikeActivity(
+  user: any, 
+  objectUrl: string, 
+  emojiContent?: string,
+  emojiData?: { name: string; url: string }
+): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
   const activityId = `${userUrl}/likes/${Date.now()}`;
 
   const activity: any = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      {
+        'toot': 'http://joinmastodon.org/ns#',
+        'Emoji': 'toot:Emoji'
+      }
+    ],
     id: activityId,
     type: 'Like',
     actor: userUrl,
@@ -172,9 +187,21 @@ export function createLikeActivity(user: any, objectUrl: string, emoji?: string)
   };
 
   // Add emoji for Misskey-style reactions
-  if (emoji) {
-    activity.content = emoji;
-    activity._misskey_reaction = emoji;
+  if (emojiContent) {
+    activity.content = emojiContent;
+    activity._misskey_reaction = emojiContent;
+    
+    // Add custom emoji tag for proper federation
+    if (emojiData) {
+      activity.tag = [{
+        type: 'Emoji',
+        name: emojiContent,
+        icon: {
+          type: 'Image',
+          url: emojiData.url
+        }
+      }];
+    }
   }
 
   return activity;
@@ -214,6 +241,29 @@ export function createDeleteActivity(user: any, objectUrl: string): any {
     type: 'Delete',
     actor: userUrl,
     object: objectUrl,
+  };
+}
+
+/**
+ * Create an Update activity (for profile updates)
+ */
+export function createUpdateActivity(profile: any): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const userUrl = `https://${domain}/users/${profile.username}`;
+  const activityId = `${userUrl}/updates/${Date.now()}`;
+
+  // Create the updated Actor object
+  const actor = profileToActor(profile);
+
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: activityId,
+    type: 'Update',
+    actor: userUrl,
+    published: new Date().toISOString(),
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: [`${userUrl}/followers`],
+    object: actor,
   };
 }
 

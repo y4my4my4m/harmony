@@ -334,6 +334,10 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       
       console.log('✅ Social route stores loaded: emojiCache, activitypub, reactions, theme')
       
+      // Load followed users for proper follow state
+      await activityPubStore.loadFollowedUsers()
+      console.log('✅ Followed users loaded for ActivityPub')
+      
       // Initialize minimal emoji support for social features
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       if (allServerIds.length > 0) {

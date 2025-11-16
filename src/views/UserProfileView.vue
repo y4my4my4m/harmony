@@ -647,10 +647,7 @@ const loadFollowers = async () => {
     console.log(`📊 Loaded ${followerUsers.value.length} followers for ${user.value?.username || 'unknown'}`);
     console.log('👥 Follower users:', followerUsers.value.map(u => u?.display_name || u?.username || 'Unknown'));
     
-    // Update followers count with actual loaded data
-    if (user.value) {
-      user.value.followers_count = followerUsers.value.length;
-    }
+    // Don't override the database count - trust profiles.followers_count
     isLoading.value = false;
   } catch (error) {
     console.error('❌ Failed to load followers:', error);

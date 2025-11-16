@@ -879,13 +879,14 @@ export class ActivityPubService {
       .limit(limit);
 
     if (error) throw error;
-    console.log(`👥 Followers loaded for user ${userId}: ${data?.length || 0}`);
-    console.log('Followers data:', data);
 
-    return (data?.map((follow: any) => ({
-      ...follow.follower,
-      handle: this.formatUserHandle(follow.follower.username, follow.follower.domain)
-    })) || []) as unknown as FederatedUser[];
+    // Filter out null profiles only
+    return (data
+      ?.filter((follow: any) => follow.follower)
+      .map((follow: any) => ({
+        ...follow.follower,
+        handle: this.formatUserHandle(follow.follower.username, follow.follower.domain)
+      })) || []) as unknown as FederatedUser[];
   }
 
   /**
@@ -909,10 +910,13 @@ export class ActivityPubService {
 
     if (error) throw error;
 
-    return (data?.map((follow: any) => ({
-      ...follow.following,
-      handle: this.formatUserHandle(follow.following.username, follow.following.domain)
-    })) || []) as unknown as FederatedUser[];
+    // Filter out null profiles only
+    return (data
+      ?.filter((follow: any) => follow.following)
+      .map((follow: any) => ({
+        ...follow.following,
+        handle: this.formatUserHandle(follow.following.username, follow.following.domain)
+      })) || []) as unknown as FederatedUser[];
   }
 
   /**

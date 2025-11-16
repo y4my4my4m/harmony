@@ -244,21 +244,23 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async loadFollowCounts() {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) return;
+        // Get current user PROFILE ID (not auth.uid!)
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.id) return;
 
         // Get following count
         const { count: followingCount } = await supabase
           .from('follows')
           .select('*', { count: 'exact', head: true })
-          .eq('follower_id', user.data.user.id)
+          .eq('follower_id', currentUser.id)
           .eq('status', 'accepted');
 
         // Get followers count
         const { count: followersCount } = await supabase
           .from('follows')
           .select('*', { count: 'exact', head: true })
-          .eq('following_id', user.data.user.id)
+          .eq('following_id', currentUser.id)
           .eq('status', 'accepted');
 
         this.followingCount = followingCount || 0;
@@ -441,15 +443,17 @@ export const useActivityPubStore = defineStore('activitypub', {
     async handleRealtimeFollowCreate(follow: any) {
       console.log('👥 New follow relationship:', follow);
       
-      const currentUser = await supabase.auth.getUser();
-      if (!currentUser.data.user) return;
+      // Get current user PROFILE ID
+      const { userDataService } = await import('@/services/userDataService');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
 
       // Update counts based on relationship
-      if (follow.follower_id === currentUser.data.user.id) {
+      if (follow.follower_id === currentUser.id) {
         // Current user started following someone
         this.followingCount++;
         this.followedUsers.add(follow.following_id);
-      } else if (follow.following_id === currentUser.data.user.id) {
+      } else if (follow.following_id === currentUser.id) {
         // Someone started following current user
         this.followersCount++;
         
@@ -464,16 +468,18 @@ export const useActivityPubStore = defineStore('activitypub', {
     async handleRealtimeFollowUpdate(follow: any) {
       console.log('👥 Follow relationship updated:', follow);
       
-      const currentUser = await supabase.auth.getUser();
-      if (!currentUser.data.user) return;
+      // Get current user PROFILE ID
+      const { userDataService } = await import('@/services/userDataService');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
 
       // Handle status changes (accepted/rejected)
       if (follow.status === 'accepted') {
-        if (follow.follower_id === currentUser.data.user.id) {
+        if (follow.follower_id === currentUser.id) {
           this.followedUsers.add(follow.following_id);
         }
       } else if (follow.status === 'rejected') {
-        if (follow.follower_id === currentUser.data.user.id) {
+        if (follow.follower_id === currentUser.id) {
           this.followedUsers.delete(follow.following_id);
         }
       }
@@ -485,15 +491,17 @@ export const useActivityPubStore = defineStore('activitypub', {
     async handleRealtimeFollowDelete(follow: any) {
       console.log('👥 Follow relationship deleted:', follow);
       
-      const currentUser = await supabase.auth.getUser();
-      if (!currentUser.data.user) return;
+      // Get current user PROFILE ID
+      const { userDataService } = await import('@/services/userDataService');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
 
       // Update counts based on relationship
-      if (follow.follower_id === currentUser.data.user.id) {
+      if (follow.follower_id === currentUser.id) {
         // Current user unfollowed someone
         this.followingCount--;
         this.followedUsers.delete(follow.following_id);
-      } else if (follow.following_id === currentUser.data.user.id) {
+      } else if (follow.following_id === currentUser.id) {
         // Someone unfollowed current user
         this.followersCount--;
       }
@@ -1142,15 +1150,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Close composer
         this.closeComposer();
 
-        // Add to local feeds immediately for better UX (realtime will handle this too)
-        // Post is already in timeline format from service
-        this.homeFeed.posts.unshift(post);
-        if (visibility === 'public') {
-          this.publicFeed.posts.unshift(post);
-          if (post.is_local) {
-            this.localFeed.posts.unshift(post);
-          }
-        }
+        // Don't add to feeds manually - let realtime handle it to avoid duplicates
+        // The database triggers will create timeline_entries, and realtime will update the UI
+        // This prevents the double-post issue
 
         return post;
       } catch (error) {
@@ -1330,9 +1332,34 @@ export const useActivityPubStore = defineStore('activitypub', {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'follows' },
-          (payload) => {
-            console.log('Follow relationship update:', payload);
-            // TODO: Update follow state
+          async (payload) => {
+            console.log('👥 Follow relationship update:', payload);
+            
+            // Get current user PROFILE ID (not auth.uid!)
+            const { userDataService } = await import('@/services/userDataService');
+            const currentUser = userDataService.getCurrentUser();
+            if (!currentUser?.id) return;
+            
+            const follow = payload.new as any;
+            const oldFollow = payload.old as any;
+            
+            // Only update if this affects the current user's PROFILE
+            if (payload.eventType === 'INSERT' && follow.follower_id === currentUser.id) {
+              console.log('👥 New follow relationship:', follow);
+              this.followedUsers.add(follow.following_id);
+            } else if (payload.eventType === 'DELETE' && oldFollow.follower_id === currentUser.id) {
+              console.log('👥 Follow relationship deleted:', oldFollow);
+              this.followedUsers.delete(oldFollow.following_id);
+            } else if (payload.eventType === 'UPDATE') {
+              const isCurrentUserFollower = follow.follower_id === currentUser.id;
+              if (isCurrentUserFollower) {
+                if (follow.status === 'accepted') {
+                  this.followedUsers.add(follow.following_id);
+                } else {
+                  this.followedUsers.delete(follow.following_id);
+                }
+              }
+            }
           }
         )
         .subscribe();
@@ -1867,18 +1894,18 @@ export const useActivityPubStore = defineStore('activitypub', {
        try {
          console.log('🔄 Loading followed users via InteractionService');
          
-                 // Get current user ID via service layer for consistency
+         // Get current user PROFILE ID (not auth_user_id!)
         const { userDataService } = await import('@/services/userDataService');
         const currentUser = userDataService.getCurrentUser();
-        if (!currentUser?.auth_user_id) {
+        if (!currentUser?.id) {
           console.log('ℹ️ No current user available, skipping followed users loading');
           return;
         }
         
-        console.log('🔄 Current user for loading followed users:', currentUser.auth_user_id);
+        console.log('🔄 Current user PROFILE ID for loading followed users:', currentUser.id);
          
-                 // Use InteractionService for consistent relationship management
-        const result = await services.interactions.getFollowing(currentUser.auth_user_id);
+         // Use InteractionService with PROFILE ID
+        const result = await services.interactions.getFollowing(currentUser.id);
          console.log('🔄 Service result:', result);
          
          this.followedUsers = new Set(result.users.map(user => user.id));
@@ -1903,19 +1930,23 @@ export const useActivityPubStore = defineStore('activitypub', {
      /**
       * Fallback method for loading followed users
       */
-     async _loadFollowedUsersFallback() {
-       const user = await supabase.auth.getUser();
-       if (!user.data.user) return;
+    async _loadFollowedUsersFallback() {
+      // Get current user PROFILE ID
+      const { userDataService } = await import('@/services/userDataService');
+      const currentUser = userDataService.getCurrentUser();
+      if (!currentUser?.id) return;
 
-       const { data, error } = await supabase
-         .from('follows')
-         .select('following_id')
-         .eq('follower_id', user.data.user.id)
-         .eq('status', 'accepted');
+      const { data, error } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', currentUser.id)
+        .eq('status', 'accepted');
 
-       if (error) throw error;
-       this.followedUsers = new Set(data.map(f => f.following_id));
-     },
+      if (error) throw error;
+      
+      // Add all followed users (both local and federated)
+      this.followedUsers = new Set(data.map(f => f.following_id));
+    },
 
      /**
       * Follow a user via InteractionService

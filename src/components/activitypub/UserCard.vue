@@ -157,6 +157,7 @@ const { toggleFollow, getLoadingState } = usePostInteractions();
 
 // State
 const showActionsMenu = ref(false);
+const followInProgress = ref(false);
 
 // Computed
 
@@ -204,18 +205,23 @@ const handleUserClick = () => {
 };
 
 const handleFollowToggle = async () => {
-  if (getLoadingState().follow) return;
+  if (getLoadingState().follow || followInProgress.value) return;
   
+  followInProgress.value = true;
   try {
     const result = await toggleFollow(props.user.id);
     
     if (result.following) {
+      activityPubStore.followedUsers.add(props.user.id);
       emit('follow', props.user.id);
     } else {
+      activityPubStore.followedUsers.delete(props.user.id);
       emit('unfollow', props.user.id);
     }
   } catch (error) {
     console.error('Failed to toggle follow:', error);
+  } finally {
+    followInProgress.value = false;
   }
 };
 

@@ -3,6 +3,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { postToNote } from './converters/toActivityPub.js';
 import { logger } from '../utils/logger.js';
+import config from '../config/index.js';
 
 const router = Router();
 
@@ -29,7 +30,8 @@ router.get(
       return;
     }
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    // Always use HTTPS with instance domain (req.protocol returns http behind nginx proxy)
+    const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const outboxUrl = `${baseUrl}/users/${username}/outbox`;
 
     // Get page parameter

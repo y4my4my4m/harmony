@@ -207,6 +207,7 @@ const { getPresenceAwareStatus, isUserOnline } = useUserData()
 // State
 const isFollowLoading = ref(false)
 const showActionsMenu = ref(false)
+const followInProgress = ref(false)
 
 // Type guards
 const isFederatedUser = (user: User | FederatedUser): user is FederatedUser => {
@@ -313,21 +314,26 @@ const handleClick = () => {
 }
 
 const handleFollowToggle = async () => {
-  if (!isFederatedUser(props.user) || isFollowLoading.value) return
+  if (!isFederatedUser(props.user) || isFollowLoading.value || followInProgress.value) return
   
+  followInProgress.value = true;
   isFollowLoading.value = true
   try {
-    if (isFollowing.value) {
-      await activityPubStore.unfollowUser(props.user.id)
-      emit('unfollow', props.user.id)
-    } else {
-      await activityPubStore.followUser(props.user.id)
+    // Just call toggleFollow - let it handle the logic
+    const result = await services.interactions.toggleFollow(props.user.id)
+    
+    if (result.following) {
+      activityPubStore.followedUsers.add(props.user.id)
       emit('follow', props.user.id)
+    } else {
+      activityPubStore.followedUsers.delete(props.user.id)
+      emit('unfollow', props.user.id)
     }
   } catch (error) {
     console.error('Failed to toggle follow:', error)
   } finally {
     isFollowLoading.value = false
+    followInProgress.value = false;
   }
 }
 

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor } from './converters/toActivityPub.js';
+import config from '../config/index.js';
 
 const router = Router();
 
@@ -66,7 +67,8 @@ router.get(
       .eq('following_id', user.id)
       .eq('status', 'accepted');
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    // Always use HTTPS with instance domain (req.protocol returns http behind nginx proxy)
+    const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const collectionUrl = `${baseUrl}/users/${username}/followers`;
 
     res.setHeader('Content-Type', 'application/activity+json');
@@ -109,7 +111,8 @@ router.get(
       .eq('follower_id', user.id)
       .eq('status', 'accepted');
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    // Always use HTTPS with instance domain (req.protocol returns http behind nginx proxy)
+    const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const collectionUrl = `${baseUrl}/users/${username}/following`;
 
     res.setHeader('Content-Type', 'application/activity+json');

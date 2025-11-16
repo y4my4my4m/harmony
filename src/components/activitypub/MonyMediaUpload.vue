@@ -8,77 +8,49 @@
         :key="attachment.id || index"
         class="media-preview-item"
       >
-        <!-- Image Preview -->
-        <div v-if="attachment.type === 'image'" class="image-preview">
-          <img
-            :src="attachment.preview_url || attachment.url"
-            :alt="attachment.description || 'Uploaded image'"
-            class="preview-image"
-          />
+        <!-- Image/Video Preview -->
+        <template v-if="attachment.type === 'image' || attachment.type === 'video'">
+          <div v-if="attachment.type === 'image'" class="image-preview">
+            <img
+              :src="attachment.preview_url || attachment.url"
+              :alt="attachment.description || 'Uploaded image'"
+              class="preview-image"
+            />
+          </div>
+          <div v-else class="video-preview">
+            <video
+              :src="attachment.preview_url || attachment.url"
+              class="preview-video"
+              muted
+            />
+          </div>
+          
+          <!-- Media Info -->
+          <div class="media-info">
+            <div class="media-name">{{ attachment.filename || (attachment.type === 'image' ? 'Image' : 'Video') }}</div>
+            <div class="media-size">{{ formatFileSize(attachment.size) }}</div>
+          </div>
           
           <!-- Remove Button -->
           <button
             @click="$emit('remove', index)"
             class="remove-btn"
-            title="Remove image"
+            :title="`Remove ${attachment.type}`"
           >
-            <Icon name="close" />
+            <Icon name="x" />
           </button>
-          
-          <!-- Description Input -->
-          <div class="description-overlay">
-            <input
-              v-model="attachment.description"
-              @input="updateDescription(index, attachment.description)"
-              :placeholder="`Describe image ${index + 1}...`"
-              class="description-input"
-              maxlength="1000"
-            />
-          </div>
-        </div>
-
-        <!-- Video Preview -->
-        <div v-else-if="attachment.type === 'video'" class="video-preview">
-          <video
-            :src="attachment.preview_url || attachment.url"
-            class="preview-video"
-            controls
-            muted
-          />
-          
-          <!-- Remove Button -->
-          <button
-            @click="$emit('remove', index)"
-            class="remove-btn"
-            title="Remove video"
-          >
-            <Icon name="close" />
-          </button>
-          
-          <!-- Description Input -->
-          <div class="description-overlay">
-            <input
-              v-model="attachment.description"
-              @input="updateDescription(index, attachment.description)"
-              :placeholder="`Describe video ${index + 1}...`"
-              class="description-input"
-              maxlength="1000"
-            />
-          </div>
-        </div>
+        </template>
 
         <!-- Audio Preview -->
-        <div v-else-if="attachment.type === 'audio'" class="audio-preview">
-          <div class="audio-info">
+        <template v-else-if="attachment.type === 'audio'">
+          <div class="audio-preview">
             <Icon name="music" class="audio-icon" />
-            <span class="audio-name">{{ attachment.filename || 'Audio file' }}</span>
           </div>
           
-          <audio
-            :src="attachment.url"
-            class="preview-audio"
-            controls
-          />
+          <div class="media-info">
+            <div class="media-name">{{ attachment.filename || 'Audio file' }}</div>
+            <div class="media-size">{{ formatFileSize(attachment.size) }}</div>
+          </div>
           
           <!-- Remove Button -->
           <button
@@ -86,27 +58,19 @@
             class="remove-btn"
             title="Remove audio"
           >
-            <Icon name="close" />
+            <Icon name="x" />
           </button>
-          
-          <!-- Description Input -->
-          <div class="description-overlay">
-            <input
-              v-model="attachment.description"
-              @input="updateDescription(index, attachment.description)"
-              :placeholder="`Describe audio ${index + 1}...`"
-              class="description-input"
-              maxlength="1000"
-            />
-          </div>
-        </div>
+        </template>
 
         <!-- Generic File Preview -->
-        <div v-else class="file-preview">
-          <div class="file-info">
-            <Icon name="file" class="file-icon" />
-            <span class="file-name">{{ attachment.filename || 'File' }}</span>
-            <span class="file-size">{{ formatFileSize(attachment.size) }}</span>
+        <template v-else>
+          <div class="file-preview">
+            <Icon name="file" />
+          </div>
+          
+          <div class="media-info">
+            <div class="media-name">{{ attachment.filename || 'File' }}</div>
+            <div class="media-size">{{ formatFileSize(attachment.size) }}</div>
           </div>
           
           <!-- Remove Button -->
@@ -115,20 +79,9 @@
             class="remove-btn"
             title="Remove file"
           >
-            <Icon name="close" />
+            <Icon name="x" />
           </button>
-          
-          <!-- Description Input -->
-          <div class="description-overlay">
-            <input
-              v-model="attachment.description"
-              @input="updateDescription(index, attachment.description)"
-              :placeholder="`Describe file ${index + 1}...`"
-              class="description-input"
-              maxlength="1000"
-            />
-          </div>
-        </div>
+        </template>
 
         <!-- Upload Progress -->
         <div v-if="attachment.uploading" class="upload-progress">
@@ -192,121 +145,170 @@ const formatFileSize = (bytes?: number): string => {
 
 <style scoped>
 .media-upload {
-  @apply mt-4;
+  margin-bottom: 0.75rem;
 }
 
 .media-preview-grid {
-  @apply grid grid-cols-1 md:grid-cols-2 gap-3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .media-preview-item {
-  @apply relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.media-preview-item:hover {
+  background-color: rgba(0, 0, 0, 0.3);
 }
 
 /* Image Preview */
 .image-preview {
-  @apply relative;
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .preview-image {
-  @apply w-full h-40 object-cover;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* Video Preview */
 .video-preview {
-  @apply relative;
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .preview-video {
-  @apply w-full h-40 object-cover;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Media Info */
+.media-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.media-name {
+  color: #dcddde;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-size {
+  color: #72767d;
+  font-size: 12px;
+  margin-top: 2px;
 }
 
 /* Audio Preview */
 .audio-preview {
-  @apply p-4;
-}
-
-.audio-info {
-  @apply flex items-center gap-2 mb-2;
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background-color: rgba(88, 101, 242, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .audio-icon {
-  @apply w-5 h-5 text-purple-500;
-}
-
-.audio-name {
-  @apply text-sm font-medium text-gray-900 dark:text-gray-100 truncate;
-}
-
-.preview-audio {
-  @apply w-full;
+  width: 24px;
+  height: 24px;
+  color: #5865f2;
 }
 
 /* File Preview */
 .file-preview {
-  @apply p-4;
-}
-
-.file-info {
-  @apply flex items-center gap-2;
-}
-
-.file-icon {
-  @apply w-5 h-5 text-gray-500;
-}
-
-.file-name {
-  @apply text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1;
-}
-
-.file-size {
-  @apply text-xs text-gray-500 dark:text-gray-400;
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background-color: rgba(114, 118, 125, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #72767d;
 }
 
 /* Remove Button */
 .remove-btn {
-  @apply absolute top-2 right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors z-10;
+  background: none;
+  border: none;
+  color: #72767d;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .remove-btn:hover {
-  @apply bg-red-600;
+  color: #ff4757;
+  background-color: rgba(255, 71, 87, 0.1);
 }
 
 /* Description Overlay */
 .description-overlay {
-  @apply absolute bottom-0 left-0 right-0 p-2 bg-black bg-opacity-50;
-}
-
-.description-input {
-  @apply w-full px-2 py-1 text-xs bg-transparent text-white placeholder-gray-300 border border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-purple-500;
+  display: none;
 }
 
 /* Upload Progress */
 .upload-progress {
-  @apply absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center text-white;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background-color: #00aff4;
+  transition: width 0.3s ease;
+  border-radius: 0 0 4px 4px;
 }
 
 .progress-bar {
-  @apply w-3/4 h-2 bg-gray-600 rounded-full overflow-hidden mb-2;
+  width: 75%;
+  height: 8px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
 }
 
 .progress-fill {
-  @apply h-full bg-purple-500 transition-all duration-300;
+  height: 100%;
+  background-color: #5865f2;
+  transition: width 0.3s ease;
 }
 
 .progress-text {
-  @apply text-sm font-medium;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .media-preview-grid {
-    @apply grid-cols-1;
-  }
-  
-  .preview-image,
-  .preview-video {
-    @apply h-32;
-  }
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
 }
 </style>

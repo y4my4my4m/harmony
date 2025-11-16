@@ -98,6 +98,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from 'vue-toastification';
 import { activityPubService } from '@/services/activityPubService';
+import { supabase } from '@/supabase';
 import type { FederatedUser } from '@/types';
 
 // Components
@@ -115,11 +116,13 @@ const toast = useToast();
 interface Props {
   userId?: string;
   view?: 'followers' | 'following';
+  userProfile?: any; // Optional: if provided, use its counts instead of querying
 }
 
 const props = withDefaults(defineProps<Props>(), {
   userId: undefined,
-  view: 'followers'
+  view: 'followers',
+  userProfile: undefined
 });
 
 // State
@@ -197,13 +200,27 @@ const loadCounts = async () => {
   if (!targetUserId.value) return;
   
   try {
-    // Load followers count
-    const followers = await activityPubService.getFollowers(targetUserId.value, { limit: 1 });
-    followersCount.value = followers.length;
+    // If user profile data was passed as prop, use it (avoid extra query)
+    if (props.userProfile && props.userProfile.followers_count !== undefined) {
+      followersCount.value = props.userProfile.followers_count || 0;
+      followingCount.value = props.userProfile.following_count || 0;
+      return;
+    }
     
-    // Load following count
-    const following = await activityPubService.getFollowing(targetUserId.value, { limit: 1 });
-    followingCount.value = following.length;
+    // Otherwise, lightweight query for just counts (fast indexed lookup)
+    const { data: userProfile, error } = await supabase
+      .from('profiles')
+      .select('followers_count, following_count')
+      .eq('id', targetUserId.value)
+      .single();
+    
+    if (error) {
+      console.error('Failed to load counts:', error);
+      return;
+    }
+    
+    followersCount.value = userProfile.followers_count || 0;
+    followingCount.value = userProfile.following_count || 0;
   } catch (error) {
     console.error('Failed to load counts:', error);
   }
@@ -216,28 +233,20 @@ const loadMore = () => {
 };
 
 // Event handlers
-const handleFollow = async (userId: string) => {
-  try {
-    await activityPubStore.followUser(userId);
-    followingCount.value++;
-  } catch (error) {
-    console.error('Failed to follow user:', error);
-    toast.error('Failed to follow user');
-  }
+const handleFollow = (userId: string) => {
+  // User was followed - just update count
+  // The UserCard already handled the actual follow via toggleFollow
+  followingCount.value++;
 };
 
-const handleUnfollow = async (userId: string) => {
-  try {
-    await activityPubStore.unfollowUser(userId);
-    followingCount.value--;
-    
-    // Remove from following list if currently viewing following
-    if (currentView.value === 'following') {
-      users.value = users.value.filter(u => u.id !== userId);
-    }
-  } catch (error) {
-    console.error('Failed to unfollow user:', error);
-    toast.error('Failed to unfollow user');
+const handleUnfollow = (userId: string) => {
+  // User was unfollowed - just update count and UI
+  // The UserCard already handled the actual unfollow via toggleFollow
+  followingCount.value--;
+  
+  // Remove from following list if currently viewing following
+  if (currentView.value === 'following') {
+    users.value = users.value.filter(u => u.id !== userId);
   }
 };
 
@@ -266,7 +275,12 @@ watch(() => props.view, (newView) => {
 });
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  // Ensure activityPubStore is initialized with followed users
+  if (activityPubStore.followedUsers.size === 0 && authStore.session?.user) {
+    await activityPubStore.loadFollowedUsers();
+  }
+  
   loadCounts();
   loadUsers(true);
 });
@@ -277,6 +291,10 @@ onMounted(() => {
   max-width: 600px;
   margin: 0 auto;
   padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .view-header {
@@ -416,6 +434,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: visible;
 }
 
 .user-item {

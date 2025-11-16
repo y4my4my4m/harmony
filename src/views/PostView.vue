@@ -121,11 +121,11 @@
 
         <!-- Reply composer (if replying) -->
         <div v-if="showReplyComposer" class="reply-composer">
-          <InlineReplyComposer
+          <Composer
+            mode="inline"
+            type="reply"
             :reply-to-post="replyToPost!"
-            :is-visible="showReplyComposer"
-            @reply-sent="handleReplyCreated"
-            @cancel="showReplyComposer = false"
+            @posted="handleReplyCreated"
             @close="showReplyComposer = false"
           />
         </div>
@@ -215,7 +215,7 @@ import { activityPubService } from '@/services/activityPubService';
 import { useToast } from 'vue-toastification';
 import Icon from '@/components/common/Icon.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
-import InlineReplyComposer from '@/components/activitypub/InlineReplyComposer.vue';
+import Composer from '@/components/activitypub/Composer.vue';
 
 import type { 
   TimelinePost, 

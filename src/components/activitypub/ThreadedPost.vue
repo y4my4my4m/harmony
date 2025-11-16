@@ -70,7 +70,6 @@ import type { ActivityPubPost } from '@/types';
 
 // Components
 import MonyPost from './MonyPost.vue';
-import InlineReplyComposer from './InlineReplyComposer.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Props

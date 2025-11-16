@@ -53,15 +53,40 @@ export class SignatureService {
     }
 
     // Get user's private key from user_private_keys table
-    const { data: keyData, error: keyError } = await supabase
+    let { data: keyData, error: keyError } = await supabase
       .from('user_private_keys')
       .select('private_key')
       .eq('user_id', userId)
       .single();
 
+    // If no keys exist, generate them on-demand (lazy generation)
     if (keyError || !keyData || !keyData.private_key) {
-      logger.error(`Failed to get private key for user ${userId}:`, keyError);
-      throw new AppError(500, 'User private key not found');
+      logger.info(`🔐 No keys found for user ${userId}, generating on-demand...`);
+      
+      try {
+        const keys = await this.generateKeyPair();
+        
+        // Store private key
+        await supabase
+          .from('user_private_keys')
+          .upsert({
+            user_id: userId,
+            private_key: keys.privateKey,
+            created_at: new Date().toISOString()
+          });
+        
+        // Update profile with public key
+        await supabase
+          .from('profiles')
+          .update({ public_key: keys.publicKey })
+          .eq('id', userId);
+        
+        logger.info(`✅ Generated keys on-demand for user ${userId}`);
+        keyData = { private_key: keys.privateKey };
+      } catch (genError) {
+        logger.error(`Failed to generate keys for user ${userId}:`, genError);
+        throw new AppError(500, 'Failed to generate user keys');
+      }
     }
     
     const privateKey = keyData.private_key;
@@ -160,14 +185,27 @@ export class SignatureService {
         return { verified: false };
       }
 
-      // Rebuild signing string
+      // Rebuild signing string (handle (request-target) specially)
       const headerList = signedHeaders.split(' ');
-      const signingString = headerList
-        .map((headerName) => {
-          const value = headers[headerName.toLowerCase()];
-          return `${headerName}: ${value}`;
-        })
-        .join('\n');
+      const requestTarget = `${method.toLowerCase()} ${path}`;
+      
+      const signingParts: string[] = [];
+      
+      for (const headerName of headerList) {
+        if (headerName === '(request-target)') {
+          signingParts.push(`(request-target): ${requestTarget}`);
+        } else {
+          // Try both lowercase and capitalized versions
+          const value = headers[headerName.toLowerCase()] || headers[headerName];
+          if (value) {
+            signingParts.push(`${headerName}: ${value}`);
+          } else {
+            logger.warn(`Missing header in signature verification: ${headerName}`);
+          }
+        }
+      }
+      
+      const signingString = signingParts.join('\n');
 
       // Verify signature
       const verify = crypto.createVerify('SHA256');

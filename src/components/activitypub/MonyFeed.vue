@@ -86,15 +86,13 @@
     </div>
 
     <!-- Post Composer Modal -->
-    <MonyComposer
+    <Composer
       v-if="isComposerOpen"
+      mode="modal"
+      type="post"
       :is-open="isComposerOpen"
-      :composer-state="composerState"
-      :is-posting="isPosting"
       @close="closeComposer"
-      @submit="createPost"
-      @update-content="updateComposerContent"
-      @update-visibility="updateComposerVisibility"
+      @posted="handlePosted"
     />
 
     <!-- Post Detail Modal -->
@@ -126,9 +124,9 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import type { Post, TimelinePost } from '@/types';
 
-// Components (to be created)
+// Components
 import MonyPost from './MonyPost.vue';
-import MonyComposer from './MonyComposer.vue';
+import Composer from './Composer.vue';
 import Icon from '@/components/common/Icon.vue';
 
 // Store
@@ -144,8 +142,6 @@ const {
   currentView,
   isLoadingAnyFeed,
   isComposerOpen,
-  composerState,
-  isPosting,
   selectedPost,
   lastError
 } = storeToRefs(activityPubStore);
@@ -302,16 +298,9 @@ const closeComposer = () => {
   activityPubStore.closeComposer();
 };
 
-const createPost = () => {
-  activityPubStore.createPost();
-};
-
-const updateComposerContent = (content: string) => {
-  activityPubStore.updateComposerContent(content);
-};
-
-const updateComposerVisibility = (visibility: Post['visibility']) => {
-  activityPubStore.updateComposerVisibility(visibility);
+const handlePosted = (post: any) => {
+  console.log('✅ Post created from composer:', post.id);
+  // The store's realtime subscription will handle adding the post to feeds
 };
 
 // Error handling

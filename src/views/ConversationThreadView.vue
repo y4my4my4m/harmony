@@ -127,7 +127,6 @@ import { getAvatarUrl } from '@/utils/avatarUtils';
 // Components
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import ThreadedPost from '@/components/activitypub/ThreadedPost.vue';
-import InlineReplyComposer from '@/components/activitypub/InlineReplyComposer.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import Icon from '@/components/common/Icon.vue';
 import { useAuthStore } from '@/stores/auth';

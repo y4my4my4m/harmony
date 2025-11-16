@@ -7,8 +7,10 @@ import {
   createFollowActivity as createFollow,
   createLikeActivity as createLike,
   createAnnounceActivity as createAnnounce,
+  createUpdateActivity,
 } from '../activitypub/converters/toActivityPub.js';
 import config from '../config/index.js';
+import { getSupabaseClient } from '../config/supabase.js';
 
 /**
  * Create a Create activity for a new post
@@ -19,6 +21,23 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
   const activityId = `${authorUrl}/activities/${post.id}`;
 
   const note = postToNote(post, author);
+  
+  // Fix in_reply_to: Convert UUID to ActivityPub URL
+  if (post.in_reply_to) {
+    const supabase = getSupabaseClient();
+    const { data: parentPost } = await supabase
+      .from('posts')
+      .select('ap_id')
+      .eq('id', post.in_reply_to)
+      .single();
+    
+    if (parentPost?.ap_id) {
+      note.inReplyTo = parentPost.ap_id;
+    } else {
+      // Parent post doesn't have ap_id (shouldn't happen with our trigger, but fallback)
+      note.inReplyTo = `https://${domain}/posts/${post.in_reply_to}`;
+    }
+  }
 
   return {
     '@context': 'https://www.w3.org/ns/activitystreams',
@@ -45,11 +64,10 @@ export function createFollowActivity(follower: any, following: any): any {
 export async function createLikeActivity(
   user: any,
   objectUrl: string,
-  emojiId: string
+  emojiContent: string,
+  emojiData?: { name: string; url: string }
 ): Promise<any> {
-  // Get emoji details if it's a custom emoji
-  // For now, just use the emoji_id as emoji
-  return createLike(user, objectUrl, emojiId);
+  return createLike(user, objectUrl, emojiContent, emojiData);
 }
 
 /**
@@ -58,5 +76,12 @@ export async function createLikeActivity(
 export async function createReblogActivity(user: any, post: any): Promise<any> {
   const objectUrl = post.ap_id || post.id;
   return createAnnounce(user, objectUrl);
+}
+
+/**
+ * Create an Update activity (profile updates)
+ */
+export function createProfileUpdateActivity(profile: any): any {
+  return createUpdateActivity(profile);
 }
 

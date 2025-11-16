@@ -78,12 +78,21 @@ export class ActivityProcessor {
     }
 
     // Create follow relationship (auto-accept)
-    await supabase.from('follows').upsert({
+    const { data: followResult, error: followError } = await supabase.from('follows').upsert({
       follower_id: follower.id,
       following_id: following.id,
       status: 'accepted',
-      ap_activity_id: activity.id,
-    });
+      ap_id: activity.id,
+      is_local: false,
+      accepted_at: new Date().toISOString()
+    }, {
+      onConflict: 'follower_id,following_id'
+    }).select();
+
+    if (followError) {
+      logger.error('Failed to create follow relationship:', followError);
+      return;
+    }
 
     logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`);
 
@@ -200,21 +209,26 @@ export class ActivityProcessor {
         has_mentions: object.tag?.some((t: any) => t.type === 'Mention')
       }));
 
-      // Create post
-      const { error } = await supabase.from('posts').upsert({
-        ap_id: object.id,
-        author_id: author.id,
-        content,
-        visibility,
-        is_local: false,
-        in_reply_to: object.inReplyTo,
-        created_at: object.published || new Date().toISOString(),
-      });
-
-      if (error) {
-        logger.error('Failed to create post from activity:', error);
+      // Route direct messages to messages table, everything else to posts
+      if (visibility === 'direct' || visibility === 'private') {
+        await this.handleDirectMessage(object, author.id, content);
       } else {
-        logger.info(`Created post from ${object.id}`);
+        // Create post
+        const { error } = await supabase.from('posts').upsert({
+          ap_id: object.id,
+          author_id: author.id,
+          content,
+          visibility,
+          is_local: false,
+          in_reply_to: object.inReplyTo,
+          created_at: object.published || new Date().toISOString(),
+        });
+
+        if (error) {
+          logger.error('Failed to create post from activity:', error);
+        } else {
+          logger.info(`Created post from ${object.id}`);
+        }
       }
     }
   }
@@ -235,8 +249,8 @@ export class ActivityProcessor {
         .update({
           display_name: profileData.display_name,
           bio: profileData.bio,
-          avatar: profileData.avatar,
-          banner: profileData.banner,
+          avatar_url: profileData.avatar,
+          banner_url: profileData.banner,
           public_key: profileData.public_key,
         })
         .eq('federated_id', object.id);
@@ -272,8 +286,10 @@ export class ActivityProcessor {
    * Process Like activity (including emoji reactions)
    */
   private static async processLike(activity: any): Promise<void> {
-    const { actorUrl, objectUrl, emoji } = extractLikeData(activity);
+    const { actorUrl, objectUrl, emoji, emojiUrl, emojiName } = extractLikeData(activity);
     const supabase = getSupabaseClient();
+    
+    logger.info(`📊 Extracted Like data: emoji="${emoji}", emojiUrl="${emojiUrl}", emojiName="${emojiName}"`);
 
     // Ensure user exists
     await this.ensureRemoteUser(actorUrl);
@@ -290,26 +306,110 @@ export class ActivityProcessor {
       return;
     }
 
-    // Find target post
-    const { data: post } = await supabase
+    // Find target post - try multiple methods
+    let post = null;
+    
+    // Method 1: Try by ap_id
+    const { data: postByApId } = await supabase
       .from('posts')
       .select('id')
       .eq('ap_id', objectUrl)
-      .single();
+      .maybeSingle();
+    
+    post = postByApId;
+    
+    // Method 2: If not found, try extracting UUID from URL
+    if (!post && objectUrl.includes('/posts/')) {
+      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        const postId = uuidMatch[1];
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('id', postId)
+          .maybeSingle();
+        post = postById;
+      }
+    }
 
     if (post) {
+      let emojiId = null;
+      
+      // For custom emojis with URLs, create/get local emoji entry
+      if (emojiUrl && emojiName) {
+        logger.info(`🔍 Looking for existing emoji with URL: ${emojiUrl}`);
+        
+        // Check if emoji already exists
+        const { data: existingEmoji, error: existingError } = await supabase
+          .from('emojis')
+          .select('id')
+          .eq('url', emojiUrl)
+          .maybeSingle();
+        
+        if (existingError) {
+          logger.error('Error checking for existing emoji:', existingError);
+        }
+        
+        if (existingEmoji) {
+          emojiId = existingEmoji.id;
+          logger.info(`♻️  Using existing emoji ID: ${emojiId}`);
+        } else {
+          // Create new emoji entry for this remote custom emoji
+          const cleanName = emojiName.replace(/:/g, ''); // Remove colons
+          logger.info(`➕ Creating new emoji entry: ${cleanName}`);
+          
+          const { data: newEmoji, error: insertError } = await supabase
+            .from('emojis')
+            .insert({
+              name: cleanName,
+              url: emojiUrl,
+              server_id: null, // Global/federated emoji
+              uploader: user.id,
+              domain: new URL(emojiUrl).hostname, // Extract domain from URL
+            })
+            .select('id')
+            .single();
+          
+          if (insertError) {
+            logger.error('❌ Failed to create emoji:', insertError);
+          } else if (newEmoji) {
+            emojiId = newEmoji.id;
+            logger.info(`✨ Created local emoji entry for remote emoji: ${cleanName} (ID: ${emojiId})`);
+          }
+        }
+      }
+      
       // Add reaction/like to post using post_interactions table
-      await supabase.from('post_interactions').upsert({
+      logger.info(`💾 Inserting reaction: emoji_id=${emojiId}, custom_content=${emoji}`);
+      
+      // Check if reaction already exists to avoid duplicates
+      const { data: existing } = await supabase
+        .from('post_interactions')
+        .select('id')
+        .eq('post_id', post.id)
+        .eq('user_id', user.id)
+        .eq('interaction_type', 'emoji_reaction')
+        .maybeSingle();
+      
+      if (existing) {
+        logger.info(`🔄 Reaction already exists for user ${user.id} on post ${post.id}`);
+        return;
+      }
+      
+      const { error: interactionError } = await supabase.from('post_interactions').insert({
         post_id: post.id,
         user_id: user.id,
         interaction_type: 'emoji_reaction',
-        emoji_id: null, // Will use custom_emoji_content for remote emojis
+        emoji_id: emojiId, // Use created/found emoji ID
         custom_emoji_content: emoji || '❤️',
-      }, {
-        onConflict: 'post_id,user_id,interaction_type'
+        is_local: false,
       });
 
-      logger.info(`Added reaction to post ${post.id}: ${emoji || '❤️'}`);
+      if (interactionError) {
+        logger.error('❌ Failed to insert reaction:', interactionError);
+      } else {
+        logger.info(`✅ Added reaction to post ${post.id}: ${emoji || '❤️'}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
+      }
     } else {
       logger.warn(`Post not found for like: ${objectUrl}`);
     }
@@ -472,6 +572,86 @@ export class ActivityProcessor {
       logger.info(`Created remote user: ${actorUrl}`);
     } catch (error) {
       logger.error(`Error fetching remote actor ${actorUrl}:`, error);
+    }
+  }
+
+  /**
+   * Handle direct message (store in messages table instead of posts)
+   */
+  private static async handleDirectMessage(
+    object: any,
+    authorId: string,
+    content: any[]
+  ): Promise<void> {
+    const supabase = getSupabaseClient();
+    
+    // Extract mentioned users (recipients)
+    const to = Array.isArray(object.to) ? object.to : [object.to].filter(Boolean);
+    const cc = Array.isArray(object.cc) ? object.cc : [object.cc].filter(Boolean);
+    const allRecipients = [...to, ...cc];
+    
+    // Get local user IDs from the recipient URLs
+    const recipientIds: string[] = [];
+    for (const recipientUrl of allRecipients) {
+      if (typeof recipientUrl !== 'string') continue;
+      
+      const { data: recipient } = await supabase
+        .from('profiles')
+        .select('id, is_local')
+        .eq('federated_id', recipientUrl)
+        .single();
+      
+      if (recipient?.is_local) {
+        recipientIds.push(recipient.id);
+      }
+    }
+    
+    if (recipientIds.length === 0) {
+      logger.warn(`Direct message ${object.id} has no local recipients`);
+      return;
+    }
+    
+    // For each local recipient, find or create DM conversation using the database function
+    for (const recipientId of recipientIds) {
+      try {
+        // Use the existing get_or_create_conversation function
+        const { data: conversationId, error: convError } = await supabase
+          .rpc('get_or_create_conversation', {
+            user1_uuid: authorId,
+            user2_uuid: recipientId
+          });
+        
+        if (convError || !conversationId) {
+          logger.error(`Failed to get/create conversation:`, convError);
+          continue;
+        }
+        
+        logger.info(`Using conversation ${conversationId} for DM`);
+        
+        // Store message in messages table
+        const { error: messageError } = await supabase
+          .from('messages')
+          .insert({
+            user_id: authorId,
+            conversation_id: conversationId,
+            content,
+            metadata: {
+              ap_id: object.id,
+              from_domain: new URL(object.attributedTo || object.actor).hostname,
+              original_url: object.url || object.id,
+              published: object.published,
+            },
+            created_at: object.published || new Date().toISOString(),
+          });
+        
+        if (messageError) {
+          logger.error(`Failed to create DM from activity:`, messageError);
+        } else {
+          logger.info(`✅ Created DM in conversation ${conversationId} from ${object.id}`);
+        }
+      } catch (error) {
+        logger.error(`Error handling DM for recipient ${recipientId}:`, error);
+      }
     }
   }
 

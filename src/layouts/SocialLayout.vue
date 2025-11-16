@@ -120,14 +120,14 @@
     </div>
     
     <!-- Social Modals -->
-    <MonyComposer
+    <Composer
+      v-if="activityPubStore.isComposerOpen"
+      mode="modal"
+      :type="composerReplyPost ? 'reply' : 'post'"
       :is-open="activityPubStore.isComposerOpen"
-      :composer-state="activityPubStore.composerState"
-      :is-posting="activityPubStore.isPosting"
-      @close="activityPubStore.closeComposer"
-      @submit="handleComposerSubmit"
-      @update-content="updateComposerContent"
-      @update-visibility="updateComposerVisibility"
+      :reply-to-post="composerReplyPost"
+      @close="handleCloseComposer"
+      @posted="handlePosted"
     />
 
     <UserSearchModal
@@ -152,7 +152,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
-import MonyComposer from '@/components/activitypub/MonyComposer.vue'
+import Composer from '@/components/activitypub/Composer.vue'
 import ProfileCard from '@/components/common/ProfileCard.vue'
 import UserSearchModal from '@/components/activitypub/UserSearchModal.vue'
 import UserProfileModal from '@/components/UserProfileModal.vue'
@@ -291,6 +291,7 @@ const specialViewData = computed(() => props.specialViewData)
 // State
 const showSearchModal = ref(false)
 const selectedUser = ref<FederatedUser | null>(null)
+const composerReplyPost = ref<TimelinePost | null>(null)
 const trendingTopics = ref([
   { tag: 'harmony', count: 1234 },
   { tag: 'social', count: 567 },
@@ -410,7 +411,8 @@ const handlePostCreated = async () => {
 }
 
 const handleReplyToPost = (post: TimelinePost) => {
-  activityPubStore.openComposer({ replyTo: post.id })
+  composerReplyPost.value = post
+  activityPubStore.openComposer()
 }
 
 const handleFavoritePost = async (post: TimelinePost) => {
@@ -513,18 +515,15 @@ const handleBackToTimeline = () => {
   router.push({ name: 'Social', params: { timeline: 'home' } })
 }
 
-const handleComposerSubmit = async () => {
-  // The composer submission is handled by the activity pub store
-  // Just close the composer after successful submission
+const handleCloseComposer = () => {
+  composerReplyPost.value = null
   activityPubStore.closeComposer()
 }
 
-const updateComposerContent = (content: string) => {
-  activityPubStore.updateComposerContent(content)
-}
-
-const updateComposerVisibility = (visibility: string) => {
-  activityPubStore.updateComposerVisibility(visibility)
+const handlePosted = (post: any) => {
+  console.log('✅ Post created:', post.id)
+  composerReplyPost.value = null
+  // The store's realtime subscription will handle adding the post to feeds
 }
 
 const closeSearch = () => {
