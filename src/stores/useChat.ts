@@ -495,11 +495,15 @@ export const useChatStore = defineStore('chat', {
           replyTo || undefined
         );
         
-        // Remove optimistic message
-        this.removeMessageFromCache(tempId);
-        
-        // Add real message (without sending flag)
-        this.addMessageToCache(message);
+        // Replace optimistic message with real one atomically
+        const index = this.messages.findIndex(m => m.id === tempId);
+        if (index !== -1) {
+          // Replace in-place to avoid duplicate flash
+          this.messages[index] = message;
+        } else {
+          // Fallback: add if not found (shouldn't happen)
+          this.addMessageToCache(message);
+        }
         
         console.log('✅ Message sent via service layer:', message.id);
         return message;
@@ -560,6 +564,14 @@ export const useChatStore = defineStore('chat', {
           },
           (payload) => {
             console.log('🟢 Real-time INSERT received:', payload);
+            
+            // Check if message already exists (from optimistic update)
+            const existingIndex = this.messages.findIndex(m => m.id === payload.new.id);
+            if (existingIndex !== -1) {
+              console.log('⚠️ Message already exists (optimistic), skipping duplicate');
+              return;
+            }
+            
             const newMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),

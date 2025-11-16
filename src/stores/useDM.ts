@@ -1207,8 +1207,21 @@ export const useDMStore = defineStore('dm', () => {
 
       console.log('✅ DM message sent via service layer:', message.id)
       
-      // Remove optimistic message
-      removeMessageFromCache(conversationId, tempId);
+      // Replace optimistic message with real one atomically
+      const index = currentDMMessages.value.findIndex(m => m.id === tempId);
+      if (index !== -1) {
+        // Replace in-place to avoid duplicate flash
+        currentDMMessages.value[index] = message;
+        
+        // Also update cache
+        const cache = messageCache.value.get(conversationId);
+        if (cache) {
+          const cacheIndex = cache.messages.findIndex(m => m.id === tempId);
+          if (cacheIndex !== -1) {
+            cache.messages[cacheIndex] = message;
+          }
+        }
+      }
       
       // 🎯 DATABASE TRIGGERS NOW HANDLE:
       // 1. DM notifications (handle_message_notifications trigger)
@@ -1216,7 +1229,7 @@ export const useDMStore = defineStore('dm', () => {
       // No manual frontend calls needed!
 
       // Real-time subscription will handle adding to cache via addMessageToCache
-      // Don't manually add here to prevent duplicates
+      // But we already replaced the optimistic message above
 
       return true
     } catch (error: any) {
@@ -1412,6 +1425,13 @@ export const useDMStore = defineStore('dm', () => {
         });
         
         const message = payload.new as any
+        
+        // Check if message already exists (from optimistic update)
+        const existingIndex = currentDMMessages.value.findIndex(m => m.id === message.id);
+        if (existingIndex !== -1) {
+          console.log('⚠️ Message already exists (optimistic), skipping duplicate');
+          return;
+        }
         
         const formattedMessage: Message = {
           id: message.id,

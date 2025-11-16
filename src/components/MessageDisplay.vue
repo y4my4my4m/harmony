@@ -1263,9 +1263,11 @@ const closeInviteModal = () => {
 .sending-indicator {
   display: inline-flex;
   align-items: center;
-  margin-left: 8px;
-  opacity: 0.6;
-  vertical-align: middle;
+  justify-content: center;
+  margin-left: 6px;
+  opacity: 0.5;
+  vertical-align: text-bottom;
+  line-height: 1;
 }
 
 .spinner-icon {
@@ -1284,14 +1286,21 @@ const closeInviteModal = () => {
   }
 }
 
-/* Ensure message-main uses flex to keep spinner inline */
-.message-main {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* Message content wrapper - ensures spinner stays inline */
+.message-content-wrapper {
+  display: inline;
 }
 
-.message-main > :first-child {
-  display: inline;
+/* Ensure message content and spinner are inline */
+.message-main {
+  display: block;
+  position: relative;
+}
+
+/* Make the sending indicator truly inline */
+.message-main .sending-indicator {
+  display: inline-flex !important;
+  margin-left: 6px !important;
+  vertical-align: baseline !important;
 }
 </style>
