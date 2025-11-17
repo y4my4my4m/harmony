@@ -16,7 +16,7 @@
       :messages="messages" 
       :isLoading="isLoading"
       :currentUserId="currentUserId"
-      @loadMoreMessages="$emit('loadMoreMessages')"
+      :loadMoreMessages="props.loadMoreMessages"
       @toggleEmojiList="toggleEmojiList"
       @sendReaction="toggleReaction"
       @replyingTo="replyingTo"
