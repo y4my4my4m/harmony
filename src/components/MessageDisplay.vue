@@ -4,14 +4,14 @@
       There are no messages here, type something!
     </div>
     <!-- Loading older messages indicator -->
-    <div v-if="chatStore.loadingOlderMessages && messages.length > 0" class="loading-older-messages">
+    <div v-if="isLoadingOlderMessages && messages.length > 0" class="loading-older-messages">
       <div class="loading-spinner"></div>
       <span>Loading older messages...</span>
     </div>
     
     <template v-else v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
       <!-- Beginning of conversation indicator (only show when all messages loaded) -->
-      <div v-if="index === 0 && hasScrollbar && chatStore.allMessagesLoaded" class="beginning-indicator" :style="getIndicatorStyle()">
+      <div v-if="index === 0 && hasScrollbar && isAllMessagesLoaded" class="beginning-indicator" :style="getIndicatorStyle()">
         <div class="beginning-content">
           <div class="beginning-icon">🌟</div>
           <div class="beginning-text">
@@ -224,6 +224,7 @@ import type { PropType, Ref } from 'vue';
 import type { Message, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
+import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel'; 
 import { useServerPermissions } from '@/composables/useServerPermissions';
@@ -264,6 +265,7 @@ const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction',
 const serverUsersStore = useServerUsersStore();
 const serverChannelStore = useServerChannelStore();
 const chatStore = useChatStore();
+const dmStore = useDMStore();
 const authStore = useAuthStore();
 const { isCurrentUserServerOwner } = useServerPermissions();
 const { 
@@ -274,6 +276,17 @@ const {
   fetchUserProfile,
   getUserProfile
 } = useUserData();
+
+// Unified computed properties that work for both chat and DMs
+const isLoadingOlderMessages = computed(() => {
+  // Check both stores since MessageDisplay is used for both
+  return chatStore.loadingOlderMessages || dmStore.loadingMessages;
+});
+
+const isAllMessagesLoaded = computed(() => {
+  // Check both stores
+  return chatStore.allMessagesLoaded || dmStore.allMessagesLoaded;
+});
 
 // --- REFS ---
 const messageDisplayContainer = ref<HTMLDivElement | null>(null);
