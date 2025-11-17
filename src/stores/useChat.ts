@@ -259,18 +259,26 @@ export const useChatStore = defineStore('chat', {
           }
         }
         
+        console.log('📤 Loading older messages with params:', { channelId, limit: 20, beforeTimestamp });
+        
         const { messages, hasMore } = await services.messages.loadChannelMessages(
           channelId,
           20, // limit
           beforeTimestamp
         );
 
+        console.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });
+
         // Check if request was cancelled
         if (signal?.aborted) {
           throw new Error('Request aborted');
         }
 
-        if (!messages) return;
+        if (!messages || messages.length === 0) {
+          console.log('📭 No older messages found');
+          this.allMessagesLoaded = true;
+          return;
+        }
         
         // Get reactions store instance
         const reactionsStore = useReactionsStore();
@@ -294,13 +302,15 @@ export const useChatStore = defineStore('chat', {
         // ✅ PERFORMANCE FIX: Reactions are already loaded by MessageService
         // Components should use message.reactions directly instead of fetching
 
-        // Service already returns messages in chronological order (oldest first)
-        const reversedMessages = messages;
+        // Service returns messages in chronological order (oldest first after reversing)
+        const olderMessages = messages;
         const allLoaded = !hasMore;
+
+        console.log('📦 Processing messages:', { count: olderMessages.length, allLoaded, isInitialLoad: oldestMessageId === '' });
 
         if (oldestMessageId === '') {
           // Initial load - update cache and current messages
-          this.messages = reversedMessages;
+          this.messages = olderMessages;
           this.allMessagesLoaded = allLoaded;
           
           // Only update currentChannelId if it's actually different to prevent recursive loops
@@ -311,27 +321,30 @@ export const useChatStore = defineStore('chat', {
           // Update cache
           this.evictOldestCache();
           this.messageCache.set(channelId, {
-            messages: [...reversedMessages],
+            messages: [...olderMessages],
             lastFetchedAt: new Date(),
-            oldestMessageId: reversedMessages[0]?.id || null,
+            oldestMessageId: olderMessages[0]?.id || null,
             allMessagesLoaded: allLoaded,
             lastModified: new Date(),
           });
 
-          console.log(`Cached messages for channel: ${channelId}`);
+          console.log(`✅ Initial load: Cached ${olderMessages.length} messages for channel`);
         } else {
-          // Loading older messages - append to current
-          this.messages = [...reversedMessages, ...this.messages];
+          // Loading older messages - PREPEND to current (older messages go BEFORE)
+          console.log(`📤 Prepending ${olderMessages.length} older messages to ${this.messages.length} current messages`);
+          this.messages = [...olderMessages, ...this.messages];
           this.allMessagesLoaded = allLoaded;
 
           // Update cache with new older messages
           const cached = this.messageCache.get(channelId);
           if (cached) {
-            cached.messages = [...reversedMessages, ...cached.messages];
-            cached.oldestMessageId = reversedMessages[0]?.id || cached.oldestMessageId;
+            cached.messages = [...olderMessages, ...cached.messages];
+            cached.oldestMessageId = olderMessages[0]?.id || cached.oldestMessageId;
             cached.allMessagesLoaded = allLoaded;
             cached.lastFetchedAt = new Date();
           }
+          
+          console.log(`✅ Pagination: Now have ${this.messages.length} total messages, allLoaded: ${allLoaded}`);
         }
       } catch (error: any) {
         if (error.message === 'Request aborted') {
