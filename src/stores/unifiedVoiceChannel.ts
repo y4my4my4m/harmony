@@ -18,6 +18,7 @@ interface VoiceChannelState {
   currentServerId: string | null;
   currentChannelName: string | null;
   isConnected: boolean;
+  sessionStartTime: Date | null; // Track when the voice session started
   
   // Users and their states
   allUsers: UserMediaState[];
@@ -42,6 +43,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     currentServerId: null,
     isConnected: false,
     currentChannelName: null,
+    sessionStartTime: null,
     
     allUsers: [],
     localState: {
@@ -174,6 +176,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
         this.currentChannelName = channel ? channel.name : 'Voice Channel';
         this.isConnected = true;
+        this.sessionStartTime = new Date(); // Track when session started
         
         // Get fresh state from WebRTC service
         const newLocalState = unifiedWebRTC.getLocalState();
@@ -592,6 +595,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.currentChannelId = null;
       this.currentServerId = null;
       this.isConnected = false;
+      this.sessionStartTime = null; // Reset session start time
       this.allUsers = [];
       this.localState = {
         userId: '',

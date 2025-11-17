@@ -1180,6 +1180,21 @@ export const useDMStore = defineStore('dm', () => {
     content: MessagePart[],
     replyTo?: string
   ): Promise<boolean> => {
+    // Create optimistic message
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage = {
+      id: tempId,
+      created_at: new Date(),
+      conversation_id: conversationId,
+      user_id: userId,
+      content: content,
+      reply_to: replyTo,
+      sending: true
+    };
+    
+    // Add optimistic message to display immediately
+    addMessageToCache(conversationId, optimisticMessage as any);
+    
     try {
       console.log('🔄 Sending DM message via MessageService:', { conversationId, userId })
       
@@ -1190,18 +1205,23 @@ export const useDMStore = defineStore('dm', () => {
         replyTo
       )
 
-      console.log('✅ DM message sent via service layer:', message.id)
+      console.log('✅ DM message saved to database:', message.id)
+      console.log('📦 DM message data from server:', message)
+      
+      // Real-time will replace the temp message with the real one
+      console.log('⏳ Waiting for real-time to replace temp DM message...')
+      
+      // Real-time INSERT will handle replacing temp → real
       
       // 🎯 DATABASE TRIGGERS NOW HANDLE:
       // 1. DM notifications (handle_message_notifications trigger)
       // 2. Federation delivery (federate_dm_message trigger)
       // No manual frontend calls needed!
 
-      // Real-time subscription will handle adding to cache via addMessageToCache
-      // Don't manually add here to prevent duplicates
-
       return true
     } catch (error: any) {
+      // Remove optimistic message on error
+      removeMessageFromCache(conversationId, tempId);
       console.error('❌ Failed to send DM message via service:', error)
       throw new Error(error.message || 'Failed to send DM message')
     }
@@ -1392,6 +1412,31 @@ export const useDMStore = defineStore('dm', () => {
         });
         
         const message = payload.new as any
+        
+        // Check if real message already exists (from sendDMMessage replacement)
+        const existingRealMessage = currentDMMessages.value.findIndex(m => m.id === message.id);
+        if (existingRealMessage !== -1) {
+          console.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
+          return;
+        }
+        
+        // Check if temp message exists (shouldn't happen - sendDMMessage should have replaced it)
+        const tempMessageIndex = currentDMMessages.value.findIndex(m => m.id.startsWith('temp-') && m.user_id === message.user_id);
+        if (tempMessageIndex !== -1) {
+          console.warn('⚠️ Temp message still exists during real-time, replacing now');
+          currentDMMessages.value.splice(tempMessageIndex, 1, {
+            id: message.id,
+            user_id: message.user_id,
+            content: message.content,
+            created_at: new Date(message.created_at),
+            channel_id: '',
+            conversation_id: message.conversation_id,
+            reply_to: message.reply_to,
+            reactions: message.reactions || [],
+            is_system: message.is_system
+          });
+          return;
+        }
         
         const formattedMessage: Message = {
           id: message.id,

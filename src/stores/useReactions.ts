@@ -42,7 +42,13 @@ export const useReactionsStore = defineStore('reactions', () => {
   // Actions
   async function fetchMessageReactions(messageId: string, force = false): Promise<void> {
     if (!messageId) return
-
+    
+    // CRITICAL: Skip temp messages to avoid UUID errors
+    if (messageId.startsWith('temp-')) {
+      console.log('⚠️ Skipping reaction fetch for temp message:', messageId)
+      return
+    }
+    
     const now = Date.now()
     const lastFetch = lastFetched.value.get(messageId) || 0
     

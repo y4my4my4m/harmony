@@ -36,44 +36,6 @@
           </div>
         </div>
       </div>
-      <div class="context-actions">
-        <button 
-          v-if="!isDM"
-          class="action-btn"
-          @click="$emit('toggle-voice-panel')"
-          :class="{ active: voicePanelOpen }"
-          title="Voice & Video"
-        >
-          <Icon name="phone" />
-        </button>
-        
-        <button 
-          class="action-btn"
-          @click="$emit('toggle-search')"
-          title="Search"
-        >
-          <Icon name="search" />
-        </button>
-        
-        <button 
-          v-if="!isMobile"
-          class="action-btn"
-          @click="$emit('toggle-right-sidebar')"
-          :class="{ active: rightSidebarOpen }"
-          title="Member List"
-        >
-          <Icon name="users" />
-        </button>
-        
-        <button 
-          v-if="isMobile"
-          class="mobile-menu-btn"
-          @click="$emit('toggle-right-sidebar')"
-          :class="{ active: rightSidebarOpen }"
-        >
-          <Icon name="users" />
-        </button>
-      </div>
     </div>
     
     <!-- ActivityPub Mode Context Bar -->
@@ -97,43 +59,6 @@
             </div>
           </div>
         </div>
-      </div>
-      
-      <div class="context-actions">
-        
-        <button 
-          v-if="currentView === 'home'"
-          class="action-btn"
-          @click="$emit('refresh-timeline')"
-          title="Refresh Timeline"
-        >
-          <Icon name="refresh-cw" />
-        </button>
-        
-        <button 
-          class="action-btn"
-          @click="$emit('open-search')"
-          title="Search"
-        >
-          <Icon name="search" />
-        </button>
-        
-        <button 
-          class="action-btn compose-btn"
-          @click="$emit('open-composer')"
-          title="Create Post"
-        >
-          <Icon name="edit" />
-        </button>
-        
-        <button 
-          v-if="isMobile"
-          class="mobile-menu-btn"
-          @click="$emit('toggle-right-sidebar')"
-          :class="{ active: rightSidebarOpen }"
-        >
-          <Icon name="trending-up" />
-        </button>
       </div>
     </div>
   </div>
@@ -173,13 +98,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 defineEmits<{
   'toggle-left-sidebar': [];
-  'toggle-right-sidebar': [];
-  'toggle-voice-panel': [];
-  'toggle-search': [];
-  'switch-feed': [feedType: 'home' | 'local' | 'public' | 'trending' | 'instances'];
-  'refresh-timeline': [];
-  'open-search': [];
-  'open-composer': [];
 }>();
 
 const feedTabs = [

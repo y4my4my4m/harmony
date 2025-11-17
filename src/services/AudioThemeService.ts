@@ -80,6 +80,9 @@ export class AudioThemeService {
         // Voice/Video actions
         voice_connect: '/assets/sounds/default/voice_connect.mp3',
         voice_disconnect: '/assets/sounds/default/voice_disconnect.mp3',
+        call_incoming: '/assets/sounds/default/call_incoming.mp3',
+        call_outgoing: '/assets/sounds/default/call_incoming.mp3',
+        call_ended: '/assets/sounds/default/voice_disconnect.mp3',
         mic_on: '/assets/sounds/default/mic_on.mp3',
         mic_off: '/assets/sounds/default/mic_off.mp3',
         deafen_on: '/assets/sounds/default/deafen_on.mp3',
@@ -122,6 +125,9 @@ export class AudioThemeService {
         // Voice actions with harmony signature sounds
         voice_connect: '/assets/sounds/harmony/voice_connect.mp3',
         voice_disconnect: '/assets/sounds/harmony/voice_disconnect.mp3',
+        call_incoming: '/assets/sounds/harmony/call_incoming.mp3',
+        call_outgoing: '/assets/sounds/harmony/call_incoming.mp3',
+        call_ended: '/assets/sounds/harmony/voice_disconnect.mp3',
         mic_on: '/assets/sounds/harmony/mic_on.mp3',
         mic_off: '/assets/sounds/harmony/mic_off.mp3',
         deafen_on: '/assets/sounds/harmony/deafen_on.mp3',
@@ -159,6 +165,9 @@ export class AudioThemeService {
         // Professional voice actions
         voice_connect: '/assets/sounds/discord/voice_connect.mp3',
         voice_disconnect: '/assets/sounds/discord/voice_disconnect.mp3',
+        call_incoming: '/assets/sounds/discord/call_incoming.mp3',
+        call_outgoing: '/assets/sounds/discord/call_incoming.mp3',
+        call_ended: '/assets/sounds/discord/voice_disconnect.mp3',
         mic_on: '/assets/sounds/discord/mic_on.mp3',
         mic_off: '/assets/sounds/discord/mic_off.mp3',
         deafen_on: '/assets/sounds/discord/deafen_on.mp3',

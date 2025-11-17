@@ -9,6 +9,7 @@
         @toggle-left-sidebar="$emit('toggleLeftSidebar')"
         @toggle-voice-panel="$emit('toggleVoicePanel')"
         @add-user="showAddUserModal = true"
+        @incoming-call="handleIncomingCall"
       />
       <div v-else class="dm-placeholder-header">
         <div class="header-content">
@@ -58,6 +59,18 @@
       @users-added="handleUsersAdded"
       @conversation-created="handleConversationCreated"
     />
+    
+    <!-- Incoming Call Modal -->
+    <IncomingCallModal
+      :show="showIncomingCallModal"
+      :caller-id="incomingCall?.callerId || ''"
+      :caller-name="getCallerName"
+      :caller-avatar="getCallerAvatar"
+      :call-type="incomingCall?.callType || 'voice'"
+      :conversation-id="incomingCall?.conversationId || ''"
+      @accept="handleAcceptCall"
+      @decline="handleDeclineCall"
+    />
   </div>
 </template>
 
@@ -69,10 +82,13 @@ import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import DMHeader from '@/components/dm/DMHeader.vue'
 import FollowersList from '@/components/dm/FollowersList.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
+import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
 import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { useUserData } from '@/composables/useUserData'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { dmCallSignaling } from '@/services/DMCallSignaling'
 import type { MessagePart } from '@/types'
 
 // Props
@@ -93,11 +109,12 @@ const emit = defineEmits<{
 // Stores
 const dmStore = useDMStore()
 const authStore = useAuthStore()
+const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 const router = useRouter()
 
 // User data
-const { getCurrentUser } = useUserData()
+const { getCurrentUser, getUserDisplayName, getUserAvatarUrl } = useUserData()
 
 // Layout state
 const { isMobile } = useLayoutState()
@@ -106,6 +123,10 @@ const { isMobile } = useLayoutState()
 const isLoading = ref(false)
 const isAtBottom = ref(true)
 const showAddUserModal = ref(false)
+
+// Incoming call state
+const showIncomingCallModal = ref(false)
+const incomingCall = ref<{ callerId: string, callType: 'voice' | 'video', conversationId: string } | null>(null)
 
 // Toast
 const toast = useToast()
@@ -219,6 +240,76 @@ const handleConversationCreated = async (newConversationId: string) => {
     console.error('Failed to navigate to new conversation:', error)
   }
 }
+
+// Incoming call handlers
+const handleIncomingCall = (payload: { callerId: string, callType: 'voice' | 'video', conversationId: string }) => {
+  // Don't show modal if we're already in a call
+  if (voiceStore.isConnected) return
+  
+  incomingCall.value = payload
+  showIncomingCallModal.value = true
+}
+
+const handleAcceptCall = async (acceptWithVideo: boolean) => {
+  if (!incomingCall.value) return
+  
+  const currentUserId = authStore.session?.user?.id
+  if (!currentUserId) return
+  
+  try {
+    // Send accept signal
+    await dmCallSignaling.acceptCall(incomingCall.value.conversationId, currentUserId)
+    
+    // Join the voice channel
+    const dmChannelId = `dm-${incomingCall.value.conversationId}`
+    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+    
+    if (success) {
+      // Enable video if accepting with video
+      if (acceptWithVideo) {
+        await voiceStore.toggleVideo()
+      }
+      
+      toast.success('Joined call')
+      voiceStore.isOverlayVisible = true
+    }
+  } catch (error) {
+    console.error('Error accepting call:', error)
+    toast.error('Failed to join call')
+  } finally {
+    showIncomingCallModal.value = false
+    incomingCall.value = null
+  }
+}
+
+const handleDeclineCall = async () => {
+  if (!incomingCall.value) return
+  
+  const currentUserId = authStore.session?.user?.id
+  if (!currentUserId) return
+  
+  try {
+    // Send decline signal
+    await dmCallSignaling.declineCall(incomingCall.value.conversationId, currentUserId)
+    toast.info('Call declined')
+  } catch (error) {
+    console.error('Error declining call:', error)
+  } finally {
+    showIncomingCallModal.value = false
+    incomingCall.value = null
+  }
+}
+
+// Computed for incoming call modal
+const getCallerName = computed(() => {
+  if (!incomingCall.value?.callerId) return 'Unknown'
+  return getUserDisplayName(incomingCall.value.callerId).value || 'Unknown'
+})
+
+const getCallerAvatar = computed(() => {
+  if (!incomingCall.value?.callerId) return '/default_avatar.png'
+  return getUserAvatarUrl(incomingCall.value.callerId).value || '/default_avatar.png'
+})
 
 // Watch for conversation changes
 watch(() => route.params.conversationId, loadMessages, { immediate: true })

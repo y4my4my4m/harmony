@@ -45,7 +45,11 @@
               {{ conversation.name || getDefaultGroupName() }}
             </h2>
             <div class="conversation-status">
-              <span class="participant-count">
+              <span v-if="activeCallParticipantCount > 0" class="call-status">
+                <Icon name="phone" :size="12" class="call-icon" />
+                {{ activeCallParticipantCount }} in call
+              </span>
+              <span v-else class="participant-count">
                 <Icon name="users" :size="12" class="members-icon" />
                 {{ conversation.participant_count || 0 }} member{{ (conversation.participant_count || 0) !== 1 ? 's' : '' }}
               </span>
@@ -86,8 +90,20 @@
         </svg>
       </button>
       
+      <!-- Join Call Button (for group calls when call is active but user not in it) -->
+      <button
+        v-if="hasActiveCallNotJoined"
+        class="action-btn join-call-btn"
+        @click="joinActiveCall"
+        title="Join call"
+      >
+        <Icon name="phone" :size="16" />
+        <span class="join-text">Join Call</span>
+      </button>
+      
       <!-- Voice Call Button -->
       <button 
+        v-else
         class="action-btn voice-btn"
         :class="{ active: isInVoiceCall }"
         @click="toggleVoiceCall"
@@ -101,9 +117,9 @@
         class="action-btn video-btn"
         :class="{ active: isInVideoCall }"
         @click="toggleVideoCall"
-        :title="isInVideoCall ? 'End video call' : 'Start video call'"
+        :title="isInVideoCall ? 'Turn off camera' : 'Start video call'"
       >
-        <Icon :name="isInVideoCall ? 'video-off' : 'video'" :size="16" />
+        <Icon :name="isInVideoCall ? 'camera-off' : 'camera'" :size="16" />
       </button>
       
       <button 
@@ -199,9 +215,19 @@ import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { unifiedWebRTC } from '@/services/unifiedWebRTC'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
+import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
+import { dmCallPermissions } from '@/services/DMCallPermissions'
+import { userDataService } from '@/services/userDataService'
 
 const toast = useToast()
+const voiceStore = useUnifiedVoiceChannelStore()
+const authStore = useAuthStore()
+
+// Active call tracking
+const activeCallParticipantCount = ref(0)
 
 // Props
 interface Props {
@@ -212,17 +238,26 @@ interface Props {
 const props = defineProps<Props>()
 
 // Emits
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
   'group-updated': []
   'add-user': []
+  'incoming-call': [payload: { callerId: string, callType: 'voice' | 'video', conversationId: string }]
 }>()
 
-// Voice/Video Call State
-const isInVoiceCall = ref(false)
-const isInVideoCall = ref(false)
+// Voice/Video Call State - synced with voice store
+const isInVoiceCall = computed(() => voiceStore.isConnected && voiceStore.currentChannelId?.startsWith('dm-'))
+const isInVideoCall = computed(() => voiceStore.localState.isVideoEnabled)
+
+// Active call state for group DMs
+const hasActiveCallNotJoined = computed(() => {
+  const hasActiveCall = dmCallSignaling.hasActiveCall(props.conversation.id)
+  const isUserInCall = isInVoiceCall.value
+  const isGroupConversation = props.conversation.type === 'group'
+  
+  return isGroupConversation && hasActiveCall && !isUserInCall
+})
 
 // Use clean status system
 const { 
@@ -279,9 +314,106 @@ const cleanupPresenceTracking = async () => {
   }
 }
 
+// Call signal subscription
+let callSignalUnsubscribe: (() => void) | null = null
+
+const handleCallSignal = async (signal: CallSignal) => {
+  const currentUserId = authStore.session?.user?.id
+  if (!currentUserId) return
+  
+  // Don't show notifications for our own signals
+  if (signal.callerId === currentUserId) return
+  
+  switch (signal.type) {
+    case 'initiate':
+      // Check permissions before showing incoming call modal
+      const permissionCheck = await dmCallPermissions.canReceiveCall(
+        signal.callerId,
+        currentUserId,
+        signal.conversationId
+      )
+      
+      if (!permissionCheck.allowed) {
+        // Auto-decline with reason
+        console.log('🚫 Auto-declining call:', permissionCheck.reason)
+        await dmCallSignaling.declineCall(
+          signal.conversationId,
+          currentUserId,
+          permissionCheck.reason as any
+        )
+        return
+      }
+      
+      // Show incoming call modal
+      emit('incoming-call', {
+        callerId: signal.callerId,
+        callType: signal.callType,
+        conversationId: signal.conversationId
+      })
+      break
+      
+    case 'join':
+    case 'leave':
+    case 'accept':
+      // Update participant count
+      updateActiveCallParticipants()
+      break
+      
+    case 'end':
+      // Call ended by someone else
+      if (isInVoiceCall.value) {
+        voiceStore.leaveVoiceChannel()
+        toast.info('Call ended')
+      }
+      activeCallParticipantCount.value = 0
+      break
+      
+    case 'decline':
+      // Someone declined the call
+      const declineMsg = dmCallPermissions.getDeclineReasonMessage(signal.reason)
+      toast.info(declineMsg)
+      break
+      
+    case 'busy':
+      // User is busy
+      toast.info('User is busy')
+      break
+      
+    case 'timeout':
+      // Call timed out (no answer)
+      if (isInVoiceCall.value) {
+        voiceStore.leaveVoiceChannel()
+      }
+      toast.warning('No answer - call timed out')
+      break
+  }
+}
+
+const updateActiveCallParticipants = () => {
+  const participants = dmCallSignaling.getCallParticipants(props.conversation.id)
+  activeCallParticipantCount.value = participants.length
+}
+
+const subscribeToCallSignals = () => {
+  callSignalUnsubscribe = dmCallSignaling.subscribeToConversation(
+    props.conversation.id,
+    handleCallSignal
+  )
+  // Update initial participant count
+  updateActiveCallParticipants()
+}
+
+const unsubscribeFromCallSignals = () => {
+  if (callSignalUnsubscribe) {
+    callSignalUnsubscribe()
+    callSignalUnsubscribe = null
+  }
+}
+
 // Initialize presence tracking when component loads
 onMounted(() => {
   initializePresenceTracking()
+  subscribeToCallSignals()
 })
 
 // Watch for conversation changes to update presence tracking
@@ -304,6 +436,7 @@ watch(
 // Cleanup when component unmounts
 onUnmounted(() => {
   cleanupPresenceTracking()
+  unsubscribeFromCallSignals()
 })
 
 // Computed
@@ -401,26 +534,72 @@ const toggleVoiceCall = async () => {
     if (isInVoiceCall.value) {
       // End call
       console.log('📞 Ending voice call...')
-      await unifiedWebRTC.leaveChannel()
-      isInVoiceCall.value = false
-      isInVideoCall.value = false
+      
+      const currentUserId = authStore.session?.user?.id
+      if (currentUserId) {
+        // Send end signal to other participants
+        await dmCallSignaling.endCall(props.conversation.id, currentUserId)
+      }
+      
+      await voiceStore.leaveVoiceChannel()
       toast.info('Call ended')
     } else {
       // Start voice call
-      console.log('📞 Starting voice call...')
+      console.log('📞 Starting DM voice call...')
       
-      // Create a virtual channel for this DM conversation
-      const dmChannelId = `dm-${props.conversation.id}`
-      const currentUserId = props.conversation.current_user_id
-      
+      const currentUserId = authStore.session?.user?.id
       if (!currentUserId) {
         toast.error('Authentication required')
         return
       }
       
-      await unifiedWebRTC.joinChannel(dmChannelId, currentUserId)
-      isInVoiceCall.value = true
-      toast.success('Voice call started')
+      // Check if caller is already in another call
+      if (voiceStore.isConnected) {
+        toast.error('You are already in a call')
+        return
+      }
+      
+      // For 1-on-1 DMs, check permissions
+      if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
+        const permissionCheck = await dmCallPermissions.canReceiveCall(
+          currentUserId,
+          props.conversation.other_user.id,
+          props.conversation.id
+        )
+        
+        if (!permissionCheck.allowed) {
+          toast.error(permissionCheck.message || 'Cannot call this user')
+          return
+        }
+      }
+      
+      // Create a virtual channel ID for this DM conversation
+      const dmChannelId = `dm-${props.conversation.id}`
+      
+      // Get receiver IDs
+      const receiverIds = getReceiverIds()
+      if (receiverIds.length === 0) {
+        toast.error('No participants to call')
+        return
+      }
+      
+      // Send call initiation signal to other participant(s)
+      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'voice', receiverIds)
+      
+      // Use the voice store to join (this will show the voice overlay UI)
+      // Use 'dm' as serverId to indicate it's a DM call
+      const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+      
+      if (success) {
+        toast.success('Calling...')
+        // Show the voice overlay in maximized mode (for caller)
+        voiceStore.isOverlayVisible = true
+        // Small delay to ensure it renders fully maximized
+        await new Promise(resolve => setTimeout(resolve, 100))
+        console.log('✅ Voice overlay opened for caller (maximized)')
+      } else {
+        toast.error('Failed to start call')
+      }
     }
   } catch (error) {
     console.error('Error toggling voice call:', error)
@@ -428,27 +607,127 @@ const toggleVoiceCall = async () => {
   }
 }
 
-const toggleVideoCall = async () => {
+// Join an active call (for group DMs)
+const joinActiveCall = async () => {
   try {
-    if (!isInVoiceCall.value) {
-      // Need to start voice call first
-      await toggleVoiceCall()
+    const currentUserId = authStore.session?.user?.id
+    if (!currentUserId) {
+      toast.error('Authentication required')
+      return
     }
     
-    if (isInVideoCall.value) {
-      // Turn off video
-      await unifiedWebRTCService.toggleVideo()
-      isInVideoCall.value = false
-      toast.info('Video disabled')
+    const dmChannelId = `dm-${props.conversation.id}`
+    
+    // Send join signal
+    await dmCallSignaling.joinCall(props.conversation.id, currentUserId)
+    
+    // Join the voice channel
+    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+    
+    if (success) {
+      toast.success('Joined call')
+      // Show voice overlay in maximized mode
+      voiceStore.isOverlayVisible = true
+      await new Promise(resolve => setTimeout(resolve, 100))
+      console.log('✅ Joined group call (maximized)')
     } else {
-      // Turn on video
-      await unifiedWebRTCService.toggleVideo()
-      isInVideoCall.value = true
-      toast.success('Video enabled')
+      toast.error('Failed to join call')
+    }
+  } catch (error) {
+    console.error('Error joining call:', error)
+    toast.error('Failed to join call')
+  }
+}
+
+const toggleVideoCall = async () => {
+  try {
+    const currentUserId = authStore.session?.user?.id
+    if (!currentUserId) {
+      toast.error('Authentication required')
+      return
+    }
+    
+    if (!isInVoiceCall.value) {
+      // Check if caller is already in another call
+      if (voiceStore.isConnected) {
+        toast.error('You are already in a call')
+        return
+      }
+      
+      // For 1-on-1 DMs, check permissions
+      if (props.conversation.type !== 'group' && props.conversation.other_user?.id) {
+        const permissionCheck = await dmCallPermissions.canReceiveCall(
+          currentUserId,
+          props.conversation.other_user.id,
+          props.conversation.id
+        )
+        
+        if (!permissionCheck.allowed) {
+          toast.error(permissionCheck.message || 'Cannot call this user')
+          return
+        }
+      }
+      
+      // Start video call (voice + video)
+      const dmChannelId = `dm-${props.conversation.id}`
+      
+      // Get receiver IDs
+      const receiverIds = getReceiverIds()
+      if (receiverIds.length === 0) {
+        toast.error('No participants to call')
+        return
+      }
+      
+      // Send video call initiation signal
+      await dmCallSignaling.initiateCall(props.conversation.id, currentUserId, 'video', receiverIds)
+      
+      // Join voice channel
+      const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
+      
+      if (success) {
+        // Enable video immediately
+        await voiceStore.toggleVideo()
+        toast.success('Starting video call...')
+        // Show voice overlay in maximized mode (for caller)
+        voiceStore.isOverlayVisible = true
+        await new Promise(resolve => setTimeout(resolve, 100))
+        console.log('✅ Video call overlay opened for caller (maximized)')
+      } else {
+        toast.error('Failed to start call')
+      }
+    } else {
+      // Toggle video in ongoing call
+      await voiceStore.toggleVideo()
+      
+      if (voiceStore.localState.isVideoEnabled) {
+        toast.success('Camera on')
+        if (!voiceStore.isOverlayVisible) {
+          voiceStore.isOverlayVisible = true
+        }
+      } else {
+        toast.info('Camera off')
+      }
     }
   } catch (error) {
     console.error('Error toggling video:', error)
-    toast.error('Failed to toggle video')
+    toast.error('Failed to toggle camera')
+  }
+}
+
+// Get receiver IDs for calling
+const getReceiverIds = (): string[] => {
+  const currentUserId = authStore.session?.user?.id
+  if (!currentUserId) return []
+  
+  if (props.conversation.type === 'group') {
+    // For group chats, call all participants except self
+    return (props.conversation.participants || [])
+      .map(p => p.id || p.user_id)
+      .filter(id => id && id !== currentUserId)
+  } else {
+    // For 1-on-1, call the other user
+    const otherUserId = props.conversation.other_user?.id
+    return otherUserId ? [otherUserId] : []
   }
 }
 
@@ -552,6 +831,58 @@ const getDefaultGroupName = (): string => {
 
 .participant-count {
   color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.call-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #43b581;
+  font-size: 14px;
+  font-weight: 600;
+  animation: pulse-text 2s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.call-icon {
+  color: #43b581;
+}
+
+.join-call-btn {
+  background: #43b581 !important;
+  color: white !important;
+  padding: 8px 16px !important;
+  width: auto !important;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  animation: pulse-button 2s ease-in-out infinite;
+}
+
+.join-call-btn:hover {
+  background: #369968 !important;
+  transform: translateY(-1px);
+}
+
+@keyframes pulse-button {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(67, 181, 129, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(67, 181, 129, 0);
+  }
+}
+
+.join-text {
   font-size: 14px;
 }
 

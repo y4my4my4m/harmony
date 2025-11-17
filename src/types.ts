@@ -207,6 +207,7 @@ export interface Message {
   reactions?: Reaction[]; // doesn't exist in the database, we're transforming it
   is_system?: boolean; // for system messages like join/leave announcements
   metadata?: Record<string, any>; // for federated messages and other metadata
+  sending?: boolean; // local state: true while message is being sent to server
 }
 
 // should probably start to put these in their own files
@@ -524,6 +525,9 @@ export type AudioAction =
   // Voice/Video actions
   | 'voice_connect'
   | 'voice_disconnect'
+  | 'call_incoming'
+  | 'call_outgoing'
+  | 'call_ended'
   | 'mic_on'
   | 'mic_off'
   | 'deafen_on'

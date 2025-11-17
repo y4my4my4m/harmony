@@ -224,15 +224,21 @@ export const useChatStore = defineStore('chat', {
           const now = new Date();
           const cacheAge = now.getTime() - cached.lastFetchedAt.getTime();
           
+          console.log(`📦 Found cache for channel ${channelId}, age: ${Math.round(cacheAge / 1000)}s, valid: ${cacheAge < this.cacheValidityDuration}`);
+          
           // If cache is less than 5 minutes old, use it instantly
           if (cacheAge < this.cacheValidityDuration) {
-            console.log(`Loading from cache instantly: ${channelId}`);
+            console.log(`✅ Loading ${cached.messages.length} messages from cache instantly (cache is fresh)`);
             this.messages = [...cached.messages];
             this.allMessagesLoaded = cached.allMessagesLoaded;
             this.currentChannelId = channelId;
             // Return immediately - truly instant loading
             return;
+          } else {
+            console.log(`⚠️ Cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`);
           }
+        } else {
+          console.log(`📭 No cache found for channel ${channelId}, fetching from database`);
         }
       }
 
@@ -249,22 +255,37 @@ export const useChatStore = defineStore('chat', {
           // Get the timestamp of the oldest message for pagination
           const oldestMessage = this.messages.find(m => m.id === oldestMessageId);
           if (oldestMessage) {
-            beforeTimestamp = oldestMessage.created_at.toISOString();
+            // Handle both Date objects and ISO strings
+            beforeTimestamp = oldestMessage.created_at instanceof Date 
+              ? oldestMessage.created_at.toISOString()
+              : oldestMessage.created_at;
+            console.log('📅 Using timestamp for pagination:', beforeTimestamp);
           }
         }
         
+        console.log('📤 Loading older messages with params:', { channelId, limit: 20, beforeTimestamp });
+        
         const { messages, hasMore } = await services.messages.loadChannelMessages(
           channelId,
-          20, // limit
-          beforeTimestamp
+          {
+            limit: 20,
+            before: beforeTimestamp,
+            signal
+          }
         );
+
+        console.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });
 
         // Check if request was cancelled
         if (signal?.aborted) {
           throw new Error('Request aborted');
         }
 
-        if (!messages) return;
+        if (!messages || messages.length === 0) {
+          console.log('📭 No older messages found');
+          this.allMessagesLoaded = true;
+          return;
+        }
         
         // Get reactions store instance
         const reactionsStore = useReactionsStore();
@@ -288,13 +309,15 @@ export const useChatStore = defineStore('chat', {
         // ✅ PERFORMANCE FIX: Reactions are already loaded by MessageService
         // Components should use message.reactions directly instead of fetching
 
-        // Service already returns messages in chronological order (oldest first)
-        const reversedMessages = messages;
+        // Service returns messages in chronological order (oldest first after reversing)
+        const olderMessages = messages;
         const allLoaded = !hasMore;
+
+        console.log('📦 Processing messages:', { count: olderMessages.length, allLoaded, isInitialLoad: oldestMessageId === '' });
 
         if (oldestMessageId === '') {
           // Initial load - update cache and current messages
-          this.messages = reversedMessages;
+          this.messages = olderMessages;
           this.allMessagesLoaded = allLoaded;
           
           // Only update currentChannelId if it's actually different to prevent recursive loops
@@ -305,27 +328,30 @@ export const useChatStore = defineStore('chat', {
           // Update cache
           this.evictOldestCache();
           this.messageCache.set(channelId, {
-            messages: [...reversedMessages],
+            messages: [...olderMessages],
             lastFetchedAt: new Date(),
-            oldestMessageId: reversedMessages[0]?.id || null,
+            oldestMessageId: olderMessages[0]?.id || null,
             allMessagesLoaded: allLoaded,
             lastModified: new Date(),
           });
 
-          console.log(`Cached messages for channel: ${channelId}`);
+          console.log(`✅ Initial load: Cached ${olderMessages.length} messages for channel`);
         } else {
-          // Loading older messages - append to current
-          this.messages = [...reversedMessages, ...this.messages];
+          // Loading older messages - PREPEND to current (older messages go BEFORE)
+          console.log(`📤 Prepending ${olderMessages.length} older messages to ${this.messages.length} current messages`);
+          this.messages = [...olderMessages, ...this.messages];
           this.allMessagesLoaded = allLoaded;
 
           // Update cache with new older messages
           const cached = this.messageCache.get(channelId);
           if (cached) {
-            cached.messages = [...reversedMessages, ...cached.messages];
-            cached.oldestMessageId = reversedMessages[0]?.id || cached.oldestMessageId;
+            cached.messages = [...olderMessages, ...cached.messages];
+            cached.oldestMessageId = olderMessages[0]?.id || cached.oldestMessageId;
             cached.allMessagesLoaded = allLoaded;
             cached.lastFetchedAt = new Date();
           }
+          
+          console.log(`✅ Pagination: Now have ${this.messages.length} total messages, allLoaded: ${allLoaded}`);
         }
       } catch (error: any) {
         if (error.message === 'Request aborted') {
@@ -469,6 +495,21 @@ export const useChatStore = defineStore('chat', {
     },
 
     async sendMessage(serverId: string, channelId: string, userId: string, content: Array<Object>, replyTo: string) {
+      // Create optimistic message
+      const tempId = `temp-${Date.now()}`;
+      const optimisticMessage = {
+        id: tempId,
+        created_at: new Date(),
+        channel_id: channelId,
+        user_id: userId,
+        content: content as any,
+        reply_to: replyTo || undefined,
+        sending: true
+      };
+      
+      // Add optimistic message to display immediately
+      this.addMessageToCache(optimisticMessage as any);
+      
       try {
         console.log('🔄 Sending message via MessageService:', { channelId, userId });
         
@@ -480,12 +521,19 @@ export const useChatStore = defineStore('chat', {
           replyTo || undefined
         );
         
-        // Real-time subscription will handle adding to cache
-        this.addMessageToCache(message);
+        console.log('✅ Message saved to database:', message.id);
+        console.log('📦 Message data from server:', message);
         
-        console.log('✅ Message sent via service layer:', message.id);
+        // Real-time will replace the temp message with the real one
+        console.log('⏳ Waiting for real-time to replace temp message...');
+        
+        // Real-time INSERT will handle replacing temp → real
+        // This ensures we don't interfere with the database event flow
+        
         return message;
       } catch (error: any) {
+        // Remove optimistic message on error
+        this.removeMessageFromCache(tempId);
         console.error('❌ Error sending message via service:', error);
         throw new Error(error.message || 'Failed to send message');
       }
@@ -540,6 +588,40 @@ export const useChatStore = defineStore('chat', {
           },
           (payload) => {
             console.log('🟢 Real-time INSERT received:', payload);
+            
+            // Check if this is our own message (already replaced by sendMessage)
+            // Real-time should NOT add it again
+            const existingRealMessage = this.messages.findIndex(m => m.id === payload.new.id);
+            if (existingRealMessage !== -1) {
+              console.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
+              return;
+            }
+            
+            // Check if temp message exists (shouldn't happen - sendMessage should have replaced it)
+            const tempMessageIndex = this.messages.findIndex(m => m.id.startsWith('temp-') && m.user_id === payload.new.user_id);
+            if (tempMessageIndex !== -1) {
+              console.warn('⚠️ Temp message still exists during real-time, this is a race condition!');
+              console.log('🔄 Replacing late:', this.messages[tempMessageIndex].id);
+              this.messages.splice(tempMessageIndex, 1, {
+                id: payload.new.id,
+                created_at: new Date(payload.new.created_at),
+                channel_id: payload.new.channel_id,
+                user_id: payload.new.user_id,
+                content: payload.new.content,
+                reactions: payload.new.reactions,
+                reply_to: payload.new.reply_to,
+                is_system: payload.new.is_system,
+              });
+              return;
+            }
+            
+            // Check if message already exists (from manual replacement)
+            const existingIndex = this.messages.findIndex(m => m.id === payload.new.id);
+            if (existingIndex !== -1) {
+              console.log('⚠️ Message already exists, skipping duplicate');
+              return;
+            }
+            
             const newMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),

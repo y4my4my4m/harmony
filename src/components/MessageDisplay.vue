@@ -3,9 +3,15 @@
     <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
-    <template v-else v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
-      <!-- Beginning of conversation indicator -->
-      <div v-if="index === 0 && hasScrollbar" class="beginning-indicator" :style="getIndicatorStyle()">
+    <!-- Loading older messages indicator -->
+    <div v-if="isLoadingOlderMessages && messages.length > 0" class="loading-older-messages">
+      <div class="loading-spinner"></div>
+      <span>Loading older messages...</span>
+    </div>
+    
+    <template v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
+      <!-- Beginning of conversation indicator (only show when all messages loaded) -->
+      <div v-if="index === 0 && hasScrollbar && isAllMessagesLoaded" class="beginning-indicator" :style="getIndicatorStyle()">
         <div class="beginning-content">
           <div class="beginning-icon">🌟</div>
           <div class="beginning-text">
@@ -156,7 +162,7 @@
           @show-reaction-tooltip="showTooltip"
           @hide-reaction-tooltip="hideTooltip"
         />
-          </div>
+      </div>
         </template>
       </div>
     </template>
@@ -218,6 +224,7 @@ import type { PropType, Ref } from 'vue';
 import type { Message, User, Emoji, Reaction } from '@/types';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
+import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel'; 
 import { useServerPermissions } from '@/composables/useServerPermissions';
@@ -258,6 +265,7 @@ const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction',
 const serverUsersStore = useServerUsersStore();
 const serverChannelStore = useServerChannelStore();
 const chatStore = useChatStore();
+const dmStore = useDMStore();
 const authStore = useAuthStore();
 const { isCurrentUserServerOwner } = useServerPermissions();
 const { 
@@ -268,6 +276,17 @@ const {
   fetchUserProfile,
   getUserProfile
 } = useUserData();
+
+// Unified computed properties that work for both chat and DMs
+const isLoadingOlderMessages = computed(() => {
+  // Check both stores since MessageDisplay is used for both
+  return chatStore.loadingOlderMessages || dmStore.loadingMessages;
+});
+
+const isAllMessagesLoaded = computed(() => {
+  // Check both stores
+  return chatStore.allMessagesLoaded || dmStore.allMessagesLoaded;
+});
 
 // --- REFS ---
 const messageDisplayContainer = ref<HTMLDivElement | null>(null);
@@ -388,7 +407,22 @@ watch(() => props.messages, (newMessages) => {
       if (messageDisplayContainer.value) {
         const newScrollHeight = messageDisplayContainer.value.scrollHeight;
         const scrollOffset = newScrollHeight - oldScrollHeight;
-        if (scrollOffset > 0) messageDisplayContainer.value.scrollTop += scrollOffset;
+        
+        // If this is the initial load (old height was 0), scroll to bottom
+        if (oldScrollHeight === 0 && newMessages.length > 0) {
+          console.log('📜 Initial load - scrolling to bottom');
+          // Use setTimeout to ensure DOM is fully rendered
+          setTimeout(() => {
+            if (messageDisplayContainer.value) {
+              messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+            }
+          }, 50);
+        } 
+        // When loading older messages, maintain scroll position by compensating for new content
+        else if (scrollOffset > 0 && oldScrollHeight > 0) {
+          console.log('📜 Maintaining scroll position after loading older messages');
+          messageDisplayContainer.value.scrollTop += scrollOffset;
+        }
         
         checkScrollable();
         isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
@@ -467,14 +501,26 @@ const checkScrollable = () => {
 };
 
 const handleScroll = () => {
-  if (!messageDisplayContainer.value) return;
+  if (!messageDisplayContainer.value) {
+    return;
+  }
   
   const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
+  
   checkScrollable();
   isAtTop.value = scrollTop === 0;
   
   if (!isAtTop.value || !hasScrollbar.value) bufferDistance.value = 0;
-  if (isAtTop.value && props.loadMoreMessages) props.loadMoreMessages();
+  
+  if (isAtTop.value) {
+    console.log('📜 At top! hasScrollbar:', hasScrollbar.value, 'loadMoreMessages:', !!props.loadMoreMessages);
+    
+    if (props.loadMoreMessages) {
+      props.loadMoreMessages();
+    } else {
+      console.log('❌ No loadMoreMessages function provided!');
+    }
+  }
 
   emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
 };
@@ -550,11 +596,17 @@ const formatDateSeparator = (timestamp: Date): string => {
 
 // Message Actions (Edit, Delete, React)
 const canEditMessage = (message: Message) => {
-  return authStore.session?.user && (message.user_id === authStore.session.user.id || isCurrentUserServerOwner.value);
+  if (!authStore.session?.user || !message) return false;
+  const currentUserId = authStore.session.user.id;
+  const messageUserId = message.user_id;
+  return messageUserId === currentUserId || isCurrentUserServerOwner.value;
 };
 
 const canDeleteMessage = (message: Message) => {
-  return authStore.session?.user && (message.user_id === authStore.session.user.id || isCurrentUserServerOwner.value);
+  if (!authStore.session?.user || !message) return false;
+  const currentUserId = authStore.session.user.id;
+  const messageUserId = message.user_id;
+  return messageUserId === currentUserId || isCurrentUserServerOwner.value;
 };
 
 
@@ -1235,5 +1287,56 @@ const closeInviteModal = () => {
   .system-timestamp {
     font-size: 0.6875rem;
   }
+}
+
+/* Sending indicator - inline with message content */
+.sending-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  opacity: 0.5;
+  vertical-align: text-bottom;
+  line-height: 1;
+}
+
+.spinner-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-secondary);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Loading older messages indicator at top */
+.loading-older-messages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--text-secondary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin-loader 0.8s linear infinite;
+}
+
+@keyframes spin-loader {
+  to { transform: rotate(360deg); }
 }
 </style>

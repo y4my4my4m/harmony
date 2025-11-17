@@ -24,59 +24,66 @@
       <draggable
         v-model="orphanChannels"
         :group="dragGroup"
-        :disabled="!canDragAndDrop"
+        :disabled="!canDragAndDrop || isMobile"
         @start="onDragStart"
         @end="onDragEnd"
         @add="onChannelAddedToOrphans"
         item-key="id"
-        :class="{ 'drag-disabled': !canDragAndDrop }"
+        :class="{ 'drag-disabled': !canDragAndDrop || isMobile }"
         tag="div"
       >
         <template #item="{ element }">
-          <div 
-            :key="element.id" 
-            :class="['channel-item', { 
-              'selected': element.id === currentChannelId,
-              'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
-              'mobile-disabled': isMobile && element.type === 1
-            }]" 
-            @click="selectChannel(element.id)"
-            @contextmenu="openChannelContextMenu($event, element)"
-            :style="{ cursor: element.type === 1 && isMobile ? 'pointer' : getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
-            :data-channel-id="element.id"
-            :data-category-id="null"
-          >
-            <div class="channel-content">
-              <HashTagIcon v-if="element.type === 0" />
-              <SpeakerIcon v-else /> 
-              <span class="channel-name">{{ element.name }}</span>
+          <div :key="element.id" class="channel-wrapper">
+            <div 
+              :class="['channel-item', { 
+                'selected': element.id === currentChannelId,
+                'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
+                'mobile-disabled': isMobile && element.type === 1
+              }]" 
+              @click="selectChannel(element.id)"
+              @contextmenu="openChannelContextMenu($event, element)"
+              :style="{ cursor: element.type === 1 && isMobile ? 'pointer' : getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
+              :data-channel-id="element.id"
+              :data-category-id="null"
+            >
+              <div class="channel-content">
+                <HashTagIcon v-if="element.type === 0" />
+                <SpeakerIcon v-else /> 
+                <span class="channel-name">{{ element.name }}</span>
+              </div>
+              <!-- Voice channel controls -->
+              <div v-if="element.type === 1" class="voice-controls">
+                <button
+                  v-if="!isUserInVoiceChannel(element.id)"
+                  @click.stop="joinVoiceChannel(element.id)"
+                  @touchstart.stop="handleVoiceChannelTouch"
+                  @touchend.stop="handleVoiceChannelTouch"
+                  class="voice-btn join-btn"
+                  title="Join voice channel"
+                >
+                  🎤
+                </button>
+                <button
+                  v-else
+                  @click.stop="leaveVoiceChannel(element.id)"
+                  @touchstart.stop="handleVoiceChannelTouch"
+                  @touchend.stop="handleVoiceChannelTouch"
+                  class="voice-btn leave-btn"
+                  title="Leave voice channel"
+                >
+                  🔇
+                </button>
+                <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
+                  {{ getUsersInVoiceChannel(element.id).length }}
+                </span>
+              </div>
             </div>
-            <!-- Voice channel controls -->
-            <div v-if="element.type === 1" class="voice-controls">
-              <button
-                v-if="!isUserInVoiceChannel(element.id)"
-                @click.stop="joinVoiceChannel(element.id)"
-                @touchstart.stop="handleVoiceChannelTouch"
-                @touchend.stop="handleVoiceChannelTouch"
-                class="voice-btn join-btn"
-                title="Join voice channel"
-              >
-                🎤
-              </button>
-              <button
-                v-else
-                @click.stop="leaveVoiceChannel(element.id)"
-                @touchstart.stop="handleVoiceChannelTouch"
-                @touchend.stop="handleVoiceChannelTouch"
-                class="voice-btn leave-btn"
-                title="Leave voice channel"
-              >
-                🔇
-              </button>
-              <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
-                {{ getUsersInVoiceChannel(element.id).length }}
-              </span>
-            </div>
+            <!-- Voice channel participants -->
+            <VoiceChannelParticipants
+              v-if="element.type === 1 && isUserInVoiceChannel(element.id)"
+              :participants="getVoiceChannelParticipants(element.id)"
+              :session-start-time="getVoiceSessionStartTime(element.id)"
+            />
           </div>
         </template>
       </draggable>
@@ -86,7 +93,7 @@
     <draggable
       v-model="reorderableCategories"
       :group="{ name: 'categories', put: false, pull: false }"
-      :disabled="!canDragAndDrop"
+      :disabled="!canDragAndDrop || isMobile"
       :key="categoriesKey"
       item-key="id"
       tag="div"
@@ -122,7 +129,7 @@
             <draggable
               v-model="getCachedCategoryChannels(category.id).value"
               :group="dragGroup"
-              :disabled="!canDragAndDrop"
+              :disabled="!canDragAndDrop || isMobile"
               @start="onDragStart"
               @end="onDragEnd"
               @add="(evt: any) => onChannelAddedToCategory(evt, category.id)"
@@ -133,53 +140,60 @@
               :class="{ 'empty-drop-zone': getCachedCategoryChannels(category.id).value.length === 0 }"
             >
               <template #item="{ element: channel }">
-                <div
-                  :key="channel.id"
-                  class="channel-item"
-                  :class="{ 
-                    'selected': currentChannelId === channel.id,
-                    'in-collapsed-category': collapsedCategories.has(category.id),
-                    'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
-                    'mobile-disabled': isMobile && channel.type === 1
-                  }"
-                  @click="selectChannel(channel.id)"
-                  @contextmenu="openChannelContextMenu($event, channel)"
-                  :style="{ cursor: channel.type === 1 && isMobile ? 'pointer' : getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
-                  :data-channel-id="channel.id"
-                  :data-category-id="category.id"
-                >
-                  <div class="channel-content">
-                    <HashTagIcon v-if="channel.type === 0" />
-                    <SpeakerIcon v-else />
-                    <span class="channel-name">{{ channel.name }}</span>
+                <div :key="channel.id" class="channel-wrapper">
+                  <div
+                    class="channel-item"
+                    :class="{ 
+                      'selected': currentChannelId === channel.id,
+                      'in-collapsed-category': collapsedCategories.has(category.id),
+                      'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
+                      'mobile-disabled': isMobile && channel.type === 1
+                    }"
+                    @click="selectChannel(channel.id)"
+                    @contextmenu="openChannelContextMenu($event, channel)"
+                    :style="{ cursor: channel.type === 1 && isMobile ? 'pointer' : getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
+                    :data-channel-id="channel.id"
+                    :data-category-id="category.id"
+                  >
+                    <div class="channel-content">
+                      <HashTagIcon v-if="channel.type === 0" />
+                      <SpeakerIcon v-else />
+                      <span class="channel-name">{{ channel.name }}</span>
+                    </div>
+                    <div v-if="hasNotifications(channel)" class="notification-badge"></div>
+                    <!-- Voice channel controls -->
+                    <div v-if="channel.type === 1" class="voice-controls">
+                      <button
+                        v-if="!isUserInVoiceChannel(channel.id)"
+                        @click.stop="joinVoiceChannel(channel.id)"
+                        @touchstart.stop="handleVoiceChannelTouch"
+                        @touchend.stop="handleVoiceChannelTouch"
+                        class="voice-btn join-btn"
+                        title="Join voice channel"
+                      >
+                        🎤
+                      </button>
+                      <button
+                        v-else
+                        @click.stop="leaveVoiceChannel(channel.id)"
+                        @touchstart.stop="handleVoiceChannelTouch"
+                        @touchend.stop="handleVoiceChannelTouch"
+                        class="voice-btn leave-btn"
+                        title="Leave voice channel"
+                      >
+                        🔇
+                      </button>
+                      <span v-if="getUsersInVoiceChannel(channel.id).length > 0" class="user-count">
+                        {{ getUsersInVoiceChannel(channel.id).length }}
+                      </span>
+                    </div>
                   </div>
-                  <div v-if="hasNotifications(channel)" class="notification-badge"></div>
-                  <!-- Voice channel controls -->
-                  <div v-if="channel.type === 1" class="voice-controls">
-                    <button
-                      v-if="!isUserInVoiceChannel(channel.id)"
-                      @click.stop="joinVoiceChannel(channel.id)"
-                      @touchstart.stop="handleVoiceChannelTouch"
-                      @touchend.stop="handleVoiceChannelTouch"
-                      class="voice-btn join-btn"
-                      title="Join voice channel"
-                    >
-                      🎤
-                    </button>
-                    <button
-                      v-else
-                      @click.stop="leaveVoiceChannel(channel.id)"
-                      @touchstart.stop="handleVoiceChannelTouch"
-                      @touchend.stop="handleVoiceChannelTouch"
-                      class="voice-btn leave-btn"
-                      title="Leave voice channel"
-                    >
-                      🔇
-                    </button>
-                    <span v-if="getUsersInVoiceChannel(channel.id).length > 0" class="user-count">
-                      {{ getUsersInVoiceChannel(channel.id).length }}
-                    </span>
-                  </div>
+                  <!-- Voice channel participants -->
+                  <VoiceChannelParticipants
+                    v-if="channel.type === 1 && isUserInVoiceChannel(channel.id)"
+                    :participants="getVoiceChannelParticipants(channel.id)"
+                    :session-start-time="getVoiceSessionStartTime(channel.id)"
+                  />
                 </div>
               </template>
               <!-- Empty state for drag target - only show when dragging channels -->
@@ -273,6 +287,7 @@ import SpeakerIcon from '@/components/icons/Speaker.vue';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
+import VoiceChannelParticipants from '@/components/voice/VoiceChannelParticipants.vue';
 import ChannelContextMenu from './ChannelContextMenu.vue';
 import CategoryContextMenu from './CategoryContextMenu.vue';
 import ChannelEditModal from './ChannelEditModal.vue';
@@ -590,6 +605,22 @@ const handleChannelCreated = (channel: Channel) => {
 const isUserInVoiceChannel = (channelId: string): boolean => voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId;
 const getUsersInVoiceChannel = (channelId: string): string[] => serverUsersStore.getUsersInVoiceChannel(channelId);
 
+const getVoiceChannelParticipants = (channelId: string) => {
+  // Only return participants if the current user is in this specific channel
+  if (voiceChannelStore.currentChannelId === channelId) {
+    return voiceChannelStore.allParticipants;
+  }
+  return [];
+};
+
+const getVoiceSessionStartTime = (channelId: string) => {
+  // Only return session start time if the current user is in this specific channel
+  if (voiceChannelStore.currentChannelId === channelId) {
+    return voiceChannelStore.sessionStartTime;
+  }
+  return null;
+};
+
 const joinVoiceChannel = async (channelId: string) => {
   if (await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id)) {
     themeStore.testAudio('voice_connect');
@@ -743,6 +774,12 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
 .server-name:hover {
   box-shadow: 0 1px 5px 0px rgba(0,0,0,0.25);
   background: var(--background-secondary);
+}
+
+/* Wrapper for channel + participants (required for draggable) */
+.channel-wrapper {
+  display: block;
+  width: 100%;
 }
 
 .channel-item {

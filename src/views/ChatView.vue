@@ -97,17 +97,39 @@ const loadMessages = async () => {
 }
 
 const fetchMoreMessages = async () => {
+  console.log('📜 fetchMoreMessages called, isDM:', props.isDM)
+  
   if (props.isDM) {
     const conversationId = route.params.conversationId as string
     if (conversationId && dmStore.currentDMMessages.length > 0) {
       const oldestMessage = dmStore.currentDMMessages[0]
+      console.log('📜 Fetching older DM messages before:', oldestMessage.id)
       await dmStore.fetchConversationMessages(conversationId, oldestMessage.id)
+    } else {
+      console.log('📜 Cannot fetch DM messages: no conversation or no messages yet')
     }
   } else {
     const channelId = route.params.channelId as string
+    console.log('📜 Current channel:', channelId, 'Message count:', chatStore.messages.length)
+    console.log('📜 allMessagesLoaded:', chatStore.allMessagesLoaded)
+    console.log('📜 loadingOlderMessages:', chatStore.loadingOlderMessages)
+    
+    if (chatStore.allMessagesLoaded) {
+      console.log('📜 All messages already loaded, not fetching more')
+      return
+    }
+    
+    if (chatStore.loadingOlderMessages) {
+      console.log('📜 Already loading older messages, skipping')
+      return
+    }
+    
     if (channelId && chatStore.messages.length > 0) {
       const oldestMessage = chatStore.messages[0]
+      console.log('📜 Fetching older messages before message:', oldestMessage.id, oldestMessage.created_at)
       await chatStore.fetchMessages(channelId, oldestMessage.id)
+    } else {
+      console.log('📜 Cannot fetch messages: no channel or no messages yet')
     }
   }
 }
