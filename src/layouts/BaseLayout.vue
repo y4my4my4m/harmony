@@ -213,32 +213,22 @@ const initializeApp = async () => {
   try {
     // Wait for auth to be ready if session is null
     if (!authStore.session) {
-      console.log('⏳ Waiting for authentication to initialize...')
       await new Promise(resolve => setTimeout(resolve, 100))
     }
 
     const userId = authStore.session?.user?.id
     if (!userId) {
-      console.log('👤 No user session found, app ready for login')
       isAppInitialized.value = true
       hasServersLoaded.value = true
       return
     }
-
-    console.log('🚀 Initializing app for user:', userId)
     
-    // 🎯 PHASE 1: Determine what to load based on current route
+    // Determine what to load based on current route
     const loadingStrategy = routeAwareInitialization.getLoadingStrategy(route)
-    routeAwareInitialization.logStrategy(loadingStrategy)
-
-    // 🎯 PHASE 2: Critical Path Loading (100ms) - Only essentials
-    console.log('⚡ Phase 1: Critical path loading...')
     
     // Always load user environment (servers list) and profile - needed for navigation
     await serverChannelStore.initializeUserEnvironment(userId)
     await profileStore.fetchProfileByAuthUserId(userId)
-    
-    // Note: Global call listener initializes separately via watch (no DM list needed!)
     
     // Initialize core user data system
     const { useUserData } = await import('@/composables/useUserData')
@@ -251,41 +241,32 @@ const initializeApp = async () => {
       avatar_url: authStore.session?.user?.user_metadata?.avatar_url
     }
     
-    // ✅ PERFORMANCE FIX: Pass already-loaded profile to avoid duplicate database query
+    // Pass already-loaded profile to avoid duplicate database query
     await userData.initialize(
       userId, 
       userProfile.username || userProfile.display_name || 'Unknown',
       userProfile.avatar_url,
-      userProfile // Pass the full profile to prevent duplicate loading
+      userProfile
     )
-    console.log('✅ User data system initialized')
     
     // Initialize server users store integration
     const { useServerUsersStore } = await import('@/stores/useServerUsers')
     const serverUsersStore = useServerUsersStore()
     serverUsersStore.initializeUserDataIntegration()
     
-    // 🎯 PHASE 3: Content Loading (300ms) - Route-specific data
-    console.log('📦 Phase 2: Content loading based on route...')
-    
-    // ✅ OPTIMIZED: Only load what's needed for current route
+    // Load route-specific data
     await initializeRouteSpecificData(userId, loadingStrategy, userData)
     
-    // 🔥 CRITICAL FIX: Ensure global presence is active regardless of current view
-    // This fixes the issue where users only appear online after visiting specific contexts
-    console.log('🌐 Ensuring global presence is active for cross-context visibility...')
+    // Ensure global presence is active regardless of current view
     await userData.refreshGlobalPresence()
-    console.log('✅ Global presence confirmed - user is visible to all contexts')
     
-    // 🎯 PHASE 4: Background Loading - Non-critical data
-    console.log('🔄 Phase 3: Background loading...')
+    // Background loading of non-critical data
     setTimeout(() => {
       initializeBackgroundData(userId, loadingStrategy)
-    }, 100) // Let UI render first
+    }, 100)
 
     hasServersLoaded.value = true
     isAppInitialized.value = true
-    console.log('✅ App initialization complete - Route-optimized!')
     
   } catch (error) {
     console.error('❌ Failed to initialize app:', error)
@@ -298,9 +279,7 @@ const initializeApp = async () => {
 const initializeRouteSpecificData = async (userId: string, strategy: any, userData: any) => {
   try {
     if (strategy.routeType === 'server-channel') {
-      console.log('🏠 Loading server-channel route (chat, serverUsers, emojiCache, theme, reactions)...')
-      
-      // ✅ ROUTE-SPECIFIC STORES: Only load what's needed for chat
+      // Load stores needed for chat
       const [emojiCache, { useChatStore }, { useReactionsStore }, { useThemeStore }] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useChat'),
@@ -308,40 +287,32 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         import('@/stores/useTheme')
       ])
       
-      // Initialize stores (serverUsers already loaded in Phase 1)
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       const chatStore = useChatStore()
       const reactionsStore = useReactionsStore()
       const themeStore = useThemeStore()
       
-      console.log('✅ Chat route stores loaded: emojiCache, chat, reactions, theme')
-      
-      // ✅ Load current server presence only
+      // Load current server presence only
       if (strategy.currentServerId) {
         const { getUserIdsForServer } = await import('@/services/usersService')
         const serverUserIds = await getUserIdsForServer(strategy.currentServerId)
         await userData.subscribeToContext(strategy.currentServerId, 'server', serverUserIds)
-        console.log(`✅ Current server presence: ${strategy.currentServerId} (${serverUserIds.length} users)`)
       }
       
-      // ✅ Load current server emojis only (others load in background)
+      // Load current server emojis only (others load in background)
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       const otherServerIds = allServerIds.filter(id => id !== strategy.currentServerId)
       
       if (strategy.currentServerId) {
         await emojiCacheStore.initializeSelective(
-          [strategy.currentServerId], // Priority: current server
-          otherServerIds // Background: other servers
+          [strategy.currentServerId],
+          otherServerIds
         )
-        console.log(`✅ Current server emojis loaded: ${strategy.currentServerId}`)
-        console.log(`🔄 Other server emojis loading in background: ${otherServerIds.length}`)
       }
     }
     
     else if (strategy.routeType === 'dm' || strategy.routeType === 'dm-list') {
-      console.log(`💬 Loading DM route (${strategy.routeType}) - dm, emojiCache, theme, reactions...`)
-      
-      // ✅ ROUTE-SPECIFIC STORES: Only load what's needed for DMs
+      // Load stores needed for DMs
       const [emojiCache, { useDMStore }, { useReactionsStore }, { useThemeStore }] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useDM'),
@@ -349,44 +320,28 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         import('@/stores/useTheme')
       ])
       
-      // Initialize stores
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       const dmStore = useDMStore()
       const reactionsStore = useReactionsStore()
       const themeStore = useThemeStore()
       
-      console.log('✅ DM route stores loaded: emojiCache, dm, reactions, theme')
-      
-      // Initialize minimal emoji support for DMs (they might use emojis too)
+      // Initialize minimal emoji support for DMs
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       if (allServerIds.length > 0) {
         const defaultServerId = serverChannelStore.currentServerId || allServerIds[0]
         await emojiCacheStore.initializeSelective([defaultServerId], [])
-        console.log(`✅ Basic emoji support loaded for DMs`)
       }
       
-      // Initialize DM functionality with detailed logging
+      // Initialize DM functionality
       if (strategy.routeType === 'dm' && strategy.currentConversationId) {
-        console.log(`🎯 Loading specific DM conversation: ${strategy.currentConversationId}`)
-        // Load specific conversation + DM list metadata
         await dmStore.initializeDMEnvironmentForDirectAccess(userId, strategy.currentConversationId)
-        console.log(`✅ DM conversation loaded: ${strategy.currentConversationId}`)
       } else if (strategy.routeType === 'dm-list') {
-        console.log('🎯 Loading DM list metadata only (optimized)')
-        // Load DM list metadata with immediate user profile loading for better UX
-        await dmStore.initializeDMEnvironment(userId, false, true, 'immediate') // immediate = load all user profiles right away
-        console.log('✅ DM list metadata loaded with immediate user profiles')
+        await dmStore.initializeDMEnvironment(userId, false, true, 'immediate')
       } else {
-        console.log('🎯 Generic DM route - loading full DM environment')
-        await dmStore.initializeDMEnvironment(userId, false, false, 'partial') // Full loading as fallback with partial user loading
-        console.log('✅ Full DM environment loaded')
+        await dmStore.initializeDMEnvironment(userId, false, false, 'partial')
       }
       
-      // Note: Global call listener will be initialized after DM conversations load
-      // See the watch below for dynamic initialization
-      
-      // OPTIMIZED: Only subscribe to DM presence for specific DM conversation routes
-      // For dm-list, we'll load presence on-demand when conversations are hovered/opened
+      // Subscribe to DM presence for specific conversations
       if (strategy.routeType === 'dm' && strategy.currentConversationId) {
         const conversationUserIds = dmStore.conversations
           .map(conv => conv.user1 === userId ? conv.user2 : conv.user1)
@@ -394,17 +349,12 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         
         if (conversationUserIds.length > 0) {
           await userData.subscribeToDMPresence(conversationUserIds)
-          console.log(`✅ DM presence subscribed: ${conversationUserIds.length} users`)
         }
-      } else if (strategy.routeType === 'dm-list') {
-        console.log('⚡ Skipping DM presence for dm-list route (loaded on-demand)')
       }
     }
     
     else if (strategy.routeType === 'social') {
-      console.log('🌐 Loading social route (activitypub, emojiCache, theme, reactions)...')
-      
-      // ✅ ROUTE-SPECIFIC STORES: Only load what's needed for ActivityPub/Social
+      // Load stores needed for ActivityPub/Social
       const [emojiCache, { useActivityPubStore }, { useReactionsStore }, { useThemeStore }] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useActivityPub'),
@@ -412,105 +362,102 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         import('@/stores/useTheme')
       ])
       
-      // Initialize stores
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       const activityPubStore = useActivityPubStore()
       const reactionsStore = useReactionsStore()
       const themeStore = useThemeStore()
       
-      console.log('✅ Social route stores loaded: emojiCache, activitypub, reactions, theme')
-      
       // Load followed users for proper follow state
       await activityPubStore.loadFollowedUsers()
-      console.log('✅ Followed users loaded for ActivityPub')
       
       // Initialize minimal emoji support for social features
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       if (allServerIds.length > 0) {
         const defaultServerId = serverChannelStore.currentServerId || allServerIds[0]
         await emojiCacheStore.initializeSelective([defaultServerId], [])
-        console.log(`✅ Basic emoji support loaded for social features`)
       }
     }
     
-    // ✅ MINIMAL STORES: For unknown/other routes, load only essentials
+    // MINIMAL STORES: For unknown/other routes, load only essentials
     else if (strategy.routeType === 'other' && serverChannelStore.servers.length > 0) {
-      console.log('🎭 Loading other route (emojiCache, theme, reactions - minimal set)...')
-      
-      // ✅ ROUTE-SPECIFIC STORES: Only load minimal essentials
+      // Load minimal essentials
       const [emojiCache, { useReactionsStore }, { useThemeStore }] = await Promise.all([
         import('@/stores/useEmojiCache'),
         import('@/stores/useReactions'),
         import('@/stores/useTheme')
       ])
       
-      // Initialize stores
       const emojiCacheStore = emojiCache.useEmojiCacheStore()
       const reactionsStore = useReactionsStore()
       const themeStore = useThemeStore()
       
-      console.log('✅ Other route stores loaded: emojiCache, reactions, theme (minimal)')
-      
-      // Load default server emojis since app always loads a default server
+      // Load default server emojis
       const allServerIds = serverChannelStore.servers.map(server => server.id)
       const defaultServerId = serverChannelStore.currentServerId || allServerIds[0]
       const otherServerIds = allServerIds.filter(id => id !== defaultServerId)
       
       if (defaultServerId) {
         await emojiCacheStore.initializeSelective(
-          [defaultServerId], // Priority: default server
-          otherServerIds // Background: other servers
+          [defaultServerId],
+          otherServerIds
         )
-        console.log(`✅ Default server emojis loaded: ${defaultServerId}`)
-        console.log(`🔄 Other server emojis loading in background: ${otherServerIds.length}`)
       }
     }
     
-    // ✅ BASELINE GLOBAL PRESENCE: Load users for cross-context online status
-    // This ensures users can see each other online regardless of what section they're in
-    console.log('🌐 Loading baseline users for global presence...')
-    
-    const allServers = serverChannelStore.servers
+    // BASELINE GLOBAL PRESENCE: Load users for cross-context online status in parallel
     const baselineUserIds = new Set<string>()
     
-    // Collect user IDs from all servers the user is in (for global online presence)
-    for (const server of allServers) {
-      try {
+    // Parallelize server users and DM contacts fetching
+    await Promise.all([
+      // Fetch server users
+      (async () => {
         const { getUserIdsForServer } = await import('@/services/usersService')
-        const serverUserIds = await getUserIdsForServer(server.id)
-        serverUserIds.forEach(id => baselineUserIds.add(id))
-      } catch (error) {
-        console.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
-      }
-    }
-    
-    // Also load DM contacts for global presence
-    try {
-      const { useDMStore } = await import('@/stores/useDM')
-      const dmStore = useDMStore()
+        const allServers = serverChannelStore.servers
+        
+        await Promise.all(allServers.map(async (server) => {
+          try {
+            const serverUserIds = await getUserIdsForServer(server.id)
+            serverUserIds.forEach(id => baselineUserIds.add(id))
+          } catch (error) {
+            console.warn(`⚠️ Failed to load users for server ${server.id}:`, error)
+          }
+        }))
+      })(),
       
-      // Get DM contacts without loading full conversations
-      const { data: conversations } = await supabase
-        .from('conversations')
-        .select('user1, user2')
-        .or(`user1.eq.${userId},user2.eq.${userId}`)
-        .limit(100) // Reasonable limit
-      
-      if (conversations) {
-        conversations.forEach(conv => {
-          const contactId = conv.user1 === userId ? conv.user2 : conv.user1
-          baselineUserIds.add(contactId)
-        })
-      }
-    } catch (error) {
-      console.warn('⚠️ Failed to load DM contacts for global presence:', error)
-    }
+      // Fetch DM contacts
+      (async () => {
+        try {
+          // Get DM contacts using conversation_participants table
+          const { data: participations } = await supabase
+            .from('conversation_participants')
+            .select('conversation_id')
+            .eq('user_id', userId)
+            .is('left_at', null)
+            .limit(100)
+          
+          if (participations && participations.length > 0) {
+            const conversationIds = participations.map(p => p.conversation_id)
+            
+            const { data: otherParticipants } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .in('conversation_id', conversationIds)
+              .neq('user_id', userId)
+              .is('left_at', null)
+            
+            if (otherParticipants) {
+              otherParticipants.forEach(p => baselineUserIds.add(p.user_id))
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to load DM contacts for global presence:', error)
+        }
+      })()
+    ])
     
     // Load baseline user data for global presence (minimal profile info)
     if (baselineUserIds.size > 0) {
-      console.log(`🌐 Loading ${baselineUserIds.size} users for global presence...`)
-      await userData.ensureUsersLoaded(Array.from(baselineUserIds))
-      console.log(`✅ Baseline users loaded for global presence`)
+      await userData.ensureProfilesAvailable(Array.from(baselineUserIds))
     }
     
   } catch (error) {
@@ -518,24 +465,18 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
   }
 }
 
-// 🔄 OPTIMIZED: Background loading of non-critical data
+// Background loading of non-critical data
 const initializeBackgroundData = async (userId: string, strategy: any) => {
   try {
-    console.log('🔄 Background loading: notification count...')
-    
-    // ✅ Load only notification count initially (not full list)
+    // Load only notification count initially (not full list)
     const { useNotificationStore } = await import('@/stores/useNotification')
     const notificationStore = useNotificationStore()
     await notificationStore.initializeUnreadCountOnly(userId)
     
-    // ✅ PERFORMANCE FIX: Move activity tracking to background
-    console.log('🎯 Starting activity tracking...')
+    // Move activity tracking to background
     const { useUserData } = await import('@/composables/useUserData')
     const userData = useUserData()
     await userData.initializeBackgroundFeatures()
-    console.log('✅ Activity tracking started')
-    
-    console.log('✅ Background loading complete')
   } catch (error) {
     console.error('❌ Background loading failed:', error)
   }
@@ -544,14 +485,9 @@ const initializeBackgroundData = async (userId: string, strategy: any) => {
 
 
 // Initialize global call listener when user logs in
-// No need to wait for DM conversations!
 watch(() => authStore.session?.user?.id, async (userId) => {
-  console.log('👀 User ID changed:', userId)
-  
   if (userId && !globalDMCallListener.isInitialized()) {
-    console.log('📞 Initializing global call listener for user:', userId)
     await globalDMCallListener.initialize(userId)
-    console.log('✅ Global call listener ready')
   }
 }, { immediate: true })
 
@@ -559,12 +495,10 @@ watch(() => authStore.session?.user?.id, async (userId) => {
 watch(() => authStore.session, async (newSession, oldSession) => {
   // If user just logged in (had no session, now has one)
   if (!oldSession && newSession) {
-    console.log('🔄 User logged in, reinitializing app')
     await initializeApp()
   }
   // If user logged out (had session, now doesn't)
   else if (oldSession && !newSession) {
-    console.log('👋 User logged out, cleaning up presence and resetting app state')
     
     // Clean up user data service and all presence subscriptions
     try {

@@ -105,7 +105,6 @@ const localStatus = ref<UserStatus>(UserStatus.Offline)
 const initializeLocalStatus = async () => {
   try {
     localStatus.value = getCurrentUserStatus.value
-    console.log('🎬 UserProfileComponent - initialized local status:', UserStatus[localStatus.value])
   } catch (error) {
     console.error('Error initializing local status:', error)
     localStatus.value = UserStatus.Offline
@@ -124,10 +123,7 @@ const currentUser = computed(() => {
 const currentStatus = computed(() => {
   try {
     // Use local status for immediate UI responsiveness
-    const status = localStatus.value
-    console.log('UserProfileComponent - Current status from local state:', UserStatus[status])
-    return status
-    
+    return localStatus.value
   } catch (error) {
     console.error('Error getting current user status:', error)
     return UserStatus.Offline
@@ -261,14 +257,10 @@ onMounted(async () => {
   // Initialize local status for immediate UI updates
   await initializeLocalStatus()
   
-  // 🎯 Component now uses ONLY useUserData for real-time profile updates
+  // Component uses ONLY useUserData for real-time profile updates
   // All profile changes (avatar, display name, status, etc.) are handled reactively
-  // via the unified user data system - no auth store dependency needed!
+  // via the unified user data system
   document.addEventListener('click', onClickOutside)
-  
-  // Debug: Log unified system stats
-  const stats = getStats.value
-  console.log('🔍 UserData service stats from UserProfileComponent:', stats)
 })
 
 onBeforeUnmount(() => {

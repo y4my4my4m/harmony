@@ -352,8 +352,6 @@ export function useUserData() {
     // Create DM context with unique ID
     const contextId = 'dm-conversations'
     await userDataService.subscribeToContext(contextId, 'dm', conversationUserIds)
-    
-    console.log(`🗨️ DM Presence: Tracking ${conversationUserIds.length} conversation partners`)
     return contextId
   }
   
@@ -367,8 +365,6 @@ export function useUserData() {
     // Create profile context with user-specific ID
     const contextId = `profile-${userId}`
     await userDataService.subscribeToContext(contextId, 'profile', [userId])
-    
-    console.log(`👤 Profile Presence: Tracking user ${userId}`)
     return contextId
   }
   
@@ -395,12 +391,6 @@ export function useUserData() {
     forceUpdate.value // Force reactivity
     const user = userDataService.getUser(userId)
     
-    console.log(`🔍 getPresenceAwareStatus for ${userId}:`, {
-      user: user ? 'found' : 'not found',
-      isOnline: user?.isOnline,
-      status: user?.status ? UserStatus[user.status] : 'undefined'
-    })
-    
     if (!user) return 'offline'
     
     // Check if user is actually present in real-time
@@ -408,12 +398,10 @@ export function useUserData() {
     
     if (!isPresent) {
       // User is not present - always show as offline
-      console.log(`🔍 User ${userId} not present, showing offline`)
       return 'offline'
     }
     
     // User is present - return their preferred status
-    console.log(`🔍 User ${userId} present with status:`, UserStatus[user.status])
     switch (user.status) {
       case UserStatus.Online:
         return 'online'
@@ -438,7 +426,6 @@ export function useUserData() {
   const unsubscribeFromProfilePresence = async (userId: string) => {
     const contextId = `profile-${userId}`
     await unsubscribeFromContext(contextId)
-    console.log(`👤 Profile Presence: Stopped tracking user ${userId}`)
   }
   
   /**
@@ -454,7 +441,6 @@ export function useUserData() {
       return await subscribeToDMPresence(conversationUserIds)
     }
     
-    console.log(`🗨️ DM Presence: No active conversations to track`)
     return null
   }
   

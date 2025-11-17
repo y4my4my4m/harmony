@@ -145,23 +145,11 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const addMessageToCache = (message: Message) => {
-    console.log('🔄 Adding message to DM cache:', {
-      messageId: message.id,
-      conversationId: message.conversation_id,
-      currentConversationId: currentConversationId.value,
-      content: message.content
-    });
-    
     // Add to current messages if it's the current conversation
     if (currentConversationId.value === message.conversation_id) {
       if (!currentDMMessages.value.some(msg => msg.id === message.id)) {
         currentDMMessages.value.push(message)
-        console.log('✅ Added new DM message to current conversation, total messages:', currentDMMessages.value.length)
-      } else {
-        console.log('⚠️ Message already exists in current conversation, skipping')
       }
-    } else {
-      console.log('📝 Message not for current conversation, current:', currentConversationId.value, 'message:', message.conversation_id)
     }
 
     // Update cache
@@ -170,10 +158,8 @@ export const useDMStore = defineStore('dm', () => {
       if (!cached.messages.some(msg => msg.id === message.id)) {
         cached.messages.push(message)
         cached.lastModified = new Date()
-        console.log('💾 Updated message cache for conversation:', message.conversation_id)
       }
     } else {
-      console.log('📦 No cache found for conversation, creating new cache:', message.conversation_id)
       messageCache.value.set(message.conversation_id!, {
         messages: [message],
         lastFetchedAt: new Date(),
@@ -185,7 +171,6 @@ export const useDMStore = defineStore('dm', () => {
 
     // Update conversation in sidebar
     updateConversationFromMessage(message)
-    console.log('🔄 Updated conversation from message')
   }
 
   const updateMessageInCache = (messageId: string, updatedMessage: Message) => {
@@ -243,8 +228,6 @@ export const useDMStore = defineStore('dm', () => {
     fetchingReplyMessages.value.add(messageId)
 
     try {
-      console.log('🔄 Fetching DM reply message via service-like method:', messageId)
-      
       // Use a service-like approach while preserving functionality
       const message = await _fetchSingleMessage(messageId)
       
@@ -255,7 +238,6 @@ export const useDMStore = defineStore('dm', () => {
 
       // Cache the message
       replyMessageCache.value.set(messageId, message)
-      console.log('✅ DM reply message fetched and cached')
       return message
     } catch (error) {
       console.error('❌ Error fetching DM reply message:', error)
@@ -311,10 +293,8 @@ export const useDMStore = defineStore('dm', () => {
       // Only fetch conversations if we don't have them or force refresh is requested
       if (forceRefresh || conversations.value.length === 0) {
         if (metadataOnly) {
-          console.log('⚡ Loading DM metadata only (no message content)...')
           await fetchUserConversationsMetadata(userId, loadStrategy)
         } else {
-          console.log('📦 Loading full DM conversations...')
           await fetchUserConversations(userId)
         }
       }
@@ -332,7 +312,6 @@ export const useDMStore = defineStore('dm', () => {
   // For faster initial load when user isn't actively viewing DMs
   const fetchUserConversationsMetadata = async (userId: string, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
     try {
-      console.log('⚡ Fetching DM conversations metadata only...')
       loadingConversations.value = true
 
       // Step 1: Get conversation metadata in a single query
@@ -359,12 +338,9 @@ export const useDMStore = defineStore('dm', () => {
       }
 
       if (!participations || participations.length === 0) {
-        console.log('📝 No conversation metadata found')
         conversations.value = []
         return
       }
-
-      console.log(`📝 Found ${participations.length} conversation metadata entries`)
 
       // Step 2: Get participant counts and primary other user IDs in bulk
       const conversationIds = participations.map(p => {
@@ -464,7 +440,6 @@ export const useDMStore = defineStore('dm', () => {
       })
 
       conversations.value = processedConversations
-      console.log(`✅ Loaded ${processedConversations.length} conversation metadata entries (${loadStrategy} loading strategy)`)
       
       // OPTIMIZATION: Different loading strategies for user profiles
       if (loadStrategy === 'immediate') {
@@ -494,7 +469,6 @@ export const useDMStore = defineStore('dm', () => {
         }
       } else if (loadStrategy === 'lazy') {
         // Pure lazy loading - everything loads on hover only
-        console.log(`⚡ Pure lazy loading - user profiles will load on hover only`)
       }
       
     } catch (error) {
@@ -643,7 +617,6 @@ export const useDMStore = defineStore('dm', () => {
   const fetchUserConversations = async (userId: string) => {
     try {
       loadingConversations.value = true
-      console.log('🔄 Fetching user conversations via service-like method:', userId)
       
       // Use service-like helpers to break down complexity
       const rawConversations = await _fetchRawConversations(userId)
@@ -666,7 +639,6 @@ export const useDMStore = defineStore('dm', () => {
       }
       
       conversations.value = processedConversations
-      console.log(`✅ Processed ${processedConversations.length} conversations via service-like method`)
       
     } catch (error) {
       console.error('❌ Failed to fetch conversations via service-like method:', error)
@@ -782,16 +754,6 @@ export const useDMStore = defineStore('dm', () => {
   // Helper: Service-like method to process individual conversation using participant system
   const _processConversationData = async (conv: any, userId: string): Promise<DMConversation | null> => {
     try {
-      console.log('🔍 DEBUG: Processing conversation data:', {
-        conversationId: conv.conversation_id,
-        type: conv.conversation_type,
-        participant_count: conv.participant_count,
-        other_participants: conv.other_participants,
-        other_participants_length: conv.other_participants?.length,
-        conversation_name: conv.conversation_name,
-        icon_url: conv.icon_url
-      })
-
       const conversationType = conv.conversation_type || 'direct'
       const participantCount = conv.participant_count || 0
       
@@ -846,11 +808,10 @@ export const useDMStore = defineStore('dm', () => {
         if (conv.other_participants && Array.isArray(conv.other_participants) && conv.other_participants.length > 0) {
           // Get the first other participant (for direct messages, should be exactly 1)
           otherUserId = conv.other_participants[0].user_id
-          console.log('🔍 DEBUG: Found other participant:', otherUserId)
         }
 
         if (!otherUserId) {
-          console.error('❌ DEBUG: No other participant found for conversation:', conv.conversation_id)
+          console.error('❌ No other participant found for conversation:', conv.conversation_id)
           return null
         }
         
