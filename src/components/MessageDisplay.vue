@@ -171,6 +171,7 @@
           @show-reaction-tooltip="showTooltip"
           @hide-reaction-tooltip="hideTooltip"
         />
+      </div>
         </template>
         </template>
       </div>
