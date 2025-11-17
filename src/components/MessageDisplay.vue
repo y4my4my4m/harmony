@@ -23,21 +23,6 @@
       </div>
 
       <div :id="`message-${message.id}`" class="message-item" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
-        <!-- Sending placeholder (only spinner, no message content yet) -->
-        <div v-if="message.sending" class="message-sending-placeholder">
-          <div class="message-avatar">
-            <Avatar 
-              :src="getUserAvatarUrl(message.user_id).value"
-              size="sm"
-            />
-          </div>
-          <div class="sending-content">
-            <div class="sending-spinner"></div>
-          </div>
-        </div>
-        
-        <!-- Actual message (only shows after sent) -->
-        <template v-else>
         <!-- Gap indicator for jumped-to messages -->
         <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
           <div class="gap-line"></div>
@@ -172,7 +157,6 @@
           @hide-reaction-tooltip="hideTooltip"
         />
       </div>
-        </template>
         </template>
       </div>
     </template>
@@ -1286,36 +1270,4 @@ const closeInviteModal = () => {
   }
 }
 
-/* Sending placeholder - shows spinner while message is being sent */
-.message-sending-placeholder {
-  display: flex;
-  gap: 12px;
-  padding: 4px 16px;
-  opacity: 0.7;
-  animation: fadeIn 0.2s ease;
-}
-
-.sending-content {
-  display: flex;
-  align-items: center;
-  min-height: 22px;
-}
-
-.sending-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(88, 101, 242, 0.3);
-  border-top-color: #5865f2;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 0.7; }
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 </style>
