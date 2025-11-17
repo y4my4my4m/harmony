@@ -71,15 +71,26 @@ export class CoreMessageService {
         metadata: { created_via: 'harmony_client' }
       }
 
+      console.log('📤 Inserting message to database:', messageData)
+      
       const { data: message, error } = await supabase
         .from('messages')
         .insert(messageData)
         .select('*')
         .single()
 
-      if (error) throw this.createError('INSERT_FAILED', error.message, error)
+      if (error) {
+        console.error('❌ DATABASE INSERT FAILED:', error)
+        throw this.createError('INSERT_FAILED', error.message, error)
+      }
+      
+      if (!message) {
+        console.error('❌ No message returned from insert!')
+        throw this.createError('INSERT_FAILED', 'No message returned from database')
+      }
 
-      console.log('✅ Channel message sent successfully (local only)')
+      console.log('✅ Message inserted to database successfully:', message.id)
+      console.log('📦 Returned message:', message)
       return message
     } catch (error) {
       console.error('❌ Failed to send channel message:', error)
