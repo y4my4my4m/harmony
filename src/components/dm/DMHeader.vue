@@ -592,7 +592,7 @@ const toggleVoiceCall = async () => {
       
       if (success) {
         toast.success('Calling...')
-        // Show the voice overlay
+        // Show the voice overlay in maximized mode
         voiceStore.isOverlayVisible = true
       } else {
         toast.error('Failed to start call')
@@ -682,6 +682,7 @@ const toggleVideoCall = async () => {
         // Enable video immediately
         await voiceStore.toggleVideo()
         toast.success('Starting video call...')
+        // Show voice overlay in maximized mode
         voiceStore.isOverlayVisible = true
       } else {
         toast.error('Failed to start call')

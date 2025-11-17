@@ -187,23 +187,30 @@ class DMCallSignalingService {
    */
   private async handleCallTimeout(conversationId: string, callerId: string): Promise<void> {
     const call = this.activeCalls.get(conversationId)
-    if (!call) return
+    if (!call) {
+      console.log('⏰ Timeout fired but call already ended/answered')
+      return
+    }
     
     // Only timeout if still ringing (only caller in participants)
     if (call.participants.length === 1 && call.participants[0] === callerId) {
-      console.log('⏰ Call timeout - no answer')
+      console.log('⏰ Call timeout - no answer after 30 seconds')
       
-      const signal: CallSignal = {
-        type: 'timeout',
-        callerId,
-        callType: call.callType,
-        timestamp: Date.now(),
-        conversationId,
-        reason: 'timeout'
+      // Send timeout signal to all participants
+      for (const participantId of call.participants) {
+        await this.sendSignalToUser(participantId, {
+          type: 'timeout',
+          callerId,
+          callType: call.callType,
+          timestamp: Date.now(),
+          conversationId,
+          reason: 'timeout'
+        })
       }
       
-      await this.sendSignal(conversationId, signal)
       this.activeCalls.delete(conversationId)
+    } else {
+      console.log('⏰ Timeout fired but call was answered (has', call.participants.length, 'participants)')
     }
   }
 
@@ -219,6 +226,7 @@ class DMCallSignalingService {
     
     // Clear timeout timer since call was answered
     if (call.timeoutTimer) {
+      console.log('⏰ Clearing timeout timer - call accepted')
       clearTimeout(call.timeoutTimer)
       call.timeoutTimer = undefined
     }
@@ -236,7 +244,10 @@ class DMCallSignalingService {
       call.participants.push(userId)
     }
     
-    await this.sendSignal(conversationId, signal)
+    // Send accept signal to the caller's user channel
+    await this.sendSignalToUser(call.callerId, signal)
+    
+    console.log('✅ Accept signal sent to caller:', call.callerId)
   }
 
   /**
@@ -353,7 +364,7 @@ class DMCallSignalingService {
   }
 
   /**
-   * Get active call for conversation
+   * Get active call for conversation (exposed for timeout clearing)
    */
   getActiveCall(conversationId: string): ActiveCall | undefined {
     return this.activeCalls.get(conversationId)

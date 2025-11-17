@@ -8,8 +8,8 @@ import { ref } from 'vue'
 import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { dmCallPermissions } from './DMCallPermissions'
+import { dmCallSignaling, type CallSignal } from './DMCallSignaling'
 import { useToast } from 'vue-toastification'
-import type { CallSignal } from './DMCallSignaling'
 
 export interface IncomingCallData {
   callerId: string
@@ -103,6 +103,13 @@ class GlobalDMCallListenerService {
         
       case 'accept':
         console.log('✅ Call accepted by other party')
+        // Clear timeout since call was answered
+        const activeCall = dmCallSignaling.getActiveCall(signal.conversationId)
+        if (activeCall?.timeoutTimer) {
+          console.log('⏰ Clearing timeout timer - call was accepted')
+          clearTimeout(activeCall.timeoutTimer)
+          activeCall.timeoutTimer = undefined
+        }
         break
         
       case 'decline':
@@ -151,7 +158,6 @@ class GlobalDMCallListenerService {
     if (!permissionCheck.allowed) {
       console.log('🚫 Auto-declining:', permissionCheck.reason)
       // Send decline signal back
-      const { dmCallSignaling } = await import('./DMCallSignaling')
       await dmCallSignaling.declineCall(
         conversationId,
         this.currentUserId,

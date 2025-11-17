@@ -177,8 +177,11 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
         await voiceStore.toggleVideo()
       }
       
+      // Open voice overlay in MAXIMIZED mode (not dock)
       voiceStore.isOverlayVisible = true
-      console.log('✅ Joined call and opened voice overlay')
+      // Give it a moment to initialize, then ensure it's maximized
+      await new Promise(resolve => setTimeout(resolve, 100))
+      console.log('✅ Joined call with maximized voice overlay')
     }
   } catch (error) {
     console.error('Error accepting call:', error)
