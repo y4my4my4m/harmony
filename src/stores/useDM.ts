@@ -1154,7 +1154,7 @@ export const useDMStore = defineStore('dm', () => {
     };
     
     // Add optimistic message to display immediately
-    addMessageToCache(conversationId, optimisticMessage as any);
+    addMessageToCache(optimisticMessage as any);
     
     try {
       console.log('🔄 Sending DM message via MessageService:', { conversationId, userId })
@@ -1182,7 +1182,7 @@ export const useDMStore = defineStore('dm', () => {
       return true
     } catch (error: any) {
       // Remove optimistic message on error
-      removeMessageFromCache(conversationId, tempId);
+      removeMessageFromCache(tempId);
       console.error('❌ Failed to send DM message via service:', error)
       throw new Error(error.message || 'Failed to send DM message')
     }
@@ -1848,7 +1848,7 @@ export const useDMStore = defineStore('dm', () => {
     conversationId: string,
     userIds: string[],
     currentUserId: string
-  ): Promise<boolean> => {
+  ): Promise<boolean | string> => {
     try {
       console.log('🔄 Adding users to conversation:', { conversationId, userIds })
       

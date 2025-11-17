@@ -344,7 +344,8 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
       // Subscribe to DM presence for specific conversations
       if (strategy.routeType === 'dm' && strategy.currentConversationId) {
         const conversationUserIds = dmStore.conversations
-          .map(conv => conv.user1 === userId ? conv.user2 : conv.user1)
+          .filter(conv => conv.type === 'direct' && conv.other_user)
+          .map(conv => conv.other_user!.id)
           .filter(id => id !== userId)
         
         if (conversationUserIds.length > 0) {
