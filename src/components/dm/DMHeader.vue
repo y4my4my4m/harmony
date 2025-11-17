@@ -592,8 +592,11 @@ const toggleVoiceCall = async () => {
       
       if (success) {
         toast.success('Calling...')
-        // Show the voice overlay in maximized mode
+        // Show the voice overlay in maximized mode (for caller)
         voiceStore.isOverlayVisible = true
+        // Small delay to ensure it renders fully maximized
+        await new Promise(resolve => setTimeout(resolve, 100))
+        console.log('✅ Voice overlay opened for caller (maximized)')
       } else {
         toast.error('Failed to start call')
       }
@@ -623,7 +626,10 @@ const joinActiveCall = async () => {
     
     if (success) {
       toast.success('Joined call')
+      // Show voice overlay in maximized mode
       voiceStore.isOverlayVisible = true
+      await new Promise(resolve => setTimeout(resolve, 100))
+      console.log('✅ Joined group call (maximized)')
     } else {
       toast.error('Failed to join call')
     }
@@ -682,8 +688,10 @@ const toggleVideoCall = async () => {
         // Enable video immediately
         await voiceStore.toggleVideo()
         toast.success('Starting video call...')
-        // Show voice overlay in maximized mode
+        // Show voice overlay in maximized mode (for caller)
         voiceStore.isOverlayVisible = true
+        await new Promise(resolve => setTimeout(resolve, 100))
+        console.log('✅ Video call overlay opened for caller (maximized)')
       } else {
         toast.error('Failed to start call')
       }
