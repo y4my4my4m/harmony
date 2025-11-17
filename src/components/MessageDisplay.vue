@@ -502,19 +502,10 @@ const checkScrollable = () => {
 
 const handleScroll = () => {
   if (!messageDisplayContainer.value) {
-    console.log('📜 Scroll handler: no container');
     return;
   }
   
   const { scrollTop, scrollHeight, clientHeight } = messageDisplayContainer.value;
-  
-  console.log('📜 Scroll event:', { 
-    scrollTop, 
-    scrollHeight, 
-    clientHeight, 
-    isAtTop: scrollTop === 0,
-    hasLoadMoreFunc: !!props.loadMoreMessages 
-  });
   
   checkScrollable();
   isAtTop.value = scrollTop === 0;
@@ -525,7 +516,6 @@ const handleScroll = () => {
     console.log('📜 At top! hasScrollbar:', hasScrollbar.value, 'loadMoreMessages:', !!props.loadMoreMessages);
     
     if (props.loadMoreMessages) {
-      console.log('📜 TRIGGERING LOAD MORE MESSAGES');
       props.loadMoreMessages();
     } else {
       console.log('❌ No loadMoreMessages function provided!');
