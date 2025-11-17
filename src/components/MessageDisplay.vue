@@ -4,7 +4,7 @@
       There are no messages here, type something!
     </div>
     <!-- Loading older messages indicator -->
-    <div v-if="isLoading && messages.length > 0" class="loading-older-messages">
+    <div v-if="chatStore.loadingOlderMessages && messages.length > 0" class="loading-older-messages">
       <div class="loading-spinner"></div>
       <span>Loading older messages...</span>
     </div>
@@ -394,7 +394,16 @@ watch(() => props.messages, (newMessages) => {
       if (messageDisplayContainer.value) {
         const newScrollHeight = messageDisplayContainer.value.scrollHeight;
         const scrollOffset = newScrollHeight - oldScrollHeight;
-        if (scrollOffset > 0) messageDisplayContainer.value.scrollTop += scrollOffset;
+        
+        // If this is the initial load (old height was 0), scroll to bottom
+        if (oldScrollHeight === 0 && newMessages.length > 0) {
+          console.log('📜 Initial load - scrolling to bottom');
+          messageDisplayContainer.value.scrollTop = newScrollHeight;
+        } 
+        // Otherwise maintain scroll position (for loading older messages)
+        else if (scrollOffset > 0) {
+          messageDisplayContainer.value.scrollTop += scrollOffset;
+        }
         
         checkScrollable();
         isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
