@@ -267,8 +267,11 @@ export const useChatStore = defineStore('chat', {
         
         const { messages, hasMore } = await services.messages.loadChannelMessages(
           channelId,
-          20, // limit
-          beforeTimestamp
+          {
+            limit: 20,
+            before: beforeTimestamp,
+            signal
+          }
         );
 
         console.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });

@@ -3,9 +3,15 @@
     <div class="no-messages" v-if="messages.length == 0">
       There are no messages here, type something!
     </div>
+    <!-- Loading older messages indicator -->
+    <div v-if="isLoading && messages.length > 0" class="loading-older-messages">
+      <div class="loading-spinner"></div>
+      <span>Loading older messages...</span>
+    </div>
+    
     <template v-else v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
-      <!-- Beginning of conversation indicator -->
-      <div v-if="index === 0 && hasScrollbar" class="beginning-indicator" :style="getIndicatorStyle()">
+      <!-- Beginning of conversation indicator (only show when all messages loaded) -->
+      <div v-if="index === 0 && hasScrollbar && chatStore.allMessagesLoaded" class="beginning-indicator" :style="getIndicatorStyle()">
         <div class="beginning-content">
           <div class="beginning-icon">🌟</div>
           <div class="beginning-text">
@@ -1292,4 +1298,27 @@ const closeInviteModal = () => {
   }
 }
 
+/* Loading older messages indicator at top */
+.loading-older-messages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--text-secondary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin-loader 0.8s linear infinite;
+}
+
+@keyframes spin-loader {
+  to { transform: rotate(360deg); }
+}
 </style>
