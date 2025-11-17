@@ -255,7 +255,11 @@ export const useChatStore = defineStore('chat', {
           // Get the timestamp of the oldest message for pagination
           const oldestMessage = this.messages.find(m => m.id === oldestMessageId);
           if (oldestMessage) {
-            beforeTimestamp = oldestMessage.created_at.toISOString();
+            // Handle both Date objects and ISO strings
+            beforeTimestamp = oldestMessage.created_at instanceof Date 
+              ? oldestMessage.created_at.toISOString()
+              : oldestMessage.created_at;
+            console.log('📅 Using timestamp for pagination:', beforeTimestamp);
           }
         }
         
