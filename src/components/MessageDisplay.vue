@@ -115,8 +115,7 @@
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
-            />
-            <!-- TEMPORARILY REMOVED TO DEBUG -->
+            /><span v-if="message.sending" class="inline-spinner">⏳</span>
           </div>
         </div>
         
@@ -137,8 +136,7 @@
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
-            />
-            <!-- TEMPORARILY REMOVED TO DEBUG -->
+            /><span v-if="message.sending" class="inline-spinner">⏳</span>
           </div>
         </div>
         
@@ -1272,21 +1270,11 @@ const closeInviteModal = () => {
   }
 }
 
-/* Message content wrapper - ensures spinner stays inline */
-.message-content-wrapper {
+/* Inline spinner - truly inline */
+.inline-spinner {
   display: inline;
-}
-
-/* Ensure message content and spinner are inline */
-.message-main {
-  display: block;
-  position: relative;
-}
-
-/* Make the sending indicator truly inline */
-.message-main .sending-indicator {
-  display: inline-flex !important;
-  margin-left: 6px !important;
-  vertical-align: baseline !important;
+  margin-left: 4px;
+  opacity: 0.6;
+  font-size: 14px;
 }
 </style>

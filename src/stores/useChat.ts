@@ -498,10 +498,12 @@ export const useChatStore = defineStore('chat', {
         // Replace optimistic message with real one atomically
         const index = this.messages.findIndex(m => m.id === tempId);
         if (index !== -1) {
-          // Replace in-place to avoid duplicate flash
-          this.messages[index] = message;
+          // Replace in-place - Vue will update the same DOM element
+          console.log('🔄 Replacing temp message:', tempId, '→', message.id);
+          this.messages.splice(index, 1, message);
         } else {
           // Fallback: add if not found (shouldn't happen)
+          console.warn('⚠️ Temp message not found, adding new message');
           this.addMessageToCache(message);
         }
         
@@ -565,12 +567,20 @@ export const useChatStore = defineStore('chat', {
           (payload) => {
             console.log('🟢 Real-time INSERT received:', payload);
             
-            // Check if this is our own message that we just sent (has temp ID)
+            // Check if this is our own message (already replaced by sendMessage)
+            // Real-time should NOT add it again
+            const existingRealMessage = this.messages.findIndex(m => m.id === payload.new.id);
+            if (existingRealMessage !== -1) {
+              console.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
+              return;
+            }
+            
+            // Check if temp message exists (shouldn't happen - sendMessage should have replaced it)
             const tempMessageIndex = this.messages.findIndex(m => m.id.startsWith('temp-') && m.user_id === payload.new.user_id);
             if (tempMessageIndex !== -1) {
-              console.log('⚠️ Found temp message to replace:', this.messages[tempMessageIndex].id);
-              // Replace the temp message with the real one
-              this.messages[tempMessageIndex] = {
+              console.warn('⚠️ Temp message still exists during real-time, this is a race condition!');
+              console.log('🔄 Replacing late:', this.messages[tempMessageIndex].id);
+              this.messages.splice(tempMessageIndex, 1, {
                 id: payload.new.id,
                 created_at: new Date(payload.new.created_at),
                 channel_id: payload.new.channel_id,
@@ -579,8 +589,7 @@ export const useChatStore = defineStore('chat', {
                 reactions: payload.new.reactions,
                 reply_to: payload.new.reply_to,
                 is_system: payload.new.is_system,
-              };
-              console.log('✅ Replaced temp message with real message');
+              });
               return;
             }
             

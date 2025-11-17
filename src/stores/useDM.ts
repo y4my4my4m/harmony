@@ -1210,15 +1210,16 @@ export const useDMStore = defineStore('dm', () => {
       // Replace optimistic message with real one atomically
       const index = currentDMMessages.value.findIndex(m => m.id === tempId);
       if (index !== -1) {
-        // Replace in-place to avoid duplicate flash
-        currentDMMessages.value[index] = message;
+        // Use splice for proper Vue reactivity
+        console.log('🔄 Replacing DM temp message:', tempId, '→', message.id);
+        currentDMMessages.value.splice(index, 1, message);
         
         // Also update cache
         const cache = messageCache.value.get(conversationId);
         if (cache) {
           const cacheIndex = cache.messages.findIndex(m => m.id === tempId);
           if (cacheIndex !== -1) {
-            cache.messages[cacheIndex] = message;
+            cache.messages.splice(cacheIndex, 1, message);
           }
         }
       }
@@ -1426,10 +1427,28 @@ export const useDMStore = defineStore('dm', () => {
         
         const message = payload.new as any
         
-        // Check if message already exists (from optimistic update)
-        const existingIndex = currentDMMessages.value.findIndex(m => m.id === message.id);
-        if (existingIndex !== -1) {
-          console.log('⚠️ Message already exists (optimistic), skipping duplicate');
+        // Check if real message already exists (from sendDMMessage replacement)
+        const existingRealMessage = currentDMMessages.value.findIndex(m => m.id === message.id);
+        if (existingRealMessage !== -1) {
+          console.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
+          return;
+        }
+        
+        // Check if temp message exists (shouldn't happen - sendDMMessage should have replaced it)
+        const tempMessageIndex = currentDMMessages.value.findIndex(m => m.id.startsWith('temp-') && m.user_id === message.user_id);
+        if (tempMessageIndex !== -1) {
+          console.warn('⚠️ Temp message still exists during real-time, replacing now');
+          currentDMMessages.value.splice(tempMessageIndex, 1, {
+            id: message.id,
+            user_id: message.user_id,
+            content: message.content,
+            created_at: new Date(message.created_at),
+            channel_id: '',
+            conversation_id: message.conversation_id,
+            reply_to: message.reply_to,
+            reactions: message.reactions || [],
+            is_system: message.is_system
+          });
           return;
         }
         
