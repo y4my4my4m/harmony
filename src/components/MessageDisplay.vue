@@ -474,7 +474,11 @@ const handleScroll = () => {
   isAtTop.value = scrollTop === 0;
   
   if (!isAtTop.value || !hasScrollbar.value) bufferDistance.value = 0;
-  if (isAtTop.value && props.loadMoreMessages) props.loadMoreMessages();
+  
+  if (isAtTop.value && props.loadMoreMessages) {
+    console.log('📜 Scroll reached top, triggering load more messages');
+    props.loadMoreMessages();
+  }
 
   emit('update:isAtBottom', scrollTop + clientHeight >= scrollHeight - 5);
 };
