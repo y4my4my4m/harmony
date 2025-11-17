@@ -9,7 +9,7 @@
       <span>Loading older messages...</span>
     </div>
     
-    <template v-else v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
+    <template v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
       <!-- Beginning of conversation indicator (only show when all messages loaded) -->
       <div v-if="index === 0 && hasScrollbar && isAllMessagesLoaded" class="beginning-indicator" :style="getIndicatorStyle()">
         <div class="beginning-content">
@@ -411,10 +411,16 @@ watch(() => props.messages, (newMessages) => {
         // If this is the initial load (old height was 0), scroll to bottom
         if (oldScrollHeight === 0 && newMessages.length > 0) {
           console.log('📜 Initial load - scrolling to bottom');
-          messageDisplayContainer.value.scrollTop = newScrollHeight;
+          // Use setTimeout to ensure DOM is fully rendered
+          setTimeout(() => {
+            if (messageDisplayContainer.value) {
+              messageDisplayContainer.value.scrollTop = messageDisplayContainer.value.scrollHeight;
+            }
+          }, 50);
         } 
-        // Otherwise maintain scroll position (for loading older messages)
-        else if (scrollOffset > 0) {
+        // When loading older messages, maintain scroll position by compensating for new content
+        else if (scrollOffset > 0 && oldScrollHeight > 0) {
+          console.log('📜 Maintaining scroll position after loading older messages');
           messageDisplayContainer.value.scrollTop += scrollOffset;
         }
         
