@@ -1208,8 +1208,7 @@ export const useDMStore = defineStore('dm', () => {
       console.log('✅ DM message saved to database:', message.id)
       console.log('📦 DM message data from server:', message)
       
-      // DON'T replace optimistic message manually
-      // Let real-time handle it to ensure proper database event flow
+      // Real-time will replace the temp message with the real one
       console.log('⏳ Waiting for real-time to replace temp DM message...')
       
       // Real-time INSERT will handle replacing temp → real

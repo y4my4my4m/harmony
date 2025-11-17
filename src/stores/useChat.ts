@@ -224,15 +224,21 @@ export const useChatStore = defineStore('chat', {
           const now = new Date();
           const cacheAge = now.getTime() - cached.lastFetchedAt.getTime();
           
+          console.log(`📦 Found cache for channel ${channelId}, age: ${Math.round(cacheAge / 1000)}s, valid: ${cacheAge < this.cacheValidityDuration}`);
+          
           // If cache is less than 5 minutes old, use it instantly
           if (cacheAge < this.cacheValidityDuration) {
-            console.log(`Loading from cache instantly: ${channelId}`);
+            console.log(`✅ Loading ${cached.messages.length} messages from cache instantly (cache is fresh)`);
             this.messages = [...cached.messages];
             this.allMessagesLoaded = cached.allMessagesLoaded;
             this.currentChannelId = channelId;
             // Return immediately - truly instant loading
             return;
+          } else {
+            console.log(`⚠️ Cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`);
           }
+        } else {
+          console.log(`📭 No cache found for channel ${channelId}, fetching from database`);
         }
       }
 
@@ -498,8 +504,7 @@ export const useChatStore = defineStore('chat', {
         console.log('✅ Message saved to database:', message.id);
         console.log('📦 Message data from server:', message);
         
-        // DON'T replace optimistic message manually
-        // Let real-time handle it to ensure it's saved properly
+        // Real-time will replace the temp message with the real one
         console.log('⏳ Waiting for real-time to replace temp message...');
         
         // Real-time INSERT will handle replacing temp → real

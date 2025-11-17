@@ -411,7 +411,7 @@ export class CoreMessageService {
         .select('*')
         .eq('channel_id', channelId)
         .or('is_deleted.is.null,is_deleted.eq.false')
-        .order('created_at', { ascending: true })  // FIXED: Changed to ascending (oldest first)
+        .order('created_at', { ascending: false })  // Get NEWEST messages first
         .limit(limit)
 
       if (before) {
@@ -435,14 +435,17 @@ export class CoreMessageService {
 
       const messageList = messages || []
       console.log(`✅ Loaded ${messageList.length} messages from database for channel ${channelId}`)
+      
+      // Reverse to get oldest-first for display (since query returns newest-first)
+      const orderedMessages = messageList.reverse()
 
       // PERFORMANCE OPTIMIZATION: Batch load reactions for all messages
-      if (messageList.length > 0) {
-        const messageIds = messageList.map(m => m.id)
+      if (orderedMessages.length > 0) {
+        const messageIds = orderedMessages.map(m => m.id)
         const reactionsByMessage = await this.getBatchMessageReactions(messageIds)
         
         // Attach reactions to each message
-        messageList.forEach(message => {
+        orderedMessages.forEach(message => {
           message.reactions = reactionsByMessage[message.id] || []
         })
         
@@ -451,8 +454,8 @@ export class CoreMessageService {
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
 
-      console.log(`✅ Core: Loaded ${messageList.length} messages with reactions for channel: ${channelId}`)
-      return messageList
+      console.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for channel: ${channelId}`)
+      return orderedMessages
     } catch (error) {
       console.error('❌ Core: Failed to load channel messages:', error)
       throw error
