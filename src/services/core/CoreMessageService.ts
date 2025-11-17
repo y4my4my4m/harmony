@@ -404,7 +404,7 @@ export class CoreMessageService {
     try {
       const { limit = 50, before, after, signal } = options
 
-      console.log(`🔄 Core: Loading messages for channel: ${channelId}`)
+      console.log(`🔄 Core: Loading messages for channel: ${channelId}`, { limit, before, after })
 
       let query = supabase
         .from('messages')
@@ -425,11 +425,16 @@ export class CoreMessageService {
         throw this.createError('ABORTED', 'Request was aborted')
       }
 
+      console.log('📤 Executing message load query...')
       const { data: messages, error } = await query
 
-      if (error) throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
+      if (error) {
+        console.error('❌ Failed to load messages:', error)
+        throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
+      }
 
       const messageList = messages || []
+      console.log(`✅ Loaded ${messageList.length} messages from database for channel ${channelId}`)
 
       // PERFORMANCE OPTIMIZATION: Batch load reactions for all messages
       if (messageList.length > 0) {
