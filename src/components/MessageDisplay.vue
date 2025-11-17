@@ -115,7 +115,7 @@
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
-            /><span v-if="message.sending" class="inline-spinner">⏳</span>
+            />
           </div>
         </div>
         
@@ -136,7 +136,7 @@
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
-            /><span v-if="message.sending" class="inline-spinner">⏳</span>
+            />
           </div>
         </div>
         

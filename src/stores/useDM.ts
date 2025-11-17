@@ -1210,16 +1210,16 @@ export const useDMStore = defineStore('dm', () => {
       // Replace optimistic message with real one atomically
       const index = currentDMMessages.value.findIndex(m => m.id === tempId);
       if (index !== -1) {
-        // Use splice for proper Vue reactivity
-        console.log('🔄 Replacing DM temp message:', tempId, '→', message.id);
-        currentDMMessages.value.splice(index, 1, message);
+        // CRITICAL: Update in-place to keep same DOM element
+        console.log('🔄 Replacing DM temp message IN-PLACE:', tempId, '→', message.id);
+        Object.assign(currentDMMessages.value[index], message);
         
         // Also update cache
         const cache = messageCache.value.get(conversationId);
         if (cache) {
           const cacheIndex = cache.messages.findIndex(m => m.id === tempId);
           if (cacheIndex !== -1) {
-            cache.messages.splice(cacheIndex, 1, message);
+            Object.assign(cache.messages[cacheIndex], message);
           }
         }
       }
