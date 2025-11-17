@@ -90,7 +90,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -113,6 +113,7 @@ const profileStore = useProfileStore()
 const dmStore = useDMStore()
 const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
+const router = useRouter()
 
 // Composables
 const { touchState, handleTouchStart, handleTouchMove, handleTouchEnd } = useMobileGestures()
@@ -162,6 +163,10 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
     // Send accept signal
     await dmCallSignaling.acceptCall(incomingCall.conversationId, currentUserId)
     
+    // Navigate to the DM conversation
+    console.log('📞 Navigating to DM conversation:', incomingCall.conversationId)
+    await router.push(`/dm/${incomingCall.conversationId}`)
+    
     // Join the voice channel
     const dmChannelId = `dm-${incomingCall.conversationId}`
     const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
@@ -173,6 +178,7 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
       }
       
       voiceStore.isOverlayVisible = true
+      console.log('✅ Joined call and opened voice overlay')
     }
   } catch (error) {
     console.error('Error accepting call:', error)

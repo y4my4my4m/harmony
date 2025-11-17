@@ -116,14 +116,7 @@
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
             />
-            <!-- Inline sending indicator -->
-            <span v-if="message.sending" class="sending-indicator">
-              <svg class="spinner-icon" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="32">
-                  <animate attributeName="stroke-dashoffset" dur="1s" values="32;0;32" repeatCount="indefinite"/>
-                </circle>
-              </svg>
-            </span>
+            <!-- TEMPORARILY REMOVED TO DEBUG -->
           </div>
         </div>
         
@@ -145,14 +138,7 @@
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
             />
-            <!-- Inline sending indicator -->
-            <span v-if="message.sending" class="sending-indicator">
-              <svg class="spinner-icon" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-dasharray="32" stroke-dashoffset="32">
-                  <animate attributeName="stroke-dashoffset" dur="1s" values="32;0;32" repeatCount="indefinite"/>
-                </circle>
-              </svg>
-            </span>
+            <!-- TEMPORARILY REMOVED TO DEBUG -->
           </div>
         </div>
         
