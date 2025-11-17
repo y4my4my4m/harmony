@@ -119,6 +119,12 @@ const handleEmojiError = (emoji: Emoji) => {
 // ✅ UNIFIED ARCHITECTURE: Reactions store is pre-populated by CoreMessageService  
 // Components can safely request reactions - store has batch-loaded data, no N+1 queries
 onMounted(() => {
+  // Skip fetching for optimistic/temp messages
+  if (props.message.id.startsWith('temp-') || props.message.sending) {
+    console.log('⏭️ Skipping reaction fetch for optimistic message:', props.message.id);
+    return;
+  }
+  
   // Store is populated by batch loading, but safe to request (will use cache)
   if (!reactionsStore.isLoadingReactions(props.message.id)) {
     reactionsStore.fetchMessageReactions(props.message.id);
@@ -126,8 +132,16 @@ onMounted(() => {
 });
 
 // Watch for message changes and reload reactions if needed
-watch(() => props.message.id, (newMessageId) => {
-  if (!reactionsStore.isLoadingReactions(newMessageId)) {
+watch(() => props.message.id, (newMessageId, oldMessageId) => {
+  // Skip if it's a temp message or optimistic message
+  if (newMessageId.startsWith('temp-') || props.message.sending) {
+    console.log('⏭️ Skipping reaction fetch for optimistic message:', newMessageId);
+    return;
+  }
+  
+  // Only fetch if message ID actually changed (temp → real)
+  if (newMessageId !== oldMessageId && !reactionsStore.isLoadingReactions(newMessageId)) {
+    console.log('🔄 Message ID changed, fetching reactions:', oldMessageId, '→', newMessageId);
     reactionsStore.fetchMessageReactions(newMessageId);
   }
 });
