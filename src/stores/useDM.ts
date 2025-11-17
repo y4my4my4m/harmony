@@ -1205,32 +1205,19 @@ export const useDMStore = defineStore('dm', () => {
         replyTo
       )
 
-      console.log('✅ DM message sent via service layer:', message.id)
+      console.log('✅ DM message saved to database:', message.id)
+      console.log('📦 DM message data from server:', message)
       
-      // Replace optimistic message with real one atomically
-      const index = currentDMMessages.value.findIndex(m => m.id === tempId);
-      if (index !== -1) {
-        // CRITICAL: Update in-place to keep same DOM element
-        console.log('🔄 Replacing DM temp message IN-PLACE:', tempId, '→', message.id);
-        Object.assign(currentDMMessages.value[index], message);
-        
-        // Also update cache
-        const cache = messageCache.value.get(conversationId);
-        if (cache) {
-          const cacheIndex = cache.messages.findIndex(m => m.id === tempId);
-          if (cacheIndex !== -1) {
-            Object.assign(cache.messages[cacheIndex], message);
-          }
-        }
-      }
+      // DON'T replace optimistic message manually
+      // Let real-time handle it to ensure proper database event flow
+      console.log('⏳ Waiting for real-time to replace temp DM message...')
+      
+      // Real-time INSERT will handle replacing temp → real
       
       // 🎯 DATABASE TRIGGERS NOW HANDLE:
       // 1. DM notifications (handle_message_notifications trigger)
       // 2. Federation delivery (federate_dm_message trigger)
       // No manual frontend calls needed!
-
-      // Real-time subscription will handle adding to cache via addMessageToCache
-      // But we already replaced the optimistic message above
 
       return true
     } catch (error: any) {

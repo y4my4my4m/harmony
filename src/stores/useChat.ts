@@ -495,20 +495,16 @@ export const useChatStore = defineStore('chat', {
           replyTo || undefined
         );
         
-        // Replace optimistic message with real one atomically
-        const index = this.messages.findIndex(m => m.id === tempId);
-        if (index !== -1) {
-          // CRITICAL: Update the ID in-place to prevent Vue from thinking it's a different element
-          // This keeps the same DOM element, just updates the data
-          console.log('🔄 Replacing temp message IN-PLACE:', tempId, '→', message.id);
-          Object.assign(this.messages[index], message);
-        } else {
-          // Fallback: add if not found (shouldn't happen)
-          console.warn('⚠️ Temp message not found, adding new message');
-          this.addMessageToCache(message);
-        }
+        console.log('✅ Message saved to database:', message.id);
+        console.log('📦 Message data from server:', message);
         
-        console.log('✅ Message sent via service layer:', message.id);
+        // DON'T replace optimistic message manually
+        // Let real-time handle it to ensure it's saved properly
+        console.log('⏳ Waiting for real-time to replace temp message...');
+        
+        // Real-time INSERT will handle replacing temp → real
+        // This ensures we don't interfere with the database event flow
+        
         return message;
       } catch (error: any) {
         // Remove optimistic message on error
