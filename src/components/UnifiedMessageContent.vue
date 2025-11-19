@@ -100,12 +100,12 @@
             v-if="isImageUrl(part.url)" 
             class="media-container image-container"
           >
-            <div v-if="!imageLoaded[part.url]" class="media-skeleton image-skeleton"></div>
+            <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
             <img
               :src="part.url"
-              @load="$emit('image-loaded', part.url)"
+              @load="handleImageLoad(part.url)"
               @click="$emit('open-lightbox', part.url)"
-              v-show="imageLoaded[part.url]"
+              v-show="imageLoadedState[part.url]"
               draggable="false"
               class="content-image"
             />
@@ -139,12 +139,12 @@
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'image'" 
           class="media-container image-container"
         >
-          <div v-if="!imageLoaded[part.url]" class="media-skeleton image-skeleton"></div>
+          <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
           <img
             :src="part.url"
-            @load="$emit('image-loaded', part.url)"
+            @load="handleImageLoad(part.url)"
             @click="$emit('open-lightbox', part.url)"
-            v-show="imageLoaded[part.url]"
+            v-show="imageLoadedState[part.url]"
             draggable="false"
             class="content-image"
           />
@@ -212,7 +212,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref, nextTick } from 'vue';
+import { defineComponent, watch, ref, nextTick, reactive } from 'vue';
 import type { PropType } from 'vue';
 import type { MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -262,6 +262,20 @@ export default defineComponent({
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
+    
+    // Internal reactive state for image loading (use prop if provided, otherwise create new)
+    const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
+    
+    // Watch for prop changes and merge with internal state
+    watch(() => props.imageLoaded, (newValue) => {
+      Object.assign(imageLoadedState, newValue);
+    }, { deep: true });
+    
+    // Handle image load events
+    const handleImageLoad = (url: string) => {
+      imageLoadedState[url] = true;
+      emit('image-loaded', url);
+    };
     
     // Auto-suggest setup
     const autoSuggest = useAutoSuggest(editTextarea);
@@ -583,6 +597,8 @@ export default defineComponent({
       autoResizeTextarea,
       autoSuggest,
       handleSuggestionSelect,
+      imageLoadedState,
+      handleImageLoad,
       isImageUrl,
       isVideoUrl,
       formatFileSize,
