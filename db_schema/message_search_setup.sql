@@ -314,7 +314,17 @@ BEGIN
   ELSE
     search_query := trim(p_query);
     -- Use plainto_tsquery for natural language search
-    tsquery_val := plainto_tsquery('english', search_query);
+    -- Handle case where query might not produce valid tsquery
+    BEGIN
+      tsquery_val := plainto_tsquery('english', search_query);
+      -- If tsquery is empty, set to NULL
+      IF tsquery_val::text = '' THEN
+        tsquery_val := NULL;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      -- If tsquery parsing fails, fall back to fuzzy matching only
+      tsquery_val := NULL;
+    END;
   END IF;
 
   RETURN QUERY
@@ -357,9 +367,19 @@ BEGIN
       ))
     )
     -- Search conditions (only if query provided)
-    AND (tsquery_val IS NULL OR 
-         msi.content_tsvector @@ tsquery_val OR 
-         similarity(msi.content_text, search_query) > 0.2)
+    AND (
+      -- If no query, show all (filter-only search)
+      tsquery_val IS NULL AND search_query = ''
+      OR
+      -- If query provided, match via full-text or fuzzy
+      (tsquery_val IS NOT NULL AND (
+        msi.content_tsvector @@ tsquery_val OR 
+        similarity(msi.content_text, search_query) > 0.2
+      ))
+      OR
+      -- Fallback: if tsquery failed but we have search_query, use fuzzy only
+      (tsquery_val IS NULL AND search_query != '' AND similarity(msi.content_text, search_query) > 0.2)
+    )
     -- Filters
     AND (p_channel_id IS NULL OR msi.channel_id = p_channel_id)
     AND (p_channel_ids IS NULL OR msi.channel_id = ANY(p_channel_ids))
