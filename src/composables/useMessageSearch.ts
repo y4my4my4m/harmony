@@ -253,13 +253,14 @@ export function useMessageSearch() {
   // Initialize recent searches
   loadRecentSearches()
 
-  // Watch query changes for debounced search
+  // Watch query changes for debounced search (only if there's actually a query or filters)
   watch(
     () => filters.value.query,
-    () => {
-      if (filters.value.query.trim() || hasActiveFilters.value) {
+    (newQuery, oldQuery) => {
+      // Only trigger if query actually changed (not just on initialization)
+      if (oldQuery !== undefined && (newQuery.trim() || hasActiveFilters.value)) {
         searchDebounced()
-      } else {
+      } else if (!newQuery.trim() && !hasActiveFilters.value) {
         searchResults.value = []
         hasMore.value = false
         error.value = null
@@ -267,7 +268,7 @@ export function useMessageSearch() {
     }
   )
 
-  // Watch filter changes (non-query)
+  // Watch filter changes (non-query) - only trigger if query exists or filters are active
   watch(
     [
       () => filters.value.channelId,
@@ -279,9 +280,10 @@ export function useMessageSearch() {
       () => filters.value.fromDate,
       () => filters.value.toDate
     ],
-    () => {
-      // Execute search immediately when filters change (no debounce)
-      if (filters.value.query.trim() || hasActiveFilters.value) {
+    (newValues, oldValues) => {
+      // Only execute if filters actually changed (not just on initialization)
+      // and if there's a query or active filters
+      if (oldValues !== undefined && (filters.value.query.trim() || hasActiveFilters.value)) {
         executeSearch(true)
       }
     }

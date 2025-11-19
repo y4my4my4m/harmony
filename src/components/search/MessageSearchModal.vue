@@ -324,9 +324,10 @@ const toDateInput = ref('')
 const channelSuggestions = ref<Channel[]>([])
 const userSuggestions = ref<any[]>([])
 
-// Initialize filters from props
+// Initialize filters from props (only when modal opens, not on mount)
 watch(() => props.show, (newVal) => {
   if (newVal) {
+    // Only set initial values if modal is being opened
     if (props.initialQuery) {
       setQuery(props.initialQuery)
     }
@@ -349,7 +350,7 @@ watch(() => props.show, (newVal) => {
     clearAllFilters()
     showFilters.value = false
   }
-}, { immediate: true })
+})
 
 // Watch date inputs
 watch([fromDateInput, toDateInput], ([from, to]) => {
