@@ -1055,9 +1055,18 @@ const closeInviteModal = () => {
 
 /* Highlighted message */
 .highlighted {
-  background-color: hsla(34, 100%, 50%, 0.1) !important;
-  border-left: 4px solid hsl(34, 100%, 50%);
+  background-color: rgba(88, 101, 242, 0.15) !important;
+  border-left: 3px solid #5865f2;
   animation: highlight-fade 3s ease-out;
+}
+
+/* Search text highlight */
+.search-highlight {
+  background-color: #fbbf24;
+  color: #1f2937;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-weight: 600;
 }
 
 @keyframes highlight-fade {

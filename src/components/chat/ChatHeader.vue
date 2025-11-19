@@ -85,16 +85,16 @@ const emit = defineEmits<{
   'toggle-left-sidebar': []
   'toggle-voice-panel': []
   'toggle-right-sidebar': []
+  'toggle-search': []
 }>()
 
 // State
-const showSearchModal = ref(false)
 const showMembersList = ref(false)
 const showOptionsMenu = ref(false)
 
 // Methods
 const handleSearchClick = () => {
-  showSearchModal.value = true
+  emit('toggle-search')
 }
 
 const handleMembersClick = () => {

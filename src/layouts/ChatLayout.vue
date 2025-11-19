@@ -56,6 +56,7 @@
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
             @toggle-voice-panel="$emit('toggleVoicePanel')"
             @toggle-right-sidebar="$emit('toggleRightSidebar')"
+            @toggle-search="handleToggleSearch"
           />
           <div v-else class="chat-placeholder-header">
             <div class="header-content">
@@ -206,7 +207,7 @@ const handleToggleSearch = () => {
   showSearchModal.value = true
 }
 
-const handleSearchMessageClick = (message: any) => {
+const handleSearchMessageClick = (message: any, searchQuery?: string) => {
   // Navigate to the message's channel/conversation
   if (message.channel_id) {
     router.push({
@@ -216,7 +217,8 @@ const handleSearchMessageClick = (message: any) => {
         channelId: message.channel_id
       },
       query: {
-        messageId: message.id
+        messageId: message.id,
+        ...(searchQuery ? { searchQuery } : {})
       }
     })
   } else if (message.conversation_id) {
@@ -226,7 +228,8 @@ const handleSearchMessageClick = (message: any) => {
         conversationId: message.conversation_id
       },
       query: {
-        messageId: message.id
+        messageId: message.id,
+        ...(searchQuery ? { searchQuery } : {})
       }
     })
   }

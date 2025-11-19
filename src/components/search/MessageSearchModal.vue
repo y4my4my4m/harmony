@@ -142,7 +142,7 @@
             >
               <span class="filter-chip-label">{{ filter.label }}:</span>
               <span class="filter-chip-value">{{ filter.value }}</span>
-              <button @click="clearFilter(key)" class="filter-chip-remove">
+              <button @click="() => handleClearFilter(key)" class="filter-chip-remove">
                 <Icon name="x" :size="12" />
               </button>
             </div>
@@ -257,12 +257,10 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useMessageSearch } from '@/composables/useMessageSearch'
 import { useUserData } from '@/composables/useUserData'
 import { useServerChannelStore } from '@/stores/useServerChannel'
-import { useDMStore } from '@/stores/useDM'
 import type { Message, Channel } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
-import { messagePartsToPlainText } from '@/utils/messageContentUtils'
 
 interface Props {
   show: boolean
@@ -274,7 +272,7 @@ interface Props {
 
 interface Emits {
   (e: 'close'): void
-  (e: 'message-click', message: Message): void
+  (e: 'message-click', message: Message, searchQuery?: string): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -291,7 +289,6 @@ const emit = defineEmits<Emits>()
 const {
   isSearching,
   searchResults,
-  hasMore,
   error,
   filters,
   recentSearches,
@@ -312,7 +309,6 @@ const {
 } = useUserData()
 
 const serverChannelStore = useServerChannelStore()
-const dmStore = useDMStore()
 
 // Component state
 const searchInputRef = ref<HTMLInputElement>()
@@ -488,8 +484,12 @@ const formatTime = (date: Date | string): string => {
   })
 }
 
+const handleClearFilter = (key: string) => {
+  clearFilter(key as keyof typeof filters.value)
+}
+
 const handleMessageClick = (message: Message) => {
-  emit('message-click', message)
+  emit('message-click', message, filters.value.query)
   handleClose()
 }
 

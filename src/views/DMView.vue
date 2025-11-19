@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
@@ -313,6 +313,95 @@ const getCallerAvatar = computed(() => {
 
 // Watch for conversation changes
 watch(() => route.params.conversationId, loadMessages, { immediate: true })
+
+// Watch for messageId query param to scroll and highlight
+watch(() => route.query.messageId, async (messageId) => {
+  if (messageId && typeof messageId === 'string') {
+    await nextTick()
+    await scrollToMessage(messageId)
+  }
+}, { immediate: true })
+
+// Function to scroll to and highlight a message
+const scrollToMessage = async (messageId: string) => {
+  await nextTick()
+  
+  // Wait a bit for messages to load
+  await new Promise(resolve => setTimeout(resolve, 300))
+  
+  const messageElement = document.getElementById(`message-${messageId}`)
+  if (messageElement) {
+    // Scroll to message
+    messageElement.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'center',
+      inline: 'nearest'
+    })
+    
+    // Highlight the message
+    messageElement.classList.add('highlighted')
+    setTimeout(() => {
+      messageElement.classList.remove('highlighted')
+    }, 3000)
+    
+    // Highlight search query text if available
+    const searchQuery = route.query.searchQuery as string
+    if (searchQuery) {
+      highlightSearchText(messageElement, searchQuery)
+    }
+  }
+}
+
+// Function to highlight search text within message content
+const highlightSearchText = (messageElement: HTMLElement, query: string) => {
+  const contentElements = messageElement.querySelectorAll('.message-content, .result-content')
+  const searchTerms = query.trim().split(/\s+/).filter(term => term.length > 0)
+  
+  contentElements.forEach(element => {
+    searchTerms.forEach(term => {
+      const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+        null
+      )
+      
+      const textNodes: Text[] = []
+      let node
+      while (node = walker.nextNode()) {
+        textNodes.push(node as Text)
+      }
+      
+      textNodes.forEach(textNode => {
+        const text = textNode.textContent || ''
+        const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+        if (regex.test(text)) {
+          const parent = textNode.parentNode
+          if (parent && parent.nodeName !== 'MARK') {
+            const highlighted = text.replace(regex, '<mark class="search-highlight">$1</mark>')
+            const wrapper = document.createElement('span')
+            wrapper.innerHTML = highlighted
+            parent.replaceChild(wrapper, textNode)
+            
+            // Remove highlight after 5 seconds
+            setTimeout(() => {
+              const marks = wrapper.querySelectorAll('mark.search-highlight')
+              marks.forEach(mark => {
+                const text = mark.textContent || ''
+                const textNode = document.createTextNode(text)
+                mark.parentNode?.replaceChild(textNode, mark)
+              })
+              // Clean up empty wrapper
+              if (wrapper.parentNode && wrapper.textContent) {
+                const textNode = document.createTextNode(wrapper.textContent)
+                wrapper.parentNode.replaceChild(textNode, wrapper)
+              }
+            }, 5000)
+          }
+        }
+      })
+    })
+  })
+}
 
 // Initialize DM environment on mount as fallback (BaseLayout should handle it, but ensure it's loaded)
 onMounted(async () => {
