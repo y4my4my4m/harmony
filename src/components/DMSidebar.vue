@@ -652,6 +652,7 @@ onUnmounted(() => {
 .conversations-list {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 8px 0;
 }
 
@@ -665,6 +666,8 @@ onUnmounted(() => {
   border-radius: 0;
   margin: 0 8px;
   border-radius: 4px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .conversation-item:hover {
@@ -739,6 +742,8 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
 }
 
 .username {
@@ -751,6 +756,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 2px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .conversation-time {
@@ -804,6 +811,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .federated-indicator {
@@ -811,6 +821,7 @@ onUnmounted(() => {
   align-items: center;
   color: var(--text-secondary);
   opacity: 0.7;
+  flex-shrink: 0;
   
   .icon {
     width: 14px;
