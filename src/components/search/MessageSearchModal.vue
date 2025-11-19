@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="search-modal-overlay" @click="handleOverlayClick" @keydown.esc="handleClose">
+    <div v-if="show" class="search-modal-overlay" @click="handleOverlayClick" @keydown.esc="handleClose">
       <div class="search-modal" @click.stop>
         <!-- Header -->
         <div class="search-modal-header">
@@ -325,9 +325,10 @@ const channelSuggestions = ref<Channel[]>([])
 const userSuggestions = ref<any[]>([])
 
 // Initialize filters from props (only when modal opens, not on mount)
-watch(() => props.show, (newVal) => {
-  if (newVal) {
-    // Only set initial values if modal is being opened
+watch(() => props.show, (newVal, oldVal) => {
+  if (newVal && !oldVal) {
+    // Modal is being opened (was false, now true)
+    // Only set initial values if provided
     if (props.initialQuery) {
       setQuery(props.initialQuery)
     }
@@ -345,7 +346,8 @@ watch(() => props.show, (newVal) => {
     nextTick(() => {
       searchInputRef.value?.focus()
     })
-  } else {
+  } else if (!newVal && oldVal) {
+    // Modal is being closed (was true, now false)
     // Reset when closing
     clearAllFilters()
     showFilters.value = false

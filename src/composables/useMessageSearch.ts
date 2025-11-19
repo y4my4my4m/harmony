@@ -86,7 +86,7 @@ export function useMessageSearch() {
     }
   }
 
-  const clearAllFilters = () => {
+    const clearAllFilters = () => {
     filters.value = {
       query: '',
       channelId: undefined,
@@ -99,6 +99,9 @@ export function useMessageSearch() {
       toDate: null
     }
     offset.value = 0
+    searchResults.value = []
+    hasMore.value = false
+    error.value = null
   }
 
   const executeSearch = async (resetOffset = true): Promise<void> => {

@@ -67,9 +67,15 @@ export class SearchService {
     try {
       const { signal } = options
 
-      // Validate query
-      if (!filters.query || typeof filters.query !== 'string') {
-        throw new Error('Search query is required')
+      // Validate query - allow empty string if filters are present
+      if (filters.query === undefined || filters.query === null || typeof filters.query !== 'string') {
+        // Only require query if no filters are present
+        const hasFilters = filters.channelId || filters.userId || filters.conversationId || 
+                          filters.serverId || filters.hasMedia !== undefined || 
+                          filters.hasUrl !== undefined || filters.fromDate || filters.toDate
+        if (!hasFilters) {
+          throw new Error('Search query is required')
+        }
       }
 
       // Normalize channel IDs
@@ -104,10 +110,13 @@ export class SearchService {
       }
 
       // Call PostgreSQL search function
+      // Normalize query - use empty string if not provided (allows filter-only searches)
+      const normalizedQuery = filters.query ? filters.query.trim() : ''
+      
       const { data, error } = await supabase.rpc('search_messages', {
-        p_query: filters.query.trim(),
+        p_query: normalizedQuery || null, // Pass null if empty string
         p_channel_id: filters.channelId && !Array.isArray(filters.channelId) ? filters.channelId : null,
-        p_channel_ids: channelIds,
+        p_channel_ids: channelIds && channelIds.length > 0 ? channelIds : null,
         p_user_id: filters.userId || null,
         p_conversation_id: filters.conversationId || null,
         p_server_id: filters.serverId || null,
