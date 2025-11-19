@@ -56,6 +56,7 @@
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
             @toggle-voice-panel="$emit('toggleVoicePanel')"
             @toggle-right-sidebar="$emit('toggleRightSidebar')"
+            @toggle-search="handleToggleSearch"
           />
           <div v-else class="chat-placeholder-header">
             <div class="header-content">
@@ -108,11 +109,20 @@
       @channelCreated="handleChannelCreated"
       @close="showCreateChannelForm = false"
     />
+    
+    <!-- Message Search Modal -->
+    <MessageSearchModal
+      :show="showSearchModal"
+      :initial-server-id="currentServer?.id"
+      :initial-channel-id="currentChannelId"
+      @close="showSearchModal = false"
+      @message-click="handleSearchMessageClick"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import UnifiedContextBar from '@/components/common/UnifiedContextBar.vue'
 import AdaptiveChannelSidebar from '@/components/common/AdaptiveChannelSidebar.vue'
@@ -121,6 +131,7 @@ import UserSidebar from '@/components/UserSidebar.vue'
 import NoServersSplash from '@/components/NoServersSplash.vue'
 import CreateChannel from '@/components/CreateChannel.vue'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
+import MessageSearchModal from '@/components/search/MessageSearchModal.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
@@ -188,10 +199,58 @@ const shouldShowNoServersSplash = computed(() => {
   return !props.isDM && servers.value.length === 0
 })
 
+// State
+const showSearchModal = ref(false)
+
 // Event handlers
 const handleToggleSearch = () => {
-  // TODO: Implement search toggle
+  showSearchModal.value = true
 }
+
+const handleSearchMessageClick = (message: any, searchQuery?: string) => {
+  // Navigate to the message's channel/conversation
+  if (message.channel_id) {
+    router.push({
+      name: 'ChatChannel',
+      params: {
+        serverId: currentServer.value?.id || '',
+        channelId: message.channel_id
+      },
+      query: {
+        messageId: message.id,
+        ...(searchQuery ? { searchQuery } : {})
+      }
+    })
+  } else if (message.conversation_id) {
+    router.push({
+      name: 'DMConversation',
+      params: {
+        conversationId: message.conversation_id
+      },
+      query: {
+        messageId: message.id,
+        ...(searchQuery ? { searchQuery } : {})
+      }
+    })
+  }
+}
+
+// Keyboard shortcut handler (Ctrl+K / Cmd+K)
+const handleKeyDown = (event: KeyboardEvent) => {
+  // Check for Ctrl+K (Windows/Linux) or Cmd+K (Mac)
+  if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+    event.preventDefault()
+    handleToggleSearch()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown)
+})
 
 const handleChannelSelected = (channelId: string) => {
   const currentServerId = serverId.value || currentServer.value?.id

@@ -203,6 +203,14 @@
     @close="showGroupSettings = false"
     @updated="handleGroupUpdated"
   />
+
+  <!-- Message Search Modal -->
+  <MessageSearchModal
+    :show="showSearchModal"
+    :initial-conversation-id="conversation.id"
+    @close="showSearchModal = false"
+    @message-click="handleSearchMessageClick"
+  />
 </template>
 
 <script setup lang="ts">
@@ -211,6 +219,7 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupSettingsModal from '@/components/dm/GroupSettingsModal.vue'
+import MessageSearchModal from '@/components/search/MessageSearchModal.vue'
 import { useUserData } from '@/composables/useUserData'
 import type { DMConversation } from '@/stores/useDM'
 import { getAvatarUrl } from '@/utils/avatarUtils'
@@ -497,6 +506,12 @@ const formatLastSeen = (lastSeen?: string): string => {
 
 const handleSearchClick = () => {
   showSearchModal.value = true
+}
+
+const handleSearchMessageClick = (message: any) => {
+  // Message click is handled by the modal, just close it
+  // The message will be scrolled to in the conversation view
+  showSearchModal.value = false
 }
 
 const handleMoreClick = (event: Event) => {
