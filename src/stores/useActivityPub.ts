@@ -1119,7 +1119,8 @@ export const useActivityPubStore = defineStore('activitypub', {
         const visibility = postData?.visibility || this.composerState.visibility;
         const contentWarning = postData?.content_warning || postData?.contentWarning || this.composerState.contentWarning;
         const replyTo = postData?.in_reply_to || postData?.replyTo || this.composerState.replyTo;
-        const mediaAttachments = postData?.media_attachments || [];
+        // Handle both snake_case and camelCase media attachments
+        const mediaAttachments = postData?.media_attachments || postData?.mediaAttachments || [];
         const sensitive = postData?.is_sensitive ?? postData?.sensitive ?? this.composerState.sensitive;
 
         // Upload media attachments if any
@@ -1164,26 +1165,84 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Upload media attachments
+     * Convert MediaAttachment with blob URL to File
      */
-    async uploadMediaAttachments(files: File[]): Promise<any[]> {
-      const uploadPromises = files.map(async (file) => {
-        const fileExt = file.name.split('.').pop();
+    async convertMediaAttachmentToFile(attachment: any): Promise<File> {
+      // If it's already a File, return it
+      if (attachment instanceof File) {
+        return attachment;
+      }
+
+      // If it has a blob URL, fetch and convert to File
+      if (attachment.url && attachment.url.startsWith('blob:')) {
+        const response = await fetch(attachment.url);
+        const blob = await response.blob();
+        const fileName = attachment.filename || `file.${blob.type.split('/')[1] || 'bin'}`;
+        // attachment.type might be 'image'/'video'/'audio', but we need MIME type
+        // Use blob.type if available, otherwise infer from attachment.type
+        let mimeType = blob.type;
+        if (!mimeType && attachment.type) {
+          if (attachment.type === 'image') mimeType = 'image/jpeg';
+          else if (attachment.type === 'video') mimeType = 'video/mp4';
+          else if (attachment.type === 'audio') mimeType = 'audio/mpeg';
+        }
+        return new File([blob], fileName, { type: mimeType || 'application/octet-stream' });
+      }
+
+      // If it's a MediaAttachment with a file property
+      if (attachment.file instanceof File) {
+        return attachment.file;
+      }
+
+      throw new Error('Cannot convert MediaAttachment to File: invalid attachment format');
+    },
+
+    /**
+     * Upload media attachments (handles both File[] and MediaAttachment[])
+     */
+    async uploadMediaAttachments(attachments: (File | any)[]): Promise<any[]> {
+      if (!attachments || attachments.length === 0) {
+        return [];
+      }
+
+      const uploadPromises = attachments.map(async (attachment) => {
+        // Convert to File if needed
+        const file = await this.convertMediaAttachmentToFile(attachment);
+        
+        const fileExt = file.name.split('.').pop() || 'bin';
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
         const filePath = `posts/${fileName}`;
 
-        const { data, error } = await supabase.storage
-          .from('user_media')
-          .upload(filePath, file);
+        try {
+          const { data, error } = await supabase.storage
+            .from('user_media')
+            .upload(filePath, file, {
+              cacheControl: '3600',
+              upsert: false
+            });
 
-        if (error) throw error;
+          if (error) {
+            console.error('Upload error:', error);
+            // Provide more helpful error messages
+            if (error.message?.includes('413') || error.message?.includes('too large')) {
+              throw new Error(`File "${file.name}" is too large. Maximum file size is 50MB.`);
+            }
+            if (error.message?.includes('CORS')) {
+              throw new Error('CORS error: Please check Supabase storage CORS configuration.');
+            }
+            throw error;
+          }
 
-        return {
-          type: file.type.startsWith('image/') ? 'Image' : 'Document',
-          url: data.path,
-          mediaType: file.type,
-          name: file.name
-        };
+          return {
+            type: file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Document',
+            url: data.path,
+            mediaType: file.type,
+            name: file.name
+          };
+        } catch (error: any) {
+          console.error(`Failed to upload file "${file.name}":`, error);
+          throw error;
+        }
       });
 
       return Promise.all(uploadPromises);
