@@ -38,7 +38,41 @@ CREATE INDEX IF NOT EXISTS idx_message_search_url ON message_search_index (has_u
 CREATE INDEX IF NOT EXISTS idx_message_search_channel_date ON message_search_index (channel_id, created_at DESC) WHERE channel_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_message_search_user_date ON message_search_index (user_id, created_at DESC);
 
+-- Enable Row Level Security
+ALTER TABLE message_search_index ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policy if it exists (for idempotency)
+DROP POLICY IF EXISTS "Users can search messages they have access to" ON message_search_index;
+
+-- RLS Policy: Users can only search messages in channels/conversations they have access to
+-- This mirrors the messages table RLS policy
+CREATE POLICY "Users can search messages they have access to" ON message_search_index
+  FOR SELECT
+  TO authenticated
+  USING (
+    -- For conversations: user must be a participant
+    (conversation_id IS NOT NULL AND EXISTS (
+      SELECT 1
+      FROM conversation_participants cp
+      JOIN profiles p ON p.id = cp.user_id
+      WHERE cp.conversation_id = message_search_index.conversation_id
+        AND cp.left_at IS NULL
+        AND p.auth_user_id = auth.uid()
+    ))
+    OR
+    -- For channels: user must be a member of the server
+    (channel_id IS NOT NULL AND EXISTS (
+      SELECT 1
+      FROM channels c
+      JOIN user_servers us ON c.server_id = us.server_id
+      JOIN profiles p ON p.id = us.user_id
+      WHERE c.id = message_search_index.channel_id
+        AND p.auth_user_id = auth.uid()
+    ))
+  );
+
 -- Function to extract plain text from MessagePart[] JSONB
+DROP FUNCTION IF EXISTS extract_message_text(jsonb);
 CREATE OR REPLACE FUNCTION extract_message_text(content_parts jsonb)
 RETURNS text AS $$
 DECLARE
@@ -75,6 +109,7 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Function to detect message features (media/URL presence)
+DROP FUNCTION IF EXISTS detect_message_features(jsonb);
 CREATE OR REPLACE FUNCTION detect_message_features(content_parts jsonb)
 RETURNS jsonb AS $$
 DECLARE
@@ -105,6 +140,7 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Function to get server_id from channel_id
+DROP FUNCTION IF EXISTS get_channel_server_id(uuid);
 CREATE OR REPLACE FUNCTION get_channel_server_id(channel_uuid uuid)
 RETURNS uuid AS $$
 DECLARE
@@ -118,7 +154,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
+-- Drop triggers first (they depend on functions)
+DROP TRIGGER IF EXISTS trigger_index_message ON messages;
+DROP TRIGGER IF EXISTS trigger_remove_message_index ON messages;
+
 -- Function to index a message (called by trigger)
+-- Uses SECURITY DEFINER to bypass RLS when indexing (system operation)
+DROP FUNCTION IF EXISTS index_message() CASCADE;
 CREATE OR REPLACE FUNCTION index_message()
 RETURNS trigger AS $$
 DECLARE
@@ -151,6 +193,7 @@ BEGIN
   END IF;
 
   -- Insert or update search index
+  -- This bypasses RLS because it's a system operation (trigger)
   INSERT INTO message_search_index (
     message_id,
     content_text,
@@ -187,31 +230,48 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger to auto-index messages on insert/update
-DROP TRIGGER IF EXISTS trigger_index_message ON messages;
 CREATE TRIGGER trigger_index_message
   AFTER INSERT OR UPDATE OF content, channel_id, conversation_id, user_id, is_deleted ON messages
   FOR EACH ROW
   EXECUTE FUNCTION index_message();
 
 -- Trigger to remove from index on delete
+-- Uses SECURITY DEFINER to bypass RLS when removing (system operation)
+DROP FUNCTION IF EXISTS remove_message_from_index() CASCADE;
 CREATE OR REPLACE FUNCTION remove_message_from_index()
 RETURNS trigger AS $$
 BEGIN
   DELETE FROM message_search_index WHERE message_id = OLD.id;
   RETURN OLD;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_remove_message_index ON messages;
 CREATE TRIGGER trigger_remove_message_index
   AFTER DELETE ON messages
   FOR EACH ROW
   EXECUTE FUNCTION remove_message_from_index();
 
+-- Helper function to get current user's profile ID
+DROP FUNCTION IF EXISTS get_current_user_profile_id();
+CREATE OR REPLACE FUNCTION get_current_user_profile_id()
+RETURNS uuid AS $$
+DECLARE
+  profile_uuid uuid;
+BEGIN
+  SELECT id INTO profile_uuid
+  FROM profiles
+  WHERE auth_user_id = auth.uid()
+  LIMIT 1;
+  
+  RETURN profile_uuid;
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+
 -- Main search function
+DROP FUNCTION IF EXISTS search_messages(text, uuid, uuid[], uuid, uuid, uuid, boolean, boolean, timestamptz, timestamptz, integer, integer);
 CREATE OR REPLACE FUNCTION search_messages(
   p_query text,
   p_channel_id uuid DEFAULT NULL,
@@ -238,7 +298,15 @@ RETURNS TABLE (
 DECLARE
   search_query text;
   tsquery_val tsquery;
+  current_user_profile_id uuid;
 BEGIN
+  -- Get current user's profile ID (works for both local and remote users)
+  current_user_profile_id := get_current_user_profile_id();
+  
+  -- If no profile found, return empty (user not authenticated or no profile)
+  IF current_user_profile_id IS NULL THEN
+    RETURN;
+  END IF;
   -- Build search query - handle empty query
   IF p_query IS NULL OR trim(p_query) = '' THEN
     search_query := '';
@@ -268,10 +336,30 @@ BEGIN
     msi.created_at
   FROM message_search_index msi
   WHERE 
+    -- Access control: Only show messages user has access to
+    (
+      -- For conversations: user must be a participant
+      (msi.conversation_id IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM conversation_participants cp
+        WHERE cp.conversation_id = msi.conversation_id
+          AND cp.user_id = current_user_profile_id
+          AND cp.left_at IS NULL
+      ))
+      OR
+      -- For channels: user must be a member of the server
+      (msi.channel_id IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM channels c
+        JOIN user_servers us ON c.server_id = us.server_id
+        WHERE c.id = msi.channel_id
+          AND us.user_id = current_user_profile_id
+      ))
+    )
     -- Search conditions (only if query provided)
-    (tsquery_val IS NULL OR 
-     msi.content_tsvector @@ tsquery_val OR 
-     similarity(msi.content_text, search_query) > 0.2)
+    AND (tsquery_val IS NULL OR 
+         msi.content_tsvector @@ tsquery_val OR 
+         similarity(msi.content_text, search_query) > 0.2)
     -- Filters
     AND (p_channel_id IS NULL OR msi.channel_id = p_channel_id)
     AND (p_channel_ids IS NULL OR msi.channel_id = ANY(p_channel_ids))
@@ -288,5 +376,5 @@ BEGIN
   LIMIT p_limit
   OFFSET p_offset;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
