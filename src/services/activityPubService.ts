@@ -258,25 +258,6 @@ export class ActivityPubService {
         };
       });
       
-      // DEBUG: Log ALL posts returned by RPC to see if our post is there
-      console.log(`🔍 DEBUG - RPC returned ${posts.length} posts total`);
-      console.log(`🔍 DEBUG - All post IDs:`, posts.map((p: any) => p.id));
-      console.log(`🔍 DEBUG - Looking for post: 968f8b30-8de1-4e0f-b9bb-87d8085330a7`);
-      
-      // DEBUG: Log the problematic post's data from RPC
-      const debugPost = posts.find((p: any) => p.id === '968f8b30-8de1-4e0f-b9bb-87d8085330a7');
-      if (debugPost) {
-        console.log(`🔍 DEBUG - RPC returned post ${debugPost.id}:`, {
-          is_favorited: debugPost.is_favorited,
-          favorites_count: debugPost.favorites_count,
-          typeof_is_favorited: typeof debugPost.is_favorited,
-          all_keys: Object.keys(debugPost),
-          full_rpc_data: debugPost
-        });
-      } else {
-        console.log(`❌ DEBUG - Post 968f8b30-8de1-4e0f-b9bb-87d8085330a7 NOT FOUND in frontend RPC results!`);
-        console.log(`❌ DEBUG - But SQL shows it should be there...`);
-      }
       
       // Log statistics
       const localCount = posts.filter((p: any) => p.is_local).length;

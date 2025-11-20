@@ -217,7 +217,33 @@ const isClickable = computed(() =>
 // Rich content computed properties
 const messagePreview = computed(() => {
   const data = props.notification.data
-  return data.message?.content_preview || null
+  // Prioritize structured message.content_preview
+  let preview = data.message?.content_preview
+  
+  // Fallback to legacy format
+  if (!preview) {
+    preview = data.preview || data.content_preview
+  }
+  
+  // Handle MessagePart[] content
+  if (!preview && Array.isArray(data.message?.content)) {
+    preview = data.message.content
+      .map((part: any) => {
+        if (part.type === 'text') return part.text
+        if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+        if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
+        return ''
+      })
+      .join('')
+      .trim()
+  }
+  
+  // Truncate if too long
+  if (preview && preview.length > 100) {
+    preview = preview.substring(0, 100) + '...'
+  }
+  
+  return preview || null
 })
 
 const channelInfo = computed(() => {

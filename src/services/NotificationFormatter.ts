@@ -17,75 +17,125 @@ export interface NotificationMessage {
 // Message templates - easy to replace for internationalization
 const MESSAGE_TEMPLATES = {
   mention: {
-    title: (data: any) => `${data.sender.username} mentioned you in #${data.location.channel_name}`,
-    message: (data: any) => data.message.content_preview || 'Click to view message',
-    shortTitle: (data: any) => `Mention in #${data.location.channel_name}`
+    title: (data: any) => {
+      const sender = data.sender
+      const senderName = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
+      const channelName = data.location?.channel_name || data.channel_name || 'channel'
+      return `${senderName} mentioned you in #${channelName}`
+    },
+    message: (data: any) => {
+      const preview = data.message?.content_preview || data.preview || data.content_preview
+      if (preview && preview.length > 100) {
+        return preview.substring(0, 100) + '...'
+      }
+      return preview || 'Click to view message'
+    },
+    shortTitle: (data: any) => {
+      const channelName = data.location?.channel_name || data.channel_name || 'channel'
+      return `Mention in #${channelName}`
+    }
   },
   
   dm: {
     title: (data: any) => {
-      // Handle both new database format and legacy format
-      const senderUsername = data.sender?.username || data.sender_username || 'Someone'
-      const domain = data.sender?.domain
-      const handle = domain ? `@${domain}` : ''
+      // Handle both structured format (sender object) and legacy format
+      const sender = data.sender
+      const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
+      const domain = sender?.domain
+      const handle = domain && !sender?.is_local ? `@${domain}` : ''
       return `${senderUsername}${handle} sent you a message`
     },
     message: (data: any) => {
-      // Handle MessagePart[] content from federated DMs
-      const content = data.message?.content || data.content
+      // Prioritize structured message.content_preview
+      let preview = data.message?.content_preview
       
-      if (Array.isArray(content)) {
-        // Convert MessagePart[] to plain text
-        return content.map(part => {
-          if (part.type === 'text') return part.text
-          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
-          if (part.type === 'emoji') return `:${part.emoji.name}:`
-          if (part.type === 'hashtag') return `#${part.name}`
-          if (part.type === 'url') return part.url
-          return ''
-        }).join('').trim() || 'Click to view message'
+      // Handle MessagePart[] content from federated DMs
+      if (!preview) {
+        const content = data.message?.content || data.content
+        
+        if (Array.isArray(content)) {
+          // Convert MessagePart[] to plain text
+          preview = content.map(part => {
+            if (part.type === 'text') return part.text
+            if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+            if (part.type === 'emoji') return `:${part.emoji.name}:`
+            if (part.type === 'hashtag') return `#${part.name}`
+            if (part.type === 'url') return part.url
+            return ''
+          }).join('').trim()
+        }
       }
       
-      // Fallback for string content
-      let preview = data.message?.content_preview || data.preview || data.content_preview
+      // Legacy format fallbacks
+      if (!preview) {
+        preview = data.preview || data.content_preview
+      }
       
       // If preview is a JSON string, parse it
       if (typeof preview === 'string' && preview.startsWith('[')) {
         try {
           const parsed = JSON.parse(preview)
           if (Array.isArray(parsed)) {
-            return parsed.map(p => p.text || '').join('').trim()
+            preview = parsed.map(p => p.text || '').join('').trim()
           }
         } catch (e) {
           // Use as-is if parsing fails
         }
       }
       
+      // Truncate long previews
+      if (preview && preview.length > 100) {
+        preview = preview.substring(0, 100) + '...'
+      }
+      
       return preview || 'Click to view message'
     },
     shortTitle: (data: any) => {
-      const senderUsername = data.sender?.username || data.sender_username || 'Someone'
+      const sender = data.sender
+      const senderUsername = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
       return `DM from ${senderUsername}`
     }
   },
   
   reaction: {
     title: (data: any) => {
-      const reactorName = data.reactor.display_name || data.reactor.username
-      if (data.location) {
-        return `${reactorName} reacted to your message in #${data.location.channel_name}`
+      const reactor = data.reactor
+      const reactorName = reactor?.display_name || reactor?.username || 'Someone'
+      const channelName = data.location?.channel_name || data.channel_name
+      if (channelName) {
+        return `${reactorName} reacted to your message in #${channelName}`
       } else {
         return `${reactorName} reacted to your message`
       }
     },
-    message: (data: any) => `:${data.reaction.emoji_name}: reaction`,
-    shortTitle: (data: any) => `:${data.reaction.emoji_name}: reaction`
+    message: (data: any) => {
+      const emojiName = data.reaction?.emoji_name || data.emoji_name || '👍'
+      return `:${emojiName}: reaction`
+    },
+    shortTitle: (data: any) => {
+      const emojiName = data.reaction?.emoji_name || data.emoji_name || '👍'
+      return `:${emojiName}: reaction`
+    }
   },
   
   reply: {
-    title: (data: any) => `${data.sender.username} replied to your message in #${data.location.channel_name}`,
-    message: (data: any) => data.message.content_preview || 'Click to view reply',
-    shortTitle: (data: any) => `Reply in #${data.location.channel_name}`
+    title: (data: any) => {
+      const sender = data.sender
+      const senderName = sender?.display_name || sender?.username || data.sender_username || data.sender_display_name || 'Someone'
+      const channelName = data.location?.channel_name || data.channel_name || 'channel'
+      return `${senderName} replied to your message in #${channelName}`
+    },
+    message: (data: any) => {
+      const preview = data.message?.content_preview || data.preview || data.content_preview
+      if (preview && preview.length > 100) {
+        return preview.substring(0, 100) + '...'
+      }
+      return preview || 'Click to view reply'
+    },
+    shortTitle: (data: any) => {
+      const channelName = data.location?.channel_name || data.channel_name || 'channel'
+      return `Reply in #${channelName}`
+    }
   },
   
   server_invite: {
@@ -186,6 +236,28 @@ const MESSAGE_TEMPLATES = {
     shortTitle: (data: any) => `New reply`
   },
 
+  activitypub_reaction: {
+    title: (data: any) => {
+      const sender = data.sender
+      const senderName = sender?.display_name || sender?.username || 'Someone'
+      const domain = sender?.domain && !sender?.is_local ? `@${sender.domain}` : ''
+      const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
+      return `${senderName}${domain} reacted ${emojiName} to your post`
+    },
+    message: (data: any) => {
+      const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
+      if (data.post_content) {
+        const content = data.post_content.substring(0, 100)
+        return `${emojiName} on "${content}${data.post_content.length > 100 ? '...' : ''}"`
+      }
+      return `${emojiName} reaction`
+    },
+    shortTitle: (data: any) => {
+      const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
+      return `${emojiName} reaction`
+    }
+  },
+
   activitypub_follow_request: {
     title: (data: any) => `${data.follower.display_name || data.follower.username} wants to follow you`,
     message: (data: any) => `${data.follower.handle || '@' + data.follower.username} sent you a follow request`,
@@ -237,80 +309,122 @@ export class NotificationFormatter {
   
   /**
    * Get username from notification data (includes domain for remote users)
+   * Handles both structured format (sender object) and legacy format
    */
   static getUsername(notification: Notification): string {
     const data = notification.data
     
     // For ActivityPub notifications, prioritize the handle (includes domain)
     if (notification.type.startsWith('activitypub_')) {
+      // Check sender first (for reactions)
+      if (data.sender?.handle) return data.sender.handle
       if (data.follower?.handle) return data.follower.handle
       if (data.actor?.handle) return data.actor.handle
       if (data.user?.handle) return data.user.handle
       if (data.author?.handle) return data.author.handle
       
       // Fallback to constructing handle for ActivityPub users
-      const user = data.follower || data.actor || data.user || data.author
+      const user = data.sender || data.follower || data.actor || data.user || data.author
       if (user) {
         const username = user.display_name || user.username
         if (!user.is_local && user.domain) {
           return `@${user.username}@${user.domain}`
         }
-        return username
+        return username || 'Unknown'
       }
     }
     
-    // For non-ActivityPub notifications, use standard display name/username
-    return data.sender?.display_name || data.sender?.username || 
-           data.reactor?.display_name || data.reactor?.username || 
-           data.inviter?.display_name || data.inviter?.username ||
-           // ActivityPub fallback (should not reach here due to above check)
-           data.actor?.display_name || data.actor?.username ||
-           data.follower?.display_name || data.follower?.username ||
-           data.user?.display_name || data.user?.username ||
-           data.author?.display_name || data.author?.username || 'Unknown'
+    // For non-ActivityPub notifications, prioritize structured sender object
+    if (data.sender) {
+      // Structured format: sender object with display_name, username, domain
+      const displayName = data.sender.display_name || data.sender.username
+      if (data.sender.domain && !data.sender.is_local) {
+        return `${displayName}@${data.sender.domain}`
+      }
+      return displayName || 'Unknown'
+    }
+    
+    // Legacy format fallbacks
+    if (data.sender_username || data.sender_display_name) {
+      return data.sender_display_name || data.sender_username || 'Unknown'
+    }
+    
+    // Other notification types
+    if (data.reactor) {
+      return data.reactor.display_name || data.reactor.username || 'Unknown'
+    }
+    
+    if (data.inviter) {
+      return data.inviter.display_name || data.inviter.username || 'Unknown'
+    }
+    
+    return 'Unknown'
   }
   
   /**
    * Get avatar URL from notification data
+   * Handles both structured format (sender object) and legacy format
    */
   static getAvatarUrl(notification: Notification): string {
     const data = notification.data
-    const avatar =
-      data.sender?.avatar_url ||
-      data.reactor?.avatar_url ||
-      data.inviter?.avatar_url ||
-      // ActivityPub notifications
-      data.actor?.avatar_url ||
-      data.follower?.avatar_url ||
-      data.user?.avatar_url ||
-      data.author?.avatar_url
+    
+    // Prioritize structured sender object
+    let avatar = data.sender?.avatar_url
+    
+    // ActivityPub notifications (sender is already checked above, but check others too)
+    if (!avatar && notification.type.startsWith('activitypub_')) {
+      avatar = data.sender?.avatar_url ||
+               data.actor?.avatar_url ||
+               data.follower?.avatar_url ||
+               data.user?.avatar_url ||
+               data.author?.avatar_url
+    }
+    
+    // Other notification types
+    if (!avatar) {
+      avatar = data.reactor?.avatar_url ||
+               data.inviter?.avatar_url
+    }
+    
+    // Legacy format fallback
+    if (!avatar && data.sender_avatar_url) {
+      avatar = data.sender_avatar_url
+    }
 
     return utilGetAvatarUrl(avatar) || '/default_avatar.png'
   }
   
   /**
    * Get server name from notification data
+   * Handles both structured format and legacy format
    */
   static getServerName(notification: Notification): string | null {
-    return notification.data.location?.server_name || null
+    const data = notification.data
+    return data.location?.server_name || data.server_name || null
   }
   
   /**
    * Get channel name from notification data
+   * Handles both structured format and legacy format
    */
   static getChannelName(notification: Notification): string | null {
-    return notification.data.location?.channel_name || null
+    const data = notification.data
+    return data.location?.channel_name || data.channel_name || null
   }
   
   /**
    * Check if notification is clickable (has navigation target)
+   * Handles both structured format and legacy format
    */
   static isClickable(notification: Notification): boolean {
     const data = notification.data
     return !!(
       data.conversation?.id ||
+      data.conversation_id ||
       (data.location?.server_id && data.location?.channel_id) ||
+      (data.server_id && data.channel_id) ||
       data.location?.server_id ||
+      data.server_id ||
       // ActivityPub notifications with post IDs
       (notification.type.startsWith('activitypub_') && data.post_id)
     )
@@ -318,6 +432,7 @@ export class NotificationFormatter {
   
   /**
    * Get navigation data for clicking notification
+   * Handles both structured format and legacy format
    */
   static getNavigationData(notification: Notification) {
     const data = notification.data
@@ -333,27 +448,33 @@ export class NotificationFormatter {
       }
     }
     
-    if (data.conversation?.id) {
+    // DM/Conversation navigation - check both structured and legacy formats
+    const conversationId = data.conversation?.id || data.conversation_id
+    if (conversationId) {
       return {
         type: 'conversation' as const,
-        conversationId: data.conversation.id,
-        messageId: data.message?.id
+        conversationId: conversationId,
+        messageId: data.message?.id || data.message_id
       }
     }
     
-    if (data.location?.server_id && data.location?.channel_id) {
+    // Channel navigation - check both structured and legacy formats
+    const serverId = data.location?.server_id || data.server_id
+    const channelId = data.location?.channel_id || data.channel_id
+    if (serverId && channelId) {
       return {
         type: 'channel' as const,
-        serverId: data.location.server_id,
-        channelId: data.location.channel_id,
-        messageId: data.message?.id
+        serverId: serverId,
+        channelId: channelId,
+        messageId: data.message?.id || data.message_id
       }
     }
     
-    if (data.location?.server_id) {
+    // Server-only navigation
+    if (serverId) {
       return {
         type: 'server' as const,
-        serverId: data.location.server_id
+        serverId: serverId
       }
     }
     

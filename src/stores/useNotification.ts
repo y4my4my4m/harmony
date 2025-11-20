@@ -500,6 +500,19 @@ export const useNotificationStore = defineStore('notification', {
                 return
               }
 
+              // Note: Block/mute filtering should be handled by database triggers/functions
+              // If a notification reaches here, it should already be filtered
+              
+              // Check DND - if active, don't show UI but still add to list
+              const isDndActive = this.isQuietHours
+              if (isDndActive && newNotification.type !== 'server_update') {
+                console.log('🌙 DND active - notification added silently:', newNotification.id)
+                // Still add to list but don't show UI
+                this.notifications.unshift(newNotification)
+                this.updateUnreadCount()
+                return
+              }
+
               // Add to notifications list
               this.notifications.unshift(newNotification)
               this.updateUnreadCount()
@@ -510,9 +523,9 @@ export const useNotificationStore = defineStore('notification', {
 
               // Use ViewContextTracker for smart UI decisions (Discord-like behavior)
               const uiDecision = viewContextTracker.shouldShowNotificationUI({
-                server_id: newNotification.data.location?.server_id,
-                channel_id: newNotification.data.location?.channel_id,
-                conversation_id: newNotification.data.conversation?.id,
+                server_id: newNotification.data.location?.server_id || newNotification.data.server_id,
+                channel_id: newNotification.data.location?.channel_id || newNotification.data.channel_id,
+                conversation_id: newNotification.data.conversation?.id || newNotification.data.conversation_id,
                 type: newNotification.type
               })
 
@@ -547,6 +560,7 @@ export const useNotificationStore = defineStore('notification', {
           }
         })
     },
+
 
     /**
      * Handle realtime notification through unified notification system

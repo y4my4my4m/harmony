@@ -165,13 +165,7 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Check if user is following another user
      */
     isFollowing: (state) => (userId: string) => {
-      const following = state.followedUsers.has(userId);
-      console.log(`🔍 isFollowing check for ${userId}:`, {
-        following,
-        followedUsersSize: state.followedUsers.size,
-        followedUsersList: Array.from(state.followedUsers).slice(0, 5) // First 5 for debug
-      });
-      return following;
+      return state.followedUsers.has(userId);
     },
 
     /**
@@ -642,13 +636,6 @@ export const useActivityPubStore = defineStore('activitypub', {
      * Update post interaction from realtime - handles both counts and user state (now with server sync)
      */
     async updatePostInteractionFromRealtime(postId: string, interactionType: string, eventType: string, userId: string) {
-      console.log(`🔍 DEBUG: updatePostInteractionFromRealtime called with:`, {
-        postId,
-        interactionType,
-        eventType,
-        userId
-      });
-
       // Early validation to prevent undefined errors
       if (!postId || postId === 'undefined') {
         console.error('❌ Invalid postId in realtime update:', postId);
@@ -667,12 +654,6 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       const currentUser = await supabase.auth.getUser();
       const isCurrentUser = currentUser.data.user?.id === userId;
-      
-      console.log(`🔍 DEBUG: Current user check:`, {
-        currentUserId: currentUser.data.user?.id,
-        eventUserId: userId,
-        isCurrentUser
-      });
 
       // For realtime updates, we need to get accurate server state instead of guessing
       // This prevents conflicts between manual actions and realtime updates
@@ -698,38 +679,13 @@ export const useActivityPubStore = defineStore('activitypub', {
 
       const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
       
-      // DEBUG: Log all posts in feeds to see what's there
-      console.log(`🔍 DEBUG: Searching for postId ${postId} in feeds:`);
-      feeds.forEach((feed, index) => {
-        const feedName = ['homeFeed', 'publicFeed', 'localFeed'][index];
-        console.log(`🔍 DEBUG: ${feedName} has ${feed.posts.length} posts:`, 
-          feed.posts.map(p => ({ id: p.id, favorites_count: p.favorites_count, is_favorited: p.is_favorited }))
-        );
-      });
-      
       feeds.forEach(feed => {
         const post = feed.posts.find(p => p.id === postId);
         if (post) {
-          console.log(`🔍 DEBUG: Found post in feed, before realtime update:`, {
-            postId: post.id,
-            old_favorites_count: post.favorites_count,
-            old_is_favorited: post.is_favorited,
-            new_favorites_count: postCounts.favorites_count,
-            is_reblog: !!(post as any).reblog
-          });
-
           // Always update with server-accurate counts
           post.favorites_count = postCounts.favorites_count;
           post.reblogs_count = postCounts.reblogs_count;
           post.replies_count = postCounts.replies_count;
-          
-          console.log(`🔍 DEBUG: Updated post counts in feed:`, {
-            postId: post.id,
-            old_favorites_count: post.favorites_count,
-            new_favorites_count: postCounts.favorites_count,
-            updated_favorites_count: post.favorites_count,
-            is_current_user: isCurrentUser
-          });
           
           // IMPORTANT: For reblogs, also update the nested reblog object
           // This ensures displayInteractionCounts computed property gets updated

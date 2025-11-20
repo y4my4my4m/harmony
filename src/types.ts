@@ -343,6 +343,7 @@ export type NotificationType =
   | 'activitypub_reblog'
   | 'activitypub_mention'
   | 'activitypub_reply'
+  | 'activitypub_reaction'
   | 'activitypub_follow_request'
   | 'error';
 
