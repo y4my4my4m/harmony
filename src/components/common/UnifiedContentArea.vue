@@ -213,7 +213,7 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   display: flex;
   flex-direction: column;
   flex: 1;
-  height: 100%;
+  min-height: 0; /* Important for flex child with overflow */
   background: var(--background-primary);
 }
 

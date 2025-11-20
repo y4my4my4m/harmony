@@ -77,17 +77,37 @@ export async function updateViewContext(
 export function useViewContextTracking() {
   const route = useRoute()
 
+  // ActivityPub route names (from router)
+  const activityPubRoutes = [
+    'Social', 'Monyverse', 'Explore', // Legacy routes
+    'SocialHome', 'SocialLocal', 'SocialPublic', // Timeline routes
+    'UserProfile', 'Followers', 'Following', // Profile routes
+    'Lists', 'Notifications', 'Bookmarks', // Social feature routes
+    'SocialTrending', 'SocialInstances', // Explore routes
+    'PostView', 'PostDetail', 'ConversationThread' // Post routes
+  ]
+
   // Watch for route changes and update view context in presence
   watch(
-    () => [route.name, route.params.serverId, route.params.channelId, route.params.conversationId],
-    ([routeName, serverId, channelId, conversationId]) => {
-      if (routeName === 'ChatChannel' && serverId && channelId) {
+    () => [route.name, route.path, route.params.serverId, route.params.channelId, route.params.conversationId],
+    ([routeName, routePath, serverId, channelId, conversationId]) => {
+      const routeNameStr = routeName?.toString() || ''
+      const routePathStr = routePath?.toString() || ''
+      
+      // Check for server channel
+      if (routeNameStr === 'ChatChannel' && serverId && channelId) {
         updateViewContext('server_channel', serverId as string, channelId as string)
-      } else if (routeName === 'DMConversation' && conversationId) {
+      } 
+      // Check for DM conversation
+      else if (routeNameStr === 'DMConversation' && conversationId) {
         updateViewContext('dm', undefined, undefined, conversationId as string)
-      } else if (routeName?.toString().startsWith('Social')) {
+      } 
+      // Check for ActivityPub routes (by name or path)
+      else if (activityPubRoutes.includes(routeNameStr) || routePathStr.startsWith('/social')) {
         updateViewContext('activitypub_home')
-      } else {
+      } 
+      // Default to home
+      else {
         updateViewContext('home')
       }
     },
