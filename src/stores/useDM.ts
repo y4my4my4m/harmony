@@ -1408,7 +1408,7 @@ export const useDMStore = defineStore('dm', () => {
         const tempMessageIndex = currentDMMessages.value.findIndex(m => m.id.startsWith('temp-') && m.user_id === message.user_id);
         if (tempMessageIndex !== -1) {
           console.warn('⚠️ Temp message still exists during real-time, replacing now');
-          currentDMMessages.value.splice(tempMessageIndex, 1, {
+          const resolvedMessage: Message = {
             id: message.id,
             user_id: message.user_id,
             content: message.content,
@@ -1419,7 +1419,13 @@ export const useDMStore = defineStore('dm', () => {
             reactions: message.reactions || [],
             is_system: message.is_system,
             metadata: message.metadata || null
-          });
+          };
+          try {
+            ensureMessageEmbeds(resolvedMessage);
+          } catch (error) {
+            console.warn('Failed to prepare embeds for resolved DM message:', error);
+          }
+          currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage);
           return;
         }
         

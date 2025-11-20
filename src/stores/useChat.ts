@@ -621,7 +621,7 @@ export const useChatStore = defineStore('chat', {
             if (tempMessageIndex !== -1) {
               console.warn('⚠️ Temp message still exists during real-time, this is a race condition!');
               console.log('🔄 Replacing late:', this.messages[tempMessageIndex].id);
-              this.messages.splice(tempMessageIndex, 1, {
+              const resolvedMessage: Message = {
                 id: payload.new.id,
                 created_at: new Date(payload.new.created_at),
                 channel_id: payload.new.channel_id,
@@ -632,7 +632,13 @@ export const useChatStore = defineStore('chat', {
                 reply_to: payload.new.reply_to,
                 is_system: payload.new.is_system,
                 metadata: payload.new.metadata || null,
-              });
+              };
+              try {
+                ensureMessageEmbeds(resolvedMessage);
+              } catch (error) {
+                console.warn('Failed to prepare embeds for resolved realtime message:', error);
+              }
+              this.messages.splice(tempMessageIndex, 1, resolvedMessage);
               return;
             }
             
