@@ -459,7 +459,6 @@ const observedMessages = new Set<string>();
 
 const setupUnreadObserver = () => {
   if (!props.channelId && !props.conversationId) return;
-  if (messageId.startsWith('temp-')) return;
   
   // Clean up existing observer
   if (intersectionObserver) {
@@ -469,13 +468,13 @@ const setupUnreadObserver = () => {
   intersectionObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const messageId = entry.target.getAttribute('data-message-id');
-          if (messageId && !observedMessages.has(messageId)) {
-            observedMessages.add(messageId);
-            clearUnreadCount(messageId);
-          }
+        if (!entry.isIntersecting) return;
+        const messageId = entry.target.getAttribute('data-message-id');
+        if (!messageId || messageId.startsWith('temp-') || observedMessages.has(messageId)) {
+          return;
         }
+        observedMessages.add(messageId);
+        clearUnreadCount(messageId);
       });
     },
     {
@@ -490,7 +489,10 @@ const setupUnreadObserver = () => {
     if (messageDisplayContainer.value) {
       const messageElements = messageDisplayContainer.value.querySelectorAll('[data-message-id]');
       messageElements.forEach((el) => {
-        intersectionObserver?.observe(el);
+        const id = el.getAttribute('data-message-id');
+        if (id && !id.startsWith('temp-')) {
+          intersectionObserver?.observe(el);
+        }
       });
     }
   });
