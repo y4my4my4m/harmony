@@ -48,7 +48,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { EmbedPayload, TimelinePost } from '@/types';
-import { linkPreviewService } from '@/services/LinkPreviewService';
 import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
@@ -101,7 +100,22 @@ async function loadHarmonyPost() {
   if (!props.payload.harmony?.postId) return;
   harmonyError.value = null;
   try {
-    const post = await linkPreviewService.hydrateHarmonyPost(props.payload);
+    // Hydrate Harmony post from ActivityPub store
+    const { useActivityPubStore } = await import('@/stores/useActivityPub');
+    const store = useActivityPubStore();
+    
+    // Check if post is already in feeds
+    const feeds = [store.homeFeed, store.publicFeed, store.localFeed];
+    for (const feed of feeds) {
+      const found = feed.posts.find((post) => post.id === props.payload.harmony!.postId);
+      if (found) {
+        harmonyPost.value = found;
+        return;
+      }
+    }
+    
+    // Load post with author if not in feeds
+    const post = await store.loadPostWithAuthor(props.payload.harmony.postId);
     if (!post) {
       harmonyError.value = 'Post unavailable';
     }
