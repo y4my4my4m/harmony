@@ -416,22 +416,40 @@ const formatFileSize = (bytes: number): string => {
   color: #2563eb;
 }
 
+.content-html :deep(.media-container) {
+  margin: 4px 0 8px 0;
+  max-width: 100%;
+}
+.content-html :deep(.content-image),
+.content-html :deep(.media-container .content-image),
+.content-html :deep(.media-container .content-video),
+.content-html :deep(.content-video) {
+  max-width: 100%;
+  max-height: 480px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.content-html :deep(.content-video) {
+  cursor: default;
+}
+
 /* Media containers */
-.media-container {
+/* .media-container {
   margin: 4px 0 8px 0;
   max-width: 100%;
 }
 
-.media-container :deep(.content-image),
-.media-container :deep(.content-video) {
+.content-image,
+.content-video {
   max-width: 100%;
   border-radius: 4px;
   cursor: pointer;
 }
 
-.media-container :deep(.content-video) {
+.content-video {
   cursor: default;
-}
+} */
 
 /* Media loading skeletons */
 .media-skeleton {
