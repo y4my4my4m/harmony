@@ -45,9 +45,9 @@
   border-color: rgba(255, 255, 255, 0.25);
 }
 
-.provider-embed__content {
+/* .provider-embed__content {
   padding: 0.85rem;
-}
+} */
 
 .provider-embed__media {
   width: 100%;
@@ -87,6 +87,7 @@
   display: flex;
   gap: 0.85rem;
   align-items: flex-start;
+  padding: 0.85rem;
 }
 
 .link-embed-card__media {

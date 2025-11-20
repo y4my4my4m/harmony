@@ -3,7 +3,7 @@ import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
-export type EmbedProvider = 'harmony-post' | 'youtube' | 'spotify' | 'generic';
+export type EmbedProvider = 'harmony-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
 
 export interface EmbedPayload {
   cacheKey: string;
@@ -41,6 +41,7 @@ const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
   'harmony-post': 5 * 60 * 1000, // 5 minutes
   youtube: 6 * 60 * 60 * 1000, // 6 hours
   spotify: 6 * 60 * 60 * 1000,
+  reddit: 6 * 60 * 60 * 1000,
   generic: 24 * 60 * 60 * 1000, // 24 hours
 };
 
@@ -86,6 +87,8 @@ class LinkPreviewService {
       payload = await this.fetchOEmbed(normalizedUrl, 'https://www.youtube.com/oembed');
     } else if (provider === 'spotify') {
       payload = await this.fetchOEmbed(normalizedUrl, 'https://open.spotify.com/oembed');
+    } else if (provider === 'reddit') {
+      payload = await this.fetchRedditPreview(normalizedUrl);
     } else {
       payload = await this.fetchGenericPreview(normalizedUrl);
     }
@@ -135,6 +138,9 @@ class LinkPreviewService {
     }
     if (host.endsWith('spotify.com')) {
       return 'spotify';
+    }
+    if (host.endsWith('reddit.com')) {
+      return 'reddit';
     }
     return 'generic';
   }
@@ -237,6 +243,40 @@ class LinkPreviewService {
       title: data.title || data.author_name || url,
       description: data.author_name || data.provider_name,
       siteName: data.provider_name || new URL(url).hostname,
+      image: data.thumbnail_url,
+      html: data.html,
+      width: data.width,
+      height: data.height,
+      fetchedAt: '',
+      expiresAt: '',
+    };
+  }
+
+  private async fetchRedditPreview(url: string): Promise<EmbedPayload> {
+    const endpoint = new URL('https://www.reddit.com/oembed');
+    endpoint.searchParams.set('url', url);
+    endpoint.searchParams.set('format', 'json');
+
+    const response = await fetch(endpoint.toString(), {
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Reddit oEmbed failed (${response.status})`);
+    }
+
+    const data = await response.json();
+    return {
+      cacheKey: '',
+      url,
+      normalizedUrl: url,
+      provider: 'reddit',
+      title: data.title || url,
+      description: data.author_name ? `Posted by ${data.author_name}` : undefined,
+      siteName: 'Reddit',
       image: data.thumbnail_url,
       html: data.html,
       width: data.width,
