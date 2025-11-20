@@ -345,5 +345,11 @@ class LinkPreviewService {
 }
 
 export const linkPreviewService = new LinkPreviewService();
+
+// Named export for webhook route
+export async function fetchLinkPreview(url: string): Promise<EmbedPayload> {
+  return linkPreviewService.getPreview(url);
+}
+
 export default linkPreviewService;
 
