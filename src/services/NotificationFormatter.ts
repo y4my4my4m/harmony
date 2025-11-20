@@ -242,19 +242,20 @@ const MESSAGE_TEMPLATES = {
       const senderName = sender?.display_name || sender?.username || 'Someone'
       const domain = sender?.domain && !sender?.is_local ? `@${sender.domain}` : ''
       const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
-      return `${senderName}${domain} reacted ${emojiName} to your post`
+      // For desktop notifications, show emoji name (desktop notifications can't display custom emoji images)
+      return `${senderName}${domain} reacted :${emojiName}: to your post`
     },
     message: (data: any) => {
       const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
       if (data.post_content) {
         const content = data.post_content.substring(0, 100)
-        return `${emojiName} on "${content}${data.post_content.length > 100 ? '...' : ''}"`
+        return `:${emojiName}: on "${content}${data.post_content.length > 100 ? '...' : ''}"`
       }
-      return `${emojiName} reaction`
+      return `:${emojiName}: reaction`
     },
     shortTitle: (data: any) => {
       const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
-      return `${emojiName} reaction`
+      return `:${emojiName}: reaction`
     }
   },
 

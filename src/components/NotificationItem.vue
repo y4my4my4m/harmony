@@ -96,8 +96,10 @@
           </div>
           
           <!-- Reaction Display -->
-          <div v-if="reactionEmoji" class="reaction-display">
-            <span class="reaction-text"><strong>{{ notification.data.reactor.display_name }}</strong> reacted with </span>
+          <div v-if="shouldShowReactionDisplay && reactionEmoji" class="reaction-display">
+            <span class="reaction-text">
+              <strong>{{ getReactorName() }}</strong> reacted with 
+            </span>
             <img 
               v-if="reactionEmoji.url"
               :src="reactionEmoji.url" 
@@ -251,10 +253,11 @@ const channelInfo = computed(() => {
 })
 
 const reactionEmoji = computed(() => {
-  if (props.notification.type === 'reaction') {
-    const reactionData = props.notification.data.reaction
+  // Handle both chat reactions and ActivityPub reactions
+  if (props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction') {
+    const reactionData = props.notification.data.reaction || props.notification.data
     return {
-      name: reactionData?.emoji_name || '👍',
+      name: reactionData?.emoji_name || reactionData?.custom_emoji_content || '👍',
       url: getEmojiUrl(reactionData?.emoji_url, 48) || null
     }
   }
@@ -285,8 +288,24 @@ const fullTimestamp = computed(() => {
 })
 
 const hasRichContent = computed(() => {
+  // Show rich content for mentions, replies, reactions (both chat and ActivityPub)
   return messagePreview.value || channelInfo.value || reactionEmoji.value
 })
+
+// Check if this notification should show reaction display
+const shouldShowReactionDisplay = computed(() => {
+  return props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'
+})
+
+// Get reactor name for both chat and ActivityPub reactions
+const getReactorName = () => {
+  const data = props.notification.data
+  if (props.notification.type === 'activitypub_reaction') {
+    const sender = data.sender || data.actor
+    return sender?.display_name || sender?.username || 'Someone'
+  }
+  return data.reactor?.display_name || data.reactor?.username || 'Someone'
+}
 
 const hasQuickActions = computed(() => {
   return ['server_invite', 'dm', 'mention', 'reply'].includes(props.notification.type)

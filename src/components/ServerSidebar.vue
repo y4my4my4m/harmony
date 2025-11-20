@@ -101,8 +101,12 @@ const isMonyverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);
 });
 
+// Use notification store for ActivityPub badge count (unified approach)
 const unreadCount = computed(() => {
-  return activityPubStore.unreadCount;
+  // Count unread ActivityPub notifications (mentions, replies, reactions, etc.)
+  return notificationStore.notifications.filter(
+    n => !n.is_read && n.type.startsWith('activitypub_')
+  ).length;
 });
 
 const notificationStore = useNotificationStore();

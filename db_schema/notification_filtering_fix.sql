@@ -996,11 +996,18 @@ BEGIN
                     mentioned_username := content_part->>'username';
                     
                     -- Get the mentioned user ID (only local users)
+                    -- Check both with and without domain to be safe
                     SELECT id INTO mentioned_user_id
                     FROM profiles
                     WHERE username = mentioned_username
                       AND is_local = true
+                      AND (domain IS NULL OR domain = (SELECT trim(both '"' from config_value::text) FROM instance_config WHERE config_key = 'domain' LIMIT 1))
                       AND id != NEW.author_id; -- Don't notify self
+                    
+                    -- Debug logging
+                    IF mentioned_user_id IS NULL THEN
+                        RAISE NOTICE '⚠️ Local mention: username=% not found or not local', mentioned_username;
+                    END IF;
                     
                     -- Create notification if mentioned user found
                     IF mentioned_user_id IS NOT NULL THEN
@@ -1167,13 +1174,18 @@ BEGIN
                 -- Check if this mention is for a local user
                 -- When a remote user mentions a local user, the mention domain will match instance_domain
                 -- OR the domain will be NULL (if parsed as local)
-                -- So we check: if domain matches instance OR domain is NULL, look up the user
-                IF (mentioned_domain IS NULL OR mentioned_domain = instance_domain) THEN
-                    SELECT id INTO v_local_user_id
-                    FROM profiles 
-                    WHERE username = mentioned_username 
-                      AND is_local = true
-                      AND id != actor_profile.id; -- Don't notify self
+                -- Simplest approach: just check if username exists as a local user
+                SELECT id INTO v_local_user_id
+                FROM profiles 
+                WHERE username = mentioned_username 
+                  AND is_local = true
+                  AND id != actor_profile.id; -- Don't notify self
+                
+                -- Additional check: if domain is set and doesn't match instance, skip
+                -- (This means it's a mention of a remote user, not local)
+                IF mentioned_domain IS NOT NULL AND mentioned_domain != instance_domain THEN
+                    v_local_user_id := NULL; -- Clear it, this is a remote user mention
+                    RAISE NOTICE '⚠️ Skipping remote user mention: %@%', mentioned_username, mentioned_domain;
                 END IF;
                 
                 IF v_local_user_id IS NOT NULL THEN
