@@ -1,6 +1,6 @@
 import type { EmbedPayload, TimelinePost } from '@/types';
 
-class LinkPreviewService {
+export class LinkPreviewService {
   async hydrateHarmonyPost(payload: EmbedPayload): Promise<TimelinePost | null> {
     if (!payload?.harmony?.postId) {
       return null;
