@@ -343,6 +343,7 @@ export type NotificationType =
   | 'activitypub_reblog'
   | 'activitypub_mention'
   | 'activitypub_reply'
+  | 'activitypub_reaction'
   | 'activitypub_follow_request'
   | 'error';
 
@@ -490,6 +491,8 @@ export interface NotificationToast {
   title: string;
   message: string;
   avatar?: string;
+  emojiUrl?: string; // For reaction notifications - emoji image URL
+  emojiName?: string; // For reaction notifications - emoji name fallback
   actions?: ToastAction[];
   duration: number;
   timestamp: Date;

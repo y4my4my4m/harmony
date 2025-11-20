@@ -6,6 +6,8 @@
         :messages="chatMessages"
         :isLoading="isLoading"
         :isDM="isDM"
+        :channelId="channelId"
+        :conversationId="conversationId"
         :loadMoreMessages="() => $emit('load-more-messages')"
         @update:isAtBottom="$emit('update:is-at-bottom', $event)" 
         @sendMessage="(messageParts, replyId) => $emit('send-message', messageParts, replyId)"
@@ -89,6 +91,8 @@ interface Props {
   chatMessages?: Message[];
   isLoading?: boolean;
   isDM?: boolean;
+  channelId?: string;
+  conversationId?: string;
   
   // ActivityPub mode props
   viewType?: ViewType;
@@ -209,7 +213,7 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   display: flex;
   flex-direction: column;
   flex: 1;
-  height: 100%;
+  min-height: 0; /* Important for flex child with overflow */
   background: var(--background-primary);
 }
 

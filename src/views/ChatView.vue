@@ -5,6 +5,8 @@
     :chat-messages="chatMessages"
     :is-loading="isLoading"
     :is-d-m="isDM"
+    :channel-id="props.isDM ? undefined : (route.params.channelId as string)"
+    :conversation-id="props.isDM ? (route.params.conversationId as string) : undefined"
     view-type="chat"
     current-view="chat"
     @load-more-messages="fetchMoreMessages"
@@ -22,6 +24,8 @@ import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/useNotification'
+import { useViewContextTracking } from '@/composables/useViewContext'
 
 // Props
 interface Props {
@@ -141,6 +145,9 @@ const handleSendMessage = (message: any) => {
 // Watch for route changes
 watch(() => route.params, loadMessages, { immediate: true })
 
+// Track view context in database for notification suppression
+useViewContextTracking()
+
 // Watch for messageId query param to scroll and highlight
 watch(() => route.query.messageId, async (messageId) => {
   if (messageId && typeof messageId === 'string') {
@@ -158,12 +165,37 @@ const scrollToMessage = async (messageId: string) => {
   
   const messageElement = document.getElementById(`message-${messageId}`)
   if (messageElement) {
-    // Scroll to message
-    messageElement.scrollIntoView({ 
-      behavior: 'smooth', 
-      block: 'center',
-      inline: 'nearest'
-    })
+    // Get the scroll container (message display container)
+    const scrollContainer = messageElement.closest('.message-display') as HTMLElement
+    if (scrollContainer) {
+      // Calculate scroll position without causing layout shifts
+      const elementTop = messageElement.offsetTop
+      const elementHeight = messageElement.offsetHeight
+      const containerHeight = scrollContainer.clientHeight
+      const scrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2)
+      
+      // Smooth scroll without using scrollIntoView to avoid UI deformation
+      scrollContainer.scrollTo({
+        top: Math.max(0, scrollTop),
+        behavior: 'smooth'
+      })
+    } else {
+      // Fallback to scrollIntoView if container not found
+      messageElement.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest', // Use 'nearest' instead of 'center' to minimize shifts
+        inline: 'nearest'
+      })
+    }
+    
+    // Mark notification as read
+    const notificationStore = useNotificationStore()
+    const notification = notificationStore.notifications.find(n => 
+      n.data?.message?.id === messageId || n.data?.message_id === messageId
+    )
+    if (notification) {
+      await notificationStore.markAsRead(notification.id)
+    }
     
     // Highlight the message
     messageElement.classList.add('highlighted')

@@ -17,6 +17,9 @@
       <svg viewBox="0 0 24 24" class="dm-icon">
         <path d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M4,4H20V16H5.17L4,17.17V4Z" fill="currentColor"/>
       </svg>
+      <div v-if="dmUnreadMentions > 0" class="unread-badge">
+        {{ dmUnreadMentions > 99 ? '99+' : dmUnreadMentions }}
+      </div>
     </div>
 
     <!-- Monyverse Button -->
@@ -35,18 +38,26 @@
     <div class="separator"></div>
 
     <!-- The component ServerIcon is automatically available in the template -->
-    <ServerIcon v-for="server in props.servers"
+    <div
+      v-for="server in props.servers"
       :key="server.id"
-      :id="server.id"
-      :src="server.icon"
-      :alt="server.name"
-      size="md"
-      class="server-item"
-      shape="round"
-      :interactive="true"
-      @click="selectServer"
-      :class="[{ 'selected': isSelected(server.id)}]"
-    />
+      class="server-item-wrapper"
+    >
+      <ServerIcon
+        :id="server.id"
+        :src="server.icon"
+        :alt="server.name"
+        size="md"
+        class="server-item"
+        :class="{ selected: isSelected(server.id) }"
+        shape="round"
+        :interactive="true"
+        @click="selectServer(server.id)"
+      />
+      <div v-if="getServerUnreadMentions(server.id) > 0" class="unread-badge">
+        {{ getServerUnreadMentions(server.id) > 99 ? '99+' : getServerUnreadMentions(server.id) }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -55,6 +66,7 @@ import { computed, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { useNotificationStore } from '@/stores/useNotification';
 import { isActivityPubRoute } from '@/types/viewTypes';
 import ServerIcon from '@/components/common/ServerIcon.vue';
 import type { Server } from '@/types';
@@ -89,9 +101,25 @@ const isMonyverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);
 });
 
+// Use notification store for ActivityPub badge count (unified approach)
 const unreadCount = computed(() => {
-  return activityPubStore.unreadCount;
+  // Count unread ActivityPub notifications (mentions, replies, reactions, etc.)
+  return notificationStore.notifications.filter(
+    n => !n.is_read && n.type.startsWith('activitypub_')
+  ).length;
 });
+
+const notificationStore = useNotificationStore();
+
+// Get total unread mentions across all DM conversations
+const dmUnreadMentions = computed(() => {
+  return notificationStore.unreadDMs;
+});
+
+// Get unread mentions for a server
+const getServerUnreadMentions = (serverId: string): number => {
+  return notificationStore.unreadServerMentions(serverId);
+};
 
 const isSelected = (serverId: string) => {
   return serverId === serverChannelStore.currentServerId && !isDMSelected.value && !isMonyverseSelected.value
@@ -268,12 +296,17 @@ const goToMonyverse = () => {
   100% { transform: scale(1); }
 }
 
+.server-item-wrapper {
+  position: relative;
+  margin: 10px;
+}
+
 .portal,
 .server-item {
   width: 48px;
   height: 48px;
   background-color:var(--h-black-light);
-  margin: 10px;
+  margin: 0;
   border-radius: 50%;
   cursor:pointer;
   position:relative;
@@ -326,6 +359,11 @@ const goToMonyverse = () => {
 .dm-button.selected,
 .monyverse-button.selected,
 .portal.selected,
+.server-item.selected {
+  border: 2px solid var(--h-primary);
+  border-radius: 50%;
+}
+
 .server-item.selected {
   border: 2px solid var(--h-primary);
   border-radius: 50%;

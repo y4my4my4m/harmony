@@ -4,6 +4,7 @@ import router from '@/router'
 import { useAuthStore } from './auth'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
+import { getEmojiUrl } from '@/utils/emojiUtils'
 import { services } from '@/services'
 import type { 
   Notification, 
@@ -148,6 +149,46 @@ export const useNotificationStore = defineStore('notification', {
             return true
         }
       })
+    },
+
+    // Get unread count for specific notification types
+    unreadMentions: (state) => {
+      return state.notifications.filter(
+        n => !n.is_read && (n.type === 'mention' || n.type === 'activitypub_mention')
+      ).length
+    },
+
+    unreadDMs: (state) => {
+      return state.notifications.filter(
+        n => !n.is_read && n.type === 'dm'
+      ).length
+    },
+
+    unreadChannelMentions: (state) => {
+      return (channelId: string) => {
+        return state.notifications.filter(
+          n => !n.is_read && n.type === 'mention' && 
+          (n.data?.channel_id === channelId || n.data?.location?.channel_id === channelId)
+        ).length
+      }
+    },
+
+    unreadServerMentions: (state) => {
+      return (serverId: string) => {
+        return state.notifications.filter(
+          n => !n.is_read && n.type === 'mention' && 
+          (n.data?.server_id === serverId || n.data?.location?.server_id === serverId)
+        ).length
+      }
+    },
+
+    unreadConversationMentions: (state) => {
+      return (conversationId: string) => {
+        return state.notifications.filter(
+          n => !n.is_read && (n.type === 'mention' || n.type === 'dm') && 
+          (n.data?.conversation_id === conversationId || n.data?.conversation?.id === conversationId)
+        ).length
+      }
     },
 
     isQuietHours: (state) => {
@@ -500,6 +541,20 @@ export const useNotificationStore = defineStore('notification', {
                 return
               }
 
+              // Note: Block/mute filtering AND view context filtering are handled by database triggers/functions
+              // If a notification reaches here, it means the user is NOT viewing the source channel/DM
+              // (Notifications are suppressed at database level if user is viewing the context)
+              
+              // Check DND - if active, don't show UI but still add to list
+              const isDndActive = this.isQuietHours
+              if (isDndActive && newNotification.type !== 'server_update') {
+                console.log('🌙 DND active - notification added silently:', newNotification.id)
+                // Still add to list but don't show UI
+                this.notifications.unshift(newNotification)
+                this.updateUnreadCount()
+                return
+              }
+
               // Add to notifications list
               this.notifications.unshift(newNotification)
               this.updateUnreadCount()
@@ -508,15 +563,13 @@ export const useNotificationStore = defineStore('notification', {
               const formatted = NotificationFormatter.formatNotification(newNotification)
               console.log('✨ Formatted notification message:', formatted)
 
-              // Use ViewContextTracker for smart UI decisions (Discord-like behavior)
-              const uiDecision = viewContextTracker.shouldShowNotificationUI({
-                server_id: newNotification.data.location?.server_id,
-                channel_id: newNotification.data.location?.channel_id,
-                conversation_id: newNotification.data.conversation?.id,
-                type: newNotification.type
-              })
-
-              console.log('🎯 UI Decision:', uiDecision)
+              // Since database already filters based on view context, show all notifications that reach here
+              const uiDecision = {
+                showToast: true,
+                showDesktop: true,
+                playSound: true,
+                reason: 'Notification passed database filtering'
+              }
 
               // Process notification through unified notification system
               this.handleRealtimeNotification(newNotification, formatted, uiDecision)
@@ -548,6 +601,7 @@ export const useNotificationStore = defineStore('notification', {
         })
     },
 
+
     /**
      * Handle realtime notification through unified notification system
      * This method processes incoming notifications from database triggers
@@ -567,12 +621,32 @@ export const useNotificationStore = defineStore('notification', {
         // Show toast notification if appropriate
         if (uiDecision.showToast) {
           console.log('🍞 Showing toast notification')
+          
+          // Extract emoji data for reaction notifications
+          let emojiUrl: string | undefined
+          let emojiName: string | undefined
+          if (notification.type === 'activitypub_reaction' || notification.type === 'reaction') {
+            const data = notification.data
+            const reactionData = data.reaction || data
+            
+            // Try multiple paths for emoji data
+            emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name
+            emojiUrl = reactionData?.emoji_url || data.emoji_url
+            
+            // Get emoji URL if available
+            if (emojiUrl) {
+              emojiUrl = getEmojiUrl(emojiUrl, 48)
+            }
+          }
+          
           this.showToast(
             notification.type,
             formatted.title,
             formatted.message,
             4000,
-            NotificationFormatter.getAvatarUrl(notification)
+            NotificationFormatter.getAvatarUrl(notification),
+            emojiUrl,
+            emojiName
           )
         } else {
           console.log('🚫 Toast notification suppressed by UI decision')
@@ -659,7 +733,9 @@ export const useNotificationStore = defineStore('notification', {
       title: string,
       message: string,
       duration = 4000,
-      avatar?: string
+      avatar?: string,
+      emojiUrl?: string,
+      emojiName?: string
     ) {
       if (this.isQuietHours && type !== 'server_update') return
       
@@ -669,6 +745,8 @@ export const useNotificationStore = defineStore('notification', {
         title,
         message,
         avatar,
+        emojiUrl,
+        emojiName,
         duration,
         timestamp: new Date()
       }
@@ -961,7 +1039,7 @@ export const useNotificationStore = defineStore('notification', {
               // Navigate to server channel
               let path = `/chat/${navData.serverId}/${navData.channelId}`
               if (navData.messageId) {
-                path += `?message=${navData.messageId}`
+                path += `?messageId=${navData.messageId}`
               }
               router.push(path)
               break

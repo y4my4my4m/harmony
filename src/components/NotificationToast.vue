@@ -23,7 +23,47 @@
           </div>
           
           <div class="toast-content">
-            <h4 class="toast-title">{{ toast.title }}</h4>
+            <h4 class="toast-title">
+              <template v-if="toast.type === 'activitypub_reaction' || toast.type === 'reaction'">
+                <!-- For reactions, show emoji inline in title -->
+                <template v-if="toast.type === 'activitypub_reaction'">
+                  <span>{{ toast.title.split('reacted')[0] }}</span>reacted
+                  <img 
+                    v-if="toast.emojiUrl"
+                    :src="toast.emojiUrl" 
+                    :alt="toast.emojiName || 'emoji'"
+                    :title="toast.emojiName ? `:${toast.emojiName}:` : ''"
+                    class="toast-emoji"
+                  />
+                  <span 
+                    v-else-if="toast.emojiName"
+                    class="toast-emoji-fallback"
+                  >
+                    :{{ toast.emojiName }}:
+                  </span>
+                  <span>{{ toast.title.split('reacted')[1] }}</span>
+                </template>
+                <template v-else>
+                  {{ toast.title }}
+                  <img 
+                    v-if="toast.emojiUrl"
+                    :src="toast.emojiUrl" 
+                    :alt="toast.emojiName || 'emoji'"
+                    :title="toast.emojiName ? `:${toast.emojiName}:` : ''"
+                    class="toast-emoji"
+                  />
+                  <span 
+                    v-else-if="toast.emojiName"
+                    class="toast-emoji-fallback"
+                  >
+                    :{{ toast.emojiName }}:
+                  </span>
+                </template>
+              </template>
+              <template v-else>
+                {{ toast.title }}
+              </template>
+            </h4>
             <p v-if="toast.message" class="toast-message">{{ toast.message }}</p>
             <div class="toast-actions" v-if="toast.actions">
               <button
@@ -228,6 +268,9 @@ const getTypeIcon = (type: NotificationType) => {
   font-weight: 600;
   color: #ffffff;
   line-height: 1.3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .toast-message {
@@ -236,6 +279,19 @@ const getTypeIcon = (type: NotificationType) => {
   color: #dcddde;
   line-height: 1.4;
   word-wrap: break-word;
+}
+
+.toast-emoji {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.toast-emoji-fallback {
+  font-size: 14px;
+  color: #dcddde;
 }
 
 .toast-actions {

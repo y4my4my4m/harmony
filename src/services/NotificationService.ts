@@ -79,6 +79,7 @@ export class NotificationService {
 
   /**
    * Fetch notifications with pagination
+   * Note: Block/mute filtering should be handled by database function get_user_notifications
    */
   async fetchNotifications(
     userId: string,
@@ -91,39 +92,19 @@ export class NotificationService {
     try {
       console.log('🔄 Fetching notifications via service layer:', { userId, options })
 
-      let query = supabase
-        .from('notifications')
-        .select(`
-          id,
-          user_id,
-          type,
-          data,
-          is_read,
-          is_clicked,
-          created_at,
-          updated_at,
-          expires_at,
-          read_at
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-
-      if (options?.unreadOnly) {
-        query = query.eq('is_read', false)
-      }
-
-      if (options?.limit) {
-        query = query.limit(options.limit)
-      }
-
-      if (options?.offset) {
-        query = query.range(options.offset, options.offset + (options.limit || 50) - 1)
-      }
-
-      const { data: notifications, error } = await query
+      // Fetch notifications using RPC function (should filter blocks/mutes at DB level)
+      const { data: notifications, error } = await supabase.rpc('get_user_notifications', {
+        p_user_id: userId,
+        p_limit: options?.limit || 50,
+        p_offset: options?.offset || 0,
+        p_unread_only: options?.unreadOnly || false,
+        p_notification_types: null
+      })
 
       if (error) {
-        throw this.createError('FETCH_FAILED', error.message, error)
+        // Fallback to direct query if RPC fails
+        console.warn('RPC get_user_notifications failed, falling back to direct query:', error)
+        return await this._fetchNotificationsDirect(userId, options)
       }
 
       console.log(`✅ Fetched ${notifications?.length || 0} notifications`)
@@ -132,6 +113,55 @@ export class NotificationService {
       console.error('❌ Failed to fetch notifications:', error)
       throw error
     }
+  }
+
+  /**
+   * Fallback direct query method
+   */
+  private async _fetchNotificationsDirect(
+    userId: string,
+    options?: {
+      limit?: number
+      offset?: number
+      unreadOnly?: boolean
+    }
+  ): Promise<Notification[]> {
+    let query = supabase
+      .from('notifications')
+      .select(`
+        id,
+        user_id,
+        type,
+        data,
+        is_read,
+        is_clicked,
+        created_at,
+        updated_at,
+        expires_at,
+        read_at
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (options?.unreadOnly) {
+      query = query.eq('is_read', false)
+    }
+
+    if (options?.limit) {
+      query = query.limit(options.limit)
+    }
+
+    if (options?.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 50) - 1)
+    }
+
+    const { data: notifications, error } = await query
+
+    if (error) {
+      throw this.createError('FETCH_FAILED', error.message, error)
+    }
+
+    return notifications || []
   }
 
   /**

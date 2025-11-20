@@ -28,7 +28,13 @@
         <div class="date-separator-line"></div>
       </div>
 
-      <div :id="`message-${message.id}`" class="message-item" @mouseover="hoveredMessageId = message.id" @mouseleave="hoveredMessageId = null">
+      <div 
+        :id="`message-${message.id}`" 
+        :data-message-id="message.id"
+        class="message-item" 
+        @mouseover="hoveredMessageId = message.id" 
+        @mouseleave="hoveredMessageId = null"
+      >
         <!-- Gap indicator for jumped-to messages -->
         <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
           <div class="gap-line"></div>
@@ -226,7 +232,9 @@ import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
-import { useServerChannelStore } from '@/stores/useServerChannel'; 
+import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useNotificationStore } from '@/stores/useNotification';
+import { supabase } from '@/supabase'; 
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
@@ -257,6 +265,8 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  channelId: String,
+  conversationId: String,
 });
 
 const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom']);
@@ -439,6 +449,115 @@ watch(() => props.messages.map(msg => msg.reactions?.length), () => {
     hideTooltip();
   }
 }, { deep: true });
+
+// IntersectionObserver to clear unread counts when messages are scrolled into view
+let intersectionObserver: IntersectionObserver | null = null;
+const observedMessages = new Set<string>();
+
+const setupUnreadObserver = () => {
+  if (!props.channelId && !props.conversationId) return;
+  
+  // Clean up existing observer
+  if (intersectionObserver) {
+    intersectionObserver.disconnect();
+  }
+  
+  intersectionObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const messageId = entry.target.getAttribute('data-message-id');
+          if (messageId && !observedMessages.has(messageId)) {
+            observedMessages.add(messageId);
+            clearUnreadCount(messageId);
+          }
+        }
+      });
+    },
+    {
+      root: messageDisplayContainer.value,
+      rootMargin: '0px',
+      threshold: 0.1 // Trigger when 10% of message is visible
+    }
+  );
+  
+  // Observe all message elements
+  nextTick(() => {
+    if (messageDisplayContainer.value) {
+      const messageElements = messageDisplayContainer.value.querySelectorAll('[data-message-id]');
+      messageElements.forEach((el) => {
+        intersectionObserver?.observe(el);
+      });
+    }
+  });
+};
+
+const clearUnreadCount = async (messageId: string) => {
+  if (!props.channelId && !props.conversationId) return;
+  
+  try {
+    const userId = authStore.session?.user?.id;
+    if (!userId) return;
+    
+    // Get the message to find channel_id or conversation_id
+    const message = props.messages.find(m => m.id === messageId);
+    if (!message) return;
+    
+    const channelId = props.channelId || message.channel_id;
+    const conversationId = props.conversationId || message.conversation_id;
+    
+    if (!channelId && !conversationId) return;
+    
+    // Update unread_counts table to clear unread counts
+    const { error } = await supabase
+      .from('unread_counts')
+      .update({
+        unread_messages: 0,
+        unread_mentions: 0,
+        last_read_message_id: messageId,
+        last_read_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq(channelId ? 'channel_id' : 'conversation_id', channelId || conversationId);
+    
+    if (error) {
+      console.error('Failed to clear unread count:', error);
+    } else {
+      console.log('✅ Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
+    }
+    
+    // Mark related notifications as read
+    const notificationStore = useNotificationStore();
+    const relatedNotifications = notificationStore.notifications.filter(n => 
+      (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
+    );
+    
+    for (const notification of relatedNotifications) {
+      await notificationStore.markAsRead(notification.id);
+    }
+  } catch (error) {
+    console.error('Error clearing unread count:', error);
+  }
+};
+
+// Watch for messages changes to setup observer
+watch(() => props.messages.length, () => {
+  if (props.messages.length > 0) {
+    nextTick(() => {
+      setupUnreadObserver();
+    });
+  }
+}, { immediate: true });
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (intersectionObserver) {
+    intersectionObserver.disconnect();
+    intersectionObserver = null;
+  }
+  observedMessages.clear();
+});
 
 
 // --- LIFECYCLE HOOKS ---

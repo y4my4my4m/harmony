@@ -1653,9 +1653,7 @@ export const useDMStore = defineStore('dm', () => {
     const testUserId = userId || '2d06f6ba-4c21-4c84-a963-db65148ac543' // From the logs
     const testConversationId = '06008d5f-7491-47ed-a038-24c323c7d97e' // From user's data
     
-    console.log('🧪 MANUAL DEBUG: Testing conversation queries')
-    console.log('🧪 Test user ID:', testUserId)
-    console.log('🧪 Test conversation ID:', testConversationId)
+    // Debug helper for testing conversation queries
     
     // Test 1: Check all participants for the conversation
     console.log('\n🧪 Test 1: All participants in conversation')

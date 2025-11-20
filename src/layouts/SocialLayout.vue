@@ -158,6 +158,7 @@ import UserSearchModal from '@/components/activitypub/UserSearchModal.vue'
 import UserProfileModal from '@/components/UserProfileModal.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { trendingService } from '@/services/TrendingService'
+import { useViewContextTracking } from '@/composables/useViewContext'
 import type { FederatedUser, TimelinePost } from '@/types'
 
 // Props - Made view props optional since we extract from route
@@ -319,6 +320,9 @@ const loadSuggestedUsers = async () => {
 onMounted(() => {
   loadSuggestedUsers()
 })
+
+// Track view context in database for notification suppression
+useViewContextTracking()
 
 // Event handlers
 const handleToggleSearch = () => {

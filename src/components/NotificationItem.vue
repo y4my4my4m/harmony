@@ -44,7 +44,47 @@
       <!-- Header -->
       <div class="notification-header">
         <div class="notification-title-section">
-          <h4 class="notification-title">{{ formattedMessage.title }}</h4>
+          <h4 class="notification-title">
+            <template v-if="props.notification.type === 'activitypub_reaction' || props.notification.type === 'reaction'">
+              <!-- For reactions, show emoji inline in title -->
+              <template v-if="props.notification.type === 'activitypub_reaction'">
+                <span>{{ formattedMessage.title.split('reacted')[0] }}</span>reacted
+                <img 
+                  v-if="reactionEmoji?.url"
+                  :src="reactionEmoji.url" 
+                  :alt="reactionEmoji.name"
+                  :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
+                  class="notification-title-emoji"
+                />
+                <span 
+                  v-else-if="reactionEmoji?.name"
+                  class="notification-title-emoji-fallback"
+                >
+                  :{{ reactionEmoji.name }}:
+                </span>
+                <span>{{ formattedMessage.title.split('reacted')[1] }}</span>
+              </template>
+              <template v-else>
+                {{ formattedMessage.title }}
+                <img 
+                  v-if="reactionEmoji?.url"
+                  :src="reactionEmoji.url" 
+                  :alt="reactionEmoji.name"
+                  :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
+                  class="notification-title-emoji"
+                />
+                <span 
+                  v-else-if="reactionEmoji?.name"
+                  class="notification-title-emoji-fallback"
+                >
+                  :{{ reactionEmoji.name }}:
+                </span>
+              </template>
+            </template>
+            <template v-else>
+              {{ formattedMessage.title }}
+            </template>
+          </h4>
           <div class="notification-metadata">
             <span class="username">{{ username }}</span>
             <span class="separator">•</span>
@@ -95,18 +135,8 @@
             <span v-if="serverName" class="in-server">in {{ serverName }}</span>
           </div>
           
-          <!-- Reaction Display -->
-          <div v-if="reactionEmoji" class="reaction-display">
-            <span class="reaction-text"><strong>{{ notification.data.reactor.display_name }}</strong> reacted with </span>
-            <img 
-              v-if="reactionEmoji.url"
-              :src="reactionEmoji.url" 
-              :alt="reactionEmoji.name"
-              :title="`:${reactionEmoji.name}:`"
-              class="reaction-emoji-image"
-            />
-            <span v-else class="reaction-emoji-fallback">{{ reactionEmoji.name }}</span>
-          </div>
+          <!-- Reaction Display - Show emoji inline in title, not here -->
+          <!-- The emoji is already shown in the notification title -->
         </div>
       </div>
       
@@ -217,7 +247,99 @@ const isClickable = computed(() =>
 // Rich content computed properties
 const messagePreview = computed(() => {
   const data = props.notification.data
-  return data.message?.content_preview || null
+  
+  // For ActivityPub reactions, show the post preview (your post that was reacted to)
+  if (props.notification.type === 'activitypub_reaction') {
+    let preview = data.post?.content_preview || data.post_content
+    
+    // If no preview, try to extract from post content array
+    if (!preview && Array.isArray(data.post?.content)) {
+      preview = data.post.content
+        .map((part: any) => {
+          if (part.type === 'text') return part.text
+          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+          if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
+          if (part.type === 'hashtag') return `#${part.name}`
+          if (part.type === 'url') return part.url
+          return ''
+        })
+        .join(' ')
+        .trim()
+    }
+    
+    // Fallback to post_content if it's a string
+    if (!preview && typeof data.post_content === 'string') {
+      preview = data.post_content
+    }
+    
+    // Truncate if too long
+    if (preview && preview.length > 100) {
+      preview = preview.substring(0, 100) + '...'
+    }
+    
+    // Just return the preview - title already says "reacted to your post:"
+    return preview || null
+  }
+  
+  // For ActivityPub mentions, check post structure
+  if (props.notification.type === 'activitypub_mention') {
+    let preview = data.post?.content_preview || data.post_content
+    
+    // If no preview, try to extract from post content array
+    if (!preview && Array.isArray(data.post?.content)) {
+      preview = data.post.content
+        .map((part: any) => {
+          if (part.type === 'text') return part.text
+          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+          if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
+          if (part.type === 'hashtag') return `#${part.name}`
+          if (part.type === 'url') return part.url
+          return ''
+        })
+        .join(' ')
+        .trim()
+    }
+    
+    // Fallback to post_content if it's a string
+    if (!preview && typeof data.post_content === 'string') {
+      preview = data.post_content
+    }
+    
+    // Truncate if too long
+    if (preview && preview.length > 100) {
+      preview = preview.substring(0, 100) + '...'
+    }
+    
+    return preview || null
+  }
+  
+  // For chat mentions/DMs, prioritize structured message.content_preview
+  let preview = data.message?.content_preview
+  
+  // Fallback to legacy format
+  if (!preview) {
+    preview = data.preview || data.content_preview
+  }
+  
+  // Handle MessagePart[] content
+  if (!preview && Array.isArray(data.message?.content)) {
+    preview = data.message.content
+      .map((part: any) => {
+        if (part.type === 'text') return part.text
+        if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+        if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
+        return ''
+      })
+      .join('')
+      .trim()
+  }
+  
+  // Truncate if too long
+  if (preview && preview.length > 100) {
+    preview = preview.substring(0, 100) + '...'
+  }
+  
+  return preview || null
 })
 
 const channelInfo = computed(() => {
@@ -225,11 +347,27 @@ const channelInfo = computed(() => {
 })
 
 const reactionEmoji = computed(() => {
-  if (props.notification.type === 'reaction') {
-    const reactionData = props.notification.data.reaction
+  // Handle both chat reactions and ActivityPub reactions
+  if (props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction') {
+    const data = props.notification.data
+    const reactionData = data.reaction || data
+    
+    // Try multiple paths for emoji URL
+    let emojiUrl = reactionData?.emoji_url || data.emoji_url
+    const emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name || '👍'
+    
+    // If we have emoji_url, use it
+    if (emojiUrl) {
+      return {
+        name: emojiName,
+        url: getEmojiUrl(emojiUrl, 48)
+      }
+    }
+    
+    // Fallback: return name only
     return {
-      name: reactionData?.emoji_name || '👍',
-      url: getEmojiUrl(reactionData?.emoji_url, 48) || null
+      name: emojiName,
+      url: null
     }
   }
   return null
@@ -259,8 +397,24 @@ const fullTimestamp = computed(() => {
 })
 
 const hasRichContent = computed(() => {
+  // Show rich content for mentions, replies, reactions (both chat and ActivityPub)
   return messagePreview.value || channelInfo.value || reactionEmoji.value
 })
+
+// Check if this notification should show reaction display
+const shouldShowReactionDisplay = computed(() => {
+  return props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction'
+})
+
+// Get reactor name for both chat and ActivityPub reactions
+const getReactorName = () => {
+  const data = props.notification.data
+  if (props.notification.type === 'activitypub_reaction') {
+    const sender = data.sender || data.actor
+    return sender?.display_name || sender?.username || 'Someone'
+  }
+  return data.reactor?.display_name || data.reactor?.username || 'Someone'
+}
 
 const hasQuickActions = computed(() => {
   return ['server_invite', 'dm', 'mention', 'reply'].includes(props.notification.type)
@@ -304,7 +458,7 @@ const jumpToMessage = () => {
   if (navData?.type === 'channel') {
     let path = `/chat/${navData.serverId}/${navData.channelId}`
     if (navData.messageId) {
-      path += `?message=${navData.messageId}`
+      path += `?messageId=${navData.messageId}`
     }
     router.push(path)
   }
@@ -562,6 +716,23 @@ const typeIcon = computed(() => {
   color: #ffffff;
   line-height: 1.3;
   word-wrap: break-word;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.notification-title-emoji {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.notification-title-emoji-fallback {
+  font-size: 14px;
+  color: #dcddde;
 }
 
 .notification-item--unread .notification-title {

@@ -51,6 +51,10 @@
                 <SpeakerIcon v-else /> 
                 <span class="channel-name">{{ element.name }}</span>
               </div>
+              <!-- Unread badge for channels without categories -->
+              <div v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge">
+                {{ getChannelUnreadMentions(element.id) > 99 ? '99+' : getChannelUnreadMentions(element.id) }}
+              </div>
               <!-- Voice channel controls -->
               <div v-if="element.type === 1" class="voice-controls">
                 <button
@@ -160,7 +164,9 @@
                       <SpeakerIcon v-else />
                       <span class="channel-name">{{ channel.name }}</span>
                     </div>
-                    <div v-if="hasNotifications(channel)" class="notification-badge"></div>
+                    <div v-if="getChannelUnreadMentions(channel.id) > 0" class="notification-badge">
+                      {{ getChannelUnreadMentions(channel.id) > 99 ? '99+' : getChannelUnreadMentions(channel.id) }}
+                    </div>
                     <!-- Voice channel controls -->
                     <div v-if="channel.type === 1" class="voice-controls">
                       <button
@@ -274,6 +280,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
+import { useNotificationStore } from '@/stores/useNotification';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useThemeStore } from '@/stores/useTheme';
 import { statePersistence } from '@/services/StatePersistence';
@@ -545,7 +552,15 @@ const onChannelRemovedFromCategory = (evt: any) => {
 
 
 
-const hasNotifications = (channel: Channel): boolean => false; // Placeholder for notification logic
+const notificationStore = useNotificationStore();
+
+const getChannelUnreadMentions = (channelId: string): number => {
+  return notificationStore.unreadChannelMentions(channelId);
+};
+
+const hasNotifications = (channel: Channel): boolean => {
+  return getChannelUnreadMentions(channel.id) > 0;
+};
 
 const shouldShowCategoryContent = (category: Category): boolean => {
   const categoryChannelsList = props.categoryChannels?.[category.id] || [];
@@ -942,12 +957,21 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
 
 /* Notification badge for channels with notifications */
 .notification-badge {
-  width: 6px;
-  height: 6px;
+  min-width: 18px;
+  height: 18px;
   background-color: #f23f42;
-  border-radius: 50%;
+  border-radius: 9px;
   margin-left: auto;
   margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 /* Voice channel controls */
