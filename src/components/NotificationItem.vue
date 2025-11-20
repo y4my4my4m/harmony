@@ -44,7 +44,23 @@
       <!-- Header -->
       <div class="notification-header">
         <div class="notification-title-section">
-          <h4 class="notification-title">{{ formattedMessage.title }}</h4>
+          <h4 class="notification-title">
+            {{ formattedMessage.title }}
+            <!-- Show emoji inline for ActivityPub reactions -->
+            <img 
+              v-if="(props.notification.type === 'activitypub_reaction' || props.notification.type === 'reaction') && reactionEmoji?.url"
+              :src="reactionEmoji.url" 
+              :alt="reactionEmoji.name"
+              :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
+              class="notification-title-emoji"
+            />
+            <span 
+              v-else-if="(props.notification.type === 'activitypub_reaction' || props.notification.type === 'reaction') && reactionEmoji?.name"
+              class="notification-title-emoji-fallback"
+            >
+              :{{ reactionEmoji.name }}:
+            </span>
+          </h4>
           <div class="notification-metadata">
             <span class="username">{{ username }}</span>
             <span class="separator">•</span>
@@ -95,20 +111,8 @@
             <span v-if="serverName" class="in-server">in {{ serverName }}</span>
           </div>
           
-          <!-- Reaction Display -->
-          <div v-if="shouldShowReactionDisplay && reactionEmoji" class="reaction-display">
-            <span class="reaction-text">
-              <strong>{{ getReactorName() }}</strong> reacted with 
-            </span>
-            <img 
-              v-if="reactionEmoji.url"
-              :src="reactionEmoji.url" 
-              :alt="reactionEmoji.name"
-              :title="`:${reactionEmoji.name}:`"
-              class="reaction-emoji-image"
-            />
-            <span v-else class="reaction-emoji-fallback">{{ reactionEmoji.name }}</span>
-          </div>
+          <!-- Reaction Display - Show emoji inline in title, not here -->
+          <!-- The emoji is already shown in the notification title -->
         </div>
       </div>
       
@@ -219,6 +223,38 @@ const isClickable = computed(() =>
 // Rich content computed properties
 const messagePreview = computed(() => {
   const data = props.notification.data
+  
+  // For ActivityPub reactions, show the post preview (your post that was reacted to)
+  if (props.notification.type === 'activitypub_reaction') {
+    let preview = data.post?.content_preview || data.post_content
+    
+    // If no preview, try to extract from post content array
+    if (!preview && Array.isArray(data.post?.content)) {
+      preview = data.post.content
+        .map((part: any) => {
+          if (part.type === 'text') return part.text
+          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+          if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
+          if (part.type === 'hashtag') return `#${part.name}`
+          if (part.type === 'url') return part.url
+          return ''
+        })
+        .join(' ')
+        .trim()
+    }
+    
+    // Fallback to post_content if it's a string
+    if (!preview && typeof data.post_content === 'string') {
+      preview = data.post_content
+    }
+    
+    // Truncate if too long
+    if (preview && preview.length > 100) {
+      preview = preview.substring(0, 100) + '...'
+    }
+    
+    return preview || null
+  }
   
   // For ActivityPub mentions, check post structure
   if (props.notification.type === 'activitypub_mention') {
@@ -640,6 +676,23 @@ const typeIcon = computed(() => {
   color: #ffffff;
   line-height: 1.3;
   word-wrap: break-word;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.notification-title-emoji {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.notification-title-emoji-fallback {
+  font-size: 14px;
+  color: #dcddde;
 }
 
 .notification-item--unread .notification-title {

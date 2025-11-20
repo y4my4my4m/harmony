@@ -241,17 +241,39 @@ const MESSAGE_TEMPLATES = {
       const sender = data.sender
       const senderName = sender?.display_name || sender?.username || 'Someone'
       const domain = sender?.domain && !sender?.is_local ? `@${sender.domain}` : ''
-      const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
       // Title without emoji - emoji will be shown separately in toast/notification widget
       return `${senderName}${domain} reacted to your post`
     },
     message: (data: any) => {
-      const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
-      if (data.post_content) {
-        const content = data.post_content.substring(0, 100)
-        return `:${emojiName}: on "${content}${data.post_content.length > 100 ? '...' : ''}"`
+      // Show preview of YOUR post (the post that was reacted to)
+      const postContent = data.post?.content_preview || data.post_content
+      if (postContent) {
+        // Handle MessagePart[] array
+        if (Array.isArray(postContent)) {
+          const textParts = postContent
+            .map((part: any) => {
+              if (part.type === 'text') return part.text
+              if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+              if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
+              if (part.type === 'hashtag') return `#${part.name}`
+              return ''
+            })
+            .join(' ')
+            .trim()
+          
+          if (textParts) {
+            return textParts.length > 100 ? textParts.substring(0, 100) + '...' : textParts
+          }
+        }
+        
+        // Handle string content
+        if (typeof postContent === 'string') {
+          return postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent
+        }
       }
-      return `:${emojiName}: reaction`
+      
+      // Fallback
+      return 'Click to view post'
     },
     shortTitle: (data: any) => {
       const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
