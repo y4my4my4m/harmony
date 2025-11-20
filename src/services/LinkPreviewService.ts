@@ -2,12 +2,6 @@ import { supabase } from '@/supabase';
 import type { EmbedPayload, TimelinePost } from '@/types';
 import { normalizeEmbedUrl } from '@/utils/embedDetection';
 
-interface LinkPreviewResponse {
-  data?: EmbedPayload;
-  cached?: boolean;
-  error?: { message: string };
-}
-
 interface FetchOptions {
   forceRefresh?: boolean;
 }
@@ -37,7 +31,7 @@ export class LinkPreviewService {
       return this.inflight.get(cacheKey)!;
     }
 
-    const request = this.invokeEdgeFunction(url)
+    const request = this.invokeRpc(url)
       .then((payload) => {
         this.cache.set(cacheKey, payload);
         return payload;
@@ -83,20 +77,20 @@ export class LinkPreviewService {
     return null;
   }
 
-  private async invokeEdgeFunction(url: string): Promise<EmbedPayload> {
-    const { data, error } = await supabase.functions.invoke<LinkPreviewResponse>('link-preview', {
-      body: { url },
+  private async invokeRpc(url: string): Promise<EmbedPayload> {
+    const { data, error } = await supabase.rpc('fetch_link_preview', {
+      p_url: url
     });
 
     if (error) {
       throw new Error(error.message || 'Failed to fetch link preview');
     }
 
-    if (!data?.data) {
+    if (!data) {
       throw new Error('Link preview payload missing');
     }
 
-    return data.data;
+    return data as EmbedPayload;
   }
 
   private getCacheKey(url: string): string | null {
