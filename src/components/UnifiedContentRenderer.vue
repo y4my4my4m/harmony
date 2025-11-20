@@ -422,14 +422,14 @@ const formatFileSize = (bytes: number): string => {
   max-width: 100%;
 }
 
-.content-image,
-.content-video {
+.media-container :deep(.content-image),
+.media-container :deep(.content-video) {
   max-width: 100%;
   border-radius: 4px;
   cursor: pointer;
 }
 
-.content-video {
+.media-container :deep(.content-video) {
   cursor: default;
 }
 
