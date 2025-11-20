@@ -89,6 +89,7 @@ import { useLayoutState } from '@/composables/useLayoutState'
 import { useUserData } from '@/composables/useUserData'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
+import { useViewContextTracking } from '@/composables/useViewContext'
 import type { MessagePart } from '@/types'
 
 // Props
@@ -313,6 +314,9 @@ const getCallerAvatar = computed(() => {
 
 // Watch for conversation changes
 watch(() => route.params.conversationId, loadMessages, { immediate: true })
+
+// Track view context in database for notification suppression
+useViewContextTracking()
 
 // Watch for messageId query param to scroll and highlight
 watch(() => route.query.messageId, async (messageId) => {

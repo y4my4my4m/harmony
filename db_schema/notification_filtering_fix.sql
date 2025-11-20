@@ -199,6 +199,16 @@ BEGIN
             END IF;
         END IF;
 
+        -- 🔥 Check if user is currently viewing this channel/DM (Discord-like behavior)
+        -- If user is viewing the source channel/DM, suppress notification entirely at database level
+        IF (server_id IS NOT NULL AND p_channel_id IS NOT NULL) OR p_conversation_id IS NOT NULL THEN
+            IF public.is_user_viewing_context(recipient_id, server_id, p_channel_id, p_conversation_id) THEN
+                RAISE NOTICE '🔇 Notification suppressed (user viewing context): type=% to_user=% server_id=% channel_id=% conversation_id=%', 
+                    notification_type, recipient_id, server_id, p_channel_id, p_conversation_id;
+                CONTINUE; -- Skip creating notification entirely
+            END IF;
+        END IF;
+
         -- Get user notification preferences if table exists
         user_prefs := NULL;
         BEGIN

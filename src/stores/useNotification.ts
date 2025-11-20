@@ -541,8 +541,9 @@ export const useNotificationStore = defineStore('notification', {
                 return
               }
 
-              // Note: Block/mute filtering should be handled by database triggers/functions
-              // If a notification reaches here, it should already be filtered
+              // Note: Block/mute filtering AND view context filtering are handled by database triggers/functions
+              // If a notification reaches here, it means the user is NOT viewing the source channel/DM
+              // (Notifications are suppressed at database level if user is viewing the context)
               
               // Check DND - if active, don't show UI but still add to list
               const isDndActive = this.isQuietHours
@@ -562,15 +563,13 @@ export const useNotificationStore = defineStore('notification', {
               const formatted = NotificationFormatter.formatNotification(newNotification)
               console.log('✨ Formatted notification message:', formatted)
 
-              // Use ViewContextTracker for smart UI decisions (Discord-like behavior)
-              const uiDecision = viewContextTracker.shouldShowNotificationUI({
-                server_id: newNotification.data.location?.server_id || newNotification.data.server_id,
-                channel_id: newNotification.data.location?.channel_id || newNotification.data.channel_id,
-                conversation_id: newNotification.data.conversation?.id || newNotification.data.conversation_id,
-                type: newNotification.type
-              })
-
-              console.log('🎯 UI Decision:', uiDecision)
+              // Since database already filters based on view context, show all notifications that reach here
+              const uiDecision = {
+                showToast: true,
+                showDesktop: true,
+                playSound: true,
+                reason: 'Notification passed database filtering'
+              }
 
               // Process notification through unified notification system
               this.handleRealtimeNotification(newNotification, formatted, uiDecision)
