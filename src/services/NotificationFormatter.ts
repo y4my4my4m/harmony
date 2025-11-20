@@ -242,8 +242,8 @@ const MESSAGE_TEMPLATES = {
       const senderName = sender?.display_name || sender?.username || 'Someone'
       const domain = sender?.domain && !sender?.is_local ? `@${sender.domain}` : ''
       const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'
-      // For desktop notifications, show emoji name (desktop notifications can't display custom emoji images)
-      return `${senderName}${domain} reacted :${emojiName}: to your post`
+      // Title without emoji - emoji will be shown separately in toast/notification widget
+      return `${senderName}${domain} reacted to your post`
     },
     message: (data: any) => {
       const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'

@@ -219,7 +219,40 @@ const isClickable = computed(() =>
 // Rich content computed properties
 const messagePreview = computed(() => {
   const data = props.notification.data
-  // Prioritize structured message.content_preview
+  
+  // For ActivityPub mentions, check post structure
+  if (props.notification.type === 'activitypub_mention') {
+    let preview = data.post?.content_preview || data.post_content
+    
+    // If no preview, try to extract from post content array
+    if (!preview && Array.isArray(data.post?.content)) {
+      preview = data.post.content
+        .map((part: any) => {
+          if (part.type === 'text') return part.text
+          if (part.type === 'mention') return `@${part.username}${part.domain ? '@' + part.domain : ''}`
+          if (part.type === 'emoji') return `:${part.emoji?.name || part.emoji}:`
+          if (part.type === 'hashtag') return `#${part.name}`
+          if (part.type === 'url') return part.url
+          return ''
+        })
+        .join(' ')
+        .trim()
+    }
+    
+    // Fallback to post_content if it's a string
+    if (!preview && typeof data.post_content === 'string') {
+      preview = data.post_content
+    }
+    
+    // Truncate if too long
+    if (preview && preview.length > 100) {
+      preview = preview.substring(0, 100) + '...'
+    }
+    
+    return preview || null
+  }
+  
+  // For chat mentions/DMs, prioritize structured message.content_preview
   let preview = data.message?.content_preview
   
   // Fallback to legacy format

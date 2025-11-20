@@ -4,6 +4,7 @@ import router from '@/router'
 import { useAuthStore } from './auth'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
+import { getEmojiUrl } from '@/utils/emojiUtils'
 import { services } from '@/services'
 import type { 
   Notification, 
@@ -621,12 +622,31 @@ export const useNotificationStore = defineStore('notification', {
         // Show toast notification if appropriate
         if (uiDecision.showToast) {
           console.log('🍞 Showing toast notification')
+          
+          // Extract emoji data for reaction notifications
+          let emojiUrl: string | undefined
+          let emojiName: string | undefined
+          if (notification.type === 'activitypub_reaction' || notification.type === 'reaction') {
+            const reactionData = notification.data.reaction || notification.data
+            emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content
+            // Get emoji URL if available
+            if (reactionData?.emoji_url) {
+              emojiUrl = getEmojiUrl(reactionData.emoji_url, 48)
+            }
+            // Also check for emoji in sender data (for ActivityPub reactions)
+            if (!emojiUrl && notification.data.sender?.emoji_url) {
+              emojiUrl = getEmojiUrl(notification.data.sender.emoji_url, 48)
+            }
+          }
+          
           this.showToast(
             notification.type,
             formatted.title,
             formatted.message,
             4000,
-            NotificationFormatter.getAvatarUrl(notification)
+            NotificationFormatter.getAvatarUrl(notification),
+            emojiUrl,
+            emojiName
           )
         } else {
           console.log('🚫 Toast notification suppressed by UI decision')
@@ -713,7 +733,9 @@ export const useNotificationStore = defineStore('notification', {
       title: string,
       message: string,
       duration = 4000,
-      avatar?: string
+      avatar?: string,
+      emojiUrl?: string,
+      emojiName?: string
     ) {
       if (this.isQuietHours && type !== 'server_update') return
       
@@ -723,6 +745,8 @@ export const useNotificationStore = defineStore('notification', {
         title,
         message,
         avatar,
+        emojiUrl,
+        emojiName,
         duration,
         timestamp: new Date()
       }

@@ -996,17 +996,20 @@ BEGIN
                     mentioned_username := content_part->>'username';
                     
                     -- Get the mentioned user ID (only local users)
-                    -- Check both with and without domain to be safe
+                    -- For local posts, mentions should always be local users
                     SELECT id INTO mentioned_user_id
                     FROM profiles
                     WHERE username = mentioned_username
                       AND is_local = true
-                      AND (domain IS NULL OR domain = (SELECT trim(both '"' from config_value::text) FROM instance_config WHERE config_key = 'domain' LIMIT 1))
                       AND id != NEW.author_id; -- Don't notify self
                     
                     -- Debug logging
                     IF mentioned_user_id IS NULL THEN
-                        RAISE NOTICE '⚠️ Local mention: username=% not found or not local', mentioned_username;
+                        RAISE NOTICE '⚠️ Local mention: username=% not found or not local. Available local users: %', 
+                            mentioned_username,
+                            (SELECT string_agg(username, ', ') FROM profiles WHERE is_local = true LIMIT 10);
+                    ELSE
+                        RAISE NOTICE '✅ Local mention: found user % (ID: %)', mentioned_username, mentioned_user_id;
                     END IF;
                     
                     -- Create notification if mentioned user found
@@ -1055,17 +1058,119 @@ $$;
 
 COMMENT ON FUNCTION public.handle_local_post_mention_notifications IS 'Creates proper notifications for local users mentioned in ActivityPub posts using send_notification_to_user.';
 
--- Ensure trigger exists for local post mentions
--- Note: This trigger handles LOCAL posts only
--- Federated posts are handled in process_activitypub_public_post function
-DROP TRIGGER IF EXISTS trigger_handle_local_post_mention_notifications ON public.posts;
-CREATE TRIGGER trigger_handle_local_post_mention_notifications
+-- Create a unified function to handle mentions for both local and federated posts
+CREATE OR REPLACE FUNCTION public.handle_post_mention_notifications() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    content_part JSONB;
+    mentioned_username TEXT;
+    mentioned_user_id UUID;
+    author_profile RECORD;
+    post_content_preview TEXT;
+BEGIN
+    -- Only handle new posts
+    IF TG_OP = 'INSERT' THEN
+        -- Get author profile for notification data
+        SELECT id, username, display_name, avatar_url, domain, is_local
+        INTO author_profile
+        FROM profiles 
+        WHERE id = NEW.author_id;
+        
+        -- Only process if author found and content exists
+        IF FOUND AND NEW.content IS NOT NULL THEN
+            -- Extract content preview from MessagePart[] array
+            post_content_preview := extract_message_text(NEW.content);
+            IF LENGTH(post_content_preview) > 100 THEN
+                post_content_preview := LEFT(post_content_preview, 100) || '...';
+            END IF;
+            IF post_content_preview = '' OR post_content_preview IS NULL THEN
+                post_content_preview := 'New post';
+            END IF;
+            
+            -- Extract mentions from unified content format
+            IF jsonb_typeof(NEW.content) = 'array' THEN
+                FOR content_part IN SELECT jsonb_array_elements(NEW.content)
+                LOOP
+                    -- Check if this is a mention
+                    IF content_part->>'type' = 'mention' THEN
+                        mentioned_username := content_part->>'username';
+                        
+                        -- Check if this is a local mention using isLocal field
+                        IF (content_part->>'isLocal')::boolean = true THEN
+                            RAISE NOTICE '🔍 Processing local mention: username=%, is_local=%, is_federated=%', 
+                                mentioned_username, NEW.is_local, NEW.is_federated;
+                            
+                            -- Get the mentioned user ID (only local users)
+                            SELECT id INTO mentioned_user_id
+                            FROM profiles 
+                            WHERE username = mentioned_username 
+                              AND is_local = true
+                              AND id != NEW.author_id; -- Don't notify self
+                            
+                            IF mentioned_user_id IS NOT NULL THEN
+                                RAISE NOTICE '✅ Found local user mentioned: % (ID: %)', mentioned_username, mentioned_user_id;
+                                
+                                -- Use send_notification_to_user for proper notification creation
+                                PERFORM send_notification_to_user(
+                                    'activitypub_mention',
+                                    mentioned_user_id,
+                                    jsonb_build_object(
+                                        'actor', jsonb_build_object(
+                                            'id', author_profile.id,
+                                            'username', author_profile.username,
+                                            'display_name', author_profile.display_name,
+                                            'avatar_url', author_profile.avatar_url,
+                                            'domain', author_profile.domain,
+                                            'is_local', author_profile.is_local
+                                        ),
+                                        'post', jsonb_build_object(
+                                            'id', NEW.id,
+                                            'ap_id', NEW.ap_id,
+                                            'content_preview', post_content_preview,
+                                            'content', NEW.content
+                                        ),
+                                        'post_id', NEW.id,
+                                        'post_content', NEW.content,
+                                        'timestamp', NEW.created_at,
+                                        'federated', NEW.is_federated
+                                    ),
+                                    NULL, -- server_id
+                                    NULL, -- channel_id
+                                    NULL, -- conversation_id
+                                    author_profile.id, -- from_user_id
+                                    'normal' -- priority
+                                );
+                                
+                                RAISE NOTICE '✅ Created ActivityPub mention notification: % mentioned %', 
+                                    author_profile.username, mentioned_username;
+                            ELSE
+                                RAISE NOTICE '⚠️ Mentioned user not found: username=%', mentioned_username;
+                            END IF;
+                        ELSE
+                            RAISE NOTICE '⚠️ Skipping remote user mention: username=%', mentioned_username;
+                        END IF;
+                    END IF;
+                END LOOP;
+            END IF;
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.handle_post_mention_notifications IS 'Creates notifications when local users are mentioned in ActivityPub posts (both local and federated).';
+
+-- Create trigger for ALL posts (local and federated)
+DROP TRIGGER IF EXISTS trigger_handle_post_mention_notifications ON public.posts;
+CREATE TRIGGER trigger_handle_post_mention_notifications
     AFTER INSERT ON public.posts
     FOR EACH ROW
-    WHEN (NEW.is_local = true AND NEW.is_federated = false)
-    EXECUTE FUNCTION public.handle_local_post_mention_notifications();
+    WHEN (NEW.content IS NOT NULL)
+    EXECUTE FUNCTION public.handle_post_mention_notifications();
 
-COMMENT ON TRIGGER trigger_handle_local_post_mention_notifications ON public.posts IS 'Creates notifications when local users are mentioned in LOCAL ActivityPub posts (not federated). Federated mentions are handled in process_activitypub_public_post.';
+COMMENT ON TRIGGER trigger_handle_post_mention_notifications ON public.posts IS 'Creates notifications when local users are mentioned in ActivityPub posts (both local and federated).';
 
 -- Update process_activitypub_public_post to use send_notification_to_user for federated mentions
 CREATE OR REPLACE FUNCTION public.process_activitypub_public_post(activity_id uuid, activity_data jsonb, actor_profile record, instance_domain text) RETURNS void
@@ -1166,26 +1271,26 @@ BEGIN
         LOOP
             IF content_part->>'type' = 'mention' THEN
                 mentioned_username := content_part->>'username';
-                mentioned_domain := content_part->>'domain';
                 
-                RAISE NOTICE '🔍 Processing mention: username=%, domain=%, instance_domain=%', 
-                    mentioned_username, mentioned_domain, instance_domain;
-                
-                -- Check if this mention is for a local user
-                -- When a remote user mentions a local user, the mention domain will match instance_domain
-                -- OR the domain will be NULL (if parsed as local)
-                -- Simplest approach: just check if username exists as a local user
-                SELECT id INTO v_local_user_id
-                FROM profiles 
-                WHERE username = mentioned_username 
-                  AND is_local = true
-                  AND id != actor_profile.id; -- Don't notify self
-                
-                -- Additional check: if domain is set and doesn't match instance, skip
-                -- (This means it's a mention of a remote user, not local)
-                IF mentioned_domain IS NOT NULL AND mentioned_domain != instance_domain THEN
-                    v_local_user_id := NULL; -- Clear it, this is a remote user mention
-                    RAISE NOTICE '⚠️ Skipping remote user mention: %@%', mentioned_username, mentioned_domain;
+                -- Check if this is a local mention using isLocal field
+                IF (content_part->>'isLocal')::boolean = true THEN
+                    RAISE NOTICE '🔍 Processing local mention: username=%, instance_domain=%', 
+                        mentioned_username, instance_domain;
+                    
+                    -- Get the mentioned user ID (only local users)
+                    SELECT id INTO v_local_user_id
+                    FROM profiles 
+                    WHERE username = mentioned_username 
+                      AND is_local = true
+                      AND id != actor_profile.id; -- Don't notify self
+                    
+                    IF v_local_user_id IS NULL THEN
+                        RAISE NOTICE '⚠️ Mentioned user not found or not local: username=%', 
+                            mentioned_username;
+                    END IF;
+                ELSE
+                    RAISE NOTICE '⚠️ Skipping remote user mention: username=%', mentioned_username;
+                    v_local_user_id := NULL;
                 END IF;
                 
                 IF v_local_user_id IS NOT NULL THEN
