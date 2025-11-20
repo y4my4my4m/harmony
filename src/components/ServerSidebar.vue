@@ -42,7 +42,6 @@
       v-for="server in props.servers"
       :key="server.id"
       class="server-item-wrapper"
-      :class="[{ 'selected': isSelected(server.id)}]"
     >
       <ServerIcon
         :id="server.id"
@@ -50,6 +49,7 @@
         :alt="server.name"
         size="md"
         class="server-item"
+        :class="{ selected: isSelected(server.id) }"
         shape="round"
         :interactive="true"
         @click="selectServer(server.id)"
@@ -359,6 +359,11 @@ const goToMonyverse = () => {
 .dm-button.selected,
 .monyverse-button.selected,
 .portal.selected,
+.server-item.selected {
+  border: 2px solid var(--h-primary);
+  border-radius: 50%;
+}
+
 .server-item.selected {
   border: 2px solid var(--h-primary);
   border-radius: 50%;
