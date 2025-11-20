@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { services } from '@/services';
-import type { Message, MessagePart, ChannelCache, CacheMetadata } from '@/types';
+import type { Message, ChannelCache, CacheMetadata } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
+import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
@@ -276,6 +277,13 @@ export const useChatStore = defineStore('chat', {
 
         console.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });
 
+        // Process URL embeds asynchronously (non-blocking)
+        try {
+          ensureMessageEmbeds(messages);
+        } catch (error) {
+          console.warn('Failed to prepare message embeds:', error);
+        }
+
         // Check if request was cancelled
         if (signal?.aborted) {
           throw new Error('Request aborted');
@@ -365,6 +373,11 @@ export const useChatStore = defineStore('chat', {
 
     // Update cache when new message arrives via real-time
     addMessageToCache(message: Message) {
+      try {
+        ensureMessageEmbeds(message);
+      } catch (error) {
+        console.warn('Failed to prepare embeds for realtime message:', error);
+      }
       // Skip DM messages - they should be handled by the DM store
       if (!message.channel_id || message.conversation_id) {
         console.log('Skipping DM message in chat store - should be handled by DM store');
@@ -422,6 +435,12 @@ export const useChatStore = defineStore('chat', {
           cache.lastModified = new Date();
         }
       });
+
+      try {
+        ensureMessageEmbeds(updatedMessage, { force: true });
+      } catch (error) {
+        console.warn('Failed to refresh embeds for updated message:', error);
+      }
     },
 
     // Remove message from cache
@@ -602,16 +621,24 @@ export const useChatStore = defineStore('chat', {
             if (tempMessageIndex !== -1) {
               console.warn('⚠️ Temp message still exists during real-time, this is a race condition!');
               console.log('🔄 Replacing late:', this.messages[tempMessageIndex].id);
-              this.messages.splice(tempMessageIndex, 1, {
+              const resolvedMessage: Message = {
                 id: payload.new.id,
                 created_at: new Date(payload.new.created_at),
                 channel_id: payload.new.channel_id,
+                conversation_id: payload.new.conversation_id,
                 user_id: payload.new.user_id,
                 content: payload.new.content,
                 reactions: payload.new.reactions,
                 reply_to: payload.new.reply_to,
                 is_system: payload.new.is_system,
-              });
+                metadata: payload.new.metadata || null,
+              };
+              try {
+                ensureMessageEmbeds(resolvedMessage);
+              } catch (error) {
+                console.warn('Failed to prepare embeds for resolved realtime message:', error);
+              }
+              this.messages.splice(tempMessageIndex, 1, resolvedMessage);
               return;
             }
             
@@ -626,11 +653,13 @@ export const useChatStore = defineStore('chat', {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
               channel_id: payload.new.channel_id,
+              conversation_id: payload.new.conversation_id,
               user_id: payload.new.user_id,
               content: payload.new.content,
               reactions: payload.new.reactions,
               reply_to: payload.new.reply_to,
               is_system: payload.new.is_system,
+              metadata: payload.new.metadata || null,
             };
 
             this.addMessageToCache(newMessage);
@@ -659,12 +688,14 @@ export const useChatStore = defineStore('chat', {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
               channel_id: payload.new.channel_id,
+              conversation_id: payload.new.conversation_id,
               user_id: payload.new.user_id,
               content: payload.new.content,
               reactions: payload.new.reactions,
               reply_to: payload.new.reply_to,
               is_system: payload.new.is_system,
               updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
+              metadata: payload.new.metadata || null,
             };
 
             this.updateMessageInCache(updatedMessage.id, updatedMessage);

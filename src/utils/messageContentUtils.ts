@@ -25,7 +25,10 @@ export function messagePartsToMarkdown(parts: MessagePart[]): string {
       
       case 'url':
         return part.url || '';
-      
+
+      case 'embed':
+        return part.url || '';
+
       case 'file':
         // For files, return a placeholder that won't be parsed as markdown
         return `[${part.fileType || 'file'}: attachment]`;

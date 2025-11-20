@@ -53,6 +53,7 @@
                   :content="message.content"
                   :message-id="message.id"
                   :is-system="true"
+                  :embed-payloads="message.metadata?.embeds"
                   @show-user-profile="showUserProfile"
                 />
               </div>
@@ -121,6 +122,7 @@
               :editable-content="editableMessageContent"
               :image-loaded="imageLoaded"
               :is-single-emoji="checkSingleEmoji(message.content)"
+              :embed-payloads="message.metadata?.embeds"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -142,6 +144,7 @@
               :editable-content="editableMessageContent"
               :image-loaded="imageLoaded"
               :is-single-emoji="checkSingleEmoji(message.content)"
+              :embed-payloads="message.metadata?.embeds"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -465,13 +468,13 @@ const setupUnreadObserver = () => {
   intersectionObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const messageId = entry.target.getAttribute('data-message-id');
-          if (messageId && !observedMessages.has(messageId)) {
-            observedMessages.add(messageId);
-            clearUnreadCount(messageId);
-          }
+        if (!entry.isIntersecting) return;
+        const messageId = entry.target.getAttribute('data-message-id');
+        if (!messageId || messageId.startsWith('temp-') || observedMessages.has(messageId)) {
+          return;
         }
+        observedMessages.add(messageId);
+        clearUnreadCount(messageId);
       });
     },
     {
@@ -486,7 +489,10 @@ const setupUnreadObserver = () => {
     if (messageDisplayContainer.value) {
       const messageElements = messageDisplayContainer.value.querySelectorAll('[data-message-id]');
       messageElements.forEach((el) => {
-        intersectionObserver?.observe(el);
+        const id = el.getAttribute('data-message-id');
+        if (id && !id.startsWith('temp-')) {
+          intersectionObserver?.observe(el);
+        }
       });
     }
   });

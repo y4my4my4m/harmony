@@ -7,6 +7,7 @@ import { useServerUsersStore } from './useServerUsers'
 import { useReactionsStore } from './useReactions'
 import { userDataService } from '@/services/userDataService'
 import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessing'
+import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 
 // Types for DM functionality
 export interface DMUser {
@@ -145,6 +146,11 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const addMessageToCache = (message: Message) => {
+    try {
+      ensureMessageEmbeds(message)
+    } catch (error) {
+      console.warn('Failed to prepare DM message embeds:', error)
+    }
     // Add to current messages if it's the current conversation
     if (currentConversationId.value === message.conversation_id) {
       if (!currentDMMessages.value.some(msg => msg.id === message.id)) {
@@ -188,6 +194,12 @@ export const useDMStore = defineStore('dm', () => {
         cache.lastModified = new Date()
       }
     })
+
+    try {
+      ensureMessageEmbeds(updatedMessage, { force: true })
+    } catch (error) {
+      console.warn('Failed to refresh DM embeds for updated message:', error)
+    }
   }
 
   const removeMessageFromCache = (messageId: string) => {
@@ -262,6 +274,12 @@ export const useDMStore = defineStore('dm', () => {
 
       // Note: Reactions are now loaded via batch loading in MessageService
       // Individual fetches removed for performance
+
+      try {
+        ensureMessageEmbeds(message)
+      } catch (fetchError) {
+        console.warn('Failed to prepare embeds for DM reply message:', fetchError)
+      }
 
       return message
     } catch (error) {
@@ -931,8 +949,6 @@ export const useDMStore = defineStore('dm', () => {
         }
       )
 
-
-
       // Check if request was cancelled
       if (signal?.aborted) {
         throw new Error('Request aborted')
@@ -984,8 +1000,15 @@ export const useDMStore = defineStore('dm', () => {
         conversation_id: conversationId,
         reply_to: msg.reply_to,
         reactions: msg.reactions || [],
-        is_system: msg.is_system
+        is_system: msg.is_system,
+        metadata: msg.metadata || null
       }))
+
+      try {
+        ensureMessageEmbeds(formattedMessages)
+      } catch (error) {
+        console.warn('Failed to prepare DM embeds:', error)
+      }
 
       if (beforeMessageId === undefined) {
         // Initial load - update cache and current messages
@@ -1385,7 +1408,7 @@ export const useDMStore = defineStore('dm', () => {
         const tempMessageIndex = currentDMMessages.value.findIndex(m => m.id.startsWith('temp-') && m.user_id === message.user_id);
         if (tempMessageIndex !== -1) {
           console.warn('⚠️ Temp message still exists during real-time, replacing now');
-          currentDMMessages.value.splice(tempMessageIndex, 1, {
+          const resolvedMessage: Message = {
             id: message.id,
             user_id: message.user_id,
             content: message.content,
@@ -1394,8 +1417,15 @@ export const useDMStore = defineStore('dm', () => {
             conversation_id: message.conversation_id,
             reply_to: message.reply_to,
             reactions: message.reactions || [],
-            is_system: message.is_system
-          });
+            is_system: message.is_system,
+            metadata: message.metadata || null
+          };
+          try {
+            ensureMessageEmbeds(resolvedMessage);
+          } catch (error) {
+            console.warn('Failed to prepare embeds for resolved DM message:', error);
+          }
+          currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage);
           return;
         }
         
@@ -1408,7 +1438,8 @@ export const useDMStore = defineStore('dm', () => {
           conversation_id: message.conversation_id,
           reply_to: message.reply_to,
           reactions: message.reactions || [],
-          is_system: message.is_system
+          is_system: message.is_system,
+          metadata: message.metadata || null
         }
         
         console.log('📨 Adding DM message to cache:', formattedMessage)
@@ -1447,7 +1478,8 @@ export const useDMStore = defineStore('dm', () => {
           conversation_id: message.conversation_id,
           reply_to: message.reply_to,
           reactions: formattedReactions,
-          is_system: message.is_system
+          is_system: message.is_system,
+          metadata: message.metadata || null
         }
         
         updateMessageInCache(message.id, updatedMessage)

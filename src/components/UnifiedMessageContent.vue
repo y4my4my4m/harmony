@@ -132,6 +132,19 @@
             rel="noopener noreferrer"
             class="url-link"
           >{{ part.url }}</a>
+          <ProviderEmbedSwitch
+            v-if="resolveEmbedPayload(part)"
+            :payload="resolveEmbedPayload(part)!"
+            :key="`${messageId}-embed-${part.embedId || part.url}`"
+          />
+        </template>
+        
+        <template v-else-if="part && typeof part === 'object' && part.type === 'embed'">
+          <ProviderEmbedSwitch
+            v-if="resolveEmbedPayload(part)"
+            :payload="resolveEmbedPayload(part)!"
+            :key="`${messageId}-embed-${part.previewId || part.url}`"
+          />
         </template>
         
         <!-- Image files -->
@@ -214,19 +227,21 @@
 <script lang="ts">
 import { defineComponent, watch, ref, nextTick, reactive } from 'vue';
 import type { PropType } from 'vue';
-import type { MessagePart } from '@/types';
+import type { EmbedPayload, MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
   components: {
     AutoSuggest,
     CodeBlock,
+    ProviderEmbedSwitch,
   },
   props: {
     content: {
@@ -256,6 +271,10 @@ export default defineComponent({
     isSystem: {
       type: Boolean,
       default: false
+    },
+    embedPayloads: {
+      type: Object as PropType<Record<string, EmbedPayload> | null>,
+      default: null
     }
   },
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click'],
@@ -304,6 +323,23 @@ export default defineComponent({
       const sizes = ['Bytes', 'KB', 'MB', 'GB'];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const resolveEmbedPayload = (part: MessagePart): EmbedPayload | null => {
+      const embeds = props.embedPayloads;
+      if (!embeds || !part || typeof part !== 'object') {
+        return null;
+      }
+
+      if (part.type === 'embed' && part.previewId) {
+        return embeds[part.previewId] || null;
+      }
+
+      if (part.type === 'url' && part.embedId) {
+        return embeds[part.embedId] || null;
+      }
+
+      return null;
     };
 
     // Format mention display based on structured mention data
@@ -607,6 +643,7 @@ export default defineComponent({
       renderTextSegments,
       getFileName,
       handleHashtagClick,
+      resolveEmbedPayload
     };
   }
 });
@@ -615,6 +652,7 @@ export default defineComponent({
 <style scoped>
 .unified-content {
   width: 100%;
+  margin-bottom: 4px;
   line-height: 1.375;
   word-wrap: break-word;
   overflow-wrap: break-word;

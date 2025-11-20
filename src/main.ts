@@ -2,6 +2,7 @@
 import './assets/design-system.css'
 import './assets/main.css'
 import './assets/shared.css'
+import './assets/embed-previews.css'
 // Dynamically import 'pwa.css' based on mobile detection
 // async function loadMobileStyles() {
 //   const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent);
