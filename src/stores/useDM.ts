@@ -146,9 +146,11 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const addMessageToCache = (message: Message) => {
-    ensureMessageEmbeds(message).catch(error => {
+    try {
+      ensureMessageEmbeds(message)
+    } catch (error) {
       console.warn('Failed to prepare DM message embeds:', error)
-    })
+    }
     // Add to current messages if it's the current conversation
     if (currentConversationId.value === message.conversation_id) {
       if (!currentDMMessages.value.some(msg => msg.id === message.id)) {
@@ -193,9 +195,11 @@ export const useDMStore = defineStore('dm', () => {
       }
     })
 
-    ensureMessageEmbeds(updatedMessage, { force: true }).catch(error => {
+    try {
+      ensureMessageEmbeds(updatedMessage, { force: true })
+    } catch (error) {
       console.warn('Failed to refresh DM embeds for updated message:', error)
-    })
+    }
   }
 
   const removeMessageFromCache = (messageId: string) => {
@@ -271,9 +275,11 @@ export const useDMStore = defineStore('dm', () => {
       // Note: Reactions are now loaded via batch loading in MessageService
       // Individual fetches removed for performance
 
-      ensureMessageEmbeds(message).catch(fetchError => {
+      try {
+        ensureMessageEmbeds(message)
+      } catch (fetchError) {
         console.warn('Failed to prepare embeds for DM reply message:', fetchError)
-      })
+      }
 
       return message
     } catch (error) {
@@ -997,9 +1003,11 @@ export const useDMStore = defineStore('dm', () => {
         is_system: msg.is_system
       }))
 
-      ensureMessageEmbeds(formattedMessages).catch(error => {
+      try {
+        ensureMessageEmbeds(formattedMessages)
+      } catch (error) {
         console.warn('Failed to prepare DM embeds:', error)
-      })
+      }
 
       if (beforeMessageId === undefined) {
         // Initial load - update cache and current messages

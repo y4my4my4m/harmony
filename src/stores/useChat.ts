@@ -278,9 +278,11 @@ export const useChatStore = defineStore('chat', {
         console.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });
 
         // Process URL embeds asynchronously (non-blocking)
-        ensureMessageEmbeds(messages).catch(error => {
+        try {
+          ensureMessageEmbeds(messages);
+        } catch (error) {
           console.warn('Failed to prepare message embeds:', error);
-        });
+        }
 
         // Check if request was cancelled
         if (signal?.aborted) {
@@ -371,9 +373,11 @@ export const useChatStore = defineStore('chat', {
 
     // Update cache when new message arrives via real-time
     addMessageToCache(message: Message) {
-      ensureMessageEmbeds(message).catch(error => {
+      try {
+        ensureMessageEmbeds(message);
+      } catch (error) {
         console.warn('Failed to prepare embeds for realtime message:', error);
-      });
+      }
       // Skip DM messages - they should be handled by the DM store
       if (!message.channel_id || message.conversation_id) {
         console.log('Skipping DM message in chat store - should be handled by DM store');
@@ -432,9 +436,11 @@ export const useChatStore = defineStore('chat', {
         }
       });
 
-      ensureMessageEmbeds(updatedMessage, { force: true }).catch(error => {
+      try {
+        ensureMessageEmbeds(updatedMessage, { force: true });
+      } catch (error) {
         console.warn('Failed to refresh embeds for updated message:', error);
-      });
+      }
     },
 
     // Remove message from cache

@@ -163,9 +163,11 @@ export function useMessageSearch() {
         searchResults.value = [...searchResults.value, ...response.results]
       }
 
-      ensureMessageEmbeds(response.results).catch(error => {
+      try {
+        ensureMessageEmbeds(response.results)
+      } catch (error) {
         console.warn('Failed to prepare embeds for search results:', error)
-      })
+      }
 
       hasMore.value = response.hasMore
       offset.value += response.results.length
