@@ -24,21 +24,45 @@
           
           <div class="toast-content">
             <h4 class="toast-title">
-              {{ toast.title }}
-              <!-- Show emoji image for reaction notifications -->
-              <img 
-                v-if="toast.emojiUrl && (toast.type === 'reaction' || toast.type === 'activitypub_reaction')"
-                :src="toast.emojiUrl" 
-                :alt="toast.emojiName || 'emoji'"
-                :title="toast.emojiName ? `:${toast.emojiName}:` : ''"
-                class="toast-emoji"
-              />
-              <span 
-                v-else-if="toast.emojiName && (toast.type === 'reaction' || toast.type === 'activitypub_reaction')"
-                class="toast-emoji-fallback"
-              >
-                :{{ toast.emojiName }}:
-              </span>
+              <template v-if="toast.type === 'activitypub_reaction' || toast.type === 'reaction'">
+                <!-- For reactions, show emoji inline in title -->
+                <template v-if="toast.type === 'activitypub_reaction'">
+                  <span>{{ toast.title.split('reacted')[0] }}</span>reacted
+                  <img 
+                    v-if="toast.emojiUrl"
+                    :src="toast.emojiUrl" 
+                    :alt="toast.emojiName || 'emoji'"
+                    :title="toast.emojiName ? `:${toast.emojiName}:` : ''"
+                    class="toast-emoji"
+                  />
+                  <span 
+                    v-else-if="toast.emojiName"
+                    class="toast-emoji-fallback"
+                  >
+                    :{{ toast.emojiName }}:
+                  </span>
+                  <span>{{ toast.title.split('reacted')[1] }}</span>
+                </template>
+                <template v-else>
+                  {{ toast.title }}
+                  <img 
+                    v-if="toast.emojiUrl"
+                    :src="toast.emojiUrl" 
+                    :alt="toast.emojiName || 'emoji'"
+                    :title="toast.emojiName ? `:${toast.emojiName}:` : ''"
+                    class="toast-emoji"
+                  />
+                  <span 
+                    v-else-if="toast.emojiName"
+                    class="toast-emoji-fallback"
+                  >
+                    :{{ toast.emojiName }}:
+                  </span>
+                </template>
+              </template>
+              <template v-else>
+                {{ toast.title }}
+              </template>
             </h4>
             <p v-if="toast.message" class="toast-message">{{ toast.message }}</p>
             <div class="toast-actions" v-if="toast.actions">

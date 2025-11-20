@@ -239,10 +239,14 @@ const MESSAGE_TEMPLATES = {
   activitypub_reaction: {
     title: (data: any) => {
       const sender = data.sender
-      const senderName = sender?.display_name || sender?.username || 'Someone'
-      const domain = sender?.domain && !sender?.is_local ? `@${sender.domain}` : ''
-      // Title without emoji - emoji will be shown separately in toast/notification widget
-      return `${senderName}${domain} reacted to your post`
+      const username = sender?.username || 'someone'
+      const domain = sender?.domain && !sender?.is_local ? sender.domain : null
+      // Format: @username@domain reacted [EMOJI] to your post:
+      // Emoji will be shown inline in the title
+      if (domain) {
+        return `@${username}@${domain} reacted to your post:`
+      }
+      return `@${username} reacted to your post:`
     },
     message: (data: any) => {
       // Show preview of YOUR post (the post that was reacted to)
@@ -272,13 +276,8 @@ const MESSAGE_TEMPLATES = {
         }
       }
       
-      // Make it clear this is YOUR post content, not a reply
-      if (preview) {
-        return `Your post: "${preview}"`
-      }
-      
-      // Fallback
-      return 'Your post'
+      // Just show the preview without "Your post:" prefix since title already says "reacted to your post:"
+      return preview || 'Click to view post'
     },
     shortTitle: (data: any) => {
       const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'

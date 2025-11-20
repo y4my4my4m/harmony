@@ -45,21 +45,45 @@
       <div class="notification-header">
         <div class="notification-title-section">
           <h4 class="notification-title">
-            {{ formattedMessage.title }}
-            <!-- Show emoji inline for ActivityPub reactions -->
-            <img 
-              v-if="(props.notification.type === 'activitypub_reaction' || props.notification.type === 'reaction') && reactionEmoji?.url"
-              :src="reactionEmoji.url" 
-              :alt="reactionEmoji.name"
-              :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
-              class="notification-title-emoji"
-            />
-            <span 
-              v-else-if="(props.notification.type === 'activitypub_reaction' || props.notification.type === 'reaction') && reactionEmoji?.name"
-              class="notification-title-emoji-fallback"
-            >
-              :{{ reactionEmoji.name }}:
-            </span>
+            <template v-if="props.notification.type === 'activitypub_reaction' || props.notification.type === 'reaction'">
+              <!-- For reactions, show emoji inline in title -->
+              <template v-if="props.notification.type === 'activitypub_reaction'">
+                <span>{{ formattedMessage.title.split('reacted')[0] }}</span>reacted
+                <img 
+                  v-if="reactionEmoji?.url"
+                  :src="reactionEmoji.url" 
+                  :alt="reactionEmoji.name"
+                  :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
+                  class="notification-title-emoji"
+                />
+                <span 
+                  v-else-if="reactionEmoji?.name"
+                  class="notification-title-emoji-fallback"
+                >
+                  :{{ reactionEmoji.name }}:
+                </span>
+                <span>{{ formattedMessage.title.split('reacted')[1] }}</span>
+              </template>
+              <template v-else>
+                {{ formattedMessage.title }}
+                <img 
+                  v-if="reactionEmoji?.url"
+                  :src="reactionEmoji.url" 
+                  :alt="reactionEmoji.name"
+                  :title="reactionEmoji.name ? `:${reactionEmoji.name}:` : ''"
+                  class="notification-title-emoji"
+                />
+                <span 
+                  v-else-if="reactionEmoji?.name"
+                  class="notification-title-emoji-fallback"
+                >
+                  :{{ reactionEmoji.name }}:
+                </span>
+              </template>
+            </template>
+            <template v-else>
+              {{ formattedMessage.title }}
+            </template>
           </h4>
           <div class="notification-metadata">
             <span class="username">{{ username }}</span>
@@ -253,12 +277,8 @@ const messagePreview = computed(() => {
       preview = preview.substring(0, 100) + '...'
     }
     
-    // Make it clear this is YOUR post content, not a reply
-    if (preview) {
-      return `Your post: "${preview}"`
-    }
-    
-    return 'Your post'
+    // Just return the preview - title already says "reacted to your post:"
+    return preview || null
   }
   
   // For ActivityPub mentions, check post structure
