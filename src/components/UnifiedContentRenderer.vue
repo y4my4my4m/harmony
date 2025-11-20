@@ -421,8 +421,6 @@ const formatFileSize = (bytes: number): string => {
   max-width: 100%;
 }
 .content-html :deep(.content-image),
-.content-html :deep(.media-container .content-image),
-.content-html :deep(.media-container .content-video),
 .content-html :deep(.content-video) {
   max-width: 100%;
   max-height: 480px;
