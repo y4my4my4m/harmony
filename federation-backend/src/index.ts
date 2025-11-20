@@ -9,7 +9,7 @@ import { apiLimiter } from './middleware/rateLimit.js';
 
 // Import routes
 import healthRouter from './routes/health.js';
-import webhooksRouter from './routes/webhooks.js';
+import linkPreviewRouter from './routes/linkPreview.js';
 
 // Import ActivityPub routes (FEDERATION ONLY!)
 import webFingerRouter from './activitypub/WebFingerService.js';
@@ -60,7 +60,7 @@ app.use('/', inboxRouter);
 app.use('/', outboxRouter);
 app.use('/', groupRouter); // Servers as Groups
 
-app.use('/webhooks', webhooksRouter);
+app.use('/link-preview', linkPreviewRouter);
 
 // 404 handler
 app.use(notFound);
