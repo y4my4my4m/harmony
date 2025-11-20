@@ -7,6 +7,7 @@ import { useServerUsersStore } from './useServerUsers'
 import { useReactionsStore } from './useReactions'
 import { userDataService } from '@/services/userDataService'
 import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessing'
+import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 
 // Types for DM functionality
 export interface DMUser {
@@ -145,6 +146,9 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const addMessageToCache = (message: Message) => {
+    ensureMessageEmbeds(message).catch(error => {
+      console.warn('Failed to prepare DM message embeds:', error)
+    })
     // Add to current messages if it's the current conversation
     if (currentConversationId.value === message.conversation_id) {
       if (!currentDMMessages.value.some(msg => msg.id === message.id)) {
@@ -187,6 +191,10 @@ export const useDMStore = defineStore('dm', () => {
         cache.messages[cacheIndex] = updatedMessage
         cache.lastModified = new Date()
       }
+    })
+
+    ensureMessageEmbeds(updatedMessage, { force: true }).catch(error => {
+      console.warn('Failed to refresh DM embeds for updated message:', error)
     })
   }
 
@@ -262,6 +270,10 @@ export const useDMStore = defineStore('dm', () => {
 
       // Note: Reactions are now loaded via batch loading in MessageService
       // Individual fetches removed for performance
+
+      ensureMessageEmbeds(message).catch(fetchError => {
+        console.warn('Failed to prepare embeds for DM reply message:', fetchError)
+      })
 
       return message
     } catch (error) {
@@ -931,8 +943,6 @@ export const useDMStore = defineStore('dm', () => {
         }
       )
 
-
-
       // Check if request was cancelled
       if (signal?.aborted) {
         throw new Error('Request aborted')
@@ -986,6 +996,10 @@ export const useDMStore = defineStore('dm', () => {
         reactions: msg.reactions || [],
         is_system: msg.is_system
       }))
+
+      ensureMessageEmbeds(formattedMessages).catch(error => {
+        console.warn('Failed to prepare DM embeds:', error)
+      })
 
       if (beforeMessageId === undefined) {
         // Initial load - update cache and current messages

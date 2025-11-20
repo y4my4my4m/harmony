@@ -53,6 +53,7 @@
                   :content="message.content"
                   :message-id="message.id"
                   :is-system="true"
+                  :embed-payloads="message.metadata?.embeds"
                   @show-user-profile="showUserProfile"
                 />
               </div>
@@ -121,6 +122,7 @@
               :editable-content="editableMessageContent"
               :image-loaded="imageLoaded"
               :is-single-emoji="checkSingleEmoji(message.content)"
+              :embed-payloads="message.metadata?.embeds"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -142,6 +144,7 @@
               :editable-content="editableMessageContent"
               :image-loaded="imageLoaded"
               :is-single-emoji="checkSingleEmoji(message.content)"
+              :embed-payloads="message.metadata?.embeds"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"

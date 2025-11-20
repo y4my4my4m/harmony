@@ -16,6 +16,7 @@ import { interactionService, InteractionService } from './InteractionService'
 import { profileService, ProfileService } from './ProfileService'
 import { notificationService, NotificationService } from './NotificationService'
 import { activityPubService, ActivityPubService } from './activityPubService'
+import { linkPreviewService, LinkPreviewService } from './LinkPreviewService'
 
 // Re-export services and types
 export { postService, PostService } from './PostService'
@@ -44,6 +45,8 @@ export type {
 // Legacy services (to be migrated)
 export { activityPubService, ActivityPubService } from './activityPubService'
 
+export { linkPreviewService, LinkPreviewService } from './LinkPreviewService'
+
 // Service aggregator for easy access
 export const services = {
   posts: postService,
@@ -51,6 +54,7 @@ export const services = {
   interactions: interactionService,
   profiles: profileService,
   notifications: notificationService,
+  linkPreviews: linkPreviewService,
   // Legacy
   activityPub: activityPubService
 } as const

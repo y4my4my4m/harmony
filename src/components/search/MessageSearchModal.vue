@@ -234,6 +234,7 @@
                 <UnifiedMessageContent
                   :content="message.content"
                   :message-id="message.id"
+                  :embed-payloads="message.metadata?.embeds"
                 />
               </div>
             </div>

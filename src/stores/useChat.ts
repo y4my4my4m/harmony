@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { services } from '@/services';
-import type { Message, MessagePart, ChannelCache, CacheMetadata } from '@/types';
+import type { Message, ChannelCache, CacheMetadata } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
+import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
@@ -276,6 +277,11 @@ export const useChatStore = defineStore('chat', {
 
         console.log('✅ Service returned:', { messageCount: messages?.length || 0, hasMore });
 
+        // Process URL embeds asynchronously (non-blocking)
+        ensureMessageEmbeds(messages).catch(error => {
+          console.warn('Failed to prepare message embeds:', error);
+        });
+
         // Check if request was cancelled
         if (signal?.aborted) {
           throw new Error('Request aborted');
@@ -365,6 +371,9 @@ export const useChatStore = defineStore('chat', {
 
     // Update cache when new message arrives via real-time
     addMessageToCache(message: Message) {
+      ensureMessageEmbeds(message).catch(error => {
+        console.warn('Failed to prepare embeds for realtime message:', error);
+      });
       // Skip DM messages - they should be handled by the DM store
       if (!message.channel_id || message.conversation_id) {
         console.log('Skipping DM message in chat store - should be handled by DM store');
@@ -421,6 +430,10 @@ export const useChatStore = defineStore('chat', {
           cache.messages[cacheIndex] = updatedMessage;
           cache.lastModified = new Date();
         }
+      });
+
+      ensureMessageEmbeds(updatedMessage, { force: true }).catch(error => {
+        console.warn('Failed to refresh embeds for updated message:', error);
       });
     },
 

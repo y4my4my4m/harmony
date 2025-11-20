@@ -123,6 +123,52 @@ export interface UrlContent {
   type: 'url';
   url: string;
   preview: boolean;
+  embedId?: string;
+}
+
+export type EmbedProvider = 'harmony-post' | 'youtube' | 'spotify' | 'generic';
+
+export interface HarmonyEmbedSummary {
+  postId: string;
+  instanceDomain: string;
+  visibility: 'public' | 'unlisted' | 'followers' | 'direct';
+  isLocal: boolean;
+  author?: {
+    id?: string;
+    username?: string;
+    display_name?: string;
+    domain?: string;
+    avatar_url?: string | null;
+    color?: string | null;
+  };
+}
+
+export interface EmbedPayload {
+  cacheKey: string;
+  url: string;
+  normalizedUrl: string;
+  provider: EmbedProvider;
+  title?: string;
+  description?: string;
+  siteName?: string;
+  image?: string;
+  icon?: string;
+  color?: string;
+  html?: string;
+  width?: number;
+  height?: number;
+  harmony?: HarmonyEmbedSummary;
+  oEmbed?: Record<string, any>;
+  fetchedAt: string;
+  expiresAt: string;
+}
+
+export interface EmbedContent {
+  type: 'embed';
+  url: string;
+  provider: EmbedProvider;
+  previewId: string;
+  collapsed?: boolean;
 }
 
 export interface MentionContent {
@@ -173,7 +219,7 @@ export interface SystemContent {
   timestamp: string;
 }
 
-export type MessagePart = TextContent | UrlContent | MentionContent | EmojiContent | HashtagContent | FileContent | SystemContent;
+export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | EmojiContent | HashtagContent | FileContent | SystemContent;
 
 export interface Reaction {
   id: string;
@@ -206,7 +252,9 @@ export interface Message {
   reply_to?: string;
   reactions?: Reaction[]; // doesn't exist in the database, we're transforming it
   is_system?: boolean; // for system messages like join/leave announcements
-  metadata?: Record<string, any>; // for federated messages and other metadata
+  metadata?: Record<string, any> & {
+    embeds?: Record<string, EmbedPayload>;
+  }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server
 }
 

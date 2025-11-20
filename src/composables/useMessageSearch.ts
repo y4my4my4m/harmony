@@ -7,6 +7,7 @@
 
 import { ref, computed, watch } from 'vue'
 import { searchService, type MessageSearchFilters, type MessageSearchResponse } from '@/services/SearchService'
+import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import type { Message } from '@/types'
 
 export interface SearchFilters {
@@ -161,6 +162,10 @@ export function useMessageSearch() {
         // Append results for pagination
         searchResults.value = [...searchResults.value, ...response.results]
       }
+
+      ensureMessageEmbeds(response.results).catch(error => {
+        console.warn('Failed to prepare embeds for search results:', error)
+      })
 
       hasMore.value = response.hasMore
       offset.value += response.results.length
