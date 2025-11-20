@@ -215,6 +215,7 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   flex: 1;
   min-height: 0; /* Important for flex child with overflow */
   background: var(--background-primary);
+  height: calc(100% - 4px);
 }
 
 .content-section {

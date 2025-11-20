@@ -4,6 +4,7 @@
   background: var(--background-quaternary, #14161c);
   margin-top: 0.85rem;
   overflow: hidden;
+  max-width: 480px;
 }
 
 .provider-embed__header {

@@ -1,5 +1,4 @@
--- Link preview helper functions (Postgres + pg_net/http)
--- Apply after ensuring the http/pg_net extension is installed.
+-- Link preview helpers (Harmony-local + remote backend proxy)
 
 create extension if not exists http with schema extensions;
 
@@ -31,159 +30,6 @@ as $$
   select lower(split_part(split_part(regexp_replace($1, '^https?://', ''), '/', 1), ':', 1));
 $$;
 
-create or replace function public.detect_embed_provider(p_url text)
-returns text
-language plpgsql
-stable
-as $$
-declare
-  host text;
-  path text;
-  instance_domain text := lower(regexp_replace(public.get_instance_domain(), '^https?://', ''));
-begin
-  host := public.extract_url_host(p_url);
-  path := coalesce(substring(p_url from 'https?://[^/]+(/[^?#]*)'), '/');
-
-  if (host = instance_domain or host = 'har.mony.lol') and path ~ '^/posts/[0-9a-fA-F-]{36}' then
-    return 'harmony-post';
-  elsif host ~ '(youtube\.com|youtu\.be)$' then
-    return 'youtube';
-  elsif host ~ 'spotify\.com$' then
-    return 'spotify';
-  else
-    return 'generic';
-  end if;
-end;
-$$;
-
-create or replace function public.make_absolute_url(base_url text, candidate text)
-returns text
-language plpgsql
-immutable
-as $$
-declare
-  origin text;
-begin
-  if candidate is null or candidate = '' then
-    return null;
-  end if;
-
-  if candidate ~* '^[a-z][a-z0-9+\.-]*://' then
-    return candidate;
-  elsif candidate like '//%' then
-    return 'https:' || candidate;
-  end if;
-
-  origin := substring(base_url from '^(https?://[^/]+)');
-  if origin is null then
-    origin := base_url;
-  end if;
-
-  if candidate like '/%' then
-    return origin || candidate;
-  else
-    return origin || '/' || candidate;
-  end if;
-end;
-$$;
-
-create or replace function public.fetch_oembed_preview(p_url text, p_endpoint text)
-returns jsonb
-language plpgsql
-as $$
-declare
-  resp record;
-  body jsonb;
-  headers jsonb := jsonb_build_object('Accept', 'application/json');
-begin
-  select *
-  into resp
-  from net.http_get(
-    p_endpoint,
-    jsonb_build_object('url', p_url, 'format', 'json'),
-    headers,
-    8000
-  );
-
-  if resp.status_code between 200 and 299 then
-    body := coalesce(resp.body::jsonb, '{}'::jsonb);
-    return jsonb_strip_nulls(jsonb_build_object(
-      'title', body->>'title',
-      'description', body->>'author_name',
-      'siteName', coalesce(body->>'provider_name', public.extract_url_host(p_url)),
-      'image', body->>'thumbnail_url',
-      'html', body->>'html',
-      'width', body->>'width',
-      'height', body->>'height'
-    ));
-  else
-    raise exception 'oEmbed request to % failed (status %, body %)', p_endpoint, resp.status_code, left(resp.body, 256);
-  end if;
-end;
-$$;
-
-create or replace function public.fetch_generic_preview(p_url text)
-returns jsonb
-language plpgsql
-as $$
-declare
-  resp record;
-  headers jsonb := jsonb_build_object('User-Agent', 'HarmonyLinkPreview(SQL)');
-  html text;
-  title text;
-  description text;
-  image text;
-  icon text;
-begin
-  select *
-  into resp
-  from net.http_get(
-    p_url,
-    '{}'::jsonb,
-    headers,
-    8000
-  );
-
-  if resp.status_code between 200 and 299 then
-    html := coalesce(resp.body, '');
-  else
-    return jsonb_build_object(
-      'title', p_url,
-      'description', format('Request failed (%s)', resp.status_code)
-    );
-  end if;
-
-  title := coalesce(
-    (regexp_match(html, '<meta[^>]+property=["'']og:title["''][^>]+content=["'']([^"'']+)["'']', 'is'))[1],
-    (regexp_match(html, '<meta[^>]+name=["'']twitter:title["''][^>]+content=["'']([^"'']+)["'']', 'is'))[1],
-    (regexp_match(html, '<title[^>]*>(.*?)</title>', 'is'))[1],
-    p_url
-  );
-
-  description := coalesce(
-    (regexp_match(html, '<meta[^>]+property=["'']og:description["''][^>]+content=["'']([^"'']+)["'']', 'is'))[1],
-    (regexp_match(html, '<meta[^>]+name=["'']description["''][^>]+content=["'']([^"'']+)["'']', 'is'))[1]
-  );
-
-  image := coalesce(
-    (regexp_match(html, '<meta[^>]+property=["'']og:image["''][^>]+content=["'']([^"'']+)["'']', 'is'))[1],
-    (regexp_match(html, '<meta[^>]+name=["'']twitter:image["''][^>]+content=["'']([^"'']+)["'']', 'is'))[1]
-  );
-
-  icon := coalesce(
-    (regexp_match(html, '<link[^>]+rel=["''](?:shortcut )?icon["''][^>]+href=["'']([^"'']+)["'']', 'is'))[1]
-  );
-
-  return jsonb_strip_nulls(jsonb_build_object(
-    'title', title,
-    'description', description,
-    'siteName', public.extract_url_host(p_url),
-    'image', public.make_absolute_url(p_url, image),
-    'icon', public.make_absolute_url(p_url, icon)
-  ));
-end;
-$$;
-
 create or replace function public.build_harmony_embed(p_url text)
 returns jsonb
 language plpgsql
@@ -207,7 +53,6 @@ begin
     p.visibility,
     p.is_deleted,
     p.is_local,
-    p.metadata,
     pr.id as author_id,
     pr.username,
     pr.display_name,
@@ -215,8 +60,8 @@ begin
     pr.avatar_url,
     pr.color
   into post_record
-  from posts p
-  join profiles pr on pr.id = p.author_id
+  from public.posts p
+  join public.profiles pr on pr.id = p.author_id
   where p.id = post_id;
 
   if not found or post_record.is_deleted or post_record.visibility not in ('public', 'unlisted') then
@@ -267,39 +112,66 @@ security definer
 set search_path = public, net, extensions
 as $$
 declare
-  normalized_url text := public.normalize_embed_url(p_url);
-  provider text;
-  payload jsonb;
+  normalized_url	text := public.normalize_embed_url(p_url);
+  instance_domain	text := lower(public.get_instance_domain());
+  host text;
 begin
   if normalized_url is null then
     raise exception 'URL is required';
   end if;
 
-  provider := public.detect_embed_provider(normalized_url);
+  host := public.extract_url_host(normalized_url);
+  if host is null or host <> instance_domain then
+    raise exception 'fetch_link_preview only handles local Harmony URLs';
+  end if;
 
-  begin
-    case provider
-      when 'harmony-post' then
-        payload := public.build_harmony_embed(normalized_url);
-      when 'youtube' then
-        payload := public.fetch_oembed_preview(normalized_url, 'https://www.youtube.com/oembed');
-      when 'spotify' then
-        payload := public.fetch_oembed_preview(normalized_url, 'https://open.spotify.com/oembed');
-      else
-        payload := public.fetch_generic_preview(normalized_url);
-    end case;
-  exception when others then
-    payload := public.fetch_generic_preview(normalized_url);
-  end;
-
-  return payload
+  return public.build_harmony_embed(normalized_url)
     || jsonb_build_object(
       'url', normalized_url,
       'normalizedUrl', normalized_url,
-      'provider', provider,
+      'provider', 'harmony-post',
       'fetchedAt', now(),
-      'expiresAt', now() + interval '24 hours'
+      'expiresAt', now() + interval '5 minutes'
     );
+end;
+$$;
+
+create or replace function public.fetch_remote_link_preview(p_backend_base_url text, p_url text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, net, extensions
+as $$
+declare
+  normalized_url text := public.normalize_embed_url(p_url);
+  request_url text;
+  resp net.http_response;
+begin
+  if normalized_url is null then
+    return null;
+  end if;
+
+  if p_backend_base_url is null or trim(p_backend_base_url) = '' then
+    raise exception 'federation_backend_url is not configured';
+  end if;
+
+  request_url := rtrim(p_backend_base_url, '/') || '/link-preview';
+
+  select *
+  into resp
+  from net.http_request(
+    url => request_url,
+    method => 'POST',
+    headers => jsonb_build_object('Content-Type', 'application/json'),
+    body => jsonb_build_object('url', normalized_url),
+    timeout_milliseconds => 10000
+  );
+
+  if resp.status_code between 200 and 299 then
+    return resp.response_body::jsonb;
+  else
+    raise exception 'Backend preview failed (%).', resp.status_code;
+  end if;
 end;
 $$;
 

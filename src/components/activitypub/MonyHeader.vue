@@ -66,6 +66,7 @@
         :class="{ active: rightSidebarOpen }"
         @click="$emit('toggle-right-sidebar')"
         title="Toggle sidebar"
+        v-if="!isMobile"
       >
         <svg viewBox="0 0 24 24" class="sidebar-icon">
           <path d="M3,3H21A2,2 0 0,1 23,5V19A2,2 0 0,1 21,21H3A2,2 0 0,1 1,19V5A2,2 0 0,1 3,3M3,5V19H13V5H3M15,5V19H21V5H15Z" fill="currentColor"/>

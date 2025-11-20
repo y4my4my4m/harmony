@@ -1,11 +1,15 @@
 # URL Embed Previews
 
-This document describes the Postgres function and client integrations that power rich URL previews inside chat, DM, and search results — no Supabase edge functions or Storage buckets required.
+This document describes the split architecture that powers rich URL previews inside chat, DM, and search results:
+
+- Harmony-local URLs are resolved directly in Postgres (fast, private, no HTTP).
+- Everything else (YouTube, Spotify, GitHub, generic blogs, etc.) goes through the federated backend so we can use a full Node runtime for TLS, redirects, and authenticated requests.
 
 ## Overview
 
-- `db_schema/link_previews.sql` registers `fetch_link_preview(url text)` plus helper functions that normalize URLs, detect providers, and fetch metadata via `net.http_get`.
-- Client-side `LinkPreviewService` calls that RPC, caches responses locally for 24h, and hydrates Harmony posts by reusing `useActivityPubStore`.
+- `db_schema/link_previews.sql` registers `fetch_link_preview(url text)` plus helper functions for **Harmony-local** URLs.
+- `federation-backend/src/routes/linkPreview.ts` exposes `POST /link-preview`, which uses a Node service to fetch oEmbed/HTML metadata for all **external** sites.
+- Client-side `LinkPreviewService` decides which path to call, caches responses locally for 24h, and hydrates Harmony posts via `useActivityPubStore`.
 - `ensureMessageEmbeds` scans incoming message parts and wires embed payloads into `message.metadata.embeds`.
 - `ProviderEmbedSwitch` renders provider-specific embeds (Harmony posts, YouTube/Spotify players, generic cards) inside `UnifiedMessageContent`.
 
@@ -61,13 +65,22 @@ Helper SQL in the same file (`normalize_embed_url`, `detect_embed_provider`, `fe
 
 ## Cache & TTL Policy
 
-The database returns `expiresAt = now() + 24h` for every provider; the frontend honors that timestamp and keeps a local in-memory cache only. There is no server-side persistence.
+Both the Postgres function and the backend service return `expiresAt = now() + TTL(provider)`. The frontend honors that timestamp and keeps a local in-memory cache only—there is no persistent server cache beyond the Node process’ in-memory LRU.
+
+| Provider        | TTL               |
+|-----------------|-------------------|
+| Harmony posts   | 5 minutes         |
+| YouTube/Spotify | 6 hours           |
+| Generic         | 24 hours          |
+
+The backend also stores results in `node-cache` for the same TTL to avoid hammering external APIs.
 
 ## Client Integration
 
 1. **Detection & fetching**  
    - `normalizeEmbedUrl` + `detectEmbedProviderFromUrl` prevent duplicate regex logic.  
-   - `ensureMessageEmbeds(messages)` scans every `UrlContent`, attaches an `embedId`, and asynchronously fetches/refreshes metadata via `linkPreviewService`, which now calls `supabase.rpc('fetch_link_preview', { p_url: url })`.  
+   - `ensureMessageEmbeds(messages)` scans every `UrlContent`, attaches an `embedId`, and asynchronously fetches/refreshes metadata via `linkPreviewService`.  
+   - `LinkPreviewService` calls `supabase.rpc('fetch_link_preview')` for Harmony URLs and `POST /link-preview` for everything else.  
    - Results live inside `message.metadata.embeds[embedId]` so edits/real-time updates keep embeds with the message.
 
 2. **Rendering**  
@@ -82,26 +95,32 @@ The database returns `expiresAt = now() + 24h` for every provider; the frontend 
 
 ## Verification Checklist
 
-1. **Database function**
+1. **Database function (Harmony URLs)**
    - Run the SQL from `db_schema/link_previews.sql` in your project (ensure `http` extension is enabled).  
    - Test locally with `select public.fetch_link_preview('https://har.mony.lol/posts/<id>');` and verify JSON output.
 
-2. **Chat preview flow**
+2. **Federated backend endpoint (external URLs)**
+   - Start `federation-backend` and hit `POST /link-preview` with `{ "url": "https://www.youtube.com/watch?v=..." }`.  
+   - You should see a JSON payload with provider metadata (title, thumbnail, html for iframes).  
+   - Update `nginx-harmony-updated.conf` to proxy `/link-preview` to the backend and restart nginx.
+   - During local development, set `VITE_FEDERATION_BACKEND_URL=http://localhost:3001` so the Vite dev server targets the backend directly.
+
+3. **Chat preview flow**
    - Send a chat message with a Harmony post URL -> embed should hydrate and allow reply/reblog/reactions inline.  
    - Edit the message and remove the URL -> embed disappears (metadata trimmed).  
    - Send the same URL again -> preview should load immediately from cache (check console for cache hits).
 
-3. **External providers**
+4. **External providers**
    - Paste a YouTube video link -> iframe player renders with hide/show controls.  
    - Paste a Spotify track link -> audio embed renders.  
    - Paste a generic article link -> card shows favicon, title, and description.
 
-4. **DM + search coverage**
+5. **DM + search coverage**
    - Verify the same URLs inside DMs produce embeds.  
    - Search for older messages with URLs; thumbnails should populate once the search results load.
 
-5. **TTL refresh**
-   - Call `linkPreviewService.getPreview(url, { forceRefresh: true })` or clear the in-memory cache and confirm the RPC is invoked again after `expiresAt` passes.
+6. **TTL refresh**
+   - Call `linkPreviewService.getPreview(url, { forceRefresh: true })` or clear the in-memory cache and confirm either the RPC or backend endpoint is invoked again after `expiresAt` passes.
 
 ## Known Limitations / Future Enhancements
 
