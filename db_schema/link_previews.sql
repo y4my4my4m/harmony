@@ -92,13 +92,12 @@ returns jsonb
 language plpgsql
 as $$
 declare
-  resp_status integer;
-  resp_body text;
+  resp record;
   body jsonb;
   headers jsonb := jsonb_build_object('Accept', 'application/json');
 begin
-  select status, body
-  into resp_status, resp_body
+  select *
+  into resp
   from net.http_get(
     p_endpoint,
     jsonb_build_object('url', p_url, 'format', 'json'),
@@ -106,8 +105,8 @@ begin
     8000
   );
 
-  if resp_status between 200 and 299 then
-    body := coalesce(resp_body::jsonb, '{}'::jsonb);
+  if resp.status_code between 200 and 299 then
+    body := coalesce(resp.body::jsonb, '{}'::jsonb);
     return jsonb_strip_nulls(jsonb_build_object(
       'title', body->>'title',
       'description', body->>'author_name',
@@ -118,7 +117,7 @@ begin
       'height', body->>'height'
     ));
   else
-    raise exception 'oEmbed request to % failed (status %, body %)', p_endpoint, resp_status, left(resp_body, 256);
+    raise exception 'oEmbed request to % failed (status %, body %)', p_endpoint, resp.status_code, left(resp.body, 256);
   end if;
 end;
 $$;
@@ -128,8 +127,7 @@ returns jsonb
 language plpgsql
 as $$
 declare
-  resp_status integer;
-  resp_body text;
+  resp record;
   headers jsonb := jsonb_build_object('User-Agent', 'HarmonyLinkPreview(SQL)');
   html text;
   title text;
@@ -137,8 +135,8 @@ declare
   image text;
   icon text;
 begin
-  select status, body
-  into resp_status, resp_body
+  select *
+  into resp
   from net.http_get(
     p_url,
     '{}'::jsonb,
@@ -146,12 +144,12 @@ begin
     8000
   );
 
-  if resp_status between 200 and 299 then
-    html := coalesce(resp_body, '');
+  if resp.status_code between 200 and 299 then
+    html := coalesce(resp.body, '');
   else
     return jsonb_build_object(
       'title', p_url,
-      'description', format('Request failed (%s)', resp_status)
+      'description', format('Request failed (%s)', resp.status_code)
     );
   end if;
 

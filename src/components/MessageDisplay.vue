@@ -459,6 +459,7 @@ const observedMessages = new Set<string>();
 
 const setupUnreadObserver = () => {
   if (!props.channelId && !props.conversationId) return;
+  if (messageId.startsWith('temp-')) return;
   
   // Clean up existing observer
   if (intersectionObserver) {
