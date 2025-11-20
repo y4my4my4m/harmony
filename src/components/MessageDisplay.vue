@@ -233,6 +233,7 @@ import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useNotificationStore } from '@/stores/useNotification';
 import { supabase } from '@/supabase'; 
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUserData } from '@/composables/useUserData';
@@ -524,6 +525,16 @@ const clearUnreadCount = async (messageId: string) => {
       console.error('Failed to clear unread count:', error);
     } else {
       console.log('✅ Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
+    }
+    
+    // Mark related notifications as read
+    const notificationStore = useNotificationStore();
+    const relatedNotifications = notificationStore.notifications.filter(n => 
+      (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
+    );
+    
+    for (const notification of relatedNotifications) {
+      await notificationStore.markAsRead(notification.id);
     }
   } catch (error) {
     console.error('Error clearing unread count:', error);

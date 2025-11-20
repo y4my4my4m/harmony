@@ -253,7 +253,12 @@ const messagePreview = computed(() => {
       preview = preview.substring(0, 100) + '...'
     }
     
-    return preview || null
+    // Make it clear this is YOUR post content, not a reply
+    if (preview) {
+      return `Your post: "${preview}"`
+    }
+    
+    return 'Your post'
   }
   
   // For ActivityPub mentions, check post structure
@@ -324,10 +329,25 @@ const channelInfo = computed(() => {
 const reactionEmoji = computed(() => {
   // Handle both chat reactions and ActivityPub reactions
   if (props.notification.type === 'reaction' || props.notification.type === 'activitypub_reaction') {
-    const reactionData = props.notification.data.reaction || props.notification.data
+    const data = props.notification.data
+    const reactionData = data.reaction || data
+    
+    // Try multiple paths for emoji URL
+    let emojiUrl = reactionData?.emoji_url || data.emoji_url
+    const emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name || '👍'
+    
+    // If we have emoji_url, use it
+    if (emojiUrl) {
+      return {
+        name: emojiName,
+        url: getEmojiUrl(emojiUrl, 48)
+      }
+    }
+    
+    // Fallback: return name only
     return {
-      name: reactionData?.emoji_name || reactionData?.custom_emoji_content || '👍',
-      url: getEmojiUrl(reactionData?.emoji_url, 48) || null
+      name: emojiName,
+      url: null
     }
   }
   return null

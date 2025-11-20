@@ -247,6 +247,8 @@ const MESSAGE_TEMPLATES = {
     message: (data: any) => {
       // Show preview of YOUR post (the post that was reacted to)
       const postContent = data.post?.content_preview || data.post_content
+      let preview = ''
+      
       if (postContent) {
         // Handle MessagePart[] array
         if (Array.isArray(postContent)) {
@@ -262,18 +264,21 @@ const MESSAGE_TEMPLATES = {
             .trim()
           
           if (textParts) {
-            return textParts.length > 100 ? textParts.substring(0, 100) + '...' : textParts
+            preview = textParts.length > 100 ? textParts.substring(0, 100) + '...' : textParts
           }
-        }
-        
-        // Handle string content
-        if (typeof postContent === 'string') {
-          return postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent
+        } else if (typeof postContent === 'string') {
+          // Handle string content
+          preview = postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent
         }
       }
       
+      // Make it clear this is YOUR post content, not a reply
+      if (preview) {
+        return `Your post: "${preview}"`
+      }
+      
       // Fallback
-      return 'Click to view post'
+      return 'Your post'
     },
     shortTitle: (data: any) => {
       const emojiName = data.reaction?.emoji_name || data.reaction?.custom_emoji_content || '👍'

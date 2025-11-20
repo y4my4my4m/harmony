@@ -37,18 +37,7 @@ class ViewContextTracker {
   }): NotificationUIDecision {
     const current = this.currentContext
 
-    // Critical notifications always show (mentions, DMs)
-    if (notificationContext.type === 'mention' || notificationContext.type === 'dm') {
-      // Still show if user is in the exact same context (they might have scrolled up)
-      return {
-        showToast: true,
-        showDesktop: true,
-        playSound: true,
-        reason: 'Critical notification type'
-      }
-    }
-
-    // If user is viewing the exact context where notification originated
+    // If user is viewing the exact context where notification originated, suppress all notifications
     if (current.view_type === 'server_channel' && 
         current.server_id === notificationContext.server_id &&
         current.channel_id === notificationContext.channel_id) {
@@ -60,7 +49,7 @@ class ViewContextTracker {
       }
     }
 
-    // If user is viewing the exact DM conversation
+    // If user is viewing the exact DM conversation, suppress all notifications
     if (current.view_type === 'dm' && 
         current.conversation_id === notificationContext.conversation_id) {
       return {

@@ -627,15 +627,16 @@ export const useNotificationStore = defineStore('notification', {
           let emojiUrl: string | undefined
           let emojiName: string | undefined
           if (notification.type === 'activitypub_reaction' || notification.type === 'reaction') {
-            const reactionData = notification.data.reaction || notification.data
-            emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content
+            const data = notification.data
+            const reactionData = data.reaction || data
+            
+            // Try multiple paths for emoji data
+            emojiName = reactionData?.emoji_name || reactionData?.custom_emoji_content || data.emoji_name
+            emojiUrl = reactionData?.emoji_url || data.emoji_url
+            
             // Get emoji URL if available
-            if (reactionData?.emoji_url) {
-              emojiUrl = getEmojiUrl(reactionData.emoji_url, 48)
-            }
-            // Also check for emoji in sender data (for ActivityPub reactions)
-            if (!emojiUrl && notification.data.sender?.emoji_url) {
-              emojiUrl = getEmojiUrl(notification.data.sender.emoji_url, 48)
+            if (emojiUrl) {
+              emojiUrl = getEmojiUrl(emojiUrl, 48)
             }
           }
           
