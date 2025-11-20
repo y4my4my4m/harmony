@@ -652,6 +652,7 @@ export default defineComponent({
 <style scoped>
 .unified-content {
   width: 100%;
+  margin-bottom: 4px;
   line-height: 1.375;
   word-wrap: break-word;
   overflow-wrap: break-word;
