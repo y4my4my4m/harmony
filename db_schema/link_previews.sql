@@ -1,7 +1,5 @@
 -- Link preview helpers (Harmony-local + remote backend proxy)
 
-create extension if not exists http with schema extensions;
-
 create or replace function public.normalize_embed_url(p_url text)
 returns text
 language plpgsql
@@ -133,45 +131,6 @@ begin
       'fetchedAt', now(),
       'expiresAt', now() + interval '5 minutes'
     );
-end;
-$$;
-
-create or replace function public.fetch_remote_link_preview(p_backend_base_url text, p_url text)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public, net, extensions
-as $$
-declare
-  normalized_url text := public.normalize_embed_url(p_url);
-  request_url text;
-  resp net.http_response;
-begin
-  if normalized_url is null then
-    return null;
-  end if;
-
-  if p_backend_base_url is null or trim(p_backend_base_url) = '' then
-    raise exception 'federation_backend_url is not configured';
-  end if;
-
-  request_url := rtrim(p_backend_base_url, '/') || '/link-preview';
-
-  select *
-  into resp
-  from net.http_request(
-    url => request_url,
-    method => 'POST',
-    headers => jsonb_build_object('Content-Type', 'application/json'),
-    body => jsonb_build_object('url', normalized_url),
-    timeout_milliseconds => 10000
-  );
-
-  if resp.status_code between 200 and 299 then
-    return resp.response_body::jsonb;
-  else
-    raise exception 'Backend preview failed (%).', resp.status_code;
-  end if;
 end;
 $$;
 
