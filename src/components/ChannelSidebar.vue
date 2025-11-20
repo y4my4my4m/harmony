@@ -51,6 +51,10 @@
                 <SpeakerIcon v-else /> 
                 <span class="channel-name">{{ element.name }}</span>
               </div>
+              <!-- Unread badge for channels without categories -->
+              <div v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge">
+                {{ getChannelUnreadMentions(element.id) > 99 ? '99+' : getChannelUnreadMentions(element.id) }}
+              </div>
               <!-- Voice channel controls -->
               <div v-if="element.type === 1" class="voice-controls">
                 <button
@@ -953,12 +957,21 @@ onUnmounted(() => document.removeEventListener('click', closeContextMenus));
 
 /* Notification badge for channels with notifications */
 .notification-badge {
-  width: 6px;
-  height: 6px;
+  min-width: 18px;
+  height: 18px;
   background-color: #f23f42;
-  border-radius: 50%;
+  border-radius: 9px;
   margin-left: auto;
   margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 /* Voice channel controls */

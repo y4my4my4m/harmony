@@ -5,6 +5,8 @@
     :chat-messages="chatMessages"
     :is-loading="isLoading"
     :is-d-m="isDM"
+    :channel-id="props.isDM ? undefined : (route.params.channelId as string)"
+    :conversation-id="props.isDM ? (route.params.conversationId as string) : undefined"
     view-type="chat"
     current-view="chat"
     @load-more-messages="fetchMoreMessages"

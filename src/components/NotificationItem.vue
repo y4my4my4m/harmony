@@ -418,7 +418,7 @@ const jumpToMessage = () => {
   if (navData?.type === 'channel') {
     let path = `/chat/${navData.serverId}/${navData.channelId}`
     if (navData.messageId) {
-      path += `?message=${navData.messageId}`
+      path += `?messageId=${navData.messageId}`
     }
     router.push(path)
   }

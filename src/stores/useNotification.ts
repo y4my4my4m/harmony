@@ -1039,7 +1039,7 @@ export const useNotificationStore = defineStore('notification', {
               // Navigate to server channel
               let path = `/chat/${navData.serverId}/${navData.channelId}`
               if (navData.messageId) {
-                path += `?message=${navData.messageId}`
+                path += `?messageId=${navData.messageId}`
               }
               router.push(path)
               break

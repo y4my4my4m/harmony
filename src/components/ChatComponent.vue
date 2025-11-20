@@ -17,6 +17,8 @@
       :isLoading="isLoading"
       :currentUserId="currentUserId"
       :loadMoreMessages="props.loadMoreMessages"
+      :channelId="props.channelId"
+      :conversationId="props.conversationId"
       @toggleEmojiList="toggleEmojiList"
       @sendReaction="toggleReaction"
       @replyingTo="replyingTo"
@@ -84,6 +86,8 @@
     isLoading?: boolean;
     loadMoreMessages?: () => void;
     isDM?: boolean;
+    channelId?: string;
+    conversationId?: string;
   }
 
   const props = withDefaults(defineProps<Props>(), {
