@@ -160,7 +160,9 @@
                       <SpeakerIcon v-else />
                       <span class="channel-name">{{ channel.name }}</span>
                     </div>
-                    <div v-if="hasNotifications(channel)" class="notification-badge"></div>
+                    <div v-if="getChannelUnreadMentions(channel.id) > 0" class="notification-badge">
+                      {{ getChannelUnreadMentions(channel.id) > 99 ? '99+' : getChannelUnreadMentions(channel.id) }}
+                    </div>
                     <!-- Voice channel controls -->
                     <div v-if="channel.type === 1" class="voice-controls">
                       <button
@@ -274,6 +276,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { useChannelPermissions } from '@/composables/useChannelPermissions';
+import { useNotificationStore } from '@/stores/useNotification';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useThemeStore } from '@/stores/useTheme';
 import { statePersistence } from '@/services/StatePersistence';
@@ -545,7 +548,15 @@ const onChannelRemovedFromCategory = (evt: any) => {
 
 
 
-const hasNotifications = (channel: Channel): boolean => false; // Placeholder for notification logic
+const notificationStore = useNotificationStore();
+
+const getChannelUnreadMentions = (channelId: string): number => {
+  return notificationStore.unreadChannelMentions(channelId);
+};
+
+const hasNotifications = (channel: Channel): boolean => {
+  return getChannelUnreadMentions(channel.id) > 0;
+};
 
 const shouldShowCategoryContent = (category: Category): boolean => {
   const categoryChannelsList = props.categoryChannels?.[category.id] || [];

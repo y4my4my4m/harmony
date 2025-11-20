@@ -150,6 +150,46 @@ export const useNotificationStore = defineStore('notification', {
       })
     },
 
+    // Get unread count for specific notification types
+    unreadMentions: (state) => {
+      return state.notifications.filter(
+        n => !n.is_read && (n.type === 'mention' || n.type === 'activitypub_mention')
+      ).length
+    },
+
+    unreadDMs: (state) => {
+      return state.notifications.filter(
+        n => !n.is_read && n.type === 'dm'
+      ).length
+    },
+
+    unreadChannelMentions: (state) => {
+      return (channelId: string) => {
+        return state.notifications.filter(
+          n => !n.is_read && n.type === 'mention' && 
+          (n.data?.channel_id === channelId || n.data?.location?.channel_id === channelId)
+        ).length
+      }
+    },
+
+    unreadServerMentions: (state) => {
+      return (serverId: string) => {
+        return state.notifications.filter(
+          n => !n.is_read && n.type === 'mention' && 
+          (n.data?.server_id === serverId || n.data?.location?.server_id === serverId)
+        ).length
+      }
+    },
+
+    unreadConversationMentions: (state) => {
+      return (conversationId: string) => {
+        return state.notifications.filter(
+          n => !n.is_read && (n.type === 'mention' || n.type === 'dm') && 
+          (n.data?.conversation_id === conversationId || n.data?.conversation?.id === conversationId)
+        ).length
+      }
+    },
+
     isQuietHours: (state) => {
       if (!state.preferences?.dnd_enabled) return false
       
