@@ -391,6 +391,10 @@ DECLARE
     emoji_record RECORD;
     emoji_name TEXT;
     emoji_url TEXT;
+    -- For reactions
+    v_emoji_name TEXT;
+    v_emoji_url TEXT;
+    v_message_content_preview TEXT;
 BEGIN
     -- Early exit for non-notification operations
     IF TG_OP = 'UPDATE' THEN
@@ -440,6 +444,23 @@ BEGIN
         SELECT user_id INTO single_target_id FROM messages WHERE id = NEW.message_id;
         
         IF single_target_id IS NOT NULL AND single_target_id != NEW.user_id THEN
+            -- Get emoji details for notification display
+            SELECT e.name, e.url
+            INTO v_emoji_name, v_emoji_url
+            FROM emojis e
+            WHERE e.id = NEW.emoji_id;
+            
+            -- Get message content preview
+            SELECT extract_message_text(m.content)
+            INTO v_message_content_preview
+            FROM messages m
+            WHERE m.id = NEW.message_id;
+            
+            -- Truncate preview if too long
+            IF v_message_content_preview IS NOT NULL AND LENGTH(v_message_content_preview) > 100 THEN
+                v_message_content_preview := LEFT(v_message_content_preview, 100) || '...';
+            END IF;
+            
             -- CRITICAL FIX: Use explicit variables to eliminate ANY channel_id ambiguity
             SELECT m.channel_id, c.server_id 
             INTO msg_channel_id, msg_server_id
@@ -451,7 +472,13 @@ BEGIN
                 'type', 'reaction',
                 'message_id', NEW.message_id,
                 'emoji_id', NEW.emoji_id,
-                'user_id', NEW.user_id
+                'emoji_name', v_emoji_name,
+                'emoji_url', v_emoji_url,
+                'user_id', NEW.user_id,
+                'message', jsonb_build_object(
+                    'id', NEW.message_id,
+                    'content_preview', v_message_content_preview
+                )
             );
             
             -- CRITICAL FIX: Use explicit variable names instead of ambiguous references
@@ -1447,4 +1474,13 @@ CREATE TRIGGER trigger_increment_unread_mentions
     EXECUTE FUNCTION public.increment_unread_mentions();
 
 COMMENT ON TRIGGER trigger_increment_unread_mentions ON public.notifications IS 'Automatically increments unread_mentions count when mention notifications are created.';
+
+-- Create trigger for reaction notifications
+DROP TRIGGER IF EXISTS trigger_unified_notification_reactions ON public.reactions;
+CREATE TRIGGER trigger_unified_notification_reactions
+    AFTER INSERT ON public.reactions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_unified_notification_processing();
+
+COMMENT ON TRIGGER trigger_unified_notification_reactions ON public.reactions IS 'Automatically creates reaction notifications when users react to messages.';
 
