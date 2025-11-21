@@ -64,9 +64,9 @@ export const useAuthStore = defineStore('auth', {
         // This is likely a recovery session - don't treat it as logged in
         console.log('🔒 Recovery session detected on initialization - entering password reset mode');
         this.isPasswordResetMode = true;
-        // Explicitly set session to null - user must complete password reset first
-        // The session exists in Supabase storage for password update, but we don't treat it as logged in
-        this.session = null;
+        // Keep the session - it's needed for updateUser to work
+        // But isLoggedIn will return false because of isPasswordResetMode
+        this.session = session;
       } else {
       // RELAXED AAL2 SECURITY MODEL:
       // Users with 2FA enabled can stay logged in with AAL1 (password only)
@@ -101,9 +101,10 @@ export const useAuthStore = defineStore('auth', {
           // Set password reset mode flag - this prevents isLoggedIn from returning true
           this.isPasswordResetMode = true;
           
-          // Explicitly set session to null - user must complete password reset first
-          // The session exists in Supabase storage for the password update, but we don't treat it as logged in
-          this.session = null;
+          // Keep the session - it's needed for updateUser({ password }) to work
+          // The recovery session has special permissions to update password even with 2FA
+          // But we prevent it from being treated as "logged in" via isPasswordResetMode
+          this.session = session;
           
           // If not already on reset-password page, redirect there
           const currentPath = window.location.pathname;
