@@ -339,7 +339,9 @@ const processMentionsInText = (text: string): DocumentFragment => {
     // Add text before the mention
     if (matchStart > lastIndex) {
       const textBefore = text.substring(lastIndex, matchStart);
-      fragment.appendChild(document.createTextNode(textBefore));
+      // Convert spaces to &nbsp; for proper rendering
+      const textNode = document.createTextNode(textBefore.replace(/ /g, '\u00A0'));
+      fragment.appendChild(textNode);
     }
     
     // Create mention element with rich metadata
@@ -355,7 +357,9 @@ const processMentionsInText = (text: string): DocumentFragment => {
   if (lastIndex < text.length) {
     const remainingText = text.substring(lastIndex);
     console.log('🔧 Adding remaining text after mentions:', JSON.stringify(remainingText));
-    fragment.appendChild(document.createTextNode(remainingText));
+    // Convert spaces to &nbsp; for proper cursor positioning after mention elements
+    const textNode = document.createTextNode(remainingText.replace(/ /g, '\u00A0'));
+    fragment.appendChild(textNode);
   }
   
   // If no mentions found, just return the text as a text node
