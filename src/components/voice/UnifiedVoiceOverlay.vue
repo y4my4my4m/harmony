@@ -10,7 +10,7 @@
     >
       
       <!-- Main container -->
-      <div class="voice-container" :class="voiceStore.layoutMode">
+      <div class="voice-container" :class="[voiceStore.layoutMode, { 'maximized': voiceStore.viewMode === 'maximized', 'fullscreen-mode': voiceStore.viewMode === 'fullscreen' }]">
         <!-- Header -->
         <div class="voice-header">
           <div class="channel-info">
@@ -44,6 +44,14 @@
               title="Speaker view"
             >
               <Icon name="user" />
+            </button>
+            <button 
+              @click="toggleMaximize"
+              class="layout-btn"
+              :class="{ active: voiceStore.viewMode === 'maximized' }"
+              title="Maximize"
+            >
+              <Icon name="maximize" />
             </button>
             <button 
               @click="toggleSpatialPanel"
@@ -89,7 +97,7 @@
         </div>
 
         <!-- Participants Grid -->
-        <div class="participants-container" :class="`layout-${voiceStore.layoutMode}`">
+        <div v-if="voiceStore.viewMode !== 'fullscreen'" class="participants-container" :class="`layout-${voiceStore.layoutMode}`">
           <TransitionGroup
             name="participant"
             tag="div"
@@ -105,6 +113,29 @@
               class="participant-card"
             />
           </TransitionGroup>
+        </div>
+
+        <!-- Fullscreen View -->
+        <div v-else-if="voiceStore.viewMode === 'fullscreen' && fullscreenParticipant" class="fullscreen-container">
+          <UnifiedVoiceUserCard
+            :key="fullscreenParticipant.userId"
+            :user-state="fullscreenParticipant"
+            @toggle-video="voiceStore.toggleVideo"
+            @toggle-screen-share="voiceStore.toggleScreenShare"
+            class="fullscreen-card"
+          />
+          
+          <!-- Thumbnail strip at bottom -->
+          <div class="thumbnail-strip">
+            <UnifiedVoiceUserCard
+              v-for="participant in nonFullscreenParticipants"
+              :key="participant.userId"
+              :user-state="participant"
+              @toggle-video="voiceStore.toggleVideo"
+              @toggle-screen-share="voiceStore.toggleScreenShare"
+              class="thumbnail-card"
+            />
+          </div>
         </div>
 
         <!-- Bottom Controls -->
@@ -188,6 +219,9 @@
     <SpatialAudioPanel 
       :is-under-overlay="true"
     />
+
+    <!-- Screenshare PIP -->
+    <ScreensharePIP />
   </Teleport>
 </template>
 
@@ -198,6 +232,7 @@ import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import UnifiedVoiceUserCard from './UnifiedVoiceUserCard.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
+import ScreensharePIP from './ScreensharePIP.vue';
 import Icon from '@/components/common/Icon.vue';
 
 interface Props {
@@ -267,6 +302,17 @@ const connectionStats = computed(() => voiceStore.connectionStats);
       return allParticipants;
     });
     
+    // Fullscreen mode participants
+    const fullscreenParticipant = computed(() => {
+      if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return null;
+      return voiceStore.allParticipants.find(p => p.userId === voiceStore.fullscreenUserId) || null;
+    });
+    
+    const nonFullscreenParticipants = computed(() => {
+      if (voiceStore.viewMode !== 'fullscreen' || !voiceStore.fullscreenUserId) return [];
+      return voiceStore.allParticipants.filter(p => p.userId !== voiceStore.fullscreenUserId);
+    });
+    
     // =============================================================================
     // METHODS
     // =============================================================================
@@ -301,6 +347,14 @@ const connectionStats = computed(() => voiceStore.connectionStats);
     
     const toggleSpatialPanel = () => {
       spatialStore.togglePanel();
+    };
+
+    const toggleMaximize = () => {
+      if (voiceStore.viewMode === 'maximized') {
+        voiceStore.setViewMode('normal');
+      } else {
+        voiceStore.setViewMode('maximized');
+      }
     };
     // =============================================================================
     // LIFECYCLE
@@ -337,7 +391,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
             toggleSettings();
             break;
           case 'escape':
-            if (showSettings.value) {
+            if (voiceStore.viewMode === 'fullscreen') {
+              voiceStore.exitFullscreen();
+            } else if (showSettings.value) {
               showSettings.value = false;
             } else {
               minimizeOverlay();
@@ -407,6 +463,13 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  z-index: 10000;
+}
+
+/* Maximized mode */
+.voice-container.maximized {
+  max-width: 95vw;
+  max-height: 95vh;
 }
 
 /* Header */
@@ -513,20 +576,31 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 /* Participants Container */
 .participants-container {
   flex: 1;
-  padding: 20px 24px;
+  padding: 16px 24px;
   overflow-y: auto;
   min-height: 300px;
   align-content: center;
   justify-content: center;
-  display: flex;  /* Added display property */
-  flex-direction: column; /* Ensure children stack vertically */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Maximized mode - remove padding for more space */
+.voice-container.maximized .participants-container {
+  padding: 8px 16px;
 }
 
 .participants-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   place-items: stretch;
+}
+
+/* Maximized mode - larger tiles */
+.voice-container.maximized .participants-grid {
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
 }
 
 .participants-grid.speaker-mode {
@@ -660,6 +734,68 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 /* Responsive Design */
+@media (max-width: 1024px) {
+  .voice-container {
+    max-width: 95vw;
+  }
+  
+  .participants-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+/* Fullscreen Container */
+.fullscreen-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 24px;
+  overflow: hidden;
+}
+
+.fullscreen-card {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 16px;
+}
+
+.fullscreen-card :deep(.video-container) {
+  height: 100% !important;
+  min-height: 400px;
+}
+
+.fullscreen-card :deep(.harmony-voice-card) {
+  height: 100%;
+  min-height: 0;
+}
+
+.thumbnail-strip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 8px 0;
+  max-height: 140px;
+}
+
+.thumbnail-card {
+  flex-shrink: 0;
+  width: 160px;
+}
+
+.thumbnail-card :deep(.harmony-voice-card) {
+  min-height: 120px;
+  padding: 8px;
+}
+
+.thumbnail-card :deep(.video-container) {
+  height: 90px !important;
+  margin-bottom: 4px;
+}
+
+.thumbnail-card :deep(.username) {
+  font-size: 12px;
+}
+
 @media (max-width: 1024px) {
   .voice-container {
     max-width: 95vw;

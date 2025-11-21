@@ -9,7 +9,9 @@
       'screen-sharing': props.userState.isScreenSharing,
       self: isSelf,
       'connection-poor': connectionState === 'disconnected',
+      'fullscreen-active': isFullscreenActive,
     }"
+    @click="handleCardClick"
   >
     <!-- Video Container -->
     <div v-if="hasVideo || props.userState.isScreenSharing" class="video-container">
@@ -29,6 +31,14 @@
         <div v-if="props.userState.isScreenSharing" class="screen-share-indicator">
           <Icon name="screen-share" />
           <span>Screen Sharing</span>
+          <button 
+            @click.stop="togglePIP"
+            class="pip-toggle-btn"
+            :class="{ active: isPIPActive }"
+            :title="isPIPActive ? 'Exit PIP' : 'Enter PIP'"
+          >
+            <Icon name="picture-in-picture" />
+          </button>
         </div>
 
         <!-- Connection quality indicator -->
@@ -261,6 +271,16 @@ const userStatus = computed(() => {
   return 'In voice';
 });
 
+// Check if this card is in fullscreen mode
+const isFullscreenActive = computed(() => {
+  return voiceStore.viewMode === 'fullscreen' && voiceStore.fullscreenUserId === props.userState.userId;
+});
+
+// Check if PIP is active for this user
+const isPIPActive = computed(() => {
+  return voiceStore.pipActive && voiceStore.pipUserId === props.userState.userId;
+});
+
 // Voice ring animation
 const voiceRingOffset = computed(() => {
   const circumference = 2 * Math.PI * 45; // 2 * pi * radius
@@ -283,6 +303,34 @@ const getBarHeight = (barIndex: number) => {
 
 const onVideoLoaded = () => {
   console.log('📹 Video loaded for user:', props.userState.userId);
+};
+
+/**
+ * Handle card click - toggle fullscreen for videos
+ */
+const handleCardClick = () => {
+  // Only enable fullscreen if user has video or is screen sharing
+  if (!hasVideo.value) return;
+  
+  // Toggle fullscreen mode
+  if (isFullscreenActive.value) {
+    voiceStore.exitFullscreen();
+  } else {
+    voiceStore.enterFullscreen(props.userState.userId);
+  }
+};
+
+/**
+ * Toggle PIP mode for screenshare
+ */
+const togglePIP = () => {
+  if (isPIPActive.value) {
+    voiceStore.togglePIP(null);
+  } else {
+    // Try native PIP first, fall back to fixed
+    const pipMode = document.pictureInPictureEnabled ? 'native' : 'fixed';
+    voiceStore.togglePIP(props.userState.userId, pipMode);
+  }
 };
 
 // =============================================================================
@@ -327,6 +375,12 @@ watch(
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+/* Clickable cursor for video cards */
+.harmony-voice-card.video-enabled,
+.harmony-voice-card.screen-sharing {
+  cursor: pointer;
+}
+
 .harmony-voice-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3),
@@ -357,7 +411,7 @@ watch(
 .video-container {
   position: relative;
   width: 100%;
-  height: 160px;
+  height: 280px;
   border-radius: 12px;
   overflow: hidden;
   background: #000;
@@ -399,6 +453,31 @@ watch(
   font-weight: 600;
   align-self: flex-start;
   pointer-events: auto;
+}
+
+.pip-toggle-btn {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  color: #000;
+  cursor: pointer;
+  padding: 2px 4px;
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.pip-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+
+.pip-toggle-btn.active {
+  background: #5865f2;
+  border-color: #5865f2;
+  color: #fff;
 }
 
 .connection-indicator {
@@ -672,7 +751,7 @@ watch(
   }
 
   .video-container {
-    height: 120px;
+    height: 200px;
   }
 
   .avatar-container {

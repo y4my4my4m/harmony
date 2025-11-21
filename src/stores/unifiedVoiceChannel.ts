@@ -18,7 +18,8 @@ interface VoiceChannelState {
   currentServerId: string | null;
   currentChannelName: string | null;
   isConnected: boolean;
-  sessionStartTime: Date | null; // Track when the voice session started
+  sessionStartTime: Date | null; // Track when the user joined the channel
+  callStartTime: Date | null; // Track when the call started (first user joined)
   
   // Users and their states
   allUsers: UserMediaState[];
@@ -31,6 +32,13 @@ interface VoiceChannelState {
   // UI state
   isOverlayVisible: boolean;
   layoutMode: 'grid' | 'speaker' | 'gallery';
+  viewMode: 'normal' | 'maximized' | 'fullscreen';
+  fullscreenUserId: string | null;
+  
+  // PIP state
+  pipActive: boolean;
+  pipUserId: string | null;
+  pipMode: 'draggable' | 'fixed' | 'native';
 }
 
 // =============================================================================
@@ -44,6 +52,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     isConnected: false,
     currentChannelName: null,
     sessionStartTime: null,
+    callStartTime: null,
     
     allUsers: [],
     localState: {
@@ -61,7 +70,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     remoteStreams: new Map(),
     
     isOverlayVisible: false,
-    layoutMode: 'grid'
+    layoutMode: 'grid',
+    viewMode: 'normal',
+    fullscreenUserId: null,
+    
+    pipActive: false,
+    pipUserId: null,
+    pipMode: 'native'
   }),
 
   // =============================================================================
@@ -176,7 +191,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
         this.currentChannelName = channel ? channel.name : 'Voice Channel';
         this.isConnected = true;
-        this.sessionStartTime = new Date(); // Track when session started
+        this.sessionStartTime = new Date(); // Track when user joined
+        
+        // Check if anyone else is in the channel to determine if we're starting the call
+        // We'll set call start time after channel state sync
         
         // Get fresh state from WebRTC service
         const newLocalState = unifiedWebRTC.getLocalState();
@@ -371,6 +389,53 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Change view mode
+     */
+    setViewMode(mode: 'normal' | 'maximized' | 'fullscreen'): void {
+      this.viewMode = mode;
+      if (mode !== 'fullscreen') {
+        this.fullscreenUserId = null;
+      }
+    },
+
+    /**
+     * Enter fullscreen mode for a specific user
+     */
+    enterFullscreen(userId: string): void {
+      this.viewMode = 'fullscreen';
+      this.fullscreenUserId = userId;
+    },
+
+    /**
+     * Exit fullscreen mode
+     */
+    exitFullscreen(): void {
+      this.viewMode = 'normal';
+      this.fullscreenUserId = null;
+    },
+
+    /**
+     * Toggle PIP mode for screenshare
+     */
+    togglePIP(userId: string | null, mode: 'draggable' | 'fixed' | 'native' = 'native'): void {
+      if (this.pipActive && this.pipUserId === userId) {
+        this.pipActive = false;
+        this.pipUserId = null;
+      } else {
+        this.pipActive = true;
+        this.pipUserId = userId;
+        this.pipMode = mode;
+      }
+    },
+
+    /**
+     * Set call start time (synced across all participants)
+     */
+    setCallStartTime(timestamp: Date | null): void {
+      this.callStartTime = timestamp;
+    },
+
+    /**
      * Setup WebRTC event listeners
      */
     setupWebRTCListeners(): void {
@@ -387,6 +452,14 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       unifiedWebRTC.on('channel-state-synced', async (data) => {
         console.log('🔄 Channel state synced:', data);
         this.allUsers = data.users;
+        
+        // If this is the first user in the channel, set call start time
+        if (data.users.length === 0 && !this.callStartTime) {
+          console.log('🕐 First user - setting call start time');
+          this.callStartTime = new Date();
+          // Broadcast call start time to channel
+          this.broadcastCallStartTime();
+        }
         
         // Ensure all users' profile data is loaded through unified system
         const { ensureProfilesAvailable } = useUserData();
@@ -421,6 +494,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.allUsers[existingIndex] = data.mediaState;
         }
 
+        // Request call start time from existing participants
+        if (!this.callStartTime) {
+          console.log('🕐 Requesting call start time from existing participants');
+          this.requestCallStartTime();
+        }
+
         // Ensure user profile data is loaded through unified system
         const { ensureProfilesAvailable } = useUserData();
         try {
@@ -442,6 +521,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         // Remove from spatial audio
         this.removeUserFromSpatialAudio(data.userId);
+
+        // Reset call start time if everyone left
+        const totalUsers = this.allUsers.length + 1; // +1 for local user
+        if (totalUsers === 1) {
+          console.log('🕐 Last user left - resetting call start time');
+          this.callStartTime = null;
+        }
 
         themeStore.testAudio('voice_disconnect');
       });
@@ -518,6 +604,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         console.error('❌ WebRTC error:', error);
         // Could show notification to user
       });
+
+      // Call start time sync
+      unifiedWebRTC.on('call-start-time', (data: { timestamp: string; from: string }) => {
+        this.handleCallStartTime(data.timestamp);
+      });
+
+      unifiedWebRTC.on('request-call-start-time', (data: { from: string }) => {
+        // Respond with our call start time if we have it
+        if (this.callStartTime) {
+          this.broadcastCallStartTime();
+        }
+      });
     },
 
     /**
@@ -530,6 +628,44 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         audio.play().catch(e => console.log('Could not play sound:', e));
       } catch (error) {
         console.log('Error playing sound:', error);
+      }
+    },
+
+    /**
+     * Broadcast call start time to all participants
+     */
+    broadcastCallStartTime(): void {
+      if (!this.currentChannelId || !this.callStartTime) return;
+      
+      unifiedWebRTC.broadcastMessage({
+        type: 'call-start-time',
+        from: this.localState.userId,
+        data: { timestamp: this.callStartTime.toISOString() },
+        timestamp: Date.now()
+      });
+    },
+
+    /**
+     * Request call start time from existing participants
+     */
+    requestCallStartTime(): void {
+      if (!this.currentChannelId) return;
+      
+      unifiedWebRTC.broadcastMessage({
+        type: 'request-call-start-time',
+        from: this.localState.userId,
+        data: {},
+        timestamp: Date.now()
+      });
+    },
+
+    /**
+     * Handle call start time from other participants
+     */
+    handleCallStartTime(timestamp: string): void {
+      if (!this.callStartTime) {
+        this.callStartTime = new Date(timestamp);
+        console.log('🕐 Received call start time:', this.callStartTime);
       }
     },
 
@@ -595,7 +731,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.currentChannelId = null;
       this.currentServerId = null;
       this.isConnected = false;
-      this.sessionStartTime = null; // Reset session start time
+      this.sessionStartTime = null;
+      this.callStartTime = null;
       this.allUsers = [];
       this.localState = {
         userId: '',
@@ -610,6 +747,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.localStream = null;
       this.remoteStreams.clear();
       this.isOverlayVisible = false;
+      this.viewMode = 'normal';
+      this.fullscreenUserId = null;
+      this.pipActive = false;
+      this.pipUserId = null;
     },
 
     /**

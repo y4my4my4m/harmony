@@ -1027,6 +1027,16 @@ export class UnifiedWebRTCService {
         await this.handleStateSync(from, data);
         break;
         
+      case 'call-start-time':
+        // Forward to store
+        this.emit('call-start-time', { timestamp: data.timestamp, from });
+        break;
+        
+      case 'request-call-start-time':
+        // Forward to store to handle
+        this.emit('request-call-start-time', { from });
+        break;
+        
       case 'offer':
         await this.handleOffer(from, data);
         break;

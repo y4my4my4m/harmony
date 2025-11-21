@@ -536,10 +536,10 @@ export class SpatialAudioService {
       const spatialStore = useSpatialAudioStore();
       
       // Convert 2D screen coordinates to 3D audio space
-      // Scale positions to reasonable audio distances
-      const scale = spatialStore.settings.maxDistance / 200; // Scale factor
-      const audioX = (x - 300) * scale / 100; // Center at 300px, scale down
-      const audioY = (y - 200) * scale / 100; // Center at 200px, scale down  
+      // Scale positions to reasonable audio distances with increased multiplier for more dramatic effect
+      const scale = 3.0; // Increased multiplier for stronger spatial effect
+      const audioX = (x - 300) * scale / 50; // Center at 300px, increased scaling
+      const audioY = (y - 200) * scale / 50; // Center at 200px, increased scaling
       const audioZ = -2; // Keep slightly in front of listener
       
       const currentTime = this.audioContext.currentTime;
@@ -639,17 +639,17 @@ export class SpatialAudioService {
     // Use PannerNode for advanced spatial positioning with HRTF
     const pannerNode = this.audioContext.createPanner();
     
-    // Configure panner for optimal 2D spatial audio
-    pannerNode.panningModel = spatialStore.settings.panningModel;
+    // Configure panner for optimal spatial audio with HRTF
+    pannerNode.panningModel = 'HRTF'; // Use HRTF for better 3D positioning
     pannerNode.distanceModel = spatialStore.settings.distanceModel;
     pannerNode.refDistance = 1;
-    pannerNode.maxDistance = spatialStore.settings.maxDistance;
-    pannerNode.rolloffFactor = spatialStore.settings.rolloffFactor;
+    pannerNode.maxDistance = 150; // Increased from 50 for more dramatic effect
+    pannerNode.rolloffFactor = 2.5; // Increased from 1 for stronger distance falloff
     
     // Optimize for 2D audio (omnidirectional cone)
     pannerNode.coneInnerAngle = 360;
-    pannerNode.coneOuterAngle = 0;
-    pannerNode.coneOuterGain = 0;
+    pannerNode.coneOuterAngle = 360;
+    pannerNode.coneOuterGain = 1;
     
     // Set initial position (center in front of listener)
     pannerNode.setPosition(0, 0, -1);
