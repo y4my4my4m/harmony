@@ -1,5 +1,6 @@
 -- Enable pgcrypto extension for digest function
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- Supabase installs it in the extensions schema
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 -- Create table for storing MFA recovery codes
 CREATE TABLE IF NOT EXISTS public.mfa_recovery_codes (
@@ -73,8 +74,8 @@ DECLARE
   v_code_id UUID;
 BEGIN
   -- Hash the provided code (using SHA-256)
-  -- digest() requires bytea as first argument, not text
-  v_code_hash := encode(digest(p_code::bytea, 'sha256'::text), 'hex');
+  -- Use extensions.digest() to explicitly reference the pgcrypto extension
+  v_code_hash := encode(extensions.digest(p_code::bytea, 'sha256'), 'hex');
   
   -- Find an unused recovery code matching the hash
   SELECT id INTO v_code_id
@@ -117,8 +118,8 @@ BEGIN
   -- Insert new recovery codes
   FOREACH v_code IN ARRAY p_codes
   LOOP
-    -- digest() requires bytea as first argument, not text
-    v_code_hash := encode(digest(v_code::bytea, 'sha256'::text), 'hex');
+    -- Use extensions.digest() to explicitly reference the pgcrypto extension
+    v_code_hash := encode(extensions.digest(v_code::bytea, 'sha256'), 'hex');
     INSERT INTO public.mfa_recovery_codes (user_id, code_hash)
     VALUES (p_user_id, v_code_hash);
   END LOOP;
