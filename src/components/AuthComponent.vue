@@ -302,6 +302,7 @@
             <button 
               type="submit" 
               class="submit-btn"
+              :class="{ 'loading': twoFactorLoading }"
               :disabled="twoFactorLoading || twoFactorCode.length !== 6"
             >
               <span v-if="!twoFactorLoading">Verify</span>
@@ -311,6 +312,7 @@
               type="button" 
               class="cancel-btn"
               @click="close2FAModal"
+              :disabled="twoFactorLoading"
             >
               Cancel
             </button>
@@ -548,24 +550,32 @@ const handle2FAVerification = async () => {
     return
   }
 
+  console.log('🔐 Starting 2FA verification...')
+  console.log('Factor ID:', pendingFactorId.value)
+  console.log('Challenge ID:', pendingChallengeId.value)
+  console.log('Code length:', twoFactorCode.value.length)
+
   twoFactorLoading.value = true
   twoFactorError.value = ''
 
   try {
     // Use authStore.verify2FA with challenge ID
+    console.log('📞 Calling authStore.verify2FA...')
     await authStore.verify2FA(
       pendingFactorId.value, 
       pendingChallengeId.value,
       twoFactorCode.value
     )
     
+    console.log('✅ 2FA verification successful!')
     show2FAModal.value = false
     toast.success('Welcome back!')
   } catch (error: any) {
-    console.error('2FA verification error:', error)
-    twoFactorError.value = 'Invalid verification code. Please try again.'
+    console.error('❌ 2FA verification error:', error)
+    twoFactorError.value = error.message || 'Invalid verification code. Please try again.'
   } finally {
     twoFactorLoading.value = false
+    console.log('🏁 2FA verification finished')
   }
 }
 
@@ -1122,6 +1132,10 @@ onMounted(async () => {
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
 }
 
 .submit-btn:hover:not(:disabled) {
