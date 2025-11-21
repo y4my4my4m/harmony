@@ -193,6 +193,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.isConnected = true;
         this.sessionStartTime = new Date(); // Track when user joined
         
+        // Get call start time from serverUsersStore (synced across all users)
+        const existingCallStartTime = serverUsersStore.getCallStartTime(channelId);
+        if (existingCallStartTime) {
+          this.callStartTime = existingCallStartTime;
+          console.log('🕐 Using existing call start time from serverUsersStore:', this.callStartTime);
+        } else {
+          // We're the first user - set it now
+          this.callStartTime = new Date();
+          console.log('🕐 First user - setting call start time:', this.callStartTime);
+        }
+        
+        // Save voice channel state to localStorage for auto-reconnect
+        this.saveVoiceChannelState();
+        
         // Check if anyone else is in the channel to determine if we're starting the call
         // We'll set call start time after channel state sync
         
@@ -245,6 +259,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const userId = authStore.session.user.id;
         
         console.log('👋 Leaving voice channel');
+        
+        // Clear saved voice channel state (user manually left)
+        this.clearVoiceChannelState();
         
         // Leave WebRTC first
         await unifiedWebRTC.leaveChannel();
@@ -453,18 +470,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         console.log('🔄 Channel state synced:', data);
         this.allUsers = data.users;
         
-        // Set call start time based on whether we're first or joining existing call
-        if (!this.callStartTime) {
-          if (data.users.length === 0) {
-            // We're the first user - set call start time
-            console.log('🕐 First user - setting call start time');
-            this.callStartTime = new Date();
-            this.broadcastCallStartTime();
-          } else {
-            // Others already in call - request call start time
-            console.log('🕐 Joining existing call - requesting call start time');
-            this.requestCallStartTime();
-          }
+        // Handle call start time syncing
+        if (data.users.length === 0) {
+          // We're the first/only user - broadcast our call start time
+          console.log('🕐 First user in channel - broadcasting call start time');
+          this.broadcastCallStartTime();
+        } else {
+          // Others already in call - request their call start time to sync
+          console.log('🕐 Joining existing call - requesting call start time');
+          this.requestCallStartTime();
         }
         
         // Ensure all users' profile data is loaded through unified system
@@ -676,6 +690,71 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Save voice channel state to localStorage for auto-reconnect
+     */
+    saveVoiceChannelState(): void {
+      if (this.currentChannelId && this.currentServerId) {
+        const voiceState = {
+          channelId: this.currentChannelId,
+          serverId: this.currentServerId,
+          channelName: this.currentChannelName,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('voiceChannelState', JSON.stringify(voiceState));
+        console.log('💾 Saved voice channel state for auto-reconnect');
+      }
+    },
+
+    /**
+     * Clear voice channel state from localStorage (manual leave)
+     */
+    clearVoiceChannelState(): void {
+      localStorage.removeItem('voiceChannelState');
+      console.log('🗑️ Cleared voice channel state');
+    },
+
+    /**
+     * Attempt to reconnect to previous voice channel
+     */
+    async reconnectToVoiceChannel(): Promise<boolean> {
+      const savedState = localStorage.getItem('voiceChannelState');
+      if (!savedState) {
+        console.log('ℹ️ No saved voice channel state found');
+        return false;
+      }
+
+      try {
+        const { channelId, serverId, channelName, timestamp } = JSON.parse(savedState);
+        
+        // Check if saved state is recent (within last 24 hours)
+        const dayInMs = 24 * 60 * 60 * 1000;
+        if (Date.now() - timestamp > dayInMs) {
+          console.log('⏰ Saved voice channel state too old, clearing');
+          this.clearVoiceChannelState();
+          return false;
+        }
+
+        console.log('🔄 Attempting to reconnect to voice channel:', channelName);
+        
+        // Attempt to rejoin the channel
+        const success = await this.joinVoiceChannel(channelId, serverId);
+        
+        if (success) {
+          console.log('✅ Successfully reconnected to voice channel');
+        } else {
+          console.log('❌ Failed to reconnect, clearing saved state');
+          this.clearVoiceChannelState();
+        }
+        
+        return success;
+      } catch (error) {
+        console.error('❌ Error reconnecting to voice channel:', error);
+        this.clearVoiceChannelState();
+        return false;
+      }
+    },
+
+    /**
      * Initialize spatial audio system
      */
     async initializeSpatialAudio(userId: string): Promise<void> {
@@ -701,6 +780,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const userStream = unifiedWebRTC.getUserStream(userId);
         if (userStream) {
           spatialAudioService.setupSpatialForUser(userId, userStream);
+          
+          // If spatial audio is enabled, mute traditional audio for this user
+          const spatialStore = useSpatialAudioStore();
+          if (spatialStore.settings.enabled) {
+            console.log('🔇 Muting traditional audio for user (spatial audio active):', userId);
+            unifiedWebRTC.setTraditionalAudioEnabled(false);
+          }
         } else {
           console.warn('No media stream found for user:', userId, '- retrying in 100ms');
           // Retry once more if stream isn't ready
@@ -708,6 +794,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             const retryUserStream = unifiedWebRTC.getUserStream(userId);
             if (retryUserStream) {
               spatialAudioService.setupSpatialForUser(userId, retryUserStream);
+              
+              // Mute traditional audio if spatial is enabled
+              const spatialStore = useSpatialAudioStore();
+              if (spatialStore.settings.enabled) {
+                console.log('🔇 Muting traditional audio for user (spatial audio active, retry):', userId);
+                unifiedWebRTC.setTraditionalAudioEnabled(false);
+              }
             } else {
               console.warn('Media stream still not found for user:', userId);
             }

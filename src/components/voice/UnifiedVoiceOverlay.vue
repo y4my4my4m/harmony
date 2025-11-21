@@ -472,6 +472,19 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   max-height: 95vh;
 }
 
+/* When .voice-container.maximized is present, remove align-items: center from .voice-overlay */
+.voice-overlay:has(> .voice-container.maximized) {
+  align-items: unset;
+}
+
+/* Fullscreen mode */
+.voice-container.fullscreen-mode {
+  max-width: 98vw;
+  max-height: 98vh;
+  height: 98vh;
+  width: 98vw;
+}
+
 /* Header */
 .voice-header {
   display: flex;
@@ -579,15 +592,29 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   padding: 16px 24px;
   overflow-y: auto;
   min-height: 300px;
-  align-content: center;
-  justify-content: center;
+  align-content: flex-start;
+  justify-content: flex-start;
   display: flex;
   flex-direction: column;
 }
 
-/* Maximized mode - remove padding for more space */
+
 .voice-container.maximized .participants-container {
-  padding: 8px 16px;
+  padding: 12px 24px;
+  min-height: 0;
+}
+
+.voice-container.maximized .participants-grid {
+  align-items: stretch;
+  align-content: start;
+}
+
+.voice-container.maximized .participant-card :deep(.harmony-voice-card) {
+  min-height: 400px;
+}
+
+.voice-container.maximized .participant-card :deep(.video-container) {
+  height: 340px;
 }
 
 .participants-grid {
@@ -749,8 +776,9 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 16px 24px;
+  padding: 20px 24px;
   overflow: hidden;
+  height: 100%;
 }
 
 .fullscreen-card {
@@ -764,9 +792,10 @@ const connectionStats = computed(() => voiceStore.connectionStats);
   min-height: 400px;
 }
 
-.fullscreen-card :deep(.harmony-voice-card) {
+.fullscreen-card :deep(.video-stream) {
+  width: 100%;
   height: 100%;
-  min-height: 0;
+  object-fit: contain !important;
 }
 
 .thumbnail-strip {
@@ -793,7 +822,12 @@ const connectionStats = computed(() => voiceStore.connectionStats);
 }
 
 .thumbnail-card :deep(.username) {
-  font-size: 12px;
+  font-size: 11px;
+}
+
+.thumbnail-card :deep(.user-info) {
+  padding-bottom: 0;
+  top: 10px;
 }
 
 @media (max-width: 1024px) {

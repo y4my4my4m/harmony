@@ -50,6 +50,13 @@ const updateSessionDuration = () => {
   // Fall back to sessionStartTime (personal session time) if callStartTime isn't set yet
   const startTime = voiceStore.callStartTime || props.sessionStartTime;
   
+  // Debug logging
+  if (voiceStore.callStartTime) {
+    console.log('🕐 Using callStartTime:', voiceStore.callStartTime);
+  } else if (props.sessionStartTime) {
+    console.log('⚠️ callStartTime not set, falling back to sessionStartTime:', props.sessionStartTime);
+  }
+  
   if (!startTime) {
     sessionDuration.value = '';
     return;

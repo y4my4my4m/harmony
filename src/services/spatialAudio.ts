@@ -235,8 +235,27 @@ export class SpatialAudioService {
       // Create audio source directly from MediaStream (better quality than HTMLAudioElement)
       const source = this.audioContext.createMediaStreamSource(mediaStream);
       
+      // Convert stereo to mono for better spatial audio effect
+      const audioTracks = mediaStream.getAudioTracks();
+      const channelCount = audioTracks[0]?.getSettings().channelCount || 2;
+      console.log(`🎧 Audio source channel count: ${channelCount}`);
+      
+      // If stereo, create a mono downmix for spatial audio
+      let monoSource: AudioNode = source;
+      if (channelCount > 1) {
+        const splitter = this.audioContext.createChannelSplitter(channelCount);
+        const merger = this.audioContext.createChannelMerger(1); // Merge to mono
+        source.connect(splitter);
+        // Connect all channels to a single output channel
+        for (let i = 0; i < channelCount; i++) {
+          splitter.connect(merger, i, 0);
+        }
+        monoSource = merger;
+        console.log('🎧 Converted stereo to mono for spatial audio');
+      }
+      
       // Create professional audio processing chain
-      const processingChain = await this.createAudioProcessingChain(source);
+      const processingChain = await this.createAudioProcessingChain(monoSource);
       
       // Store the complete node configuration
       const spatialNode: SpatialAudioNode = {
@@ -272,7 +291,7 @@ export class SpatialAudioService {
    * Create professional audio processing chain
    * Chain: source -> input gain -> [convolver] -> panner -> output gain -> compressor -> destination
    */
-  private async createAudioProcessingChain(source: MediaStreamAudioSourceNode) {
+  private async createAudioProcessingChain(source: AudioNode) {
     if (!this.audioContext) throw new Error('AudioContext not available');
     
     const spatialStore = useSpatialAudioStore();
@@ -537,10 +556,10 @@ export class SpatialAudioService {
       
       // Convert 2D screen coordinates to 3D audio space
       // Scale positions to reasonable audio distances with increased multiplier for more dramatic effect
-      const scale = 3.0; // Increased multiplier for stronger spatial effect
-      const audioX = (x - 300) * scale / 50; // Center at 300px, increased scaling
-      const audioY = (y - 200) * scale / 50; // Center at 200px, increased scaling
-      const audioZ = -2; // Keep slightly in front of listener
+      const scale = 5.0; // Increased multiplier for even stronger spatial effect
+      const audioX = (x - 300) * scale / 30; // More aggressive scaling
+      const audioY = (y - 200) * scale / 30; // More aggressive scaling
+      const audioZ = -1; // Closer to listener for better effect
       
       const currentTime = this.audioContext.currentTime;
       const transitionTime = 0.05;

@@ -12,6 +12,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
     userProfiles: {} as Record<string, User>,
     usersInVoiceChannels: {} as Record<string, string[]>,
+    voiceChannelCallStartTimes: {} as Record<string, Date>, // Track call start time per channel
     presenceChannel: null as RealtimeChannel | null,
     voiceChannelBroadcast: null as RealtimeChannel | null, // Persistent channel for voice events
     onlineUsers: new Set<string>(),
@@ -290,6 +291,9 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
       console.log('🎙️ Setting up voice channel broadcast for server:', serverId);
 
+      // First, fetch current voice channel state from database
+      await this.fetchVoiceChannelState(serverId);
+
       this.voiceChannelBroadcast = supabase.channel(`voice-channels:${serverId}`, {
         config: {
           broadcast: { self: true },
@@ -298,7 +302,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
       this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, (payload) => {
         console.log('🎙️ Received voice channel event:', payload);
-        const { event, userId, channelId } = payload.payload;
+        const { event, userId, channelId, callStartTime } = payload.payload;
 
         if (event === 'user-joined') {
           if (!this.usersInVoiceChannels[channelId]) {
@@ -307,11 +311,30 @@ export const useServerUsersStore = defineStore('serverUsers', {
           if (!this.usersInVoiceChannels[channelId].includes(userId)) {
             this.usersInVoiceChannels[channelId].push(userId);
           }
+          
+          // Set call start time if provided
+          if (callStartTime && !this.voiceChannelCallStartTimes[channelId]) {
+            this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
+            console.log(`🕐 Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+          }
+          
           console.log(`✅ User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
         } else if (event === 'user-left') {
           if (this.usersInVoiceChannels[channelId]) {
             this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
             console.log(`✅ User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
+            
+            // Clear call start time if last user left
+            if (this.usersInVoiceChannels[channelId].length === 0) {
+              delete this.voiceChannelCallStartTimes[channelId];
+              console.log(`🕐 Cleared call start time for channel ${channelId} (empty)`);
+            }
+          }
+        } else if (event === 'call-start-time-sync') {
+          // Sync call start time from other users
+          if (callStartTime) {
+            this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
+            console.log(`🕐 Synced call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
           }
         }
       });
@@ -320,7 +343,44 @@ export const useServerUsersStore = defineStore('serverUsers', {
       console.log('✅ Voice channel broadcast subscribed for server:', serverId);
     },
 
-    broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string) {
+    /**
+     * Fetch current voice channel state from database
+     */
+    async fetchVoiceChannelState(serverId: string) {
+      try {
+        const { data, error } = await supabase
+          .from('user_presence')
+          .select('user_id, voice_channel_id')
+          .eq('server_id', serverId)
+          .not('voice_channel_id', 'is', null);
+
+        if (error) {
+          console.error('Failed to fetch voice channel state:', error);
+          return;
+        }
+
+        // Group users by channel
+        const channelUsers: Record<string, string[]> = {};
+        if (data) {
+          for (const presence of data) {
+            if (presence.voice_channel_id) {
+              if (!channelUsers[presence.voice_channel_id]) {
+                channelUsers[presence.voice_channel_id] = [];
+              }
+              channelUsers[presence.voice_channel_id].push(presence.user_id);
+            }
+          }
+        }
+
+        // Update local state
+        this.usersInVoiceChannels = { ...this.usersInVoiceChannels, ...channelUsers };
+        console.log('✅ Fetched voice channel state:', this.usersInVoiceChannels);
+      } catch (error) {
+        console.error('Error fetching voice channel state:', error);
+      }
+    },
+
+    broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string, callStartTime?: string) {
       if (!this.voiceChannelBroadcast) {
         console.error('❌ Voice channel broadcast not initialized');
         return;
@@ -329,15 +389,28 @@ export const useServerUsersStore = defineStore('serverUsers', {
       this.voiceChannelBroadcast.send({
         type: 'broadcast',
         event: 'voice-channel-event',
-        payload: { event, userId, channelId }
+        payload: { event, userId, channelId, callStartTime }
       });
       
-      console.log(`📡 Broadcasted ${event} for user ${userId} in channel ${channelId}`);
+      console.log(`📡 Broadcasted ${event} for user ${userId} in channel ${channelId}`, callStartTime ? `with start time ${callStartTime}` : '');
+    },
+
+    // Get all users in a specific voice channel
+    getUsersInVoiceChannel(channelId: string): string[] {
+      return this.usersInVoiceChannels[channelId] || [];
+    },
+
+    // Get call start time for a channel
+    getCallStartTime(channelId: string): Date | null {
+      return this.voiceChannelCallStartTimes[channelId] || null;
     },
 
     // Voice channel connection methods
     async joinVoiceChannel(serverId: string, channelId: string, userId: string) {
       try {
+        // Check if this is the first user (start new call)
+        const isFirstUser = !this.usersInVoiceChannels[channelId] || this.usersInVoiceChannels[channelId].length === 0;
+        
         // Add user to local state immediately for responsive UI
         if (!this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = [];
@@ -346,8 +419,19 @@ export const useServerUsersStore = defineStore('serverUsers', {
           this.usersInVoiceChannels[channelId].push(userId);
         }
 
-        // Broadcast to other users
-        this.broadcastVoiceChannelEvent(serverId, channelId, 'user-joined', userId);
+        // Set call start time if first user
+        let callStartTime: string | undefined;
+        if (isFirstUser) {
+          this.voiceChannelCallStartTimes[channelId] = new Date();
+          callStartTime = this.voiceChannelCallStartTimes[channelId].toISOString();
+          console.log(`🕐 First user - setting call start time for channel ${channelId}`);
+        } else {
+          // Use existing call start time
+          callStartTime = this.voiceChannelCallStartTimes[channelId]?.toISOString();
+        }
+
+        // Broadcast to other users with call start time
+        this.broadcastVoiceChannelEvent(serverId, channelId, 'user-joined', userId, callStartTime);
         
         console.log(`User ${userId} joined voice channel ${channelId}`);
         return true;
@@ -362,6 +446,12 @@ export const useServerUsersStore = defineStore('serverUsers', {
         // Remove user from local state immediately
         if (this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+          
+          // Clear call start time if last user left
+          if (this.usersInVoiceChannels[channelId].length === 0) {
+            delete this.voiceChannelCallStartTimes[channelId];
+            console.log(`🕐 Cleared call start time for channel ${channelId}`);
+          }
         }
 
         // Broadcast to other users
