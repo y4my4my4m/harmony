@@ -123,9 +123,8 @@ const updateText = (newText: string, cursorPosition?: number) => {
   // Set cursor position after text update if provided
   if (cursorPosition !== undefined && richEditorRef.value) {
     // Set the skip flag BEFORE emitting the update
-    if (richEditorRef.value.skipNextWatch) {
-      richEditorRef.value.skipNextWatch.value = true;
-    }
+    console.log('🔧 Setting skipNextWatch to true');
+    richEditorRef.value.skipNextWatch = true;
     
     emit('update:modelValue', newText);
     
@@ -133,6 +132,7 @@ const updateText = (newText: string, cursorPosition?: number) => {
     nextTick(() => {
       // Now render the content manually with skip cursor restore
       if (richEditorRef.value?.renderContent) {
+        console.log('🔧 Calling manual renderContent with skipCursorRestore=true');
         richEditorRef.value.renderContent(newText, true); // Skip cursor restore
       }
       
