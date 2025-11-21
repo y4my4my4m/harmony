@@ -187,6 +187,76 @@
         </div>
       </div>
     </div>
+
+    <!-- MFA Verification Modal -->
+    <div v-if="showMFAModal" class="modal-overlay" @click="closeMFAModal">
+      <div class="modal-content" @click.stop>
+        <button class="modal-close" @click="closeMFAModal" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M18 6L6 18M6 6l12 12" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <div class="modal-header">
+          <div class="modal-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="#5865f2" stroke-width="2"/>
+              <path d="M12 6v6l4 2" stroke="#5865f2" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h2 class="modal-title">Two-Factor Authentication</h2>
+          <p class="modal-subtitle">
+            {{ useRecoveryCode ? 'Enter your 8-character recovery code' : 'Enter the 6-digit code from your authenticator app' }}
+          </p>
+        </div>
+
+        <form @submit.prevent="handleMFAVerification" class="modal-form">
+          <div class="input-group">
+            <label class="input-label">
+              {{ useRecoveryCode ? 'Recovery Code' : '6-Digit Code' }}
+            </label>
+            <input 
+              v-model="mfaCode" 
+              type="text"
+              :maxlength="useRecoveryCode ? 8 : 6"
+              class="form-input"
+              :class="{ 'error': mfaError }"
+              @input="mfaError = ''"
+              required
+              :placeholder="useRecoveryCode ? 'XXXXXXXX' : '000000'"
+              autocomplete="off"
+            />
+            <span v-if="mfaError" class="error-message">{{ mfaError }}</span>
+          </div>
+
+          <button 
+            type="submit" 
+            class="submit-btn"
+            :class="{ 'loading': mfaLoading }"
+            :disabled="mfaLoading"
+          >
+            <span v-if="!mfaLoading">Verify & Reset Password</span>
+            <div v-else class="loading-spinner"></div>
+          </button>
+
+          <button 
+            type="button" 
+            class="switch-mode-btn"
+            @click="toggleRecoveryCode"
+          >
+            {{ useRecoveryCode ? 'Use Authenticator Code' : 'Use Recovery Code' }}
+          </button>
+
+          <button 
+            type="button" 
+            class="cancel-btn"
+            @click="closeMFAModal"
+          >
+            Cancel
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -218,6 +288,16 @@ const isValidToken = ref(false)
 const isPasswordResetMode = ref(false)
 let authStateListener: { subscription: { unsubscribe: () => void } } | null = null
 
+// MFA State
+const requiresMFA = ref(false)
+const showMFAModal = ref(false)
+const mfaCode = ref('')
+const mfaError = ref('')
+const mfaLoading = ref(false)
+const mfaFactorId = ref('')
+const mfaChallengeId = ref('')
+const useRecoveryCode = ref(false)
+
 // Background particles
 const particles = ref<Array<{ id: number; left: string; top: string; delay: string; duration: string; size: string }>>([])
 const randomBg = ref('')
@@ -238,6 +318,27 @@ const initializeParticles = () => {
     duration: `${3 + Math.random() * 4}s`,
     size: `${10 + Math.random() * 20}px`
   }))
+}
+
+// Check if user has MFA enabled
+const checkMFAStatus = async () => {
+  try {
+    const { data: factors } = await supabase.auth.mfa.listFactors()
+    const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified')
+    
+    if (totpFactor) {
+      console.log('🔒 User has MFA enabled - will require 2FA verification for password reset')
+      requiresMFA.value = true
+      mfaFactorId.value = totpFactor.id
+    } else {
+      console.log('✅ User does not have MFA enabled')
+      requiresMFA.value = false
+    }
+  } catch (error: any) {
+    console.error('Error checking MFA status:', error)
+    // If we can't check MFA status, assume it's not enabled
+    requiresMFA.value = false
+  }
 }
 
 // Check for recovery token on mount
@@ -285,6 +386,10 @@ onMounted(async () => {
     // If we have a session, the token was processed - allow password reset
     isValidToken.value = true
     isPasswordResetMode.value = true
+    
+    // Check if user has MFA enabled
+    await checkMFAStatus()
+    
     // Router guard will handle preventing navigation
     return
   }
@@ -305,6 +410,10 @@ onMounted(async () => {
     } else {
       isValidToken.value = true
       isPasswordResetMode.value = true
+      
+      // Check if user has MFA enabled
+      await checkMFAStatus()
+      
       // Router guard will handle preventing navigation
     }
   } catch (error: any) {
@@ -369,6 +478,37 @@ const handleResetPassword = async () => {
     return
   }
   
+  // If user has MFA enabled, show MFA modal instead of proceeding directly
+  if (requiresMFA.value) {
+    console.log('🔒 User has MFA - showing 2FA verification modal')
+    
+    // Create MFA challenge
+    try {
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: mfaFactorId.value
+      })
+      
+      if (challengeError) {
+        console.error('MFA challenge error:', challengeError)
+        passwordError.value = 'Failed to create MFA challenge. Please try again.'
+        return
+      }
+      
+      mfaChallengeId.value = challengeData.id
+      showMFAModal.value = true
+    } catch (error: any) {
+      console.error('MFA challenge error:', error)
+      passwordError.value = 'Failed to create MFA challenge. Please try again.'
+    }
+    return
+  }
+  
+  // No MFA required, proceed with password reset
+  await performPasswordReset()
+}
+
+// Perform the actual password reset
+const performPasswordReset = async () => {
   isLoading.value = true
   
   try {
@@ -387,6 +527,9 @@ const handleResetPassword = async () => {
         errorMessage.value = 'This password reset link has expired. Please request a new one.'
       } else if (error.message.includes('Password should be at least')) {
         passwordError.value = error.message
+      } else if (error.message.includes('AAL2') || error.message.includes('aal2')) {
+        // User needs AAL2 - this shouldn't happen if we handled MFA correctly
+        passwordError.value = 'Multi-factor authentication is required. Please verify your 2FA code.'
       } else {
         passwordError.value = error.message || 'Failed to reset password'
       }
@@ -428,6 +571,99 @@ const goToLogin = async () => {
     authStore.clearPasswordResetMode()
   }
   router.push('/login')
+}
+
+// Handle MFA verification
+const handleMFAVerification = async () => {
+  const expectedLength = useRecoveryCode.value ? 8 : 6
+  if (mfaCode.value.length !== expectedLength) {
+    mfaError.value = `Please enter a ${expectedLength}-${useRecoveryCode.value ? 'character' : 'digit'} code`
+    return
+  }
+
+  console.log('🔐 Starting MFA verification for password reset...')
+  mfaLoading.value = true
+  mfaError.value = ''
+
+  try {
+    if (useRecoveryCode.value) {
+      // Verify recovery code
+      console.log('📞 Verifying recovery code...')
+      
+      const { data: sessionData } = await supabase.auth.getSession()
+      const userId = sessionData.session?.user?.id
+      
+      if (!userId) {
+        throw new Error('User session not found')
+      }
+
+      const { data: isValid, error } = await supabase.rpc('verify_recovery_code', {
+        p_user_id: userId,
+        p_code: mfaCode.value
+      })
+
+      if (error) throw error
+
+      if (!isValid) {
+        throw new Error('Invalid or already used recovery code')
+      }
+
+      console.log('✅ Recovery code verified successfully!')
+      
+      // Unenroll the TOTP factor since they lost access to their authenticator
+      await supabase.auth.mfa.unenroll({ factorId: mfaFactorId.value })
+      
+      // They no longer have MFA, so we can proceed with password reset
+      requiresMFA.value = false
+      showMFAModal.value = false
+      mfaCode.value = ''
+      
+      // Now proceed with password reset
+      await performPasswordReset()
+      
+      toast.warning('2FA has been disabled. Please re-enable it after logging in with your new password.')
+    } else {
+      // Verify TOTP code
+      console.log('📞 Verifying TOTP code...')
+      
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: mfaFactorId.value,
+        challengeId: mfaChallengeId.value,
+        code: mfaCode.value
+      })
+
+      if (verifyError) throw verifyError
+
+      console.log('✅ MFA verified - session upgraded to AAL2')
+      
+      // Close modal and proceed with password reset
+      showMFAModal.value = false
+      mfaCode.value = ''
+      
+      // Now proceed with password reset (session is now AAL2)
+      await performPasswordReset()
+    }
+  } catch (error: any) {
+    console.error('❌ MFA verification error:', error)
+    mfaError.value = error.message || 'Invalid code. Please try again.'
+  } finally {
+    mfaLoading.value = false
+  }
+}
+
+// Close MFA modal
+const closeMFAModal = () => {
+  showMFAModal.value = false
+  mfaCode.value = ''
+  mfaError.value = ''
+  useRecoveryCode.value = false
+}
+
+// Toggle between TOTP and recovery code
+const toggleRecoveryCode = () => {
+  useRecoveryCode.value = !useRecoveryCode.value
+  mfaCode.value = ''
+  mfaError.value = ''
 }
 </script>
 
@@ -779,6 +1015,118 @@ const goToLogin = async () => {
   
   .auth-form-container {
     padding: 30px 20px;
+  }
+}
+
+/* MFA Modal Styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: rgba(30, 30, 30, 0.98);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.modal-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.modal-icon {
+  margin: 0 auto 16px;
+  width: 48px;
+  height: 48px;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.modal-subtitle {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cancel-btn {
+  width: 100%;
+  padding: 12px 24px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    padding: 24px;
   }
 }
 </style>
