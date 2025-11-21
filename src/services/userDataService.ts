@@ -128,16 +128,24 @@ class UserDataService extends EventTarget {
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
     
-    // If status was manually set (Away, Busy), respect that
-    if (this.wasManuallySet && this.manualStatus !== null) {
-      console.log('👋 User active again, restoring manual status:', UserStatus[this.manualStatus])
-      await this.updateCurrentUserStatus(this.manualStatus, false) // Don't mark as manual again
-    } else {
-      // Restore to Online if they were auto-set to Away/Offline
-      if (userData.status === UserStatus.Away || userData.status === UserStatus.Offline) {
-        console.log('👋 User active again, restoring to Online')
-        await this.updateCurrentUserStatus(UserStatus.Online, false)
-      }
+    // If status was manually set to Away, keep it Away (user wants to stay away)
+    if (this.wasManuallySet && this.manualStatus === UserStatus.Away) {
+      console.log('👋 User active again, but keeping manual Away status (user preference)')
+      // Don't change status - user manually chose to be Away
+      return
+    }
+    
+    // If status was manually set to Busy, keep it Busy
+    if (this.wasManuallySet && this.manualStatus === UserStatus.Busy) {
+      console.log('👋 User active again, but keeping manual Busy status (user preference)')
+      // Don't change status - user manually chose to be Busy
+      return
+    }
+    
+    // Otherwise, restore to Online if they were auto-set to Away/Offline
+    if (userData.status === UserStatus.Away || userData.status === UserStatus.Offline) {
+      console.log('👋 User active again, restoring to Online (was auto-set)')
+      await this.updateCurrentUserStatus(UserStatus.Online, false)
     }
     
     // Reset activity tracking
@@ -1122,10 +1130,19 @@ class UserDataService extends EventTarget {
     
     // Track manual status changes
     if (isManual) {
-      this.wasManuallySet = (status === UserStatus.Away || status === UserStatus.Busy)
-      this.manualStatus = this.wasManuallySet ? status : null
+      // If user manually sets to Away or Busy, remember that choice
+      if (status === UserStatus.Away || status === UserStatus.Busy) {
+        this.wasManuallySet = true
+        this.manualStatus = status
+        console.log('📌 Status manually set to:', UserStatus[status])
+      } 
+      // If user manually sets to Online, clear the manual flag (back to automatic mode)
+      else if (status === UserStatus.Online) {
+        this.wasManuallySet = false
+        this.manualStatus = null
+        console.log('📌 Status manually set to Online - clearing manual flag')
+      }
       // Note: activityTracker would be called here if available
-      console.log('📌 Status manually set:', this.wasManuallySet ? 'Yes' : 'No')
     }
     
     // Update local data immediately for instant UI feedback
