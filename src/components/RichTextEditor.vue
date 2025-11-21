@@ -252,9 +252,11 @@ const setCursorPosition = (targetPosition: number) => {
   while (node) {
     if (node.nodeType === Node.TEXT_NODE) {
       const nodeLength = (node.textContent || '').length;
+      console.log('🔧 Processing text node:', { text: JSON.stringify(node.textContent), length: nodeLength, currentPos, targetPosition });
       if (currentPos + nodeLength >= targetPosition) {
         targetNode = node;
         targetOffset = targetPosition - currentPos;
+        console.log('🔧 Found target in text node:', { targetOffset, text: JSON.stringify(node.textContent) });
         break;
       }
       currentPos += nodeLength;
@@ -272,6 +274,7 @@ const setCursorPosition = (targetPosition: number) => {
         if (displayText) {
           nodeLength = displayText.length; // Count the display text length (@username or @username@domain)
         }
+        console.log('🔧 Processing mention element:', { displayText, length: nodeLength, currentPos, targetPosition });
       } else if (el.tagName === 'BR') {
         nodeLength = 1;
       }
@@ -280,6 +283,7 @@ const setCursorPosition = (targetPosition: number) => {
         // Position cursor after this element
         targetNode = el.parentNode;
         targetOffset = Array.from(el.parentNode?.childNodes || []).indexOf(el) + 1;
+        console.log('🔧 Found target after element:', { element: el.tagName, targetOffset });
         break;
       }
       currentPos += nodeLength;
@@ -289,6 +293,12 @@ const setCursorPosition = (targetPosition: number) => {
   
   if (targetNode) {
     try {
+      console.log('🔧 Setting range:', { 
+        nodeType: targetNode.nodeType, 
+        nodeName: targetNode.nodeName, 
+        targetOffset,
+        nodeContent: targetNode.nodeType === Node.TEXT_NODE ? JSON.stringify(targetNode.textContent) : 'N/A'
+      });
       const range = document.createRange();
       if (targetNode.nodeType === Node.TEXT_NODE) {
         range.setStart(targetNode, Math.min(targetOffset, targetNode.textContent?.length || 0));
@@ -298,9 +308,12 @@ const setCursorPosition = (targetPosition: number) => {
       range.collapse(true);
       selection.removeAllRanges();
       selection.addRange(range);
+      console.log('🔧 Cursor position set successfully');
     } catch (e) {
       console.warn('Error setting cursor position:', e);
     }
+  } else {
+    console.warn('🔧 Could not find target node for position:', targetPosition);
   }
 };
 
@@ -752,7 +765,11 @@ const autoExpand = () => {
 // Focus the editor
 const focus = () => {
   if (editorRef.value) {
+    console.log('🔧 focus() called, editor exists:', !!editorRef.value);
     editorRef.value.focus();
+    console.log('🔧 After focus(), activeElement:', document.activeElement === editorRef.value);
+  } else {
+    console.warn('🔧 focus() called but editorRef is null');
   }
 };
 
