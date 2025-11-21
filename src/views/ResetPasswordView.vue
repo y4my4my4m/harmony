@@ -216,7 +216,6 @@ const isError = ref(false)
 const errorMessage = ref('')
 const isValidToken = ref(false)
 const isPasswordResetMode = ref(false)
-let navigationGuardAdded = false
 let authStateListener: { subscription: { unsubscribe: () => void } } | null = null
 
 // Background particles
@@ -248,12 +247,13 @@ onMounted(async () => {
 
   // Set up listener for PASSWORD_RECOVERY event
   // This fires when Supabase processes the recovery token
+  // Note: The auth store will also catch this and set isPasswordResetMode flag
   const authListenerData = supabase.auth.onAuthStateChange(async (event, session) => {
     if (event === 'PASSWORD_RECOVERY' && session) {
       console.log('🔒 PASSWORD_RECOVERY event detected in ResetPasswordView')
       isValidToken.value = true
       isPasswordResetMode.value = true
-      setupNavigationGuard()
+      // Router guard will handle preventing navigation
     }
   })
   authStateListener = authListenerData.data
@@ -285,8 +285,7 @@ onMounted(async () => {
     // If we have a session, the token was processed - allow password reset
     isValidToken.value = true
     isPasswordResetMode.value = true
-    setupNavigationGuard()
-    // Keep listener active in case event fires later
+    // Router guard will handle preventing navigation
     return
   }
 
@@ -306,8 +305,7 @@ onMounted(async () => {
     } else {
       isValidToken.value = true
       isPasswordResetMode.value = true
-      setupNavigationGuard()
-      // Keep listener active
+      // Router guard will handle preventing navigation
     }
   } catch (error: any) {
     console.error('Error checking recovery token:', error)
@@ -325,28 +323,6 @@ onBeforeUnmount(() => {
   }
 })
 
-// Setup navigation guard to prevent leaving reset-password page
-const setupNavigationGuard = () => {
-  if (navigationGuardAdded) return
-  navigationGuardAdded = true
-  
-  router.beforeEach((to, from, next) => {
-    // Allow navigation to login or within reset-password
-    if (to.name === 'Login' || to.name === 'ResetPassword' || isSuccess.value) {
-      next()
-      return
-    }
-    
-    // Prevent navigation away from reset-password when in password reset mode
-    if (isPasswordResetMode.value && !isSuccess.value && from.name === 'ResetPassword') {
-      toast.warning('Please complete the password reset process first')
-      next(false)
-      return
-    }
-    
-    next()
-  })
-}
 
 // Validate password
 const validatePassword = (): boolean => {
@@ -422,6 +398,9 @@ const handleResetPassword = async () => {
     isSuccess.value = true
     isPasswordResetMode.value = false
     
+    // Clear password reset mode in auth store
+    authStore.clearPasswordResetMode()
+    
     // Sign out the recovery session - user needs to log in with new password
     await supabase.auth.signOut()
     authStore.session = null
@@ -442,10 +421,11 @@ const handleResetPassword = async () => {
 
 // Navigate to login
 const goToLogin = async () => {
-  // If we're in password reset mode, sign out first
+  // If we're in password reset mode, sign out and clear the flag
   if (isPasswordResetMode.value && !isSuccess.value) {
     await supabase.auth.signOut()
     authStore.session = null
+    authStore.clearPasswordResetMode()
   }
   router.push('/login')
 }

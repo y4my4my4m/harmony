@@ -337,6 +337,12 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   const isLoggedIn = authStore.isLoggedIn;
 
+  // Prevent navigation away from reset-password when in password reset mode
+  if (authStore.isPasswordResetMode && to.name !== 'ResetPassword' && to.name !== 'Login') {
+    next({ name: 'ResetPassword' });
+    return;
+  }
+
   if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'Login' });
   } else if ((to.name === 'Login' || to.name === 'Home') && isLoggedIn) {

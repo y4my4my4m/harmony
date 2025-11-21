@@ -8,9 +8,16 @@ import router from '@/router';
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     session: null as Session | null,
+    isPasswordResetMode: false, // Flag to track if we're in password reset flow
   }),
   getters: {
-    isLoggedIn: (state) => !!state.session
+    isLoggedIn: (state) => {
+      // Don't treat recovery sessions as logged in - user must complete password reset
+      if (state.isPasswordResetMode) {
+        return false;
+      }
+      return !!state.session;
+    }
   },
   actions: {
     // Helper to decode JWT payload (without verification - just for reading AAL)
@@ -72,7 +79,13 @@ export const useAuthStore = defineStore('auth', {
         // When Supabase processes a recovery token, it creates a session and fires this event
         // We need to prevent this session from granting full app access
         if (event === 'PASSWORD_RECOVERY') {
-          console.log('🔒 PASSWORD_RECOVERY event detected - not setting session in auth store');
+          console.log('🔒 PASSWORD_RECOVERY event detected - entering password reset mode');
+          
+          // Set password reset mode flag - this prevents isLoggedIn from returning true
+          this.isPasswordResetMode = true;
+          
+          // Don't set session in store - user must complete password reset first
+          // The session exists in Supabase storage for the password update, but we don't treat it as logged in
           
           // If not already on reset-password page, redirect there
           const currentPath = window.location.pathname;
@@ -80,23 +93,12 @@ export const useAuthStore = defineStore('auth', {
             router.push('/reset-password');
           }
           
-          // Don't set session - let ResetPasswordView handle the recovery flow
           return;
         }
         
-        // Also check if we're on reset-password page and this might be a recovery session
-        // (in case the event was missed or fired before we set up the listener)
-        const currentPath = window.location.pathname;
-        if (currentPath === '/reset-password' && session) {
-          // Check URL for recovery indicators (hash might still be there)
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
-          const queryParams = new URLSearchParams(window.location.search);
-          const type = hashParams.get('type') || queryParams.get('type');
-          
-          if (type === 'recovery') {
-            console.log('🔒 Recovery token detected in URL - not setting session in auth store');
-            return;
-          }
+        // Clear password reset mode on other auth events (like SIGNED_OUT or TOKEN_REFRESHED)
+        if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+          this.isPasswordResetMode = false;
         }
         
         // Accept all valid sessions regardless of AAL level
@@ -266,6 +268,13 @@ export const useAuthStore = defineStore('auth', {
       });
       if (error) throw error;
       return { data, error };
+    },
+
+    /**
+     * Clear password reset mode - called after successful password reset
+     */
+    clearPasswordResetMode() {
+      this.isPasswordResetMode = false;
     },
 
     async logout() {
