@@ -200,7 +200,7 @@
           <div 
             v-for="user in groupedUsers.offline" 
             :key="user.id" 
-            class="user-item"
+            class="user-item offline-user"
             @click="showUserProfile(user)"
           >
             <Avatar
@@ -292,7 +292,7 @@ const collapsedGroups = ref({
   online: false,
   away: false,
   busy: false,
-  offline: true // Start with offline collapsed
+  offline: false // Start with offline collapsed
 });
 
 // Smart cached user data - shows cached data immediately, updates in background
@@ -703,6 +703,15 @@ const closeInviteModal = () => {
 
 .user-groups::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.15);
+}
+
+.offline-user {
+  opacity: 0.3;
+  transition: opacity 0.2s ease;
+}
+
+.offline-user:hover {
+  opacity: 1.0;
 }
 
 /* Loading Indicator */
