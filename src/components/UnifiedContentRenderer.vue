@@ -115,6 +115,22 @@
             ></video>
           </div>
           
+          <!-- Audio files -->
+          <div 
+            v-else-if="!isPreviewMode && part.fileType === 'audio'" 
+            class="media-container audio-container"
+          >
+            <div v-if="part.fileName" class="audio-filename">
+              {{ part.fileName }}
+            </div>
+            <audio
+              :src="part.url"
+              controls
+              preload="metadata"
+              class="content-audio"
+            ></audio>
+          </div>
+          
           <!-- Other file types or preview mode -->
           <a 
             v-else
@@ -201,6 +217,17 @@ const imageLoaded = ref(props.imageLoaded);
 // Event handlers
 const handleContentClick = (event: Event) => {
   const target = event.target as HTMLElement;
+  
+  // Handle image clicks in HTML mode
+  if (target.tagName === 'IMG' && target.classList.contains('content-image')) {
+    const src = target.getAttribute('src');
+    if (src) {
+      event.preventDefault();
+      event.stopPropagation();
+      emit('image-click', src);
+    }
+    return;
+  }
   
   // Handle mention clicks in HTML mode
   if (target.classList.contains('mention')) {
@@ -432,8 +459,17 @@ const formatFileSize = (bytes: number): string => {
   cursor: default;
 }
 
+.content-html :deep(.content-audio) {
+  width: 100%;
+  max-width: 450px;
+}
+
+.content-html :deep(.audio-container) {
+  margin: 8px 0;
+}
+
 /* Media containers */
-/* .media-container {
+.media-container {
   margin: 4px 0 8px 0;
   max-width: 100%;
 }
@@ -447,7 +483,23 @@ const formatFileSize = (bytes: number): string => {
 
 .content-video {
   cursor: default;
-} */
+}
+
+.content-audio {
+  width: 100%;
+  max-width: 450px;
+}
+
+.audio-container {
+  margin: 8px 0;
+}
+
+.audio-filename {
+  font-size: 0.875rem;
+  color: #dcddde;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
 
 /* Media loading skeletons */
 .media-skeleton {

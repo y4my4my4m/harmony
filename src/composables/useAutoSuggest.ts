@@ -504,10 +504,10 @@ export function useAutoSuggest(
       let insertText = '';
       
       if (state.value.triggerType === 'emoji') {
-        insertText = `:${suggestion.name}:`;
+        insertText = `:${suggestion.name}: `; // Add space after emoji
       } else if (state.value.triggerType === 'mention') {
         if (finalConfig.mode === 'activitypub') {
-          insertText = suggestion.handle || `@${suggestion.username}`;
+          insertText = (suggestion.handle || `@${suggestion.username}`) + ' '; // Add space after mention
           console.log('🔧 ActivityPub mention insert:', {
             handle: suggestion.handle,
             username: suggestion.username,
@@ -518,9 +518,9 @@ export function useAutoSuggest(
         } else {
           // Chat mode: use display_text for what user sees
           if (suggestion.display_text) {
-            insertText = suggestion.display_text; // User sees @username or @username@domain
+            insertText = suggestion.display_text + ' '; // Add space after mention
           } else {
-            insertText = `@${suggestion.username}`;
+            insertText = `@${suggestion.username} `; // Add space after mention
           }
         }
       }
@@ -529,7 +529,7 @@ export function useAutoSuggest(
                      insertText + 
                      currentText.substring(triggerEnd);
       
-      // Calculate new cursor position (should be right after the inserted text)
+      // Calculate new cursor position (should be right after the inserted text including the space)
       const newCursorPosition = triggerStart + insertText.length;
       
       console.log('🔧 Final replacement:', { 

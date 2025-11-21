@@ -452,7 +452,7 @@ onBeforeUnmount(() => {
   color: white;
 }
 
-.actions-menu {
+:deep(.actions-menu) {
   position: absolute;
   top: 100%;
   right: 0;

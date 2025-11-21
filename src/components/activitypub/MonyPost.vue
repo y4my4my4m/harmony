@@ -127,6 +127,7 @@
               :content="userQuoteContent" 
               @user-mention-click="handleMentionClick"
               @hashtag-click="handleHashtagClick"
+              @image-click="handleImageClick"
             />
           </div>
           
@@ -150,6 +151,7 @@
                 :content="displayContent" 
                 @user-mention-click="handleMentionClick"
                 @hashtag-click="handleHashtagClick"
+                @image-click="handleImageClick"
               />
             </div>
             
@@ -190,6 +192,7 @@
               :content="displayContent" 
               @user-mention-click="handleMentionClick"
               @hashtag-click="handleHashtagClick"
+              @image-click="handleImageClick"
             />
           </div>
 
@@ -376,6 +379,14 @@
         <span>{{ user.displayName }}</span>
       </div>
     </div>
+    
+    <!-- Lightbox for images -->
+    <vue-easy-lightbox
+      :visible="showLightbox"
+      :imgs="[currentLightboxImage]"
+      :index="0"
+      @hide="closeLightbox"
+    />
   </article>
 </template>
 
@@ -399,6 +410,7 @@ import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import EmojiPopup from '@/components/EmojiPopup.vue';
+import VueEasyLightbox from 'vue-easy-lightbox';
 import router from '@/router';
 
 // Props
@@ -440,6 +452,10 @@ const isDeleting = ref(false);
 const emojiTriggerRef = ref<HTMLElement>();
 const postReactionsRef = ref<InstanceType<typeof PostReactions>>();
 const showEmojiPopup = ref(false);
+
+// Lightbox state
+const showLightbox = ref(false);
+const currentLightboxImage = ref<string>('');
 
 // Tooltip state for reaction tooltips
 const tooltip = ref({
@@ -858,6 +874,15 @@ const handleMentionClick = (handle: string) => {
 
 const handleHashtagClick = (tag: string) => {
   emit('hashtag-click', tag);
+};
+
+const handleImageClick = (url: string) => {
+  currentLightboxImage.value = url;
+  showLightbox.value = true;
+};
+
+const closeLightbox = () => {
+  showLightbox.value = false;
 };
 </script>
 

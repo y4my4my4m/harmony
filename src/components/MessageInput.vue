@@ -39,10 +39,10 @@
         />
       </div>
       <div class="right-icons">
-        <button ref="gifTriggerRef" @click="toggleGiphy" class="icon-button">
+        <button ref="gifTriggerRef" @click.stop="toggleGiphy" class="icon-button">
           <GifIcon />
         </button>
-        <button ref="emojiTriggerRef" @click="toggleEmojiList" class="icon-button">
+        <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button">
           <EmojiUI />
         </button>
       </div>
@@ -118,13 +118,50 @@ const emojiTriggerRef = ref<HTMLElement | null>(null);
 // Auto-suggest setup
 const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
 const updateText = (newText: string, cursorPosition?: number) => {
-  emit('update:modelValue', newText);
+  console.log('🔧 MessageInput updateText called:', { newText, cursorPosition });
   
   // Set cursor position after text update if provided
-  if (cursorPosition !== undefined && richEditorRef.value?.setCursorPosition) {
+  if (cursorPosition !== undefined && richEditorRef.value) {
+    // Set the skip flag BEFORE emitting the update
+    console.log('🔧 Setting skipNextWatch to true');
+    richEditorRef.value.skipNextWatch = true;
+    
+    emit('update:modelValue', newText);
+    
+    // Wait for Vue to process the update
     nextTick(() => {
-      richEditorRef.value?.setCursorPosition(cursorPosition);
+      // Now render the content manually with skip cursor restore
+      if (richEditorRef.value?.renderContent) {
+        console.log('🔧 Calling manual renderContent with skipCursorRestore=true');
+        richEditorRef.value.renderContent(newText, true); // Skip cursor restore
+      }
+      
+      // IMPORTANT: Focus FIRST, then set cursor position
+      nextTick(() => {
+        if (richEditorRef.value) {
+          console.log('🔧 Focusing editor FIRST');
+          richEditorRef.value.focus();
+          
+          // Wait longer to ensure focus and DOM are stable
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (richEditorRef.value) {
+                console.log('🔧 Now setting cursor position to:', cursorPosition);
+                richEditorRef.value.setCursorPosition(cursorPosition);
+                console.log('🔧 Verifying final state:');
+                console.log('  - activeElement:', document.activeElement);
+                console.log('  - selection:', window.getSelection());
+                console.log('  - rangeCount:', window.getSelection()?.rangeCount);
+                console.log('🔧 Cursor should now be visible and ready for typing');
+              }
+            });
+          });
+        }
+      });
     });
+  } else {
+    // Normal text update without cursor control
+    emit('update:modelValue', newText);
   }
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
@@ -158,9 +195,11 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
       // Use the autoSuggest system's built-in selection method
       // This handles both emojis and mentions correctly, including the @ symbol for mentions
+      // The selectSuggestion method already includes the space in the inserted text
       autoSuggest.selectSuggestion(suggestion);
       
-      // Return focus to the rich text editor after selection
+      // Return focus to the rich text editor after text update and DOM rendering
+      // Use nextTick to wait for Vue's reactivity cycle to complete
       nextTick(() => {
         if (richEditorRef.value?.focus) {
           richEditorRef.value.focus();

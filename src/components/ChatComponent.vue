@@ -180,6 +180,12 @@
 
       const toggleEmojiList = (isReaction: boolean, message?: Message, triggerElement?: HTMLElement) => {
         console.log('toggleEmojiList called:', { isReaction, message, triggerElement });
+        
+        // Close GIF picker when opening emoji picker
+        if (!emojiListOpen.value) {
+          giphyOpen.value = false;
+        }
+        
         if(message) selectedMessageId.value = message.id;
         if(triggerElement) reactionTriggerElement.value = triggerElement;
         isPopupForReaction.value = isReaction;
@@ -204,6 +210,12 @@
 
       const toggleGiphy = () => {
           console.log('toggleGiphy called');
+          
+          // Close emoji picker when opening GIF picker
+          if (!giphyOpen.value) {
+            emojiListOpen.value = false;
+          }
+          
           giphyOpen.value = !giphyOpen.value;
           console.log('giphyOpen is now:', giphyOpen.value);
           if (giphyOpen.value) {
@@ -341,12 +353,21 @@
           // Use already uploaded files
           for (const fileData of files) {
             if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
-              const fileType = fileData.type.startsWith('image/') ? 'image' : 
-                             fileData.type.startsWith('video/') ? 'video' : 'file';
+              let fileType: 'image' | 'video' | 'audio' | 'file' = 'file';
+              
+              if (fileData.type.startsWith('image/')) {
+                fileType = 'image';
+              } else if (fileData.type.startsWith('video/')) {
+                fileType = 'video';
+              } else if (fileData.type.startsWith('audio/')) {
+                fileType = 'audio';
+              }
+              
               messageParts.push({
                 type: "file",
                 url: fileData.uploadedUrl,
-                fileType
+                fileType,
+                fileName: fileData.name
               });
             }
           }
