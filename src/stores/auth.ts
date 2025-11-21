@@ -118,7 +118,51 @@ export const useAuthStore = defineStore('auth', {
     async login(email: string, password: string) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      
+      // Check if user has 2FA enabled
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified');
+      
+      if (totpFactor) {
+        // User has 2FA enabled - don't set session yet, return info for 2FA verification
+        return {
+          requires2FA: true,
+          factorId: totpFactor.id,
+          session: null
+        };
+      }
+      
+      // No 2FA, set session and proceed
       this.session = data.session;
+      return {
+        requires2FA: false,
+        factorId: null,
+        session: data.session
+      };
+    },
+
+    async verify2FA(factorId: string, code: string) {
+      const { data, error } = await supabase.auth.mfa.challenge({
+        factorId
+      });
+
+      if (error) throw error;
+
+      const challengeId = data.id;
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId,
+        code
+      });
+
+      if (verifyError) throw verifyError;
+
+      // Get the session after successful 2FA verification
+      const { data: sessionData } = await supabase.auth.getSession();
+      this.session = sessionData.session;
+      
+      return { session: sessionData.session };
     },
 
     async register(email: string, password: string) {

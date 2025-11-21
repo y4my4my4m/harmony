@@ -514,37 +514,18 @@ const handleSubmit = async () => {
   
   try {
     if (props.isLogin) {
-      // Attempt login
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.value,
-        password: password.value
-      })
-
-      if (error) {
-        // Check if error is due to 2FA requirement
-        if (error.message?.includes('MFA') || error.message?.includes('factor')) {
-          // Need to show 2FA modal
-          show2FAModal.value = true
-          isLoading.value = false
-          return
-        }
-        throw error
-      }
-
-      // Check if user has 2FA enabled
-      const { data: factors } = await supabase.auth.mfa.listFactors()
-      const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified')
-
-      if (totpFactor) {
-        // User has 2FA enabled, need verification
-        pendingFactorId.value = totpFactor.id
+      // Use authStore.login which handles 2FA detection
+      const result = await authStore.login(email.value, password.value)
+      
+      if (result.requires2FA) {
+        // User has 2FA enabled, show verification modal
+        pendingFactorId.value = result.factorId!
         show2FAModal.value = true
         isLoading.value = false
         return
       }
 
-      // No 2FA, proceed with login
-      authStore.session = data.session
+      // No 2FA, login successful
       toast.success('Welcome back!')
     } else {
       await authStore.register(email.value, password.value)
@@ -569,34 +550,14 @@ const handle2FAVerification = async () => {
   twoFactorError.value = ''
 
   try {
-    const { data, error } = await supabase.auth.mfa.challenge({
-      factorId: pendingFactorId.value
-    })
-
-    if (error) throw error
-
-    const challengeId = data.id
-
-    const { error: verifyError } = await supabase.auth.mfa.verify({
-      factorId: pendingFactorId.value,
-      challengeId: challengeId,
-      code: twoFactorCode.value
-    })
-
-    if (verifyError) {
-      twoFactorError.value = 'Invalid verification code'
-      return
-    }
-
-    // Success! Get the session
-    const { data: sessionData } = await supabase.auth.getSession()
-    authStore.session = sessionData.session
-
+    // Use authStore.verify2FA
+    await authStore.verify2FA(pendingFactorId.value, twoFactorCode.value)
+    
     show2FAModal.value = false
     toast.success('Welcome back!')
   } catch (error: any) {
     console.error('2FA verification error:', error)
-    twoFactorError.value = 'Verification failed. Please try again.'
+    twoFactorError.value = 'Invalid verification code. Please try again.'
   } finally {
     twoFactorLoading.value = false
   }
