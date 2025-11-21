@@ -13,18 +13,39 @@ export const useAuthStore = defineStore('auth', {
     isLoggedIn: (state) => !!state.session
   },
   actions: {
+    // Helper to decode JWT payload (without verification - just for reading AAL)
+    decodeJWT(token: string): any {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (e) {
+        console.error('Failed to decode JWT:', e);
+        return null;
+      }
+    },
+
+    // Helper to get AAL from session - must decode the JWT token
+    getAAL(session: Session | null): string {
+      if (!session) return 'none';
+      
+      // AAL is encoded in the JWT token, not directly on user object
+      try {
+        const decoded = this.decodeJWT(session.access_token);
+        return decoded?.aal || 'aal1';
+      } catch (e) {
+        console.error('Failed to get AAL from token:', e);
+        return 'aal1';
+      }
+    },
     async initializeAuth() {
       const { data: getSessionData } = await supabase.auth.getSession();
       const session = getSessionData.session;
       
-      // Helper to get AAL from session - it's stored in the user object
-      const getAAL = (sess: Session | null): string => {
-        if (!sess) return 'none';
-        // AAL might be in user.aal or we need to parse the JWT
-        return (sess.user as any)?.aal || 'aal1';
-      };
-      
-      const currentAAL = getAAL(session);
+      const currentAAL = this.getAAL(session);
       
       console.log('🔐 Initializing auth, session:', {
         exists: !!session,
@@ -42,17 +63,10 @@ export const useAuthStore = defineStore('auth', {
           
           if (currentAAL !== 'aal2') {
             // Session is only AAL1 but user requires AAL2
-            // This should NOT happen if they completed 2FA login
             console.warn('🚨 Session found but only', currentAAL, '- user has 2FA enabled, signing out');
-            console.warn('🔍 Debug: Session details:', {
-              access_token: session.access_token?.substring(0, 20) + '...',
-              expires_at: session.expires_at,
-              aal: currentAAL,
-              user_aal: (session.user as any)?.aal
-            })
             await supabase.auth.signOut();
             this.session = null;
-            return; // Don't initialize, force re-login with 2FA
+            return;
           }
           
           console.log('✅ Session verified at AAL2 - user fully authenticated');
@@ -73,17 +87,11 @@ export const useAuthStore = defineStore('auth', {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
         
-        const getAAL = (sess: Session | null): string => {
-          if (!sess) return 'none';
-          return (sess.user as any)?.aal || 'aal1';
-        };
-        
-        const currentAAL = getAAL(session);
+        const currentAAL = this.getAAL(session);
         
         console.log(`🔐 Auth event: ${event}, AAL: ${currentAAL}`)
         
-        // IMPORTANT: During MFA_CHALLENGE_VERIFIED, the AAL upgrade happens AFTER the event
-        // So we must allow this event through without AAL checking
+        // IMPORTANT: During MFA_CHALLENGE_VERIFIED, allow through without checking
         if (event === 'MFA_CHALLENGE_VERIFIED') {
           console.log('✅ MFA challenge verified - allowing session through')
           this.session = session;
@@ -94,27 +102,22 @@ export const useAuthStore = defineStore('auth', {
           return;
         }
         
-        // Validate AAL for incoming session (except during MFA verification)
+        // Validate AAL for incoming session
         if (session) {
           const { data: factors } = await supabase.auth.mfa.listFactors();
           const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
           
-          if (has2FA) {
-            if (currentAAL !== 'aal2') {
-              console.warn(`🚨 Session change detected but only ${currentAAL} - rejecting`);
-              return; // Don't set session
-            }
+          if (has2FA && currentAAL !== 'aal2') {
+            console.warn(`🚨 Session change detected but only ${currentAAL} - rejecting`);
+            return;
           }
         }
         
         this.session = session;
         
         if (session?.user?.id) {
-          // User logged in - let userDataService handle status restoration
           this.setupOfflineHandlers(session.user.id);
-          // Note: Notification system is now initialized by RouteAwareInitialization
         } else if (wasLoggedIn && previousUserId) {
-          // User logged out
           await this.setUserOffline(previousUserId);
           this.cleanupNotificationSystem();
         }
@@ -240,23 +243,7 @@ export const useAuthStore = defineStore('auth', {
     async verify2FA(factorId: string, challengeId: string, code: string) {
       console.log('🔐 verify2FA called with:', { factorId, challengeId, codeLength: code.length })
       
-      // Helper to decode JWT payload (without verification - just for reading)
-      const decodeJWT = (token: string): any => {
-        try {
-          const base64Url = token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-          }).join(''));
-          return JSON.parse(jsonPayload);
-        } catch (e) {
-          console.error('Failed to decode JWT:', e);
-          return null;
-        }
-      };
-      
       // Verify the 2FA code using the existing challenge
-      // On success, this upgrades the session from AAL1 to AAL2
       const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
         factorId,
         challengeId,
@@ -268,67 +255,24 @@ export const useAuthStore = defineStore('auth', {
         throw verifyError;
       }
 
-      console.log('✅ MFA verify call succeeded, verify data:', verifyData)
-      console.log('🔍 verifyData keys:', Object.keys(verifyData || {}))
+      console.log('✅ MFA verify call succeeded')
 
-      // Decode the access token to see the actual AAL
-      if (verifyData?.access_token) {
-        const decodedToken = decodeJWT(verifyData.access_token);
-        console.log('🔍 Decoded JWT from verify response:', {
-          aal: decodedToken?.aal,
-          exp: decodedToken?.exp,
-          sub: decodedToken?.sub
-        });
-      }
-
-      // The verify response should have a session property
-      if (verifyData?.session) {
-        console.log('✅ Using session from verify response')
-        this.session = verifyData.session;
-        
-        const getAAL = (sess: Session | null): string => {
-          if (!sess) return 'none';
-          return (sess.user as any)?.aal || 'aal1';
-        };
-        
-        console.log('✅ 2FA verified - session from verify response:', {
-          aal: getAAL(verifyData.session),
-          userId: verifyData.session.user?.id,
-          expiresAt: verifyData.session.expires_at
-        });
-        
-        return { session: verifyData.session };
-      } else {
-        // No session in response, wait for storage to update
-        console.log('⏳ No session in verify response, waiting for storage to update...')
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const { data: sessionData } = await supabase.auth.getSession();
-        
-        // Decode the actual token to see real AAL
-        if (sessionData.session?.access_token) {
-          const decodedToken = decodeJWT(sessionData.session.access_token);
-          console.log('🔍 Decoded JWT from getSession:', {
-            aal: decodedToken?.aal,
-            exp: decodedToken?.exp
-          });
-        }
-        
-        const getAAL = (sess: Session | null): string => {
-          if (!sess) return 'none';
-          return (sess.user as any)?.aal || 'aal1';
-        };
-        
-        console.log('✅ 2FA verified - session from getSession:', {
-          aal: getAAL(sessionData.session),
-          userId: sessionData.session?.user?.id,
-          expiresAt: sessionData.session?.expires_at,
-          user_aal: (sessionData.session?.user as any)?.aal
-        });
-        
-        this.session = sessionData.session;
-        return { session: sessionData.session };
-      }
+      // Wait for storage to update with the new session
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get the upgraded session
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      const currentAAL = this.getAAL(sessionData.session);
+      
+      console.log('✅ 2FA verified - session upgraded:', {
+        aal: currentAAL,
+        userId: sessionData.session?.user?.id,
+        expiresAt: sessionData.session?.expires_at
+      });
+      
+      this.session = sessionData.session;
+      return { session: sessionData.session };
     },
 
     async register(email: string, password: string) {
