@@ -107,13 +107,7 @@
             @upload-banner="handleBannerUpload"
           />
 
-          <!-- Security Section -->
-          <SecuritySettings 
-            v-else-if="activeSection === 'security'"
-            :loading="loading"
-          />
-
-          <!-- Privacy & Safety Section -->
+          <!-- Privacy & Safety Section (includes Security) -->
           <PrivacySettings 
             v-else-if="activeSection === 'privacy'"
             :profile="profile"
@@ -199,7 +193,6 @@ import { useToast } from 'vue-toastification'
 
 // Components
 import UserAccountSettings from '@/components/settings/user/UserAccountSettings.vue'
-import SecuritySettings from '@/components/settings/user/SecuritySettings.vue'
 import PrivacySettings from '@/components/settings/user/PrivacySettings.vue'
 import AppearanceSettings from '@/components/settings/user/AppearanceSettings.vue'
 import AudioThemeSettings from '@/components/settings/user/AudioThemeSettings.vue'
@@ -258,7 +251,6 @@ const currentSectionLabel = computed(() => {
 // Navigation sections
 const userSections = computed(() => [
   { id: 'account', label: 'My Account', icon: UserIcon },
-  { id: 'security', label: 'Security', icon: ShieldIcon },
   { id: 'privacy', label: 'Privacy & Safety', icon: ShieldIcon },
 ])
 

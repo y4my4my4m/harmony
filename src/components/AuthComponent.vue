@@ -331,6 +331,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/useTheme'
 import { useToast } from 'vue-toastification'
+import { supabase } from '@/supabase'
 
 // Props
 interface Props {
