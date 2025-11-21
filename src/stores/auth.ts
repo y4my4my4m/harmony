@@ -15,7 +15,30 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async initializeAuth() {
       const { data: getSessionData } = await supabase.auth.getSession();
-      this.session = getSessionData.session;
+      const session = getSessionData.session;
+      
+      // CRITICAL SECURITY CHECK: If user has MFA enabled, verify AAL level
+      if (session) {
+        const { data: factors } = await supabase.auth.mfa.listFactors();
+        const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
+        
+        if (has2FA) {
+          // User has 2FA enabled - check AAL level
+          const aal = (session as any).aal || 'aal1';
+          
+          if (aal !== 'aal2') {
+            // Session is only AAL1 but user requires AAL2
+            console.warn('🚨 Session found but only AAL1 - user has 2FA enabled, signing out');
+            await supabase.auth.signOut();
+            this.session = null;
+            return; // Don't initialize, force re-login with 2FA
+          }
+          
+          console.log('✅ Session verified at AAL2 - user fully authenticated');
+        }
+      }
+      
+      this.session = session;
 
       // Initialize notification system for existing session
       if (this.session?.user?.id) {
@@ -28,6 +51,20 @@ export const useAuthStore = defineStore('auth', {
       supabase.auth.onAuthStateChange(async (_, session) => {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
+        
+        // Validate AAL for incoming session too
+        if (session) {
+          const { data: factors } = await supabase.auth.mfa.listFactors();
+          const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
+          
+          if (has2FA) {
+            const aal = (session as any).aal || 'aal1';
+            if (aal !== 'aal2') {
+              console.warn('🚨 Session change detected but only AAL1 - rejecting');
+              return; // Don't set session
+            }
+          }
+        }
         
         this.session = session;
         
@@ -61,12 +98,12 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    setupOfflineHandlers(userId: string) {
+    setupOfflineHandlers(_userId: string) {
       // Clean up any existing handlers first
       this.cleanupOfflineHandlers();
       
       // Handle browser/tab close - immediate cleanup and status update
-      const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const handleBeforeUnload = (_event: BeforeUnloadEvent) => {
         // Immediately cleanup presence (this should trigger presence leave event)
         if ((window as any).__harmonyPresenceCleanup) {
           (window as any).__harmonyPresenceCleanup();
@@ -118,11 +155,6 @@ export const useAuthStore = defineStore('auth', {
     async login(email: string, password: string) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      
-      // CRITICAL SECURITY: Check the session's AAL (Authenticator Assurance Level)
-      // aal1 = password only (not fully authenticated if MFA is enabled)
-      // aal2 = password + 2FA verified
-      const sessionAAL = data.session?.user?.aud // Check user metadata for AAL
       
       // Check if user has 2FA enabled
       const { data: factors } = await supabase.auth.mfa.listFactors();
