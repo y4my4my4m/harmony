@@ -52,16 +52,33 @@ export const useAuthStore = defineStore('auth', {
       const { data: getSessionData } = await supabase.auth.getSession();
       const session = getSessionData.session;
       
-      // RELAXED AAL2 SECURITY MODEL:
-      // Users with 2FA enabled can stay logged in with AAL1 (password only)
-      // They will be prompted to "step up" to AAL2 when performing sensitive operations:
-      // - Changing password
-      // - Changing email
-      // - Modifying 2FA settings
-      // - Deleting account
-      // This provides better UX while maintaining security for critical operations
+      // Check if we're on password reset page or have recovery token in URL
+      // This handles the case where Supabase has already processed the recovery token
+      // before the PASSWORD_RECOVERY event fires
+      const currentPath = window.location.pathname;
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const queryParams = new URLSearchParams(window.location.search);
+      const type = hashParams.get('type') || queryParams.get('type');
       
-      this.session = session;
+      if (currentPath === '/reset-password' && (type === 'recovery' || session)) {
+        // This is likely a recovery session - don't treat it as logged in
+        console.log('🔒 Recovery session detected on initialization - entering password reset mode');
+        this.isPasswordResetMode = true;
+        // Explicitly set session to null - user must complete password reset first
+        // The session exists in Supabase storage for password update, but we don't treat it as logged in
+        this.session = null;
+      } else {
+        // RELAXED AAL2 SECURITY MODEL:
+        // Users with 2FA enabled can stay logged in with AAL1 (password only)
+        // They will be prompted to "step up" to AAL2 when performing sensitive operations:
+        // - Changing password
+        // - Changing email
+        // - Modifying 2FA settings
+        // - Deleting account
+        // This provides better UX while maintaining security for critical operations
+        
+        this.session = session;
+      }
 
       // Initialize notification system for existing session
       if (this.session?.user?.id) {
@@ -84,8 +101,9 @@ export const useAuthStore = defineStore('auth', {
           // Set password reset mode flag - this prevents isLoggedIn from returning true
           this.isPasswordResetMode = true;
           
-          // Don't set session in store - user must complete password reset first
+          // Explicitly set session to null - user must complete password reset first
           // The session exists in Supabase storage for the password update, but we don't treat it as logged in
+          this.session = null;
           
           // If not already on reset-password page, redirect there
           const currentPath = window.location.pathname;
