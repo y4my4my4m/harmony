@@ -142,13 +142,19 @@ const updateText = (newText: string, cursorPosition?: number) => {
           console.log('🔧 Focusing editor FIRST');
           richEditorRef.value.focus();
           
-          // Small delay to ensure focus is established before setting cursor
+          // Wait longer to ensure focus and DOM are stable
           requestAnimationFrame(() => {
-            if (richEditorRef.value) {
-              console.log('🔧 Now setting cursor position to:', cursorPosition);
-              richEditorRef.value.setCursorPosition(cursorPosition);
-              console.log('🔧 Cursor should now be visible and ready for typing');
-            }
+            requestAnimationFrame(() => {
+              if (richEditorRef.value) {
+                console.log('🔧 Now setting cursor position to:', cursorPosition);
+                richEditorRef.value.setCursorPosition(cursorPosition);
+                console.log('🔧 Verifying final state:');
+                console.log('  - activeElement:', document.activeElement);
+                console.log('  - selection:', window.getSelection());
+                console.log('  - rangeCount:', window.getSelection()?.rangeCount);
+                console.log('🔧 Cursor should now be visible and ready for typing');
+              }
+            });
           });
         }
       });

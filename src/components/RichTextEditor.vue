@@ -770,8 +770,25 @@ const autoExpand = () => {
 const focus = () => {
   if (editorRef.value) {
     console.log('🔧 focus() called, editor exists:', !!editorRef.value);
+    
+    // Blur first to ensure clean state
+    if (document.activeElement === editorRef.value) {
+      console.log('🔧 Editor already focused, blurring first');
+      editorRef.value.blur();
+    }
+    
+    // Focus the element
     editorRef.value.focus();
-    console.log('🔧 After focus(), activeElement:', document.activeElement === editorRef.value);
+    
+    // Double-check focus was established
+    requestAnimationFrame(() => {
+      if (editorRef.value && document.activeElement !== editorRef.value) {
+        console.warn('🔧 Focus attempt failed, trying again');
+        editorRef.value.focus();
+      }
+      console.log('🔧 After focus(), activeElement:', document.activeElement === editorRef.value);
+      console.log('🔧 Has selection:', !!window.getSelection()?.rangeCount);
+    });
   } else {
     console.warn('🔧 focus() called but editorRef is null');
   }
