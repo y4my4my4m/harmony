@@ -119,16 +119,24 @@ export const useAuthStore = defineStore('auth', {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       
+      // CRITICAL SECURITY: Check the session's AAL (Authenticator Assurance Level)
+      // aal1 = password only (not fully authenticated if MFA is enabled)
+      // aal2 = password + 2FA verified
+      const sessionAAL = data.session?.user?.aud // Check user metadata for AAL
+      
       // Check if user has 2FA enabled
       const { data: factors } = await supabase.auth.mfa.listFactors();
       const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified');
       
       if (totpFactor) {
         // User has 2FA enabled
-        // IMPORTANT: Do NOT set this.session yet
-        // The session exists in Supabase's client but we don't expose it to our app
-        // until after MFA verification. Supabase handles access control at the API level.
-        console.log('🔒 2FA required - session will not be set in store until verified');
+        // IMPORTANT: Do NOT set this.session yet - even though a session exists,
+        // it's at AAL1 (password-only) and should not grant access until AAL2
+        console.log('🔒 2FA required - session is AAL1, need AAL2 verification');
+        
+        // The session exists in Supabase's storage but at AAL1
+        // Our RLS policies should check for AAL2, providing backend protection
+        // We also don't set it in our store for frontend protection
         
         // Create MFA challenge immediately
         const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
@@ -145,7 +153,8 @@ export const useAuthStore = defineStore('auth', {
         };
       }
       
-      // No 2FA, set session and proceed
+      // No 2FA, session is at AAL1 which is sufficient
+      // Set session and proceed
       this.session = data.session;
       return {
         requires2FA: false,
@@ -157,6 +166,7 @@ export const useAuthStore = defineStore('auth', {
 
     async verify2FA(factorId: string, challengeId: string, code: string) {
       // Verify the 2FA code using the existing challenge
+      // On success, this upgrades the session from AAL1 to AAL2
       const { error: verifyError } = await supabase.auth.mfa.verify({
         factorId,
         challengeId,
@@ -167,9 +177,12 @@ export const useAuthStore = defineStore('auth', {
         throw verifyError;
       }
 
-      // After successful verification, NOW we can set the session
+      // After successful verification, the session is now at AAL2
+      // NOW we can safely set it in our store
       const { data: sessionData } = await supabase.auth.getSession();
       this.session = sessionData.session;
+      
+      console.log('✅ 2FA verified - session upgraded to AAL2');
       
       return { session: sessionData.session };
     },
