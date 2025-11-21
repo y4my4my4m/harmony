@@ -27,6 +27,12 @@ const router = createRouter({
       component: RegisterView
     },
     {
+      path: '/reset-password',
+      name: 'ResetPassword',
+      component: () => import('@/views/ResetPasswordView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
       path: '/invite/:code',
       name: 'InviteAccept',
       component: InviteAccept,
@@ -330,6 +336,12 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   const isLoggedIn = authStore.isLoggedIn;
+
+  // Prevent navigation away from reset-password when in password reset mode
+  if (authStore.isPasswordResetMode && to.name !== 'ResetPassword' && to.name !== 'Login') {
+    next({ name: 'ResetPassword' });
+    return;
+  }
 
   if (to.meta.requiresAuth && !isLoggedIn) {
     next({ name: 'Login' });

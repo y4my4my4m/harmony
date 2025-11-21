@@ -8,9 +8,16 @@ import router from '@/router';
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     session: null as Session | null,
+    isPasswordResetMode: false, // Flag to track if we're in password reset flow
   }),
   getters: {
-    isLoggedIn: (state) => !!state.session
+    isLoggedIn: (state) => {
+      // Don't treat recovery sessions as logged in - user must complete password reset
+      if (state.isPasswordResetMode) {
+        return false;
+      }
+      return !!state.session;
+    }
   },
   actions: {
     // Helper to decode JWT payload (without verification - just for reading AAL)
@@ -45,6 +52,22 @@ export const useAuthStore = defineStore('auth', {
       const { data: getSessionData } = await supabase.auth.getSession();
       const session = getSessionData.session;
       
+      // Check if we're on password reset page or have recovery token in URL
+      // This handles the case where Supabase has already processed the recovery token
+      // before the PASSWORD_RECOVERY event fires
+      const currentPath = window.location.pathname;
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const queryParams = new URLSearchParams(window.location.search);
+      const type = hashParams.get('type') || queryParams.get('type');
+      
+      if (currentPath === '/reset-password' && (type === 'recovery' || session)) {
+        // This is likely a recovery session - don't treat it as logged in
+        console.log('🔒 Recovery session detected on initialization - entering password reset mode');
+        this.isPasswordResetMode = true;
+        // Keep the session - it's needed for updateUser to work
+        // But isLoggedIn will return false because of isPasswordResetMode
+        this.session = session;
+      } else {
       // RELAXED AAL2 SECURITY MODEL:
       // Users with 2FA enabled can stay logged in with AAL1 (password only)
       // They will be prompted to "step up" to AAL2 when performing sensitive operations:
@@ -55,6 +78,7 @@ export const useAuthStore = defineStore('auth', {
       // This provides better UX while maintaining security for critical operations
       
       this.session = session;
+      }
 
       // Initialize notification system for existing session
       if (this.session?.user?.id) {
@@ -67,6 +91,34 @@ export const useAuthStore = defineStore('auth', {
       supabase.auth.onAuthStateChange(async (event, session) => {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
+        
+        // Handle PASSWORD_RECOVERY event - don't treat recovery sessions as full logins
+        // When Supabase processes a recovery token, it creates a session and fires this event
+        // We need to prevent this session from granting full app access
+        if (event === 'PASSWORD_RECOVERY') {
+          console.log('🔒 PASSWORD_RECOVERY event detected - entering password reset mode');
+          
+          // Set password reset mode flag - this prevents isLoggedIn from returning true
+          this.isPasswordResetMode = true;
+          
+          // Keep the session - it's needed for updateUser({ password }) to work
+          // The recovery session has special permissions to update password even with 2FA
+          // But we prevent it from being treated as "logged in" via isPasswordResetMode
+          this.session = session;
+          
+          // If not already on reset-password page, redirect there
+          const currentPath = window.location.pathname;
+          if (currentPath !== '/reset-password') {
+            router.push('/reset-password');
+          }
+          
+          return;
+        }
+        
+        // Clear password reset mode on other auth events (like SIGNED_OUT or TOKEN_REFRESHED)
+        if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+          this.isPasswordResetMode = false;
+        }
         
         // Accept all valid sessions regardless of AAL level
         // 2FA is enforced at LOGIN time, not on every session check
@@ -235,6 +287,13 @@ export const useAuthStore = defineStore('auth', {
       });
       if (error) throw error;
       return { data, error };
+    },
+
+    /**
+     * Clear password reset mode - called after successful password reset
+     */
+    clearPasswordResetMode() {
+      this.isPasswordResetMode = false;
     },
 
     async logout() {

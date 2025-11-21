@@ -1,3 +1,7 @@
+-- Enable pgcrypto extension for digest function
+-- Supabase installs it in the extensions schema
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
 -- Create table for storing MFA recovery codes
 CREATE TABLE IF NOT EXISTS public.mfa_recovery_codes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -15,6 +19,21 @@ CREATE INDEX IF NOT EXISTS idx_mfa_recovery_codes_unused ON public.mfa_recovery_
 -- Enable RLS
 ALTER TABLE public.mfa_recovery_codes ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist (for idempotency)
+-- Use DO block to handle errors gracefully
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "Users can view their own unused recovery codes" ON public.mfa_recovery_codes;
+  DROP POLICY IF EXISTS "Users can mark their own recovery codes as used" ON public.mfa_recovery_codes;
+  DROP POLICY IF EXISTS "Service role can insert recovery codes" ON public.mfa_recovery_codes;
+  DROP POLICY IF EXISTS "Users can insert their own recovery codes" ON public.mfa_recovery_codes;
+  DROP POLICY IF EXISTS "Users can delete their own recovery codes" ON public.mfa_recovery_codes;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Ignore errors if policies don't exist
+    NULL;
+END $$;
+
 -- Policy: Users can only read their own unused recovery codes
 CREATE POLICY "Users can view their own unused recovery codes"
   ON public.mfa_recovery_codes
@@ -28,11 +47,11 @@ CREATE POLICY "Users can mark their own recovery codes as used"
   USING (auth.uid() = user_id AND used_at IS NULL)
   WITH CHECK (auth.uid() = user_id);
 
--- Policy: System can insert recovery codes for users
-CREATE POLICY "Service role can insert recovery codes"
+-- Policy: Users can insert their own recovery codes (when enabling 2FA)
+CREATE POLICY "Users can insert their own recovery codes"
   ON public.mfa_recovery_codes
   FOR INSERT
-  WITH CHECK (true);
+  WITH CHECK (auth.uid() = user_id);
 
 -- Policy: Users can delete their own recovery codes when disabling 2FA
 CREATE POLICY "Users can delete their own recovery codes"
@@ -48,13 +67,15 @@ CREATE OR REPLACE FUNCTION public.verify_recovery_code(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_catalog
 AS $$
 DECLARE
   v_code_hash TEXT;
   v_code_id UUID;
 BEGIN
   -- Hash the provided code (using SHA-256)
-  v_code_hash := encode(digest(p_code, 'sha256'), 'hex');
+  -- Use extensions.digest() to explicitly reference the pgcrypto extension
+  v_code_hash := encode(extensions.digest(p_code::bytea, 'sha256'), 'hex');
   
   -- Find an unused recovery code matching the hash
   SELECT id INTO v_code_id
@@ -85,6 +106,7 @@ CREATE OR REPLACE FUNCTION public.save_recovery_codes(
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_catalog
 AS $$
 DECLARE
   v_code TEXT;
@@ -96,7 +118,8 @@ BEGIN
   -- Insert new recovery codes
   FOREACH v_code IN ARRAY p_codes
   LOOP
-    v_code_hash := encode(digest(v_code, 'sha256'), 'hex');
+    -- Use extensions.digest() to explicitly reference the pgcrypto extension
+    v_code_hash := encode(extensions.digest(v_code::bytea, 'sha256'), 'hex');
     INSERT INTO public.mfa_recovery_codes (user_id, code_hash)
     VALUES (p_user_id, v_code_hash);
   END LOOP;

@@ -721,12 +721,21 @@ const check2FAStatus = async () => {
     const { data, error } = await supabase.auth.mfa.listFactors()
     if (error) throw error
 
-    // Check if TOTP factor is verified
+    // Only check for VERIFIED factors - unverified factors from incomplete enrollment shouldn't count
     const totpFactor = data?.totp?.find((f: any) => f.status === 'verified')
     twoFactorEnabled.value = !!totpFactor
     
+    console.log('2FA Status Check:', {
+      allFactors: data?.totp,
+      verifiedFactor: totpFactor,
+      enabled: twoFactorEnabled.value
+    })
+    
     if (totpFactor) {
       factorId.value = totpFactor.id
+    } else {
+      // Clear factor ID if no verified factor exists
+      factorId.value = ''
     }
   } catch (error: any) {
     console.error('2FA status check error:', error)
@@ -738,6 +747,10 @@ const startEnroll2FA = async () => {
   qrCodeLoading.value = true
   showEnroll2FA.value = true
   enrollStep.value = 1
+
+  // Reset 2FA status to ensure it shows as disabled during enrollment
+  twoFactorEnabled.value = false
+  factorId.value = ''
 
   try {
     const { data, error } = await supabase.auth.mfa.enroll({
@@ -764,6 +777,8 @@ const startEnroll2FA = async () => {
     console.error('2FA enrollment error:', error)
     toast.error('Failed to start 2FA enrollment')
     showEnroll2FA.value = false
+    // Re-check status on error
+    await check2FAStatus()
   } finally {
     twoFactorLoading.value = false
     qrCodeLoading.value = false
@@ -785,7 +800,18 @@ const verifyAndEnable2FA = async () => {
       code: verificationCode.value
     })
 
-    if (error) throw error
+    if (error) {
+      console.error('2FA verification failed:', error)
+      throw error
+    }
+
+    // Verify the factor is actually verified before proceeding
+    const { data: factorsAfter } = await supabase.auth.mfa.listFactors()
+    const verifiedFactor = factorsAfter?.totp?.find((f: any) => f.id === factorId.value && f.status === 'verified')
+    
+    if (!verifiedFactor) {
+      throw new Error('2FA verification failed - factor not verified')
+    }
 
     // Generate recovery codes (10 random codes)
     recoveryCodes.value = Array.from({ length: 10 }, () => 
@@ -811,6 +837,22 @@ const verifyAndEnable2FA = async () => {
   } catch (error: any) {
     console.error('2FA verification error:', error)
     twoFactorError.value = error.message || 'Invalid verification code'
+    
+    // Clean up unverified factor on error
+    if (factorId.value) {
+      try {
+        const { data: factors } = await supabase.auth.mfa.listFactors()
+        const factor = factors?.totp?.find((f: any) => f.id === factorId.value)
+        
+        // Only try to unenroll if factor exists and is unverified
+        if (factor && factor.status === 'unverified') {
+          await supabase.auth.mfa.unenroll({ factorId: factorId.value })
+          console.log('Cleaned up unverified factor')
+        }
+      } catch (cleanupError) {
+        console.error('Error cleaning up failed enrollment:', cleanupError)
+      }
+    }
   } finally {
     twoFactorLoading.value = false
   }
@@ -818,6 +860,7 @@ const verifyAndEnable2FA = async () => {
 
 const finishEnroll2FA = async () => {
   showEnroll2FA.value = false
+  // Refresh 2FA status to show as enabled now
   await check2FAStatus()
   enrollStep.value = 1
   verificationCode.value = ''
@@ -827,10 +870,17 @@ const finishEnroll2FA = async () => {
 }
 
 const cancelEnroll2FA = async () => {
-  // Clean up enrollment
+  // Clean up enrollment - only unenroll if factor is not verified yet
   if (factorId.value) {
     try {
+      // Check if factor is verified - if not, we can unenroll without AAL2
+      const { data: factors } = await supabase.auth.mfa.listFactors()
+      const factor = factors?.totp?.find((f: any) => f.id === factorId.value)
+      
+      // Only unenroll if factor is unverified (enrollment in progress)
+      if (factor && factor.status !== 'verified') {
       await supabase.auth.mfa.unenroll({ factorId: factorId.value })
+      }
     } catch (error) {
       console.error('Error canceling 2FA enrollment:', error)
     }
@@ -842,6 +892,8 @@ const cancelEnroll2FA = async () => {
   qrCodeDataUrl.value = ''
   totpSecret.value = ''
   factorId.value = ''
+  // Re-check status to ensure UI is correct
+  await check2FAStatus()
 }
 
 const disable2FA = async () => {
@@ -850,10 +902,17 @@ const disable2FA = async () => {
   twoFactorLoading.value = true
 
   try {
-    // Verify password
+    // Check current AAL level first
+    const { data: sessionData } = await supabase.auth.getSession()
+    const currentAAL = authStore.getAAL(sessionData.session)
+    
+    // If we don't have AAL2, we need to verify 2FA first
+    // But first verify password
     const email = authStore.session?.user?.email
     if (!email) throw new Error('User email not found')
 
+    if (currentAAL !== 'aal2') {
+      // Need to verify password and then 2FA
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password: disable2FAPassword.value
@@ -864,7 +923,25 @@ const disable2FA = async () => {
       return
     }
 
-    // Delete recovery codes
+      // Now create a 2FA challenge to get AAL2
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: factorId.value
+      })
+
+      if (challengeError) {
+        toast.error('Failed to create 2FA challenge. Please try logging out and back in.')
+        return
+      }
+
+      // Show 2FA code input (we'll need to add this to the modal)
+      toast.warning('Please verify your 2FA code to disable 2FA. This requires AAL2 authentication.')
+      // For now, tell them to verify via login
+      toast.info('You need to verify 2FA to disable it. Please log out, log back in with 2FA, then try again.')
+      return
+    }
+
+    // We have AAL2, proceed with disabling
+    // Delete recovery codes first
     const userId = authStore.session?.user?.id
     if (userId) {
       const { error: deleteError } = await supabase
@@ -877,12 +954,20 @@ const disable2FA = async () => {
       }
     }
 
-    // Disable 2FA
+    // Disable 2FA (we have AAL2)
     const { error } = await supabase.auth.mfa.unenroll({
       factorId: factorId.value
     })
 
-    if (error) throw error
+    if (error) {
+      // If still getting AAL2 error, the session might have expired
+      if (error.error_code === 'insufficient_aal') {
+        toast.error('Your session expired. Please log out and log back in with 2FA, then try again.')
+      } else {
+        throw error
+      }
+      return
+    }
 
     toast.success('Two-Factor Authentication disabled')
     showDisable2FAModal.value = false
@@ -890,7 +975,11 @@ const disable2FA = async () => {
     await check2FAStatus()
   } catch (error: any) {
     console.error('2FA disable error:', error)
-    toast.error('Failed to disable 2FA')
+    if (error.error_code === 'insufficient_aal') {
+      toast.error('Please verify your 2FA code first. You may need to log out and log back in.')
+    } else {
+      toast.error(error.message || 'Failed to disable 2FA')
+    }
   } finally {
     twoFactorLoading.value = false
   }
