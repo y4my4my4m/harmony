@@ -13,8 +13,8 @@
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.65rem 0.85rem;
-  background: var(--background-tertiary, #1c1f26);
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  background: var(--background-tertiary-alpha, #1c1f26aa);
+  backdrop-filter: blur(10px);
 }
 
 .provider-embed__label {

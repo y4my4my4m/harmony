@@ -107,7 +107,7 @@
             @upload-banner="handleBannerUpload"
           />
 
-          <!-- Privacy & Safety Section -->
+          <!-- Privacy & Safety Section (includes Security) -->
           <PrivacySettings 
             v-else-if="activeSection === 'privacy'"
             :profile="profile"

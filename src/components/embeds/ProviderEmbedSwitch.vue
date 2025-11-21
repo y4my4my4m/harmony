@@ -23,8 +23,9 @@
           <span v-else>Loading Harmony post…</span>
         </div>
       </template>
-      <div v-else-if="youtubeEmbedUrl" class="provider-embed__media provider-embed__media--video">
+      <div v-else-if="youtubeEmbedUrl" class="provider-embed__media provider-embed__media--video" ref="youtubeContainer">
         <iframe
+          ref="youtubeIframe"
           :src="youtubeEmbedUrl"
           frameborder="0"
           allowfullscreen
@@ -46,19 +47,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
 import type { EmbedPayload, TimelinePost } from '@/types';
 import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/utils/embedDetection';
+import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
 
 const props = defineProps<{
   payload: EmbedPayload;
+  messageId?: string;
 }>();
 
 const collapsed = ref(false);
 const harmonyPost = ref<TimelinePost | null>(null);
 const harmonyError = ref<string | null>(null);
+const youtubeContainer = ref<HTMLElement | null>(null);
+const youtubeIframe = ref<HTMLIFrameElement | null>(null);
+const isPlaying = ref(false);
+
+const { registerVideo } = useFloatingVideo();
 
 const isHarmony = computed(() => props.payload.provider === 'harmony-post');
 const providerLabel = computed(() => {
@@ -79,7 +87,10 @@ const youtubeEmbedUrl = computed(() => {
   const normalized = props.payload.normalizedUrl || props.payload.url;
   const parsed = parseEmbedUrl(normalized);
   if (!parsed) return null;
-  return buildYouTubeEmbedUrl(parsed);
+  
+  // Add enablejsapi=1 to enable YouTube Player API
+  const url = buildYouTubeEmbedUrl(parsed);
+  return url + (url.includes('?') ? '&' : '?') + 'enablejsapi=1';
 });
 
 const spotifyEmbedUrl = computed(() => {
@@ -94,7 +105,61 @@ onMounted(() => {
   if (isHarmony.value) {
     loadHarmonyPost();
   }
+  
+  // Setup YouTube Player API for floating video
+  if (props.payload.provider === 'youtube') {
+    nextTick(() => {
+      setupYouTubePlayer();
+    });
+  }
 });
+
+onUnmounted(() => {
+  // Cleanup YouTube message listener
+  if (props.payload.provider === 'youtube') {
+    window.removeEventListener('message', handleYouTubeMessage);
+  }
+});
+
+function setupYouTubePlayer() {
+  if (!youtubeContainer.value || !youtubeIframe.value) return;
+  
+  // Listen for YouTube Player API messages
+  window.addEventListener('message', handleYouTubeMessage);
+  
+  // Register video for floating (if messageId is provided)
+  if (props.messageId) {
+    const originalParent = youtubeContainer.value.parentElement as HTMLElement;
+    if (originalParent) {
+      registerVideo(youtubeContainer.value, originalParent, props.messageId, 'youtube');
+    }
+  }
+}
+
+function handleYouTubeMessage(event: MessageEvent) {
+  // Only handle messages from YouTube
+  if (!event.data || typeof event.data !== 'string') return;
+  
+  try {
+    const data = JSON.parse(event.data);
+    
+    // Check if message is from our iframe
+    if (event.source !== youtubeIframe.value?.contentWindow) return;
+    
+    if (data.event === 'onStateChange') {
+      // YouTube player states: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (cued)
+      const isVideoPlaying = data.info === 1;
+      isPlaying.value = isVideoPlaying;
+      
+      // Update data attribute for floating video system
+      if (youtubeContainer.value) {
+        youtubeContainer.value.dataset.isPlaying = String(isVideoPlaying);
+      }
+    }
+  } catch (error) {
+    // Not a JSON message, ignore
+  }
+}
 
 async function loadHarmonyPost() {
   if (!props.payload.harmony?.postId) return;

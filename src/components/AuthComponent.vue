@@ -141,7 +141,7 @@
                 <span class="checkmark"></span>
                 Remember me
               </label>
-              <button type="button" class="link-button">Forgot password?</button>
+              <button type="button" class="link-button" @click="showForgotPasswordModal = true">Forgot password?</button>
             </div>
 
             <!-- Submit Button -->
@@ -187,6 +187,150 @@
         <p>{{ isLogin ? 'Signing you in...' : 'Creating your account...' }}</p>
       </div>
     </div>
+
+    <!-- Forgot Password Modal -->
+    <div v-if="showForgotPasswordModal" class="modal-overlay" @click="showForgotPasswordModal = false">
+      <div class="modal-content" @click.stop>
+        <button class="modal-close" @click="showForgotPasswordModal = false" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
+          </svg>
+        </button>
+        
+        <h3 class="modal-title">Reset Your Password</h3>
+        <p class="modal-description">
+          {{ forgotPasswordStep === 1 
+            ? 'Enter your email address and we\'ll send you a password reset link.' 
+            : 'Check your email for a password reset link. If you don\'t see it, check your spam folder.' 
+          }}
+        </p>
+
+        <form v-if="forgotPasswordStep === 1" @submit.prevent="handleForgotPassword" class="modal-form">
+          <div class="input-group">
+            <label class="input-label">Email Address</label>
+            <input 
+              v-model="forgotPasswordEmail" 
+              type="email" 
+              class="form-input"
+              :class="{ 'error': forgotPasswordError }"
+              placeholder="your.email@example.com"
+              required
+              autocomplete="email"
+            />
+            <span v-if="forgotPasswordError" class="error-message">{{ forgotPasswordError }}</span>
+          </div>
+
+          <div class="modal-actions">
+            <button 
+              type="submit" 
+              class="submit-btn"
+              :disabled="forgotPasswordLoading || !forgotPasswordEmail"
+            >
+              <span v-if="!forgotPasswordLoading">Send Reset Link</span>
+              <div v-else class="loading-spinner"></div>
+            </button>
+            <button 
+              type="button" 
+              class="cancel-btn"
+              @click="showForgotPasswordModal = false"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+
+        <div v-else class="modal-success">
+          <div class="success-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" fill="#43b581" opacity="0.2"/>
+              <path d="M9 12l2 2 4-4" stroke="#43b581" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <p class="success-message">
+            Password reset email sent to <strong>{{ forgotPasswordEmail }}</strong>
+          </p>
+          <button 
+            class="submit-btn"
+            @click="closeForgotPasswordModal"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2FA Verification Modal -->
+    <div v-if="show2FAModal" class="modal-overlay" @click="close2FAModal">
+      <div class="modal-content" @click.stop>
+        <button class="modal-close" @click="close2FAModal" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
+          </svg>
+        </button>
+        
+        <div class="twofa-header">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="color: #5865f2;">
+            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" fill="currentColor"/>
+          </svg>
+          <h3 class="modal-title">Two-Factor Authentication</h3>
+        </div>
+        
+        <p class="modal-description">
+          {{ useRecoveryCode ? 'Enter one of your recovery codes to sign in.' : 'Enter the 6-digit verification code from your authenticator app.' }}
+        </p>
+
+        <form @submit.prevent="handle2FAVerification" class="modal-form">
+          <div class="input-group">
+            <label class="input-label">{{ useRecoveryCode ? 'Recovery Code' : 'Verification Code' }}</label>
+            <input 
+              v-model="twoFactorCode" 
+              type="text"
+              class="form-input twofa-code-input"
+              :class="{ 'error': twoFactorError }"
+              :placeholder="useRecoveryCode ? 'XXXXXXXX' : '000000'"
+              :maxlength="useRecoveryCode ? 8 : 6"
+              :pattern="useRecoveryCode ? '[A-Z0-9]*' : '[0-9]*'"
+              :inputmode="useRecoveryCode ? 'text' : 'numeric'"
+              autocomplete="one-time-code"
+              autofocus
+              @input="handleCodeInput"
+            />
+            <span v-if="twoFactorError" class="error-message">{{ twoFactorError }}</span>
+          </div>
+
+          <div class="modal-actions">
+            <button 
+              type="submit" 
+              class="submit-btn"
+              :class="{ 'loading': twoFactorLoading }"
+              :disabled="twoFactorLoading || (useRecoveryCode ? twoFactorCode.length !== 8 : twoFactorCode.length !== 6)"
+            >
+              <span v-if="!twoFactorLoading">Verify</span>
+              <div v-else class="loading-spinner"></div>
+            </button>
+            <button 
+              type="button" 
+              class="cancel-btn"
+              @click="close2FAModal"
+              :disabled="twoFactorLoading"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+
+        <div class="modal-help-text">
+          <button 
+            type="button" 
+            class="link-button"
+            @click="toggleRecoveryCodeMode"
+            :disabled="twoFactorLoading"
+          >
+            {{ useRecoveryCode ? 'Use authenticator code instead' : 'Use recovery code instead' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -196,6 +340,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/useTheme'
 import { useToast } from 'vue-toastification'
+import { supabase } from '@/supabase'
 
 // Props
 interface Props {
@@ -226,6 +371,22 @@ const passwordFocused = ref(false)
 // Validation states
 const emailError = ref('')
 const passwordError = ref('')
+
+// Forgot password state
+const showForgotPasswordModal = ref(false)
+const forgotPasswordEmail = ref('')
+const forgotPasswordStep = ref(1) // 1 = input email, 2 = success
+const forgotPasswordLoading = ref(false)
+const forgotPasswordError = ref('')
+
+// 2FA state
+const show2FAModal = ref(false)
+const twoFactorCode = ref('')
+const twoFactorError = ref('')
+const twoFactorLoading = ref(false)
+const pendingFactorId = ref('')
+const pendingChallengeId = ref('')
+const useRecoveryCode = ref(false)
 
 // Background
 const randomBg = ref('')
@@ -364,7 +525,19 @@ const handleSubmit = async () => {
   
   try {
     if (props.isLogin) {
-      await authStore.login(email.value, password.value)
+      // Use authStore.login which handles 2FA detection
+      const result = await authStore.login(email.value, password.value)
+      
+      if (result.requires2FA) {
+        // User has 2FA enabled, show verification modal
+        pendingFactorId.value = result.factorId!
+        pendingChallengeId.value = result.challengeId!
+        show2FAModal.value = true
+        isLoading.value = false
+        return
+      }
+
+      // No 2FA, login successful
       toast.success('Welcome back!')
     } else {
       await authStore.register(email.value, password.value)
@@ -377,6 +550,160 @@ const handleSubmit = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+const handle2FAVerification = async () => {
+  const expectedLength = useRecoveryCode.value ? 8 : 6
+  if (twoFactorCode.value.length !== expectedLength) {
+    twoFactorError.value = `Please enter a ${expectedLength}-${useRecoveryCode.value ? 'character' : 'digit'} code`
+    return
+  }
+
+  console.log('🔐 Starting 2FA verification...')
+  console.log('Factor ID:', pendingFactorId.value)
+  console.log('Challenge ID:', pendingChallengeId.value)
+  console.log('Code length:', twoFactorCode.value.length)
+  console.log('Using recovery code:', useRecoveryCode.value)
+
+  twoFactorLoading.value = true
+  twoFactorError.value = ''
+
+  try {
+    if (useRecoveryCode.value) {
+      // Verify recovery code
+      console.log('📞 Verifying recovery code...')
+      
+      // Get the current session (should be at AAL1)
+      const { data: sessionData } = await supabase.auth.getSession()
+      const userId = sessionData.session?.user?.id
+      
+      if (!userId) {
+        throw new Error('User session not found')
+      }
+
+      const { data: isValid, error } = await supabase.rpc('verify_recovery_code', {
+        p_user_id: userId,
+        p_code: twoFactorCode.value
+      })
+
+      if (error) throw error
+
+      if (!isValid) {
+        throw new Error('Invalid or already used recovery code')
+      }
+
+      console.log('✅ Recovery code verified successfully!')
+      
+      // Unenroll the TOTP factor since they lost access to their authenticator
+      // This makes the AAL1 session sufficient and allows them to log in
+      await supabase.auth.mfa.unenroll({ factorId: pendingFactorId.value })
+      
+      // Refresh the session - it should now be sufficient without AAL2
+      const { data: refreshedSession } = await supabase.auth.getSession()
+      authStore.session = refreshedSession.session
+      
+      console.log('🔓 2FA has been disabled due to recovery code usage')
+      
+      show2FAModal.value = false
+      toast.warning('Welcome back! Please re-enable Two-Factor Authentication in your settings.', {
+        timeout: 8000
+      })
+      
+      // Redirect to privacy settings so they can re-enable 2FA
+      router.push('/settings/privacy')
+    } else {
+      // Use authStore.verify2FA with challenge ID
+      console.log('📞 Calling authStore.verify2FA...')
+      await authStore.verify2FA(
+        pendingFactorId.value, 
+        pendingChallengeId.value,
+        twoFactorCode.value
+      )
+      
+      console.log('✅ 2FA verification successful!')
+      
+      show2FAModal.value = false
+      toast.success('Welcome back!')
+      
+      // Redirect to chat after successful 2FA verification
+      router.push('/chat')
+    }
+  } catch (error: any) {
+    console.error('❌ 2FA verification error:', error)
+    twoFactorError.value = error.message || `Invalid ${useRecoveryCode.value ? 'recovery' : 'verification'} code. Please try again.`
+  } finally {
+    twoFactorLoading.value = false
+    console.log('🏁 2FA verification finished')
+  }
+}
+
+const toggleRecoveryCodeMode = () => {
+  useRecoveryCode.value = !useRecoveryCode.value
+  twoFactorCode.value = ''
+  twoFactorError.value = ''
+}
+
+const handleCodeInput = () => {
+  twoFactorError.value = ''
+  // Auto-uppercase recovery codes
+  if (useRecoveryCode.value) {
+    twoFactorCode.value = twoFactorCode.value.toUpperCase()
+  }
+}
+
+const close2FAModal = () => {
+  show2FAModal.value = false
+  twoFactorCode.value = ''
+  twoFactorError.value = ''
+  pendingFactorId.value = ''
+  pendingChallengeId.value = ''
+  useRecoveryCode.value = false
+}
+
+const handleForgotPassword = async () => {
+  forgotPasswordError.value = ''
+  
+  if (!forgotPasswordEmail.value) {
+    forgotPasswordError.value = 'Email is required'
+    return
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(forgotPasswordEmail.value)) {
+    forgotPasswordError.value = 'Please enter a valid email address'
+    return
+  }
+
+  forgotPasswordLoading.value = true
+
+  try {
+    const { error } = await authStore.resetPassword(forgotPasswordEmail.value)
+    
+    if (error) throw error
+
+    // Show success step
+    forgotPasswordStep.value = 2
+  } catch (error: any) {
+    console.error('Password reset error:', error)
+    
+    // Supabase returns error even if email doesn't exist (for security)
+    // But we'll still show success to prevent email enumeration
+    if (error.message?.includes('SMTP') || error.message?.includes('email')) {
+      forgotPasswordError.value = 'Email service not configured. Please contact support.'
+    } else {
+      // Still show as success to prevent user enumeration
+      forgotPasswordStep.value = 2
+    }
+  } finally {
+    forgotPasswordLoading.value = false
+  }
+}
+
+const closeForgotPasswordModal = () => {
+  showForgotPasswordModal.value = false
+  forgotPasswordStep.value = 1
+  forgotPasswordEmail.value = ''
+  forgotPasswordError.value = ''
 }
 
 const toggleMode = () => {
@@ -878,6 +1205,10 @@ onMounted(async () => {
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
 }
 
 .submit-btn:hover:not(:disabled) {
@@ -986,6 +1317,172 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   gap: 16px;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  background: var(--h-chat, #2f3136);
+  border-radius: 8px;
+  padding: 32px;
+  max-width: 440px;
+  width: 90%;
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #b9bbbe;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.modal-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 12px 0;
+}
+
+.modal-description {
+  font-size: 14px;
+  color: #b9bbbe;
+  margin: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.cancel-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #b9bbbe;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.modal-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+}
+
+.success-icon {
+  animation: scaleIn 0.4s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.success-message {
+  font-size: 14px;
+  color: #b9bbbe;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.success-message strong {
+  color: #ffffff;
+  word-break: break-all;
+}
+
+/* 2FA Modal Styles */
+.twofa-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.twofa-code-input {
+  font-size: 24px;
+  letter-spacing: 0.5em;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+}
+
+.modal-help-text {
+  font-size: 12px;
+  color: #72767d;
+  text-align: center;
+  margin: 16px 0 0 0;
 }
 
 /* Responsive Design */

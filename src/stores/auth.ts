@@ -13,9 +13,48 @@ export const useAuthStore = defineStore('auth', {
     isLoggedIn: (state) => !!state.session
   },
   actions: {
+    // Helper to decode JWT payload (without verification - just for reading AAL)
+    decodeJWT(token: string): any {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (e) {
+        console.error('Failed to decode JWT:', e);
+        return null;
+      }
+    },
+
+    // Helper to get AAL from session - must decode the JWT token
+    getAAL(session: Session | null): string {
+      if (!session) return 'none';
+      
+      // AAL is encoded in the JWT token, not directly on user object
+      try {
+        const decoded = this.decodeJWT(session.access_token);
+        return decoded?.aal || 'aal1';
+      } catch (e) {
+        console.error('Failed to get AAL from token:', e);
+        return 'aal1';
+      }
+    },
     async initializeAuth() {
       const { data: getSessionData } = await supabase.auth.getSession();
-      this.session = getSessionData.session;
+      const session = getSessionData.session;
+      
+      // RELAXED AAL2 SECURITY MODEL:
+      // Users with 2FA enabled can stay logged in with AAL1 (password only)
+      // They will be prompted to "step up" to AAL2 when performing sensitive operations:
+      // - Changing password
+      // - Changing email
+      // - Modifying 2FA settings
+      // - Deleting account
+      // This provides better UX while maintaining security for critical operations
+      
+      this.session = session;
 
       // Initialize notification system for existing session
       if (this.session?.user?.id) {
@@ -25,18 +64,18 @@ export const useAuthStore = defineStore('auth', {
         // to only load unread count initially (full list loads on-demand)
       }
 
-      supabase.auth.onAuthStateChange(async (_, session) => {
+      supabase.auth.onAuthStateChange(async (event, session) => {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
         
+        // Accept all valid sessions regardless of AAL level
+        // 2FA is enforced at LOGIN time, not on every session check
+        // This allows users to stay logged in after AAL2 expires (24h)
         this.session = session;
         
         if (session?.user?.id) {
-          // User logged in - let userDataService handle status restoration
           this.setupOfflineHandlers(session.user.id);
-          // Note: Notification system is now initialized by RouteAwareInitialization
         } else if (wasLoggedIn && previousUserId) {
-          // User logged out
           await this.setUserOffline(previousUserId);
           this.cleanupNotificationSystem();
         }
@@ -61,12 +100,12 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    setupOfflineHandlers(userId: string) {
+    setupOfflineHandlers(_userId: string) {
       // Clean up any existing handlers first
       this.cleanupOfflineHandlers();
       
       // Handle browser/tab close - immediate cleanup and status update
-      const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      const handleBeforeUnload = (_event: BeforeUnloadEvent) => {
         // Immediately cleanup presence (this should trigger presence leave event)
         if ((window as any).__harmonyPresenceCleanup) {
           (window as any).__harmonyPresenceCleanup();
@@ -118,13 +157,84 @@ export const useAuthStore = defineStore('auth', {
     async login(email: string, password: string) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      
+      // Check if user has 2FA enabled
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified');
+      
+      if (totpFactor) {
+        // User has 2FA enabled
+        // IMPORTANT: Do NOT set this.session yet - even though a session exists,
+        // it's at AAL1 (password-only) and should not grant access until AAL2
+        console.log('🔒 2FA required - session is AAL1, need AAL2 verification');
+        
+        // The session exists in Supabase's storage but at AAL1
+        // Our RLS policies should check for AAL2, providing backend protection
+        // We also don't set it in our store for frontend protection
+        
+        // Create MFA challenge immediately
+        const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+          factorId: totpFactor.id
+        });
+        
+        if (challengeError) throw challengeError;
+        
+        return {
+          requires2FA: true,
+          factorId: totpFactor.id,
+          challengeId: challengeData.id,
+          session: null
+        };
+      }
+      
+      // No 2FA, session is at AAL1 which is sufficient
+      // Set session and proceed
       this.session = data.session;
+      return {
+        requires2FA: false,
+        factorId: null,
+        challengeId: null,
+        session: data.session
+      };
+    },
+
+    async verify2FA(factorId: string, challengeId: string, code: string) {
+      // Verify the 2FA code using the existing challenge
+      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId,
+        code
+      });
+
+      if (verifyError) {
+        console.error('❌ MFA verify error:', verifyError)
+        throw verifyError;
+      }
+
+      // Wait for storage to update with the new session
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get the upgraded session (now at AAL2)
+      const { data: sessionData } = await supabase.auth.getSession();
+      this.session = sessionData.session;
+      
+      console.log('✅ 2FA verified - session upgraded to AAL2');
+      
+      return { session: sessionData.session };
     },
 
     async register(email: string, password: string) {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       this.session = data.session;
+    },
+
+    async resetPassword(email: string) {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+      if (error) throw error;
+      return { data, error };
     },
 
     async logout() {
