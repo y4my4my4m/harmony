@@ -376,6 +376,7 @@ const twoFactorCode = ref('')
 const twoFactorError = ref('')
 const twoFactorLoading = ref(false)
 const pendingFactorId = ref('')
+const pendingChallengeId = ref('')
 
 // Background
 const randomBg = ref('')
@@ -520,6 +521,7 @@ const handleSubmit = async () => {
       if (result.requires2FA) {
         // User has 2FA enabled, show verification modal
         pendingFactorId.value = result.factorId!
+        pendingChallengeId.value = result.challengeId!
         show2FAModal.value = true
         isLoading.value = false
         return
@@ -550,8 +552,12 @@ const handle2FAVerification = async () => {
   twoFactorError.value = ''
 
   try {
-    // Use authStore.verify2FA
-    await authStore.verify2FA(pendingFactorId.value, twoFactorCode.value)
+    // Use authStore.verify2FA with challenge ID
+    await authStore.verify2FA(
+      pendingFactorId.value, 
+      pendingChallengeId.value,
+      twoFactorCode.value
+    )
     
     show2FAModal.value = false
     toast.success('Welcome back!')
@@ -568,6 +574,7 @@ const close2FAModal = () => {
   twoFactorCode.value = ''
   twoFactorError.value = ''
   pendingFactorId.value = ''
+  pendingChallengeId.value = ''
 }
 
 const handleForgotPassword = async () => {

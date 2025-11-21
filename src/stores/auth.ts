@@ -124,10 +124,23 @@ export const useAuthStore = defineStore('auth', {
       const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified');
       
       if (totpFactor) {
-        // User has 2FA enabled - don't set session yet, return info for 2FA verification
+        // User has 2FA enabled
+        // IMPORTANT: Do NOT set this.session yet
+        // The session exists in Supabase's client but we don't expose it to our app
+        // until after MFA verification. Supabase handles access control at the API level.
+        console.log('🔒 2FA required - session will not be set in store until verified');
+        
+        // Create MFA challenge immediately
+        const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+          factorId: totpFactor.id
+        });
+        
+        if (challengeError) throw challengeError;
+        
         return {
           requires2FA: true,
           factorId: totpFactor.id,
+          challengeId: challengeData.id,
           session: null
         };
       }
@@ -137,28 +150,24 @@ export const useAuthStore = defineStore('auth', {
       return {
         requires2FA: false,
         factorId: null,
+        challengeId: null,
         session: data.session
       };
     },
 
-    async verify2FA(factorId: string, code: string) {
-      const { data, error } = await supabase.auth.mfa.challenge({
-        factorId
-      });
-
-      if (error) throw error;
-
-      const challengeId = data.id;
-
+    async verify2FA(factorId: string, challengeId: string, code: string) {
+      // Verify the 2FA code using the existing challenge
       const { error: verifyError } = await supabase.auth.mfa.verify({
         factorId,
         challengeId,
         code
       });
 
-      if (verifyError) throw verifyError;
+      if (verifyError) {
+        throw verifyError;
+      }
 
-      // Get the session after successful 2FA verification
+      // After successful verification, NOW we can set the session
       const { data: sessionData } = await supabase.auth.getSession();
       this.session = sessionData.session;
       
