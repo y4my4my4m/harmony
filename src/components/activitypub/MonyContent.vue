@@ -8,6 +8,7 @@
     :enable-markdown="true"
     @user-mention-click="handleMentionClick"
     @hashtag-click="handleHashtagClick"
+    @image-click="handleImageClick"
   />
 </template>
 
@@ -25,6 +26,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   'user-mention-click': [handle: string];
   'hashtag-click': [tag: string];
+  'image-click': [url: string];
 }>();
 
 // Event handlers
@@ -37,6 +39,10 @@ const handleMentionClick = (userId: string, event: Event) => {
 
 const handleHashtagClick = (tag: string) => {
   emit('hashtag-click', tag);
+};
+
+const handleImageClick = (url: string) => {
+  emit('image-click', url);
 };
 </script>
 

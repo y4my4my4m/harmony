@@ -121,13 +121,14 @@ const updateText = (newText: string, cursorPosition?: number) => {
   emit('update:modelValue', newText);
   
   // Set cursor position after text update if provided
-  // Need to wait for the RichTextEditor to re-render with new content
+  // Wait for Vue's reactivity system and DOM updates to complete
   if (cursorPosition !== undefined && richEditorRef.value?.setCursorPosition) {
     nextTick(() => {
-      setTimeout(() => {
+      // Wait one more tick to ensure the RichTextEditor has fully rendered
+      nextTick(() => {
         richEditorRef.value?.setCursorPosition(cursorPosition);
         richEditorRef.value?.focus();
-      }, 50); // Small delay for rendering
+      });
     });
   }
 };
@@ -162,15 +163,16 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
       // Use the autoSuggest system's built-in selection method
       // This handles both emojis and mentions correctly, including the @ symbol for mentions
+      // The selectSuggestion method already includes the space in the inserted text
       autoSuggest.selectSuggestion(suggestion);
       
-      // Return focus to the rich text editor after selection
-      // Use setTimeout to ensure all updates complete
-      setTimeout(() => {
+      // Return focus to the rich text editor after text update and DOM rendering
+      // Use nextTick to wait for Vue's reactivity cycle to complete
+      nextTick(() => {
         if (richEditorRef.value?.focus) {
           richEditorRef.value.focus();
         }
-      }, 100);
+      });
     };
 
     const send = () => {

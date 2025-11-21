@@ -170,7 +170,7 @@ const selectEmoji = (emoji: Emoji): void => {
 
 const handleClickOutside = (): void => {
   // Close the popup when clicking outside
-  props.closeEmojiList?.();
+      props.closeEmojiList?.();
 };
 
 const handleKeyDown = (event: KeyboardEvent): void => {
