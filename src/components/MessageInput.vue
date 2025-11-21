@@ -119,13 +119,19 @@ const emojiTriggerRef = ref<HTMLElement | null>(null);
 const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
 const updateText = (newText: string, cursorPosition?: number) => {
   console.log('🔧 MessageInput updateText called:', { newText, cursorPosition });
-  emit('update:modelValue', newText);
   
   // Set cursor position after text update if provided
   if (cursorPosition !== undefined && richEditorRef.value) {
-    // Wait for Vue to update the model value and trigger the watch in RichTextEditor
+    // Set the skip flag BEFORE emitting the update
+    if (richEditorRef.value.skipNextWatch) {
+      richEditorRef.value.skipNextWatch.value = true;
+    }
+    
+    emit('update:modelValue', newText);
+    
+    // Wait for Vue to process the update
     nextTick(() => {
-      // Now that the watch has been triggered, render the content but skip cursor restore
+      // Now render the content manually with skip cursor restore
       if (richEditorRef.value?.renderContent) {
         richEditorRef.value.renderContent(newText, true); // Skip cursor restore
       }
@@ -140,6 +146,9 @@ const updateText = (newText: string, cursorPosition?: number) => {
         }
       });
     });
+  } else {
+    // Normal text update without cursor control
+    emit('update:modelValue', newText);
   }
 };
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);

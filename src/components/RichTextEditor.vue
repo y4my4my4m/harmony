@@ -66,6 +66,7 @@ const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
 const emojiCache = useEmojiCacheStore();
 const isRendering = ref(false);
+const skipNextWatch = ref(false); // Flag to skip watch when manually rendering
 
 const hasContent = computed(() => {
   if (!editorRef.value) return false;
@@ -770,12 +771,20 @@ defineExpose({
   insertTextAtCursor,
   getCursorPosition,
   setCursorPosition,
-  renderContent
+  renderContent,
+  skipNextWatch // Expose this so MessageInput can set it
 });
 
 // Watch for external model value changes
 watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
+    // Check if we should skip this watch cycle (manual cursor control)
+    if (skipNextWatch.value) {
+      console.log('🔧 Skipping watch cycle due to manual cursor control');
+      skipNextWatch.value = false;
+      return;
+    }
+    
     const currentText = getPlainText();
     console.log('🔧 RichTextEditor watch triggered:', { 
       newValue: JSON.stringify(newValue), 
