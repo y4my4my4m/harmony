@@ -199,9 +199,9 @@ const getCursorPosition = (): number => {
           position += `:${emojiName}:`.length;
         }
       } else if (el.classList.contains('editor-mention')) {
-        const mentionData = el.getAttribute('data-mention');
-        if (mentionData) {
-          position += mentionData.length; // Count the full @uuid@domain length
+        const displayText = el.getAttribute('data-display-text');
+        if (displayText) {
+          position += displayText.length; // Count the display text length (@username or @username@domain)
         }
       } else if (el.tagName === 'BR') {
         position += 1; // newline
@@ -265,9 +265,9 @@ const setCursorPosition = (targetPosition: number) => {
           nodeLength = `:${emojiName}:`.length;
         }
       } else if (el.classList.contains('editor-mention')) {
-        const mentionData = el.getAttribute('data-mention');
-        if (mentionData) {
-          nodeLength = mentionData.length; // Count the full @uuid@domain length
+        const displayText = el.getAttribute('data-display-text');
+        if (displayText) {
+          nodeLength = displayText.length; // Count the display text length (@username or @username@domain)
         }
       } else if (el.tagName === 'BR') {
         nodeLength = 1;

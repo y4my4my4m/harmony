@@ -353,8 +353,16 @@
           // Use already uploaded files
           for (const fileData of files) {
             if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
-              const fileType = fileData.type.startsWith('image/') ? 'image' : 
-                             fileData.type.startsWith('video/') ? 'video' : 'file';
+              let fileType: 'image' | 'video' | 'audio' | 'file' = 'file';
+              
+              if (fileData.type.startsWith('image/')) {
+                fileType = 'image';
+              } else if (fileData.type.startsWith('video/')) {
+                fileType = 'video';
+              } else if (fileData.type.startsWith('audio/')) {
+                fileType = 'audio';
+              }
+              
               messageParts.push({
                 type: "file",
                 url: fileData.uploadedUrl,
