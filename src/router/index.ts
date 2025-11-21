@@ -27,6 +27,12 @@ const router = createRouter({
       component: RegisterView
     },
     {
+      path: '/reset-password',
+      name: 'ResetPassword',
+      component: () => import('@/views/ResetPasswordView.vue'),
+      meta: { requiresAuth: false }
+    },
+    {
       path: '/invite/:code',
       name: 'InviteAccept',
       component: InviteAccept,
