@@ -737,7 +737,11 @@ const handleCategoryUpdated = (updatedCategory: Category) => {}; // Store handle
 
 // Lifecycle Hooks
 watch(() => props.currentServer?.id, (newServerId) => {
-  if (newServerId) initializeCategoryStates();
+  if (newServerId) {
+    initializeCategoryStates();
+    // Setup voice channel broadcast for real-time updates
+    serverUsersStore.setupVoiceChannelBroadcast(newServerId);
+  }
 }, { immediate: true });
 
 watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
@@ -745,6 +749,7 @@ watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.val
 
 onMounted(() => document.addEventListener('click', closeContextMenus));
 onUnmounted(() => document.removeEventListener('click', closeContextMenus));
+
 
 </script>
 

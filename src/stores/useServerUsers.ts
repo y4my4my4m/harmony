@@ -13,6 +13,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
     userProfiles: {} as Record<string, User>,
     usersInVoiceChannels: {} as Record<string, string[]>,
     presenceChannel: null as RealtimeChannel | null,
+    voiceChannelBroadcast: null as RealtimeChannel | null, // Persistent channel for voice events
     onlineUsers: new Set<string>(),
     offlineBroadcastChannel: null as RealtimeChannel | null,
     currentServerId: null as string | null, // Track current server for membership events
@@ -265,6 +266,10 @@ export const useServerUsersStore = defineStore('serverUsers', {
         this.presenceChannel.unsubscribe()
         this.presenceChannel = null
       }
+      if (this.voiceChannelBroadcast) {
+        this.voiceChannelBroadcast.unsubscribe()
+        this.voiceChannelBroadcast = null
+      }
       if (this.offlineBroadcastChannel) {
         this.offlineBroadcastChannel.unsubscribe()
         this.offlineBroadcastChannel = null
@@ -273,16 +278,27 @@ export const useServerUsersStore = defineStore('serverUsers', {
       this.currentServerId = null
     },
 
-    broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string) {
-      const channel = supabase.channel(`server-${serverId}`, {
+    /**
+     * Setup voice channel broadcast listener for a server
+     * This allows users to see real-time updates of who's in voice channels
+     */
+    async setupVoiceChannelBroadcast(serverId: string) {
+      // Clean up existing channel if any
+      if (this.voiceChannelBroadcast) {
+        await this.voiceChannelBroadcast.unsubscribe();
+      }
+
+      console.log('🎙️ Setting up voice channel broadcast for server:', serverId);
+
+      this.voiceChannelBroadcast = supabase.channel(`voice-channels:${serverId}`, {
         config: {
           broadcast: { self: true },
         },
-      })
+      });
 
-      channel.on('broadcast', { event: 'voice-channel-event' }, (payload) => {
-        console.log(payload);
-        const { event, userId } = payload.payload;
+      this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, (payload) => {
+        console.log('🎙️ Received voice channel event:', payload);
+        const { event, userId, channelId } = payload.payload;
 
         if (event === 'user-joined') {
           if (!this.usersInVoiceChannels[channelId]) {
@@ -291,21 +307,32 @@ export const useServerUsersStore = defineStore('serverUsers', {
           if (!this.usersInVoiceChannels[channelId].includes(userId)) {
             this.usersInVoiceChannels[channelId].push(userId);
           }
+          console.log(`✅ User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
         } else if (event === 'user-left') {
-          this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+          if (this.usersInVoiceChannels[channelId]) {
+            this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+            console.log(`✅ User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
+          }
         }
-        console.log(this.usersInVoiceChannels[channelId]);
-      })
+      });
+
+      await this.voiceChannelBroadcast.subscribe();
+      console.log('✅ Voice channel broadcast subscribed for server:', serverId);
+    },
+
+    broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string) {
+      if (!this.voiceChannelBroadcast) {
+        console.error('❌ Voice channel broadcast not initialized');
+        return;
+      }
+
+      this.voiceChannelBroadcast.send({
+        type: 'broadcast',
+        event: 'voice-channel-event',
+        payload: { event, userId, channelId }
+      });
       
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          channel.send({
-            type: 'broadcast',
-            event: 'voice-channel-event',
-            payload: { event, userId }
-          });
-        }
-      })
+      console.log(`📡 Broadcasted ${event} for user ${userId} in channel ${channelId}`);
     },
 
     // Voice channel connection methods

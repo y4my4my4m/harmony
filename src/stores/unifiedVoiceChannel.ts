@@ -453,12 +453,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         console.log('🔄 Channel state synced:', data);
         this.allUsers = data.users;
         
-        // If this is the first user in the channel, set call start time
-        if (data.users.length === 0 && !this.callStartTime) {
-          console.log('🕐 First user - setting call start time');
-          this.callStartTime = new Date();
-          // Broadcast call start time to channel
-          this.broadcastCallStartTime();
+        // Set call start time based on whether we're first or joining existing call
+        if (!this.callStartTime) {
+          if (data.users.length === 0) {
+            // We're the first user - set call start time
+            console.log('🕐 First user - setting call start time');
+            this.callStartTime = new Date();
+            this.broadcastCallStartTime();
+          } else {
+            // Others already in call - request call start time
+            console.log('🕐 Joining existing call - requesting call start time');
+            this.requestCallStartTime();
+          }
         }
         
         // Ensure all users' profile data is loaded through unified system

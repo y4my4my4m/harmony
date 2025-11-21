@@ -46,13 +46,17 @@ const sessionDuration = ref<string>('');
 let intervalId: number | null = null;
 
 const updateSessionDuration = () => {
-  if (!voiceStore.callStartTime) {
+  // Use callStartTime if available (overall call duration)
+  // Fall back to sessionStartTime (personal session time) if callStartTime isn't set yet
+  const startTime = voiceStore.callStartTime || props.sessionStartTime;
+  
+  if (!startTime) {
     sessionDuration.value = '';
     return;
   }
 
   const now = new Date();
-  const diff = now.getTime() - voiceStore.callStartTime.getTime();
+  const diff = now.getTime() - startTime.getTime();
   
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
