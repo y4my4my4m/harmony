@@ -68,6 +68,22 @@ export const useAuthStore = defineStore('auth', {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
         
+        // Check if we're on the password reset page - if so, don't set session
+        // This prevents the recovery session from being treated as a full login
+        const currentPath = window.location.pathname;
+        if (currentPath === '/reset-password') {
+          // Check if this is a recovery session by looking at URL hash/query params
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const queryParams = new URLSearchParams(window.location.search);
+          const type = hashParams.get('type') || queryParams.get('type');
+          
+          if (type === 'recovery' || event === 'PASSWORD_RECOVERY') {
+            // Don't set session during password recovery - let ResetPasswordView handle it
+            console.log('🔒 Password recovery session detected - not setting session in auth store');
+            return;
+          }
+        }
+        
         // Accept all valid sessions regardless of AAL level
         // 2FA is enforced at LOGIN time, not on every session check
         // This allows users to stay logged in after AAL2 expires (24h)

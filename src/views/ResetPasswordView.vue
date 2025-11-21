@@ -192,13 +192,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
-const route = useRoute()
 const toast = useToast()
+const authStore = useAuthStore()
 
 // State
 const newPassword = ref('')
@@ -214,6 +215,8 @@ const isSuccess = ref(false)
 const isError = ref(false)
 const errorMessage = ref('')
 const isValidToken = ref(false)
+const isPasswordResetMode = ref(false)
+let navigationGuardAdded = false
 
 // Background particles
 const particles = ref<Array<{ id: number; left: string; top: string; delay: string; duration: string; size: string }>>([])
@@ -267,6 +270,8 @@ onMounted(async () => {
     }
     // If we have a session, the token was processed - allow password reset
     isValidToken.value = true
+    isPasswordResetMode.value = true
+    setupNavigationGuard()
     return
   }
 
@@ -284,6 +289,8 @@ onMounted(async () => {
       errorMessage.value = 'This password reset link is invalid or has expired. Please request a new one.'
     } else {
       isValidToken.value = true
+      isPasswordResetMode.value = true
+      setupNavigationGuard()
     }
   } catch (error: any) {
     console.error('Error checking recovery token:', error)
@@ -291,6 +298,29 @@ onMounted(async () => {
     errorMessage.value = 'Failed to verify password reset link. Please try again.'
   }
 })
+
+// Setup navigation guard to prevent leaving reset-password page
+const setupNavigationGuard = () => {
+  if (navigationGuardAdded) return
+  navigationGuardAdded = true
+  
+  router.beforeEach((to, from, next) => {
+    // Allow navigation to login or within reset-password
+    if (to.name === 'Login' || to.name === 'ResetPassword' || isSuccess.value) {
+      next()
+      return
+    }
+    
+    // Prevent navigation away from reset-password when in password reset mode
+    if (isPasswordResetMode.value && !isSuccess.value && from.name === 'ResetPassword') {
+      toast.warning('Please complete the password reset process first')
+      next(false)
+      return
+    }
+    
+    next()
+  })
+}
 
 // Validate password
 const validatePassword = (): boolean => {
@@ -364,7 +394,13 @@ const handleResetPassword = async () => {
     // Success!
     console.log('✅ Password reset successful:', data)
     isSuccess.value = true
-    toast.success('Password reset successful! You can now log in with your new password.')
+    isPasswordResetMode.value = false
+    
+    // Sign out the recovery session - user needs to log in with new password
+    await supabase.auth.signOut()
+    authStore.session = null
+    
+    toast.success('Password reset successful! Please log in with your new password.')
     
     // Redirect to login after a short delay
     setTimeout(() => {
@@ -379,7 +415,12 @@ const handleResetPassword = async () => {
 }
 
 // Navigate to login
-const goToLogin = () => {
+const goToLogin = async () => {
+  // If we're in password reset mode, sign out first
+  if (isPasswordResetMode.value && !isSuccess.value) {
+    await supabase.auth.signOut()
+    authStore.session = null
+  }
   router.push('/login')
 }
 </script>
