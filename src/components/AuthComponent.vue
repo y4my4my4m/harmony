@@ -276,24 +276,24 @@
         </div>
         
         <p class="modal-description">
-          Enter the 6-digit verification code from your authenticator app.
+          {{ useRecoveryCode ? 'Enter one of your recovery codes to sign in.' : 'Enter the 6-digit verification code from your authenticator app.' }}
         </p>
 
         <form @submit.prevent="handle2FAVerification" class="modal-form">
           <div class="input-group">
-            <label class="input-label">Verification Code</label>
+            <label class="input-label">{{ useRecoveryCode ? 'Recovery Code' : 'Verification Code' }}</label>
             <input 
               v-model="twoFactorCode" 
               type="text"
               class="form-input twofa-code-input"
               :class="{ 'error': twoFactorError }"
-              placeholder="000000"
-              maxlength="6"
-              pattern="[0-9]*"
-              inputmode="numeric"
+              :placeholder="useRecoveryCode ? 'XXXXXXXX' : '000000'"
+              :maxlength="useRecoveryCode ? 8 : 6"
+              :pattern="useRecoveryCode ? '[A-Z0-9]*' : '[0-9]*'"
+              :inputmode="useRecoveryCode ? 'text' : 'numeric'"
               autocomplete="one-time-code"
               autofocus
-              @input="twoFactorError = ''"
+              @input="handleCodeInput"
             />
             <span v-if="twoFactorError" class="error-message">{{ twoFactorError }}</span>
           </div>
@@ -303,7 +303,7 @@
               type="submit" 
               class="submit-btn"
               :class="{ 'loading': twoFactorLoading }"
-              :disabled="twoFactorLoading || twoFactorCode.length !== 6"
+              :disabled="twoFactorLoading || (useRecoveryCode ? twoFactorCode.length !== 8 : twoFactorCode.length !== 6)"
             >
               <span v-if="!twoFactorLoading">Verify</span>
               <div v-else class="loading-spinner"></div>
@@ -319,9 +319,16 @@
           </div>
         </form>
 
-        <p class="modal-help-text">
-          Lost access to your authenticator? Contact support for account recovery.
-        </p>
+        <div class="modal-help-text">
+          <button 
+            type="button" 
+            class="link-button"
+            @click="toggleRecoveryCodeMode"
+            :disabled="twoFactorLoading"
+          >
+            {{ useRecoveryCode ? 'Use authenticator code instead' : 'Use recovery code instead' }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -379,6 +386,7 @@ const twoFactorError = ref('')
 const twoFactorLoading = ref(false)
 const pendingFactorId = ref('')
 const pendingChallengeId = ref('')
+const useRecoveryCode = ref(false)
 
 // Background
 const randomBg = ref('')
@@ -545,8 +553,9 @@ const handleSubmit = async () => {
 }
 
 const handle2FAVerification = async () => {
-  if (twoFactorCode.value.length !== 6) {
-    twoFactorError.value = 'Please enter a 6-digit code'
+  const expectedLength = useRecoveryCode.value ? 8 : 6
+  if (twoFactorCode.value.length !== expectedLength) {
+    twoFactorError.value = `Please enter a ${expectedLength}-${useRecoveryCode.value ? 'character' : 'digit'} code`
     return
   }
 
@@ -554,28 +563,91 @@ const handle2FAVerification = async () => {
   console.log('Factor ID:', pendingFactorId.value)
   console.log('Challenge ID:', pendingChallengeId.value)
   console.log('Code length:', twoFactorCode.value.length)
+  console.log('Using recovery code:', useRecoveryCode.value)
 
   twoFactorLoading.value = true
   twoFactorError.value = ''
 
   try {
-    // Use authStore.verify2FA with challenge ID
-    console.log('📞 Calling authStore.verify2FA...')
-    await authStore.verify2FA(
-      pendingFactorId.value, 
-      pendingChallengeId.value,
-      twoFactorCode.value
-    )
-    
-    console.log('✅ 2FA verification successful!')
-    show2FAModal.value = false
-    toast.success('Welcome back!')
+    if (useRecoveryCode.value) {
+      // Verify recovery code
+      console.log('📞 Verifying recovery code...')
+      
+      // Get the current session (should be at AAL1)
+      const { data: sessionData } = await supabase.auth.getSession()
+      const userId = sessionData.session?.user?.id
+      
+      if (!userId) {
+        throw new Error('User session not found')
+      }
+
+      const { data: isValid, error } = await supabase.rpc('verify_recovery_code', {
+        p_user_id: userId,
+        p_code: twoFactorCode.value
+      })
+
+      if (error) throw error
+
+      if (!isValid) {
+        throw new Error('Invalid or already used recovery code')
+      }
+
+      console.log('✅ Recovery code verified successfully!')
+      
+      // Unenroll the TOTP factor since they lost access to their authenticator
+      // This makes the AAL1 session sufficient and allows them to log in
+      await supabase.auth.mfa.unenroll({ factorId: pendingFactorId.value })
+      
+      // Refresh the session - it should now be sufficient without AAL2
+      const { data: refreshedSession } = await supabase.auth.getSession()
+      authStore.session = refreshedSession.session
+      
+      console.log('🔓 2FA has been disabled due to recovery code usage')
+      
+      show2FAModal.value = false
+      toast.warning('Welcome back! Please re-enable Two-Factor Authentication in your settings.', {
+        timeout: 8000
+      })
+      
+      // Redirect to privacy settings so they can re-enable 2FA
+      router.push('/settings/privacy')
+    } else {
+      // Use authStore.verify2FA with challenge ID
+      console.log('📞 Calling authStore.verify2FA...')
+      await authStore.verify2FA(
+        pendingFactorId.value, 
+        pendingChallengeId.value,
+        twoFactorCode.value
+      )
+      
+      console.log('✅ 2FA verification successful!')
+      
+      show2FAModal.value = false
+      toast.success('Welcome back!')
+      
+      // Redirect to chat after successful 2FA verification
+      router.push('/chat')
+    }
   } catch (error: any) {
     console.error('❌ 2FA verification error:', error)
-    twoFactorError.value = error.message || 'Invalid verification code. Please try again.'
+    twoFactorError.value = error.message || `Invalid ${useRecoveryCode.value ? 'recovery' : 'verification'} code. Please try again.`
   } finally {
     twoFactorLoading.value = false
     console.log('🏁 2FA verification finished')
+  }
+}
+
+const toggleRecoveryCodeMode = () => {
+  useRecoveryCode.value = !useRecoveryCode.value
+  twoFactorCode.value = ''
+  twoFactorError.value = ''
+}
+
+const handleCodeInput = () => {
+  twoFactorError.value = ''
+  // Auto-uppercase recovery codes
+  if (useRecoveryCode.value) {
+    twoFactorCode.value = twoFactorCode.value.toUpperCase()
   }
 }
 
@@ -585,6 +657,7 @@ const close2FAModal = () => {
   twoFactorError.value = ''
   pendingFactorId.value = ''
   pendingChallengeId.value = ''
+  useRecoveryCode.value = false
 }
 
 const handleForgotPassword = async () => {

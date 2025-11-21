@@ -771,7 +771,7 @@ const verifyAndEnable2FA = async () => {
   twoFactorError.value = ''
 
   try {
-    const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+    const { error } = await supabase.auth.mfa.challengeAndVerify({
       factorId: factorId.value,
       code: verificationCode.value
     })
@@ -783,11 +783,25 @@ const verifyAndEnable2FA = async () => {
       Math.random().toString(36).substring(2, 10).toUpperCase()
     )
 
+    // Save recovery codes to database
+    const userId = authStore.session?.user?.id
+    if (userId) {
+      const { error: saveError } = await supabase.rpc('save_recovery_codes', {
+        p_user_id: userId,
+        p_codes: recoveryCodes.value
+      })
+
+      if (saveError) {
+        console.error('Error saving recovery codes:', saveError)
+        throw new Error('Failed to save recovery codes')
+      }
+    }
+
     enrollStep.value = 3
     toast.success('Two-Factor Authentication enabled!')
   } catch (error: any) {
     console.error('2FA verification error:', error)
-    twoFactorError.value = 'Invalid verification code'
+    twoFactorError.value = error.message || 'Invalid verification code'
   } finally {
     twoFactorLoading.value = false
   }
@@ -839,6 +853,19 @@ const disable2FA = async () => {
     if (signInError) {
       toast.error('Incorrect password')
       return
+    }
+
+    // Delete recovery codes
+    const userId = authStore.session?.user?.id
+    if (userId) {
+      const { error: deleteError } = await supabase
+        .from('mfa_recovery_codes')
+        .delete()
+        .eq('user_id', userId)
+
+      if (deleteError) {
+        console.error('Error deleting recovery codes:', deleteError)
+      }
     }
 
     // Disable 2FA
