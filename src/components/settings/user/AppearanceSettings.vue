@@ -142,6 +142,19 @@
           />
         </div>
       </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">Floating Video Player</h4>
+          <p class="setting-description">Playing videos float to corner when scrolled away. Works with YouTube and native videos.</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch 
+            v-model="settings.floatingVideoEnabled"
+            @change="onFloatingVideoChange"
+          />
+        </div>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -210,6 +223,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { User } from '@/types'
+import { useFloatingVideo } from '@/composables/useFloatingVideo'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -227,6 +241,9 @@ const emit = defineEmits<{
   'update-appearance': [settings: any]
 }>()
 
+// Composables
+const { isEnabled: floatingVideoEnabled, setEnabled: setFloatingVideoEnabled } = useFloatingVideo()
+
 // State
 const settings = ref({
   theme: 'dark',
@@ -236,6 +253,7 @@ const settings = ref({
   showTimestamps: true,
   use24HourTime: false,
   compactMode: false,
+  floatingVideoEnabled: floatingVideoEnabled.value,
   highContrast: false,
   reduceMotion: false,
   screenReaderSupport: false,
@@ -299,6 +317,11 @@ const adjustZoom = (delta: number) => {
 
 const onSettingChange = () => {
   // Settings changed, enable save button
+}
+
+const onFloatingVideoChange = () => {
+  setFloatingVideoEnabled(settings.value.floatingVideoEnabled)
+  onSettingChange()
 }
 
 const saveSettings = () => {

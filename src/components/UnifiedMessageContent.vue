@@ -115,12 +115,15 @@
           <div 
             v-else-if="isVideoUrl(part.url)" 
             class="media-container video-container"
+            ref="videoContainer"
           >
             <video
               :src="part.url"
               controls
               class="content-video"
               preload="metadata"
+              @play="handleVideoPlay"
+              @pause="handleVideoPause"
             ></video>
           </div>
 
@@ -135,6 +138,7 @@
           <ProviderEmbedSwitch
             v-if="resolveEmbedPayload(part)"
             :payload="resolveEmbedPayload(part)!"
+            :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
           />
         </template>
@@ -143,6 +147,7 @@
           <ProviderEmbedSwitch
             v-if="resolveEmbedPayload(part)"
             :payload="resolveEmbedPayload(part)!"
+            :message-id="messageId"
             :key="`${messageId}-embed-${part.previewId || part.url}`"
           />
         </template>
@@ -225,13 +230,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref, nextTick, reactive } from 'vue';
+import { defineComponent, watch, ref, nextTick, reactive, onMounted } from 'vue';
 import type { PropType } from 'vue';
 import type { EmbedPayload, MessagePart } from '@/types';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import CodeBlock from '@/components/common/CodeBlock.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
+import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import { userDataService } from '@/services/userDataService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
@@ -281,9 +287,13 @@ export default defineComponent({
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
+    const videoContainer = ref<HTMLElement | null>(null);
     
     // Internal reactive state for image loading (use prop if provided, otherwise create new)
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
+    
+    // Floating video
+    const { registerVideo } = useFloatingVideo();
     
     // Watch for prop changes and merge with internal state
     watch(() => props.imageLoaded, (newValue) => {
@@ -294,6 +304,28 @@ export default defineComponent({
     const handleImageLoad = (url: string) => {
       imageLoadedState[url] = true;
       emit('image-loaded', url);
+    };
+    
+    // Handle native video play/pause
+    const handleVideoPlay = (event: Event) => {
+      const video = event.target as HTMLVideoElement;
+      if (videoContainer.value) {
+        videoContainer.value.dataset.isPlaying = 'true';
+        
+        // Register video for floating if messageId is provided
+        if (props.messageId) {
+          const originalParent = videoContainer.value.parentElement as HTMLElement;
+          if (originalParent) {
+            registerVideo(videoContainer.value, originalParent, props.messageId, 'video');
+          }
+        }
+      }
+    };
+    
+    const handleVideoPause = (event: Event) => {
+      if (videoContainer.value) {
+        videoContainer.value.dataset.isPlaying = 'false';
+      }
     };
     
     // Auto-suggest setup
@@ -626,6 +658,7 @@ export default defineComponent({
       getEmojiUrl,
       localEditableContent,
       editTextarea,
+      videoContainer,
       handleSaveEdit, 
       handleCancelEdit,
       handleKeyDown,
@@ -635,6 +668,8 @@ export default defineComponent({
       handleSuggestionSelect,
       imageLoadedState,
       handleImageLoad,
+      handleVideoPlay,
+      handleVideoPause,
       isImageUrl,
       isVideoUrl,
       formatFileSize,
