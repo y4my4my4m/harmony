@@ -191,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
@@ -217,6 +217,7 @@ const errorMessage = ref('')
 const isValidToken = ref(false)
 const isPasswordResetMode = ref(false)
 let navigationGuardAdded = false
+let authStateListener: { subscription: { unsubscribe: () => void } } | null = null
 
 // Background particles
 const particles = ref<Array<{ id: number; left: string; top: string; delay: string; duration: string; size: string }>>([])
@@ -245,6 +246,18 @@ onMounted(async () => {
   randomBg.value = `url('/img/login_bg${Math.floor(Math.random() * 65) + 1}.webp')`
   initializeParticles()
 
+  // Set up listener for PASSWORD_RECOVERY event
+  // This fires when Supabase processes the recovery token
+  const authListenerData = supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'PASSWORD_RECOVERY' && session) {
+      console.log('🔒 PASSWORD_RECOVERY event detected in ResetPasswordView')
+      isValidToken.value = true
+      isPasswordResetMode.value = true
+      setupNavigationGuard()
+    }
+  })
+  authStateListener = authListenerData.data
+
   // Wait a bit for Supabase to process any hash fragments
   await new Promise(resolve => setTimeout(resolve, 500))
 
@@ -266,12 +279,14 @@ onMounted(async () => {
     if (!sessionData.session) {
       isError.value = true
       errorMessage.value = 'Invalid or missing password reset token. Please request a new password reset link.'
+      authStateListener?.subscription.unsubscribe()
       return
     }
     // If we have a session, the token was processed - allow password reset
     isValidToken.value = true
     isPasswordResetMode.value = true
     setupNavigationGuard()
+    // Keep listener active in case event fires later
     return
   }
 
@@ -287,15 +302,26 @@ onMounted(async () => {
     if (sessionError || !sessionData.session) {
       isError.value = true
       errorMessage.value = 'This password reset link is invalid or has expired. Please request a new one.'
+      authStateListener?.subscription.unsubscribe()
     } else {
       isValidToken.value = true
       isPasswordResetMode.value = true
       setupNavigationGuard()
+      // Keep listener active
     }
   } catch (error: any) {
     console.error('Error checking recovery token:', error)
     isError.value = true
     errorMessage.value = 'Failed to verify password reset link. Please try again.'
+    authStateListener?.subscription.unsubscribe()
+  }
+})
+
+// Cleanup auth listener on unmount
+onBeforeUnmount(() => {
+  if (authStateListener) {
+    authStateListener.subscription.unsubscribe()
+    authStateListener = null
   }
 })
 

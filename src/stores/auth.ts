@@ -68,18 +68,33 @@ export const useAuthStore = defineStore('auth', {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
         
-        // Check if we're on the password reset page - if so, don't set session
-        // This prevents the recovery session from being treated as a full login
+        // Handle PASSWORD_RECOVERY event - don't treat recovery sessions as full logins
+        // When Supabase processes a recovery token, it creates a session and fires this event
+        // We need to prevent this session from granting full app access
+        if (event === 'PASSWORD_RECOVERY') {
+          console.log('🔒 PASSWORD_RECOVERY event detected - not setting session in auth store');
+          
+          // If not already on reset-password page, redirect there
+          const currentPath = window.location.pathname;
+          if (currentPath !== '/reset-password') {
+            router.push('/reset-password');
+          }
+          
+          // Don't set session - let ResetPasswordView handle the recovery flow
+          return;
+        }
+        
+        // Also check if we're on reset-password page and this might be a recovery session
+        // (in case the event was missed or fired before we set up the listener)
         const currentPath = window.location.pathname;
-        if (currentPath === '/reset-password') {
-          // Check if this is a recovery session by looking at URL hash/query params
+        if (currentPath === '/reset-password' && session) {
+          // Check URL for recovery indicators (hash might still be there)
           const hashParams = new URLSearchParams(window.location.hash.substring(1));
           const queryParams = new URLSearchParams(window.location.search);
           const type = hashParams.get('type') || queryParams.get('type');
           
-          if (type === 'recovery' || event === 'PASSWORD_RECOVERY') {
-            // Don't set session during password recovery - let ResetPasswordView handle it
-            console.log('🔒 Password recovery session detected - not setting session in auth store');
+          if (type === 'recovery') {
+            console.log('🔒 Recovery token detected in URL - not setting session in auth store');
             return;
           }
         }
