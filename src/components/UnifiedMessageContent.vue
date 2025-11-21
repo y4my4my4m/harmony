@@ -127,6 +127,19 @@
             ></video>
           </div>
 
+          <!-- Audio URLs -->
+          <div 
+            v-else-if="isAudioUrl(part.url)" 
+            class="media-container audio-container"
+          >
+            <audio
+              :src="part.url"
+              controls
+              preload="metadata"
+              class="content-audio"
+            ></audio>
+          </div>
+
           <!-- Regular URL links -->
           <a 
             v-else
@@ -136,7 +149,7 @@
             class="url-link"
           >{{ part.url }}</a>
           <ProviderEmbedSwitch
-            v-if="resolveEmbedPayload(part)"
+            v-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
             :payload="resolveEmbedPayload(part)!"
             :message-id="messageId"
             :key="`${messageId}-embed-${part.embedId || part.url}`"
@@ -179,6 +192,19 @@
             class="content-video"
             preload="metadata"
           ></video>
+        </div>
+        
+        <!-- Audio files -->
+        <div 
+          v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'audio'" 
+          class="media-container audio-container"
+        >
+          <audio
+            :src="part.url"
+            controls
+            preload="metadata"
+            class="content-audio"
+          ></audio>
         </div>
         
         <!-- Other file attachments -->
@@ -340,6 +366,11 @@ export default defineComponent({
     const isVideoUrl = (url: string): boolean => {
       if (!url) return false;
       return /\.(mp4|webm|ogg|avi|mov|wmv|flv)$/i.test(url);
+    };
+
+    const isAudioUrl = (url: string): boolean => {
+      if (!url) return false;
+      return /\.(mp3|wav|ogg|flac|aac|m4a|opus|webm)$/i.test(url);
     };
 
     const getFileName = (url: string): string => {
@@ -672,6 +703,7 @@ export default defineComponent({
       handleVideoPause,
       isImageUrl,
       isVideoUrl,
+      isAudioUrl,
       formatFileSize,
       formatMentionDisplay,
       renderTextContent,

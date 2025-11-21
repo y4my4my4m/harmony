@@ -41,6 +41,7 @@ export interface ContentRenderResult {
   formatMentionDisplay: (mention: MessagePart) => string;
   isImageUrl: (url: string) => boolean;
   isVideoUrl: (url: string) => boolean;
+  isAudioUrl: (url: string) => boolean;
   
   // Event handlers
   handleMentionClick: (userId: string, event: Event) => void;
@@ -168,6 +169,10 @@ export function useContentRenderer(
     return /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?.*)?$/i.test(url);
   };
 
+  const isAudioUrl = (url: string): boolean => {
+    return /\.(mp3|wav|ogg|flac|aac|m4a|opus|webm)(\?.*)?$/i.test(url);
+  };
+
   // Truncate content for previews
   const truncateContent = (parts: MessagePart[], maxLength: number): MessagePart[] => {
     const result: MessagePart[] = [];
@@ -241,6 +246,15 @@ export function useContentRenderer(
           return `<span class="mention" ${dataAttrs}>${escapedDisplayText}</span>`;
         }
         
+        case 'hashtag': {
+          const tagName = part.name || '';
+          const dataAttrs = renderOptions.enableClickHandlers 
+            ? `data-tag="${tagName}"` 
+            : '';
+          
+          return `<span class="hashtag" ${dataAttrs}>#${tagName}</span>`;
+        }
+        
         case 'emoji': {
           const emoji = part.emoji;
           if (!emoji || !emoji.url) {
@@ -270,6 +284,12 @@ export function useContentRenderer(
           if (renderOptions.showVideos && isVideoUrl(url)) {
             return `<div class="media-container video-container">
               <video src="${url}" controls class="content-video"></video>
+            </div>`;
+          }
+          
+          if (renderOptions.showVideos && isAudioUrl(url)) {
+            return `<div class="media-container audio-container">
+              <audio src="${url}" controls preload="metadata" class="content-audio"></audio>
             </div>`;
           }
           
@@ -341,6 +361,7 @@ export function useContentRenderer(
     formatMentionDisplay,
     isImageUrl,
     isVideoUrl,
+    isAudioUrl,
     handleMentionClick,
     handleHashtagClick,
     handleLinkClick

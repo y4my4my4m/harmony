@@ -180,6 +180,12 @@
 
       const toggleEmojiList = (isReaction: boolean, message?: Message, triggerElement?: HTMLElement) => {
         console.log('toggleEmojiList called:', { isReaction, message, triggerElement });
+        
+        // Close GIF picker when opening emoji picker
+        if (!emojiListOpen.value) {
+          giphyOpen.value = false;
+        }
+        
         if(message) selectedMessageId.value = message.id;
         if(triggerElement) reactionTriggerElement.value = triggerElement;
         isPopupForReaction.value = isReaction;
@@ -204,6 +210,12 @@
 
       const toggleGiphy = () => {
           console.log('toggleGiphy called');
+          
+          // Close emoji picker when opening GIF picker
+          if (!giphyOpen.value) {
+            emojiListOpen.value = false;
+          }
+          
           giphyOpen.value = !giphyOpen.value;
           console.log('giphyOpen is now:', giphyOpen.value);
           if (giphyOpen.value) {

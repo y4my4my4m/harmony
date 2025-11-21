@@ -90,70 +90,21 @@
     </div>
   </div>
 
-  <!-- Media Modal -->
-  <Teleport to="body" v-if="showModal">
-    <div class="media-modal-overlay" @click="closeModal">
-      <div class="media-modal" @click.stop>
-        <button @click="closeModal" class="modal-close-btn">
-          <Icon name="x" />
-        </button>
-
-        <!-- Navigation arrows -->
-        <button
-          v-if="mediaAttachments.length > 1"
-          @click="previousMedia"
-          class="nav-btn prev-btn"
-        >
-          <Icon name="chevron-left" />
-        </button>
-
-        <button
-          v-if="mediaAttachments.length > 1"
-          @click="nextMedia"
-          class="nav-btn next-btn"
-        >
-          <Icon name="chevron-right" />
-        </button>
-
-        <!-- Current media -->
-        <div class="modal-media">
-          <img
-            v-if="currentMedia?.type === 'image'"
-            :src="currentMedia.url"
-            :alt="currentMedia.description || 'Image'"
-            class="modal-image"
-          />
-
-          <video
-            v-else-if="currentMedia?.type === 'video'"
-            :src="currentMedia.url"
-            class="modal-video"
-            controls
-            autoplay
-          />
-        </div>
-
-        <!-- Media info -->
-        <div class="media-info">
-          <div v-if="currentMedia?.description" class="media-description">
-            {{ currentMedia.description }}
-          </div>
-          <div class="media-meta">
-            {{ currentMediaIndex + 1 }} of {{ mediaAttachments.length }}
-            <span v-if="currentMedia?.size" class="media-size">
-              • {{ formatFileSize(currentMedia.size) }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </Teleport>
+  <!-- vue-easy-lightbox for Media Modal -->
+  <vue-easy-lightbox
+    class="lightbox"
+    :visible="showModal"
+    :imgs="lightboxImages"
+    :index="currentMediaIndex"
+    @hide="closeModal"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
+import VueEasyLightbox from 'vue-easy-lightbox';
 
 interface Props {
   mediaAttachments: MediaAttachment[];
@@ -188,6 +139,24 @@ const hasAltText = computed(() => {
 
 const currentMedia = computed(() => {
   return props.mediaAttachments[currentMediaIndex.value];
+});
+
+// Prepare images for vue-easy-lightbox
+const lightboxImages = computed(() => {
+  return props.mediaAttachments
+    .filter(media => media.type === 'image' || media.type === 'video')
+    .map(media => {
+      if (media.type === 'image') {
+        return media.url;
+      } else if (media.type === 'video') {
+        // vue-easy-lightbox supports videos
+        return {
+          src: media.url,
+          type: 'video'
+        };
+      }
+      return media.url;
+    });
 });
 
 // Methods
@@ -228,42 +197,6 @@ const openMedia = (index: number) => {
 const closeModal = () => {
   showModal.value = false;
 };
-
-const previousMedia = () => {
-  if (currentMediaIndex.value > 0) {
-    currentMediaIndex.value--;
-  } else {
-    currentMediaIndex.value = props.mediaAttachments.length - 1;
-  }
-};
-
-const nextMedia = () => {
-  if (currentMediaIndex.value < props.mediaAttachments.length - 1) {
-    currentMediaIndex.value++;
-  } else {
-    currentMediaIndex.value = 0;
-  }
-};
-
-// Keyboard navigation for modal
-const handleKeydown = (event: KeyboardEvent) => {
-  if (!showModal.value) return;
-  
-  switch (event.key) {
-    case 'Escape':
-      closeModal();
-      break;
-    case 'ArrowLeft':
-      previousMedia();
-      break;
-    case 'ArrowRight':
-      nextMedia();
-      break;
-  }
-};
-
-// Add keyboard event listener
-document.addEventListener('keydown', handleKeydown);
 </script>
 
 <style scoped>

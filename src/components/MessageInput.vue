@@ -39,10 +39,10 @@
         />
       </div>
       <div class="right-icons">
-        <button ref="gifTriggerRef" @click="toggleGiphy" class="icon-button">
+        <button ref="gifTriggerRef" @click.stop="toggleGiphy" class="icon-button">
           <GifIcon />
         </button>
-        <button ref="emojiTriggerRef" @click="toggleEmojiList" class="icon-button">
+        <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button">
           <EmojiUI />
         </button>
       </div>
@@ -161,10 +161,13 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       autoSuggest.selectSuggestion(suggestion);
       
       // Return focus to the rich text editor after selection
+      // Use double nextTick to ensure DOM updates complete before focusing
       nextTick(() => {
-        if (richEditorRef.value?.focus) {
-          richEditorRef.value.focus();
-        }
+        nextTick(() => {
+          if (richEditorRef.value?.focus) {
+            richEditorRef.value.focus();
+          }
+        });
       });
     };
 

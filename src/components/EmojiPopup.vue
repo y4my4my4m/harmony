@@ -189,7 +189,13 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 // --- Lifecycle Hooks ---
 
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside, true); // Use capture phase to prevent race conditions
+  // Delay adding the click-outside listener to prevent the opening click from immediately closing it
+  nextTick(() => {
+    setTimeout(() => {
+      document.addEventListener('click', handleClickOutside, true); // Use capture phase to prevent race conditions
+    }, 100); // Small delay to let the opening click finish
+  });
+  
   document.addEventListener('keydown', handleKeyDown);
 
   nextTick(() => {

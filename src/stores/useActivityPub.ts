@@ -1094,6 +1094,19 @@ export const useActivityPubStore = defineStore('activitypub', {
           throw new Error('Invalid content format - must be MessagePart[] or string');
         }
         
+        // Add media attachments to content as MessageParts with type 'file'
+        if (mediaUrls && mediaUrls.length > 0) {
+          const mediaParts: MessagePart[] = mediaUrls.map(media => ({
+            type: 'file',
+            fileType: media.type === 'Image' ? 'image' : media.type === 'Video' ? 'video' : 'file',
+            url: media.url,
+            fileName: media.name
+          }));
+          
+          // Append media parts to content
+          finalContent = [...finalContent, ...mediaParts];
+        }
+        
         const post = await services.posts.createPost({
           content: finalContent,
           visibility: visibility,
@@ -1201,7 +1214,21 @@ export const useActivityPubStore = defineStore('activitypub', {
         }
       });
 
-      return Promise.all(uploadPromises);
+      const uploadedMedia = await Promise.all(uploadPromises);
+      
+      // Get public URLs for uploaded media
+      const mediaWithPublicUrls = uploadedMedia.map(media => {
+        const { data: { publicUrl } } = supabase.storage
+          .from('user_media')
+          .getPublicUrl(media.url);
+        
+        return {
+          ...media,
+          url: publicUrl
+        };
+      });
+      
+      return mediaWithPublicUrls;
     },
 
     /**

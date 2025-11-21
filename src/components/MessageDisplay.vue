@@ -64,7 +64,7 @@
           <div class="message-actions" v-if="hoveredMessageId === message.id">
             <div class="action-btn" @click="openEmojiReactor(message, $event)"><ReactionIcon/></div>
             <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
-            <div class="action-btn"><MoreIcon/></div>
+            <div class="action-btn" @click="openContextMenu(message, $event)"><MoreIcon/></div>
           </div>
           
           <!-- Reactions for system messages -->
@@ -161,7 +161,7 @@
           <div class="action-btn" @click="replyTo(message)"><ReplyIcon/></div>
           <div class="action-btn" v-if="canEditMessage(message)" @click="startEdit(message)"><EditIcon/></div>
           <div class="action-btn" v-if="canDeleteMessage(message)" @click="deleteMessage(message.id)"><DeleteIcon/></div>
-          <div class="action-btn"><MoreIcon/></div>
+          <div class="action-btn" @click="openContextMenu(message, $event)"><MoreIcon/></div>
         </div>
         
         <!-- Reactions -->
@@ -225,6 +225,16 @@
       <span>{{ user.displayName }}</span>
     </div>
   </div>
+
+  <!-- Message Context Menu -->
+  <MessageContextMenu
+    :is-visible="contextMenuVisible"
+    :position="contextMenuPosition"
+    :message="contextMenuMessage"
+    :channel-id="props.channelId"
+    :conversation-id="props.conversationId"
+    @close="closeContextMenu"
+  />
 </template>
 
 <script setup lang="ts">
@@ -251,6 +261,7 @@ import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import MessageReactions from '@/components/MessageReactions.vue';
+import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import { messagePartsToMarkdown, messagePartsToPlainText, isSingleEmojiMessage as checkSingleEmoji } from '@/utils/messageContentUtils';
 import { parseContentToMessageParts, resolveMentionsUserData } from '@/utils/unifiedContentProcessing';
 import { getEmojiUrl } from '@/utils/emojiUtils';
@@ -322,6 +333,12 @@ const bufferDistance = ref(0);
 const selectedUser = ref<User | null>(null);
 const showProfileModal = ref(false);
 const showInviteModal = ref(false);
+
+// Context menu state
+const contextMenuVisible = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
+const contextMenuMessage = ref<Message | null>(null);
+
 const isLightboxOpen = ref(false);
 const indexRef = ref(0);
 
@@ -848,6 +865,24 @@ const handleOpenLightbox = (url: string) => {
 
 const closeLightbox = () => {
   isLightboxOpen.value = false;
+};
+
+// Context menu handlers
+const openContextMenu = (message: Message, event: MouseEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  contextMenuMessage.value = message;
+  contextMenuPosition.value = {
+    x: event.clientX,
+    y: event.clientY
+  };
+  contextMenuVisible.value = true;
+};
+
+const closeContextMenu = () => {
+  contextMenuVisible.value = false;
+  contextMenuMessage.value = null;
 };
 
 
