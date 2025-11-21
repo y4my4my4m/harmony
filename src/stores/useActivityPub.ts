@@ -1098,7 +1098,9 @@ export const useActivityPubStore = defineStore('activitypub', {
         if (mediaUrls && mediaUrls.length > 0) {
           const mediaParts: MessagePart[] = mediaUrls.map(media => ({
             type: 'file',
-            fileType: media.type === 'Image' ? 'image' : media.type === 'Video' ? 'video' : 'file',
+            fileType: media.type === 'Image' ? 'image' : 
+                      media.type === 'Video' ? 'video' : 
+                      media.type === 'Audio' ? 'audio' : 'file',
             url: media.url,
             fileName: media.name
           }));
@@ -1203,7 +1205,9 @@ export const useActivityPubStore = defineStore('activitypub', {
           }
 
           return {
-            type: file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Document',
+            type: file.type.startsWith('image/') ? 'Image' : 
+                  file.type.startsWith('video/') ? 'Video' : 
+                  file.type.startsWith('audio/') ? 'Audio' : 'Document',
             url: data.path,
             mediaType: file.type,
             name: file.name

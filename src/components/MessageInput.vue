@@ -121,9 +121,13 @@ const updateText = (newText: string, cursorPosition?: number) => {
   emit('update:modelValue', newText);
   
   // Set cursor position after text update if provided
+  // Need to wait for the RichTextEditor to re-render with new content
   if (cursorPosition !== undefined && richEditorRef.value?.setCursorPosition) {
     nextTick(() => {
-      richEditorRef.value?.setCursorPosition(cursorPosition);
+      setTimeout(() => {
+        richEditorRef.value?.setCursorPosition(cursorPosition);
+        richEditorRef.value?.focus();
+      }, 50); // Small delay for rendering
     });
   }
 };
@@ -161,14 +165,12 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText);
       autoSuggest.selectSuggestion(suggestion);
       
       // Return focus to the rich text editor after selection
-      // Use double nextTick to ensure DOM updates complete before focusing
-      nextTick(() => {
-        nextTick(() => {
-          if (richEditorRef.value?.focus) {
-            richEditorRef.value.focus();
-          }
-        });
-      });
+      // Use setTimeout to ensure all updates complete
+      setTimeout(() => {
+        if (richEditorRef.value?.focus) {
+          richEditorRef.value.focus();
+        }
+      }, 100);
     };
 
     const send = () => {

@@ -189,7 +189,14 @@ const handleVideoError = (event: Event) => {
 const openMedia = (index: number) => {
   const media = props.mediaAttachments[index];
   if (media.type === 'image' || media.type === 'video') {
-    currentMediaIndex.value = index;
+    // Find the corresponding index in the lightbox images array
+    let lightboxIndex = 0;
+    for (let i = 0; i < index; i++) {
+      if (props.mediaAttachments[i].type === 'image' || props.mediaAttachments[i].type === 'video') {
+        lightboxIndex++;
+      }
+    }
+    currentMediaIndex.value = lightboxIndex;
     showModal.value = true;
   }
 };

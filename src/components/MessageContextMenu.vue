@@ -4,10 +4,11 @@
     class="context-menu"
     :style="{ top: position.y + 'px', left: position.x + 'px' }"
     @click.stop
+    v-click-outside="() => $emit('close')"
   >
     <div class="context-menu-item" @click="copyMessageURL">
       <svg width="16" height="16" viewBox="0 0 24 24">
-        <path fill="currentColor" d="M10,13C10.55,13 11,13.45 11,14V16C11,16.55 11.45,17 12,17C12.55,17 13,16.55 13,16V14C13,13.45 13.45,13 14,13C14.55,13 15,12.55 15,12C15,11.45 14.55,11 14,11H10C9.45,11 9,11.45 9,12C9,12.55 9.45,13 10,13M16.5,3C14.76,3 13.09,3.81 12,5.09C10.91,3.81 9.24,3 7.5,3C4.42,3 2,5.42 2,8.5C2,12.28 5.4,15.36 10.55,20.04L12,21.35L13.45,20.03C18.6,15.36 22,12.28 22,8.5C22,5.42 19.58,3 16.5,3Z" />
+        <path fill="currentColor" d="M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7A5,5 0 0,0 2,12A5,5 0 0,0 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12M8,13H16V11H8V13M17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17A5,5 0 0,0 22,12A5,5 0 0,0 17,7Z" />
       </svg>
       <span>Copy Message URL</span>
     </div>
@@ -26,6 +27,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { Message } from '@/types';
 
 interface Props {
@@ -108,10 +110,6 @@ const copyLinkURL = async () => {
   
   emit('close');
 };
-</script>
-
-<script lang="ts">
-import { computed } from 'vue';
 </script>
 
 <style scoped>

@@ -1,5 +1,5 @@
 <template>
-  <div ref="emojiPopup" class="emoji-popup" :style="positionStyle">
+  <div ref="emojiPopup" class="emoji-popup" :style="positionStyle" v-click-outside="handleClickOutside">
     <!-- Search Input -->
     <div class="emoji-search">
       <input
@@ -168,16 +168,9 @@ const selectEmoji = (emoji: Emoji): void => {
   emit('sendEmoji', emoji);
 };
 
-const handleClickOutside = (event: MouseEvent): void => {
-  if (emojiPopup.value && !emojiPopup.value.contains(event.target as Node)) {
-    // This specific logic allows the parent to control closing behavior
-    // when the popup was opened via a persistent icon toggle.
-    if (props.emojiIconClicked) {
-      emit('resetEmojiIconClicked');
-    } else {
-      props.closeEmojiList?.();
-    }
-  }
+const handleClickOutside = (): void => {
+  // Close the popup when clicking outside
+  props.closeEmojiList?.();
 };
 
 const handleKeyDown = (event: KeyboardEvent): void => {
@@ -189,13 +182,6 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 // --- Lifecycle Hooks ---
 
 onMounted(() => {
-  // Delay adding the click-outside listener to prevent the opening click from immediately closing it
-  nextTick(() => {
-    setTimeout(() => {
-      document.addEventListener('click', handleClickOutside, true); // Use capture phase to prevent race conditions
-    }, 100); // Small delay to let the opening click finish
-  });
-  
   document.addEventListener('keydown', handleKeyDown);
 
   nextTick(() => {
@@ -205,7 +191,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside, true);
   document.removeEventListener('keydown', handleKeyDown);
 });
 
