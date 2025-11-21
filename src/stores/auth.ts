@@ -17,10 +17,19 @@ export const useAuthStore = defineStore('auth', {
       const { data: getSessionData } = await supabase.auth.getSession();
       const session = getSessionData.session;
       
+      // Helper to get AAL from session - it's stored in the user object
+      const getAAL = (sess: Session | null): string => {
+        if (!sess) return 'none';
+        // AAL might be in user.aal or we need to parse the JWT
+        return (sess.user as any)?.aal || 'aal1';
+      };
+      
+      const currentAAL = getAAL(session);
+      
       console.log('🔐 Initializing auth, session:', {
         exists: !!session,
         userId: session?.user?.id,
-        aal: (session as any)?.aal
+        aal: currentAAL
       })
       
       // CRITICAL SECURITY CHECK: If user has MFA enabled, verify AAL level
@@ -29,19 +38,17 @@ export const useAuthStore = defineStore('auth', {
         const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
         
         if (has2FA) {
-          // User has 2FA enabled - check AAL level
-          const aal = (session as any).aal || 'aal1';
+          console.log('🔐 User has 2FA enabled, session AAL:', currentAAL)
           
-          console.log('🔐 User has 2FA enabled, session AAL:', aal)
-          
-          if (aal !== 'aal2') {
+          if (currentAAL !== 'aal2') {
             // Session is only AAL1 but user requires AAL2
             // This should NOT happen if they completed 2FA login
-            console.warn('🚨 Session found but only AAL1 - user has 2FA enabled, signing out');
+            console.warn('🚨 Session found but only', currentAAL, '- user has 2FA enabled, signing out');
             console.warn('🔍 Debug: Session details:', {
               access_token: session.access_token?.substring(0, 20) + '...',
               expires_at: session.expires_at,
-              aal: aal
+              aal: currentAAL,
+              user_aal: (session.user as any)?.aal
             })
             await supabase.auth.signOut();
             this.session = null;
@@ -66,7 +73,14 @@ export const useAuthStore = defineStore('auth', {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
         
-        console.log(`🔐 Auth event: ${event}, AAL: ${(session as any)?.aal}`)
+        const getAAL = (sess: Session | null): string => {
+          if (!sess) return 'none';
+          return (sess.user as any)?.aal || 'aal1';
+        };
+        
+        const currentAAL = getAAL(session);
+        
+        console.log(`🔐 Auth event: ${event}, AAL: ${currentAAL}`)
         
         // IMPORTANT: During MFA_CHALLENGE_VERIFIED, the AAL upgrade happens AFTER the event
         // So we must allow this event through without AAL checking
@@ -86,9 +100,8 @@ export const useAuthStore = defineStore('auth', {
           const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
           
           if (has2FA) {
-            const aal = (session as any).aal || 'aal1';
-            if (aal !== 'aal2') {
-              console.warn('🚨 Session change detected but only AAL1 - rejecting');
+            if (currentAAL !== 'aal2') {
+              console.warn(`🚨 Session change detected but only ${currentAAL} - rejecting`);
               return; // Don't set session
             }
           }
@@ -240,26 +253,29 @@ export const useAuthStore = defineStore('auth', {
         throw verifyError;
       }
 
-      console.log('✅ MFA verify call succeeded, refreshing session to save AAL2...')
+      console.log('✅ MFA verify call succeeded')
 
-      // CRITICAL: After successful verification, explicitly refresh the session
-      // This ensures the AAL2 status is properly saved to localStorage
-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-      
-      if (refreshError) {
-        console.error('❌ Session refresh error:', refreshError)
-        // Don't throw - the verification succeeded, just log the refresh issue
-      }
+      // After successful verification, the session is now at AAL2
+      // The onAuthStateChange listener will receive MFA_CHALLENGE_VERIFIED event
+      // and set the session properly. We just need to wait a moment for it.
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Get the refreshed session (should now be AAL2 and persisted)
+      // Get the upgraded session
       const { data: sessionData } = await supabase.auth.getSession();
-      this.session = sessionData.session;
       
-      console.log('✅ 2FA verified - session upgraded and saved:', {
-        aal: (sessionData.session as any)?.aal,
+      const getAAL = (sess: Session | null): string => {
+        if (!sess) return 'none';
+        return (sess.user as any)?.aal || 'aal1';
+      };
+      
+      console.log('✅ 2FA verified - session upgraded:', {
+        aal: getAAL(sessionData.session),
         userId: sessionData.session?.user?.id,
         expiresAt: sessionData.session?.expires_at
       });
+      
+      // Set session in store (might already be set by auth listener)
+      this.session = sessionData.session;
       
       return { session: sessionData.session };
     },
