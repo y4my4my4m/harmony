@@ -218,6 +218,8 @@ const getCursorPosition = (): number => {
 const setCursorPosition = (targetPosition: number) => {
   if (!editorRef.value) return;
   
+  console.log('🔧 setCursorPosition called with:', targetPosition);
+  
   const selection = window.getSelection();
   if (!selection) return;
   
@@ -338,12 +340,14 @@ const processMentionsInText = (text: string): DocumentFragment => {
   // Add remaining text after last mention
   if (lastIndex < text.length) {
     const remainingText = text.substring(lastIndex);
+    console.log('🔧 Adding remaining text after mentions:', JSON.stringify(remainingText));
     fragment.appendChild(document.createTextNode(remainingText));
   }
   
   // If no mentions found, just return the text as a text node
   // Removed redundant fallback block that appended the full text again.
   
+  console.log('🔧 Fragment children count:', fragment.childNodes.length);
   return fragment;
 };
 
@@ -454,6 +458,7 @@ const renderContent = (text: string) => {
   nextTick(() => {
     if (editorRef.value && (document.activeElement === editorRef.value || 
         editorRef.value.contains(document.activeElement))) {
+      console.log('🔧 Restoring cursor position to:', currentCursorPos);
       setCursorPosition(currentCursorPos);
     }
     isRendering.value = false;
@@ -764,9 +769,13 @@ defineExpose({
 watch(() => props.modelValue, (newValue) => {
   if (editorRef.value) {
     const currentText = getPlainText();
-    // console.log('🔧 RichTextEditor watch triggered:', { newValue, currentText, different: currentText !== newValue });
+    console.log('🔧 RichTextEditor watch triggered:', { 
+      newValue: JSON.stringify(newValue), 
+      currentText: JSON.stringify(currentText), 
+      different: currentText !== newValue 
+    });
     if (currentText !== newValue) {
-      console.log('🔧 Calling renderContent with:', newValue);
+      console.log('🔧 Calling renderContent with:', JSON.stringify(newValue));
       renderContent(newValue);
       autoExpand();
     }

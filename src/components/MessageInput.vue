@@ -118,17 +118,18 @@ const emojiTriggerRef = ref<HTMLElement | null>(null);
 // Auto-suggest setup
 const getCurrentText = () => richEditorRef.value ? props.modelValue : '';
 const updateText = (newText: string, cursorPosition?: number) => {
+  console.log('🔧 MessageInput updateText called:', { newText, cursorPosition });
   emit('update:modelValue', newText);
   
   // Set cursor position after text update if provided
-  // Wait for Vue's reactivity system and DOM updates to complete
   if (cursorPosition !== undefined && richEditorRef.value?.setCursorPosition) {
-    nextTick(() => {
-      // Wait one more tick to ensure the RichTextEditor has fully rendered
-      nextTick(() => {
-        richEditorRef.value?.setCursorPosition(cursorPosition);
-        richEditorRef.value?.focus();
-      });
+    // Use requestAnimationFrame to wait for the browser to finish rendering
+    requestAnimationFrame(() => {
+      if (richEditorRef.value) {
+        console.log('🔧 Setting cursor position to:', cursorPosition);
+        richEditorRef.value.setCursorPosition(cursorPosition);
+        richEditorRef.value.focus();
+      }
     });
   }
 };

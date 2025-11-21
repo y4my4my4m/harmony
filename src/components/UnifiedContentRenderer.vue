@@ -120,6 +120,9 @@
             v-else-if="!isPreviewMode && part.fileType === 'audio'" 
             class="media-container audio-container"
           >
+            <div v-if="part.fileName" class="audio-filename">
+              {{ part.fileName }}
+            </div>
             <audio
               :src="part.url"
               controls
@@ -489,6 +492,13 @@ const formatFileSize = (bytes: number): string => {
 
 .audio-container {
   margin: 8px 0;
+}
+
+.audio-filename {
+  font-size: 0.875rem;
+  color: #dcddde;
+  margin-bottom: 6px;
+  font-weight: 500;
 }
 
 /* Media loading skeletons */

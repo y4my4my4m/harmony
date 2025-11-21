@@ -366,7 +366,8 @@
               messageParts.push({
                 type: "file",
                 url: fileData.uploadedUrl,
-                fileType
+                fileType,
+                fileName: fileData.name
               });
             }
           }
