@@ -19,6 +19,7 @@ export interface SpatialAudioSettings {
   distanceModel: 'linear' | 'inverse' | 'exponential';
   enableReverb: boolean;
   roomSize: number;
+  binauralIntensity: number; // 0-1, controls how dramatic the binaural effect is
 }
 
 interface SpatialAudioState {
@@ -49,10 +50,11 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
       enabled: true, // Enable by default for testing
       maxDistance: 300,
       rolloffFactor: 1,
-      panningModel: 'equalpower',
+      panningModel: 'HRTF', // Use HRTF for true 3D spatial audio
       distanceModel: 'inverse',
       enableReverb: false,
-      roomSize: 0.5
+      roomSize: 0.5,
+      binauralIntensity: 0.7 // 70% intensity by default - balanced between subtle and dramatic
     },
     
     isPanelVisible: false,
@@ -179,8 +181,21 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
           
           // Setup spatial audio for any existing users
           const allUsers = unifiedWebRTC.getAllUsers();
+          const localUserId = unifiedWebRTC.getLocalState().userId;
+          
+          // Initialize local user position at center if not set
+          if (!this.userPositions.has(localUserId)) {
+            this.initializeUserPosition(localUserId, true); // true = isLocalUser
+          }
+          
           for (const user of allUsers) {
-            if (user.userId !== unifiedWebRTC.getLocalState().userId) {
+            if (user.userId !== localUserId) {
+              // Initialize remote user position if not set
+              if (!this.userPositions.has(user.userId)) {
+                this.initializeUserPosition(user.userId, false); // false = remote user
+                console.log(`🎧 Initialized position for user: ${user.userId}`);
+              }
+              
               const userStream = unifiedWebRTC.getUserStream(user.userId);
               if (userStream) {
                 console.log(`🎧 Setting up spatial audio for existing user: ${user.userId}`);
@@ -188,6 +203,10 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
               }
             }
           }
+          
+          // Force an immediate spatial effects update
+          spatialAudioService.updateSpatialEffects();
+          console.log('🎧 Initial spatial effects applied');
           
         } else {
           // Disable spatial audio but keep AudioContext for potential re-enabling
@@ -249,22 +268,30 @@ export const useSpatialAudioStore = defineStore('spatialAudio', {
       this.userPositions.delete(userId);
     },
     
-    // Initialize user at random position
-    initializeUserPosition(userId: string): void {
+    // Initialize user at position (local user at center, remote users random)
+    initializeUserPosition(userId: string, isLocalUser: boolean = false): void {
       if (this.userPositions.has(userId)) return;
       
-      // Place user at random position within bounds
       const centerX = this.panelSize.width / 2;
       const centerY = this.panelSize.height / 2;
-      const radius = Math.min(this.panelSize.width, this.panelSize.height) / 4;
       
-      const angle = Math.random() * 2 * Math.PI;
-      const distance = Math.random() * radius;
-      
-      const x = centerX + Math.cos(angle) * distance;
-      const y = centerY + Math.sin(angle) * distance;
-      
-      this.setUserPosition(userId, x, y);
+      if (isLocalUser) {
+        // Local user (listener) always at center
+        this.setUserPosition(userId, centerX, centerY);
+        console.log(`🎧 Initialized LOCAL user at center: (${centerX}, ${centerY})`);
+      } else {
+        // Remote users at random positions around center
+        const radius = Math.min(this.panelSize.width, this.panelSize.height) / 4;
+        
+        const angle = Math.random() * 2 * Math.PI;
+        const distance = Math.random() * radius;
+        
+        const x = centerX + Math.cos(angle) * distance;
+        const y = centerY + Math.sin(angle) * distance;
+        
+        this.setUserPosition(userId, x, y);
+        console.log(`🎧 Initialized remote user at random: (${x.toFixed(0)}, ${y.toFixed(0)})`);
+      }
     },
     
     // Start dragging a user

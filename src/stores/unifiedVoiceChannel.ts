@@ -759,12 +759,61 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     async initializeSpatialAudio(userId: string): Promise<void> {
       try {
+        const spatialStore = useSpatialAudioStore();
+        
         // Initialize spatial audio service with direct MediaStream integration
-        // The spatial audio service will create processing chains from MediaStreams
         await spatialAudioService.initialize();
         spatialAudioService.setListener(userId);
         
         console.log('🎧 Spatial audio initialized for user:', userId);
+        
+        // If spatial audio is enabled in settings, activate it now
+        if (spatialStore.settings.enabled) {
+          console.log('🎧 Spatial audio is enabled in settings - activating on load...');
+          
+          // Initialize local user position at center
+          if (!spatialStore.userPositions.has(userId)) {
+            spatialStore.initializeUserPosition(userId, true); // true = isLocalUser (at center)
+          }
+          
+          // Enable spatial audio (will start the update loop)
+          await spatialAudioService.enableSpatialAudio();
+          
+          // Wait a bit for streams to be ready, then setup spatial audio for any existing users
+          // This delay is important because streams might not be immediately available on join
+          setTimeout(async () => {
+            const allUsers = unifiedWebRTC.getAllUsers();
+            const localUserId = unifiedWebRTC.getLocalState().userId;
+            
+            // Setup spatial audio for existing remote users
+            for (const user of allUsers) {
+              if (user.userId !== localUserId) {
+                // Initialize remote user position
+                if (!spatialStore.userPositions.has(user.userId)) {
+                  spatialStore.initializeUserPosition(user.userId, false); // false = remote user
+                }
+                
+                // Setup spatial audio with their stream
+                const userStream = unifiedWebRTC.getUserStream(user.userId);
+                if (userStream) {
+                  await spatialAudioService.setupSpatialForUser(user.userId, userStream);
+                  console.log(`🎧 Setup spatial audio on load for user: ${user.userId}`);
+                } else {
+                  console.warn(`⚠️ Stream not ready yet for user: ${user.userId}`);
+                }
+              }
+            }
+            
+            // Mute traditional audio since spatial is active
+            unifiedWebRTC.setTraditionalAudioEnabled(false);
+            
+            // Force spatial effects update
+            spatialAudioService.updateSpatialEffects();
+            
+            console.log('✅ Spatial audio activated on load');
+          }, 300); // 300ms delay to ensure streams are ready
+        }
+        
       } catch (error) {
         console.error('Failed to initialize spatial audio:', error);
       }
@@ -774,6 +823,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Add user to spatial audio using MediaStream directly
      */
     addUserToSpatialAudio(userId: string): void {
+      // Initialize remote user position if not set (never local user here)
+      const spatialStore = useSpatialAudioStore();
+      if (!spatialStore.userPositions.has(userId)) {
+        spatialStore.initializeUserPosition(userId, false); // false = remote user
+        console.log('🎧 Initialized position for new user:', userId);
+      }
+      
       // Small delay to ensure MediaStream is properly set up
       setTimeout(() => {
         // Get the MediaStream for this user from WebRTC service
@@ -786,6 +842,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           if (spatialStore.settings.enabled) {
             console.log('🔇 Muting traditional audio for user (spatial audio active):', userId);
             unifiedWebRTC.setTraditionalAudioEnabled(false);
+            
+            // Force spatial effects update for new user
+            spatialAudioService.updateSpatialEffects();
           }
         } else {
           console.warn('No media stream found for user:', userId, '- retrying in 100ms');
@@ -800,6 +859,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               if (spatialStore.settings.enabled) {
                 console.log('🔇 Muting traditional audio for user (spatial audio active, retry):', userId);
                 unifiedWebRTC.setTraditionalAudioEnabled(false);
+                
+                // Force spatial effects update for new user
+                spatialAudioService.updateSpatialEffects();
               }
             } else {
               console.warn('Media stream still not found for user:', userId);
