@@ -45,33 +45,14 @@ export const useAuthStore = defineStore('auth', {
       const { data: getSessionData } = await supabase.auth.getSession();
       const session = getSessionData.session;
       
-      const currentAAL = this.getAAL(session);
-      
-      console.log('🔐 Initializing auth, session:', {
-        exists: !!session,
-        userId: session?.user?.id,
-        aal: currentAAL
-      })
-      
-      // CRITICAL SECURITY CHECK: If user has MFA enabled, verify AAL level
-      if (session) {
-        const { data: factors } = await supabase.auth.mfa.listFactors();
-        const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
-        
-        if (has2FA) {
-          console.log('🔐 User has 2FA enabled, session AAL:', currentAAL)
-          
-          if (currentAAL !== 'aal2') {
-            // Session is only AAL1 but user requires AAL2
-            console.warn('🚨 Session found but only', currentAAL, '- user has 2FA enabled, signing out');
-            await supabase.auth.signOut();
-            this.session = null;
-            return;
-          }
-          
-          console.log('✅ Session verified at AAL2 - user fully authenticated');
-        }
-      }
+      // RELAXED AAL2 SECURITY MODEL:
+      // Users with 2FA enabled can stay logged in with AAL1 (password only)
+      // They will be prompted to "step up" to AAL2 when performing sensitive operations:
+      // - Changing password
+      // - Changing email
+      // - Modifying 2FA settings
+      // - Deleting account
+      // This provides better UX while maintaining security for critical operations
       
       this.session = session;
 
@@ -87,32 +68,9 @@ export const useAuthStore = defineStore('auth', {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
         
-        const currentAAL = this.getAAL(session);
-        
-        console.log(`🔐 Auth event: ${event}, AAL: ${currentAAL}`)
-        
-        // IMPORTANT: During MFA_CHALLENGE_VERIFIED, allow through without checking
-        if (event === 'MFA_CHALLENGE_VERIFIED') {
-          console.log('✅ MFA challenge verified - allowing session through')
-          this.session = session;
-          
-          if (session?.user?.id) {
-            this.setupOfflineHandlers(session.user.id);
-          }
-          return;
-        }
-        
-        // Validate AAL for incoming session
-        if (session) {
-          const { data: factors } = await supabase.auth.mfa.listFactors();
-          const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
-          
-          if (has2FA && currentAAL !== 'aal2') {
-            console.warn(`🚨 Session change detected but only ${currentAAL} - rejecting`);
-            return;
-          }
-        }
-        
+        // Accept all valid sessions regardless of AAL level
+        // 2FA is enforced at LOGIN time, not on every session check
+        // This allows users to stay logged in after AAL2 expires (24h)
         this.session = session;
         
         if (session?.user?.id) {
@@ -241,8 +199,6 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async verify2FA(factorId: string, challengeId: string, code: string) {
-      console.log('🔐 verify2FA called with:', { factorId, challengeId, codeLength: code.length })
-      
       // Verify the 2FA code using the existing challenge
       const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
         factorId,
@@ -255,23 +211,15 @@ export const useAuthStore = defineStore('auth', {
         throw verifyError;
       }
 
-      console.log('✅ MFA verify call succeeded')
-
       // Wait for storage to update with the new session
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Get the upgraded session
+      // Get the upgraded session (now at AAL2)
       const { data: sessionData } = await supabase.auth.getSession();
-      
-      const currentAAL = this.getAAL(sessionData.session);
-      
-      console.log('✅ 2FA verified - session upgraded:', {
-        aal: currentAAL,
-        userId: sessionData.session?.user?.id,
-        expiresAt: sessionData.session?.expires_at
-      });
-      
       this.session = sessionData.session;
+      
+      console.log('✅ 2FA verified - session upgraded to AAL2');
+      
       return { session: sessionData.session };
     },
 
