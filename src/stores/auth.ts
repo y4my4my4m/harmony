@@ -48,11 +48,25 @@ export const useAuthStore = defineStore('auth', {
         // to only load unread count initially (full list loads on-demand)
       }
 
-      supabase.auth.onAuthStateChange(async (_, session) => {
+      supabase.auth.onAuthStateChange(async (event, session) => {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
         
-        // Validate AAL for incoming session too
+        console.log(`🔐 Auth event: ${event}, AAL: ${(session as any)?.aal}`)
+        
+        // IMPORTANT: During MFA_CHALLENGE_VERIFIED, the AAL upgrade happens AFTER the event
+        // So we must allow this event through without AAL checking
+        if (event === 'MFA_CHALLENGE_VERIFIED') {
+          console.log('✅ MFA challenge verified - allowing session through')
+          this.session = session;
+          
+          if (session?.user?.id) {
+            this.setupOfflineHandlers(session.user.id);
+          }
+          return;
+        }
+        
+        // Validate AAL for incoming session (except during MFA verification)
         if (session) {
           const { data: factors } = await supabase.auth.mfa.listFactors();
           const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
@@ -197,6 +211,8 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async verify2FA(factorId: string, challengeId: string, code: string) {
+      console.log('🔐 verify2FA called with:', { factorId, challengeId, codeLength: code.length })
+      
       // Verify the 2FA code using the existing challenge
       // On success, this upgrades the session from AAL1 to AAL2
       const { error: verifyError } = await supabase.auth.mfa.verify({
@@ -206,15 +222,21 @@ export const useAuthStore = defineStore('auth', {
       });
 
       if (verifyError) {
+        console.error('❌ MFA verify error:', verifyError)
         throw verifyError;
       }
+
+      console.log('✅ MFA verify call succeeded, fetching upgraded session...')
 
       // After successful verification, the session is now at AAL2
       // NOW we can safely set it in our store
       const { data: sessionData } = await supabase.auth.getSession();
       this.session = sessionData.session;
       
-      console.log('✅ 2FA verified - session upgraded to AAL2');
+      console.log('✅ 2FA verified - session upgraded to AAL2:', {
+        aal: (sessionData.session as any)?.aal,
+        userId: sessionData.session?.user?.id
+      });
       
       return { session: sessionData.session };
     },
