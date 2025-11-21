@@ -233,6 +233,15 @@ const setCursorPosition = (targetPosition: number) => {
     NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
     {
       acceptNode: (node) => {
+        // Skip nodes inside contenteditable=false elements (like mention spans)
+        let parent = node.parentElement;
+        while (parent && parent !== editorRef.value) {
+          if (parent.getAttribute('contenteditable') === 'false') {
+            return NodeFilter.FILTER_SKIP;
+          }
+          parent = parent.parentElement;
+        }
+        
         if (node.nodeType === Node.TEXT_NODE) {
           return NodeFilter.FILTER_ACCEPT;
         } else if (node.nodeType === Node.ELEMENT_NODE) {
