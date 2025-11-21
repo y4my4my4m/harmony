@@ -73,8 +73,8 @@ DECLARE
   v_code_id UUID;
 BEGIN
   -- Hash the provided code (using SHA-256)
-  -- Ensure pgcrypto extension is available and algorithm is explicitly typed
-  v_code_hash := encode(digest(p_code::text, 'sha256'::text), 'hex');
+  -- digest() requires bytea as first argument, not text
+  v_code_hash := encode(digest(p_code::bytea, 'sha256'::text), 'hex');
   
   -- Find an unused recovery code matching the hash
   SELECT id INTO v_code_id
@@ -117,8 +117,8 @@ BEGIN
   -- Insert new recovery codes
   FOREACH v_code IN ARRAY p_codes
   LOOP
-    -- Ensure pgcrypto extension is available and algorithm is explicitly typed
-    v_code_hash := encode(digest(v_code::text, 'sha256'::text), 'hex');
+    -- digest() requires bytea as first argument, not text
+    v_code_hash := encode(digest(v_code::bytea, 'sha256'::text), 'hex');
     INSERT INTO public.mfa_recovery_codes (user_id, code_hash)
     VALUES (p_user_id, v_code_hash);
   END LOOP;

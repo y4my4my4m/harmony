@@ -721,12 +721,21 @@ const check2FAStatus = async () => {
     const { data, error } = await supabase.auth.mfa.listFactors()
     if (error) throw error
 
-    // Check if TOTP factor is verified
+    // Only check for VERIFIED factors - unverified factors from incomplete enrollment shouldn't count
     const totpFactor = data?.totp?.find((f: any) => f.status === 'verified')
     twoFactorEnabled.value = !!totpFactor
     
+    console.log('2FA Status Check:', {
+      allFactors: data?.totp,
+      verifiedFactor: totpFactor,
+      enabled: twoFactorEnabled.value
+    })
+    
     if (totpFactor) {
       factorId.value = totpFactor.id
+    } else {
+      // Clear factor ID if no verified factor exists
+      factorId.value = ''
     }
   } catch (error: any) {
     console.error('2FA status check error:', error)
@@ -738,7 +747,7 @@ const startEnroll2FA = async () => {
   qrCodeLoading.value = true
   showEnroll2FA.value = true
   enrollStep.value = 1
-  
+
   // Reset 2FA status to ensure it shows as disabled during enrollment
   twoFactorEnabled.value = false
   factorId.value = ''
@@ -791,7 +800,18 @@ const verifyAndEnable2FA = async () => {
       code: verificationCode.value
     })
 
-    if (error) throw error
+    if (error) {
+      console.error('2FA verification failed:', error)
+      throw error
+    }
+
+    // Verify the factor is actually verified before proceeding
+    const { data: factorsAfter } = await supabase.auth.mfa.listFactors()
+    const verifiedFactor = factorsAfter?.totp?.find((f: any) => f.id === factorId.value && f.status === 'verified')
+    
+    if (!verifiedFactor) {
+      throw new Error('2FA verification failed - factor not verified')
+    }
 
     // Generate recovery codes (10 random codes)
     recoveryCodes.value = Array.from({ length: 10 }, () => 
@@ -817,6 +837,22 @@ const verifyAndEnable2FA = async () => {
   } catch (error: any) {
     console.error('2FA verification error:', error)
     twoFactorError.value = error.message || 'Invalid verification code'
+    
+    // Clean up unverified factor on error
+    if (factorId.value) {
+      try {
+        const { data: factors } = await supabase.auth.mfa.listFactors()
+        const factor = factors?.totp?.find((f: any) => f.id === factorId.value)
+        
+        // Only try to unenroll if factor exists and is unverified
+        if (factor && factor.status === 'unverified') {
+          await supabase.auth.mfa.unenroll({ factorId: factorId.value })
+          console.log('Cleaned up unverified factor')
+        }
+      } catch (cleanupError) {
+        console.error('Error cleaning up failed enrollment:', cleanupError)
+      }
+    }
   } finally {
     twoFactorLoading.value = false
   }
@@ -824,6 +860,7 @@ const verifyAndEnable2FA = async () => {
 
 const finishEnroll2FA = async () => {
   showEnroll2FA.value = false
+  // Refresh 2FA status to show as enabled now
   await check2FAStatus()
   enrollStep.value = 1
   verificationCode.value = ''
@@ -842,7 +879,7 @@ const cancelEnroll2FA = async () => {
       
       // Only unenroll if factor is unverified (enrollment in progress)
       if (factor && factor.status !== 'verified') {
-        await supabase.auth.mfa.unenroll({ factorId: factorId.value })
+      await supabase.auth.mfa.unenroll({ factorId: factorId.value })
       }
     } catch (error) {
       console.error('Error canceling 2FA enrollment:', error)
@@ -876,15 +913,15 @@ const disable2FA = async () => {
 
     if (currentAAL !== 'aal2') {
       // Need to verify password and then 2FA
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: disable2FAPassword.value
-      })
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: disable2FAPassword.value
+    })
 
-      if (signInError) {
-        toast.error('Incorrect password')
-        return
-      }
+    if (signInError) {
+      toast.error('Incorrect password')
+      return
+    }
 
       // Now create a 2FA challenge to get AAL2
       const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({

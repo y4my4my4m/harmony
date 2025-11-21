@@ -68,16 +68,16 @@ export const useAuthStore = defineStore('auth', {
         // The session exists in Supabase storage for password update, but we don't treat it as logged in
         this.session = null;
       } else {
-        // RELAXED AAL2 SECURITY MODEL:
-        // Users with 2FA enabled can stay logged in with AAL1 (password only)
-        // They will be prompted to "step up" to AAL2 when performing sensitive operations:
-        // - Changing password
-        // - Changing email
-        // - Modifying 2FA settings
-        // - Deleting account
-        // This provides better UX while maintaining security for critical operations
-        
-        this.session = session;
+      // RELAXED AAL2 SECURITY MODEL:
+      // Users with 2FA enabled can stay logged in with AAL1 (password only)
+      // They will be prompted to "step up" to AAL2 when performing sensitive operations:
+      // - Changing password
+      // - Changing email
+      // - Modifying 2FA settings
+      // - Deleting account
+      // This provides better UX while maintaining security for critical operations
+      
+      this.session = session;
       }
 
       // Initialize notification system for existing session
