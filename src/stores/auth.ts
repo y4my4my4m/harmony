@@ -242,7 +242,7 @@ export const useAuthStore = defineStore('auth', {
       
       // Verify the 2FA code using the existing challenge
       // On success, this upgrades the session from AAL1 to AAL2
-      const { error: verifyError } = await supabase.auth.mfa.verify({
+      const { data: verifyData, error: verifyError } = await supabase.auth.mfa.verify({
         factorId,
         challengeId,
         code
@@ -253,31 +253,44 @@ export const useAuthStore = defineStore('auth', {
         throw verifyError;
       }
 
-      console.log('✅ MFA verify call succeeded')
+      console.log('✅ MFA verify call succeeded, verify data:', verifyData)
 
-      // After successful verification, the session is now at AAL2
-      // The onAuthStateChange listener will receive MFA_CHALLENGE_VERIFIED event
-      // and set the session properly. We just need to wait a moment for it.
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Get the upgraded session
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      const getAAL = (sess: Session | null): string => {
-        if (!sess) return 'none';
-        return (sess.user as any)?.aal || 'aal1';
-      };
-      
-      console.log('✅ 2FA verified - session upgraded:', {
-        aal: getAAL(sessionData.session),
-        userId: sessionData.session?.user?.id,
-        expiresAt: sessionData.session?.expires_at
-      });
-      
-      // Set session in store (might already be set by auth listener)
-      this.session = sessionData.session;
-      
-      return { session: sessionData.session };
+      // The verify call returns the upgraded session directly!
+      // We should use THIS session, not call getSession()
+      if (verifyData?.session) {
+        this.session = verifyData.session;
+        
+        const getAAL = (sess: Session | null): string => {
+          if (!sess) return 'none';
+          return (sess.user as any)?.aal || 'aal1';
+        };
+        
+        console.log('✅ 2FA verified - session from verify response:', {
+          aal: getAAL(verifyData.session),
+          userId: verifyData.session.user?.id,
+          expiresAt: verifyData.session.expires_at
+        });
+        
+        return { session: verifyData.session };
+      } else {
+        // Fallback: wait and get session
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const { data: sessionData } = await supabase.auth.getSession();
+        
+        const getAAL = (sess: Session | null): string => {
+          if (!sess) return 'none';
+          return (sess.user as any)?.aal || 'aal1';
+        };
+        
+        console.log('✅ 2FA verified - session from getSession:', {
+          aal: getAAL(sessionData.session),
+          userId: sessionData.session?.user?.id,
+          expiresAt: sessionData.session?.expires_at
+        });
+        
+        this.session = sessionData.session;
+        return { session: sessionData.session };
+      }
     },
 
     async register(email: string, password: string) {
