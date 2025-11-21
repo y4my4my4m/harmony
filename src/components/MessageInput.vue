@@ -122,14 +122,23 @@ const updateText = (newText: string, cursorPosition?: number) => {
   emit('update:modelValue', newText);
   
   // Set cursor position after text update if provided
-  if (cursorPosition !== undefined && richEditorRef.value?.setCursorPosition) {
-    // Use requestAnimationFrame to wait for the browser to finish rendering
-    requestAnimationFrame(() => {
-      if (richEditorRef.value) {
-        console.log('🔧 Setting cursor position to:', cursorPosition);
-        richEditorRef.value.setCursorPosition(cursorPosition);
-        richEditorRef.value.focus();
+  if (cursorPosition !== undefined && richEditorRef.value) {
+    // Wait for Vue to update the model value and trigger the watch in RichTextEditor
+    nextTick(() => {
+      // Now that the watch has been triggered, render the content but skip cursor restore
+      if (richEditorRef.value?.renderContent) {
+        richEditorRef.value.renderContent(newText, true); // Skip cursor restore
       }
+      
+      // Then set our cursor position and focus
+      nextTick(() => {
+        if (richEditorRef.value) {
+          console.log('🔧 Setting cursor position to:', cursorPosition);
+          richEditorRef.value.setCursorPosition(cursorPosition);
+          console.log('🔧 Focusing editor');
+          richEditorRef.value.focus();
+        }
+      });
     });
   }
 };

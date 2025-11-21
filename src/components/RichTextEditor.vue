@@ -400,8 +400,8 @@ const createMentionElementFromDisplay = (displayText: string, username: string, 
 };
 
 // Render content with Discord-like markdown styling
-const renderContent = (text: string) => {
-  console.log('🔧 renderContent called with:', text);
+const renderContent = (text: string, skipCursorRestore = false) => {
+  console.log('🔧 renderContent called with:', text, 'skipCursorRestore:', skipCursorRestore);
   if (!editorRef.value || isRendering.value) {
     console.log('🔧 renderContent early return:', { hasEditor: !!editorRef.value, isRendering: isRendering.value });
     return;
@@ -454,15 +454,22 @@ const renderContent = (text: string) => {
   
   editorRef.value.appendChild(fragment);
   
-  // Restore cursor position
-  nextTick(() => {
-    if (editorRef.value && (document.activeElement === editorRef.value || 
-        editorRef.value.contains(document.activeElement))) {
-      console.log('🔧 Restoring cursor position to:', currentCursorPos);
-      setCursorPosition(currentCursorPos);
-    }
-    isRendering.value = false;
-  });
+  // Restore cursor position only if not skipping
+  if (!skipCursorRestore) {
+    nextTick(() => {
+      if (editorRef.value && (document.activeElement === editorRef.value || 
+          editorRef.value.contains(document.activeElement))) {
+        console.log('🔧 Restoring cursor position to:', currentCursorPos);
+        setCursorPosition(currentCursorPos);
+      }
+      isRendering.value = false;
+    });
+  } else {
+    console.log('🔧 Skipping cursor restore, will be set externally');
+    nextTick(() => {
+      isRendering.value = false;
+    });
+  }
 };
 
 // Create DOM element from markdown token (keeping markers visible)
@@ -762,7 +769,8 @@ defineExpose({
   clear,
   insertTextAtCursor,
   getCursorPosition,
-  setCursorPosition
+  setCursorPosition,
+  renderContent
 });
 
 // Watch for external model value changes
@@ -775,8 +783,9 @@ watch(() => props.modelValue, (newValue) => {
       different: currentText !== newValue 
     });
     if (currentText !== newValue) {
-      console.log('🔧 Calling renderContent with:', JSON.stringify(newValue));
-      renderContent(newValue);
+      console.log('🔧 Calling renderContent with:', JSON.stringify(newValue), '(from watch)');
+      // Don't skip cursor restore here - this is for normal typing
+      renderContent(newValue, false);
       autoExpand();
     }
   }
