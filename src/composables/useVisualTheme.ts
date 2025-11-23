@@ -15,7 +15,9 @@ import { useAuthStore } from '@/stores/auth'
 
 export interface VisualThemeSettings {
   theme: 'dark' | 'light' | 'midnight' | 'custom'
+  customThemeMode?: 'dark' | 'light'
   customAccentColor?: string
+  customBackgroundColor?: string
   fontSize: number
   zoomLevel: number
   messageDisplay: 'cozy' | 'compact'
@@ -61,6 +63,9 @@ const PRESET_THEMES = {
 // Global state (singleton pattern)
 const settings = ref<VisualThemeSettings>({
   theme: 'dark',
+  customThemeMode: 'dark',
+  customAccentColor: '#5865f2',
+  customBackgroundColor: '#5865f2',
   fontSize: 14,
   zoomLevel: 100,
   messageDisplay: 'cozy',
@@ -172,7 +177,11 @@ function applySettings(settings: VisualThemeSettings) {
   // Apply theme
   if (settings.theme === 'custom' && settings.customAccentColor) {
     try {
-      const palette = generateThemePalette(settings.customAccentColor)
+      const palette = generateThemePalette(
+        settings.customAccentColor,
+        settings.customThemeMode,
+        settings.customBackgroundColor
+      )
       applyThemePalette(palette)
     } catch (error) {
       console.error('Failed to apply custom theme:', error)
@@ -353,11 +362,14 @@ export function useVisualTheme() {
     watch(
       settings,
       (newSettings) => {
+        // Apply settings immediately for real-time feedback
         applySettings(newSettings)
+        // Save to localStorage immediately
         saveToLocalStorage(newSettings)
+        // Debounce save to Supabase
         debouncedSaveToSupabase(newSettings)
       },
-      { deep: true }
+      { deep: true, immediate: false }
     )
     
     isInitialized.value = true
@@ -367,11 +379,23 @@ export function useVisualTheme() {
   /**
    * Update theme
    */
-  function setTheme(theme: 'dark' | 'light' | 'midnight' | 'custom', customColor?: string) {
+  function setTheme(theme: 'dark' | 'light' | 'midnight' | 'custom', customColor?: string, customBgColor?: string) {
     settings.value.theme = theme
-    if (theme === 'custom' && customColor) {
-      settings.value.customAccentColor = customColor
+    if (theme === 'custom') {
+      if (customColor) {
+        settings.value.customAccentColor = customColor
+      }
+      if (customBgColor) {
+        settings.value.customBackgroundColor = customBgColor
+      }
     }
+  }
+  
+  /**
+   * Update custom theme mode
+   */
+  function setCustomThemeMode(mode: 'dark' | 'light') {
+    settings.value.customThemeMode = mode
   }
   
   /**
@@ -380,6 +404,14 @@ export function useVisualTheme() {
   function setCustomAccentColor(color: string) {
     settings.value.theme = 'custom'
     settings.value.customAccentColor = color
+  }
+  
+  /**
+   * Update custom background color
+   */
+  function setCustomBackgroundColor(color: string) {
+    settings.value.theme = 'custom'
+    settings.value.customBackgroundColor = color
   }
   
   /**
@@ -443,6 +475,9 @@ export function useVisualTheme() {
   function resetToDefaults() {
     settings.value = {
       theme: 'dark',
+      customThemeMode: 'dark',
+      customAccentColor: '#5865f2',
+      customBackgroundColor: '#5865f2',
       fontSize: 14,
       zoomLevel: 100,
       messageDisplay: 'cozy',
@@ -469,7 +504,9 @@ export function useVisualTheme() {
     // Methods
     initialize,
     setTheme,
+    setCustomThemeMode,
     setCustomAccentColor,
+    setCustomBackgroundColor,
     setFontSize,
     setZoomLevel,
     setMessageDisplay,

@@ -294,29 +294,49 @@ export interface ThemePalette {
 }
 
 /**
- * Generate theme palette from accent color
+ * Generate theme palette from accent color and background color
  */
-export function generateThemePalette(accentHex: string): ThemePalette {
-  const isLight = isLightColor(accentHex)
+export function generateThemePalette(
+  accentHex: string, 
+  forcedMode?: 'light' | 'dark',
+  backgroundHex?: string
+): ThemePalette {
+  const isLight = forcedMode === 'light' || (forcedMode === undefined && isLightColor(accentHex))
   const baseOklch = hexToOklch(accentHex)
   
   if (!baseOklch) {
-    throw new Error('Invalid color')
+    throw new Error('Invalid accent color')
+  }
+
+  // If background color is provided, use its hue for the UI backgrounds
+  let bgHue = baseOklch.h
+  if (backgroundHex) {
+    const bgOklch = hexToOklch(backgroundHex)
+    if (bgOklch) {
+      bgHue = bgOklch.h
+    }
   }
 
   if (isLight) {
-    // Light theme
+    // Light theme - use background hue for subtle tinting
+    const bgTintChroma = 0.02 // Very subtle chroma for backgrounds
+    
+    const bgPrimaryOklch = { l: 98, c: bgTintChroma, h: bgHue }
+    const bgSecondaryOklch = { l: 96, c: bgTintChroma, h: bgHue }
+    const bgTertiaryOklch = { l: 94, c: bgTintChroma, h: bgHue }
+    const sidebarOklch = { l: 94, c: bgTintChroma * 1.5, h: bgHue }
+    
     return {
       primary: accentHex,
       primaryHover: adjustLightness(accentHex, -10),
       primaryLight: adjustLightness(accentHex, 20),
       primaryDark: adjustLightness(accentHex, -15),
       
-      bgPrimary: '#ffffff',
-      bgSecondary: '#f6f6f7',
-      bgTertiary: '#f2f3f5',
-      bgChat: '#ffffff',
-      bgSidebar: '#f2f3f5',
+      bgPrimary: oklchToHex(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h),
+      bgSecondary: oklchToHex(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h),
+      bgTertiary: oklchToHex(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h),
+      bgChat: oklchToHex(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h),
+      bgSidebar: oklchToHex(sidebarOklch.l, sidebarOklch.c, sidebarOklch.h),
       
       textPrimary: '#2e3338',
       textSecondary: '#4e5058',
@@ -328,11 +348,13 @@ export function generateThemePalette(accentHex: string): ThemePalette {
       isLightTheme: true,
     }
   } else {
-    // Dark theme - generate backgrounds with similar hue but very low chroma
-    const bgOklch = { l: 20, c: 0.01, h: baseOklch.h }
-    const bgSecondaryOklch = { l: 18, c: 0.01, h: baseOklch.h }
-    const bgTertiaryOklch = { l: 16, c: 0.01, h: baseOklch.h }
-    const sidebarOklch = { l: 17, c: 0.015, h: baseOklch.h }
+    // Dark theme - use background hue with low chroma for UI tone
+    const bgTintChroma = 0.015 // Subtle chroma for dark backgrounds
+    
+    const bgChatOklch = { l: 20, c: bgTintChroma, h: bgHue }
+    const bgSecondaryOklch = { l: 18, c: bgTintChroma, h: bgHue }
+    const bgTertiaryOklch = { l: 16, c: bgTintChroma, h: bgHue }
+    const sidebarOklch = { l: 17, c: bgTintChroma * 1.5, h: bgHue }
     
     return {
       primary: accentHex,
@@ -340,10 +362,10 @@ export function generateThemePalette(accentHex: string): ThemePalette {
       primaryLight: adjustLightness(accentHex, 15),
       primaryDark: adjustLightness(accentHex, -12),
       
-      bgPrimary: oklchToHex(bgOklch.l, bgOklch.c, bgOklch.h),
+      bgPrimary: oklchToHex(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h),
       bgSecondary: oklchToHex(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h),
       bgTertiary: oklchToHex(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h),
-      bgChat: oklchToHex(bgOklch.l, bgOklch.c, bgOklch.h),
+      bgChat: oklchToHex(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h),
       bgSidebar: oklchToHex(sidebarOklch.l, sidebarOklch.c, sidebarOklch.h),
       
       textPrimary: '#f2f3f5',
@@ -372,7 +394,7 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary-light', palette.primaryLight)
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
   
-  // Background colors
+  // Background colors - Apply to ALL background variables
   root.style.setProperty('--h-chat', palette.bgChat)
   root.style.setProperty('--h-chat-light', adjustLightness(palette.bgChat, 3))
   root.style.setProperty('--h-chat-lighter', adjustLightness(palette.bgChat, 5))
@@ -391,6 +413,8 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--background-primary', palette.bgPrimary)
   root.style.setProperty('--background-secondary', palette.bgSecondary)
   root.style.setProperty('--background-tertiary', palette.bgTertiary)
+  root.style.setProperty('--background-quaternary', adjustLightness(palette.bgSecondary, 2))
+  root.style.setProperty('--background-quinary', adjustLightness(palette.bgTertiary, 2))
   
   // Text colors
   root.style.setProperty('--text-primary', palette.textPrimary)
@@ -402,6 +426,9 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--border-secondary', palette.borderSecondary)
   
   // Set theme attribute
-  root.setAttribute('data-theme', palette.isLightTheme ? 'light' : 'dark')
+  root.setAttribute('data-theme', 'custom')
+  root.setAttribute('data-theme-type', palette.isLightTheme ? 'light' : 'dark')
+  
+  console.log('🎨 Applied custom theme palette:', palette)
 }
 

@@ -1,14 +1,14 @@
 <template>
   <div class="appearance-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Appearance</h2>
+      <h2 class="settings-title">{{ $t('settings.appearance.title') }}</h2>
       <p class="settings-description">
-        Customize how Harmony looks and feels.
+        {{ $t('settings.appearance.description') }}
       </p>
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Theme</h3>
+      <h3 class="section-title">{{ $t('settings.appearance.theme') }}</h3>
       
       <div class="theme-options">
         <div
@@ -26,30 +26,67 @@
             </div>
           </div>
           <div class="theme-info">
-            <h4 class="theme-name">{{ theme.name }}</h4>
-            <p class="theme-description">{{ theme.description }}</p>
+            <h4 class="theme-name">{{ $t(`settings.appearance.themes.${theme.id}`) }}</h4>
+            <p class="theme-description">{{ $t(`settings.appearance.themes.${theme.id}Desc`) }}</p>
           </div>
         </div>
       </div>
       
       <!-- Custom Color Picker -->
       <div v-if="settings.theme === 'custom'" class="custom-color-section">
-        <h4 class="section-subtitle">Custom Theme Color</h4>
-        <p class="section-help">Choose an accent color. The app will automatically generate a complete theme based on your choice.</p>
-        <ColorPicker 
-          v-model:color="settings.customAccentColor"
-          @change="onCustomColorChange"
-        />
+        <h4 class="section-subtitle">{{ $t('settings.appearance.customTheme') }}</h4>
+        <p class="section-help">{{ $t('settings.appearance.customThemeHelp') }}</p>
+        
+        <!-- Theme Mode Selector -->
+        <div class="custom-theme-mode">
+          <label class="mode-label">Theme Mode</label>
+          <div class="mode-options">
+            <button
+              class="mode-btn"
+              :class="{ active: settings.customThemeMode === 'dark' }"
+              @click="settings.customThemeMode = 'dark'; onCustomColorChange()"
+            >
+              🌙 Dark
+            </button>
+            <button
+              class="mode-btn"
+              :class="{ active: settings.customThemeMode === 'light' }"
+              @click="settings.customThemeMode = 'light'; onCustomColorChange()"
+            >
+              ☀️ Light
+            </button>
+          </div>
+        </div>
+        
+        <!-- Background Color -->
+        <div class="color-picker-section">
+          <label class="picker-label">Background Tone</label>
+          <p class="picker-help">Influences the overall color tone of backgrounds</p>
+          <ColorPicker 
+            v-model:color="settings.customBackgroundColor"
+            @change="onCustomBackgroundChange"
+          />
+        </div>
+        
+        <!-- Accent Color -->
+        <div class="color-picker-section">
+          <label class="picker-label">Accent Color</label>
+          <p class="picker-help">Used for buttons, links, and interactive elements</p>
+          <ColorPicker 
+            v-model:color="settings.customAccentColor"
+            @change="onCustomColorChange"
+          />
+        </div>
       </div>
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Font Settings</h3>
+      <h3 class="section-title">{{ $t('settings.appearance.fontSize') }}</h3>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Font Size</h4>
-          <p class="setting-description">Adjust the size of text in messages.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.fontSize') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.fontSizeDesc') }}</p>
         </div>
         <div class="setting-control">
           <div class="font-size-slider">
@@ -69,8 +106,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Zoom Level</h4>
-          <p class="setting-description">Change the zoom level of the entire app.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.zoomLevel') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.zoomLevelDesc') }}</p>
         </div>
         <div class="setting-control">
           <div class="zoom-controls">
@@ -95,12 +132,12 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Chat Display</h3>
+      <h3 class="section-title">{{ $t('settings.appearance.messageDisplay') }}</h3>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Message Display</h4>
-          <p class="setting-description">Choose how messages are displayed.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.messageDisplay') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.messageDisplayDesc') }}</p>
         </div>
         <div class="setting-control">
           <select 
@@ -108,16 +145,16 @@
             class="select-input"
             @change="onSettingChange"
           >
-            <option value="cozy">Cozy</option>
-            <option value="compact">Compact</option>
+            <option value="cozy">{{ $t('settings.appearance.cozy') }}</option>
+            <option value="compact">{{ $t('settings.appearance.compact') }}</option>
           </select>
         </div>
       </div>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Show message timestamps</h4>
-          <p class="setting-description">Display timestamps on messages.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.showTimestamps') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.showTimestampsDesc') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch 
@@ -217,14 +254,14 @@
         :disabled="loading || !hasChanges"
       >
         <span v-if="loading" class="loading-spinner"></span>
-        Save Changes
+        {{ $t('settings.appearance.saveChanges') }}
       </button>
       <button 
         class="btn btn-secondary" 
         @click="resetSettings"
         :disabled="loading || !hasChanges"
       >
-        Reset
+        {{ $t('settings.appearance.resetSettings') }}
       </button>
     </div>
   </div>
@@ -260,7 +297,9 @@ const visualTheme = useVisualTheme()
 // State
 const settings = ref({
   theme: 'dark' as 'dark' | 'light' | 'midnight' | 'custom',
+  customThemeMode: 'dark' as 'dark' | 'light',
   customAccentColor: '#5865f2',
+  customBackgroundColor: '#5865f2',
   fontSize: 14,
   zoomLevel: 100,
   messageDisplay: 'cozy' as 'cozy' | 'compact',
@@ -324,35 +363,11 @@ const hasChanges = computed(() => {
 // Methods
 const selectTheme = (themeId: string) => {
   settings.value.theme = themeId as 'dark' | 'light' | 'midnight' | 'custom'
-  applyThemeImmediately()
-}
-
-const onCustomColorChange = (color: string) => {
-  settings.value.customAccentColor = color
-  applyThemeImmediately()
-}
-
-const onFontSizeChange = () => {
-  applyThemeImmediately()
-}
-
-const adjustZoom = (delta: number) => {
-  const newZoom = settings.value.zoomLevel + delta
-  if (newZoom >= 50 && newZoom <= 200) {
-    settings.value.zoomLevel = newZoom
-    applyThemeImmediately()
-  }
-}
-
-const onFloatingVideoChange = () => {
-  setFloatingVideoEnabled(settings.value.floatingVideoEnabled)
-}
-
-const applyThemeImmediately = () => {
-  // Apply to visual theme system
   visualTheme.updateSettings({
     theme: settings.value.theme,
+    customThemeMode: settings.value.customThemeMode,
     customAccentColor: settings.value.customAccentColor,
+    customBackgroundColor: settings.value.customBackgroundColor,
     fontSize: settings.value.fontSize,
     zoomLevel: settings.value.zoomLevel,
     messageDisplay: settings.value.messageDisplay,
@@ -365,17 +380,82 @@ const applyThemeImmediately = () => {
   })
 }
 
+const onCustomColorChange = () => {
+  // Update composable settings immediately (triggers real-time watch)
+  visualTheme.updateSettings({
+    theme: settings.value.theme,
+    customThemeMode: settings.value.customThemeMode,
+    customAccentColor: settings.value.customAccentColor,
+    customBackgroundColor: settings.value.customBackgroundColor,
+    fontSize: settings.value.fontSize,
+    zoomLevel: settings.value.zoomLevel,
+    messageDisplay: settings.value.messageDisplay,
+    showTimestamps: settings.value.showTimestamps,
+    use24HourTime: settings.value.use24HourTime,
+    compactMode: settings.value.compactMode,
+    highContrast: settings.value.highContrast,
+    reduceMotion: settings.value.reduceMotion,
+    screenReaderSupport: settings.value.screenReaderSupport,
+  })
+}
+
+const onCustomBackgroundChange = () => {
+  // Update composable settings immediately (triggers real-time watch)
+  visualTheme.updateSettings({
+    theme: settings.value.theme,
+    customThemeMode: settings.value.customThemeMode,
+    customAccentColor: settings.value.customAccentColor,
+    customBackgroundColor: settings.value.customBackgroundColor,
+    fontSize: settings.value.fontSize,
+    zoomLevel: settings.value.zoomLevel,
+    messageDisplay: settings.value.messageDisplay,
+    showTimestamps: settings.value.showTimestamps,
+    use24HourTime: settings.value.use24HourTime,
+    compactMode: settings.value.compactMode,
+    highContrast: settings.value.highContrast,
+    reduceMotion: settings.value.reduceMotion,
+    screenReaderSupport: settings.value.screenReaderSupport,
+  })
+}
+
+const onFontSizeChange = () => {
+  visualTheme.setFontSize(settings.value.fontSize)
+}
+
+const adjustZoom = (delta: number) => {
+  const newZoom = settings.value.zoomLevel + delta
+  if (newZoom >= 50 && newZoom <= 200) {
+    settings.value.zoomLevel = newZoom
+    visualTheme.setZoomLevel(newZoom)
+  }
+}
+
+const onFloatingVideoChange = () => {
+  setFloatingVideoEnabled(settings.value.floatingVideoEnabled)
+}
+
 const saveSettings = () => {
   emit('update-appearance', settings.value)
   originalSettings.value = { ...settings.value }
-  
-  // Apply all settings through visual theme system
-  applyThemeImmediately()
 }
 
 const resetSettings = () => {
   settings.value = { ...originalSettings.value }
-  applyThemeImmediately()
+  visualTheme.updateSettings({
+    theme: settings.value.theme,
+    customThemeMode: settings.value.customThemeMode,
+    customAccentColor: settings.value.customAccentColor,
+    customBackgroundColor: settings.value.customBackgroundColor,
+    fontSize: settings.value.fontSize,
+    zoomLevel: settings.value.zoomLevel,
+    messageDisplay: settings.value.messageDisplay,
+    showTimestamps: settings.value.showTimestamps,
+    use24HourTime: settings.value.use24HourTime,
+    compactMode: settings.value.compactMode,
+    highContrast: settings.value.highContrast,
+    reduceMotion: settings.value.reduceMotion,
+    screenReaderSupport: settings.value.screenReaderSupport,
+  })
 }
 
 // Initialize
@@ -387,7 +467,9 @@ onMounted(async () => {
   const currentSettings = visualTheme.currentSettings.value
   settings.value = {
     theme: currentSettings.theme,
+    customThemeMode: currentSettings.customThemeMode || 'dark',
     customAccentColor: currentSettings.customAccentColor || '#5865f2',
+    customBackgroundColor: currentSettings.customBackgroundColor || '#5865f2',
     fontSize: currentSettings.fontSize,
     zoomLevel: currentSettings.zoomLevel,
     messageDisplay: currentSettings.messageDisplay,
@@ -400,23 +482,6 @@ onMounted(async () => {
     screenReaderSupport: currentSettings.screenReaderSupport,
   }
   originalSettings.value = { ...settings.value }
-  
-  // Watch for changes and apply in real-time
-  watch(settings, (newSettings) => {
-    visualTheme.updateSettings({
-      theme: newSettings.theme,
-      customAccentColor: newSettings.customAccentColor,
-      fontSize: newSettings.fontSize,
-      zoomLevel: newSettings.zoomLevel,
-      messageDisplay: newSettings.messageDisplay,
-      showTimestamps: newSettings.showTimestamps,
-      use24HourTime: newSettings.use24HourTime,
-      compactMode: newSettings.compactMode,
-      highContrast: newSettings.highContrast,
-      reduceMotion: newSettings.reduceMotion,
-      screenReaderSupport: newSettings.screenReaderSupport,
-    })
-  }, { deep: true })
 })
 </script>
 
@@ -553,6 +618,65 @@ onMounted(async () => {
   color: #b9bbbe;
   margin: 0 0 16px 0;
   line-height: 1.5;
+}
+
+.custom-theme-mode {
+  margin-bottom: 24px;
+}
+
+.mode-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.mode-options {
+  display: flex;
+  gap: 12px;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid var(--h-chat-light);
+  background-color: var(--h-chat-darker);
+  color: #b9bbbe;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.mode-btn:hover {
+  border-color: #5865f2;
+  background-color: var(--h-chat-light);
+}
+
+.mode-btn.active {
+  border-color: #5865f2;
+  background-color: rgba(88, 101, 242, 0.15);
+  color: #ffffff;
+}
+
+.color-picker-section {
+  margin-bottom: 24px;
+}
+
+.picker-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.picker-help {
+  font-size: 12px;
+  color: #b9bbbe;
+  margin: 0 0 12px 0;
 }
 
 .setting-item {
