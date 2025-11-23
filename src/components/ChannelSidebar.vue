@@ -88,6 +88,12 @@
               :participants="getVoiceChannelParticipants(element.id)"
               :session-start-time="getVoiceSessionStartTime(element.id)"
             />
+            <!-- Voice channel users (for channels we're NOT in) -->
+            <VoiceChannelUserList
+              v-else-if="element.type === 1 && getUsersInVoiceChannel(element.id).length > 0"
+              :user-ids="getUsersInVoiceChannel(element.id)"
+              :call-start-time="getChannelCallStartTime(element.id)"
+            />
           </div>
         </template>
       </draggable>
@@ -200,6 +206,12 @@
                     :participants="getVoiceChannelParticipants(channel.id)"
                     :session-start-time="getVoiceSessionStartTime(channel.id)"
                   />
+                  <!-- Voice channel users (for channels we're NOT in) -->
+                  <VoiceChannelUserList
+                    v-else-if="channel.type === 1 && getUsersInVoiceChannel(channel.id).length > 0"
+                    :user-ids="getUsersInVoiceChannel(channel.id)"
+                    :call-start-time="getChannelCallStartTime(channel.id)"
+                  />
                 </div>
               </template>
               <!-- Empty state for drag target - only show when dragging channels -->
@@ -295,6 +307,7 @@ import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
 import VoiceChannelParticipants from '@/components/voice/VoiceChannelParticipants.vue';
+import VoiceChannelUserList from '@/components/voice/VoiceChannelUserList.vue';
 import ChannelContextMenu from './ChannelContextMenu.vue';
 import CategoryContextMenu from './CategoryContextMenu.vue';
 import ChannelEditModal from './ChannelEditModal.vue';
@@ -619,6 +632,7 @@ const handleChannelCreated = (channel: Channel) => {
 
 const isUserInVoiceChannel = (channelId: string): boolean => voiceChannelStore.isConnected && voiceChannelStore.currentChannelId === channelId;
 const getUsersInVoiceChannel = (channelId: string): string[] => serverUsersStore.getUsersInVoiceChannel(channelId);
+const getChannelCallStartTime = (channelId: string): Date | null => serverUsersStore.getCallStartTime(channelId);
 
 const getVoiceChannelParticipants = (channelId: string) => {
   // Only return participants if the current user is in this specific channel
@@ -736,15 +750,34 @@ const handleChannelUpdated = (updatedChannel: Channel) => {}; // Store handles u
 const handleCategoryUpdated = (updatedCategory: Category) => {}; // Store handles updates
 
 // Lifecycle Hooks
-watch(() => props.currentServer?.id, (newServerId) => {
-  if (newServerId) initializeCategoryStates();
+watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
+  console.log('🔄 Server changed:', { old: oldServerId, new: newServerId });
+  if (newServerId) {
+    initializeCategoryStates();
+    // Setup voice channel broadcast for real-time updates
+    // Await this to ensure voice channel state is fetched before rendering
+    console.log('📞 Setting up voice channel broadcast for server:', newServerId);
+    await serverUsersStore.setupVoiceChannelBroadcast(newServerId);
+    console.log('✅ Voice channel broadcast setup complete for server:', newServerId);
+    console.log('👥 Users in voice channels:', serverUsersStore.usersInVoiceChannels);
+  }
 }, { immediate: true });
+
+onMounted(() => {
+  console.log('🎬 ChannelSidebar mounted, current server:', props.currentServer?.id);
+  // If we have a server on mount, ensure voice channel state is loaded
+  if (props.currentServer?.id) {
+    console.log('🔄 Fetching voice channel state on mount for server:', props.currentServer.id);
+    serverUsersStore.setupVoiceChannelBroadcast(props.currentServer.id);
+  }
+});
 
 watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
 watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });
 
 onMounted(() => document.addEventListener('click', closeContextMenus));
 onUnmounted(() => document.removeEventListener('click', closeContextMenus));
+
 
 </script>
 

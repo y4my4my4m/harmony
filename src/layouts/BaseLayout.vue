@@ -260,6 +260,17 @@ const initializeApp = async () => {
     // Ensure global presence is active regardless of current view
     await userData.refreshGlobalPresence()
     
+    // Attempt to reconnect to previous voice channel if user was in one
+    setTimeout(async () => {
+      try {
+        const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
+        const voiceStore = useUnifiedVoiceChannelStore()
+        await voiceStore.reconnectToVoiceChannel()
+      } catch (error) {
+        console.error('Failed to reconnect to voice channel:', error)
+      }
+    }, 500) // Small delay to ensure everything is initialized
+    
     // Background loading of non-critical data
     setTimeout(() => {
       initializeBackgroundData(userId, loadingStrategy)

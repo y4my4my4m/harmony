@@ -7,12 +7,15 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { updateUserStatus } from '@/services/ProfileService';
 import { getMembershipService } from '@/services/membershipService';
 import { userDataService } from '@/services/userDataService';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
   
 export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
     userProfiles: {} as Record<string, User>,
     usersInVoiceChannels: {} as Record<string, string[]>,
+    voiceChannelCallStartTimes: {} as Record<string, Date>, // Track call start time per channel
     presenceChannel: null as RealtimeChannel | null,
+    voiceChannelBroadcast: null as RealtimeChannel | null, // Persistent channel for voice events
     onlineUsers: new Set<string>(),
     offlineBroadcastChannel: null as RealtimeChannel | null,
     currentServerId: null as string | null, // Track current server for membership events
@@ -265,6 +268,10 @@ export const useServerUsersStore = defineStore('serverUsers', {
         this.presenceChannel.unsubscribe()
         this.presenceChannel = null
       }
+      if (this.voiceChannelBroadcast) {
+        this.voiceChannelBroadcast.unsubscribe()
+        this.voiceChannelBroadcast = null
+      }
       if (this.offlineBroadcastChannel) {
         this.offlineBroadcastChannel.unsubscribe()
         this.offlineBroadcastChannel = null
@@ -273,16 +280,32 @@ export const useServerUsersStore = defineStore('serverUsers', {
       this.currentServerId = null
     },
 
-    broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string) {
-      const channel = supabase.channel(`server-${serverId}`, {
+    /**
+     * Setup voice channel broadcast listener for a server
+     * This allows users to see real-time updates of who's in voice channels
+     */
+    async setupVoiceChannelBroadcast(serverId: string) {
+      // Clean up existing channel if any
+      if (this.voiceChannelBroadcast) {
+        await this.voiceChannelBroadcast.unsubscribe();
+      }
+
+      console.log('🎙️ Setting up voice channel broadcast for server:', serverId);
+
+      // NOTE: There is no database table to fetch initial state from.
+      // Voice channel state is ephemeral and tracked through broadcast events only.
+      // When users join/leave voice channels, they broadcast their state.
+      // We'll request current state after connecting to the broadcast channel.
+
+      this.voiceChannelBroadcast = supabase.channel(`voice-channels:${serverId}`, {
         config: {
           broadcast: { self: true },
         },
-      })
+      });
 
-      channel.on('broadcast', { event: 'voice-channel-event' }, (payload) => {
-        console.log(payload);
-        const { event, userId } = payload.payload;
+      this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, (payload) => {
+        console.log('🎙️ Received voice channel event:', payload);
+        const { event, userId, channelId, callStartTime } = payload.payload;
 
         if (event === 'user-joined') {
           if (!this.usersInVoiceChannels[channelId]) {
@@ -291,26 +314,129 @@ export const useServerUsersStore = defineStore('serverUsers', {
           if (!this.usersInVoiceChannels[channelId].includes(userId)) {
             this.usersInVoiceChannels[channelId].push(userId);
           }
+          
+          // Set call start time if provided
+          if (callStartTime && !this.voiceChannelCallStartTimes[channelId]) {
+            this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
+            console.log(`🕐 Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+          }
+          
+          console.log(`✅ User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
         } else if (event === 'user-left') {
-          this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+          if (this.usersInVoiceChannels[channelId]) {
+            this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+            console.log(`✅ User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
+            
+            // Clear call start time if last user left
+            if (this.usersInVoiceChannels[channelId].length === 0) {
+              delete this.voiceChannelCallStartTimes[channelId];
+              console.log(`🕐 Cleared call start time for channel ${channelId} (empty)`);
+            }
+          }
+        } else if (event === 'call-start-time-sync') {
+          // Sync call start time from other users
+          if (callStartTime) {
+            this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
+            console.log(`🕐 Synced call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+          }
+        } else if (event === 'request-state') {
+          // Someone is requesting current voice channel state
+          // If we're in a voice channel, broadcast our presence
+          const voiceStore = useUnifiedVoiceChannelStore();
+          if (voiceStore.isConnected && voiceStore.currentChannelId) {
+            console.log('📡 Responding to state request with our voice channel presence');
+            this.broadcastVoiceChannelEvent(
+              serverId,
+              voiceStore.currentChannelId,
+              'user-joined',
+              voiceStore.localState.userId,
+              voiceStore.callStartTime?.toISOString()
+            );
+          }
         }
-        console.log(this.usersInVoiceChannels[channelId]);
-      })
+      });
+
+      await this.voiceChannelBroadcast.subscribe();
+      console.log('✅ Voice channel broadcast subscribed for server:', serverId);
       
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          channel.send({
-            type: 'broadcast',
-            event: 'voice-channel-event',
-            payload: { event, userId }
-          });
+      // Request current voice channel state from any active users
+      // This allows new viewers to see who's in voice channels
+      this.broadcastVoiceChannelEvent(serverId, '', 'request-state', '');
+      console.log('📡 Requested current voice channel state from active users');
+    },
+
+    /**
+     * Fetch current voice channel state from database
+     */
+    async fetchVoiceChannelState(serverId: string) {
+      try {
+        console.log('📞 Fetching voice channel state for server:', serverId);
+        
+        const { data, error } = await supabase
+          .from('user_presence')
+          .select('user_id, voice_channel_id')
+          .eq('server_id', serverId)
+          .not('voice_channel_id', 'is', null);
+
+        if (error) {
+          console.error('Failed to fetch voice channel state:', error);
+          return;
         }
-      })
+
+        // Group users by channel
+        const channelUsers: Record<string, string[]> = {};
+        if (data) {
+          for (const presence of data) {
+            if (presence.voice_channel_id) {
+              if (!channelUsers[presence.voice_channel_id]) {
+                channelUsers[presence.voice_channel_id] = [];
+              }
+              channelUsers[presence.voice_channel_id].push(presence.user_id);
+            }
+          }
+        }
+
+        // Update local state - REPLACE instead of merge to clear stale data
+        this.usersInVoiceChannels = { ...channelUsers };
+        
+        console.log('✅ Fetched voice channel state:', this.usersInVoiceChannels);
+        console.log('📊 Channels with users:', Object.keys(this.usersInVoiceChannels).length);
+      } catch (error) {
+        console.error('Error fetching voice channel state:', error);
+      }
+    },
+
+    broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string, callStartTime?: string) {
+      if (!this.voiceChannelBroadcast) {
+        console.error('❌ Voice channel broadcast not initialized');
+        return;
+      }
+
+      this.voiceChannelBroadcast.send({
+        type: 'broadcast',
+        event: 'voice-channel-event',
+        payload: { event, userId, channelId, callStartTime }
+      });
+      
+      console.log(`📡 Broadcasted ${event} for user ${userId} in channel ${channelId}`, callStartTime ? `with start time ${callStartTime}` : '');
+    },
+
+    // Get all users in a specific voice channel
+    getUsersInVoiceChannel(channelId: string): string[] {
+      return this.usersInVoiceChannels[channelId] || [];
+    },
+
+    // Get call start time for a channel
+    getCallStartTime(channelId: string): Date | null {
+      return this.voiceChannelCallStartTimes[channelId] || null;
     },
 
     // Voice channel connection methods
     async joinVoiceChannel(serverId: string, channelId: string, userId: string) {
       try {
+        // Check if this is the first user (start new call)
+        const isFirstUser = !this.usersInVoiceChannels[channelId] || this.usersInVoiceChannels[channelId].length === 0;
+        
         // Add user to local state immediately for responsive UI
         if (!this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = [];
@@ -319,8 +445,19 @@ export const useServerUsersStore = defineStore('serverUsers', {
           this.usersInVoiceChannels[channelId].push(userId);
         }
 
-        // Broadcast to other users
-        this.broadcastVoiceChannelEvent(serverId, channelId, 'user-joined', userId);
+        // Set call start time if first user
+        let callStartTime: string | undefined;
+        if (isFirstUser) {
+          this.voiceChannelCallStartTimes[channelId] = new Date();
+          callStartTime = this.voiceChannelCallStartTimes[channelId].toISOString();
+          console.log(`🕐 First user - setting call start time for channel ${channelId}`);
+        } else {
+          // Use existing call start time
+          callStartTime = this.voiceChannelCallStartTimes[channelId]?.toISOString();
+        }
+
+        // Broadcast to other users with call start time
+        this.broadcastVoiceChannelEvent(serverId, channelId, 'user-joined', userId, callStartTime);
         
         console.log(`User ${userId} joined voice channel ${channelId}`);
         return true;
@@ -335,6 +472,12 @@ export const useServerUsersStore = defineStore('serverUsers', {
         // Remove user from local state immediately
         if (this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+          
+          // Clear call start time if last user left
+          if (this.usersInVoiceChannels[channelId].length === 0) {
+            delete this.voiceChannelCallStartTimes[channelId];
+            console.log(`🕐 Cleared call start time for channel ${channelId}`);
+          }
         }
 
         // Broadcast to other users

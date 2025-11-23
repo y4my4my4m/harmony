@@ -28,29 +28,42 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import { useUserData } from '@/composables/useUserData';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 
 interface Props {
   participants: UserMediaState[];
-  sessionStartTime: Date | null;
+  sessionStartTime: Date | null; // Kept for backwards compatibility but not used
 }
 
 const props = defineProps<Props>();
 
 const { getUserDisplayName, getUserAvatarUrl } = useUserData();
+const voiceStore = useUnifiedVoiceChannelStore();
 
-// Session duration timer
+// Call duration timer (tracks overall call duration)
 const sessionDuration = ref<string>('');
 let intervalId: number | null = null;
 
 const updateSessionDuration = () => {
-  if (!props.sessionStartTime) {
+  // Use callStartTime if available (overall call duration)
+  // Fall back to sessionStartTime (personal session time) if callStartTime isn't set yet
+  const startTime = voiceStore.callStartTime || props.sessionStartTime;
+  
+  // Debug logging
+  if (voiceStore.callStartTime) {
+    console.log('🕐 Using callStartTime:', voiceStore.callStartTime);
+  } else if (props.sessionStartTime) {
+    console.log('⚠️ callStartTime not set, falling back to sessionStartTime:', props.sessionStartTime);
+  }
+  
+  if (!startTime) {
     sessionDuration.value = '';
     return;
   }
 
   const now = new Date();
-  const diff = now.getTime() - props.sessionStartTime.getTime();
+  const diff = now.getTime() - startTime.getTime();
   
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));

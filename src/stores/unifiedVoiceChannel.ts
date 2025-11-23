@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { nextTick } from 'vue';
 import { unifiedWebRTC, type UserMediaState } from '@/services/unifiedWebRTC';
 import { spatialAudioService } from '@/services/spatialAudio';
+import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
@@ -18,7 +19,8 @@ interface VoiceChannelState {
   currentServerId: string | null;
   currentChannelName: string | null;
   isConnected: boolean;
-  sessionStartTime: Date | null; // Track when the voice session started
+  sessionStartTime: Date | null; // Track when the user joined the channel
+  callStartTime: Date | null; // Track when the call started (first user joined)
   
   // Users and their states
   allUsers: UserMediaState[];
@@ -31,6 +33,13 @@ interface VoiceChannelState {
   // UI state
   isOverlayVisible: boolean;
   layoutMode: 'grid' | 'speaker' | 'gallery';
+  viewMode: 'normal' | 'maximized' | 'fullscreen';
+  fullscreenUserId: string | null;
+  
+  // PIP state
+  pipActive: boolean;
+  pipUserId: string | null;
+  pipMode: 'draggable' | 'fixed' | 'native';
 }
 
 // =============================================================================
@@ -44,6 +53,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     isConnected: false,
     currentChannelName: null,
     sessionStartTime: null,
+    callStartTime: null,
     
     allUsers: [],
     localState: {
@@ -61,7 +71,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     remoteStreams: new Map(),
     
     isOverlayVisible: false,
-    layoutMode: 'grid'
+    layoutMode: 'grid',
+    viewMode: 'normal',
+    fullscreenUserId: null,
+    
+    pipActive: false,
+    pipUserId: null,
+    pipMode: 'native'
   }),
 
   // =============================================================================
@@ -176,7 +192,24 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const channel = serverChannelStore.channels.find((c: any) => c.id === channelId);
         this.currentChannelName = channel ? channel.name : 'Voice Channel';
         this.isConnected = true;
-        this.sessionStartTime = new Date(); // Track when session started
+        this.sessionStartTime = new Date(); // Track when user joined
+        
+        // Get call start time from serverUsersStore (synced across all users)
+        const existingCallStartTime = serverUsersStore.getCallStartTime(channelId);
+        if (existingCallStartTime) {
+          this.callStartTime = existingCallStartTime;
+          console.log('🕐 Using existing call start time from serverUsersStore:', this.callStartTime);
+        } else {
+          // We're the first user - set it now
+          this.callStartTime = new Date();
+          console.log('🕐 First user - setting call start time:', this.callStartTime);
+        }
+        
+        // Save voice channel state to localStorage for auto-reconnect
+        this.saveVoiceChannelState();
+        
+        // Check if anyone else is in the channel to determine if we're starting the call
+        // We'll set call start time after channel state sync
         
         // Get fresh state from WebRTC service
         const newLocalState = unifiedWebRTC.getLocalState();
@@ -227,6 +260,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const userId = authStore.session.user.id;
         
         console.log('👋 Leaving voice channel');
+        
+        // Clear saved voice channel state (user manually left)
+        this.clearVoiceChannelState();
         
         // Leave WebRTC first
         await unifiedWebRTC.leaveChannel();
@@ -371,6 +407,53 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Change view mode
+     */
+    setViewMode(mode: 'normal' | 'maximized' | 'fullscreen'): void {
+      this.viewMode = mode;
+      if (mode !== 'fullscreen') {
+        this.fullscreenUserId = null;
+      }
+    },
+
+    /**
+     * Enter fullscreen mode for a specific user
+     */
+    enterFullscreen(userId: string): void {
+      this.viewMode = 'fullscreen';
+      this.fullscreenUserId = userId;
+    },
+
+    /**
+     * Exit fullscreen mode
+     */
+    exitFullscreen(): void {
+      this.viewMode = 'normal';
+      this.fullscreenUserId = null;
+    },
+
+    /**
+     * Toggle PIP mode for screenshare
+     */
+    togglePIP(userId: string | null, mode: 'draggable' | 'fixed' | 'native' = 'native'): void {
+      if (this.pipActive && this.pipUserId === userId) {
+        this.pipActive = false;
+        this.pipUserId = null;
+      } else {
+        this.pipActive = true;
+        this.pipUserId = userId;
+        this.pipMode = mode;
+      }
+    },
+
+    /**
+     * Set call start time (synced across all participants)
+     */
+    setCallStartTime(timestamp: Date | null): void {
+      this.callStartTime = timestamp;
+    },
+
+    /**
      * Setup WebRTC event listeners
      */
     setupWebRTCListeners(): void {
@@ -387,6 +470,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       unifiedWebRTC.on('channel-state-synced', async (data) => {
         console.log('🔄 Channel state synced:', data);
         this.allUsers = data.users;
+        
+        // Handle call start time syncing
+        if (data.users.length === 0) {
+          // We're the first/only user - broadcast our call start time
+          console.log('🕐 First user in channel - broadcasting call start time');
+          this.broadcastCallStartTime();
+        } else {
+          // Others already in call - request their call start time to sync
+          console.log('🕐 Joining existing call - requesting call start time');
+          this.requestCallStartTime();
+        }
         
         // Ensure all users' profile data is loaded through unified system
         const { ensureProfilesAvailable } = useUserData();
@@ -421,6 +515,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.allUsers[existingIndex] = data.mediaState;
         }
 
+        // Request call start time from existing participants
+        if (!this.callStartTime) {
+          console.log('🕐 Requesting call start time from existing participants');
+          this.requestCallStartTime();
+        }
+
         // Ensure user profile data is loaded through unified system
         const { ensureProfilesAvailable } = useUserData();
         try {
@@ -442,6 +542,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         // Remove from spatial audio
         this.removeUserFromSpatialAudio(data.userId);
+
+        // Reset call start time if everyone left
+        const totalUsers = this.allUsers.length + 1; // +1 for local user
+        if (totalUsers === 1) {
+          console.log('🕐 Last user left - resetting call start time');
+          this.callStartTime = null;
+        }
 
         themeStore.testAudio('voice_disconnect');
       });
@@ -518,6 +625,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         console.error('❌ WebRTC error:', error);
         // Could show notification to user
       });
+
+      // Call start time sync
+      unifiedWebRTC.on('call-start-time', (data: { timestamp: string; from: string }) => {
+        this.handleCallStartTime(data.timestamp);
+      });
+
+      unifiedWebRTC.on('request-call-start-time', (data: { from: string }) => {
+        // Respond with our call start time if we have it
+        if (this.callStartTime) {
+          this.broadcastCallStartTime();
+        }
+      });
     },
 
     /**
@@ -534,16 +653,170 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
+     * Broadcast call start time to all participants
+     */
+    broadcastCallStartTime(): void {
+      if (!this.currentChannelId || !this.callStartTime) return;
+      
+      unifiedWebRTC.broadcastMessage({
+        type: 'call-start-time',
+        from: this.localState.userId,
+        data: { timestamp: this.callStartTime.toISOString() },
+        timestamp: Date.now()
+      });
+    },
+
+    /**
+     * Request call start time from existing participants
+     */
+    requestCallStartTime(): void {
+      if (!this.currentChannelId) return;
+      
+      unifiedWebRTC.broadcastMessage({
+        type: 'request-call-start-time',
+        from: this.localState.userId,
+        data: {},
+        timestamp: Date.now()
+      });
+    },
+
+    /**
+     * Handle call start time from other participants
+     */
+    handleCallStartTime(timestamp: string): void {
+      if (!this.callStartTime) {
+        this.callStartTime = new Date(timestamp);
+        console.log('🕐 Received call start time:', this.callStartTime);
+      }
+    },
+
+    /**
+     * Save voice channel state to localStorage for auto-reconnect
+     */
+    saveVoiceChannelState(): void {
+      if (this.currentChannelId && this.currentServerId) {
+        const voiceState = {
+          channelId: this.currentChannelId,
+          serverId: this.currentServerId,
+          channelName: this.currentChannelName,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('voiceChannelState', JSON.stringify(voiceState));
+        console.log('💾 Saved voice channel state for auto-reconnect');
+      }
+    },
+
+    /**
+     * Clear voice channel state from localStorage (manual leave)
+     */
+    clearVoiceChannelState(): void {
+      localStorage.removeItem('voiceChannelState');
+      console.log('🗑️ Cleared voice channel state');
+    },
+
+    /**
+     * Attempt to reconnect to previous voice channel
+     */
+    async reconnectToVoiceChannel(): Promise<boolean> {
+      const savedState = localStorage.getItem('voiceChannelState');
+      if (!savedState) {
+        console.log('ℹ️ No saved voice channel state found');
+        return false;
+      }
+
+      try {
+        const { channelId, serverId, channelName, timestamp } = JSON.parse(savedState);
+        
+        // Check if saved state is recent (within last 24 hours)
+        const dayInMs = 24 * 60 * 60 * 1000;
+        if (Date.now() - timestamp > dayInMs) {
+          console.log('⏰ Saved voice channel state too old, clearing');
+          this.clearVoiceChannelState();
+          return false;
+        }
+
+        console.log('🔄 Attempting to reconnect to voice channel:', channelName);
+        
+        // Attempt to rejoin the channel
+        const success = await this.joinVoiceChannel(channelId, serverId);
+        
+        if (success) {
+          console.log('✅ Successfully reconnected to voice channel');
+        } else {
+          console.log('❌ Failed to reconnect, clearing saved state');
+          this.clearVoiceChannelState();
+        }
+        
+        return success;
+      } catch (error) {
+        console.error('❌ Error reconnecting to voice channel:', error);
+        this.clearVoiceChannelState();
+        return false;
+      }
+    },
+
+    /**
      * Initialize spatial audio system
      */
     async initializeSpatialAudio(userId: string): Promise<void> {
       try {
+        const spatialStore = useSpatialAudioStore();
+        
         // Initialize spatial audio service with direct MediaStream integration
-        // The spatial audio service will create processing chains from MediaStreams
         await spatialAudioService.initialize();
         spatialAudioService.setListener(userId);
         
         console.log('🎧 Spatial audio initialized for user:', userId);
+        
+        // If spatial audio is enabled in settings, activate it now
+        if (spatialStore.settings.enabled) {
+          console.log('🎧 Spatial audio is enabled in settings - activating on load...');
+          
+          // Initialize local user position at center
+          if (!spatialStore.userPositions.has(userId)) {
+            spatialStore.initializeUserPosition(userId, true); // true = isLocalUser (at center)
+          }
+          
+          // Enable spatial audio (will start the update loop)
+          await spatialAudioService.enableSpatialAudio();
+          
+          // IMMEDIATELY mute traditional audio to prevent double audio (dry + wet)
+          // This is critical - must happen right after enabling, not in the timeout!
+          unifiedWebRTC.setTraditionalAudioEnabled(false);
+          console.log('🔇 Traditional audio muted immediately after spatial audio enabled');
+          
+          // Wait a bit for streams to be ready, then setup spatial audio for any existing users
+          // This delay is important because streams might not be immediately available on join
+          setTimeout(async () => {
+            const allUsers = unifiedWebRTC.getAllUsers();
+            const localUserId = unifiedWebRTC.getLocalState().userId;
+            
+            // Setup spatial audio for existing remote users
+            for (const user of allUsers) {
+              if (user.userId !== localUserId) {
+                // Initialize remote user position
+                if (!spatialStore.userPositions.has(user.userId)) {
+                  spatialStore.initializeUserPosition(user.userId, false); // false = remote user
+                }
+                
+                // Setup spatial audio with their stream
+                const userStream = unifiedWebRTC.getUserStream(user.userId);
+                if (userStream) {
+                  await spatialAudioService.setupSpatialForUser(user.userId, userStream);
+                  console.log(`🎧 Setup spatial audio on load for user: ${user.userId}`);
+                } else {
+                  console.warn(`⚠️ Stream not ready yet for user: ${user.userId}`);
+                }
+              }
+            }
+            
+            // Force spatial effects update
+            spatialAudioService.updateSpatialEffects();
+            
+            console.log('✅ Spatial audio activated on load with all users');
+          }, 300); // 300ms delay to ensure streams are ready
+        }
+        
       } catch (error) {
         console.error('Failed to initialize spatial audio:', error);
       }
@@ -553,12 +826,29 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      * Add user to spatial audio using MediaStream directly
      */
     addUserToSpatialAudio(userId: string): void {
+      // Initialize remote user position if not set (never local user here)
+      const spatialStore = useSpatialAudioStore();
+      if (!spatialStore.userPositions.has(userId)) {
+        spatialStore.initializeUserPosition(userId, false); // false = remote user
+        console.log('🎧 Initialized position for new user:', userId);
+      }
+      
       // Small delay to ensure MediaStream is properly set up
       setTimeout(() => {
         // Get the MediaStream for this user from WebRTC service
         const userStream = unifiedWebRTC.getUserStream(userId);
         if (userStream) {
           spatialAudioService.setupSpatialForUser(userId, userStream);
+          
+          // If spatial audio is enabled, mute traditional audio for this user
+          const spatialStore = useSpatialAudioStore();
+          if (spatialStore.settings.enabled) {
+            console.log('🔇 Muting traditional audio for user (spatial audio active):', userId);
+            unifiedWebRTC.setTraditionalAudioEnabled(false);
+            
+            // Force spatial effects update for new user
+            spatialAudioService.updateSpatialEffects();
+          }
         } else {
           console.warn('No media stream found for user:', userId, '- retrying in 100ms');
           // Retry once more if stream isn't ready
@@ -566,6 +856,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             const retryUserStream = unifiedWebRTC.getUserStream(userId);
             if (retryUserStream) {
               spatialAudioService.setupSpatialForUser(userId, retryUserStream);
+              
+              // Mute traditional audio if spatial is enabled
+              const spatialStore = useSpatialAudioStore();
+              if (spatialStore.settings.enabled) {
+                console.log('🔇 Muting traditional audio for user (spatial audio active, retry):', userId);
+                unifiedWebRTC.setTraditionalAudioEnabled(false);
+                
+                // Force spatial effects update for new user
+                spatialAudioService.updateSpatialEffects();
+              }
             } else {
               console.warn('Media stream still not found for user:', userId);
             }
@@ -595,7 +895,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.currentChannelId = null;
       this.currentServerId = null;
       this.isConnected = false;
-      this.sessionStartTime = null; // Reset session start time
+      this.sessionStartTime = null;
+      this.callStartTime = null;
       this.allUsers = [];
       this.localState = {
         userId: '',
@@ -610,6 +911,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.localStream = null;
       this.remoteStreams.clear();
       this.isOverlayVisible = false;
+      this.viewMode = 'normal';
+      this.fullscreenUserId = null;
+      this.pipActive = false;
+      this.pipUserId = null;
     },
 
     /**

@@ -1027,6 +1027,16 @@ export class UnifiedWebRTCService {
         await this.handleStateSync(from, data);
         break;
         
+      case 'call-start-time':
+        // Forward to store
+        this.emit('call-start-time', { timestamp: data.timestamp, from });
+        break;
+        
+      case 'request-call-start-time':
+        // Forward to store to handle
+        this.emit('request-call-start-time', { from });
+        break;
+        
       case 'offer':
         await this.handleOffer(from, data);
         break;
@@ -1179,7 +1189,7 @@ export class UnifiedWebRTCService {
     }
     
     // Handle remote stream
-    pc.ontrack = (event) => {
+    pc.ontrack = async (event) => {
       console.log('📹 Received track from:', userId, event.track.kind, 'Stream ID:', event.streams[0]?.id);
       
       if (event.streams[0]) {
@@ -1187,7 +1197,7 @@ export class UnifiedWebRTCService {
         console.log('📡 Setting remote stream for user:', userId, 'Tracks:', event.streams[0].getTracks().length);
         
         // Create audio element for remote audio playback
-        this.setupRemoteAudio(connection, event.streams[0]);
+        await this.setupRemoteAudio(connection, event.streams[0]);
         
         this.emit('user-stream-changed', { userId, stream: event.streams[0] });
         
@@ -1332,7 +1342,7 @@ export class UnifiedWebRTCService {
     });
   }
 
-  private setupRemoteAudio(connection: UserConnection, stream: MediaStream): void {
+  private async setupRemoteAudio(connection: UserConnection, stream: MediaStream): Promise<void> {
     const audioTracks = stream.getAudioTracks();
     
     if (audioTracks.length > 0) {
@@ -1346,10 +1356,24 @@ export class UnifiedWebRTCService {
       // Set the stream
       connection.audioElement.srcObject = stream;
       
-      // Apply current deafen state
-      connection.audioElement.muted = this.localMediaState.isDeafened;
+      // Check if spatial audio is enabled AND initialized
+      const { useSpatialAudioStore } = await import('@/stores/spatialAudio');
+      const { spatialAudioService } = await import('@/services/spatialAudio');
+      const spatialStore = useSpatialAudioStore();
+      const spatialStatus = spatialAudioService.getStatus();
+      const isSpatialAudioActive = spatialStore.settings.enabled && spatialStatus.isInitialized;
       
-      console.log('🔊 Audio element created for user:', connection.userId, 'muted:', connection.audioElement.muted);
+      // Apply current deafen state AND check spatial audio
+      // When spatial audio is ACTIVE (enabled + initialized), mute HTMLAudioElement to prevent double audio (dry + wet)
+      // Otherwise, keep it unmuted so we hear the normal audio through the HTMLAudioElement
+      connection.audioElement.muted = this.localMediaState.isDeafened || isSpatialAudioActive;
+      
+      console.log('🔊 Audio element created for user:', connection.userId, 
+                  'muted:', connection.audioElement.muted,
+                  'spatialEnabled:', spatialStore.settings.enabled,
+                  'spatialInitialized:', spatialStatus.isInitialized,
+                  'spatialActive:', isSpatialAudioActive,
+                  'deafened:', this.localMediaState.isDeafened);
       
       // Handle audio element errors
       connection.audioElement.onerror = (error) => {
