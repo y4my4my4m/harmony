@@ -1,7 +1,7 @@
 <template>
   <div class="user-account-settings">
     <div class="settings-header">
-      <h2 class="settings-title">My Account</h2>
+      <h2 class="settings-title">{{ $t('settings.account') }}</h2>
       <p class="settings-description">
         Manage your account settings and set e-mail preferences.
       </p>
@@ -16,7 +16,7 @@
         >
           <div class="banner-overlay">
             <Icon name="camera" />
-            <span>Change Banner</span>
+            <span>{{ $t('user.banner') }}</span>
           </div>
           <input
             ref="bannerInput"
@@ -30,7 +30,7 @@
           <div class="avatar-wrapper">
             <Avatar 
               :src="profile?.avatar_url"
-              alt="Profile Avatar"
+              :alt="$t('user.avatar')"
               size="xl"
               :editable="true"
               :loading="loading"
@@ -39,9 +39,9 @@
           </div>
           <div class="user-info">
             <h3 class="display-name" :style="{ color: profile?.color || '#ffffff' }">
-              {{ profile?.display_name || 'Display Name' }}
+              {{ profile?.display_name || $t('auth.displayName') }}
             </h3>
-            <p class="username">{{ profile?.username || 'username' }}</p>
+            <p class="username">{{ profile?.username || $t('auth.username') }}</p>
           </div>
         </div>
       </div>
@@ -49,12 +49,12 @@
 
     <div class="settings-section">
       <div class="form-group">
-        <label class="form-label">Display Name</label>
+        <label class="form-label">{{ $t('auth.displayName') }}</label>
         <input
           v-model="localProfile.display_name"
           type="text"
           class="form-input"
-          placeholder="Enter your display name"
+          :placeholder="$t('auth.displayName')"
           maxlength="32"
           @input="onProfileChange"
         />
@@ -64,13 +64,13 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Username</label>
+        <label class="form-label">{{ $t('auth.username') }}</label>
         <div class="username-input-container">
           <input
             v-model="localProfile.username"
             type="text"
             class="form-input"
-            placeholder="Enter your username"
+            :placeholder="$t('auth.username')"
             maxlength="32"
             @input="onUsernameChange"
           />
@@ -81,11 +81,11 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">About Me</label>
+        <label class="form-label">{{ $t('user.bio') }}</label>
         <textarea
           v-model="localProfile.bio"
           class="form-textarea"
-          placeholder="Tell others about yourself"
+          :placeholder="$t('user.placeholders.bio')"
           maxlength="190"
           rows="3"
           @input="onProfileChange"
@@ -112,7 +112,7 @@
               :placeholder="localProfile.color || '#5865f2'"
               @input="onColorChange"
             />
-            <button class="color-reset-btn" @click="resetColor">Reset</button>
+            <button class="color-reset-btn" @click="resetColor">{{ $t('common.reset') }}</button>
           </div>
           
           <ColorPicker
@@ -131,15 +131,15 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Account Information</h3>
+      <h3 class="section-title">{{ $t('user.profile') }}</h3>
       
       <div class="info-row">
-        <div class="info-label">Email</div>
+        <div class="info-label">{{ $t('auth.email') }}</div>
         <div class="info-value">{{ userEmail || 'Not provided' }}</div>
       </div>
       
       <div class="info-row">
-        <div class="info-label">Member Since</div>
+        <div class="info-label">{{ $t('user.since') }}</div>
         <div class="info-value">{{ formatDate(profile?.created_at) }}</div>
       </div>
     </div>
@@ -151,14 +151,14 @@
         :disabled="loading || !hasChanges"
       >
         <span v-if="loading" class="loading-spinner"></span>
-        Save Changes
+        {{ $t('common.save') }}
       </button>
       <button 
         class="btn btn-secondary" 
         @click="resetChanges"
         :disabled="loading || !hasChanges"
       >
-        Reset
+        {{ $t('common.reset') }}
       </button>
     </div>
 

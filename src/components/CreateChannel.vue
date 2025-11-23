@@ -1,16 +1,16 @@
 <template>
   <BaseModal 
     :show="show"
-    title="Create Channel"
-    subtitle="Add a new place for your community to gather"
+    :title="$t('channel.create')"
+    :subtitle="$t('channel.createNew')"
     :icon="ChannelIcon"
     @close="closeForm"
   >
     <form @submit.prevent="createChannel" class="channel-form">
       <ModernInput
         v-model="newChannelName"
-        label="Channel Name"
-        placeholder="new-channel"
+        :label="$t('channel.channelName')"
+        :placeholder="$t('channel.placeholders.channelName')"
         :max-length="100"
         :show-char-count="true"
         :error-message="channelNameError"
@@ -22,7 +22,7 @@
       />
       
       <div class="channel-type-section">
-        <label class="section-label">Channel Type</label>
+        <label class="section-label">{{ $t('channel.channelType') }}</label>
         <div class="channel-type-grid">
           <div 
             class="channel-type-option"
@@ -35,8 +35,8 @@
               </svg>
             </div>
             <div class="option-content">
-              <h4 class="option-title">Text</h4>
-              <p class="option-description">Send messages, images, GIFs, emoji, opinions, and puns</p>
+              <h4 class="option-title">{{ $t('channel.text') }}</h4>
+              <p class="option-description">{{ $t('channel.textDesc') }}</p>
             </div>
             <div class="option-check" v-if="channelType === 0">
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -56,8 +56,8 @@
               </svg>
             </div>
             <div class="option-content">
-              <h4 class="option-title">Voice</h4>
-              <p class="option-description">Hang out together with voice, video, and screen share</p>
+              <h4 class="option-title">{{ $t('channel.voice') }}</h4>
+              <p class="option-description">{{ $t('channel.voiceDesc') }}</p>
             </div>
             <div class="option-check" v-if="channelType === 1">
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -73,7 +73,7 @@
           <svg class="info-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 4C3 3.44772 3.44772 3 4 3H20C20.5523 3 21 3.44772 21 4V6C21 6.55228 20.5523 7 20 7H4C3.44772 7 3 6.55228 3 6V4Z"/>
           </svg>
-          <span>Will be added to category</span>
+          <span>{{ $t('channel.willBeAddedToCategory') }}</span>
         </div>
       </div>
     </form>
@@ -82,12 +82,12 @@
       <div class="modal-actions">
         <ModernButton
           variant="ghost"
-          text="Cancel"
+          :text="$t('common.cancel')"
           @click="closeForm"
         />
         <ModernButton
           variant="primary"
-          text="Create Channel"
+          :text="$t('channel.createButton')"
           :disabled="!canCreate"
           :loading="isCreating"
           @click="createChannel"

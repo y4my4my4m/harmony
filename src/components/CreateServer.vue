@@ -10,8 +10,8 @@
             </svg>
           </div>
           <div class="header-text">
-            <h2 class="modal-title">Create Your Server</h2>
-            <p class="modal-subtitle">Build your own community</p>
+            <h2 class="modal-title">{{ $t('server.createYourServer') }}</h2>
+            <p class="modal-subtitle">{{ $t('server.buildCommunity') }}</p>
           </div>
         </div>
         <button @click="closeModal" class="close-button">
@@ -25,10 +25,10 @@
       <div class="modal-content">
         <!-- Server Icon Upload -->
         <div class="section">
-          <label class="section-label">Server Icon</label>
+          <label class="section-label">{{ $t('server.serverIcon') }}</label>
           <div class="icon-upload-section">
             <div class="icon-preview" @click="triggerIconUpload">
-              <img v-if="iconPreview" :src="iconPreview" alt="Server icon preview" />
+              <img v-if="iconPreview" :src="iconPreview" :alt="$t('server.serverIcon')" />
               <div v-else class="default-icon">
                 <svg viewBox="0 0 24 24" class="default-icon-svg">
                   <path d="M12 2L2 7v10c0 5.55 3.84 9.74 9 11 5.16-1.26 9-5.45 9-11V7l-10-5z" fill="currentColor"/>
@@ -38,7 +38,7 @@
                 <svg viewBox="0 0 24 24" class="upload-icon">
                   <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" fill="currentColor"/>
                 </svg>
-                <span>{{ iconPreview ? 'Change' : 'Upload' }}</span>
+                <span>{{ iconPreview ? $t('common.edit') : $t('common.upload') }}</span>
               </div>
             </div>
             <input 
@@ -50,10 +50,10 @@
             />
             <div class="icon-actions">
               <button type="button" class="icon-btn" @click="triggerIconUpload">
-                Choose File
+                {{ $t('files.browse') }}
               </button>
               <button v-if="iconFile" type="button" class="icon-btn secondary" @click="removeIcon">
-                Remove
+                {{ $t('common.remove') }}
               </button>
             </div>
           </div>
@@ -61,13 +61,13 @@
 
         <!-- Server Name -->
         <div class="section">
-          <label class="section-label">Server Name *</label>
+          <label class="section-label">{{ $t('server.serverName') }} *</label>
           <div class="input-container">
             <input
               v-model="serverName"
               type="text"
               class="modern-input"
-              placeholder="My Awesome Server"
+              :placeholder="$t('server.placeholders.serverName')"
               maxlength="50"
               @input="validateServerName"
             />
@@ -81,12 +81,12 @@
 
         <!-- Server Description -->
         <div class="section">
-          <label class="section-label">Description <span class="optional">(optional)</span></label>
+          <label class="section-label">{{ $t('server.description') }} <span class="optional">({{ $t('common.optional') }})</span></label>
           <div class="input-container">
             <textarea
               v-model="description"
               class="modern-textarea"
-              placeholder="Tell others what your server is about..."
+              :placeholder="$t('server.placeholders.description')"
               maxlength="200"
               rows="3"
             ></textarea>
@@ -99,7 +99,7 @@
 
         <!-- Privacy Settings -->
         <div class="section">
-          <label class="section-label">Privacy</label>
+          <label class="section-label">{{ $t('server.privacySettings') }}</label>
           <div class="privacy-options">
             <div class="privacy-option" :class="{ active: !isPublic }" @click="isPublic = false">
               <div class="option-icon">
@@ -108,8 +108,8 @@
                 </svg>
               </div>
               <div class="option-content">
-                <h4 class="option-title">Private</h4>
-                <p class="option-description">Only members with an invite can join</p>
+                <h4 class="option-title">{{ $t('server.private') }}</h4>
+                <p class="option-description">{{ $t('server.privateDesc') }}</p>
               </div>
             </div>
             
@@ -120,8 +120,8 @@
                 </svg>
               </div>
               <div class="option-content">
-                <h4 class="option-title">Public</h4>
-                <p class="option-description">Anyone can discover and join</p>
+                <h4 class="option-title">{{ $t('server.public') }}</h4>
+                <p class="option-description">{{ $t('server.publicDesc') }}</p>
               </div>
             </div>
           </div>
@@ -161,7 +161,7 @@
           class="action-btn primary"
           :disabled="!canCreate || isCreating"
         >
-          <span v-if="!isCreating">Create Server</span>
+          <span v-if="!isCreating">{{ $t('server.createButton') }}</span>
           <span v-else class="loading">
             <svg class="loading-spinner" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="31.416" stroke-dashoffset="31.416">

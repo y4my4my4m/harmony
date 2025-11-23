@@ -29,7 +29,7 @@
         <RichTextEditor
           ref="richEditorRef"
           :model-value="modelValue"
-          :placeholder="attachedFiles.length > 0 ? 'Add a comment...' : 'Type a message...'"
+          :placeholder="attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage')"
           @update:model-value="(value: string) => $emit('update:modelValue', value)"
           @input="handleEditorInput"
           @keydown="handleKeyDown"
