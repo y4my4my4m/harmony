@@ -26,6 +26,7 @@
       <div v-else-if="youtubeEmbedUrl" class="provider-embed__media provider-embed__media--video" ref="youtubeContainer">
         <iframe
           ref="youtubeIframe"
+          :id="`youtube-player-${messageId}`"
           :src="youtubeEmbedUrl"
           frameborder="0"
           allowfullscreen
@@ -88,9 +89,14 @@ const youtubeEmbedUrl = computed(() => {
   const parsed = parseEmbedUrl(normalized);
   if (!parsed) return null;
   
-  // Add enablejsapi=1 to enable YouTube Player API
+  // Add enablejsapi=1 and origin parameter to enable YouTube Player API
   const url = buildYouTubeEmbedUrl(parsed);
-  return url + (url.includes('?') ? '&' : '?') + 'enablejsapi=1';
+  const params = new URLSearchParams();
+  params.set('enablejsapi', '1');
+  params.set('origin', window.location.origin);
+  params.set('widget_referrer', window.location.origin);
+  
+  return url + (url.includes('?') ? '&' : '?') + params.toString();
 });
 
 const spotifyEmbedUrl = computed(() => {
@@ -137,11 +143,17 @@ function setupYouTubePlayer() {
 }
 
 function handleYouTubeMessage(event: MessageEvent) {
-  // Only handle messages from YouTube
-  if (!event.data || typeof event.data !== 'string') return;
+  // Only handle messages from YouTube domains
+  if (!event.origin.includes('youtube.com') && !event.origin.includes('youtube-nocookie.com')) return;
+  
+  if (!event.data) return;
   
   try {
-    const data = JSON.parse(event.data);
+    // YouTube can send both string and object data
+    let data = event.data;
+    if (typeof data === 'string') {
+      data = JSON.parse(data);
+    }
     
     // Check if message is from our iframe
     if (event.source !== youtubeIframe.value?.contentWindow) return;
@@ -150,6 +162,8 @@ function handleYouTubeMessage(event: MessageEvent) {
       // YouTube player states: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (cued)
       const isVideoPlaying = data.info === 1;
       isPlaying.value = isVideoPlaying;
+      
+      console.log('[YouTube] State change:', { info: data.info, isPlaying: isVideoPlaying });
       
       // If this video started playing, check if a different video is floating
       if (isVideoPlaying && props.messageId) {
@@ -167,8 +181,23 @@ function handleYouTubeMessage(event: MessageEvent) {
         youtubeContainer.value.dataset.isPlaying = String(isVideoPlaying);
       }
     }
+    
+    // Handle ready event to request initial state
+    if (data.event === 'onReady') {
+      console.log('[YouTube] Player ready');
+      // Listen for state changes
+      if (youtubeIframe.value && youtubeIframe.value.contentWindow) {
+        youtubeIframe.value.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'listening',
+            id: youtubeIframe.value.id || 'ytplayer'
+          }),
+          '*'
+        );
+      }
+    }
   } catch (error) {
-    // Not a JSON message, ignore
+    // Not a JSON message or parse error, ignore
   }
 }
 
