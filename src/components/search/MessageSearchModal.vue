@@ -165,33 +165,33 @@
           <!-- Loading State -->
           <div v-if="isSearching && searchResults.length === 0" class="loading-state">
             <div class="loading-spinner"></div>
-            <p>Searching messages...</p>
+            <p>{{ $t('message.searchingMessages') }}</p>
           </div>
 
           <!-- Error State -->
           <div v-else-if="error" class="error-state">
             <Icon name="alert-circle" :size="48" />
-            <h3>Search Error</h3>
+            <h3>{{ $t('message.searchError') }}</h3>
             <p>{{ error }}</p>
-            <button @click="executeSearch(true)" class="retry-btn">Try Again</button>
+            <button @click="executeSearch(true)" class="retry-btn">{{ $t('common.retry') }}</button>
           </div>
 
           <!-- Empty State -->
           <div v-else-if="!isSearching && searchResults.length === 0 && (filters.query || hasActiveFilters)" class="empty-state">
             <Icon name="search" :size="48" />
-            <h3>No messages found</h3>
-            <p>Try adjusting your search query or filters.</p>
+            <h3>{{ $t('message.noResults') }}</h3>
+            <p>{{ $t('message.tryAdjustSearch') }}</p>
           </div>
 
           <!-- Initial State -->
           <div v-else-if="!filters.query && !hasActiveFilters" class="initial-state">
             <Icon name="search" :size="48" />
-            <h3>Search Messages</h3>
-            <p>Search across all your messages with powerful filters.</p>
+            <h3>{{ $t('message.search') }}</h3>
+            <p>{{ $t('message.searchAcrossMessages') }}</p>
             
             <!-- Recent Searches -->
             <div v-if="recentSearches.length > 0" class="recent-searches">
-              <h4>Recent Searches</h4>
+              <h4>{{ $t('message.recentSearches') }}</h4>
               <div class="recent-list">
                 <button
                   v-for="(search, index) in recentSearches.slice(0, 5)"

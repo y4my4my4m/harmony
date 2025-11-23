@@ -54,20 +54,20 @@
           <!-- Loading State -->
           <div v-if="isSearching" class="loading-state">
             <div class="loading-spinner"></div>
-            <p>Searching the Monyverse...</p>
+            <p>{{ $t('activitypub.searchingMonyverse') }}</p>
           </div>
 
           <!-- Empty State -->
           <div v-else-if="!isSearching && searchResults.length === 0 && searchQuery" class="empty-state">
             <Icon name="users" :size="48" />
-            <h3>No users found</h3>
-            <p>Try searching with a different username or display name.</p>
+            <h3>{{ $t('activitypub.noUsersFound') }}</h3>
+            <p>{{ $t('activitypub.tryDifferentSearch') }}</p>
             <div class="search-tips">
-              <h4>Search tips:</h4>
+              <h4>{{ $t('activitypub.searchTips') }}</h4>
               <ul>
-                <li>Use @username@domain for exact matches</li>
-                <li>Search by display name or partial username</li>
-                <li>Include the domain for federated users</li>
+                <li>{{ $t('activitypub.searchTipsExactMatch') }}</li>
+                <li>{{ $t('activitypub.searchTipsPartial') }}</li>
+                <li>{{ $t('activitypub.searchTipsDomain') }}</li>
               </ul>
             </div>
           </div>

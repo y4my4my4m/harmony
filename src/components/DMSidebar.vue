@@ -2,7 +2,7 @@
   <div class="dm-sidebar">
     <!-- Header -->
     <div class="dm-header">
-      <h2 class="dm-title">Direct Messages</h2>
+      <h2 class="dm-title">{{ $t('dm.directMessages') }}</h2>
       <div class="header-actions">
         <button 
           class="new-dm-btn"
@@ -31,7 +31,7 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Search users or @user@domain.com"
+          :placeholder="$t('dm.searchUsersPlaceholder')"
           class="search-input"
           @input="handleSearch"
           @keydown.escape="closeSearch"
@@ -50,10 +50,10 @@
       <!-- Search Results -->
       <div v-if="searchQuery" class="search-results">
         <div v-if="dmStore.isSearching" class="search-loading">
-          Searching...
+          {{ $t('common.search') }}...
         </div>
         <div v-else-if="dmStore.searchResults.length === 0" class="no-results">
-          No users found
+          {{ $t('dm.noUsersFound') }}
         </div>
         <div 
           v-else
@@ -90,7 +90,7 @@
     <div class="conversations-section">
       <div v-if="dmStore.loadingConversations" class="loading-state">
         <div class="loading-spinner"></div>
-        <span>Loading conversations...</span>
+        <span>{{ $t('dm.loadingConversations') }}</span>
       </div>
       
       <div v-else-if="sortedConversations.length === 0" class="empty-state">
@@ -99,8 +99,8 @@
             <path d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M5,9V19H19V9A5,5 0 0,0 14,4H10A5,5 0 0,0 5,9Z" fill="currentColor"/>
           </svg>
         </div>
-        <h3>No conversations yet</h3>
-        <p>Start a conversation by searching for a user above</p>
+        <h3>{{ $t('dm.noConversations') }}</h3>
+        <p>{{ $t('dm.startBySearching') }}</p>
       </div>
 
       <div v-else class="conversations-list">
