@@ -71,7 +71,7 @@
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { listen } from '@tauri-apps/api/event';
-  import { readBinaryFile } from '@tauri-apps/api/fs';
+  import { readFile } from '@tauri-apps/plugin-fs';
   import GifComponent from '@/components/GifComponent.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
@@ -257,7 +257,8 @@
           const filePath = event.payload[0];
           try {
             // Read the file as a binary blob
-            const fileBlob = await readBinaryFile(filePath);
+            const fileBytes = await readFile(filePath);
+            const fileBlob = new Blob([fileBytes]);
 
             // Create a File object
             const file = new File([fileBlob], filePath.split('/').pop(), {
