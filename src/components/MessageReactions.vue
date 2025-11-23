@@ -3,9 +3,9 @@
     <div class="reactions-gutter"></div>
     <div class="reactions-container">
       <!-- Loading state -->
-      <div v-if="isLoadingReactions && reactions.length === 0" class="reaction-loading">
+      <!-- <div v-if="isLoadingReactions && reactions.length === 0" class="reaction-loading">
         <div class="loading-spinner"></div>
-      </div>
+      </div> -->
       
       <!-- Reaction groups -->
       <div
