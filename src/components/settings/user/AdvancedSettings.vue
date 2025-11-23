@@ -1,9 +1,9 @@
 <template>
   <div class="advanced-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Advanced</h2>
+      <h2 class="settings-title">{{ $t('settings.advanced.title') }}</h2>
       <p class="settings-description">
-        Advanced settings for power users and developers.
+        {{ $t('settings.advanced.description') }}
       </p>
     </div>
 
@@ -12,7 +12,7 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Developer Mode</h4>
+          <h4 class="setting-label">{{ $t('settings.advanced.developerMode') }}</h4>
           <p class="setting-description">Enable developer features and debugging tools.</p>
         </div>
         <div class="setting-control">
@@ -25,7 +25,7 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Hardware Acceleration</h4>
+          <h4 class="setting-label">{{ $t('settings.advanced.hardwareAcceleration') }}</h4>
           <p class="setting-description">Use hardware acceleration when available.</p>
         </div>
         <div class="setting-control">
@@ -42,24 +42,24 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Clear Cache</h4>
+          <h4 class="setting-label">{{ $t('common.clear') }} Cache</h4>
           <p class="setting-description">Clear stored cache data to free up space.</p>
         </div>
         <div class="setting-control">
           <button class="btn btn-secondary" @click="clearCache">
-            Clear Cache
+            {{ $t('common.clear') }} Cache
           </button>
         </div>
       </div>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Export Data</h4>
+          <h4 class="setting-label">{{ $t('common.download') }} Data</h4>
           <p class="setting-description">Export your user data for backup purposes.</p>
         </div>
         <div class="setting-control">
           <button class="btn btn-secondary" @click="exportData">
-            Export Data
+            {{ $t('common.download') }} Data
           </button>
         </div>
       </div>
@@ -70,12 +70,12 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label danger">Delete Account</h4>
+          <h4 class="setting-label danger">{{ $t('common.delete') }} Account</h4>
           <p class="setting-description">Permanently delete your account and all associated data.</p>
         </div>
         <div class="setting-control">
           <button class="btn btn-danger" @click="showDeleteConfirmation">
-            Delete Account
+            {{ $t('common.delete') }} Account
           </button>
         </div>
       </div>

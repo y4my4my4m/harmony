@@ -1,9 +1,9 @@
 <template>
   <div class="voice-video-settings-page">
     <div class="settings-header">
-      <h2 class="settings-title">Voice & Video</h2>
+      <h2 class="settings-title">{{ $t('settings.voice.title') }}</h2>
       <p class="settings-description">
-        Configure your voice and video settings for optimal communication.
+        {{ $t('settings.voice.description') }}
       </p>
     </div>
     

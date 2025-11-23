@@ -119,6 +119,19 @@
     "inviteLink": "招待リンクを取得",
     "searchMembers": "メンバーを検索",
     "discoverCommunities": "コミュニティを発見",
+    "welcomeToHarmony": "Harmonyへようこそ",
+    "journeyBegins": "あなたの旅が始まります",
+    "readyToConnect": "接続準備完了",
+    "buildCommunityDesc": "チャンネル、設定、メンバーを完全にコントロールして、ゼロから独自のコミュニティを構築します。",
+    "browseAndJoin": "既存のサーバーを閲覧して参加し、同じ考えを持つ人々や魅力的なディスカッションとつながります。",
+    "customBranding": "✨ カスタムブランディング",
+    "fullControl": "🛡️ 完全な制御",
+    "customChannels": "📝 カスタムチャンネル",
+    "publicServers": "🌍 公開サーバー",
+    "activeCommunities": "👥 アクティブなコミュニティ",
+    "easyDiscovery": "🔍 簡単な発見",
+    "newToHarmony": "Harmonyは初めてですか？",
+    "serversAreWhat": "サーバーは、チャット、共有、他のユーザーとのコラボレーションができるコミュニティです。デジタルな集まりの場と考えてください！",
     "placeholders": {
       "serverName": "素晴らしいサーバー",
       "description": "サーバーについて説明してください..."
@@ -425,7 +438,12 @@
     "online": "オンライン",
     "yourActivity": "あなたのアクティビティ",
     "suggestedFollows": "おすすめフォロー",
-    "instanceInfo": "インスタンス情報"
+    "instanceInfo": "インスタンス情報",
+    "discoverPeople": "人を発見",
+    "browseTimeline": "タイムラインを閲覧",
+    "noLocalPosts": "このインスタンスからのローカル投稿はまだありません。",
+    "noPublicPosts": "公開投稿はまだありません。最初に何か共有しましょう！",
+    "noPostsFound": "投稿が見つかりません。"
   },
   "moderation": {
     "report": "報告",

@@ -119,6 +119,19 @@
     "inviteLink": "Obtener enlace de invitación",
     "searchMembers": "Buscar miembros",
     "discoverCommunities": "Descubrir comunidades",
+    "welcomeToHarmony": "Bienvenido a Harmony",
+    "journeyBegins": "Tu viaje comienza aquí",
+    "readyToConnect": "Listo para conectar",
+    "buildCommunityDesc": "Construye tu propia comunidad desde cero con control completo sobre canales, configuraciones y miembros.",
+    "browseAndJoin": "Navega y únete a servidores existentes para conectar con personas afines y discusiones interesantes.",
+    "customBranding": "✨ Marca personalizada",
+    "fullControl": "🛡️ Control total",
+    "customChannels": "📝 Canales personalizados",
+    "publicServers": "🌍 Servidores públicos",
+    "activeCommunities": "👥 Comunidades activas",
+    "easyDiscovery": "🔍 Descubrimiento fácil",
+    "newToHarmony": "¿Nuevo en Harmony?",
+    "serversAreWhat": "Los servidores son comunidades donde puedes chatear, compartir y colaborar con otros. ¡Piensa en ellos como tus espacios digitales de reunión!",
     "placeholders": {
       "serverName": "Mi servidor increíble",
       "description": "Cuéntales a los demás de qué trata tu servidor..."
@@ -425,7 +438,12 @@
     "online": "En línea",
     "yourActivity": "Tu actividad",
     "suggestedFollows": "Seguimientos sugeridos",
-    "instanceInfo": "Información de instancia"
+    "instanceInfo": "Información de instancia",
+    "discoverPeople": "Descubrir personas",
+    "browseTimeline": "Explorar línea de tiempo",
+    "noLocalPosts": "Aún no hay publicaciones locales de esta instancia.",
+    "noPublicPosts": "Aún no hay publicaciones públicas. ¡Sé el primero en compartir algo!",
+    "noPostsFound": "No se encontraron publicaciones."
   },
   "moderation": {
     "report": "Reportar",

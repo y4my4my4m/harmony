@@ -1,24 +1,24 @@
 <template>
   <div class="unified-notification-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Notifications</h2>
+      <h2 class="settings-title">{{ $t('settings.notifications.title') }}</h2>
       <p class="settings-description">
-        Configure how you receive notifications from chat and federated networks.
+        {{ $t('settings.notifications.description') }}
       </p>
     </div>
 
     <!-- Do Not Disturb Section -->
     <div class="settings-section">
       <div class="section-header">
-        <h3 class="section-title">Do Not Disturb</h3>
+        <h3 class="section-title">{{ $t('user.dnd') }}</h3>
         <div class="dnd-status" :class="{ active: isDndActive }">
-          {{ isDndActive ? 'Active' : 'Inactive' }}
+          {{ isDndActive ? $t('activitypub.online') : $t('user.offline') }}
         </div>
       </div>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Enable Do Not Disturb</h4>
+          <h4 class="setting-label">{{ $t('user.dnd') }}</h4>
           <p class="setting-description">Suppress notifications during specified hours</p>
         </div>
         <div class="setting-control">
@@ -55,7 +55,7 @@
     <!-- Desktop Notifications Section -->
     <div class="settings-section">
       <div class="section-header">
-        <h3 class="section-title">Desktop Notifications</h3>
+        <h3 class="section-title">{{ $t('settings.notifications.enableDesktop') }}</h3>
         <div class="permission-status">
           <div class="permission-info">
             <Icon :name="permissionIcon" :class="permissionClass" />
@@ -68,7 +68,7 @@
             :disabled="isRequestingPermission"
           >
             <Icon v-if="isRequestingPermission" name="loader" class="spinning" />
-            <span>{{ isRequestingPermission ? 'Requesting...' : 'Grant Permission' }}</span>
+            <span>{{ isRequestingPermission ? $t('common.loading') : 'Grant Permission' }}</span>
           </button>
         </div>
       </div>
@@ -79,7 +79,7 @@
           <div class="category-header">
             <Icon name="message-circle" class="category-icon chat" />
             <div class="category-info">
-              <h4 class="category-title">Chat & Messages</h4>
+              <h4 class="category-title">{{ $t('navigation.chat') }} & {{ $t('activitypub.messages') }}</h4>
               <p class="category-description">Notifications from servers and direct messages</p>
             </div>
             <ToggleSwitch 

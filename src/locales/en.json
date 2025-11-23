@@ -119,6 +119,19 @@
     "inviteLink": "Get Invite Link",
     "searchMembers": "Search Members",
     "discoverCommunities": "Discover Communities",
+    "welcomeToHarmony": "Welcome to Harmony",
+    "journeyBegins": "Your journey begins here",
+    "readyToConnect": "Ready to connect",
+    "buildCommunityDesc": "Build your own community from scratch with complete control over channels, settings, and members.",
+    "browseAndJoin": "Browse and join existing servers to connect with like-minded people and engaging discussions.",
+    "customBranding": "✨ Custom branding",
+    "fullControl": "🛡️ Full control",
+    "customChannels": "📝 Custom channels",
+    "publicServers": "🌍 Public servers",
+    "activeCommunities": "👥 Active communities",
+    "easyDiscovery": "🔍 Easy discovery",
+    "newToHarmony": "New to Harmony?",
+    "serversAreWhat": "Servers are communities where you can chat, share, and collaborate with others. Think of them as your digital hangout spaces!",
     "placeholders": {
       "serverName": "My Awesome Server",
       "description": "Tell others what your server is about..."
@@ -425,7 +438,12 @@
     "online": "Online",
     "yourActivity": "Your Activity",
     "suggestedFollows": "Suggested Follows",
-    "instanceInfo": "Instance Info"
+    "instanceInfo": "Instance Info",
+    "discoverPeople": "Discover People",
+    "browseTimeline": "Browse Timeline",
+    "noLocalPosts": "No local posts yet from this instance.",
+    "noPublicPosts": "No public posts yet. Be the first to share something!",
+    "noPostsFound": "No posts found."
   },
   "moderation": {
     "report": "Report",

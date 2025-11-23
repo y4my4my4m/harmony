@@ -25,13 +25,13 @@
         </div>
         
         <div class="welcome-text">
-          <h1 class="welcome-title">Welcome to Harmony</h1>
-          <p class="welcome-subtitle">Your journey begins here</p>
+          <h1 class="welcome-title">{{ $t('server.welcomeToHarmony') }}</h1>
+          <p class="welcome-subtitle">{{ $t('server.journeyBegins') }}</p>
         </div>
 
         <div class="status-indicator">
           <div class="status-dot"></div>
-          <span>Ready to connect</span>
+          <span>{{ $t('server.readyToConnect') }}</span>
         </div>
       </div>
 
@@ -44,12 +44,12 @@
             </svg>
           </div>
           <div class="card-content">
-            <h3 class="card-title">Create Your Server</h3>
-            <p class="card-description">Build your own community from scratch with complete control over channels, settings, and members.</p>
+            <h3 class="card-title">{{ $t('server.createYourServer') }}</h3>
+            <p class="card-description">{{ $t('server.buildCommunityDesc') }}</p>
             <div class="card-features">
-              <span class="feature">✨ Custom branding</span>
-              <span class="feature">🛡️ Full control</span>
-              <span class="feature">📝 Custom channels</span>
+              <span class="feature">{{ $t('server.customBranding') }}</span>
+              <span class="feature">{{ $t('server.fullControl') }}</span>
+              <span class="feature">{{ $t('server.customChannels') }}</span>
             </div>
           </div>
           <div class="card-arrow">
@@ -66,12 +66,12 @@
             </svg>
           </div>
           <div class="card-content">
-            <h3 class="card-title">Discover Communities</h3>
-            <p class="card-description">Browse and join existing servers to connect with like-minded people and engaging discussions.</p>
+            <h3 class="card-title">{{ $t('server.discoverCommunities') }}</h3>
+            <p class="card-description">{{ $t('server.browseAndJoin') }}</p>
             <div class="card-features">
-              <span class="feature">🌍 Public servers</span>
-              <span class="feature">👥 Active communities</span>
-              <span class="feature">🔍 Easy discovery</span>
+              <span class="feature">{{ $t('server.publicServers') }}</span>
+              <span class="feature">{{ $t('server.activeCommunities') }}</span>
+              <span class="feature">{{ $t('server.easyDiscovery') }}</span>
             </div>
           </div>
           <div class="card-arrow">
@@ -89,8 +89,8 @@
             <path d="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z" fill="currentColor"/>
           </svg>
           <div class="info-text">
-            <h4>New to Harmony?</h4>
-            <p>Servers are communities where you can chat, share, and collaborate with others. Think of them as your digital hangout spaces!</p>
+            <h4>{{ $t('server.newToHarmony') }}</h4>
+            <p>{{ $t('server.serversAreWhat') }}</p>
           </div>
         </div>
       </div>

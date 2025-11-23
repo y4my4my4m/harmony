@@ -39,7 +39,7 @@
           :empty-title="getEmptyStateTitle(viewType)"
           :empty-message="getSpecialViewEmptyMessage(viewType)"
           :empty-icon="getViewIcon(viewType)"
-          :empty-action="viewType === ViewType.BOOKMARKS ? 'Browse Timeline' : undefined"
+          :empty-action="viewType === ViewType.BOOKMARKS ? $t('activitypub.browseTimeline') : undefined"
           @load-more="$emit('load-more-special-data')"
           @empty-action="$emit('switch-feed', 'home')"
         />
@@ -64,7 +64,7 @@
           :loading-message="getTimelineLoadingMessage()"
           :empty-title="getTimelineEmptyTitle()"
           :empty-message="getTimelineEmptyMessage()"
-          :empty-action="currentView === 'home' ? 'Explore Public Timeline' : undefined"
+          :empty-action="currentView === 'home' ? $t('activitypub.explorePublicTimeline') : undefined"
           @load-more="$emit('load-more-posts')"
           @empty-action="$emit('switch-feed', 'public')"
         />
@@ -74,6 +74,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import ChatComponent from '@/components/ChatComponent.vue'
 import Composer from '@/components/activitypub/Composer.vue'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
@@ -143,32 +144,33 @@ defineEmits<{
 
 // Use the post interactions composable for all post-related actions
 const postInteractions = usePostInteractions()
+const { t } = useI18n()
 
 // Helper functions for timeline states
 const getTimelineLoadingMessage = () => {
   switch (props.currentView) {
-    case 'home': return 'Loading your timeline...'
-    case 'local': return 'Loading local timeline...'
-    case 'public': return 'Loading public timeline...'
-    default: return 'Loading timeline...'
+    case 'home': return t('common.loading') + '...'
+    case 'local': return t('common.loading') + '...'
+    case 'public': return t('common.loading') + '...'
+    default: return t('common.loading') + '...'
   }
 }
 
 const getTimelineEmptyTitle = () => {
   switch (props.currentView) {
-    case 'home': return 'Welcome to Social!'
-    case 'local': return 'Local Timeline Empty'
-    case 'public': return 'Public Timeline Empty'
-    default: return 'No posts yet'
+    case 'home': return t('activitypub.welcomeToSocial')
+    case 'local': return t('activitypub.emptyTimeline')
+    case 'public': return t('activitypub.emptyTimeline')
+    default: return t('activitypub.noPostsYet')
   }
 }
 
 const getTimelineEmptyMessage = () => {
   switch (props.currentView) {
-    case 'home': return 'Follow some users to see their posts in your timeline.'
-    case 'local': return 'No local posts yet from this instance.'
-    case 'public': return 'No public posts yet. Be the first to share something!'
-    default: return 'No posts found.'
+    case 'home': return t('activitypub.followUsersToSee')
+    case 'local': return t('activitypub.noLocalPosts')
+    case 'public': return t('activitypub.noPublicPosts')
+    default: return t('activitypub.noPostsFound')
   }
 }
 

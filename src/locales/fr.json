@@ -119,6 +119,19 @@
     "inviteLink": "Obtenir le lien d'invitation",
     "searchMembers": "Rechercher des membres",
     "discoverCommunities": "Découvrir des communautés",
+    "welcomeToHarmony": "Bienvenue sur Harmony",
+    "journeyBegins": "Votre voyage commence ici",
+    "readyToConnect": "Prêt à se connecter",
+    "buildCommunityDesc": "Construisez votre propre communauté à partir de zéro avec un contrôle total sur les canaux, les paramètres et les membres.",
+    "browseAndJoin": "Parcourez et rejoignez des serveurs existants pour vous connecter avec des personnes partageant les mêmes idées et des discussions engageantes.",
+    "customBranding": "✨ Image de marque personnalisée",
+    "fullControl": "🛡️ Contrôle total",
+    "customChannels": "📝 Canaux personnalisés",
+    "publicServers": "🌍 Serveurs publics",
+    "activeCommunities": "👥 Communautés actives",
+    "easyDiscovery": "🔍 Découverte facile",
+    "newToHarmony": "Nouveau sur Harmony ?",
+    "serversAreWhat": "Les serveurs sont des communautés où vous pouvez discuter, partager et collaborer avec d'autres. Considérez-les comme vos espaces de rencontre numériques !",
     "placeholders": {
       "serverName": "Mon super serveur",
       "description": "Parlez-nous de votre serveur..."
@@ -425,7 +438,12 @@
     "online": "En ligne",
     "yourActivity": "Votre activité",
     "suggestedFollows": "Abonnements suggérés",
-    "instanceInfo": "Informations sur l'instance"
+    "instanceInfo": "Informations sur l'instance",
+    "discoverPeople": "Découvrir des personnes",
+    "browseTimeline": "Parcourir le fil",
+    "noLocalPosts": "Pas encore de publications locales de cette instance.",
+    "noPublicPosts": "Pas encore de publications publiques. Soyez le premier à partager quelque chose !",
+    "noPostsFound": "Aucune publication trouvée."
   },
   "moderation": {
     "report": "Signaler",

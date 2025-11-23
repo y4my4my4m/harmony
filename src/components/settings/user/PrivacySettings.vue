@@ -1,7 +1,7 @@
 <template>
   <div class="privacy-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Privacy & Safety</h2>
+      <h2 class="settings-title">{{ $t('settings.privacy') }}</h2>
       <p class="settings-description">
         Control who can interact with you, manage your account security, and control how your data is used.
       </p>
@@ -16,21 +16,21 @@
       
       <!-- Password Change -->
       <div class="subsection">
-        <h4 class="subsection-title">Change Password</h4>
+        <h4 class="subsection-title">{{ $t('auth.changePassword') }}</h4>
         <p class="subsection-description">
           Update your password to keep your account secure. You'll need to enter your current password to confirm this change.
         </p>
         
         <form @submit.prevent="handlePasswordChange" class="password-form" autocomplete="off">
           <div class="form-group">
-            <label class="form-label">Current Password</label>
+            <label class="form-label">{{ $t('auth.currentPassword') }}</label>
             <div class="password-input-wrapper">
               <input
                 v-model="passwordForm.currentPassword"
                 :type="showCurrentPassword ? 'text' : 'password'"
                 class="form-input"
                 :class="{ 'error': passwordErrors.currentPassword }"
-                placeholder="Enter your current password"
+                :placeholder="$t('auth.currentPassword')"
                 name="current-password-change"
                 autocomplete="current-password"
                 @input="clearPasswordError('currentPassword')"
@@ -51,14 +51,14 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">New Password</label>
+            <label class="form-label">{{ $t('auth.newPassword') }}</label>
             <div class="password-input-wrapper">
               <input
                 v-model="passwordForm.newPassword"
                 :type="showNewPassword ? 'text' : 'password'"
                 class="form-input"
                 :class="{ 'error': passwordErrors.newPassword }"
-                placeholder="Enter new password (min 6 characters)"
+                :placeholder="$t('auth.newPassword')"
                 name="new-password-change"
                 autocomplete="new-password"
                 @input="clearPasswordError('newPassword')"
@@ -79,14 +79,14 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">Confirm New Password</label>
+            <label class="form-label">{{ $t('auth.confirmNewPassword') }}</label>
             <div class="password-input-wrapper">
               <input
                 v-model="passwordForm.confirmPassword"
                 :type="showConfirmPassword ? 'text' : 'password'"
                 class="form-input"
                 :class="{ 'error': passwordErrors.confirmPassword }"
-                placeholder="Confirm your new password"
+                :placeholder="$t('auth.confirmNewPassword')"
                 name="confirm-password-change"
                 autocomplete="new-password"
                 @input="clearPasswordError('confirmPassword')"

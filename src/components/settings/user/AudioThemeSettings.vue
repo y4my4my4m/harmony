@@ -1,7 +1,7 @@
 <template>
   <div class="audio-theme-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Audio Themes</h2>
+      <h2 class="settings-title">{{ $t('settings.voice.title') }}</h2>
       <p class="settings-description">
         Choose your preferred audio experience with different sound themes.
       </p>
@@ -21,7 +21,7 @@
 
     <!-- Quick Test Section -->
     <div class="settings-section">
-      <h3 class="section-title">Sound Preview</h3>
+      <h3 class="section-title">{{ $t('common.preview') }}</h3>
       <p class="section-description">Test how different actions will sound with your current theme</p>
       
       <div class="sound-test-grid">
@@ -40,7 +40,7 @@
 
     <!-- Advanced Settings -->
     <div class="settings-section advanced-section" v-if="showAdvanced">
-      <h3 class="section-title">Advanced Audio Settings</h3>
+      <h3 class="section-title">{{ $t('settings.advanced.title') }}</h3>
       
       <div class="setting-item">
         <div class="setting-info">
@@ -56,13 +56,13 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Clear Audio Cache</h4>
+          <h4 class="setting-label">{{ $t('common.clear') }} Audio Cache</h4>
           <p class="setting-description">Clear cached audio files to force reload of all sounds</p>
         </div>
         <div class="setting-control">
           <button @click="clearCache" class="clear-cache-btn" :disabled="isLoading">
             <Icon name="trash-2" />
-            Clear Cache
+            {{ $t('common.clear') }}
           </button>
         </div>
       </div>
@@ -76,13 +76,13 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Reset Audio System</h4>
+          <h4 class="setting-label">{{ $t('common.reset') }}</h4>
           <p class="setting-description">Reset all audio settings to defaults</p>
         </div>
         <div class="setting-control">
           <button @click="resetSystem" class="reset-btn danger" :disabled="isLoading">
             <Icon name="rotate-ccw" />
-            Reset System
+            {{ $t('common.reset') }}
           </button>
         </div>
       </div>
@@ -92,7 +92,7 @@
     <div class="advanced-toggle">
       <button @click="showAdvanced = !showAdvanced" class="toggle-btn">
         <Icon :name="showAdvanced ? 'chevron-up' : 'chevron-down'" />
-        {{ showAdvanced ? 'Hide' : 'Show' }} Advanced Settings
+        {{ showAdvanced ? 'Hide' : 'Show' }} {{ $t('settings.advanced.title') }}
       </button>
     </div>
   </div>
