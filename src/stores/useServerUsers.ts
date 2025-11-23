@@ -496,11 +496,6 @@ export const useServerUsersStore = defineStore('serverUsers', {
       return this.usersInVoiceChannels[channelId]?.includes(userId) || false;
     },
 
-    // Get all users in a specific voice channel
-    getUsersInVoiceChannel(channelId: string): string[] {
-      return this.usersInVoiceChannels[channelId] || [];
-    },
-
     // Leave all voice channels (for cleanup)
     async leaveAllVoiceChannels(serverId: string, userId: string) {
       const channelsToLeave = Object.keys(this.usersInVoiceChannels).filter(channelId => 
