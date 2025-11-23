@@ -1028,7 +1028,7 @@ const closeInviteModal = () => {
 .message-header {
   display: flex;
   align-items: flex-start;
-  gap: 16px;
+  gap: 12px;
   padding: 2px 0;
 }
 

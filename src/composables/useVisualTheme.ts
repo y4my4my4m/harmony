@@ -202,7 +202,6 @@ function applySettings(settings: VisualThemeSettings) {
   
   // Apply font size
   root.style.setProperty('--message-font-size', `${settings.fontSize}px`)
-  root.style.fontSize = `${settings.fontSize}px`
   
   // Apply zoom level
   root.style.zoom = `${settings.zoomLevel}%`
