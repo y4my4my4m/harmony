@@ -2,11 +2,11 @@
   <div class="server-dropdown" v-if="isVisible" v-click-outside="closeDropdown">
     <ul>
       <li v-if="canViewServerSettings" @click="goToServerSettings">
-        {{ canManageServer ? 'Server Settings' : 'View Server Info' }}
+        {{ canManageServer ? $t('server.settings') : $t('server.overview') }}
       </li>
-      <li v-if="canCreateCategories" @click="createCategory">Create Category</li>
-      <li v-if="canCreateChannels" @click="createChannel">Create Channel</li>
-      <li @click="generateInviteLink">Get Invite Link</li>
+      <li v-if="canCreateCategories" @click="createCategory">{{ $t('server.createCategory') }}</li>
+      <li v-if="canCreateChannels" @click="createChannel">{{ $t('channel.create') }}</li>
+      <li @click="generateInviteLink">{{ $t('server.inviteLink') }}</li>
     </ul>
   </div>
 </template>

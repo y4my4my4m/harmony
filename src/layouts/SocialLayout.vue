@@ -77,7 +77,7 @@
           <div class="activitypub-right-sidebar">
           <!-- Trending Section -->
           <div class="sidebar-section">
-            <h3 class="section-title">Trending</h3>
+            <h3 class="section-title">{{ $t('activitypub.trending') }}</h3>
             <div class="trending-list">
               <div 
                 v-for="trend in trendingTopics"
@@ -85,14 +85,14 @@
                 class="trending-item"
               >
                 <span class="trending-tag">#{{ trend.tag }}</span>
-                <span class="trending-count">{{ formatNumber(trend.count) }} posts</span>
+                <span class="trending-count">{{ formatNumber(trend.count) }} {{ $t('activitypub.posts') }}</span>
               </div>
             </div>
           </div>
 
           <!-- Suggested Users -->
           <div class="sidebar-section">
-            <h3 class="section-title">Suggested Follows</h3>
+            <h3 class="section-title">{{ $t('activitypub.suggestedFollows') }}</h3>
             <div class="suggested-users">
               <ProfileCard
                 v-for="user in suggestedUsers"
@@ -107,11 +107,11 @@
 
           <!-- Instance Info -->
           <div class="sidebar-section">
-            <h3 class="section-title">Instance Info</h3>
+            <h3 class="section-title">{{ $t('activitypub.instanceInfo') }}</h3>
             <div class="instance-info">
               <p class="instance-domain">{{ instanceDomain }}</p>
-              <p class="instance-users">{{ instanceUserCount }} users</p>
-              <p class="instance-posts">{{ instancePostCount }} posts</p>
+              <p class="instance-users">{{ instanceUserCount }} {{ $t('server.members') }}</p>
+              <p class="instance-posts">{{ instancePostCount }} {{ $t('activitypub.posts') }}</p>
             </div>
           </div>
           </div>

@@ -115,6 +115,10 @@
     "myAwesomeServer": "素晴らしいサーバー",
     "noServers": "サーバーがありません",
     "joinFirst": "サーバーに参加または作成して開始",
+    "createCategory": "カテゴリを作成",
+    "inviteLink": "招待リンクを取得",
+    "searchMembers": "メンバーを検索",
+    "discoverCommunities": "コミュニティを発見",
     "placeholders": {
       "serverName": "素晴らしいサーバー",
       "description": "サーバーについて説明してください..."
@@ -411,7 +415,17 @@
     "liked": "いいねしました",
     "unliked": "いいねを取り消しました",
     "bookmarked": "ブックマークに追加しました",
-    "unbookmarked": "ブックマークから削除しました"
+    "unbookmarked": "ブックマークから削除しました",
+    "welcomeToSocial": "ソーシャルへようこそ！",
+    "followUsersToSee": "ユーザーをフォローしてタイムラインで投稿を見ましょう。",
+    "explorePublicTimeline": "公開タイムラインを探索",
+    "noFollowingYet": "まだフォローしていません",
+    "followSomeone": "誰かをフォローして始めましょう",
+    "instance": "インスタンス",
+    "online": "オンライン",
+    "yourActivity": "あなたのアクティビティ",
+    "suggestedFollows": "おすすめフォロー",
+    "instanceInfo": "インスタンス情報"
   },
   "moderation": {
     "report": "報告",

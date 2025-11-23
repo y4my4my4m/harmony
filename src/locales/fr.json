@@ -115,6 +115,10 @@
     "myAwesomeServer": "Mon super serveur",
     "noServers": "Aucun serveur pour le moment",
     "joinFirst": "Rejoignez ou créez un serveur pour commencer",
+    "createCategory": "Créer une catégorie",
+    "inviteLink": "Obtenir le lien d'invitation",
+    "searchMembers": "Rechercher des membres",
+    "discoverCommunities": "Découvrir des communautés",
     "placeholders": {
       "serverName": "Mon super serveur",
       "description": "Parlez-nous de votre serveur..."
@@ -411,7 +415,17 @@
     "liked": "Aimé",
     "unliked": "J'aime retiré",
     "bookmarked": "Ajouté aux marque-pages",
-    "unbookmarked": "Retiré des marque-pages"
+    "unbookmarked": "Retiré des marque-pages",
+    "welcomeToSocial": "Bienvenue sur Social !",
+    "followUsersToSee": "Suivez des utilisateurs pour voir leurs publications dans votre fil.",
+    "explorePublicTimeline": "Explorer le fil public",
+    "noFollowingYet": "Aucun abonnement pour le moment",
+    "followSomeone": "Suivez quelqu'un pour commencer",
+    "instance": "Instance",
+    "online": "En ligne",
+    "yourActivity": "Votre activité",
+    "suggestedFollows": "Abonnements suggérés",
+    "instanceInfo": "Informations sur l'instance"
   },
   "moderation": {
     "report": "Signaler",

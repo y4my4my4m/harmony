@@ -115,6 +115,10 @@
     "myAwesomeServer": "My Awesome Server",
     "noServers": "No servers yet",
     "joinFirst": "Join or create a server to get started",
+    "createCategory": "Create Category",
+    "inviteLink": "Get Invite Link",
+    "searchMembers": "Search Members",
+    "discoverCommunities": "Discover Communities",
     "placeholders": {
       "serverName": "My Awesome Server",
       "description": "Tell others what your server is about..."
@@ -411,7 +415,17 @@
     "liked": "Liked",
     "unliked": "Unliked",
     "bookmarked": "Bookmarked",
-    "unbookmarked": "Removed from bookmarks"
+    "unbookmarked": "Removed from bookmarks",
+    "welcomeToSocial": "Welcome to Social!",
+    "followUsersToSee": "Follow some users to see their posts in your timeline.",
+    "explorePublicTimeline": "Explore Public Timeline",
+    "noFollowingYet": "No following yet",
+    "followSomeone": "Follow someone to get started",
+    "instance": "Instance",
+    "online": "Online",
+    "yourActivity": "Your Activity",
+    "suggestedFollows": "Suggested Follows",
+    "instanceInfo": "Instance Info"
   },
   "moderation": {
     "report": "Report",

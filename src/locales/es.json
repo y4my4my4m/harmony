@@ -115,6 +115,10 @@
     "myAwesomeServer": "Mi servidor increíble",
     "noServers": "Aún no hay servidores",
     "joinFirst": "Únete o crea un servidor para comenzar",
+    "createCategory": "Crear categoría",
+    "inviteLink": "Obtener enlace de invitación",
+    "searchMembers": "Buscar miembros",
+    "discoverCommunities": "Descubrir comunidades",
     "placeholders": {
       "serverName": "Mi servidor increíble",
       "description": "Cuéntales a los demás de qué trata tu servidor..."
@@ -411,7 +415,17 @@
     "liked": "Me gusta añadido",
     "unliked": "Me gusta eliminado",
     "bookmarked": "Añadido a marcadores",
-    "unbookmarked": "Eliminado de marcadores"
+    "unbookmarked": "Eliminado de marcadores",
+    "welcomeToSocial": "¡Bienvenido a Social!",
+    "followUsersToSee": "Sigue a algunos usuarios para ver sus publicaciones en tu línea de tiempo.",
+    "explorePublicTimeline": "Explorar línea de tiempo pública",
+    "noFollowingYet": "Aún no sigues a nadie",
+    "followSomeone": "Sigue a alguien para comenzar",
+    "instance": "Instancia",
+    "online": "En línea",
+    "yourActivity": "Tu actividad",
+    "suggestedFollows": "Seguimientos sugeridos",
+    "instanceInfo": "Información de instancia"
   },
   "moderation": {
     "report": "Reportar",
