@@ -152,7 +152,7 @@
     "easyDiscovery": "🔍 轻松发现",
     "newToHarmony": "初次使用 Harmony？",
     "serversAreWhat": "服务器是您可以聊天、分享和与他人协作的社区。把它们想象成您的数字聚会空间！",
-    "noResultsFor": "没有"{query}"的结果",
+    "noResultsFor": "没有\"{query}\"的结果",
     "tryAdjustingSearch": "尝试调整您的搜索词或浏览所有社区",
     "placeholders": {
       "serverName": "我的超棒服务器",
@@ -486,7 +486,11 @@
     "searchTips": "搜索提示：",
     "searchTipsExactMatch": "使用 @用户名@域名 进行精确匹配",
     "searchTipsPartial": "按显示名称或部分用户名搜索",
-    "searchTipsDomain": "对于联合用户，包含域名"
+    "searchTipsDomain": "对于联合用户，包含域名",
+    "searchAction": "搜索",
+    "composeAction": "创建新帖子",
+    "refreshAction": "刷新时间线",
+    "toggleSidebarAction": "切换侧边栏"
   },
   "moderation": {
     "report": "举报",
@@ -529,8 +533,15 @@
     "tooLarge": "文件太大",
     "invalidType": "无效的文件类型"
   },
+  "gif": {
+    "search": "搜索 GIF...",
+    "searchGifs": "搜索 GIF...",
+    "trending": "趋势",
+    "noResults": "未找到 GIF"
+  },
   "emoji": {
     "search": "搜索表情...",
+    "searchEmojis": "搜索表情...",
     "recent": "最近使用",
     "smileys": "笑脸和人物",
     "animals": "动物和自然",

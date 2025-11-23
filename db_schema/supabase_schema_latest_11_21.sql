@@ -181,7 +181,7 @@ COMMENT ON EXTENSION pg_stat_statements IS 'track planning and execution statist
 -- Name: pg_trgm; Type: EXTENSION; Schema: -; Owner: -
 --
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions;
 
 
 --
@@ -10146,7 +10146,7 @@ BEGIN
     CASE 
       WHEN tsquery_val IS NOT NULL THEN
         (ts_rank(msi.content_tsvector, tsquery_val) * 0.7 +
-         similarity(msi.content_text, search_query) * 0.3)::real
+         extensions.similarity(msi.content_text, search_query) * 0.3)::real
       ELSE
         -- If no query, rank by date
         1.0::real
@@ -10181,7 +10181,7 @@ BEGIN
     -- Search conditions (only if query provided)
     AND (tsquery_val IS NULL OR 
          msi.content_tsvector @@ tsquery_val OR 
-         similarity(msi.content_text, search_query) > 0.2)
+         extensions.similarity(msi.content_text, search_query) > 0.2)
     -- Filters
     AND (p_channel_id IS NULL OR msi.channel_id = p_channel_id)
     AND (p_channel_ids IS NULL OR msi.channel_id = ANY(p_channel_ids))

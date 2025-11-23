@@ -268,7 +268,7 @@
         <button 
           ref="emojiTriggerRef"
           class="action-button add-reaction-button"
-          @click="() => handleShowEmojiPicker(post)"
+          @click.stop="() => handleShowEmojiPicker(post)"
           title="Add reaction"
         >
           <Icon name="plus" />

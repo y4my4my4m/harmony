@@ -486,7 +486,11 @@
     "searchTips": "검색 팁:",
     "searchTipsExactMatch": "정확한 일치를 위해 @사용자이름@도메인 사용",
     "searchTipsPartial": "표시 이름 또는 부분 사용자 이름으로 검색",
-    "searchTipsDomain": "연합 사용자의 경우 도메인 포함"
+    "searchTipsDomain": "연합 사용자의 경우 도메인 포함",
+    "searchAction": "검색",
+    "composeAction": "새 게시물 만들기",
+    "refreshAction": "타임라인 새로고침",
+    "toggleSidebarAction": "사이드바 전환"
   },
   "moderation": {
     "report": "신고",
@@ -529,8 +533,15 @@
     "tooLarge": "파일이 너무 큽니다",
     "invalidType": "잘못된 파일 유형"
   },
+  "gif": {
+    "search": "GIF 검색...",
+    "searchGifs": "GIF 검색...",
+    "trending": "트렌드",
+    "noResults": "GIF를 찾을 수 없습니다"
+  },
   "emoji": {
     "search": "이모지 검색...",
+    "searchEmojis": "이모지 검색...",
     "recent": "최근 사용",
     "smileys": "스마일 및 사람",
     "animals": "동물 및 자연",

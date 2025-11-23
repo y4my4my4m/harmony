@@ -486,7 +486,11 @@
     "searchTips": "Search tips:",
     "searchTipsExactMatch": "Use @username@domain for exact matches",
     "searchTipsPartial": "Search by display name or partial username",
-    "searchTipsDomain": "Include the domain for federated users"
+    "searchTipsDomain": "Include the domain for federated users",
+    "searchAction": "Search",
+    "composeAction": "Create new post",
+    "refreshAction": "Refresh timeline",
+    "toggleSidebarAction": "Toggle sidebar"
   },
   "moderation": {
     "report": "Report",
@@ -529,8 +533,15 @@
     "tooLarge": "File is too large",
     "invalidType": "Invalid file type"
   },
+  "gif": {
+    "search": "Search GIF...",
+    "searchGifs": "Search GIFs...",
+    "trending": "Trending",
+    "noResults": "No GIFs found"
+  },
   "emoji": {
     "search": "Search emoji...",
+    "searchEmojis": "Search emojis...",
     "recent": "Recent",
     "smileys": "Smileys & People",
     "animals": "Animals & Nature",

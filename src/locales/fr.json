@@ -486,7 +486,11 @@
     "searchTips": "Conseils de recherche :",
     "searchTipsExactMatch": "Utilisez @nomutilisateur@domaine pour les correspondances exactes",
     "searchTipsPartial": "Recherchez par nom d'affichage ou nom d'utilisateur partiel",
-    "searchTipsDomain": "Incluez le domaine pour les utilisateurs fédérés"
+    "searchTipsDomain": "Incluez le domaine pour les utilisateurs fédérés",
+    "searchAction": "Rechercher",
+    "composeAction": "Créer une nouvelle publication",
+    "refreshAction": "Rafraîchir le fil",
+    "toggleSidebarAction": "Basculer la barre latérale"
   },
   "moderation": {
     "report": "Signaler",
@@ -529,8 +533,15 @@
     "tooLarge": "Le fichier est trop volumineux",
     "invalidType": "Type de fichier invalide"
   },
+  "gif": {
+    "search": "Rechercher un GIF...",
+    "searchGifs": "Rechercher des GIF...",
+    "trending": "Tendances",
+    "noResults": "Aucun GIF trouvé"
+  },
   "emoji": {
     "search": "Rechercher des émojis...",
+    "searchEmojis": "Rechercher des émojis...",
     "recent": "Récents",
     "smileys": "Smileys et personnes",
     "animals": "Animaux et nature",

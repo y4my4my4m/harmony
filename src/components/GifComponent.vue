@@ -4,7 +4,7 @@
       <input 
         type="text" 
         v-model="searchQuery" 
-        placeholder="Search GIFs..." 
+        :placeholder="$t('gif.searchGifs')" 
         class="search-input"
         ref="searchInput"
       >

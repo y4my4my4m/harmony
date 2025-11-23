@@ -486,7 +486,11 @@
     "searchTips": "Suchtipps:",
     "searchTipsExactMatch": "Verwende @benutzername@domain für exakte Treffer",
     "searchTipsPartial": "Suche nach Anzeigename oder teilweisem Benutzernamen",
-    "searchTipsDomain": "Füge die Domain für föderierte Benutzer hinzu"
+    "searchTipsDomain": "Füge die Domain für föderierte Benutzer hinzu",
+    "searchAction": "Suchen",
+    "composeAction": "Neuen Beitrag erstellen",
+    "refreshAction": "Timeline aktualisieren",
+    "toggleSidebarAction": "Seitenleiste umschalten"
   },
   "moderation": {
     "report": "Melden",
@@ -529,8 +533,15 @@
     "tooLarge": "Datei ist zu groß",
     "invalidType": "Ungültiger Dateityp"
   },
+  "gif": {
+    "search": "GIF suchen...",
+    "searchGifs": "GIFs suchen...",
+    "trending": "Trends",
+    "noResults": "Keine GIFs gefunden"
+  },
   "emoji": {
     "search": "Emoji suchen...",
+    "searchEmojis": "Emojis suchen...",
     "recent": "Kürzlich verwendet",
     "smileys": "Smileys & Personen",
     "animals": "Tiere & Natur",
