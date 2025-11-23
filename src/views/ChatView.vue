@@ -67,6 +67,8 @@ const loadMessages = async () => {
     const conversationId = route.params.conversationId as string
     if (conversationId) {
       isLoading.value = true
+      // Clear DM messages immediately when switching conversations
+      dmStore.clearDMMessages()
       try {
         // Initialize DM environment for direct access if needed
         const userId = authStore.session?.user?.id
@@ -84,6 +86,8 @@ const loadMessages = async () => {
     
     if (serverId && channelId) {
       isLoading.value = true
+      // Clear messages immediately when switching channels to show loading state
+      chatStore.clearMessages()
       try {
         // Set current channel first to avoid race condition
         // Only set if it's different to prevent recursive triggers
