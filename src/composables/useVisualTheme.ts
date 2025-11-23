@@ -84,13 +84,80 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   const root = document.documentElement
   const theme = PRESET_THEMES[themeName]
   
+  // Primary colors
   root.style.setProperty('--harmony-primary', theme.primary)
+  root.style.setProperty('--harmony-primary-hover', themeName === 'dark' ? '#4752c4' : '#4752c4')
+  root.style.setProperty('--harmony-primary-light', 'rgba(88, 101, 242, 0.1)')
   root.style.setProperty('--h-primary', theme.primary)
-  root.style.setProperty('--h-chat', theme.bgChat)
-  root.style.setProperty('--h-sidebar', theme.bgSidebar)
+  root.style.setProperty('--h-primary-light', themeName === 'light' ? '#7289da' : '#5983c8')
+  root.style.setProperty('--h-primary-dark', '#1e3585')
+  
+  // Background colors - use proper defaults based on theme
+  if (themeName === 'dark') {
+    root.style.setProperty('--h-chat', '#313338')
+    root.style.setProperty('--h-chat-light', '#383a40')
+    root.style.setProperty('--h-chat-lighter', '#40444b')
+    root.style.setProperty('--h-chat-dark', '#2b2d31')
+    root.style.setProperty('--h-chat-darker', '#1e1f22')
+    
+    root.style.setProperty('--h-sidebar', '#2b2d31')
+    root.style.setProperty('--h-sidebar-light', '#35373c')
+    
+    root.style.setProperty('--h-black', '#1e1f22')
+    root.style.setProperty('--h-black-light', '#313336')
+    root.style.setProperty('--h-black-lighter', '#40444b')
+    root.style.setProperty('--h-black-darker', '#0c0d0e')
+    
+    root.style.setProperty('--background-primary', '#1a1a1e')
+    root.style.setProperty('--background-secondary', '#17181a')
+    root.style.setProperty('--background-tertiary', '#121214')
+  } else if (themeName === 'light') {
+    root.style.setProperty('--h-chat', '#ffffff')
+    root.style.setProperty('--h-chat-light', '#f6f6f7')
+    root.style.setProperty('--h-chat-lighter', '#f2f3f5')
+    root.style.setProperty('--h-chat-dark', '#e3e5e8')
+    root.style.setProperty('--h-chat-darker', '#d0d2d5')
+    
+    root.style.setProperty('--h-sidebar', '#f2f3f5')
+    root.style.setProperty('--h-sidebar-light', '#e3e5e8')
+    
+    root.style.setProperty('--h-black', '#e3e5e8')
+    root.style.setProperty('--h-black-light', '#ebedef')
+    root.style.setProperty('--h-black-lighter', '#f2f3f5')
+    root.style.setProperty('--h-black-darker', '#d0d2d5')
+    
+    root.style.setProperty('--background-primary', '#ffffff')
+    root.style.setProperty('--background-secondary', '#f6f6f7')
+    root.style.setProperty('--background-tertiary', '#f2f3f5')
+  } else if (themeName === 'midnight') {
+    root.style.setProperty('--h-chat', '#1e2124')
+    root.style.setProperty('--h-chat-light', '#25272a')
+    root.style.setProperty('--h-chat-lighter', '#2b2d31')
+    root.style.setProperty('--h-chat-dark', '#18191c')
+    root.style.setProperty('--h-chat-darker', '#0f1012')
+    
+    root.style.setProperty('--h-sidebar', '#1a1d20')
+    root.style.setProperty('--h-sidebar-light', '#1f2226')
+    
+    root.style.setProperty('--h-black', '#13151a')
+    root.style.setProperty('--h-black-light', '#1a1d20')
+    root.style.setProperty('--h-black-lighter', '#1f2226')
+    root.style.setProperty('--h-black-darker', '#0a0b0d')
+    
+    root.style.setProperty('--background-primary', '#1a1a1e')
+    root.style.setProperty('--background-secondary', '#13151a')
+    root.style.setProperty('--background-tertiary', '#0f1012')
+  }
+  
+  // Text colors
   root.style.setProperty('--text-primary', theme.textPrimary)
   root.style.setProperty('--text-secondary', theme.textSecondary)
+  root.style.setProperty('--text-tertiary', theme.isLightTheme ? '#6e7178' : '#80848e')
+  root.style.setProperty('--text-muted', theme.isLightTheme ? '#5e6168' : '#6d6f78')
+  
+  // Border colors
   root.style.setProperty('--border-primary', theme.borderPrimary)
+  root.style.setProperty('--border-secondary', theme.isLightTheme ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.06)')
   
   root.setAttribute('data-theme', themeName)
   root.setAttribute('data-theme-type', theme.isLightTheme ? 'light' : 'dark')
