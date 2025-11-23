@@ -64,6 +64,7 @@
           <p class="picker-help">Influences the overall color tone of backgrounds</p>
           <ColorPicker 
             v-model:color="settings.customBackgroundColor"
+            @update:color="onCustomBackgroundChange"
             @change="onCustomBackgroundChange"
           />
         </div>
@@ -74,6 +75,7 @@
           <p class="picker-help">Used for buttons, links, and interactive elements</p>
           <ColorPicker 
             v-model:color="settings.customAccentColor"
+            @update:color="onCustomColorChange"
             @change="onCustomColorChange"
           />
         </div>
@@ -166,8 +168,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">24-Hour Time</h4>
-          <p class="setting-description">Display time in 24-hour format.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.use24Hour') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.use24HourDesc') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch 
@@ -179,8 +181,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Compact Mode</h4>
-          <p class="setting-description">Show more messages at once with reduced spacing.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.compactMode') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.compactModeDesc') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch 
@@ -192,8 +194,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Floating Video Player</h4>
-          <p class="setting-description">Playing videos float to corner when scrolled away. Works with YouTube and native videos.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.floatingVideo') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.floatingVideoDesc') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch 
@@ -205,12 +207,12 @@
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">Accessibility</h3>
+      <h3 class="section-title">{{ $t('settings.appearance.highContrast') }}</h3>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">High Contrast</h4>
-          <p class="setting-description">Increase contrast for better visibility.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.highContrast') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.highContrastDesc') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch 
@@ -222,8 +224,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Reduce Motion</h4>
-          <p class="setting-description">Reduce animations and transitions.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.reduceMotion') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.reduceMotionDesc') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch 
@@ -235,8 +237,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Screen Reader Support</h4>
-          <p class="setting-description">Optimize for screen readers.</p>
+          <h4 class="setting-label">{{ $t('settings.appearance.screenReader') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.screenReaderDesc') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch 
@@ -272,6 +274,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import type { User } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
 import { useVisualTheme } from '@/composables/useVisualTheme'
+import { generateThemePalette, applyThemePalette } from '@/utils/colorUtils'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -363,59 +366,33 @@ const hasChanges = computed(() => {
 // Methods
 const selectTheme = (themeId: string) => {
   settings.value.theme = themeId as 'dark' | 'light' | 'midnight' | 'custom'
-  visualTheme.updateSettings({
-    theme: settings.value.theme,
-    customThemeMode: settings.value.customThemeMode,
-    customAccentColor: settings.value.customAccentColor,
-    customBackgroundColor: settings.value.customBackgroundColor,
-    fontSize: settings.value.fontSize,
-    zoomLevel: settings.value.zoomLevel,
-    messageDisplay: settings.value.messageDisplay,
-    showTimestamps: settings.value.showTimestamps,
-    use24HourTime: settings.value.use24HourTime,
-    compactMode: settings.value.compactMode,
-    highContrast: settings.value.highContrast,
-    reduceMotion: settings.value.reduceMotion,
-    screenReaderSupport: settings.value.screenReaderSupport,
-  })
+  previewTheme()
 }
 
 const onCustomColorChange = () => {
-  // Update composable settings immediately (triggers real-time watch)
-  visualTheme.updateSettings({
-    theme: settings.value.theme,
-    customThemeMode: settings.value.customThemeMode,
-    customAccentColor: settings.value.customAccentColor,
-    customBackgroundColor: settings.value.customBackgroundColor,
-    fontSize: settings.value.fontSize,
-    zoomLevel: settings.value.zoomLevel,
-    messageDisplay: settings.value.messageDisplay,
-    showTimestamps: settings.value.showTimestamps,
-    use24HourTime: settings.value.use24HourTime,
-    compactMode: settings.value.compactMode,
-    highContrast: settings.value.highContrast,
-    reduceMotion: settings.value.reduceMotion,
-    screenReaderSupport: settings.value.screenReaderSupport,
-  })
+  previewTheme()
 }
 
 const onCustomBackgroundChange = () => {
-  // Update composable settings immediately (triggers real-time watch)
-  visualTheme.updateSettings({
-    theme: settings.value.theme,
-    customThemeMode: settings.value.customThemeMode,
-    customAccentColor: settings.value.customAccentColor,
-    customBackgroundColor: settings.value.customBackgroundColor,
-    fontSize: settings.value.fontSize,
-    zoomLevel: settings.value.zoomLevel,
-    messageDisplay: settings.value.messageDisplay,
-    showTimestamps: settings.value.showTimestamps,
-    use24HourTime: settings.value.use24HourTime,
-    compactMode: settings.value.compactMode,
-    highContrast: settings.value.highContrast,
-    reduceMotion: settings.value.reduceMotion,
-    screenReaderSupport: settings.value.screenReaderSupport,
-  })
+  previewTheme()
+}
+
+const previewTheme = () => {
+  // Apply theme immediately for preview (doesn't save)
+  if (settings.value.theme === 'custom') {
+    try {
+      const palette = generateThemePalette(
+        settings.value.customAccentColor,
+        settings.value.customThemeMode,
+        settings.value.customBackgroundColor
+      )
+      applyThemePalette(palette)
+    } catch (error) {
+      console.error('Failed to preview custom theme:', error)
+    }
+  } else {
+    visualTheme.setTheme(settings.value.theme)
+  }
 }
 
 const onFontSizeChange = () => {
@@ -434,13 +411,15 @@ const onFloatingVideoChange = () => {
   setFloatingVideoEnabled(settings.value.floatingVideoEnabled)
 }
 
+const onSettingChange = () => {
+  // Settings changed - will auto-save via composable
+}
+
 const saveSettings = () => {
   emit('update-appearance', settings.value)
   originalSettings.value = { ...settings.value }
-}
-
-const resetSettings = () => {
-  settings.value = { ...originalSettings.value }
+  
+  // Now actually save to composable (persists to localStorage and Supabase)
   visualTheme.updateSettings({
     theme: settings.value.theme,
     customThemeMode: settings.value.customThemeMode,
@@ -456,6 +435,17 @@ const resetSettings = () => {
     reduceMotion: settings.value.reduceMotion,
     screenReaderSupport: settings.value.screenReaderSupport,
   })
+}
+
+const resetSettings = () => {
+  settings.value = { ...originalSettings.value }
+  
+  // Reapply original settings as preview
+  if (originalSettings.value.theme === 'custom') {
+    previewTheme()
+  } else {
+    visualTheme.setTheme(originalSettings.value.theme)
+  }
 }
 
 // Initialize

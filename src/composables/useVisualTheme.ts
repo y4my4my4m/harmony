@@ -91,10 +91,10 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   
   // Primary colors
   root.style.setProperty('--harmony-primary', theme.primary)
-  root.style.setProperty('--harmony-primary-hover', themeName === 'dark' ? '#4752c4' : '#4752c4')
+  root.style.setProperty('--harmony-primary-hover', '#4752c4')
   root.style.setProperty('--harmony-primary-light', 'rgba(88, 101, 242, 0.1)')
   root.style.setProperty('--h-primary', theme.primary)
-  root.style.setProperty('--h-primary-light', themeName === 'light' ? '#7289da' : '#5983c8')
+  root.style.setProperty('--h-primary-light', '#5983c8')
   root.style.setProperty('--h-primary-dark', '#1e3585')
   
   // Background colors - use proper defaults based on theme
@@ -102,8 +102,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--h-chat', '#313338')
     root.style.setProperty('--h-chat-light', '#383a40')
     root.style.setProperty('--h-chat-lighter', '#40444b')
-    root.style.setProperty('--h-chat-dark', '#2b2d31')
-    root.style.setProperty('--h-chat-darker', '#1e1f22')
+    root.style.setProperty('--h-chat-dark', '#141618')
+    root.style.setProperty('--h-chat-darker', '#0c0d0e')
     
     root.style.setProperty('--h-sidebar', '#2b2d31')
     root.style.setProperty('--h-sidebar-light', '#35373c')
@@ -113,9 +113,12 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--h-black-lighter', '#40444b')
     root.style.setProperty('--h-black-darker', '#0c0d0e')
     
+    // Original background system colors
     root.style.setProperty('--background-primary', '#1a1a1e')
     root.style.setProperty('--background-secondary', '#17181a')
     root.style.setProperty('--background-tertiary', '#121214')
+    root.style.setProperty('--background-quaternary', '#222327')
+    root.style.setProperty('--background-quinary', '#202024')
   } else if (themeName === 'light') {
     root.style.setProperty('--h-chat', '#ffffff')
     root.style.setProperty('--h-chat-light', '#f6f6f7')
@@ -134,6 +137,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-primary', '#ffffff')
     root.style.setProperty('--background-secondary', '#f6f6f7')
     root.style.setProperty('--background-tertiary', '#f2f3f5')
+    root.style.setProperty('--background-quaternary', '#ebedef')
+    root.style.setProperty('--background-quinary', '#e3e5e8')
   } else if (themeName === 'midnight') {
     root.style.setProperty('--h-chat', '#1e2124')
     root.style.setProperty('--h-chat-light', '#25272a')
@@ -149,9 +154,11 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--h-black-lighter', '#1f2226')
     root.style.setProperty('--h-black-darker', '#0a0b0d')
     
-    root.style.setProperty('--background-primary', '#1a1a1e')
+    root.style.setProperty('--background-primary', '#1e2124')
     root.style.setProperty('--background-secondary', '#13151a')
     root.style.setProperty('--background-tertiary', '#0f1012')
+    root.style.setProperty('--background-quaternary', '#1a1d20')
+    root.style.setProperty('--background-quinary', '#13151a')
   }
   
   // Text colors
@@ -166,6 +173,8 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   
   root.setAttribute('data-theme', themeName)
   root.setAttribute('data-theme-type', theme.isLightTheme ? 'light' : 'dark')
+  
+  console.log(`🎨 Applied ${themeName} theme`)
 }
 
 /**

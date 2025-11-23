@@ -96,101 +96,99 @@ function xyzToRgb(x: number, y: number, z: number): { r: number; g: number; b: n
 }
 
 /**
- * Convert XYZ to LAB
+ * Convert Linear RGB to OKLab
  */
-function xyzToLab(x: number, y: number, z: number): { l: number; a: number; b: number } {
-  // D65 white point
-  const xn = 0.95047
-  const yn = 1.00000
-  const zn = 1.08883
+function linearRgbToOklab(r: number, g: number, b: number): { l: number; a: number; b: number } {
+  // Convert to OKLab using the correct matrix
+  const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+  const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+  const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
 
-  x = x / xn
-  y = y / yn
-  z = z / zn
-
-  const f = (t: number) => {
-    const delta = 6 / 29
-    return t > Math.pow(delta, 3)
-      ? Math.pow(t, 1 / 3)
-      : t / (3 * delta * delta) + 4 / 29
-  }
-
-  const fx = f(x)
-  const fy = f(y)
-  const fz = f(z)
-
-  const l = 116 * fy - 16
-  const a = 500 * (fx - fy)
-  const b = 200 * (fy - fz)
-
-  return { l, a, b }
-}
-
-/**
- * Convert LAB to XYZ
- */
-function labToXyz(l: number, a: number, b: number): { x: number; y: number; z: number } {
-  // D65 white point
-  const xn = 0.95047
-  const yn = 1.00000
-  const zn = 1.08883
-
-  const fy = (l + 16) / 116
-  const fx = a / 500 + fy
-  const fz = fy - b / 200
-
-  const f = (t: number) => {
-    const delta = 6 / 29
-    return t > delta
-      ? Math.pow(t, 3)
-      : 3 * delta * delta * (t - 4 / 29)
-  }
+  const l_ = Math.cbrt(l)
+  const m_ = Math.cbrt(m)
+  const s_ = Math.cbrt(s)
 
   return {
-    x: xn * f(fx),
-    y: yn * f(fy),
-    z: zn * f(fz),
+    l: 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+    a: 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+    b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
   }
 }
 
 /**
- * Convert LAB to LCH
+ * Convert OKLab to Linear RGB
  */
-function labToLch(l: number, a: number, b: number): { l: number; c: number; h: number } {
-  const c = Math.sqrt(a * a + b * b)
-  let h = Math.atan2(b, a) * 180 / Math.PI
-  if (h < 0) h += 360
+function oklabToLinearRgb(l: number, a: number, b: number): { r: number; g: number; b: number } {
+  const l_ = l + 0.3963377774 * a + 0.2158037573 * b
+  const m_ = l - 0.1055613458 * a - 0.0638541728 * b
+  const s_ = l - 0.0894841775 * a - 1.2914855480 * b
 
-  return { l, c, h }
+  const l3 = l_ * l_ * l_
+  const m3 = m_ * m_ * m_
+  const s3 = s_ * s_ * s_
+
+  return {
+    r: +4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3,
+    g: -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3,
+    b: -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3,
+  }
 }
 
 /**
- * Convert LCH to LAB
+ * Convert RGB to OKLCH (correct implementation)
  */
-function lchToLab(l: number, c: number, h: number): { l: number; a: number; b: number } {
+export function rgbToOklch(r: number, g: number, b: number): { l: number; c: number; h: number } {
+  // Normalize to 0-1 range
+  const rNorm = r / 255
+  const gNorm = g / 255
+  const bNorm = b / 255
+  
+  // Convert to linear RGB
+  const rLin = srgbToLinear(rNorm)
+  const gLin = srgbToLinear(gNorm)
+  const bLin = srgbToLinear(bNorm)
+  
+  // Convert to OKLab
+  const oklab = linearRgbToOklab(rLin, gLin, bLin)
+  
+  // Convert to OKLCH
+  const c = Math.sqrt(oklab.a * oklab.a + oklab.b * oklab.b)
+  let h = Math.atan2(oklab.b, oklab.a) * 180 / Math.PI
+  if (h < 0) h += 360
+  
+  return {
+    l: oklab.l * 100, // Convert to percentage
+    c: c,
+    h: h
+  }
+}
+
+/**
+ * Convert OKLCH to RGB (correct implementation)
+ */
+export function oklchToRgb(l: number, c: number, h: number): { r: number; g: number; b: number } {
+  // Convert from percentage
+  const lNorm = l / 100
+  
+  // Convert to OKLab
   const hRad = h * Math.PI / 180
   const a = c * Math.cos(hRad)
   const b = c * Math.sin(hRad)
-
-  return { l, a, b }
-}
-
-/**
- * Convert RGB to OKLCH
- */
-export function rgbToOklch(r: number, g: number, b: number): { l: number; c: number; h: number } {
-  const xyz = rgbToXyz(r, g, b)
-  const lab = xyzToLab(xyz.x, xyz.y, xyz.z)
-  return labToLch(lab.l, lab.a, lab.b)
-}
-
-/**
- * Convert OKLCH to RGB
- */
-export function oklchToRgb(l: number, c: number, h: number): { r: number; g: number; b: number } {
-  const lab = lchToLab(l, c, h)
-  const xyz = labToXyz(lab.l, lab.a, lab.b)
-  return xyzToRgb(xyz.x, xyz.y, xyz.z)
+  
+  // Convert to linear RGB
+  const rgb = oklabToLinearRgb(lNorm, a, b)
+  
+  // Convert to sRGB
+  const r = linearToSrgb(rgb.r)
+  const g = linearToSrgb(rgb.g)
+  const b255 = linearToSrgb(rgb.b)
+  
+  // Clamp and convert to 0-255 range
+  return {
+    r: Math.max(0, Math.min(255, Math.round(r * 255))),
+    g: Math.max(0, Math.min(255, Math.round(g * 255))),
+    b: Math.max(0, Math.min(255, Math.round(b255 * 255))),
+  }
 }
 
 /**
@@ -351,10 +349,14 @@ export function generateThemePalette(
     // Dark theme - use background hue with low chroma for UI tone
     const bgTintChroma = 0.015 // Subtle chroma for dark backgrounds
     
-    const bgChatOklch = { l: 20, c: bgTintChroma, h: bgHue }
-    const bgSecondaryOklch = { l: 18, c: bgTintChroma, h: bgHue }
-    const bgTertiaryOklch = { l: 16, c: bgTintChroma, h: bgHue }
-    const sidebarOklch = { l: 17, c: bgTintChroma * 1.5, h: bgHue }
+    // Chat/content areas (lighter, more visible)
+    const bgChatOklch = { l: 19.5, c: bgTintChroma, h: bgHue }  // ~#313338
+    const sidebarOklch = { l: 17, c: bgTintChroma * 1.5, h: bgHue }  // ~#2b2d31
+    
+    // System backgrounds (darker, for structure)
+    const systemBgPrimaryOklch = { l: 12, c: bgTintChroma, h: bgHue }  // ~#1a1a1e (BaseLayout)
+    const systemBgSecondaryOklch = { l: 10.5, c: bgTintChroma, h: bgHue }  // ~#17181a
+    const systemBgTertiaryOklch = { l: 8.5, c: bgTintChroma, h: bgHue }  // ~#121214 (server sidebar)
     
     return {
       primary: accentHex,
@@ -362,9 +364,12 @@ export function generateThemePalette(
       primaryLight: adjustLightness(accentHex, 15),
       primaryDark: adjustLightness(accentHex, -12),
       
-      bgPrimary: oklchToHex(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h),
-      bgSecondary: oklchToHex(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h),
-      bgTertiary: oklchToHex(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h),
+      // System backgrounds (for BaseLayout, server sidebar, etc.)
+      bgPrimary: oklchToHex(systemBgPrimaryOklch.l, systemBgPrimaryOklch.c, systemBgPrimaryOklch.h),
+      bgSecondary: oklchToHex(systemBgSecondaryOklch.l, systemBgSecondaryOklch.c, systemBgSecondaryOklch.h),
+      bgTertiary: oklchToHex(systemBgTertiaryOklch.l, systemBgTertiaryOklch.c, systemBgTertiaryOklch.h),
+      
+      // Chat/content backgrounds
       bgChat: oklchToHex(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h),
       bgSidebar: oklchToHex(sidebarOklch.l, sidebarOklch.c, sidebarOklch.h),
       
@@ -381,12 +386,12 @@ export function generateThemePalette(
 }
 
 /**
- * Apply theme palette to CSS custom properties
+ * Apply theme palette to CSS custom properties using OKLCH
  */
 export function applyThemePalette(palette: ThemePalette): void {
   const root = document.documentElement
   
-  // Primary colors
+  // Primary colors (keep as HEX for compatibility)
   root.style.setProperty('--harmony-primary', palette.primary)
   root.style.setProperty('--harmony-primary-hover', palette.primaryHover)
   root.style.setProperty('--harmony-primary-light', palette.primaryLight)
@@ -394,27 +399,46 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary-light', palette.primaryLight)
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
   
-  // Background colors - Apply to ALL background variables
-  root.style.setProperty('--h-chat', palette.bgChat)
-  root.style.setProperty('--h-chat-light', adjustLightness(palette.bgChat, 3))
-  root.style.setProperty('--h-chat-lighter', adjustLightness(palette.bgChat, 5))
-  root.style.setProperty('--h-chat-dark', adjustLightness(palette.bgChat, -3))
-  root.style.setProperty('--h-chat-darker', adjustLightness(palette.bgChat, -8))
+  // Convert background colors to OKLCH for proper hue/chroma application
+  const bgChatOklch = hexToOklch(palette.bgChat)
+  const bgSidebarOklch = hexToOklch(palette.bgSidebar)
+  const bgPrimaryOklch = hexToOklch(palette.bgPrimary)
+  const bgSecondaryOklch = hexToOklch(palette.bgSecondary)
+  const bgTertiaryOklch = hexToOklch(palette.bgTertiary)
   
-  root.style.setProperty('--h-sidebar', palette.bgSidebar)
-  root.style.setProperty('--h-sidebar-light', adjustLightness(palette.bgSidebar, 4))
+  if (bgChatOklch) {
+    // Chat backgrounds - use OKLCH so custom hue applies
+    root.style.setProperty('--h-chat', oklchToString(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h))
+    root.style.setProperty('--h-chat-light', oklchToString(bgChatOklch.l + 3, bgChatOklch.c, bgChatOklch.h))
+    root.style.setProperty('--h-chat-lighter', oklchToString(bgChatOklch.l + 5, bgChatOklch.c, bgChatOklch.h))
+    root.style.setProperty('--h-chat-dark', oklchToString(bgChatOklch.l - 8, bgChatOklch.c, bgChatOklch.h))
+    root.style.setProperty('--h-chat-darker', oklchToString(bgChatOklch.l - 12, bgChatOklch.c, bgChatOklch.h))
+  }
   
-  root.style.setProperty('--h-black', palette.bgTertiary)
-  root.style.setProperty('--h-black-light', adjustLightness(palette.bgTertiary, 5))
-  root.style.setProperty('--h-black-lighter', adjustLightness(palette.bgTertiary, 8))
-  root.style.setProperty('--h-black-darker', adjustLightness(palette.bgTertiary, -5))
+  if (bgSidebarOklch) {
+    root.style.setProperty('--h-sidebar', oklchToString(bgSidebarOklch.l, bgSidebarOklch.c, bgSidebarOklch.h))
+    root.style.setProperty('--h-sidebar-light', oklchToString(bgSidebarOklch.l + 4, bgSidebarOklch.c, bgSidebarOklch.h))
+  }
   
-  // Background system colors
-  root.style.setProperty('--background-primary', palette.bgPrimary)
-  root.style.setProperty('--background-secondary', palette.bgSecondary)
-  root.style.setProperty('--background-tertiary', palette.bgTertiary)
-  root.style.setProperty('--background-quaternary', adjustLightness(palette.bgSecondary, 2))
-  root.style.setProperty('--background-quinary', adjustLightness(palette.bgTertiary, 2))
+  if (bgTertiaryOklch) {
+    root.style.setProperty('--h-black', oklchToString(bgTertiaryOklch.l + 6, bgTertiaryOklch.c, bgTertiaryOklch.h))
+    root.style.setProperty('--h-black-light', oklchToString(bgTertiaryOklch.l + 11, bgTertiaryOklch.c, bgTertiaryOklch.h))
+    root.style.setProperty('--h-black-lighter', oklchToString(bgTertiaryOklch.l + 14, bgTertiaryOklch.c, bgTertiaryOklch.h))
+    root.style.setProperty('--h-black-darker', oklchToString(bgTertiaryOklch.l - 2, bgTertiaryOklch.c, bgTertiaryOklch.h))
+  }
+  
+  // System background colors - use OKLCH for custom hue
+  if (bgPrimaryOklch) {
+    root.style.setProperty('--background-primary', oklchToString(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h))
+  }
+  if (bgSecondaryOklch) {
+    root.style.setProperty('--background-secondary', oklchToString(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h))
+    root.style.setProperty('--background-quaternary', oklchToString(bgSecondaryOklch.l + 2, bgSecondaryOklch.c, bgSecondaryOklch.h))
+  }
+  if (bgTertiaryOklch) {
+    root.style.setProperty('--background-tertiary', oklchToString(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h))
+    root.style.setProperty('--background-quinary', oklchToString(bgTertiaryOklch.l + 2, bgTertiaryOklch.c, bgTertiaryOklch.h))
+  }
   
   // Text colors
   root.style.setProperty('--text-primary', palette.textPrimary)
@@ -429,6 +453,6 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.setAttribute('data-theme', 'custom')
   root.setAttribute('data-theme-type', palette.isLightTheme ? 'light' : 'dark')
   
-  console.log('🎨 Applied custom theme palette:', palette)
+  console.log('🎨 Applied custom theme palette with OKLCH:', palette)
 }
 
