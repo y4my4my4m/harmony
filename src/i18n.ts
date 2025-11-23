@@ -7,7 +7,10 @@ import { createI18n } from 'vue-i18n'
 import en from './locales/en.json'
 import es from './locales/es.json'
 import fr from './locales/fr.json'
+import de from './locales/de.json'
 import ja from './locales/ja.json'
+import ko from './locales/ko.json'
+import zh from './locales/zh.json'
 
 // Detect browser language
 function getBrowserLocale(): string {
@@ -69,8 +72,10 @@ export const i18n = createI18n({
     en,
     es,
     fr,
+    de,
     ja,
-    // de, ko, zh will be added when translations are available
+    ko,
+    zh,
   },
   globalInjection: true,
 })
