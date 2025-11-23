@@ -24,18 +24,21 @@
 </template>
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import HashTagIcon from '@/components/icons/HashTag.vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Channel } from '@/types';
 import { ViewMode, ViewType, CurrentView, VIEW_CONFIGS } from '@/types/viewTypes';
 
+const { t } = useI18n();
+
 // Professional tab configuration using the centralized type system
 const mainFeedTabs = [
-  { id: CurrentView.HOME, label: 'Home', icon: 'home' },
-  { id: CurrentView.LOCAL, label: 'Local', icon: 'users' },
-  { id: CurrentView.PUBLIC, label: 'Federated', icon: 'globe' },
-  { id: CurrentView.TRENDING, label: 'Trending', icon: 'trending-up' },
-  { id: CurrentView.INSTANCES, label: 'Instances', icon: 'server' }
+  { id: CurrentView.HOME, label: t('activitypub.home'), icon: 'home' },
+  { id: CurrentView.LOCAL, label: t('activitypub.local'), icon: 'users' },
+  { id: CurrentView.PUBLIC, label: t('activitypub.federated'), icon: 'globe' },
+  { id: CurrentView.TRENDING, label: t('activitypub.trending'), icon: 'trending-up' },
+  { id: CurrentView.INSTANCES, label: t('activitypub.instances'), icon: 'server' }
 ];
 
 const props = defineProps<{
