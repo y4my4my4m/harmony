@@ -10,7 +10,7 @@
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search members"
+            :placeholder="$t('server.searchMembersPlaceholder')"
             class="search-input"
           />
           <button 
@@ -58,7 +58,7 @@
 
       <!-- Member Count -->
       <div class="member-count">
-        {{ totalMemberCount }} members
+        {{ $t('server.membersCount', { count: totalMemberCount }) }}
       </div>
     </div>
 
@@ -67,7 +67,7 @@
       <!-- Loading Indicator -->
       <div v-if="isLoadingUsers" class="loading-indicator">
         <div class="loading-spinner"></div>
-        <span>Loading users...</span>
+        <span>{{ $t('server.loadingUsers') }}</span>
       </div>
       
       <!-- Online Users -->
@@ -80,7 +80,7 @@
           <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
           </svg>
-          <span class="group-title">Online — {{ groupedUsers.online.length }}</span>
+          <span class="group-title">{{ $t('user.online') }} — {{ groupedUsers.online.length }}</span>
         </button>
         <div v-if="!collapsedGroups.online" class="user-list">
           <div 
@@ -118,7 +118,7 @@
           <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
           </svg>
-          <span class="group-title">Away — {{ groupedUsers.away.length }}</span>
+          <span class="group-title">{{ $t('user.away') }} — {{ groupedUsers.away.length }}</span>
         </button>
         <div v-if="!collapsedGroups.away" class="user-list">
           <div 
@@ -156,7 +156,7 @@
           <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
           </svg>
-          <span class="group-title">Busy — {{ groupedUsers.busy.length }}</span>
+          <span class="group-title">{{ $t('user.busy') }} — {{ groupedUsers.busy.length }}</span>
         </button>
         <div v-if="!collapsedGroups.busy" class="user-list">
           <div 
@@ -194,7 +194,7 @@
           <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
           </svg>
-          <span class="group-title">Offline — {{ groupedUsers.offline.length }}</span>
+          <span class="group-title">{{ $t('user.offline') }} — {{ groupedUsers.offline.length }}</span>
         </button>
         <div v-if="!collapsedGroups.offline" class="user-list">
           <div 

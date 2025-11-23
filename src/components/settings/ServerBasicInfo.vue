@@ -1,15 +1,15 @@
 <template>
   <div class="server-basic-info">
     <div class="settings-section">
-      <h2 class="section-title">Server Overview</h2>
+      <h2 class="section-title">{{ $t('server.serverOverview') }}</h2>
       <p class="section-description">
-        {{ permissions.canEditBasicInfo ? 'Basic information about your server' : 'View basic server information' }}
+        {{ permissions.canEditBasicInfo ? $t('server.basicInformation') : $t('server.viewBasicInformation') }}
       </p>
     </div>
 
     <div class="settings-card">
       <div class="form-group">
-        <label class="form-label" for="server-name">Server Name</label>
+        <label class="form-label" for="server-name">{{ $t('server.serverName') }}</label>
         <input
           id="server-name"
           :value="server.name"
@@ -17,37 +17,37 @@
           type="text"
           class="form-input"
           :class="{ 'read-only': !permissions.canChangeServerName }"
-          placeholder="Enter server name"
+          :placeholder="$t('server.enterServerName')"
           :disabled="loading || !permissions.canChangeServerName"
           :readonly="!permissions.canChangeServerName"
           maxlength="100"
         />
         <div class="form-hint">
-          {{ permissions.canEditBasicInfo ? 'This is how your server will appear to members' : 'Server name as it appears to members' }}
+          {{ permissions.canEditBasicInfo ? $t('server.serverNameAppearance') : $t('server.serverNameAppearanceView') }}
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="server-description">Description</label>
+        <label class="form-label" for="server-description">{{ $t('server.description') }}</label>
         <textarea
           id="server-description"
           :value="server.description"
           @input="updateServerDescription"
           class="form-textarea"
           :class="{ 'read-only': !permissions.canChangeServerDescription }"
-          placeholder="Tell people what your server is about"
+          :placeholder="$t('server.tellPeopleAbout')"
           :disabled="loading || !permissions.canChangeServerDescription"
           :readonly="!permissions.canChangeServerDescription"
           maxlength="500"
           rows="4"
         />
         <div class="form-hint">
-          {{ server.description?.length || 0 }}/500 characters
+          {{ $t('server.charactersRemaining', { current: server.description?.length || 0, max: 500 }) }}
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">Server Owner</label>
+        <label class="form-label">{{ $t('server.serverOwner') }}</label>
         <div class="owner-info">
           <div class="owner-badge">
             <svg class="crown-icon" width="16" height="16" viewBox="0 0 24 24">
@@ -57,14 +57,14 @@
           </div>
         </div>
         <div class="form-hint">
-          The server owner has full administrative privileges
+          {{ $t('server.serverOwnerPrivileges') }}
         </div>
       </div>
     </div>
 
     <div class="settings-card">
       <div class="form-group">
-        <label class="form-label">Server Icon</label>
+        <label class="form-label">{{ $t('server.serverIcon') }}</label>
         <div class="icon-upload-container">
           <div class="current-icon">
             <ServerIcon
@@ -86,7 +86,7 @@
               @click="triggerFileInput"
               :disabled="loading"
             >
-              Upload Image
+              {{ $t('server.uploadImage') }}
             </button>
             <button
               v-if="server.icon || props.selectedFile"
@@ -95,11 +95,11 @@
               @click="removeIcon"
               :disabled="loading"
             >
-              Remove
+              {{ $t('server.remove') }}
             </button>
           </div>
           <div v-else-if="!server.icon && !props.selectedFile" class="no-icon-info">
-            <p class="read-only-hint">No server icon set</p>
+            <p class="read-only-hint">{{ $t('server.noServerIconSet') }}</p>
           </div>
         </div>
         <input
@@ -111,8 +111,8 @@
         />
         <div class="form-hint">
           {{ permissions.canChangeServerIcon 
-            ? 'Recommended size: 512x512px. Max file size: 8MB. JPG, PNG, GIF supported.' 
-            : 'Only the server owner can change the server icon.' 
+            ? $t('server.iconRecommendation')
+            : $t('server.iconRestriction')
           }}
         </div>
       </div>
@@ -122,10 +122,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Server } from '@/types'
 import { useNotificationStore } from '@/stores/useNotification'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 
+const { t } = useI18n()
 const notificationStore = useNotificationStore()
 
 interface ServerPermissions {
@@ -185,13 +187,13 @@ const handleFileInputChange = (event: Event) => {
   if (file) {
     // Validate file size (8MB limit)
     if (file.size > 8 * 1024 * 1024) {
-      notificationStore.showToast('error', 'Error', 'File size must be less than 8MB', 3000)
+      notificationStore.showToast('error', t('common.error'), t('server.fileSizeTooLarge'), 3000)
       return
     }
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      notificationStore.showToast('error', 'Error', 'Please select a valid image file', 3000)
+      notificationStore.showToast('error', t('common.error'), t('server.selectValidImageFile'), 3000)
       return
     }
   }

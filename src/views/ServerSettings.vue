@@ -216,7 +216,7 @@ const originalServer = ref<Server | null>(null)
 
 const currentSectionLabel = computed(() => {
   const section = availableSections.value.find(s => s.id === activeSection.value)
-  return section?.label || 'Server Settings'
+  return section?.label || t('server.serverSettings')
 })
 
 // Computed permissions
@@ -308,7 +308,7 @@ const fetchServer = async () => {
     }
   } catch (error) {
     console.error('Error fetching server:', error)
-    toast.error('Failed to load server settings')
+    toast.error(t('server.failedToLoadServerSettings'))
   } finally {
     loading.value = false
   }
@@ -319,7 +319,7 @@ const fetchEmojis = async () => {
     emojis.value = await serverStore.fetchEmojis(props.serverId)
   } catch (error) {
     console.error('Error fetching emojis:', error)
-    toast.error('Failed to load emojis')
+    toast.error(t('server.failedToLoadEmojis'))
   }
 }
 
@@ -332,7 +332,7 @@ const handleFileChange = (file: File | null) => {
 
 const handleEmojiUploaded = (newEmoji: Emoji) => {
   emojis.value.push(newEmoji)
-  toast.success('Emoji uploaded successfully')
+  toast.success(t('server.emojiUploadedSuccessToast'))
 }
 
 const handleEmojiDeleted = (emojiId: string) => {
@@ -344,7 +344,7 @@ const handleEmojiDeleted = (emojiId: string) => {
 
 const handleSave = async () => {
   if (!permissions.value.canSaveChanges) {
-    toast.error('You do not have permission to save changes')
+    toast.error(t('server.noPermissionSaveChanges'))
     return
   }
 
@@ -355,14 +355,14 @@ const handleSave = async () => {
     if (success) {
       originalServer.value = { ...server.value }
       selectedFile.value = null
-      toast.success('Server updated successfully')
+      toast.success(t('server.serverUpdatedSuccess'))
       back()
     } else {
       throw new Error('Update failed')
     }
   } catch (error) {
     console.error('Error updating server:', error)
-    toast.error('Failed to update server')
+    toast.error(t('server.failedToUpdateServer'))
   } finally {
     loading.value = false
   }

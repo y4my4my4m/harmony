@@ -1,9 +1,9 @@
 <template>
   <div class="server-advanced-settings">
     <div class="settings-section">
-      <h2 class="section-title">Advanced Settings</h2>
+      <h2 class="section-title">{{ $t('server.advancedSettings') }}</h2>
       <p class="section-description">
-        {{ permissions.canDeleteServer ? 'Manage advanced server options and dangerous actions' : 'View advanced server settings' }}
+        {{ permissions.canDeleteServer ? $t('server.advancedSettings') : $t('server.advancedSettings') }}
       </p>
     </div>
 
@@ -14,8 +14,8 @@
           <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
-          <h4>Owner Only Access</h4>
-          <p>Advanced settings and server deletion can only be performed by the server owner.</p>
+          <h4>{{ $t('server.viewOnlyAccess') }}</h4>
+          <p>{{ $t('server.viewOnlyMessage') }}</p>
         </div>
       </div>
     </div>
@@ -23,10 +23,10 @@
     <!-- Server Statistics -->
     <div class="settings-card">
       <div class="form-group">
-        <label class="form-label">Server Statistics</label>
+        <label class="form-label">{{ $t('server.serverCreatedAt') }}</label>
         <div class="stats-grid">
           <div class="stat-item">
-            <div class="stat-label">Created</div>
+            <div class="stat-label">{{ $t('server.serverCreatedAt') }}</div>
             <div class="stat-value">{{ formatDate(createdAt) }}</div>
           </div>
           <div class="stat-item">
@@ -40,17 +40,17 @@
     <!-- Danger Zone -->
     <div v-if="permissions.canDeleteServer" class="settings-card danger-zone">
       <div class="form-group">
-        <h3 class="section-title danger">Danger Zone</h3>
+        <h3 class="section-title danger">{{ $t('server.dangerZone') }}</h3>
         <p class="section-description danger">
-          These actions cannot be undone. Please proceed with caution.
+          {{ $t('confirmation.cannotBeUndone') }}
         </p>
       </div>
 
       <div class="danger-action">
         <div class="danger-info">
-          <h4 class="danger-label">Delete Server</h4>
+          <h4 class="danger-label">{{ $t('server.deleteServer') }}</h4>
           <p class="danger-description">
-            Permanently delete this server and all associated data including channels, messages, emojis, and member information.
+            {{ $t('server.deleteServerWarning') }}
           </p>
         </div>
         <div class="danger-control">
@@ -62,7 +62,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
             </svg>
-            Delete Server
+            {{ $t('server.deleteServer') }}
           </button>
         </div>
       </div>
@@ -72,7 +72,7 @@
     <div v-if="showDeleteModal" class="modal-overlay" @click="hideDeleteConfirmation">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3 class="modal-title">Delete Server</h3>
+          <h3 class="modal-title">{{ $t('server.deleteServer') }}</h3>
           <button class="modal-close" @click="hideDeleteConfirmation">
             <svg width="24" height="24" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
@@ -85,28 +85,28 @@
             <svg class="warning-icon" width="48" height="48" viewBox="0 0 24 24">
               <path fill="#ed4245" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
             </svg>
-            <h4 class="warning-title">This action cannot be undone!</h4>
+            <h4 class="warning-title">{{ $t('server.deleteServerConfirmTitle') }}</h4>
             <p class="warning-text">
-              Deleting <strong>{{ serverName }}</strong> will permanently remove:
+              {{ $t('server.deleteServerConfirmText', { serverName: serverName }) }}
             </p>
             <ul class="warning-list">
-              <li>All channels and messages</li>
-              <li>All server emojis and files</li>
-              <li>All member data and roles</li>
-              <li>Server settings and configuration</li>
+              <li>{{ $t('server.deleteServerConfirmItem1') }}</li>
+              <li>{{ $t('server.deleteServerConfirmItem2') }}</li>
+              <li>{{ $t('server.deleteServerConfirmItem3') }}</li>
+              <li>{{ $t('server.deleteServerConfirmItem4') }}</li>
             </ul>
           </div>
 
           <div class="confirmation-section">
             <label class="confirmation-label">
-              To confirm deletion, type the exact server name: <strong>{{ serverName }}</strong>
+              {{ $t('server.deleteServerConfirmLabel') }} <strong>{{ serverName }}</strong>
             </label>
             <input
               v-model="confirmationText"
               type="text"
               class="confirmation-input"
               :class="{ 'error': confirmationError }"
-              placeholder="Type server name here..."
+              :placeholder="$t('server.deleteServerConfirmPlaceholder')"
               @input="validateConfirmation"
             />
             <div v-if="confirmationError" class="error-message">
@@ -125,7 +125,7 @@
             :disabled="!isConfirmationValid || deleting"
           >
             <span v-if="deleting" class="loading-spinner"></span>
-            {{ deleting ? 'Deleting...' : 'Delete Server' }}
+            {{ deleting ? $t('server.deleting') : $t('server.deleteServer') }}
           </button>
         </div>
       </div>
