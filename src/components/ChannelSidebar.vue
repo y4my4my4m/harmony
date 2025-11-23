@@ -750,13 +750,27 @@ const handleChannelUpdated = (updatedChannel: Channel) => {}; // Store handles u
 const handleCategoryUpdated = (updatedCategory: Category) => {}; // Store handles updates
 
 // Lifecycle Hooks
-watch(() => props.currentServer?.id, (newServerId) => {
+watch(() => props.currentServer?.id, async (newServerId, oldServerId) => {
+  console.log('🔄 Server changed:', { old: oldServerId, new: newServerId });
   if (newServerId) {
     initializeCategoryStates();
     // Setup voice channel broadcast for real-time updates
-    serverUsersStore.setupVoiceChannelBroadcast(newServerId);
+    // Await this to ensure voice channel state is fetched before rendering
+    console.log('📞 Setting up voice channel broadcast for server:', newServerId);
+    await serverUsersStore.setupVoiceChannelBroadcast(newServerId);
+    console.log('✅ Voice channel broadcast setup complete for server:', newServerId);
+    console.log('👥 Users in voice channels:', serverUsersStore.usersInVoiceChannels);
   }
 }, { immediate: true });
+
+onMounted(() => {
+  console.log('🎬 ChannelSidebar mounted, current server:', props.currentServer?.id);
+  // If we have a server on mount, ensure voice channel state is loaded
+  if (props.currentServer?.id) {
+    console.log('🔄 Fetching voice channel state on mount for server:', props.currentServer.id);
+    serverUsersStore.setupVoiceChannelBroadcast(props.currentServer.id);
+  }
+});
 
 watch(() => serverChannelStore.categories, () => categoryChannelsCache.value.clear(), { deep: true });
 watch(() => serverChannelStore.categoryChannels, () => categoryChannelsCache.value.clear(), { deep: true });

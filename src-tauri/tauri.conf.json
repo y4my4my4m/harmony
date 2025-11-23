@@ -1,62 +1,69 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+
+  "productName": "harmony",
+  "version": "0.1.0",
+  "identifier": "online.knowmad.harmony",
+
   "build": {
     "beforeBuildCommand": "bun build",
     "beforeDevCommand": "bun dev",
-    "devPath": "http://localhost:5173",
-    "distDir": "../dist"
+    "devUrl": "https://har.mony.lol",
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "harmony",
-    "version": "0.1.0"
-  },
-  "tauri": {
-    "allowlist": {
-      "fs": {"all":true}
-    },
-    "bundle": {
-      "active": true,
-      "category": "DeveloperTool",
-      "copyright": "",
-      "deb": {
-        "depends": []
-      },
-      "externalBin": [],
-      "icon": [
-        "icons/icon.icns"
-      ],
-      "identifier": "online.knowmad.harmony",
-      "longDescription": "",
-      "macOS": {
-        "entitlements": null,
-        "exceptionDomain": "",
-        "frameworks": [],
-        "providerShortName": null,
-        "signingIdentity": null
-      },
-      "resources": [],
-      "shortDescription": "",
-      "targets": "all",
-      "windows": {
-        "certificateThumbprint": null,
-        "digestAlgorithm": "sha256",
-        "timestampUrl": ""
-      }
-    },
+
+  "app": {
     "security": {
       "csp": null
     },
-    "updater": {
-      "active": false
-    },
     "windows": [
       {
-        "fullscreen": false,
-        "height": 600,
-        "resizable": true,
+        "label": "main",
         "title": "harmony",
-        "width": 800
+        "width": 1280,
+        "height": 720,
+        "resizable": true,
+        "fullscreen": false
       }
     ]
-  }
+  },
+
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "icon": [
+      "icons/icon.icns"
+    ],
+    "resources": [],
+    "shortDescription": "",
+    "longDescription": "",
+    "targets": "all",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null
+    },
+    "linux": {
+      "appimage": {
+        "files": {}
+      },
+      "deb": {
+        "files": {}
+      },
+      "rpm": {
+        "epoch": 0,
+        "release": "1",
+        "files": {}
+      }
+    }
+  },
+
+  "plugins": {}
 }

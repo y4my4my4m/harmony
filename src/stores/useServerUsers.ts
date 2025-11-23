@@ -7,6 +7,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { updateUserStatus } from '@/services/ProfileService';
 import { getMembershipService } from '@/services/membershipService';
 import { userDataService } from '@/services/userDataService';
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
   
 export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
@@ -291,8 +292,10 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
       console.log('🎙️ Setting up voice channel broadcast for server:', serverId);
 
-      // First, fetch current voice channel state from database
-      await this.fetchVoiceChannelState(serverId);
+      // NOTE: There is no database table to fetch initial state from.
+      // Voice channel state is ephemeral and tracked through broadcast events only.
+      // When users join/leave voice channels, they broadcast their state.
+      // We'll request current state after connecting to the broadcast channel.
 
       this.voiceChannelBroadcast = supabase.channel(`voice-channels:${serverId}`, {
         config: {
@@ -336,11 +339,30 @@ export const useServerUsersStore = defineStore('serverUsers', {
             this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
             console.log(`🕐 Synced call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
           }
+        } else if (event === 'request-state') {
+          // Someone is requesting current voice channel state
+          // If we're in a voice channel, broadcast our presence
+          const voiceStore = useUnifiedVoiceChannelStore();
+          if (voiceStore.isConnected && voiceStore.currentChannelId) {
+            console.log('📡 Responding to state request with our voice channel presence');
+            this.broadcastVoiceChannelEvent(
+              serverId,
+              voiceStore.currentChannelId,
+              'user-joined',
+              voiceStore.localState.userId,
+              voiceStore.callStartTime?.toISOString()
+            );
+          }
         }
       });
 
       await this.voiceChannelBroadcast.subscribe();
       console.log('✅ Voice channel broadcast subscribed for server:', serverId);
+      
+      // Request current voice channel state from any active users
+      // This allows new viewers to see who's in voice channels
+      this.broadcastVoiceChannelEvent(serverId, '', 'request-state', '');
+      console.log('📡 Requested current voice channel state from active users');
     },
 
     /**
@@ -348,6 +370,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
      */
     async fetchVoiceChannelState(serverId: string) {
       try {
+        console.log('📞 Fetching voice channel state for server:', serverId);
+        
         const { data, error } = await supabase
           .from('user_presence')
           .select('user_id, voice_channel_id')
@@ -372,9 +396,11 @@ export const useServerUsersStore = defineStore('serverUsers', {
           }
         }
 
-        // Update local state
-        this.usersInVoiceChannels = { ...this.usersInVoiceChannels, ...channelUsers };
+        // Update local state - REPLACE instead of merge to clear stale data
+        this.usersInVoiceChannels = { ...channelUsers };
+        
         console.log('✅ Fetched voice channel state:', this.usersInVoiceChannels);
+        console.log('📊 Channels with users:', Object.keys(this.usersInVoiceChannels).length);
       } catch (error) {
         console.error('Error fetching voice channel state:', error);
       }

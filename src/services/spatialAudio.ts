@@ -50,7 +50,8 @@ import { useSpatialAudioStore } from '@/stores/spatialAudio';
 
 interface SpatialAudioNode {
   userId: string;
-  gainNode: GainNode;
+  gainNode: GainNode; // Input gain
+  outputGain: GainNode; // Output gain (before compressor)
   pannerNode: PannerNode | StereoPannerNode;
   convolver?: ConvolverNode;
   source: MediaStreamAudioSourceNode;
@@ -89,20 +90,14 @@ export class SpatialAudioService {
 
   /**
    * Initialize spatial audio system with optimized audio context
-   * Only creates AudioContext when spatial audio is enabled
+   * Creates AudioContext regardless of enabled state (for faster toggle)
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    const spatialStore = useSpatialAudioStore();
-    
-    // Only initialize if spatial audio is enabled
-    if (!spatialStore.settings.enabled) {
-      console.log('🎧 Spatial audio disabled - skipping AudioContext creation');
-      return;
-    }
-
     try {
+      console.log('🎧 Initializing Spatial Audio Service...');
+      
       // Create AudioContext with optimized settings for low latency
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
         latencyHint: 'interactive', // Prioritize low latency for voice chat
@@ -126,7 +121,8 @@ export class SpatialAudioService {
         outputLatency: this.audioContext.outputLatency
       });
       
-      // Pre-load impulse responses if reverb is enabled
+      // Pre-load impulse responses for faster reverb enabling
+      const spatialStore = useSpatialAudioStore();
       if (spatialStore.settings.enableReverb) {
         await this.preloadImpulseResponses();
       }
@@ -261,6 +257,7 @@ export class SpatialAudioService {
       const spatialNode: SpatialAudioNode = {
         userId,
         gainNode: processingChain.inputGain,
+        outputGain: processingChain.outputGain,
         pannerNode: processingChain.panner,
         convolver: processingChain.convolver,
         source,
@@ -847,14 +844,14 @@ export class SpatialAudioService {
             node.gainNode.connect(node.pannerNode);
           }
           
-          // Reconnect panner to compressor/destination
+          // Reconnect panner to outputGain
+          node.pannerNode.connect(node.outputGain);
+          
+          // Reconnect outputGain to compressor/destination
           if (this.compressorNode) {
-            // Find the output gain node and reconnect it
-            // The chain is: ... -> panner -> outputGain -> compressor
-            // We need to reconnect from panner onwards
-            node.pannerNode.connect(this.compressorNode);
+            node.outputGain.connect(this.compressorNode);
           } else {
-            node.pannerNode.connect(this.destination!);
+            node.outputGain.connect(this.destination!);
           }
           
           node.isConnected = true;
@@ -910,13 +907,27 @@ export class SpatialAudioService {
       try {
         console.log(`🔇 Disconnecting spatial audio chain for user: ${userId}`);
         
-        // Disconnect the entire audio chain
+        // Disconnect the entire audio chain IN REVERSE ORDER
+        // CRITICAL: Disconnect outputGain first - this cuts off audio to destination!
+        if (node.outputGain) {
+          node.outputGain.disconnect();
+        }
+        
+        if (node.pannerNode) {
+          node.pannerNode.disconnect();
+        }
+        
         if (node.convolver) {
           node.convolver.disconnect();
         }
-        node.pannerNode.disconnect();
-        node.gainNode.disconnect();
-        node.source.disconnect();
+        
+        if (node.gainNode) {
+          node.gainNode.disconnect();
+        }
+        
+        if (node.source) {
+          node.source.disconnect();
+        }
         
         // Mark as disconnected but keep the node for re-enabling
         node.isConnected = false;
@@ -1142,3 +1153,9 @@ export class SpatialAudioService {
 
 // Export singleton instance
 export const spatialAudioService = new SpatialAudioService();
+
+// Expose to window for debugging in console
+if (typeof window !== 'undefined') {
+  (window as any).spatialAudioService = spatialAudioService;
+  console.log('🎧 spatialAudioService exposed to window for debugging');
+}

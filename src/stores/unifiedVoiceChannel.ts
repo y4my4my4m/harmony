@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { nextTick } from 'vue';
 import { unifiedWebRTC, type UserMediaState } from '@/services/unifiedWebRTC';
 import { spatialAudioService } from '@/services/spatialAudio';
+import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
@@ -779,6 +780,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           // Enable spatial audio (will start the update loop)
           await spatialAudioService.enableSpatialAudio();
           
+          // IMMEDIATELY mute traditional audio to prevent double audio (dry + wet)
+          // This is critical - must happen right after enabling, not in the timeout!
+          unifiedWebRTC.setTraditionalAudioEnabled(false);
+          console.log('🔇 Traditional audio muted immediately after spatial audio enabled');
+          
           // Wait a bit for streams to be ready, then setup spatial audio for any existing users
           // This delay is important because streams might not be immediately available on join
           setTimeout(async () => {
@@ -804,13 +810,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               }
             }
             
-            // Mute traditional audio since spatial is active
-            unifiedWebRTC.setTraditionalAudioEnabled(false);
-            
             // Force spatial effects update
             spatialAudioService.updateSpatialEffects();
             
-            console.log('✅ Spatial audio activated on load');
+            console.log('✅ Spatial audio activated on load with all users');
           }, 300); // 300ms delay to ensure streams are ready
         }
         
