@@ -303,6 +303,34 @@
   animation: none;
 }
 
+/* Floating video placeholder (skeleton) */
+.floating-video-placeholder {
+  margin: 4px 0 8px 0;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Don't animate skeleton in reduced motion mode */
+[data-reduce-motion="true"] .floating-video-placeholder {
+  animation: none;
+}
+
+/* Resize handles */
+.floating-video .resize-handle {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.floating-video .resize-handle:hover {
+  transform: scale(1.2);
+}
+
 /* ===== RESPONSIVE ADJUSTMENTS ===== */
 @media (max-width: 768px) {
   /* Make compact mode even more compact on mobile */

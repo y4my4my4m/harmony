@@ -115,13 +115,14 @@
           <div 
             v-else-if="isVideoUrl(part.url)" 
             class="media-container video-container"
-            ref="videoContainer"
+            :ref="el => { if (el) videoContainers[partIndex] = el as HTMLElement }"
           >
             <video
               :src="part.url"
               controls
               class="content-video"
               preload="metadata"
+              :data-video-index="partIndex"
               @play="handleVideoPlay"
               @pause="handleVideoPause"
             ></video>
@@ -185,12 +186,16 @@
         <div 
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'video'" 
           class="media-container video-container"
+          :ref="el => { if (el) videoContainers[partIndex] = el as HTMLElement }"
         >
           <video
             :src="part.url"
             controls
             class="content-video"
             preload="metadata"
+            :data-video-index="partIndex"
+            @play="handleVideoPlay"
+            @pause="handleVideoPause"
           ></video>
         </div>
         
@@ -316,13 +321,13 @@ export default defineComponent({
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
-    const videoContainer = ref<HTMLElement | null>(null);
+    const videoContainers = ref<HTMLElement[]>([]);
     
     // Internal reactive state for image loading (use prop if provided, otherwise create new)
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
     
     // Floating video
-    const { registerVideo } = useFloatingVideo();
+    const { registerVideo, returnToOriginalPosition, hasFloatingVideo, getFloatingVideoMessageId } = useFloatingVideo();
     
     // Watch for prop changes and merge with internal state
     watch(() => props.imageLoaded, (newValue) => {
@@ -338,24 +343,47 @@ export default defineComponent({
     // Handle native video play/pause
     const handleVideoPlay = (event: Event) => {
       const video = event.target as HTMLVideoElement;
-      if (videoContainer.value) {
-        videoContainer.value.dataset.isPlaying = 'true';
+      const videoIndex = parseInt(video.dataset.videoIndex || '0', 10);
+      const container = videoContainers.value[videoIndex];
+      
+      if (container) {
+        container.dataset.isPlaying = 'true';
         
-        // Register video for floating if messageId is provided
-        if (props.messageId) {
-          const originalParent = videoContainer.value.parentElement as HTMLElement;
-          if (originalParent) {
-            registerVideo(videoContainer.value, originalParent, props.messageId, 'video');
-          }
+        // Check if a different video is floating
+        const thisVideoId = `${props.messageId}-video-${videoIndex}`;
+        const floatingVideoId = getFloatingVideoMessageId();
+        
+        // If another video is floating and it's not this one, return it to its original position
+        if (floatingVideoId && floatingVideoId !== thisVideoId) {
+          returnToOriginalPosition();
         }
       }
     };
     
     const handleVideoPause = (event: Event) => {
-      if (videoContainer.value) {
-        videoContainer.value.dataset.isPlaying = 'false';
+      const video = event.target as HTMLVideoElement;
+      const videoIndex = parseInt(video.dataset.videoIndex || '0', 10);
+      const container = videoContainers.value[videoIndex];
+      
+      if (container) {
+        container.dataset.isPlaying = 'false';
       }
     };
+    
+    // Register videos for floating on mount
+    onMounted(() => {
+      nextTick(() => {
+        // Register all video containers
+        videoContainers.value.forEach((container, index) => {
+          if (container && props.messageId) {
+            const originalParent = container.parentElement as HTMLElement;
+            if (originalParent) {
+              registerVideo(container, originalParent, `${props.messageId}-video-${index}`, 'video');
+            }
+          }
+        });
+      });
+    });
     
     // Auto-suggest setup
     const autoSuggest = useAutoSuggest(editTextarea);
@@ -692,7 +720,7 @@ export default defineComponent({
       getEmojiUrl,
       localEditableContent,
       editTextarea,
-      videoContainer,
+      videoContainers,
       handleSaveEdit, 
       handleCancelEdit,
       handleKeyDown,

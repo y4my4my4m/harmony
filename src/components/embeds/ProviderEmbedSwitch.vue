@@ -66,7 +66,7 @@ const youtubeContainer = ref<HTMLElement | null>(null);
 const youtubeIframe = ref<HTMLIFrameElement | null>(null);
 const isPlaying = ref(false);
 
-const { registerVideo } = useFloatingVideo();
+const { registerVideo, returnToOriginalPosition, hasFloatingVideo, getFloatingVideoMessageId } = useFloatingVideo();
 
 const isHarmony = computed(() => props.payload.provider === 'harmony-post');
 const providerLabel = computed(() => {
@@ -150,6 +150,17 @@ function handleYouTubeMessage(event: MessageEvent) {
       // YouTube player states: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (cued)
       const isVideoPlaying = data.info === 1;
       isPlaying.value = isVideoPlaying;
+      
+      // If this video started playing, check if a different video is floating
+      if (isVideoPlaying && props.messageId) {
+        const floatingVideoId = getFloatingVideoMessageId();
+        const thisMessageId = props.messageId;
+        
+        // If another video is floating and it's not this one, return it
+        if (floatingVideoId && floatingVideoId !== thisMessageId) {
+          returnToOriginalPosition();
+        }
+      }
       
       // Update data attribute for floating video system
       if (youtubeContainer.value) {
