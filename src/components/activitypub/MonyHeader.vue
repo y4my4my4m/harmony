@@ -77,6 +77,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+
+// I18n
+const { t } = useI18n();
+
 // Props
 interface Props {
   currentView?: string
@@ -104,31 +109,31 @@ const emit = defineEmits<{
 const feedTabs = [
   { 
     id: 'home', 
-    label: 'Home', 
+    label: t('activitypub.home'), 
     icon: 'home',
     showLabelOnMobile: true
   },
   { 
     id: 'local', 
-    label: 'Local', 
+    label: t('activitypub.local'), 
     icon: 'users',
     showLabelOnMobile: false
   },
   { 
     id: 'public', 
-    label: 'Federated', 
+    label: t('activitypub.federated'), 
     icon: 'globe',
     showLabelOnMobile: false
   },
   { 
     id: 'trending', 
-    label: 'Trending', 
+    label: t('activitypub.trending'), 
     icon: 'trending-up',
     showLabelOnMobile: false
   },
   { 
     id: 'instances', 
-    label: 'Instances', 
+    label: t('activitypub.instances'), 
     icon: 'server',
     showLabelOnMobile: false
   }

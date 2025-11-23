@@ -25,7 +25,7 @@
         </svg>
       </button>
       <h1 class="server-settings-title">
-        {{ permissions.canEditBasicInfo ? 'Server Settings' : 'Server Information' }}
+        {{ permissions.canEditBasicInfo ? $t('server.serverSettings') : $t('server.serverInformation') }}
       </h1>
       <div class="server-settings-actions" v-if="permissions.canSaveChanges">
         <button 
@@ -33,7 +33,7 @@
           @click="back"
           :disabled="loading"
         >
-          Cancel
+          {{ $t('common.cancel') }}
         </button>
         <button 
           class="btn btn-primary" 
@@ -41,7 +41,7 @@
           :disabled="loading || !hasChanges"
         >
           <span v-if="loading" class="loading-spinner"></span>
-          Save Changes
+          {{ $t('server.saveChanges') }}
         </button>
       </div>
       <div v-else class="server-settings-actions">
@@ -50,7 +50,7 @@
           @click="back"
           :disabled="loading"
         >
-          Back
+          {{ $t('server.back') }}
         </button>
       </div>
     </div>
@@ -92,7 +92,7 @@
               :disabled="loading || !hasChanges"
             >
               <span v-if="loading" class="loading-spinner"></span>
-              {{ hasChanges ? 'Save Changes' : 'No Changes' }}
+              {{ hasChanges ? $t('server.saveChanges') : $t('server.noChanges') }}
             </button>
           </div>
 
@@ -103,8 +103,8 @@
                 <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
               </svg>
               <div class="notice-text">
-                <h4>View Only Access</h4>
-                <p>You can view server information but cannot make changes. Only the server owner and administrators can modify settings.</p>
+                <h4>{{ $t('server.viewOnlyAccess') }}</h4>
+                <p>{{ $t('server.viewOnlyMessage') }}</p>
               </div>
             </div>
           </div>
@@ -160,6 +160,7 @@
 import { onMounted, ref, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import { useServerStore } from '@/stores/server'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { getProfileWithAvatarUrl } from '@/services/ProfileService'
@@ -177,6 +178,9 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+// I18n
+const { t } = useI18n()
 
 // Layout State
 const { isMobile } = useLayoutState()
@@ -228,20 +232,20 @@ const emojiPermissions = computed(() => ({
 // Available sections based on permissions
 const availableSections = computed(() => {
   const sections = [
-    { id: 'overview', label: 'Overview' }
+    { id: 'overview', label: t('server.overview') }
   ]
   
   // Always show emoji section but with different permissions
-  sections.push({ id: 'emoji', label: 'Emoji' })
+  sections.push({ id: 'emoji', label: t('server.emoji') })
   
   // Only show privacy settings if user can manage server
   if (permissions.value.canChangePrivacySettings) {
-    sections.push({ id: 'privacy', label: 'Privacy Settings' })
+    sections.push({ id: 'privacy', label: t('server.privacySettings') })
   }
   
   // Only show advanced settings if user has advanced permissions
   if (permissions.value.canDeleteServer) {
-    sections.push({ id: 'advanced', label: 'Advanced Settings' })
+    sections.push({ id: 'advanced', label: t('server.advancedSettings') })
   }
   
   return sections

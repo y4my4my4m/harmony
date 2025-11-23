@@ -46,12 +46,12 @@
       <div class="social-header">
         <div class="social-title">
           <Icon name="globe" />
-          <h2>Social</h2>
+          <h2>{{ $t('activitypub.social') }}</h2>
         </div>
         <button 
           @click="$emit('switch-mode', 'chat')"
           class="mode-toggle-btn"
-          title="Switch to Chat"
+          :title="$t('activitypub.switchToChat')"
         >
           <Icon name="message-circle" />
         </button>
@@ -77,7 +77,7 @@
         <!-- Navigation Links -->
         <nav class="social-nav">
           <div class="nav-section">
-            <h4 class="nav-section-title">Navigation</h4>
+            <h4 class="nav-section-title">{{ $t('activitypub.navigation') }}</h4>
             <button 
               v-for="navItem in navigationItems"
               :key="navItem.id"
@@ -153,10 +153,14 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import type { Server, Channel, Category, User } from '@/types';
+
+// I18n
+const { t } = useI18n();
 import Avatar from '@/components/common/Avatar.vue';
 import Icon from '@/components/common/Icon.vue';
 import ChannelSidebar from '@/components/ChannelSidebar.vue';
@@ -281,13 +285,13 @@ const postsCount = computed(() => {
 });
 
 const navigationItems = computed(() => [
-  { id: 'explore', label: 'Explore', path: '/explore', icon: 'compass' },
-  { id: 'feed', label: 'Feed', path: '/social/home', icon: 'mony-mascot' },
-  { id: 'profile', label: 'Profile', path: getUserProfilePath(), icon: 'user' },
-  { id: 'notifications', label: 'Notifications', path: '/social/notifications', icon: 'bell' },
-  { id: 'bookmarks', label: 'Bookmarks', path: '/social/bookmarks', icon: 'bookmark' },
-  { id: 'lists', label: 'Lists', path: '/social/lists', icon: 'list' },
-  { id: 'settings', label: 'Settings', path: '/settings', icon: 'settings' }
+  { id: 'explore', label: t('activitypub.explore'), path: '/explore', icon: 'compass' },
+  { id: 'feed', label: t('activitypub.feed'), path: '/social/home', icon: 'mony-mascot' },
+  { id: 'profile', label: t('activitypub.profile'), path: getUserProfilePath(), icon: 'user' },
+  { id: 'notifications', label: t('activitypub.notifications'), path: '/social/notifications', icon: 'bell' },
+  { id: 'bookmarks', label: t('activitypub.bookmarks'), path: '/social/bookmarks', icon: 'bookmark' },
+  { id: 'lists', label: t('activitypub.lists'), path: '/social/lists', icon: 'list' },
+  { id: 'settings', label: t('navigation.settings'), path: '/settings', icon: 'settings' }
 ]);
 
 // Determine if a navigation item should be active

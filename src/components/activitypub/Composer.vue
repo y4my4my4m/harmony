@@ -296,6 +296,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useProfileStore } from '@/stores/useProfile';
 import type { TimelinePost, Post } from '@/types';
 
@@ -315,6 +316,9 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+
+// I18n
+const { t } = useI18n();
 
 // Props
 interface Props {
@@ -415,23 +419,23 @@ const currentUser = computed(() => profileStore.profile);
 
 const placeholder = computed(() => {
   if (props.type === 'reply') {
-    return 'What\'s your reply?';
+    return t('activitypub.whatsYourReply');
   }
-  return 'What\'s happening in the Monyverse?';
+  return t('activitypub.whatsHappeningInMonyverse');
 });
 
 const headerTitle = computed(() => {
   if (props.type === 'reply') {
-    return 'Reply to Mony';
+    return t('activitypub.replyToMony');
   }
-  return 'Create a Mony';
+  return t('activitypub.createAMony');
 });
 
 const submitButtonText = computed(() => {
   if (isPosting.value) {
-    return props.type === 'reply' ? 'Replying...' : 'Posting...';
+    return props.type === 'reply' ? t('activitypub.replying') : t('activitypub.posting');
   }
-  return props.type === 'reply' ? 'Reply' : 'Mony';
+  return props.type === 'reply' ? t('activitypub.reply') : t('activitypub.mony');
 });
 
 const wrapperComponent = computed(() => {
