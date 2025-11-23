@@ -22,13 +22,13 @@
         <!-- Stats (for non-compact view) -->
         <div class="user-stats">
           <span class="stat">
-            <strong>{{ formatNumber(user.followers_count || 0) }}</strong> followers
+            <strong>{{ formatNumber(user.followers_count || 0) }}</strong> {{ $t('activitypub.followers') }}
           </span>
           <span class="stat">
-            <strong>{{ formatNumber(user.following_count || 0) }}</strong> following
+            <strong>{{ formatNumber(user.following_count || 0) }}</strong> {{ $t('activitypub.following') }}
           </span>
           <span class="stat">
-            <strong>{{ formatNumber(user.posts_count || 0) }}</strong> monies
+            <strong>{{ formatNumber(user.posts_count || 0) }}</strong> {{ $t('activitypub.monies') }}
           </span>
         </div>
       </div>
@@ -109,6 +109,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { usePostInteractions } from '@/composables/usePostInteractions';
@@ -116,6 +117,8 @@ import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import { useRouter } from 'vue-router';
+
+const { t } = useI18n();
 const router = useRouter();
 // Props
 interface Props {

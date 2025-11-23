@@ -48,7 +48,7 @@
         <template v-if="isFederatedUser(user)">
           <div class="stat-item">
             <span class="stat-value">{{ formatNumber(user.followers_count || 0) }}</span>
-            <span class="stat-label">Followers</span>
+            <span class="stat-label">{{ $t('activitypub.followers') }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ formatNumber(user.following_count || 0) }}</span>

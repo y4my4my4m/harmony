@@ -109,7 +109,7 @@
             </div>
             <div class="stat-item followers" @click="navigateToFollowers">
               <div class="stat-value">{{ activityPubStore.formattedFollowersCount }}</div>
-              <div class="stat-label">Followers</div>
+              <div class="stat-label">{{ $t('activitypub.followers') }}</div>
               <div class="stat-change" v-if="followersChange !== 0">
                 <Icon :name="followersChange > 0 ? 'arrow-up' : 'arrow-down'" />
                 <span>{{ Math.abs(followersChange) }}</span>

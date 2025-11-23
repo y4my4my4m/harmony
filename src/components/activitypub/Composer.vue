@@ -383,10 +383,10 @@ const canSubmit = computed(() => {
 const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttachments);
 
 const visibilityOptions = [
-  { value: 'public' as const, label: 'Public', description: 'Visible to everyone', icon: 'globe' },
-  { value: 'unlisted' as const, label: 'Unlisted', description: 'Not shown in public timelines', icon: 'unlock' },
-  { value: 'followers' as const, label: 'Followers', description: 'Only visible to followers', icon: 'users' },
-  { value: 'direct' as const, label: 'Direct', description: 'Only mentioned users', icon: 'mail' }
+  { value: 'public' as const, label: t('activitypub.public'), description: t('activitypub.visibleToEveryone'), icon: 'globe' },
+  { value: 'unlisted' as const, label: t('activitypub.unlisted'), description: t('activitypub.notShownInPublicTimelines'), icon: 'unlock' },
+  { value: 'followers' as const, label: t('activitypub.followers'), description: t('activitypub.onlyVisibleToFollowers'), icon: 'users' },
+  { value: 'direct' as const, label: t('activitypub.direct'), description: t('activitypub.onlyMentionedUsers'), icon: 'mail' }
 ];
 
 // AutoSuggest setup

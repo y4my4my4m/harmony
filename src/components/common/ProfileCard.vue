@@ -55,13 +55,13 @@
       <div v-if="hasStats" class="stats-section">
         <!-- Standard Social Stats (for all users) -->
         <span class="stat">
-          <strong>{{ formatNumber(user.followers_count || 0) }}</strong> followers
+          <strong>{{ formatNumber(user.followers_count || 0) }}</strong> {{ t('activitypub.followers') }}
         </span>
         <span class="stat">
-          <strong>{{ formatNumber(user.following_count || 0) }}</strong> following
+          <strong>{{ formatNumber(user.following_count || 0) }}</strong> {{ t('activitypub.following') }}
         </span>
         <span class="stat">
-          <strong>{{ formatNumber(user.posts_count || 0) }}</strong> monies
+          <strong>{{ formatNumber(user.posts_count || 0) }}</strong> {{ t('activitypub.monies') }}
         </span>
       </div>
     </div>
@@ -144,6 +144,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
@@ -152,6 +153,8 @@ import { usePostInteractions } from '@/composables/usePostInteractions'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
 import type { User, FederatedUser } from '@/types'
+
+const { t } = useI18n()
 
 // ===== INTERFACE =====
 interface Props {
