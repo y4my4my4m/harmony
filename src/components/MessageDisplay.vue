@@ -1,6 +1,21 @@
 <template>
   <div class="message-display" ref="messageDisplayContainer" @scroll="handleScroll">
-    <div class="no-messages" v-if="messages.length == 0">
+    <!-- Loading skeletons when initially loading messages -->
+    <div v-if="isLoading && messages.length === 0" class="loading-skeleton">
+      <div v-for="n in 5" :key="`skeleton-${n}`" class="skeleton-message">
+        <div class="skeleton-avatar"></div>
+        <div class="skeleton-content">
+          <div class="skeleton-header">
+            <div class="skeleton-username"></div>
+            <div class="skeleton-timestamp"></div>
+          </div>
+          <div class="skeleton-text-line" style="width: 90%;"></div>
+          <div class="skeleton-text-line" style="width: 70%;"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="no-messages" v-else-if="!isLoading && messages.length === 0">
       There are no messages here, type something!
     </div>
     <!-- Loading older messages indicator -->
@@ -1331,6 +1346,24 @@ const closeInviteModal = () => {
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
+}
+
+.skeleton-timestamp {
+  width: 50px;
+  height: 12px;
+  background: linear-gradient(90deg, #40444b 0%, #484c52 50%, #40444b 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-text-line {
+  height: 14px;
+  background: linear-gradient(90deg, #40444b 0%, #484c52 50%, #40444b 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 6px;
 }
 
 @keyframes skeleton-shimmer {
