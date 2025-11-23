@@ -4,7 +4,7 @@
     <div class="search-section">
       <SearchInput 
         v-model="localSearchQuery"
-        placeholder="Search communities..."
+        :placeholder="$t('server.searchCommunities')"
         :is-loading="isSearching"
         @clear="handleClearSearch"
       />
@@ -28,9 +28,9 @@
               </svg>
             </div>
             <div class="category-toggle-text">
-              <span class="category-title">Categories</span>
+              <span class="category-title">{{ $t('server.categories') }}</span>
               <span v-if="selectedCategory && !showCategories" class="selected-category-preview">
-                {{ selectedCategory }}
+                {{ translateCategory(selectedCategory) }}
               </span>
             </div>
           </div>
@@ -38,7 +38,7 @@
             <button 
               @click.stop="clearCategory"
               class="clear-category-btn"
-              title="Clear category filter"
+              :title="$t('server.clearCategoryFilter')"
             >
               <svg viewBox="0 0 24 24" class="clear-icon">
                 <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" fill="currentColor"/>
@@ -58,7 +58,7 @@
               class="category-pill"
               :class="{ 'category-pill--active': category === selectedCategory }"
             >
-              <span class="category-pill-text">{{ category }}</span>
+              <span class="category-pill-text">{{ translateCategory(category) }}</span>
               <div v-if="category === selectedCategory" class="category-pill-indicator"></div>
             </button>
           </div>
@@ -80,13 +80,13 @@
         
         <div v-if="searchQuery" class="stats-secondary">
           <span class="search-indicator">
-            Searching for "{{ searchQuery }}"
+            {{ t('server.searchingFor', { query: searchQuery }) }}
           </span>
         </div>
         
         <div v-if="selectedCategory" class="stats-secondary">
           <span class="category-indicator">
-            Category: {{ selectedCategory }}
+            {{ t('server.categoryLabel', { category: translateCategory(selectedCategory) }) }}
           </span>
         </div>
       </div>
@@ -96,7 +96,10 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import SearchInput from '@/components/common/SearchInput.vue'
+
+const { t } = useI18n()
 
 interface Props {
   searchQuery: string
@@ -143,11 +146,27 @@ const handleClearSearch = () => {
   emit('update:searchQuery', '')
 }
 
+const translateCategory = (category: string): string => {
+  const categoryMap: Record<string, string> = {
+    'Gaming': t('server.categoryGaming'),
+    'Technology': t('server.categoryTechnology'),
+    'Art & Design': t('server.categoryArtDesign'),
+    'Music': t('server.categoryMusic'),
+    'Education': t('server.categoryEducation'),
+    'Entertainment': t('server.categoryEntertainment'),
+    'Community': t('server.categoryCommunity'),
+    'Science': t('server.categoryScience'),
+    'Sports': t('server.categorySports'),
+    'Other': t('server.categoryOther')
+  }
+  return categoryMap[category] || category
+}
+
 const formatStats = (filtered: number, total: number): string => {
   if (props.searchQuery || props.selectedCategory) {
-    return `${filtered} of ${total} communities`
+    return t('server.communitiesOfTotal', { filtered, total })
   }
-  return `${total} communities found`
+  return t('server.communitiesFound', { total })
 }
 </script>
 

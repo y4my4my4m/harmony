@@ -104,11 +104,11 @@
           </div>
           <div v-if="socialStats" class="stat-item">
             <span class="stat-value">{{ formatSocialCount(socialStats.following) }}</span>
-            <span class="stat-label">Following</span>
+            <span class="stat-label">{{ t('activitypub.following') }}</span>
           </div>
           <div v-if="socialStats" class="stat-item">
             <span class="stat-value">{{ formatSocialCount(socialStats.followers) }}</span>
-            <span class="stat-label">Followers</span>
+            <span class="stat-label">{{ t('activitypub.followers') }}</span>
           </div>
           
           <!-- Chat User Stats -->
@@ -270,7 +270,7 @@
               :class="{ 'following': getUserIsFollowing(user) }"
             >
               <Icon :name="getUserIsFollowing(user) ? 'unfollow' : 'follow'" :size="16" />
-              {{ getUserIsFollowing(user) ? 'Unfollow' : 'Follow' }}
+              {{ getUserIsFollowing(user) ? t('activitypub.unfollow') : t('activitypub.follow') }}
             </button>
             
             <!-- All Users: Mention -->
@@ -299,6 +299,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useActivityPubStore } from '../stores/useActivityPub'  
@@ -308,6 +309,8 @@ import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
 import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
+
+const { t } = useI18n()
 
 interface Props {
   show: boolean

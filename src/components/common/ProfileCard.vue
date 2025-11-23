@@ -279,8 +279,8 @@ const isBlocked = computed(() => {
 })
 
 const followButtonText = computed(() => {
-  if (isFollowLoading.value) return 'Loading...'
-  return isFollowing.value ? 'Following' : 'Follow'
+  if (isFollowLoading.value) return t('common.loading')
+  return isFollowing.value ? t('activitypub.following') : t('activitypub.follow')
 })
 
 // ===== METHODS =====

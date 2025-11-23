@@ -93,7 +93,7 @@
         <!-- Enhanced Quick Stats with Realtime Updates -->
         <div class="quick-stats">
           <div class="stats-header">
-            <h4 class="stats-title">Your Activity</h4>
+            <h4 class="stats-title">{{ $t('activitypub.yourActivity') }}</h4>
             <button class="stats-refresh" @click="refreshStats" :disabled="isRefreshing">
               <Icon name="refresh-cw" :class="{ spinning: isRefreshing }" />
             </button>
@@ -101,7 +101,7 @@
           <div class="stats-grid">
             <div class="stat-item following" @click="navigateToFollowing">
               <div class="stat-value">{{ activityPubStore.formattedFollowingCount }}</div>
-              <div class="stat-label">Following</div>
+              <div class="stat-label">{{ $t('activitypub.following') }}</div>
               <div class="stat-change" v-if="followingChange !== 0">
                 <Icon :name="followingChange > 0 ? 'arrow-up' : 'arrow-down'" />
                 <span>{{ Math.abs(followingChange) }}</span>
@@ -117,7 +117,7 @@
             </div>
             <div class="stat-item posts" @click="navigateToProfile">
               <div class="stat-value">{{ postsCount }}</div>
-              <div class="stat-label">Posts</div>
+              <div class="stat-label">{{ $t('activitypub.posts') }}</div>
             </div>
           </div>
         </div>
@@ -125,10 +125,10 @@
         <!-- Instance Info -->
         <div class="instance-info">
           <div class="instance-header">
-            <h4 class="instance-title">Instance</h4>
+            <h4 class="instance-title">{{ $t('activitypub.instance') }}</h4>
             <div class="instance-status online">
               <div class="status-dot"></div>
-              <span>Online</span>
+              <span>{{ $t('activitypub.online') }}</span>
             </div>
           </div>
           <div class="instance-details">
@@ -136,11 +136,11 @@
             <div class="instance-stats">
               <div class="instance-stat">
                 <span class="stat-value">{{ instanceUserCount }}</span>
-                <span class="stat-label">users</span>
+                <span class="stat-label">{{ $t('activitypub.usersCount') }}</span>
               </div>
               <div class="instance-stat">
                 <span class="stat-value">{{ instancePostCount }}</span>
-                <span class="stat-label">posts</span>
+                <span class="stat-label">{{ $t('activitypub.postsCount') }}</span>
               </div>
             </div>
           </div>

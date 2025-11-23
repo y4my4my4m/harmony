@@ -185,8 +185,8 @@ const isBlocked = computed(() => {
 });
 
 const followButtonText = computed(() => {
-  if (getLoadingState().follow) return 'Loading...';
-  return isFollowing.value ? 'Following' : 'Follow';
+  if (getLoadingState().follow) return t('common.loading');
+  return isFollowing.value ? t('activitypub.following') : t('activitypub.follow');
 });
 
 const truncatedBio = computed(() => {

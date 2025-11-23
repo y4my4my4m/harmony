@@ -8,7 +8,7 @@
         <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span>Upload a File</span>
+      <span>{{ t('files.uploadFile') }}</span>
     </div>
     <input 
       ref="fileInput"
@@ -23,6 +23,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 export default defineComponent({
   name: 'FileUploadMenu',
@@ -34,6 +35,7 @@ export default defineComponent({
   },
   emits: ['files-selected', 'close'],
   setup(props, { emit }) {
+    const { t } = useI18n();
     const fileInput = ref<HTMLInputElement | null>(null);
 
     const handleFileUpload = () => {
@@ -75,7 +77,8 @@ export default defineComponent({
     return {
       fileInput,
       handleFileUpload,
-      onFileSelect
+      onFileSelect,
+      t
     };
   }
 });

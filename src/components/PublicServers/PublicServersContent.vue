@@ -12,8 +12,8 @@
           </svg>
         </div>
         <div class="loading-text">
-          <h3 class="loading-title">Loading communities...</h3>
-          <p class="loading-description">Finding the best servers for you</p>
+          <h3 class="loading-title">{{ $t('server.loadingCommunities') }}</h3>
+          <p class="loading-description">{{ $t('server.findingBestServers') }}</p>
         </div>
       </div>
       
@@ -28,13 +28,13 @@
           <path d="M12,2L13.09,8.26L22,9L17,14L18.18,21L12,17.77L5.82,21L7,14L2,9L8.91,8.26L12,2Z" fill="currentColor"/>
         </svg>
       </div>
-      <h3 class="error-title">Failed to load communities</h3>
+      <h3 class="error-title">{{ $t('server.failedToLoadCommunities') }}</h3>
       <p class="error-description">{{ error }}</p>
       <button @click="$emit('refresh')" class="refresh-btn">
         <svg viewBox="0 0 24 24" class="refresh-icon">
           <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" fill="currentColor"/>
         </svg>
-        Try Again
+        {{ $t('server.tryAgain') }}
       </button>
     </div>
 
@@ -73,7 +73,7 @@
     <!-- Featured Servers Section -->
     <div v-else-if="featuredServers.length > 0 && !searchQuery" class="featured-section">
       <div class="section-header">
-        <h3 class="section-title">Featured Communities</h3>
+        <h3 class="section-title">{{ $t('server.featuredCommunities') }}</h3>
         <div class="section-decoration"></div>
       </div>
       
@@ -95,7 +95,7 @@
     <!-- Main Server Grid -->
     <div v-if="servers.length > 0" class="servers-section">
       <div v-if="!searchQuery && featuredServers.length > 0" class="section-header">
-        <h3 class="section-title">All Communities</h3>
+        <h3 class="section-title">{{ $t('server.allCommunities') }}</h3>
         <div class="section-decoration"></div>
       </div>
       
@@ -115,7 +115,7 @@
       <!-- Load More Button (if needed for large lists) -->
       <div v-if="hasMoreServers" class="load-more-section">
         <button @click="loadMore" class="load-more-btn">
-          Load More Communities
+          {{ $t('server.loadMoreCommunities') }}
         </button>
       </div>
     </div>

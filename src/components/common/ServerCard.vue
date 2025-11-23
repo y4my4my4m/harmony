@@ -20,14 +20,14 @@
       
       <div class="server-card__status">
         <div class="status-dot status-dot--online"></div>
-        <span class="status-text">Active</span>
+        <span class="status-text">{{ $t('server.active') }}</span>
       </div>
     </div>
     
     <div class="server-card__content">
       <h3 class="server-card__name">{{ server.name }}</h3>
       <p class="server-card__description">
-        {{ server.description || 'No description available' }}
+        {{ server.description || $t('server.noDescriptionAvailable') }}
       </p>
       
       <div class="server-card__info">
@@ -43,11 +43,11 @@
             <svg viewBox="0 0 24 24" class="stat-icon">
               <path d="M5,9V21H1V9H5M9,21A2,2 0 0,1 7,19V9C7,8.45 7.22,7.95 7.59,7.59L14.17,1L15.23,2.06C15.5,2.33 15.67,2.7 15.67,3.11L15.64,3.43L14.69,8H21C21.53,8 22,8.2 22.39,8.59C22.78,8.98 23,9.45 23,10V12C23,12.26 22.95,12.5 22.86,12.73L19.84,19.78C19.54,20.5 18.83,21 18,21H9M9,19H18.03L21,12V10H12.21L13.34,4.68L9,9.03V19Z" fill="currentColor"/>
             </svg>
-            <span class="stat-text">{{ server.category }}</span>
+            <span class="stat-text">{{ translateCategory(server.category) }}</span>
           </div>
         </div>
 
-        <div v-if="!server.is_featured" class="server-card__owner" @click="handleOwnerClick" title="View owner profile">
+        <div v-if="!server.is_featured" class="server-card__owner" @click="handleOwnerClick" :title="$t('server.viewOwnerProfile')">
           <Avatar 
             :src="ownerAvatar" 
             :name="ownerName"
@@ -69,8 +69,8 @@
         <svg viewBox="0 0 24 24" class="btn-icon">
           <path d="M19,3H16.3H7.7H5A2,2 0 0,0 3,5V7.7V16.3V19A2,2 0 0,0 5,21H7.7H16.3H19A2,2 0 0,0 21,19V16.3V7.7V5A2,2 0 0,0 19,3M15.6,17L12,13.4L8.4,17L7,15.6L10.6,12L7,8.4L8.4,7L12,10.6L15.6,7L17,8.4L13.4,12L17,15.6L15.6,17Z" fill="currentColor"/>
         </svg>
-        <span v-if="!isLoading">Leave</span>
-        <span v-else>Leaving...</span>
+        <span v-if="!isLoading">{{ $t('server.leave') }}</span>
+        <span v-else>{{ $t('server.leaving') }}</span>
       </button>
       
       <button 
@@ -82,8 +82,8 @@
         <svg viewBox="0 0 24 24" class="btn-icon">
           <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
         </svg>
-        <span v-if="!isLoading">Join</span>
-        <span v-else>Joining...</span>
+        <span v-if="!isLoading">{{ $t('server.join') }}</span>
+        <span v-else>{{ $t('server.joining') }}</span>
       </button>
     </div>
   </div>
@@ -91,10 +91,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useUserData } from '@/composables/useUserData'
 import Avatar from '@/components/common/Avatar.vue'
 import type { PublicServerWithStats } from '@/stores/usePublicServers'
 import ServerIcon from './ServerIcon.vue'
+
+const { t } = useI18n()
 
 interface Props {
   server: PublicServerWithStats
@@ -159,11 +162,11 @@ const ownerName = computed(() => {
 })
 
 const formatMemberCount = (count?: number): string => {
-  if (!count) return '0 members'
-  if (count === 1) return '1 member'
-  if (count < 1000) return `${count} members`
-  if (count < 1000000) return `${(count / 1000).toFixed(1)}k members`
-  return `${(count / 1000000).toFixed(1)}m members`
+  if (!count) return `0 ${t('server.members')}`
+  if (count === 1) return `1 ${t('server.member')}`
+  if (count < 1000) return `${count} ${t('server.members')}`
+  if (count < 1000000) return `${(count / 1000).toFixed(1)}k ${t('server.members')}`
+  return `${(count / 1000000).toFixed(1)}m ${t('server.members')}`
 }
 
 const handleImageError = (event: Event) => {
@@ -177,6 +180,23 @@ const handleJoin = () => {
 
 const handleLeave = () => {
   emit('leave', props.server.id)
+}
+
+const translateCategory = (category?: string): string => {
+  if (!category) return ''
+  const categoryMap: Record<string, string> = {
+    'Gaming': t('server.categoryGaming'),
+    'Technology': t('server.categoryTechnology'),
+    'Art & Design': t('server.categoryArtDesign'),
+    'Music': t('server.categoryMusic'),
+    'Education': t('server.categoryEducation'),
+    'Entertainment': t('server.categoryEntertainment'),
+    'Community': t('server.categoryCommunity'),
+    'Science': t('server.categoryScience'),
+    'Sports': t('server.categorySports'),
+    'Other': t('server.categoryOther')
+  }
+  return categoryMap[category] || category
 }
 
 const handleOwnerClick = (event: Event) => {

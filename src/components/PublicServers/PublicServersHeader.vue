@@ -8,7 +8,7 @@
       </div>
       <div class="header-text">
         <h1 class="modal-title">{{ $t('server.discoverCommunities') }}</h1>
-        <p class="modal-subtitle">Find your next favorite server</p>
+        <p class="modal-subtitle">{{ $t('server.findNextFavoriteServer') }}</p>
       </div>
     </div>
     
