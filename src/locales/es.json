@@ -1,0 +1,76 @@
+{
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "reset": "Restablecer",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "close": "Cerrar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "confirm": "Confirmar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito"
+  },
+  "settings": {
+    "title": "Configuración",
+    "appearance": {
+      "title": "Apariencia",
+      "description": "Personaliza el aspecto de Harmony.",
+      "theme": "Tema",
+      "customTheme": "Color del Tema Personalizado",
+      "customThemeHelp": "Elige un color de acento. La aplicación generará automáticamente un tema completo basado en tu elección.",
+      "themes": {
+        "dark": "Oscuro",
+        "darkDesc": "Un tema oscuro más suave para los ojos.",
+        "light": "Claro",
+        "lightDesc": "Un tema limpio y brillante.",
+        "midnight": "Medianoche",
+        "midnightDesc": "Un tema aún más oscuro para uso nocturno.",
+        "custom": "Personalizado",
+        "customDesc": "Crea tu propio tema con un color personalizado."
+      },
+      "fontSize": "Tamaño de Fuente",
+      "fontSizeDesc": "Ajusta el tamaño del texto en los mensajes.",
+      "zoomLevel": "Nivel de Zoom",
+      "zoomLevelDesc": "Cambia el nivel de zoom de toda la aplicación.",
+      "messageDisplay": "Visualización de Mensajes",
+      "messageDisplayDesc": "Elige cómo se muestran los mensajes.",
+      "cozy": "Cómodo",
+      "compact": "Compacto",
+      "showTimestamps": "Mostrar marcas de tiempo",
+      "showTimestampsDesc": "Mostrar marcas de tiempo en los mensajes.",
+      "use24Hour": "Formato de 24 Horas",
+      "use24HourDesc": "Mostrar la hora en formato de 24 horas.",
+      "compactMode": "Modo Compacto",
+      "compactModeDesc": "Muestra más mensajes con espaciado reducido.",
+      "floatingVideo": "Reproductor de Video Flotante",
+      "floatingVideoDesc": "Los videos en reproducción flotan en la esquina al desplazarse. Funciona con YouTube y videos nativos.",
+      "highContrast": "Alto Contraste",
+      "highContrastDesc": "Aumenta el contraste para mejor visibilidad.",
+      "reduceMotion": "Reducir Movimiento",
+      "reduceMotionDesc": "Reduce animaciones y transiciones.",
+      "screenReader": "Soporte para Lectores de Pantalla",
+      "screenReaderDesc": "Optimizar para lectores de pantalla.",
+      "saveChanges": "Guardar Cambios",
+      "resetSettings": "Restablecer"
+    },
+    "language": {
+      "title": "Idioma",
+      "description": "Elige tu idioma y configuración regional preferidos.",
+      "selectLanguage": "Idioma",
+      "selectLanguageDesc": "Selecciona tu idioma preferido."
+    }
+  },
+  "languages": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch",
+    "ja": "日本語",
+    "ko": "한국어",
+    "zh": "中文"
+  }
+}
+

@@ -1,0 +1,76 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "reset": "Réinitialiser",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "close": "Fermer",
+    "back": "Retour",
+    "next": "Suivant",
+    "confirm": "Confirmer",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "appearance": {
+      "title": "Apparence",
+      "description": "Personnalisez l'apparence de Harmony.",
+      "theme": "Thème",
+      "customTheme": "Couleur du Thème Personnalisé",
+      "customThemeHelp": "Choisissez une couleur d'accent. L'application générera automatiquement un thème complet basé sur votre choix.",
+      "themes": {
+        "dark": "Sombre",
+        "darkDesc": "Un thème sombre plus doux pour les yeux.",
+        "light": "Clair",
+        "lightDesc": "Un thème propre et lumineux.",
+        "midnight": "Minuit",
+        "midnightDesc": "Un thème encore plus sombre pour une utilisation nocturne.",
+        "custom": "Personnalisé",
+        "customDesc": "Créez votre propre thème avec une couleur personnalisée."
+      },
+      "fontSize": "Taille de Police",
+      "fontSizeDesc": "Ajustez la taille du texte dans les messages.",
+      "zoomLevel": "Niveau de Zoom",
+      "zoomLevelDesc": "Modifiez le niveau de zoom de toute l'application.",
+      "messageDisplay": "Affichage des Messages",
+      "messageDisplayDesc": "Choisissez comment les messages sont affichés.",
+      "cozy": "Confortable",
+      "compact": "Compact",
+      "showTimestamps": "Afficher les horodatages",
+      "showTimestampsDesc": "Afficher les horodatages sur les messages.",
+      "use24Hour": "Format 24 Heures",
+      "use24HourDesc": "Afficher l'heure au format 24 heures.",
+      "compactMode": "Mode Compact",
+      "compactModeDesc": "Afficher plus de messages avec un espacement réduit.",
+      "floatingVideo": "Lecteur Vidéo Flottant",
+      "floatingVideoDesc": "Les vidéos en lecture flottent dans le coin lors du défilement. Fonctionne avec YouTube et les vidéos natives.",
+      "highContrast": "Contraste Élevé",
+      "highContrastDesc": "Augmente le contraste pour une meilleure visibilité.",
+      "reduceMotion": "Réduire les Mouvements",
+      "reduceMotionDesc": "Réduire les animations et les transitions.",
+      "screenReader": "Support Lecteur d'Écran",
+      "screenReaderDesc": "Optimiser pour les lecteurs d'écran.",
+      "saveChanges": "Enregistrer les Modifications",
+      "resetSettings": "Réinitialiser"
+    },
+    "language": {
+      "title": "Langue",
+      "description": "Choisissez votre langue et vos paramètres régionaux préférés.",
+      "selectLanguage": "Langue",
+      "selectLanguageDesc": "Sélectionnez votre langue préférée."
+    }
+  },
+  "languages": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch",
+    "ja": "日本語",
+    "ko": "한국어",
+    "zh": "中文"
+  }
+}
+

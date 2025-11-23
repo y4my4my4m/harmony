@@ -3,6 +3,7 @@ import './assets/design-system.css'
 import './assets/main.css'
 import './assets/shared.css'
 import './assets/embed-previews.css'
+import './assets/themes.css' // Theme system CSS
 // Dynamically import 'pwa.css' based on mobile detection
 // async function loadMobileStyles() {
 //   const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|Windows Phone/i.test(navigator.userAgent);
@@ -15,6 +16,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
+import { i18n } from './i18n'
 import { serviceWorkerManager } from '@/services/ServiceWorkerManager'
 import { pwaManager } from '@/services/PWAManager'
 import { useAuthStore } from '@/stores/auth'
@@ -46,6 +48,7 @@ app.use(Toast, {
 
 const pinia = createPinia();
 app.use(pinia);
+app.use(i18n);
 
 app.use(VueEasyLightbox);
 app.use(MasonryWall)

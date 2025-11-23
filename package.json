@@ -44,6 +44,7 @@
     "vue-color-kit": "^1.0.6",
     "vue-drag-drop": "^1.1.4",
     "vue-easy-lightbox": "next",
+    "vue-i18n": "^9.14.5",
     "vue-router": "^4.2.5",
     "vue-toastification": "next",
     "vue3-lazyload": "^0.3.8",

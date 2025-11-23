@@ -1,0 +1,76 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "reset": "Reset",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": {
+      "title": "Appearance",
+      "description": "Customize how Harmony looks and feels.",
+      "theme": "Theme",
+      "customTheme": "Custom Theme Color",
+      "customThemeHelp": "Choose an accent color. The app will automatically generate a complete theme based on your choice.",
+      "themes": {
+        "dark": "Dark",
+        "darkDesc": "A dark theme that's easier on the eyes.",
+        "light": "Light",
+        "lightDesc": "A clean, bright theme.",
+        "midnight": "Midnight",
+        "midnightDesc": "An even darker theme for late night usage.",
+        "custom": "Custom",
+        "customDesc": "Create your own theme with a custom color."
+      },
+      "fontSize": "Font Size",
+      "fontSizeDesc": "Adjust the size of text in messages.",
+      "zoomLevel": "Zoom Level",
+      "zoomLevelDesc": "Change the zoom level of the entire app.",
+      "messageDisplay": "Message Display",
+      "messageDisplayDesc": "Choose how messages are displayed.",
+      "cozy": "Cozy",
+      "compact": "Compact",
+      "showTimestamps": "Show message timestamps",
+      "showTimestampsDesc": "Display timestamps on messages.",
+      "use24Hour": "24-Hour Time",
+      "use24HourDesc": "Display time in 24-hour format.",
+      "compactMode": "Compact Mode",
+      "compactModeDesc": "Show more messages at once with reduced spacing.",
+      "floatingVideo": "Floating Video Player",
+      "floatingVideoDesc": "Playing videos float to corner when scrolled away. Works with YouTube and native videos.",
+      "highContrast": "High Contrast",
+      "highContrastDesc": "Increase contrast for better visibility.",
+      "reduceMotion": "Reduce Motion",
+      "reduceMotionDesc": "Reduce animations and transitions.",
+      "screenReader": "Screen Reader Support",
+      "screenReaderDesc": "Optimize for screen readers.",
+      "saveChanges": "Save Changes",
+      "resetSettings": "Reset"
+    },
+    "language": {
+      "title": "Language",
+      "description": "Choose your preferred language and locale settings.",
+      "selectLanguage": "Language",
+      "selectLanguageDesc": "Select your preferred language."
+    }
+  },
+  "languages": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch",
+    "ja": "日本語",
+    "ko": "한국어",
+    "zh": "中文"
+  }
+}
+

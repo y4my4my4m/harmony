@@ -73,11 +73,16 @@ export function useFloatingVideo() {
         })
       },
       {
+        root: null, // Use viewport as root
+        rootMargin: '0px',
         threshold: [0, 0.2, 0.8, 1.0]
       }
     )
 
     observer.observe(element)
+
+    // Store observer on element for cleanup
+    ;(element as any).__floatingVideoObserver = observer
 
     // Cleanup on unmount
     onUnmounted(() => {
@@ -185,6 +190,13 @@ export function useFloatingVideo() {
 
     // Remove drag handlers
     removeDragHandlers(element)
+
+    // Cleanup observer
+    const observer = (element as any).__floatingVideoObserver
+    if (observer) {
+      observer.disconnect()
+      delete (element as any).__floatingVideoObserver
+    }
 
     currentFloatingVideo.value = null
   }

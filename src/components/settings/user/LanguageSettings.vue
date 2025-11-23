@@ -1,17 +1,17 @@
 <template>
   <div class="language-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Language</h2>
+      <h2 class="settings-title">{{ $t('settings.language.title') }}</h2>
       <p class="settings-description">
-        Choose your preferred language and locale settings.
+        {{ $t('settings.language.description') }}
       </p>
     </div>
 
     <div class="settings-section">
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Language</h4>
-          <p class="setting-description">Select your preferred language.</p>
+          <h4 class="setting-label">{{ $t('settings.language.selectLanguage') }}</h4>
+          <p class="setting-description">{{ $t('settings.language.selectLanguageDesc') }}</p>
         </div>
         <div class="setting-control">
           <select 
@@ -19,13 +19,9 @@
             class="select-input"
             @change="onLanguageChange"
           >
-            <option value="en">English</option>
-            <option value="es">Español</option>
-            <option value="fr">Français</option>
-            <option value="de">Deutsch</option>
-            <option value="ja">日本語</option>
-            <option value="ko">한국어</option>
-            <option value="zh">中文</option>
+            <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
+              {{ lang.name }}
+            </option>
           </select>
         </div>
       </div>
@@ -34,7 +30,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { setLocale, availableLocales } from '@/i18n'
+import { supabase } from '@/supabase'
+import { useAuthStore } from '@/stores/auth'
 
 interface Props {
   loading: boolean
@@ -46,11 +46,61 @@ const emit = defineEmits<{
   'update-language': [language: string]
 }>()
 
-const selectedLanguage = ref('en')
+const { locale } = useI18n()
+const authStore = useAuthStore()
 
-const onLanguageChange = () => {
+const selectedLanguage = ref(locale.value)
+const availableLanguages = availableLocales
+
+const onLanguageChange = async () => {
+  // Update i18n locale
+  setLocale(selectedLanguage.value)
+  
+  // Emit to parent
   emit('update-language', selectedLanguage.value)
+  
+  // Save to Supabase
+  const userId = authStore.session?.user?.id
+  if (userId) {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          locale: selectedLanguage.value,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+      
+      if (error) throw error
+      console.log('✅ Language preference saved')
+    } catch (error) {
+      console.error('Failed to save language preference:', error)
+    }
+  }
 }
+
+onMounted(async () => {
+  // Load saved language from Supabase
+  const userId = authStore.session?.user?.id
+  if (userId) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('locale')
+        .eq('id', userId)
+        .single()
+      
+      if (error) throw error
+      
+      if (data?.locale) {
+        selectedLanguage.value = data.locale
+        setLocale(data.locale)
+      }
+    } catch (error) {
+      console.error('Failed to load language preference:', error)
+    }
+  }
+})
 </script>
 
 <style scoped>

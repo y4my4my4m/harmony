@@ -18,11 +18,11 @@
           :class="{ active: settings.theme === theme.id }"
           @click="selectTheme(theme.id)"
         >
-          <div class="theme-preview" :style="{ backgroundColor: theme.preview }">
+          <div class="theme-preview" :style="{ backgroundColor: theme.id === 'custom' ? settings.customAccentColor : theme.preview }">
             <div class="theme-preview-content">
-              <div class="preview-header" :style="{ backgroundColor: theme.headerColor }"></div>
-              <div class="preview-sidebar" :style="{ backgroundColor: theme.sidebarColor }"></div>
-              <div class="preview-chat" :style="{ backgroundColor: theme.chatColor }"></div>
+              <div class="preview-header" :style="{ backgroundColor: theme.id === 'custom' ? settings.customAccentColor : theme.headerColor }"></div>
+              <div class="preview-sidebar" :style="{ backgroundColor: theme.id === 'custom' ? settings.customAccentColor : theme.sidebarColor }"></div>
+              <div class="preview-chat" :style="{ backgroundColor: theme.id === 'custom' ? settings.customAccentColor : theme.chatColor }"></div>
             </div>
           </div>
           <div class="theme-info">
@@ -30,6 +30,16 @@
             <p class="theme-description">{{ theme.description }}</p>
           </div>
         </div>
+      </div>
+      
+      <!-- Custom Color Picker -->
+      <div v-if="settings.theme === 'custom'" class="custom-color-section">
+        <h4 class="section-subtitle">Custom Theme Color</h4>
+        <p class="section-help">Choose an accent color. The app will automatically generate a complete theme based on your choice.</p>
+        <ColorPicker 
+          v-model:color="settings.customAccentColor"
+          @change="onCustomColorChange"
+        />
       </div>
     </div>
 
@@ -221,12 +231,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import type { User } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
+import { useVisualTheme } from '@/composables/useVisualTheme'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import ColorPicker from '@/components/common/ColorPicker.vue'
 
 // Props
 interface Props {
@@ -243,10 +255,12 @@ const emit = defineEmits<{
 
 // Composables
 const { isEnabled: floatingVideoEnabled, setEnabled: setFloatingVideoEnabled } = useFloatingVideo()
+const visualTheme = useVisualTheme()
 
 // State
 const settings = ref({
-  theme: 'dark',
+  theme: 'dark' as 'dark' | 'light' | 'midnight' | 'custom',
+  customAccentColor: '#5865f2',
   fontSize: 14,
   zoomLevel: 100,
   messageDisplay: 'cozy' as 'cozy' | 'compact',
@@ -260,6 +274,7 @@ const settings = ref({
 })
 
 const originalSettings = ref({ ...settings.value })
+const showColorPicker = ref(false)
 
 // Theme options
 const themes = [
@@ -289,6 +304,15 @@ const themes = [
     headerColor: '#1a1d20',
     sidebarColor: '#1a1d20',
     chatColor: '#1e2124'
+  },
+  {
+    id: 'custom',
+    name: 'Custom',
+    description: 'Create your own theme with a custom color.',
+    preview: '#5865f2',
+    headerColor: '#4752c4',
+    sidebarColor: '#4752c4',
+    chatColor: '#5865f2'
   }
 ]
 
@@ -299,58 +323,100 @@ const hasChanges = computed(() => {
 
 // Methods
 const selectTheme = (themeId: string) => {
-  settings.value.theme = themeId
-  onSettingChange()
+  settings.value.theme = themeId as 'dark' | 'light' | 'midnight' | 'custom'
+  applyThemeImmediately()
+}
+
+const onCustomColorChange = (color: string) => {
+  settings.value.customAccentColor = color
+  applyThemeImmediately()
 }
 
 const onFontSizeChange = () => {
-  onSettingChange()
+  applyThemeImmediately()
 }
 
 const adjustZoom = (delta: number) => {
   const newZoom = settings.value.zoomLevel + delta
   if (newZoom >= 50 && newZoom <= 200) {
     settings.value.zoomLevel = newZoom
-    onSettingChange()
+    applyThemeImmediately()
   }
-}
-
-const onSettingChange = () => {
-  // Settings changed, enable save button
 }
 
 const onFloatingVideoChange = () => {
   setFloatingVideoEnabled(settings.value.floatingVideoEnabled)
-  onSettingChange()
+}
+
+const applyThemeImmediately = () => {
+  // Apply to visual theme system
+  visualTheme.updateSettings({
+    theme: settings.value.theme,
+    customAccentColor: settings.value.customAccentColor,
+    fontSize: settings.value.fontSize,
+    zoomLevel: settings.value.zoomLevel,
+    messageDisplay: settings.value.messageDisplay,
+    showTimestamps: settings.value.showTimestamps,
+    use24HourTime: settings.value.use24HourTime,
+    compactMode: settings.value.compactMode,
+    highContrast: settings.value.highContrast,
+    reduceMotion: settings.value.reduceMotion,
+    screenReaderSupport: settings.value.screenReaderSupport,
+  })
 }
 
 const saveSettings = () => {
   emit('update-appearance', settings.value)
   originalSettings.value = { ...settings.value }
   
-  // Apply theme immediately
-  document.documentElement.setAttribute('data-theme', settings.value.theme)
-  document.documentElement.style.fontSize = settings.value.fontSize + 'px'
-  document.documentElement.style.zoom = settings.value.zoomLevel + '%'
+  // Apply all settings through visual theme system
+  applyThemeImmediately()
 }
 
 const resetSettings = () => {
   settings.value = { ...originalSettings.value }
+  applyThemeImmediately()
 }
 
 // Initialize
-onMounted(() => {
-  // Load appearance settings from localStorage or server
-  const savedSettings = localStorage.getItem('harmony-appearance-settings')
-  if (savedSettings) {
-    try {
-      const parsed = JSON.parse(savedSettings)
-      settings.value = { ...settings.value, ...parsed }
-      originalSettings.value = { ...settings.value }
-    } catch (error) {
-      console.error('Failed to parse saved appearance settings:', error)
-    }
+onMounted(async () => {
+  // Initialize visual theme system
+  await visualTheme.initialize()
+  
+  // Load current settings from visual theme system
+  const currentSettings = visualTheme.currentSettings.value
+  settings.value = {
+    theme: currentSettings.theme,
+    customAccentColor: currentSettings.customAccentColor || '#5865f2',
+    fontSize: currentSettings.fontSize,
+    zoomLevel: currentSettings.zoomLevel,
+    messageDisplay: currentSettings.messageDisplay,
+    showTimestamps: currentSettings.showTimestamps,
+    use24HourTime: currentSettings.use24HourTime,
+    compactMode: currentSettings.compactMode,
+    floatingVideoEnabled: floatingVideoEnabled.value,
+    highContrast: currentSettings.highContrast,
+    reduceMotion: currentSettings.reduceMotion,
+    screenReaderSupport: currentSettings.screenReaderSupport,
   }
+  originalSettings.value = { ...settings.value }
+  
+  // Watch for changes and apply in real-time
+  watch(settings, (newSettings) => {
+    visualTheme.updateSettings({
+      theme: newSettings.theme,
+      customAccentColor: newSettings.customAccentColor,
+      fontSize: newSettings.fontSize,
+      zoomLevel: newSettings.zoomLevel,
+      messageDisplay: newSettings.messageDisplay,
+      showTimestamps: newSettings.showTimestamps,
+      use24HourTime: newSettings.use24HourTime,
+      compactMode: newSettings.compactMode,
+      highContrast: newSettings.highContrast,
+      reduceMotion: newSettings.reduceMotion,
+      screenReaderSupport: newSettings.screenReaderSupport,
+    })
+  }, { deep: true })
 })
 </script>
 
@@ -467,6 +533,26 @@ onMounted(() => {
   font-size: 12px;
   color: #b9bbbe;
   margin: 0;
+}
+
+.custom-color-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--h-chat-light);
+}
+
+.section-subtitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+}
+
+.section-help {
+  font-size: 12px;
+  color: #b9bbbe;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
 }
 
 .setting-item {
