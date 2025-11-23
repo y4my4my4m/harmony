@@ -92,6 +92,8 @@ export const useAuthStore = defineStore('auth', {
         const wasLoggedIn = !!this.session;
         const previousUserId = this.session?.user?.id;
         
+        console.log(`🔐 Auth event: ${event}, AAL: ${this.getAAL(session)}`);
+        
         // Handle PASSWORD_RECOVERY event - don't treat recovery sessions as full logins
         // When Supabase processes a recovery token, it creates a session and fires this event
         // We need to prevent this session from granting full app access
@@ -115,14 +117,43 @@ export const useAuthStore = defineStore('auth', {
           return;
         }
         
-        // Clear password reset mode on other auth events (like SIGNED_OUT or TOKEN_REFRESHED)
+        // Clear password reset mode on other auth events (like SIGNED_OUT or USER_UPDATED)
         if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
           this.isPasswordResetMode = false;
         }
         
-        // Accept all valid sessions regardless of AAL level
-        // 2FA is enforced at LOGIN time, not on every session check
-        // This allows users to stay logged in after AAL2 expires (24h)
+        // IMPORTANT: During MFA_CHALLENGE_VERIFIED, the AAL upgrade happens AFTER the event
+        // So we must allow this event through without AAL checking
+        if (event === 'MFA_CHALLENGE_VERIFIED') {
+          console.log('✅ MFA challenge verified - allowing session through');
+          this.session = session;
+          
+          if (session?.user?.id) {
+            this.setupOfflineHandlers(session.user.id);
+          }
+          return; // Early return, skip AAL validation for this event
+        }
+        
+        // CRITICAL MFA ENFORCEMENT:
+        // Only enforce AAL2 requirement on SIGNED_IN events (fresh logins)
+        // For TOKEN_REFRESHED, INITIAL_SESSION, etc. - allow existing sessions
+        // This prevents MFA bypass during login while allowing session persistence
+        if (event === 'SIGNED_IN' && session && !wasLoggedIn) {
+          const { data: factors } = await supabase.auth.mfa.listFactors();
+          const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
+          
+          if (has2FA) {
+            const aal = this.getAAL(session);
+            if (aal !== 'aal2') {
+              console.warn('🚨 SIGNED_IN event with AAL1 but 2FA enabled - rejecting (MFA bypass prevented)');
+              // Don't set the session - user must complete 2FA verification
+              // The login() method will show the 2FA modal
+              return;
+            }
+          }
+        }
+        
+        // Accept the session for all other events (token refresh, session restoration, etc.)
         this.session = session;
         
         if (session?.user?.id) {
