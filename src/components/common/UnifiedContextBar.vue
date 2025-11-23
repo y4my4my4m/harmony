@@ -66,9 +66,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
 import type { Server, Channel } from '@/types';
 import ServerIcon from './ServerIcon.vue';
+
+const { t } = useI18n();
 
 interface Props {
   mode: 'chat' | 'activitypub';
@@ -101,18 +104,18 @@ defineEmits<{
 }>();
 
 const feedTabs = [
-  { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'local', label: 'Local', icon: 'users' },
-  { id: 'public', label: 'Federated', icon: 'globe' },
-  { id: 'trending', label: 'Trending', icon: 'trending-up' },
-  { id: 'instances', label: 'Instances', icon: 'server' }
+  { id: 'home', label: t('activitypub.home'), icon: 'home' },
+  { id: 'local', label: t('activitypub.local'), icon: 'users' },
+  { id: 'public', label: t('activitypub.federated'), icon: 'globe' },
+  { id: 'trending', label: t('activitypub.trending'), icon: 'trending-up' },
+  { id: 'instances', label: t('activitypub.instances'), icon: 'server' }
 ];
 
 const currentTab= computed(() => {
-  const tab = feedTabs.find(t => t.id === props.currentView);
+  const tab = feedTabs.find(tab => tab.id === props.currentView);
   return tab
     ? { id: tab.id, title: tab.label, icon: tab.icon }
-    : { id: 'unknown', title: 'Timeline', icon: 'globe' };
+    : { id: 'unknown', title: t('activitypub.timeline'), icon: 'globe' };
 });
 </script>
 

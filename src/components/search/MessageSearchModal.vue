@@ -4,7 +4,7 @@
       <div class="search-modal" @click.stop>
         <!-- Header -->
         <div class="search-modal-header">
-          <h2 class="search-modal-title">Search Messages</h2>
+          <h2 class="search-modal-title">{{ $t('message.search') }}</h2>
           <button @click="handleClose" class="close-btn" title="Close (Esc)">
             <Icon name="x" />
           </button>
@@ -18,7 +18,7 @@
               ref="searchInputRef"
               v-model="filters.query"
               type="text"
-              placeholder="Search messages..."
+              :placeholder="$t('message.searchMessages')"
               class="search-input"
               @input="handleSearchInput"
               @keydown.enter="executeSearch(true)"
@@ -38,24 +38,24 @@
         <!-- Filters Panel -->
         <div class="filters-panel" v-if="showFilters">
           <div class="filters-header">
-            <span class="filters-title">Filters</span>
+            <span class="filters-title">{{ $t('message.filters') }}</span>
             <button
               v-if="hasActiveFilters"
               @click="clearAllFilters"
               class="clear-filters-btn"
             >
-              Clear all
+              {{ $t('message.clearAll') }}
             </button>
           </div>
 
           <div class="filters-grid">
             <!-- Channel Filter -->
             <div class="filter-group">
-              <label class="filter-label">Channel</label>
+              <label class="filter-label">{{ $t('message.channel') }}</label>
               <input
                 v-model="channelFilterInput"
                 type="text"
-                placeholder="Channel name..."
+                :placeholder="$t('message.channelPlaceholder')"
                 class="filter-input"
                 @input="handleChannelFilterInput"
               />
@@ -73,11 +73,11 @@
 
             <!-- User Filter -->
             <div class="filter-group">
-              <label class="filter-label">From User</label>
+              <label class="filter-label">{{ $t('message.fromUser') }}</label>
               <input
                 v-model="userFilterInput"
                 type="text"
-                placeholder="Username..."
+                :placeholder="$t('message.usernamePlaceholder')"
                 class="filter-input"
                 @input="handleUserFilterInput"
               />
@@ -95,19 +95,19 @@
 
             <!-- Date Range -->
             <div class="filter-group">
-              <label class="filter-label">Date Range</label>
+              <label class="filter-label">{{ $t('message.dateRange') }}</label>
               <div class="date-range-inputs">
                 <input
                   v-model="fromDateInput"
                   type="date"
                   class="filter-input date-input"
-                  placeholder="From"
+                  :placeholder="$t('message.from')"
                 />
                 <input
                   v-model="toDateInput"
                   type="date"
                   class="filter-input date-input"
-                  placeholder="To"
+                  :placeholder="$t('message.to')"
                 />
               </div>
             </div>
@@ -120,7 +120,7 @@
                   v-model="filters.hasMedia"
                   @change="handleFilterChange"
                 />
-                <span>Has Media</span>
+                <span>{{ $t('message.hasMedia') }}</span>
               </label>
               <label class="filter-checkbox">
                 <input
@@ -128,7 +128,7 @@
                   v-model="filters.hasUrl"
                   @change="handleFilterChange"
                 />
-                <span>Has URL</span>
+                <span>{{ $t('message.hasUrl') }}</span>
               </label>
             </div>
           </div>
@@ -165,33 +165,33 @@
           <!-- Loading State -->
           <div v-if="isSearching && searchResults.length === 0" class="loading-state">
             <div class="loading-spinner"></div>
-            <p>Searching messages...</p>
+            <p>{{ $t('message.searchingMessages') }}</p>
           </div>
 
           <!-- Error State -->
           <div v-else-if="error" class="error-state">
             <Icon name="alert-circle" :size="48" />
-            <h3>Search Error</h3>
+            <h3>{{ $t('message.searchError') }}</h3>
             <p>{{ error }}</p>
-            <button @click="executeSearch(true)" class="retry-btn">Try Again</button>
+            <button @click="executeSearch(true)" class="retry-btn">{{ $t('common.retry') }}</button>
           </div>
 
           <!-- Empty State -->
           <div v-else-if="!isSearching && searchResults.length === 0 && (filters.query || hasActiveFilters)" class="empty-state">
             <Icon name="search" :size="48" />
-            <h3>No messages found</h3>
-            <p>Try adjusting your search query or filters.</p>
+            <h3>{{ $t('message.noResults') }}</h3>
+            <p>{{ $t('message.tryAdjustSearch') }}</p>
           </div>
 
           <!-- Initial State -->
           <div v-else-if="!filters.query && !hasActiveFilters" class="initial-state">
             <Icon name="search" :size="48" />
-            <h3>Search Messages</h3>
-            <p>Search across all your messages with powerful filters.</p>
+            <h3>{{ $t('message.search') }}</h3>
+            <p>{{ $t('message.searchAcrossMessages') }}</p>
             
             <!-- Recent Searches -->
             <div v-if="recentSearches.length > 0" class="recent-searches">
-              <h4>Recent Searches</h4>
+              <h4>{{ $t('message.recentSearches') }}</h4>
               <div class="recent-list">
                 <button
                   v-for="(search, index) in recentSearches.slice(0, 5)"
@@ -255,6 +255,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useMessageSearch } from '@/composables/useMessageSearch'
 import { useUserData } from '@/composables/useUserData'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -262,6 +263,8 @@ import type { Message, Channel } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
+
+const { t } = useI18n()
 
 interface Props {
   show: boolean
@@ -366,36 +369,36 @@ const activeFilterChips = computed(() => {
       ? filters.value.channelId[0] 
       : filters.value.channelId
     chips.channelId = {
-      label: 'Channel',
+      label: t('message.channel'),
       value: getChannelName(channelId) || channelId
     }
   }
   
   if (filters.value.userId) {
     chips.userId = {
-      label: 'User',
+      label: t('message.user'),
       value: getUserDisplayName(filters.value.userId).value || filters.value.userId
     }
   }
   
   if (filters.value.hasMedia) {
-    chips.hasMedia = { label: 'Has Media', value: 'Yes' }
+    chips.hasMedia = { label: t('message.hasMedia'), value: t('message.yes') }
   }
   
   if (filters.value.hasUrl) {
-    chips.hasUrl = { label: 'Has URL', value: 'Yes' }
+    chips.hasUrl = { label: t('message.hasUrl'), value: t('message.yes') }
   }
   
   if (filters.value.fromDate) {
     chips.fromDate = {
-      label: 'From',
+      label: t('message.from'),
       value: new Date(filters.value.fromDate).toLocaleDateString()
     }
   }
   
   if (filters.value.toDate) {
     chips.toDate = {
-      label: 'To',
+      label: t('message.to'),
       value: new Date(filters.value.toDate).toLocaleDateString()
     }
   }

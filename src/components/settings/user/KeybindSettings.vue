@@ -1,9 +1,9 @@
 <template>
   <div class="keybind-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Keybinds</h2>
+      <h2 class="settings-title">{{ $t('settings.keybinds.title') }}</h2>
       <p class="settings-description">
-        Customize keyboard shortcuts for faster navigation.
+        {{ $t('settings.keybinds.description') }}
       </p>
     </div>
 

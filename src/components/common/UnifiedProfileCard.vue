@@ -48,11 +48,11 @@
         <template v-if="isFederatedUser(user)">
           <div class="stat-item">
             <span class="stat-value">{{ formatNumber(user.followers_count || 0) }}</span>
-            <span class="stat-label">Followers</span>
+            <span class="stat-label">{{ $t('activitypub.followers') }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ formatNumber(user.following_count || 0) }}</span>
-            <span class="stat-label">Following</span>
+            <span class="stat-label">{{ t('activitypub.following') }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ formatNumber(user.posts_count || 0) }}</span>
@@ -153,6 +153,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
@@ -160,6 +161,8 @@ import { useUserData } from '@/composables/useUserData'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
 import type { User, FederatedUser } from '@/types'
+
+const { t } = useI18n()
 
 interface Props {
   user: User | FederatedUser
@@ -278,8 +281,8 @@ const isBlocked = computed(() => {
 })
 
 const followButtonText = computed(() => {
-  if (isFollowLoading.value) return 'Loading...'
-  return isFollowing.value ? 'Following' : 'Follow'
+  if (isFollowLoading.value) return t('common.loading')
+  return isFollowing.value ? t('activitypub.following') : t('activitypub.follow')
 })
 
 // Methods

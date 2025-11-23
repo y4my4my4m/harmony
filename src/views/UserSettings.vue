@@ -30,11 +30,11 @@
         v-touch:swipe.left="handleSidebarSwipe"
       >
         <div class="settings-sidebar-content">
-          <h2 class="settings-title" v-if="!isMobile">User Settings</h2>
+          <h2 class="settings-title" v-if="!isMobile">{{ $t('settings.userSettings') }}</h2>
           
           <nav class="settings-nav">
             <div class="nav-section">
-              <h3 class="nav-section-title">User Settings</h3>
+              <h3 class="nav-section-title">{{ $t('settings.userSettings') }}</h3>
               <button 
                 v-for="section in userSections" 
                 :key="section.id"
@@ -43,12 +43,12 @@
                 @click="setActiveSection(section.id)"
               >
                 <component :is="section.icon" class="nav-icon" />
-                {{ section.label }}
+                {{ $t(section.label) }}
               </button>
             </div>
 
             <div class="nav-section">
-              <h3 class="nav-section-title">App Settings</h3>
+              <h3 class="nav-section-title">{{ $t('navigation.settings') }}</h3>
               <button 
                 v-for="section in appSections" 
                 :key="section.id"
@@ -57,7 +57,7 @@
                 @click="setActiveSection(section.id)"
               >
                 <component :is="section.icon" class="nav-icon" />
-                {{ section.label }}
+                {{ $t(section.label) }}
               </button>
             </div>
 
@@ -70,7 +70,7 @@
                 class="nav-item admin-link"
               >
                 <component :is="section.icon" class="nav-icon" />
-                {{ section.label }}
+                {{ $t(section.label) }}
               </router-link>
             </div>
 
@@ -80,7 +80,7 @@
                 @click="handleLogout"
               >
                 <LogoutIcon class="nav-icon" />
-                Log Out
+                {{ $t('auth.logout') }}
               </button>
             </div>
           </nav>
@@ -182,6 +182,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { getProfileWithAvatarUrl, updateProfile, uploadAvatar, uploadBanner } from '@/services/ProfileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
@@ -229,6 +230,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
+const { t } = useI18n()
 const settingsNav = createSettingsNavigator(router)
 const { updateCurrentUserProfile } = useUserData()
 
@@ -245,23 +247,23 @@ const isMobile = computed(() => windowWidth.value <= 768)
 const currentSectionLabel = computed(() => {
   const allSections = [...userSections.value, ...appSections.value]
   const section = allSections.find(s => s.id === activeSection.value)
-  return section?.label || 'Settings'
+  return section ? t(section.label) : t('settings.title')
 })
 
 // Navigation sections
 const userSections = computed(() => [
-  { id: 'account', label: 'My Account', icon: UserIcon },
-  { id: 'privacy', label: 'Privacy & Safety', icon: ShieldIcon },
+  { id: 'account', label: 'settings.account', icon: UserIcon },
+  { id: 'privacy', label: 'settings.privacy', icon: ShieldIcon },
 ])
 
 const appSections = computed(() => [
-  { id: 'appearance', label: 'Appearance', icon: PaletteIcon },
-  { id: 'audio', label: 'Audio Themes', icon: VoiceIcon },
-  { id: 'notifications', label: 'Notifications', icon: BellIcon },
-  { id: 'voice', label: 'Voice & Video', icon: MicIcon },
-  { id: 'keybinds', label: 'Keybinds', icon: KeyboardIcon },
-  { id: 'language', label: 'Language', icon: GlobeIcon },
-  { id: 'advanced', label: 'Advanced', icon: CogIcon },
+  { id: 'appearance', label: 'settings.appearance.title', icon: PaletteIcon },
+  { id: 'audio', label: 'settings.voice.title', icon: VoiceIcon },
+  { id: 'notifications', label: 'settings.notifications.title', icon: BellIcon },
+  { id: 'voice', label: 'settings.voice.title', icon: MicIcon },
+  { id: 'keybinds', label: 'settings.keybinds.title', icon: KeyboardIcon },
+  { id: 'language', label: 'settings.language.title', icon: GlobeIcon },
+  { id: 'advanced', label: 'settings.advanced.title', icon: CogIcon },
 ])
 
 const adminSections = computed(() => {

@@ -72,17 +72,17 @@
           <!-- Form Header -->
           <div class="form-header">
             <h2 class="form-title">
-              {{ isLogin ? 'Welcome back!' : 'Create an account' }}
+              {{ isLogin ? $t('auth.welcomeBack') : $t('auth.createAccount') }}
             </h2>
             <p class="form-subtitle">
-              {{ isLogin ? 'We\'re so excited to see you again!' : 'Join the community and start your journey' }}
+              {{ isLogin ? $t('auth.welcomeBackSubtitle') : $t('auth.createAccountSubtitle') }}
             </p>
           </div>
 
           <!-- Auth Form -->
           <form @submit.prevent="handleSubmit" class="auth-form">
             <div class="input-group">
-              <label class="input-label">Email</label>
+              <label class="input-label">{{ $t('auth.email') }}</label>
               <div class="input-container">
                 <input 
                   v-model="email" 
@@ -105,7 +105,7 @@
             </div>
 
             <div class="input-group">
-              <label class="input-label">Password</label>
+              <label class="input-label">{{ $t('auth.password') }}</label>
               <div class="input-container">
                 <input 
                   v-model="password" 
@@ -139,9 +139,9 @@
               <label class="checkbox-container">
                 <input type="checkbox" v-model="rememberMe" />
                 <span class="checkmark"></span>
-                Remember me
+                {{ $t('auth.rememberMe') }}
               </label>
-              <button type="button" class="link-button" @click="showForgotPasswordModal = true">Forgot password?</button>
+              <button type="button" class="link-button" @click="showForgotPasswordModal = true">{{ $t('auth.forgotPassword') }}</button>
             </div>
 
             <!-- Submit Button -->
@@ -151,13 +151,13 @@
               :class="{ 'loading': isLoading }"
               :disabled="isLoading"
             >
-              <span v-if="!isLoading">{{ isLogin ? 'Log In' : 'Create Account' }}</span>
+              <span v-if="!isLoading">{{ isLogin ? $t('auth.logIn') : $t('auth.createAccountButton') }}</span>
               <div v-else class="loading-spinner"></div>
             </button>
 
             <!-- Divider -->
             <div class="divider">
-              <span>{{ isLogin ? 'Don\'t have an account?' : 'Already have an account?' }}</span>
+              <span>{{ isLogin ? $t('auth.dontHaveAccount') : $t('auth.alreadyHaveAccount') }}</span>
             </div>
 
             <!-- Switch Mode Button -->
@@ -166,7 +166,7 @@
               class="switch-mode-btn"
               @click="toggleMode"
             >
-              {{ isLogin ? 'Register' : 'Log In' }}
+              {{ isLogin ? $t('auth.register') : $t('auth.logIn') }}
             </button>
           </form>
 
@@ -184,7 +184,7 @@
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-content">
         <div class="loading-spinner large"></div>
-        <p>{{ isLogin ? 'Signing you in...' : 'Creating your account...' }}</p>
+        <p>{{ isLogin ? $t('auth.signingIn') : $t('auth.creatingAccount') }}</p>
       </div>
     </div>
 
@@ -197,11 +197,11 @@
           </svg>
         </button>
         
-        <h3 class="modal-title">Reset Your Password</h3>
+        <h3 class="modal-title">{{ $t('auth.resetYourPassword') }}</h3>
         <p class="modal-description">
           {{ forgotPasswordStep === 1 
-            ? 'Enter your email address and we\'ll send you a password reset link.' 
-            : 'Check your email for a password reset link. If you don\'t see it, check your spam folder.' 
+            ? $t('auth.enterEmailForReset')
+            : $t('auth.checkEmailForReset')
           }}
         </p>
 
@@ -226,7 +226,7 @@
               class="submit-btn"
               :disabled="forgotPasswordLoading || !forgotPasswordEmail"
             >
-              <span v-if="!forgotPasswordLoading">Send Reset Link</span>
+              <span v-if="!forgotPasswordLoading">{{ $t('auth.sendResetLink') }}</span>
               <div v-else class="loading-spinner"></div>
             </button>
             <button 
@@ -234,7 +234,7 @@
               class="cancel-btn"
               @click="showForgotPasswordModal = false"
             >
-              Cancel
+              {{ $t('common.cancel') }}
             </button>
           </div>
         </form>
@@ -253,7 +253,7 @@
             class="submit-btn"
             @click="closeForgotPasswordModal"
           >
-            Got it
+            {{ $t('auth.gotIt') }}
           </button>
         </div>
       </div>
@@ -272,16 +272,16 @@
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="color: #5865f2;">
             <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" fill="currentColor"/>
           </svg>
-          <h3 class="modal-title">Two-Factor Authentication</h3>
+          <h3 class="modal-title">{{ $t('auth.twoFactorAuth') }}</h3>
         </div>
         
         <p class="modal-description">
-          {{ useRecoveryCode ? 'Enter one of your recovery codes to sign in.' : 'Enter the 6-digit verification code from your authenticator app.' }}
+          {{ useRecoveryCode ? $t('auth.enterRecoveryCode') : $t('auth.enter6DigitCode') }}
         </p>
 
         <form @submit.prevent="handle2FAVerification" class="modal-form">
           <div class="input-group">
-            <label class="input-label">{{ useRecoveryCode ? 'Recovery Code' : 'Verification Code' }}</label>
+            <label class="input-label">{{ useRecoveryCode ? $t('auth.recoveryCode') : $t('auth.verificationCode') }}</label>
             <input 
               v-model="twoFactorCode" 
               type="text"
@@ -305,7 +305,7 @@
               :class="{ 'loading': twoFactorLoading }"
               :disabled="twoFactorLoading || (useRecoveryCode ? twoFactorCode.length !== 8 : twoFactorCode.length !== 6)"
             >
-              <span v-if="!twoFactorLoading">Verify</span>
+              <span v-if="!twoFactorLoading">{{ $t('auth.verify') }}</span>
               <div v-else class="loading-spinner"></div>
             </button>
             <button 
@@ -314,7 +314,7 @@
               @click="close2FAModal"
               :disabled="twoFactorLoading"
             >
-              Cancel
+              {{ $t('common.cancel') }}
             </button>
           </div>
         </form>
@@ -326,7 +326,7 @@
             @click="toggleRecoveryCodeMode"
             :disabled="twoFactorLoading"
           >
-            {{ useRecoveryCode ? 'Use authenticator code instead' : 'Use recovery code instead' }}
+            {{ useRecoveryCode ? $t('auth.useAuthenticatorCode') : $t('auth.useRecoveryCode') }}
           </button>
         </div>
       </div>

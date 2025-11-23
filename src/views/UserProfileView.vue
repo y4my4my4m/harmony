@@ -199,8 +199,8 @@
           <div v-else-if="activeTab === 'following'" class="following-tab">
             <div v-if="followingUsers.length === 0" class="empty-state">
               <Icon name="users" :size="48" />
-              <h3>Not following anyone</h3>
-              <p>{{ isCurrentUser ? "You're" : `${user?.display_name || user?.username} is` }} not following anyone yet.</p>
+              <h3>{{ t('activitypub.notFollowingAnyone') }}</h3>
+              <p>{{ isCurrentUser ? t('activitypub.notFollowingAnyoneYet') : `${user?.display_name || user?.username} ${t('activitypub.notFollowingAnyoneYet')}` }}</p>
             </div>
             
             <div v-else class="users-grid">
@@ -240,12 +240,15 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { useLayoutState } from '@/composables/useLayoutState'
-import { useUserData } from '@/composables/useUserData' 
+import { useUserData } from '@/composables/useUserData'
+
+const { t } = useI18n(); 
 
 import { activityPubService } from '@/services/activityPubService';
 import { getBannerUrl } from '@/utils/bannerUtils';

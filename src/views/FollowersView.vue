@@ -17,7 +17,7 @@
           :class="['toggle-btn', { active: currentView === 'followers' }]"
         >
           <Icon name="users" />
-          Followers
+          {{ $t('activitypub.followers') }}
           <span class="count">{{ followersCount }}</span>
         </button>
         <button 
@@ -93,6 +93,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
@@ -100,6 +101,8 @@ import { useToast } from 'vue-toastification';
 import { activityPubService } from '@/services/activityPubService';
 import { supabase } from '@/supabase';
 import type { FederatedUser } from '@/types';
+
+const { t } = useI18n();
 
 // Components
 import UserCard from '@/components/activitypub/UserCard.vue';
@@ -153,7 +156,8 @@ const viewSubtitle = computed(() => {
 });
 
 const emptyStateTitle = computed(() => {
-  return currentView.value === 'followers' ? 'No followers yet' : 'Not following anyone yet';
+  const { t } = useI18n();
+  return currentView.value === 'followers' ? t('activitypub.noFollowingYet') : t('activitypub.notFollowingAnyoneYet');
 });
 
 const emptyStateMessage = computed(() => {

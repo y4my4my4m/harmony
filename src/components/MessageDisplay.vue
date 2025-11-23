@@ -16,12 +16,12 @@
     </div>
     
     <div class="no-messages" v-else-if="!isLoading && messages.length === 0">
-      There are no messages here, type something!
+      {{ $t('message.noMessagesHere') }}
     </div>
     <!-- Loading older messages indicator -->
     <div v-if="isLoadingOlderMessages && messages.length > 0" class="loading-older-messages">
       <div class="loading-spinner"></div>
-      <span>Loading older messages...</span>
+      <span>{{ $t('message.loadingOlder') }}</span>
     </div>
     
     <template v-for="(message, index) in messages" :key="`wrapper-${message.id}`">
@@ -30,8 +30,8 @@
         <div class="beginning-content">
           <div class="beginning-icon">🌟</div>
           <div class="beginning-text">
-            <div class="beginning-title">This is the beginning of your conversation</div>
-            <div class="beginning-subtitle">Start chatting and make it memorable!</div>
+            <div class="beginning-title">{{ $t('message.conversationBeginning') }}</div>
+            <div class="beginning-subtitle">{{ $t('message.conversationBeginningSubtitle') }}</div>
           </div>
         </div>
       </div>
@@ -53,7 +53,7 @@
         <!-- Gap indicator for jumped-to messages -->
         <div v-if="chatStore.messageGaps.has(`gap-before-${message.id}`)" class="message-gap">
           <div class="gap-line"></div>
-          <div class="gap-text">Jump in conversation</div>
+          <div class="gap-text">{{ $t('message.jumpInConversation') }}</div>
           <div class="gap-line"></div>
         </div>
 

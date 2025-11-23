@@ -296,6 +296,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useProfileStore } from '@/stores/useProfile';
 import type { TimelinePost, Post } from '@/types';
 
@@ -315,6 +316,9 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+
+// I18n
+const { t } = useI18n();
 
 // Props
 interface Props {
@@ -379,10 +383,10 @@ const canSubmit = computed(() => {
 const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttachments);
 
 const visibilityOptions = [
-  { value: 'public' as const, label: 'Public', description: 'Visible to everyone', icon: 'globe' },
-  { value: 'unlisted' as const, label: 'Unlisted', description: 'Not shown in public timelines', icon: 'unlock' },
-  { value: 'followers' as const, label: 'Followers', description: 'Only visible to followers', icon: 'users' },
-  { value: 'direct' as const, label: 'Direct', description: 'Only mentioned users', icon: 'mail' }
+  { value: 'public' as const, label: t('activitypub.public'), description: t('activitypub.visibleToEveryone'), icon: 'globe' },
+  { value: 'unlisted' as const, label: t('activitypub.unlisted'), description: t('activitypub.notShownInPublicTimelines'), icon: 'unlock' },
+  { value: 'followers' as const, label: t('activitypub.followers'), description: t('activitypub.onlyVisibleToFollowers'), icon: 'users' },
+  { value: 'direct' as const, label: t('activitypub.direct'), description: t('activitypub.onlyMentionedUsers'), icon: 'mail' }
 ];
 
 // AutoSuggest setup
@@ -415,23 +419,23 @@ const currentUser = computed(() => profileStore.profile);
 
 const placeholder = computed(() => {
   if (props.type === 'reply') {
-    return 'What\'s your reply?';
+    return t('activitypub.whatsYourReply');
   }
-  return 'What\'s happening in the Monyverse?';
+  return t('activitypub.whatsHappeningInMonyverse');
 });
 
 const headerTitle = computed(() => {
   if (props.type === 'reply') {
-    return 'Reply to Mony';
+    return t('activitypub.replyToMony');
   }
-  return 'Create a Mony';
+  return t('activitypub.createAMony');
 });
 
 const submitButtonText = computed(() => {
   if (isPosting.value) {
-    return props.type === 'reply' ? 'Replying...' : 'Posting...';
+    return props.type === 'reply' ? t('activitypub.replying') : t('activitypub.posting');
   }
-  return props.type === 'reply' ? 'Reply' : 'Mony';
+  return props.type === 'reply' ? t('activitypub.reply') : t('activitypub.mony');
 });
 
 const wrapperComponent = computed(() => {

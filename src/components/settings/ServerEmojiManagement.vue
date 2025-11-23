@@ -1,9 +1,9 @@
 <template>
   <div class="server-emoji-management">
     <div class="settings-section">
-      <h2 class="section-title">Emoji</h2>
+      <h2 class="section-title">{{ $t('server.emoji') }}</h2>
       <p class="section-description">
-        {{ permissions.canUpload ? 'Manage custom emojis for your server' : 'View server emojis' }}
+        {{ permissions.canUpload ? $t('server.customEmojisDesc') : $t('server.customEmojis') }}
       </p>
     </div>
 
@@ -11,9 +11,9 @@
       <div class="form-group">
         <div class="setting-row">
           <div class="setting-info">
-            <label class="form-label">Allow Cross-Server Emojis</label>
+            <label class="form-label">{{ $t('server.allowCrossServer') }}</label>
             <div class="form-hint">
-              Allow members to use emojis from other servers they're in
+              {{ $t('server.allowCrossServerDesc') }}
             </div>
           </div>
           <div class="setting-control">
@@ -33,7 +33,7 @@
 
     <div class="settings-card" v-if="permissions.canUpload">
       <div class="form-group">
-        <label class="form-label">Upload Emojis</label>
+        <label class="form-label">{{ $t('server.uploadEmoji') }}</label>
         <div 
           class="emoji-upload-area"
           :class="{ 'dragover': isDragOver }"
@@ -45,8 +45,8 @@
           <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24">
             <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
           </svg>
-          <h3 class="upload-text">Click to upload or drag and drop</h3>
-          <p class="upload-hint">PNG, JPG, GIF up to 256KB • Select multiple files for bulk upload</p>
+          <h3 class="upload-text">{{ $t('files.upload') }}</h3>
+          <p class="upload-hint">{{ $t('server.emojiUploadRecommendation') }}</p>
           
           <input
             ref="emojiFileInput"
@@ -63,7 +63,7 @@
         <div v-if="uploadProgress.total > 0" class="upload-progress">
           <div class="progress-header">
             <span class="progress-text">
-              Uploading {{ uploadProgress.current }} of {{ uploadProgress.total }} emojis...
+              {{ $t('server.uploadingEmojis', { current: uploadProgress.current, total: uploadProgress.total }) }}
             </span>
             <span class="progress-count">{{ uploadProgress.completed }}/{{ uploadProgress.total }}</span>
           </div>
@@ -80,7 +80,7 @@
     <div class="settings-card">
       <div class="emoji-list-header">
         <div class="header-left">
-          <h3 class="emoji-list-title">Server Emojis</h3>
+          <h3 class="emoji-list-title">{{ $t('server.customEmojis') }}</h3>
           <div class="emoji-count">{{ emojis.length }} / 50</div>
         </div>
         
@@ -94,11 +94,11 @@
             <svg width="16" height="16" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M19,19H5V5H19V19M17,17H7V16L12,11L17,16V17Z"/>
             </svg>
-            Select
+            {{ $t('common.select') }}
           </button>
           
           <div v-else class="selection-controls">
-            <span class="selection-count">{{ selectedEmojis.length }} selected</span>
+            <span class="selection-count">{{ $t('common.select') }}: {{ selectedEmojis.length }}</span>
             <div class="selection-actions">
               <button
                 class="btn btn-danger"
@@ -109,13 +109,13 @@
                 <svg width="16" height="16" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
                 </svg>
-                Delete ({{ selectedEmojis.length }})
+                {{ $t('common.delete') }} ({{ selectedEmojis.length }})
               </button>
               <button
                 class="btn btn-secondary"
                 @click="exitSelectionMode"
               >
-                Cancel
+                {{ $t('common.cancel') }}
               </button>
             </div>
           </div>
@@ -126,11 +126,11 @@
         <svg class="empty-icon" width="64" height="64" viewBox="0 0 24 24">
           <path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M7,9.5C7,8.7 7.7,8 8.5,8C9.3,8 10,8.7 10,9.5C10,10.3 9.3,11 8.5,11C7.7,11 7,10.3 7,9.5M14,17.5H10C10,16.1 11.1,15 12.5,15C13.9,15 15,16.1 15,17.5H14M14,9.5C14,8.7 14.7,8 15.5,8C16.3,8 17,8.7 17,9.5C17,10.3 16.3,11 15.5,11C14.7,11 14,10.3 14,9.5Z"/>
         </svg>
-        <h4 class="empty-text">No emojis yet</h4>
+        <h4 class="empty-text">{{ $t('server.noEmojis') }}</h4>
         <p class="empty-hint">
           {{ permissions.canUpload 
-            ? 'Upload your first emoji to get started' 
-            : 'This server has no custom emojis' 
+            ? $t('server.addFirstEmoji')
+            : $t('server.noEmojis')
           }}
         </p>
       </div>
@@ -185,7 +185,7 @@
             <button
               class="action-btn copy-btn"
               @click="copyEmojiName(emoji.name)"
-              title="Copy emoji name"
+              :title="$t('server.copyEmojiName')"
             >
               <svg width="16" height="16" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/>
@@ -196,7 +196,7 @@
               class="action-btn rename-btn"
               @click="startEmojiRename(emoji)"
               :disabled="renamingEmoji === emoji.id"
-              title="Rename emoji"
+              :title="$t('server.renameEmoji')"
             >
               <svg width="16" height="16" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
@@ -207,7 +207,7 @@
               class="action-btn delete-btn"
               @click="confirmDeleteEmoji(emoji)"
               :disabled="deletingEmoji === emoji.id"
-              title="Delete emoji"
+              :title="$t('server.deleteEmojiTitle')"
             >
               <svg width="16" height="16" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
@@ -225,8 +225,8 @@
           <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
-          <h4>View Only Access</h4>
-          <p>You can view server emojis but cannot upload or delete them. Only the server owner and users with emoji management permissions can modify emojis.</p>
+          <h4>{{ $t('server.emojiViewOnlyAccess') }}</h4>
+          <p>{{ $t('server.emojiViewOnlyMessage') }}</p>
         </div>
       </div>
     </div>
@@ -235,11 +235,14 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { uploadEmoji, deleteEmoji, renameEmoji, bulkUploadEmojis, bulkDeleteEmojis } from '@/services/emojiService'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import type { Emoji } from '@/types'
+
+const { t } = useI18n()
 
 interface EmojiPermissions {
   canUpload: boolean
@@ -337,23 +340,23 @@ const handleEmojiUpload = (event: Event) => {
 
 const handleEmojiFile = async (file: File) => {
   if (!props.permissions.canUpload) {
-    toast.error('You do not have permission to upload emojis')
+    toast.error(t('server.noPermissionUploadEmojis'))
     return
   }
 
   // Validate file
   if (!file.type.startsWith('image/')) {
-    toast.error('Please select an image file')
+    toast.error(t('server.selectImageFile'))
     return
   }
 
   if (file.size > 1024 * 1024) {
-    toast.error('File size must be less than 1MB')
+    toast.error(t('server.fileSizeMustBeLessThan1MB'))
     return
   }
 
   if (props.emojis.length >= 50) {
-    toast.error('Maximum of 50 emojis allowed per server')
+    toast.error(t('server.maxEmojisReached'))
     return
   }
 
@@ -365,11 +368,11 @@ const handleEmojiFile = async (file: File) => {
     
     if (newEmoji) {
       emit('emoji-uploaded', newEmoji)
-      toast.success(`Emoji :${newEmoji.name}: uploaded successfully!`)
+      toast.success(t('server.emojiUploadedSuccess', { name: newEmoji.name }))
     }
   } catch (error) {
     console.error('Error uploading emoji:', error)
-    toast.error('Failed to upload emoji')
+    toast.error(t('server.failedToUploadEmoji'))
   } finally {
     uploadingEmoji.value = false
   }
@@ -377,11 +380,11 @@ const handleEmojiFile = async (file: File) => {
 
 const confirmDeleteEmoji = async (emoji: Emoji) => {
   if (!props.permissions.canDelete) {
-    toast.error('You do not have permission to delete emojis')
+    toast.error(t('server.noPermissionDeleteEmojis'))
     return
   }
 
-  if (!confirm(`Are you sure you want to delete :${emoji.name}:?`)) {
+  if (!confirm(t('server.confirmDeleteEmoji', { name: emoji.name }))) {
     return
   }
 
@@ -393,11 +396,11 @@ const confirmDeleteEmoji = async (emoji: Emoji) => {
     
     if (success) {
       emit('emoji-deleted', emoji.id)
-      toast.success(`Emoji :${emoji.name}: deleted successfully!`)
+      toast.success(t('server.emojiDeletedSuccess', { name: emoji.name }))
     }
   } catch (error) {
     console.error('Error deleting emoji:', error)
-    toast.error('Failed to delete emoji')
+    toast.error(t('server.failedToDeleteEmoji'))
   } finally {
     deletingEmoji.value = null
   }
@@ -405,30 +408,30 @@ const confirmDeleteEmoji = async (emoji: Emoji) => {
 
 const handleBulkEmojiUpload = async (files: File[]) => {
   if (!props.permissions.canUpload) {
-    toast.error('You do not have permission to upload emojis')
+    toast.error(t('server.noPermissionUploadEmojis'))
     return
   }
 
   // Validate files
   const validFiles = files.filter(file => {
     if (!file.type.startsWith('image/')) {
-      toast.warning(`${file.name} is not an image file and will be skipped`)
+      toast.warning(t('server.fileNotImageSkipped', { filename: file.name }))
       return false
     }
     if (file.size > 1024 * 1024) {
-      toast.warning(`${file.name} is too large (over 1MB) and will be skipped`)
+      toast.warning(t('server.fileTooLargeSkipped', { filename: file.name }))
       return false
     }
     return true
   })
 
   if (validFiles.length === 0) {
-    toast.error('No valid image files selected')
+    toast.error(t('server.noValidImageFiles'))
     return
   }
 
   if (props.emojis.length + validFiles.length > 50) {
-    toast.error(`Cannot upload ${validFiles.length} emojis. Server limit is 50 emojis (currently ${props.emojis.length})`)
+    toast.error(t('server.cannotUploadEmojisLimit', { count: validFiles.length, current: props.emojis.length }))
     return
   }
 
@@ -455,14 +458,14 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     })
 
     if (successCount > 0) {
-      toast.success(`Successfully uploaded ${successCount} emoji${successCount > 1 ? 's' : ''}!`)
+      toast.success(t('server.emojisUploadedSuccess', { count: successCount, plural: successCount > 1 ? 's' : '' }))
     }
     if (failedCount > 0) {
-      toast.warning(`${failedCount} emoji${failedCount > 1 ? 's' : ''} failed to upload`)
+      toast.warning(t('server.emojisFailedToUpload', { count: failedCount, plural: failedCount > 1 ? 's' : '' }))
     }
   } catch (error) {
     console.error('Error in bulk emoji upload:', error)
-    toast.error('Failed to upload emojis')
+    toast.error(t('server.failedToUploadEmojis'))
   } finally {
     uploadingEmoji.value = false
     uploadProgress.value = { total: 0, current: 0, completed: 0, currentFile: '' }
@@ -491,8 +494,11 @@ const toggleEmojiSelection = (emojiId: string) => {
 
 const bulkDeleteSelected = async () => {
   if (!props.permissions.canDelete || selectedEmojis.value.length === 0) return
-
-  const confirmMessage = `Are you sure you want to delete ${selectedEmojis.value.length} emoji${selectedEmojis.value.length > 1 ? 's' : ''}?`
+  
+  const confirmMessage = t('server.confirmDeleteEmojis', { 
+    count: selectedEmojis.value.length, 
+    plural: selectedEmojis.value.length > 1 ? 's' : '' 
+  })
   if (!confirm(confirmMessage)) return
 
   try {
@@ -507,17 +513,23 @@ const bulkDeleteSelected = async () => {
     })
 
     if (results.success.length > 0) {
-      toast.success(`Successfully deleted ${results.success.length} emoji${results.success.length > 1 ? 's' : ''}!`)
+      toast.success(t('server.emojisDeletedSuccess', { 
+        count: results.success.length, 
+        plural: results.success.length > 1 ? 's' : '' 
+      }))
     }
     if (results.failed.length > 0) {
-      toast.warning(`${results.failed.length} emoji${results.failed.length > 1 ? 's' : ''} failed to delete`)
+      toast.warning(t('server.emojisFailedToDelete', { 
+        count: results.failed.length, 
+        plural: results.failed.length > 1 ? 's' : '' 
+      }))
     }
 
     // Exit selection mode
     exitSelectionMode()
   } catch (error) {
     console.error('Error in bulk emoji deletion:', error)
-    toast.error('Failed to delete emojis')
+    toast.error(t('server.failedToDeleteEmojis'))
   } finally {
     deletingEmoji.value = null
   }
@@ -550,13 +562,13 @@ const saveEmojiRename = async (emoji: Emoji) => {
         e.id === emoji.id ? { ...e, name: tempEmojiName.value.trim() } : e
       )
       emit('update:emojis', updatedEmojis)
-      toast.success(`Emoji renamed to :${tempEmojiName.value.trim()}:`)
+      toast.success(t('server.emojiRenamedSuccess', { name: tempEmojiName.value.trim() }))
     } else {
-      toast.error('Failed to rename emoji')
+      toast.error(t('server.failedToRenameEmoji'))
     }
   } catch (error) {
     console.error('Error renaming emoji:', error)
-    toast.error('Failed to rename emoji')
+    toast.error(t('server.failedToRenameEmoji'))
   } finally {
     cancelEmojiRename()
   }

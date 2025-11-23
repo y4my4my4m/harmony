@@ -268,7 +268,7 @@
         <button 
           ref="emojiTriggerRef"
           class="action-button add-reaction-button"
-          @click="() => handleShowEmojiPicker(post)"
+          @click.stop="() => handleShowEmojiPicker(post)"
           title="Add reaction"
         >
           <Icon name="plus" />
@@ -392,6 +392,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
@@ -607,12 +608,13 @@ const visibilityIcon = computed(() => {
 });
 
 const visibilityTitle = computed(() => {
+  const { t } = useI18n();
   switch (props.post.visibility) {
-    case 'public': return 'Public - visible to everyone';
-    case 'unlisted': return 'Unlisted - not shown in public timelines';
-    case 'followers': return 'Followers only';
-    case 'direct': return 'Direct message';
-    default: return 'Public';
+    case 'public': return t('activitypub.publicVisibleToEveryone');
+    case 'unlisted': return t('activitypub.unlistedNotShown');
+    case 'followers': return t('activitypub.followersOnly');
+    case 'direct': return t('activitypub.directMessage');
+    default: return t('activitypub.public');
   }
 });
 

@@ -15,8 +15,8 @@
     <!-- Header -->
     <div class="followers-header">
       <div class="header-content">
-        <h3 class="section-title">People You Follow</h3>
-        <p class="section-subtitle">Start a conversation with someone you follow</p>
+        <h3 class="section-title">{{ $t('activitypub.following') }}</h3>
+        <p class="section-subtitle">{{ $t('dm.startConversation') }}</p>
       </div>
     </div>
 
@@ -44,15 +44,15 @@
           <path d="M16,4C18.21,4 20,5.79 20,8C20,10.21 18.21,12 16,12C13.79,12 12,10.21 12,8C12,5.79 13.79,4 16,4M16,14C20.42,14 24,15.79 24,18V20H8V18C8,15.79 11.58,14 16,14M6,6V9H0V11H6V14H8V11H14V9H8V6H6Z" fill="currentColor"/>
         </svg>
       </div>
-      <h4 class="empty-title">No Following Yet</h4>
+      <h4 class="empty-title">{{ $t('activitypub.noFollowingYet') }}</h4>
       <p class="empty-description">
-        When you follow people, they'll appear here and you can easily start conversations with them.
+        {{ $t('activitypub.followUsersToSee') }}
       </p>
       <router-link to="/social/trending" class="explore-btn">
         <svg viewBox="0 0 24 24" class="btn-icon">
           <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" fill="currentColor"/>
         </svg>
-        Discover People
+        {{ $t('activitypub.discoverPeople') }}
       </router-link>
     </div>
 

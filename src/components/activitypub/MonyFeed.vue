@@ -60,7 +60,7 @@
           >
             <Icon v-if="isLoadingAnyFeed || isManualLoading" name="spinner" class="spinning" />
             <Icon v-else name="arrow-down" />
-            <span>{{ (isLoadingAnyFeed || isManualLoading) ? 'Loading...' : 'Load More Monies' }}</span>
+            <span>{{ (isLoadingAnyFeed || isManualLoading) ? $t('activitypub.loading') : $t('activitypub.loadMoreMonies') }}</span>
           </button>
         </div>
 
@@ -118,11 +118,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import type { Post, TimelinePost } from '@/types';
+
+const { t } = useI18n();
 
 // Components
 import MonyPost from './MonyPost.vue';
@@ -172,13 +175,13 @@ const emptyStateTitle = computed(() => {
     case 'home': return 'Welcome to your Mony feed!';
     case 'public': return 'The Monyverse awaits!';
     case 'local': return 'Local community hub';
-    default: return 'No monies here yet';
+    default: return t('activitypub.noMoniesHereYet');
   }
 });
 
 const emptyStateMessage = computed(() => {
   switch (currentView.value) {
-    case 'home': return 'Follow some users to see their monies in your timeline, or create your first mony!';
+    case 'home': return t('activitypub.followUsersToSeeMonies');
     case 'public': return 'Discover what\'s happening across the federated monyverse.';
     case 'local': return 'Connect with users on your local Harmony instance.';
     default: return 'Be the first to share something!';

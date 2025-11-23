@@ -1,0 +1,354 @@
+/**
+ * Theme System CSS
+ * 
+ * Provides styling for different visual theme modes including:
+ * - Message display modes (cozy/compact)
+ * - High contrast mode
+ * - Reduced motion mode
+ * - Font size adjustments
+ * - Timestamp visibility
+ */
+
+/* ===== MESSAGE FONT SIZE ===== */
+:root {
+  --message-font-size: 14px;
+}
+
+.message-content,
+.chat-message,
+.message-text,
+.unified-message-content {
+  font-size: var(--message-font-size);
+}
+
+/* ===== MESSAGE DISPLAY MODES ===== */
+
+/* Cozy Mode (default) - More spacing, larger elements */
+[data-message-display="cozy"] .message-item,
+[data-message-display="cozy"] .chat-message-container {
+  margin-bottom: 16px;
+  padding: 8px 16px;
+}
+
+[data-message-display="cozy"] .message-avatar,
+[data-message-display="cozy"] .user-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+[data-message-display="cozy"] .message-header {
+  margin-bottom: 4px;
+}
+
+[data-message-display="cozy"] .message-author {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+[data-message-display="cozy"] .message-content {
+  line-height: 1.5;
+}
+
+/* Compact Mode - Reduced spacing, smaller elements */
+[data-message-display="compact"] .message-item,
+[data-message-display="compact"] .chat-message-container {
+  margin-bottom: 4px;
+  padding: 2px 16px;
+}
+
+[data-message-display="compact"] .message-avatar,
+[data-message-display="compact"] .user-avatar {
+  width: 32px;
+  height: 32px;
+}
+
+[data-message-display="compact"] .message-header {
+  margin-bottom: 2px;
+}
+
+[data-message-display="compact"] .message-author {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+[data-message-display="compact"] .message-content {
+  line-height: 1.3;
+}
+
+[data-message-display="compact"] .message-timestamp {
+  font-size: 10px;
+}
+
+/* Compact mode - hide consecutive usernames (same author) */
+[data-message-display="compact"] .message-item.same-author .message-author {
+  display: none;
+}
+
+[data-message-display="compact"] .message-item.same-author .message-avatar {
+  opacity: 0;
+}
+
+/* ===== COMPACT MODE (GLOBAL) ===== */
+[data-compact-mode="true"] {
+  --gutter: 12px;
+  --avatar-size: 32px;
+  --reply-spacing: 2px;
+}
+
+[data-compact-mode="true"] .settings-section,
+[data-compact-mode="true"] .modal-content,
+[data-compact-mode="true"] .sidebar-section {
+  padding: 16px;
+}
+
+[data-compact-mode="true"] .btn,
+[data-compact-mode="true"] .button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+[data-compact-mode="true"] .channel-item,
+[data-compact-mode="true"] .server-item {
+  padding: 6px 12px;
+  margin-bottom: 2px;
+}
+
+/* ===== HIGH CONTRAST MODE ===== */
+[data-high-contrast="true"] {
+  /* Increase text contrast */
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-tertiary: #c0c0c0;
+  
+  /* Stronger borders */
+  --border-primary: rgba(255, 255, 255, 0.20);
+  --border-secondary: rgba(255, 255, 255, 0.15);
+  
+  /* Higher contrast backgrounds */
+  --h-chat: #1a1a1a;
+  --h-chat-light: #252525;
+  --h-sidebar: #101010;
+  --h-sidebar-light: #1a1a1a;
+}
+
+[data-high-contrast="true"] .message-content {
+  color: #ffffff;
+}
+
+[data-high-contrast="true"] .message-author {
+  font-weight: 600;
+}
+
+[data-high-contrast="true"] .btn,
+[data-high-contrast="true"] button {
+  border-width: 2px;
+  font-weight: 600;
+}
+
+[data-high-contrast="true"] .channel-item:hover,
+[data-high-contrast="true"] .server-item:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-high-contrast="true"] input,
+[data-high-contrast="true"] textarea,
+[data-high-contrast="true"] select {
+  border: 2px solid var(--border-primary);
+}
+
+[data-high-contrast="true"] input:focus,
+[data-high-contrast="true"] textarea:focus,
+[data-high-contrast="true"] select:focus {
+  border-color: var(--harmony-primary);
+  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.3);
+}
+
+/* ===== REDUCED MOTION MODE ===== */
+[data-reduce-motion="true"],
+[data-reduce-motion="true"] * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+[data-reduce-motion="true"] .modal-overlay,
+[data-reduce-motion="true"] .modal-content {
+  animation: none !important;
+  transition: none !important;
+}
+
+[data-reduce-motion="true"] .loading-spinner,
+[data-reduce-motion="true"] .spinner {
+  animation: none !important;
+  opacity: 0.5;
+}
+
+[data-reduce-motion="true"] .fade-enter-active,
+[data-reduce-motion="true"] .fade-leave-active,
+[data-reduce-motion="true"] .slide-enter-active,
+[data-reduce-motion="true"] .slide-leave-active {
+  transition: none !important;
+}
+
+/* Respect system preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===== TIMESTAMP VISIBILITY ===== */
+[data-show-timestamps="false"] .message-timestamp,
+[data-show-timestamps="false"] .timestamp {
+  display: none !important;
+}
+
+/* Show timestamps on hover when hidden */
+[data-show-timestamps="false"] .message-item:hover .message-timestamp,
+[data-show-timestamps="false"] .chat-message-container:hover .timestamp {
+  display: inline-block !important;
+  opacity: 0.7;
+}
+
+/* ===== SCREEN READER SUPPORT ===== */
+[data-screen-reader="true"] {
+  /* Enhanced focus indicators */
+}
+
+[data-screen-reader="true"] *:focus {
+  outline: 3px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+[data-screen-reader="true"] .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Ensure all interactive elements are keyboard accessible */
+[data-screen-reader="true"] button:focus,
+[data-screen-reader="true"] a:focus,
+[data-screen-reader="true"] input:focus,
+[data-screen-reader="true"] textarea:focus,
+[data-screen-reader="true"] select:focus {
+  outline: 3px solid var(--harmony-primary);
+  outline-offset: 2px;
+  z-index: 10;
+}
+
+/* ===== FLOATING VIDEO ENHANCEMENTS ===== */
+.floating-video {
+  cursor: grab;
+  transition: box-shadow 0.2s ease;
+  user-select: none;
+}
+
+.floating-video:hover {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8) !important;
+}
+
+.floating-video.dragging {
+  cursor: grabbing;
+}
+
+.floating-video-close {
+  opacity: 0;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.floating-video:hover .floating-video-close {
+  opacity: 1;
+}
+
+/* Floating video indicator */
+.video-will-float-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(88, 101, 242, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  animation: pulse 1.5s ease-in-out infinite;
+  z-index: 10;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Don't animate pulse in reduced motion mode */
+[data-reduce-motion="true"] .video-will-float-indicator {
+  animation: none;
+}
+
+/* ===== RESPONSIVE ADJUSTMENTS ===== */
+@media (max-width: 768px) {
+  /* Make compact mode even more compact on mobile */
+  [data-compact-mode="true"] .message-item,
+  [data-compact-mode="true"] .chat-message-container {
+    padding: 2px 8px;
+  }
+  
+  [data-compact-mode="true"] .sidebar-section {
+    padding: 12px;
+  }
+  
+  /* Adjust floating video size for mobile */
+  .floating-video {
+    max-width: 90vw !important;
+    max-height: 50vh !important;
+  }
+}
+
+/* ===== THEME TRANSITIONS ===== */
+:root {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* But not in reduced motion mode */
+[data-reduce-motion="true"]:root {
+  transition: none;
+}
+
+/* ===== UTILITY CLASSES ===== */
+.cozy-spacing {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.compact-spacing {
+  padding: 8px;
+  margin-bottom: 4px;
+}
+
+.high-contrast-text {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.high-contrast-border {
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+

@@ -38,6 +38,7 @@ import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
 import PublicServers from '@/components/PublicServers.vue'
 import { onMounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
+import { initializeAppSettings } from '@/services/AppInitService'
 
 const router = useRouter()
 const route = useRoute()
@@ -72,7 +73,10 @@ const handleSwitchToChat = () => {
 }
 
 // Initialize haptic feedback for the app
-onMounted(() => {
+onMounted(async () => {
+  // Initialize app settings (theme, language, etc.)
+  await initializeAppSettings()
+  
   // Add haptic feedback to common interactive elements
   const addHapticToElements = (selector: string, pattern: string = 'light') => {
     document.addEventListener('click', (e) => {

@@ -4,30 +4,30 @@
     <div class="explore-controls">
       <div class="filter-group">
         <select v-model="selectedContentType" class="filter-select">
-          <option value="all">All Content</option>
-          <option value="posts">Posts Only</option>
-          <option value="media">With Media</option>
-          <option value="users">Users</option>
+          <option value="all">{{ $t('activitypub.allContent') }}</option>
+          <option value="posts">{{ $t('activitypub.postsOnly') }}</option>
+          <option value="media">{{ $t('activitypub.withMedia') }}</option>
+          <option value="users">{{ $t('activitypub.users') }}</option>
         </select>
         
         <select v-if="currentView === 'instances'" v-model="selectedInstance" class="filter-select">
-          <option value="all">All Instances</option>
+          <option value="all">{{ $t('activitypub.allInstances') }}</option>
           <option v-for="instance in knownInstances" :key="instance.domain" :value="instance.domain">
             {{ instance.domain }}
           </option>
         </select>
         
         <select v-model="selectedTimeRange" class="filter-select">
-          <option value="1h">Last Hour</option>
-          <option value="6h">Last 6 Hours</option>
-          <option value="24h">Last 24 Hours</option>
-          <option value="7d">Last Week</option>
-          <option value="30d">Last Month</option>
+          <option value="1h">{{ $t('activitypub.lastHour') }}</option>
+          <option value="6h">{{ $t('activitypub.last6Hours') }}</option>
+          <option value="24h">{{ $t('activitypub.last24Hours') }}</option>
+          <option value="7d">{{ $t('activitypub.lastWeek') }}</option>
+          <option value="30d">{{ $t('activitypub.lastMonth') }}</option>
         </select>
         
         <button @click="refreshContent" class="refresh-btn" :disabled="isLoading">
           <Icon name="refresh" :class="{ spinning: isLoading }" />
-          Refresh
+          {{ $t('activitypub.refresh') }}
         </button>
       </div>
 
@@ -37,7 +37,7 @@
           v-model="instanceSearchTerm" 
           @input="searchInstances(instanceSearchTerm)"
           type="text" 
-          placeholder="Search instances..." 
+          :placeholder="$t('activitypub.searchInstances')" 
           class="search-input"
         />
         <Icon name="search" class="search-icon" />
@@ -49,7 +49,7 @@
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
         <Icon name="loader" class="spinning" />
-        <p>Loading explore content...</p>
+        <p>{{ $t('activitypub.loadingExploreContent') }}</p>
       </div>
 
       <!-- Trending Content -->
@@ -58,7 +58,7 @@
         <div class="section trending-hashtags">
           <h3 class="section-title">
             <Icon name="hash" />
-            Trending Hashtags
+            {{ $t('activitypub.trendingHashtags') }}
           </h3>
           <div v-if="trendingHashtags.length > 0" class="hashtag-grid">
             <div 
@@ -69,7 +69,7 @@
             >
               <div class="hashtag-info">
                 <span class="hashtag-name">#{{ hashtag.tag }}</span>
-                <span class="hashtag-count">{{ formatNumber(hashtag.daily_uses) }} posts</span>
+                <span class="hashtag-count">{{ formatNumber(hashtag.daily_uses) }} {{ $t('activitypub.postsCount') }}</span>
               </div>
               <div class="hashtag-trend">
                 <Icon :name="getTrendIcon(hashtag.trend)" :class="`trend-${hashtag.trend}`" />
@@ -79,7 +79,7 @@
           </div>
           <div v-else class="empty-state">
             <Icon name="hash" />
-            <p>No trending hashtags available</p>
+            <p>{{ $t('activitypub.noTrendingHashtags') }}</p>
           </div>
         </div>
 
@@ -87,7 +87,7 @@
         <div class="section trending-posts">
           <h3 class="section-title">
             <Icon name="trending-up" />
-            Trending Posts
+            {{ $t('activitypub.trendingPosts') }}
           </h3>
           <div v-if="trendingPosts.length > 0" data-timeline class="posts-list">
             <MonyPost
@@ -105,7 +105,7 @@
           </div>
           <div v-else class="empty-state">
             <Icon name="trending-up" />
-            <p>No trending posts available</p>
+            <p>{{ $t('activitypub.noTrendingPosts') }}</p>
           </div>
         </div>
 
@@ -113,7 +113,7 @@
         <div class="section suggested-users">
           <h3 class="section-title">
             <Icon name="user-plus" />
-            Suggested Users
+            {{ $t('activitypub.suggestedUsers') }}
           </h3>
           <div v-if="suggestedUsers.length > 0" class="users-grid">
             <ProfileCard 
@@ -127,7 +127,7 @@
           </div>
           <div v-else class="empty-state">
             <Icon name="users" />
-            <p>No suggested users available</p>
+            <p>{{ $t('activitypub.noSuggestedUsers') }}</p>
           </div>
         </div>
       </div>
@@ -137,7 +137,7 @@
         <div class="section instances-browser">
           <h3 class="section-title">
             <Icon name="server" />
-            Federated Instances
+            {{ $t('activitypub.federatedInstances') }}
           </h3>
           <div v-if="filteredInstances.length > 0" class="instances-grid">
             <div 
@@ -157,34 +157,34 @@
               </div>
               
               <p class="instance-description">
-                {{ instance.description || 'No description available' }}
+                {{ instance.description || $t('activitypub.noDescriptionAvailable') }}
               </p>
               
               <div class="instance-stats">
                 <div class="stat">
                   <Icon name="users" />
-                  <span>{{ formatNumber(instance.user_count || 0) }} users</span>
+                  <span>{{ formatNumber(instance.user_count || 0) }} {{ $t('activitypub.usersCount') }}</span>
                 </div>
                 <div class="stat">
                   <Icon name="message-circle" />
-                  <span>{{ formatNumber(instance.status_count || 0) }} posts</span>
+                  <span>{{ formatNumber(instance.status_count || 0) }} {{ $t('activitypub.postsCount') }}</span>
                 </div>
                 <div class="stat">
                   <Icon name="globe" />
-                  <span>{{ formatNumber(instance.connection_count || 0) }} connections</span>
+                  <span>{{ formatNumber(instance.connection_count || 0) }} {{ $t('activitypub.connectionsCount') }}</span>
                 </div>
               </div>
               
               <div class="instance-footer">
-                <span class="last-seen">Last seen {{ getTimeAgo(instance.last_seen_at) }}</span>
+                <span class="last-seen">{{ $t('activitypub.lastSeen') }} {{ getTimeAgo(instance.last_seen_at) }}</span>
                 <div class="instance-actions">
                   <button @click.stop class="action-btn">
                     <Icon name="external-link" />
-                    Visit
+                    {{ $t('activitypub.visit') }}
                   </button>
                   <button @click.stop class="action-btn">
                     <Icon name="eye" />
-                    View Posts
+                    {{ $t('activitypub.viewPosts') }}
                   </button>
                 </div>
               </div>
@@ -192,7 +192,7 @@
           </div>
           <div v-else class="empty-state">
             <Icon name="server" />
-            <p>No instances found</p>
+            <p>{{ $t('activitypub.noInstancesFound') }}</p>
           </div>
         </div>
       </div>
@@ -203,7 +203,7 @@
       <button @click="loadMore" :disabled="isLoadingMore" class="load-more-btn">
         <Icon v-if="isLoadingMore" name="loader" class="spinning" />
         <Icon v-else name="chevron-down" />
-        {{ isLoadingMore ? 'Loading...' : 'Load More' }}
+        {{ isLoadingMore ? $t('activitypub.loading') : $t('activitypub.loadMore') }}
       </button>
     </div>
 
@@ -218,6 +218,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { activityPubService } from '@/services/activityPubService';
 import { trendingService } from '@/services/TrendingService';
@@ -228,6 +229,8 @@ import Icon from '@/components/common/Icon.vue';
 import type { TimelinePost, FederatedUser } from '@/types';
 import Avatar from '../common/Avatar.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
+
+const { t } = useI18n();
 
 // Props
 interface Props {
@@ -418,15 +421,16 @@ const getInstanceStatusClass = (instance: any) => {
 };
 
 const getInstanceStatusText = (instance: any) => {
+  const { t } = useI18n();
   switch (instance.status) {
     case 'online':
-      return 'Online';
+      return t('activitypub.online');
     case 'slow':
-      return 'Slow';
+      return t('activitypub.slow');
     case 'offline':
-      return 'Offline';
+      return t('activitypub.offline');
     default:
-      return 'Unknown';
+      return t('activitypub.unknown');
   }
 };
 
@@ -437,18 +441,19 @@ const formatNumber = (num: number): string => {
 };
 
 const getTimeAgo = (dateString: string): string => {
+  const { t } = useI18n();
   const now = new Date();
   const date = new Date(dateString);
   const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
   
-  if (diffInHours < 1) return 'Just now';
-  if (diffInHours < 24) return `${diffInHours}h ago`;
+  if (diffInHours < 1) return t('activitypub.justNow');
+  if (diffInHours < 24) return t('activitypub.hoursAgo', { hours: diffInHours });
   
   const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 30) return `${diffInDays}d ago`;
+  if (diffInDays < 30) return t('activitypub.daysAgo', { days: diffInDays });
   
   const diffInMonths = Math.floor(diffInDays / 30);
-  return `${diffInMonths}mo ago`;
+  return t('activitypub.monthsAgo', { months: diffInMonths });
 };
 
 const getTrendIcon = (trend: string) => {

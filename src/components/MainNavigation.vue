@@ -6,7 +6,7 @@
         to="/dm" 
         class="nav-item dm-button"
         :class="{ 'active': isDMRoute }"
-        title="Direct Messages"
+        :title="$t('dm.directMessages')"
       >
         <div class="nav-icon">
           <svg viewBox="0 0 24 24" class="icon">
@@ -50,7 +50,7 @@
       <div 
         class="nav-item add-server-btn"
         @click="showAddServerModal = true"
-        title="Add a Server"
+        :title="$t('server.create')"
       >
         <div class="nav-icon">
           <svg viewBox="0 0 24 24" class="icon">
@@ -63,7 +63,7 @@
       <div 
         class="nav-item explore-btn"
         @click="$emit('showPublicServers')"
-        title="Explore Public Servers"
+        :title="$t('server.discoverCommunities')"
       >
         <div class="nav-icon">
           <svg viewBox="0 0 24 24" class="icon">
@@ -79,7 +79,7 @@
       <router-link 
         to="/settings" 
         class="nav-item settings-btn"
-        title="User Settings"
+        :title="$t('settings.userSettings')"
       >
         <div class="nav-icon">
           <svg viewBox="0 0 24 24" class="icon">

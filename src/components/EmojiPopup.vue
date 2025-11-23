@@ -6,7 +6,7 @@
         ref="searchInput"
         v-model="searchQuery"
         type="text"
-        placeholder="Search emojis..."
+        :placeholder="$t('emoji.searchEmojis')"
         class="search-input"
       />
     </div>

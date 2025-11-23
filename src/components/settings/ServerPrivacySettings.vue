@@ -1,9 +1,9 @@
 <template>
   <div class="server-privacy-settings">
     <div class="settings-section">
-      <h2 class="section-title">Privacy Settings</h2>
+      <h2 class="section-title">{{ $t('server.privacySettings') }}</h2>
       <p class="section-description">
-        {{ permissions.canChangePrivacySettings ? 'Control who can discover and join your server' : 'View server privacy settings' }}
+        {{ permissions.canChangePrivacySettings ? $t('server.privacySettings') : $t('server.privacySettings') }}
       </p>
     </div>
 
@@ -14,8 +14,8 @@
           <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
-          <h4>View Only Access</h4>
-          <p>You can view privacy settings but cannot change them. Only the server owner can modify privacy settings.</p>
+          <h4>{{ $t('server.viewOnlyAccess') }}</h4>
+          <p>{{ $t('server.viewOnlyMessage') }}</p>
         </div>
       </div>
     </div>
@@ -24,11 +24,11 @@
       <div class="form-group">
         <div class="setting-row">
           <div class="setting-info">
-            <label class="form-label">Public Server</label>
+            <label class="form-label">{{ $t('server.publicServer') }}</label>
             <div class="form-hint">
               {{ permissions.canChangePrivacySettings 
-                ? 'Allow your server to be discovered in the public server directory' 
-                : 'Whether this server can be discovered publicly' 
+                ? $t('server.publicServerDesc')
+                : $t('server.publicServerDesc')
               }}
             </div>
           </div>
@@ -52,13 +52,13 @@
             <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
               <path fill="#57f287" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,16.5L18,9.5L16.59,8.09L11,13.67L7.41,10.09L6,11.5L11,16.5Z"/>
             </svg>
-            <h4 class="info-title">Public Server Benefits</h4>
+            <h4 class="info-title">{{ $t('server.publicServerBenefits') }}</h4>
           </div>
           <ul class="info-list">
-            <li>Your server will appear in the public server directory</li>
-            <li>New members can discover and join your community</li>
-            <li>Increased visibility for your server's content and activities</li>
-            <li>Server statistics will be visible to potential members</li>
+            <li>{{ $t('server.publicServerBenefit1') }}</li>
+            <li>{{ $t('server.publicServerBenefit2') }}</li>
+            <li>{{ $t('server.publicServerBenefit3') }}</li>
+            <li>{{ $t('server.publicServerBenefit4') }}</li>
           </ul>
         </div>
 
@@ -67,13 +67,13 @@
             <svg class="warning-icon" width="20" height="20" viewBox="0 0 24 24">
               <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
             </svg>
-            <h4 class="warning-title">Important Considerations</h4>
+            <h4 class="warning-title">{{ $t('server.importantConsiderations') }}</h4>
           </div>
           <ul class="warning-list">
-            <li>Anyone can see your server name, description, and member count</li>
-            <li>Server icon and basic information will be publicly visible</li>
-            <li>Consider reviewing your server rules and moderation settings</li>
-            <li>You can change this setting back to private at any time</li>
+            <li>{{ $t('server.consideration1') }}</li>
+            <li>{{ $t('server.consideration2') }}</li>
+            <li>{{ $t('server.consideration3') }}</li>
+            <li>{{ $t('server.consideration4') }}</li>
           </ul>
         </div>
       </div>
@@ -84,11 +84,10 @@
             <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
               <path fill="#5865f2" d="M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10A2,2 0 0,1 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
             </svg>
-            <h4 class="info-title">Private Server</h4>
+            <h4 class="info-title">{{ $t('server.privateServer') }}</h4>
           </div>
           <p class="info-text">
-            Your server is currently private. Only members with an invite link can join.
-            This provides better control over who can access your community.
+            {{ $t('server.privateServerInfo') }}
           </p>
         </div>
       </div>
@@ -96,13 +95,13 @@
 
     <div class="settings-card" v-if="permissions.canChangePrivacySettings">
       <div class="form-group">
-        <label class="form-label">Server Discovery</label>
+        <label class="form-label">{{ $t('server.serverDiscovery') }}</label>
         <div class="discovery-options">
           <div class="discovery-option">
             <div class="option-content">
-              <div class="option-title">Invite Only</div>
+              <div class="option-title">{{ $t('server.inviteOnly') }}</div>
               <div class="option-description">
-                Members can only join through invite links created by server moderators
+                {{ $t('server.inviteOnlyDesc') }}
               </div>
             </div>
             <div class="option-control">
@@ -121,9 +120,9 @@
 
           <div class="discovery-option">
             <div class="option-content">
-              <div class="option-title">Public Directory</div>
+              <div class="option-title">{{ $t('server.publicDirectory') }}</div>
               <div class="option-description">
-                Anyone can discover and join your server through the public server list
+                {{ $t('server.publicDirectoryDesc') }}
               </div>
             </div>
             <div class="option-control">
