@@ -276,6 +276,32 @@ export class EventDispatcher {
   // FORMATTERS
   // =====================================================
   
+  /**
+   * Convert a relative avatar path to a full URL
+   * Handles both Supabase storage paths and external URLs
+   */
+  private formatAvatarUrl(avatarPath: string | null | undefined): string | undefined {
+    if (!avatarPath) return undefined
+    
+    // If already a full URL, return as-is
+    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+      return avatarPath
+    }
+    
+    // If it's a relative path, construct the full Supabase storage URL
+    const supabaseUrl = process.env.SUPABASE_URL
+    if (!supabaseUrl) {
+      console.warn('SUPABASE_URL not set, cannot construct avatar URL')
+      return undefined
+    }
+    
+    // Remove leading slash if present
+    const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
+    
+    // Construct full URL with image optimization params
+    return `${supabaseUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
+  }
+  
   private async formatMessage(message: any) {
     // Get author info - could be user or bot
     let author = null
@@ -292,7 +318,7 @@ export class EventDispatcher {
         id: data.id,
         username: data.username,
         display_name: data.display_name,
-        avatar: data.avatar_url,
+        avatar: this.formatAvatarUrl(data.avatar_url),
         bot: false
       } : null
     } else if (message.bot_id) {
@@ -304,7 +330,7 @@ export class EventDispatcher {
           id: discordUser.id,
           username: discordUser.username,
           display_name: discordUser.display_name,
-          avatar: discordUser.avatar_url,
+          avatar: discordUser.avatar_url, // Discord URLs are already complete
           bot: false, // Treat as regular user for display
           discord_user: true
         }
@@ -320,7 +346,7 @@ export class EventDispatcher {
           id: data.id,
           username: data.username,
           display_name: data.display_name,
-          avatar: data.avatar_url,
+          avatar: this.formatAvatarUrl(data.avatar_url),
           bot: true
         } : null
       }

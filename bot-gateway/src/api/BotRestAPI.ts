@@ -609,6 +609,32 @@ export class BotRestAPI {
   // FORMATTERS
   // =====================================================
   
+  /**
+   * Convert a relative avatar path to a full URL
+   * Handles both Supabase storage paths and external URLs
+   */
+  private formatAvatarUrl(avatarPath: string | null | undefined): string | undefined {
+    if (!avatarPath) return undefined
+    
+    // If already a full URL, return as-is
+    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+      return avatarPath
+    }
+    
+    // If it's a relative path, construct the full Supabase storage URL
+    const supabaseUrl = process.env.SUPABASE_URL
+    if (!supabaseUrl) {
+      console.warn('SUPABASE_URL not set, cannot construct avatar URL')
+      return undefined
+    }
+    
+    // Remove leading slash if present
+    const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
+    
+    // Construct full URL with image optimization params
+    return `${supabaseUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
+  }
+  
   private formatContent(content: string | any[], embeds?: any[]): any[] {
     const parts: any[] = []
     
@@ -638,7 +664,7 @@ export class BotRestAPI {
         id: author.id,
         username: author.username,
         display_name: author.display_name,
-        avatar: author.avatar_url,
+        avatar: this.formatAvatarUrl(author.avatar_url),
         bot: !!message.bot  // Flag to indicate if this is a bot message
       } : null,
       content: this.contentToText(message.content),
@@ -677,7 +703,7 @@ export class BotRestAPI {
         id: member.user.id,
         username: member.user.username,
         display_name: member.user.display_name,
-        avatar: member.user.avatar_url
+        avatar: this.formatAvatarUrl(member.user.avatar_url)
       } : null,
       nick: member.nickname,
       roles: member.roles || [],
@@ -690,7 +716,7 @@ export class BotRestAPI {
       id: user.id,
       username: user.username,
       display_name: user.display_name,
-      avatar: user.avatar_url,
+      avatar: this.formatAvatarUrl(user.avatar_url),
       bio: user.bio
     }
   }
@@ -700,7 +726,7 @@ export class BotRestAPI {
       id: bot.id,
       username: bot.username,
       discriminator: bot.discriminator,
-      avatar: bot.avatar_url,
+      avatar: this.formatAvatarUrl(bot.avatar_url),
       bot: true,
       verified: bot.is_verified,
       public: bot.is_public

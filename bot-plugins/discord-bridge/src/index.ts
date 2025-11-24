@@ -470,7 +470,7 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     const uniqueUsername = `${baseUsername} [H]` // Simple suffix for Harmony users
     console.log(`✅ Username: ${uniqueUsername}`);
     
-    // Avatar URL is already complete from Supabase storage
+    // Avatar URL is now fully-qualified by the bot gateway
     // Discord won't be able to fetch localhost URLs, so skip avatar in local dev
     const avatarURL = msg.author?.avatar?.startsWith('http://localhost') ? undefined : msg.author?.avatar
     
