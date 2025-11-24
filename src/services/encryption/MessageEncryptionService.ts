@@ -193,11 +193,11 @@ export class MessageEncryptionService {
       1
     )
 
-    // Generate one-time prekeys (100 keys)
-    const preKeys = await signalProtocolService.generatePreKeys(1, 100)
+    // Generate one-time prekeys (100 keys) - start from 2 to avoid clobbering signed prekey id
+    const preKeys = await signalProtocolService.generatePreKeys(2, 100)
 
     // Save signed prekey to database with upsert
-    await supabase.from('prekeys').upsert({
+    const { error: signedKeyError } = await supabase.from('prekeys').upsert({
       user_id: this.currentUserId,
       device_id: 'default',
       prekey_id: signedPreKey.id,
@@ -205,6 +205,11 @@ export class MessageEncryptionService {
       is_signed: true,
       signature: signedPreKey.signature
     }, { onConflict: 'user_id, device_id, prekey_id' })
+
+    if (signedKeyError) {
+      console.error('❌ Failed to save signed prekey:', signedKeyError)
+      throw new Error(`Failed to save signed prekey: ${signedKeyError.message}`)
+    }
 
     // Save one-time prekeys to database (batch upsert)
     const prekeyData = preKeys.map(pk => ({
@@ -459,6 +464,10 @@ export class MessageEncryptionService {
     }
 
     console.log('📦 Prekey bundle from database:', bundle)
+
+    if (!bundle.signed_prekey) {
+      throw new Error(`Recipient ${recipientId} has invalid encryption keys (missing signed prekey)`)
+    }
 
     // Transform database format to the format expected by the library
     const transformedBundle = {
