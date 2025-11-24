@@ -387,14 +387,6 @@ export class EncryptionKeyStore implements StorageType {
   // UTILITY METHODS
   // =====================================================
 
-  close(): void {
-    if (this.db) {
-      this.db.close()
-      this.db = null
-      console.log('✅ EncryptionKeyStore database closed')
-    }
-  }
-
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer)
     let binary = ''

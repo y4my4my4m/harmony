@@ -177,7 +177,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { messageEncryptionService } from '@/services/encryption'
 import { useAuthStore } from '@/stores/auth'
 
 const emit = defineEmits<{
@@ -229,6 +228,9 @@ async function handleContinue() {
     if (!userId) {
       throw new Error('User not authenticated')
     }
+    
+    // Dynamically import encryption service to avoid loading native modules at startup
+    const { messageEncryptionService } = await import('@/services/encryption')
     
     // Step 1: Initialize encryption service
     await messageEncryptionService.initialize(userId, password.value)

@@ -171,16 +171,6 @@ export class SignalProtocolService {
   // =====================================================
 
   /**
-   * Alias for createSessionFromPreKeyBundle (for compatibility)
-   */
-  async processPreKeyBundle(
-    recipientAddress: string,
-    bundle: PreKeyBundleData
-  ): Promise<void> {
-    return this.createSessionFromPreKeyBundle(recipientAddress, bundle)
-  }
-
-  /**
    * Create a session from a prekey bundle
    */
   async createSessionFromPreKeyBundle(
@@ -304,40 +294,6 @@ export class SignalProtocolService {
   private arrayBufferToString(buffer: ArrayBuffer): string {
     const decoder = new TextDecoder()
     return decoder.decode(buffer)
-  }
-
-  // =====================================================
-  // GROUP MESSAGING (Simplified - using 1:1 for now)
-  // =====================================================
-
-  /**
-   * Encrypt a group message
-   * Note: This is a simplified implementation that encrypts for each member individually
-   * A full implementation would use Sender Keys for better performance
-   */
-  async encryptGroupMessage(
-    groupId: string,
-    senderId: string,
-    plaintext: string
-  ): Promise<string> {
-    // For now, this is a placeholder that returns the encrypted message body
-    // In production, implement proper sender key distribution
-    console.warn('⚠️ Group encryption using simplified 1:1 approach')
-    return this.encodeToBase64(this.stringToArrayBuffer(plaintext))
-  }
-
-  /**
-   * Decrypt a group message
-   * Note: This is a simplified implementation
-   */
-  async decryptGroupMessage(
-    senderAddress: string,
-    groupId: string,
-    encryptedBody: string
-  ): Promise<string> {
-    // For now, this is a placeholder
-    console.warn('⚠️ Group decryption using simplified approach')
-    return this.arrayBufferToString(this.decodeFromBase64(encryptedBody))
   }
 }
 

@@ -38,7 +38,7 @@
     "docs:legacy": "concurrently \"npm run docs:generate -- --watch\" \"npm run docs:serve\""
   },
   "dependencies": {
-    "@signalapp/libsignal-client": "^0.46.0",
+    "@privacyresearch/libsignal-protocol-typescript": "^0.0.16",
     "@supabase/supabase-js": "^2.84.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",

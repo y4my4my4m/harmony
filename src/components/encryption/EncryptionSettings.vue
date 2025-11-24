@@ -80,7 +80,7 @@
               <strong>Export Backup Code</strong>
               <p>Generate a new recovery code for your account</p>
             </div>
-            <button @click="handleExportBackup" class="btn-secondary">Export</button>
+            <button @click="handleExportBackup" class="btn btn-secondary">Export</button>
           </div>
           
           <div class="option-card warning">
@@ -89,7 +89,7 @@
               <strong>Reset Encryption</strong>
               <p>Delete all keys and start fresh (irreversible)</p>
             </div>
-            <button @click="confirmReset = true" class="btn-danger">Reset</button>
+            <button @click="confirmReset = true" class="btn btn-danger">Reset</button>
           </div>
         </div>
       </div>

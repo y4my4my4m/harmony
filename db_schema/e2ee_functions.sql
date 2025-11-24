@@ -286,7 +286,11 @@ BEGIN
         )
     );
     
-    RETURN v_key_pair_id;
+    RETURN jsonb_build_object(
+        'success', true,
+        'key_pair_id', v_key_pair_id,
+        'device_id', p_device_id
+    );
 END;
 $$;
 

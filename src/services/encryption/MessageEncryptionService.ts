@@ -117,7 +117,7 @@ export class MessageEncryptionService {
 
     // Generate identity key pair
     const identityKeyPair = await signalProtocolService.generateIdentityKeyPair()
-    const registrationId = signalProtocolService.generateRegistrationId()
+    const registrationId = await signalProtocolService.generateRegistrationId()
 
     // Save to database
     const { data, error } = await supabase
@@ -140,10 +140,11 @@ export class MessageEncryptionService {
 
     await this.keyStore.setEncryptionKey(password)
 
-    const { IdentityKeyPair } = await import('@signalapp/libsignal-client')
-    const keyPair = IdentityKeyPair.deserialize(
-      Buffer.from(identityKeyPair.privateKey, 'base64')
-    )
+    // Convert base64 keys to ArrayBuffer for storage
+    const keyPair = {
+      pubKey: this.base64ToArrayBuffer(identityKeyPair.publicKey),
+      privKey: this.base64ToArrayBuffer(identityKeyPair.privateKey)
+    }
     await this.keyStore.saveIdentityKeyPair(keyPair, registrationId)
 
     // Generate prekeys
@@ -161,6 +162,13 @@ export class MessageEncryptionService {
     }
 
     console.log('🔑 Generating prekeys...')
+
+    // Delete existing prekeys first to avoid conflicts
+    await supabase
+      .from('prekeys')
+      .delete()
+      .eq('user_id', this.currentUserId)
+      .eq('device_id', 'default')
 
     const identityKeyPair = await signalProtocolService.generateIdentityKeyPair()
 
@@ -568,6 +576,19 @@ export class MessageEncryptionService {
       console.log('📊 Low prekey count, generating more...')
       await this.generatePrekeys()
     }
+  }
+
+  // =====================================================
+  // HELPER METHODS
+  // =====================================================
+
+  private base64ToArrayBuffer(base64: string): ArrayBuffer {
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return bytes.buffer
   }
 
   // =====================================================
