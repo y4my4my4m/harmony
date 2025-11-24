@@ -50,27 +50,10 @@ async function getOrCreateWebhook(channelId: string): Promise<Webhook | null> {
 
 // Generate unique username to avoid collisions with Discord users
 async function generateUniqueUsername(baseUsername: string, guildId: string): Promise<string> {
-  try {
-    const guild = await discordClient.guilds.fetch(guildId)
-    const members = await guild.members.fetch()
-    
-    // Check if any Discord member has this exact username
-    const hasCollision = members.some(member => 
-      member.user.username.toLowerCase() === baseUsername.toLowerCase() ||
-      member.displayName.toLowerCase() === baseUsername.toLowerCase()
-    )
-    
-    if (hasCollision) {
-      // Add -harmony suffix to disambiguate
-      return `${baseUsername}-harmony`
-    }
-    
-    return baseUsername
-  } catch (error) {
-    console.error('Failed to check username collision:', error)
-    // Fallback: always add suffix if we can't check
-    return `${baseUsername}-harmony`
-  }
+  // TODO: Implement proper collision detection with caching
+  // For now, always add -harmony suffix to avoid any potential collisions
+  // This is what Matrix-Discord bridge does too
+  return `${baseUsername} [H]`
 }
 
 // Initialize Discord client
@@ -169,6 +152,7 @@ harmonyClient.on('messageCreate', async (msg: any) => {
   console.log(`📨 Received Harmony message:`, {
     author: msg.author?.username,
     authorId: msg.author?.id,
+    avatar: msg.author?.avatar,
     isBot: msg.author?.bot,
     bridge_source: msg.metadata?.bridge_source,
     channelId: msg.channel_id,
@@ -201,12 +185,15 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     return
   }
   
+  console.log(`📍 Mapped to Discord channel: ${discordChannelId}`);
+  
   if (!mapper.shouldBridgeFromHarmony(msg.channel_id)) {
     console.log('⏭️  Bridging disabled for this channel')
     return
   }
   
   try {
+    console.log(`🔨 Fetching Discord channel...`);
     // Get Discord channel to find guild ID
     const discordChannel = await discordClient.channels.fetch(discordChannelId) as TextChannel
     if (!discordChannel || !discordChannel.guild) {
@@ -214,7 +201,10 @@ harmonyClient.on('messageCreate', async (msg: any) => {
       return
     }
     
+    console.log(`✅ Got Discord channel in guild: ${discordChannel.guild.name}`);
+    
     // Get webhook for puppeting
+    console.log(`🔨 Getting webhook...`);
     const webhook = await getOrCreateWebhook(discordChannelId)
     
     if (!webhook) {
@@ -222,18 +212,29 @@ harmonyClient.on('messageCreate', async (msg: any) => {
       return
     }
     
+    console.log(`✅ Got webhook: ${webhook.name}`);
+    
     // Generate unique username (check for collisions)
+    console.log(`🔨 Generating unique username...`);
     const baseUsername = msg.author?.display_name || msg.author?.username || 'Harmony User'
     const uniqueUsername = await generateUniqueUsername(baseUsername, discordChannel.guild.id)
+    console.log(`✅ Username: ${uniqueUsername}`);
+    
+    // Avatar URL is already complete from Supabase storage
+    const avatarURL = msg.author?.avatar || undefined
+    
+    console.log(`🎨 Puppeting as ${uniqueUsername} with avatar: ${avatarURL || 'none'}`)
+    console.log(`📝 Message content: ${msg.content}`)
     
     // Send via webhook (puppeting!)
-    await webhook.send({
+    const webhookResult = await webhook.send({
       content: msg.content,
       username: uniqueUsername,
-      avatarURL: msg.author?.avatar || undefined,
+      avatarURL: avatarURL,
       allowedMentions: { parse: [] } // Prevent mention abuse
     })
     
+    console.log(`✅ Webhook sent! Message ID: ${webhookResult.id}`)
     console.log(`✅ Harmony -> Discord (puppeted): ${uniqueUsername} in #${discordChannelId}`)
   } catch (error) {
     console.error('❌ Failed to bridge Harmony -> Discord:', error)
