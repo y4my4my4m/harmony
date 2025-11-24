@@ -161,11 +161,24 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { messageEncryptionService } from '@/services/encryption'
 import { useToast } from 'vue-toastification'
 import KeySetupWizard from './KeySetupWizard.vue'
 
 const toast = useToast()
+
+let encryptionService: any = null
+async function getEncryptionService() {
+  if (!encryptionService) {
+    try {
+      const module = await import('@/services/encryption/MessageEncryptionService')
+      encryptionService = module.messageEncryptionService
+    } catch (error) {
+      console.warn('Encryption service unavailable:', error)
+      encryptionService = null
+    }
+  }
+  return encryptionService
+}
 
 const isInitialized = ref(false)
 const encryptionStatus = ref({
@@ -195,8 +208,15 @@ const prekeyStatusText = computed(() => {
 })
 
 async function loadEncryptionStatus() {
+  const service = await getEncryptionService()
+  if (!service) {
+    toast.error('Encryption service is not available in this environment')
+    isInitialized.value = true
+    return
+  }
+
   try {
-    const status = await messageEncryptionService.getEncryptionStatus()
+    const status = await service.getEncryptionStatus()
     encryptionStatus.value = status
     
     // TODO: Load active sessions count from database
@@ -210,9 +230,15 @@ async function loadEncryptionStatus() {
 }
 
 async function handleRotateKeys() {
+  const service = await getEncryptionService()
+  if (!service) {
+    toast.error('Encryption service is not available')
+    return
+  }
+
   isRotating.value = true
   try {
-    await messageEncryptionService.rotatePrekeys()
+    await service.rotatePrekeys()
     await loadEncryptionStatus()
     toast.success('Pre-keys rotated successfully')
   } catch (error: any) {
@@ -247,9 +273,15 @@ function generateBackupCode(): string {
 }
 
 async function handleResetEncryption() {
+  const service = await getEncryptionService()
+  if (!service) {
+    toast.error('Encryption service is not available')
+    return
+  }
+
   try {
     // TODO: Implement reset in messageEncryptionService
-    await messageEncryptionService.cleanup()
+    await service.cleanup()
     // Delete keys from database would go here
     
     confirmReset.value = false

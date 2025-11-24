@@ -107,12 +107,24 @@
             @upload-banner="handleBannerUpload"
           />
 
-          <!-- Privacy & Safety Section (includes Security) -->
+          <!-- Privacy & Safety Section -->
           <PrivacySettings 
             v-else-if="activeSection === 'privacy'"
             :profile="profile"
             :loading="loading"
             @update-privacy="handlePrivacyUpdate"
+          />
+
+          <!-- Security / Encryption -->
+          <EncryptionSettings
+            v-else-if="activeSection === 'security'"
+            :loading="loading"
+          />
+
+          <!-- My Bots -->
+          <UserBotsManagement
+            v-else-if="activeSection === 'bots'"
+            :loading="loading"
           />
 
           <!-- Appearance Section -->
@@ -202,6 +214,8 @@ import VoiceVideoSettings from '@/components/settings/user/VoiceVideoSettings.vu
 import KeybindSettings from '@/components/settings/user/KeybindSettings.vue'
 import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
 import AdvancedSettings from '@/components/settings/user/AdvancedSettings.vue'
+import EncryptionSettings from '@/components/encryption/EncryptionSettings.vue'
+import UserBotsManagement from '@/components/settings/user/UserBotsManagement.vue'
 
 // Icons
 import UserIcon from '@/components/icons/User.vue'
@@ -213,6 +227,8 @@ import MicIcon from '@/components/icons/Mic.vue'
 import KeyboardIcon from '@/components/icons/Keyboard.vue'
 import GlobeIcon from '@/components/icons/Globe.vue'
 import CogIcon from '@/components/icons/Cog.vue'
+import LockIcon from '@/components/icons/Lock.vue'
+import RobotIcon from '@/components/icons/Robot.vue'
 import LogoutIcon from '@/components/icons/Logout.vue'
 import CloseIcon from '@/components/icons/Close.vue'
 
@@ -254,6 +270,8 @@ const currentSectionLabel = computed(() => {
 const userSections = computed(() => [
   { id: 'account', label: 'settings.account', icon: UserIcon },
   { id: 'privacy', label: 'settings.privacy', icon: ShieldIcon },
+  { id: 'security', label: 'settings.security', icon: LockIcon },
+  { id: 'bots', label: 'settings.myBots', icon: RobotIcon }
 ])
 
 const appSections = computed(() => [

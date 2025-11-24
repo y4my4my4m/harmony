@@ -1,0 +1,1001 @@
+<template>
+  <div class="user-bots-management">
+    <div class="settings-header">
+      <h2 class="settings-title">🤖 {{ $t('settings.myBots') }}</h2>
+      <p class="settings-description">
+        {{ $t('settings.myBotsDescription') }}
+      </p>
+    </div>
+
+    <div v-if="isLoading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Loading your bots...</p>
+    </div>
+
+    <!-- No Bots State -->
+    <div v-else-if="myBots.length === 0" class="empty-state">
+      <div class="empty-icon">🤖</div>
+      <h3>No Bots Yet</h3>
+      <p>Create your first bot to automate tasks, integrate services, or bridge with other platforms</p>
+      <button @click="showCreateModal = true" class="btn-primary">
+        Create Your First Bot
+      </button>
+    </div>
+
+    <!-- My Bots List -->
+    <div v-else class="bots-section">
+      <div class="section-actions">
+        <button @click="showCreateModal = true" class="btn-primary">
+          Create New Bot
+        </button>
+      </div>
+
+      <div class="bots-list">
+        <div v-for="bot in myBots" :key="bot.id" class="bot-card">
+          <div class="bot-header">
+            <div class="bot-avatar">
+              <img :src="bot.avatar_url || '/default_avatar.png'" :alt="bot.username" />
+              <div class="bot-status" :class="{ online: bot.last_online_at }"></div>
+            </div>
+
+            <div class="bot-info">
+              <div class="bot-title">
+                <h4>{{ bot.username }}</h4>
+                <span class="bot-badge">BOT</span>
+                <span v-if="bot.is_verified" class="verified-badge" title="Verified Bot">✓</span>
+              </div>
+              <p class="bot-bio">{{ bot.bio || 'No description' }}</p>
+              <div class="bot-meta">
+                <span>Created {{ formatDate(bot.created_at) }}</span>
+                <span v-if="bot.last_online_at">• Last online {{ formatDate(bot.last_online_at) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bot-stats">
+            <div class="stat">
+              <span class="stat-value">{{ bot.server_count || 0 }}</span>
+              <span class="stat-label">Servers</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ formatNumber(bot.command_count || 0) }}</span>
+              <span class="stat-label">Commands</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ bot.is_public ? 'Public' : 'Private' }}</span>
+              <span class="stat-label">Visibility</span>
+            </div>
+          </div>
+
+          <div class="bot-actions">
+            <button @click="viewBotDetails(bot)" class="btn-secondary">
+              View Details
+            </button>
+            <button @click="showTokenModal(bot)" class="btn-secondary">
+              Manage Token
+            </button>
+            <button @click="editBot(bot)" class="btn-secondary">
+              Edit
+            </button>
+            <button @click="deleteBot(bot)" class="btn-danger">
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create Bot Modal -->
+    <Teleport to="body">
+      <div v-if="showCreateModal" class="modal-overlay" @click.self="closeCreateModal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Create New Bot</h3>
+            <button @click="closeCreateModal" class="close-btn">×</button>
+          </div>
+
+          <div class="modal-content">
+            <div class="form-group">
+              <label>Bot Username*</label>
+              <input
+                v-model="newBot.username"
+                type="text"
+                placeholder="my-awesome-bot"
+                maxlength="32"
+                @input="validateUsername"
+              />
+              <span v-if="usernameError" class="error">{{ usernameError }}</span>
+              <span class="hint">Lowercase letters, numbers, hyphens, and underscores only</span>
+            </div>
+
+            <div class="form-group">
+              <label>Display Name</label>
+              <input
+                v-model="newBot.display_name"
+                type="text"
+                placeholder="My Awesome Bot"
+                maxlength="100"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Description</label>
+              <textarea
+                v-model="newBot.bio"
+                placeholder="What does your bot do?"
+                rows="3"
+                maxlength="500"
+              ></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Bot Type</label>
+              <select v-model="newBot.bot_type">
+                <option value="bot">Standard Bot</option>
+                <option value="bridge">Cross-Platform Bridge</option>
+                <option value="integration">Service Integration</option>
+              </select>
+            </div>
+
+            <div class="form-group checkbox">
+              <label>
+                <input type="checkbox" v-model="newBot.is_public" />
+                <span>Public Bot (anyone can add it to their servers)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="closeCreateModal" class="btn-secondary">Cancel</button>
+            <button
+              @click="createBot"
+              :disabled="!canCreate || creating"
+              class="btn-primary"
+            >
+              {{ creating ? 'Creating...' : 'Create Bot' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Token Display Modal -->
+    <Teleport to="body">
+      <div v-if="showToken" class="modal-overlay" @click.self="closeTokenModal">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Bot Token</h3>
+            <button @click="closeTokenModal" class="close-btn">×</button>
+          </div>
+
+          <div class="modal-content">
+            <div v-if="newBotToken" class="token-warning">
+              <span class="warning-icon">⚠️</span>
+              <div>
+                <strong>Save this token!</strong>
+                <p>This token will only be shown once. Copy it now.</p>
+              </div>
+            </div>
+
+            <div class="token-display">
+              <code>{{ currentToken }}</code>
+              <button @click="copyToken" class="btn-copy" title="Copy token">
+                📋 Copy
+              </button>
+            </div>
+
+            <div class="token-actions">
+              <button @click="regenerateToken" class="btn-danger">
+                Regenerate Token
+              </button>
+              <p class="regenerate-warning">
+                Regenerating will invalidate the old token immediately
+              </p>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="closeTokenModal" class="btn-primary">Close</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Messages -->
+    <div v-if="message" class="message-banner" :class="message.type">
+      <span>{{ message.text }}</span>
+      <button @click="message = null" class="close-btn">×</button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { supabase } from '@/supabase'
+import { useToast } from 'vue-toastification'
+import { formatDistanceToNow } from 'date-fns'
+import { generateBotToken, hashBotToken } from '@/utils/botUtils'
+
+defineProps<{ loading: boolean }>()
+const toast = useToast()
+
+// State
+const isLoading = ref(false)
+const creating = ref(false)
+const myBots = ref<any[]>([])
+const showCreateModal = ref(false)
+const showToken = ref(false)
+const currentToken = ref('')
+const newBotToken = ref(false)
+const currentBot = ref<any>(null)
+const message = ref<{ type: string; text: string } | null>(null)
+
+const newBot = ref({
+  username: '',
+  display_name: '',
+  bio: '',
+  bot_type: 'bot',
+  is_public: true
+})
+
+const usernameError = ref('')
+
+// Computed
+const canCreate = computed(() => {
+  return newBot.value.username.length >= 3 && !usernameError.value
+})
+
+// Methods
+function validateUsername() {
+  const username = newBot.value.username
+  
+  if (username.length < 3) {
+    usernameError.value = 'Username must be at least 3 characters'
+    return
+  }
+  
+  if (!/^[a-z0-9_-]+$/.test(username)) {
+    usernameError.value = 'Only lowercase letters, numbers, hyphens, and underscores'
+    return
+  }
+  
+  usernameError.value = ''
+}
+
+async function loadMyBots() {
+  isLoading.value = true
+
+  try {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    // Get user profile ID
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (!profile) throw new Error('Profile not found')
+
+    // Load bots owned by this user
+    const { data: bots, error } = await supabase
+      .from('bots')
+      .select('*')
+      .eq('owner_id', profile.id)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    myBots.value = bots || []
+    console.log('✅ Loaded', myBots.value.length, 'bots')
+  } catch (error: any) {
+    console.error('❌ Failed to load bots:', error)
+    toast.error(error.message || 'Failed to load bots')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function createBot() {
+  if (!canCreate.value || creating.value) return
+
+  creating.value = true
+
+  try {
+    // Get current user profile
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (!profile) throw new Error('Profile not found')
+
+    // Create bot
+    const { data: bot, error: botError } = await supabase
+      .from('bots')
+      .insert({
+        username: newBot.value.username,
+        display_name: newBot.value.display_name || newBot.value.username,
+        bio: newBot.value.bio,
+        bot_type: newBot.value.bot_type,
+        is_public: newBot.value.is_public,
+        owner_id: profile.id
+      })
+      .select()
+      .single()
+
+    if (botError) throw botError
+
+    // Generate token
+    const token = generateBotToken()
+    const tokenHash = await hashBotToken(token)
+
+    const { error: tokenError } = await supabase
+      .from('bot_tokens')
+      .insert({
+        bot_id: bot.id,
+        token_hash: tokenHash,
+        token_prefix: token.substring(0, 8),
+        name: 'Default Token',
+        scopes: ['bot']
+      })
+
+    if (tokenError) throw tokenError
+
+    // Show token
+    currentToken.value = token
+    newBotToken.value = true
+    currentBot.value = bot
+    showToken.value = true
+    showCreateModal.value = false
+
+    // Reset form
+    newBot.value = {
+      username: '',
+      display_name: '',
+      bio: '',
+      bot_type: 'bot',
+      is_public: true
+    }
+
+    // Reload bots
+    await loadMyBots()
+
+    toast.success(`Bot "${bot.username}" created successfully!`)
+  } catch (error: any) {
+    console.error('❌ Failed to create bot:', error)
+    toast.error(error.message || 'Failed to create bot')
+  } finally {
+    creating.value = false
+  }
+}
+
+function viewBotDetails(bot: any) {
+  console.log('Viewing bot:', bot)
+  // TODO: Implement bot details view
+  toast.info('Bot details view coming soon!')
+}
+
+function showTokenModal(bot: any) {
+  currentBot.value = bot
+  currentToken.value = '••••••••••••••••••••'
+  newBotToken.value = false
+  showToken.value = true
+}
+
+function closeTokenModal() {
+  showToken.value = false
+  currentToken.value = ''
+  newBotToken.value = false
+  currentBot.value = null
+}
+
+function closeCreateModal() {
+  showCreateModal.value = false
+  newBot.value = {
+    username: '',
+    display_name: '',
+    bio: '',
+    bot_type: 'bot',
+    is_public: true
+  }
+  usernameError.value = ''
+}
+
+async function regenerateToken() {
+  if (!currentBot.value) return
+
+  const confirmed = confirm('Regenerate token? This will immediately invalidate the old token.')
+  if (!confirmed) return
+
+  try {
+    // Generate new token
+    const token = generateBotToken()
+    const tokenHash = await hashBotToken(token)
+
+    // Revoke old tokens
+    await supabase
+      .from('bot_tokens')
+      .update({ is_active: false, revoked_at: new Date().toISOString() })
+      .eq('bot_id', currentBot.value.id)
+
+    // Create new token
+    const { error } = await supabase
+      .from('bot_tokens')
+      .insert({
+        bot_id: currentBot.value.id,
+        token_hash: tokenHash,
+        token_prefix: token.substring(0, 8),
+        name: 'Regenerated Token',
+        scopes: ['bot']
+      })
+
+    if (error) throw error
+
+    currentToken.value = token
+    newBotToken.value = true
+    toast.success('Token regenerated successfully!')
+  } catch (error: any) {
+    console.error('❌ Failed to regenerate token:', error)
+    toast.error('Failed to regenerate token')
+  }
+}
+
+function editBot(bot: any) {
+  console.log('Editing bot:', bot)
+  // TODO: Implement edit modal
+  toast.info('Edit bot coming soon!')
+}
+
+async function deleteBot(bot: any) {
+  const confirmed = confirm(`Delete "${bot.username}"? This cannot be undone.`)
+  if (!confirmed) return
+
+  try {
+    const { error } = await supabase
+      .from('bots')
+      .delete()
+      .eq('id', bot.id)
+
+    if (error) throw error
+
+    toast.success(`Bot "${bot.username}" deleted`)
+    await loadMyBots()
+  } catch (error: any) {
+    console.error('❌ Failed to delete bot:', error)
+    toast.error('Failed to delete bot')
+  }
+}
+
+function copyToken() {
+  navigator.clipboard.writeText(currentToken.value)
+  toast.success('Token copied to clipboard!')
+}
+
+function formatDate(date: string): string {
+  return formatDistanceToNow(new Date(date), { addSuffix: true })
+}
+
+function formatNumber(num: number): string {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+  return num.toString()
+}
+
+// Lifecycle
+onMounted(() => {
+  loadMyBots()
+})
+</script>
+
+<style scoped>
+/* Reuse styles from existing settings components */
+.user-bots-management {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.settings-header {
+  margin-bottom: 32px;
+}
+
+.settings-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text-primary, #ffffff);
+  margin: 0 0 8px 0;
+}
+
+.settings-description {
+  font-size: 14px;
+  color: var(--color-text-secondary, #b9bbbe);
+  margin: 0;
+}
+
+.loading-state,
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--color-border, #40444b);
+  border-top-color: var(--color-primary, #5865f2);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.empty-state h3 {
+  font-size: 20px;
+  color: var(--color-text-primary, #ffffff);
+  margin: 0 0 8px 0;
+}
+
+.empty-state p {
+  color: var(--color-text-secondary, #b9bbbe);
+  margin: 0 0 24px 0;
+}
+
+.section-actions {
+  margin-bottom: 24px;
+}
+
+.bots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bot-card {
+  padding: 20px;
+  background: var(--color-background-secondary, #2f3136);
+  border: 1px solid var(--color-border, #40444b);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.bot-card:hover {
+  border-color: var(--color-primary, #5865f2);
+}
+
+.bot-header {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.bot-avatar {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+}
+
+.bot-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.bot-status {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #747f8d;
+  border: 3px solid var(--color-background-secondary, #2f3136);
+}
+
+.bot-status.online {
+  background: #3ba55d;
+}
+
+.bot-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.bot-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.bot-title h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary, #ffffff);
+  margin: 0;
+}
+
+.bot-badge {
+  padding: 2px 6px;
+  background: var(--color-primary, #5865f2);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.verified-badge {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #3ba55d;
+  color: white;
+  font-size: 12px;
+  border-radius: 50%;
+}
+
+.bot-bio {
+  font-size: 14px;
+  color: var(--color-text-secondary, #b9bbbe);
+  margin: 0 0 8px 0;
+}
+
+.bot-meta {
+  font-size: 12px;
+  color: var(--color-text-tertiary, #72767d);
+}
+
+.bot-stats {
+  display: flex;
+  gap: 24px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-border, #40444b);
+  border-bottom: 1px solid var(--color-border, #40444b);
+  margin-bottom: 16px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary, #ffffff);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--color-text-secondary, #b9bbbe);
+}
+
+.bot-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-copy {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-primary {
+  background: var(--color-primary, #5865f2);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover, #4752c4);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--color-background-tertiary, #4f545c);
+  color: var(--color-text-primary, #ffffff);
+}
+
+.btn-secondary:hover {
+  background: var(--color-background-quaternary, #5d6269);
+}
+
+.btn-danger {
+  background: #ed4245;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #c03537;
+}
+
+.btn-copy {
+  background: var(--color-background-tertiary, #4f545c);
+  color: var(--color-text-primary, #ffffff);
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  background: var(--color-background-primary, #36393f);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border, #40444b);
+}
+
+.modal-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary, #ffffff);
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary, #b9bbbe);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+}
+
+.close-btn:hover {
+  color: var(--color-text-primary, #ffffff);
+}
+
+.modal-content {
+  padding: 24px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary, #ffffff);
+  margin-bottom: 8px;
+}
+
+.form-group input[type="text"],
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--color-background-tertiary, #202225);
+  border: 1px solid var(--color-border, #40444b);
+  border-radius: 4px;
+  color: var(--color-text-primary, #ffffff);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--color-primary, #5865f2);
+}
+
+.form-group.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-group.checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.error {
+  display: block;
+  color: #ed4245;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.hint {
+  display: block;
+  color: var(--color-text-secondary, #b9bbbe);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.token-warning {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(237, 66, 69, 0.1);
+  border-left: 4px solid #ed4245;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+.warning-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.token-warning strong {
+  display: block;
+  color: #ed4245;
+  margin-bottom: 4px;
+}
+
+.token-warning p {
+  color: var(--color-text-secondary, #b9bbbe);
+  font-size: 13px;
+  margin: 0;
+}
+
+.token-display {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.token-display code {
+  flex: 1;
+  padding: 12px;
+  background: var(--color-background-tertiary, #202225);
+  border: 1px solid var(--color-border, #40444b);
+  border-radius: 4px;
+  color: var(--color-text-primary, #ffffff);
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  overflow-x: auto;
+}
+
+.token-actions {
+  margin-top: 16px;
+}
+
+.regenerate-warning {
+  font-size: 12px;
+  color: var(--color-text-secondary, #b9bbbe);
+  margin: 8px 0 0 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 20px 24px;
+  border-top: 1px solid var(--color-border, #40444b);
+}
+
+.message-banner {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 16px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.3s;
+  z-index: 10001;
+}
+
+.message-banner.success {
+  background: #3ba55d;
+  color: white;
+}
+
+.message-banner.error {
+  background: #ed4245;
+  color: white;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .bot-header {
+    flex-direction: column;
+  }
+
+  .bot-stats {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .bot-actions {
+    flex-direction: column;
+  }
+
+  .bot-actions button {
+    width: 100%;
+  }
+}
+</style>
+

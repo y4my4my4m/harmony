@@ -148,7 +148,7 @@ import { ref, computed, onMounted } from 'vue'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
-import * as crypto from 'crypto'
+import { generateBotToken, hashBotToken } from '@/utils/botUtils'
 
 const toast = useToast()
 const authStore = useAuthStore()
@@ -230,8 +230,8 @@ async function createBot() {
     if (!userId) return
     
     // Generate bot token
-    const token = generateToken()
-    const tokenHash = await hashToken(token)
+    const token = generateBotToken()
+    const tokenHash = await hashBotToken(token)
     const tokenPrefix = token.substring(0, 8)
     
     // Create bot
@@ -286,28 +286,14 @@ async function createBot() {
   }
 }
 
-function generateToken(): string {
-  const randomBytes = new Uint8Array(32)
-  crypto.getRandomValues(randomBytes)
-  return Array.from(randomBytes, b => b.toString(16).padStart(2, '0')).join('')
-}
-
-async function hashToken(token: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(token)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
 async function regenerateToken(bot: any) {
   if (!confirm(`Regenerate token for ${bot.username}? This will invalidate the old token.`)) {
     return
   }
   
   try {
-    const token = generateToken()
-    const tokenHash = await hashToken(token)
+    const token = generateBotToken()
+    const tokenHash = await hashBotToken(token)
     const tokenPrefix = token.substring(0, 8)
     
     // Revoke old tokens

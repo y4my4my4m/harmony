@@ -9,21 +9,17 @@
  * - Key rotation
  */
 
-import {
-  PrivateKey,
-  PublicKey,
-  IdentityKeyPair,
-  PreKeyBundle,
-  PreKeyRecord,
-  SignedPreKeyRecord,
-  SessionBuilder,
-  SessionCipher,
-  SignalProtocolAddress,
-  processPreKeyBundle,
-  SenderKeyDistributionMessage
-} from '@signalapp/libsignal-client'
-
 import type { EncryptionKeyStore } from './EncryptionKeyStore'
+
+type LibSignalClient = typeof import('@signalapp/libsignal-client')
+let libSignalPromise: Promise<LibSignalClient> | null = null
+
+async function getLibSignal(): Promise<LibSignalClient> {
+  if (!libSignalPromise) {
+    libSignalPromise = import('@signalapp/libsignal-client')
+  }
+  return libSignalPromise
+}
 
 export interface KeyPair {
   publicKey: string // Base64 encoded
@@ -109,6 +105,7 @@ export class SignalProtocolService {
    * Generate a new identity key pair
    */
   async generateIdentityKeyPair(): Promise<KeyPair> {
+    const { PrivateKey } = await getLibSignal()
     const privateKey = PrivateKey.generate()
     const publicKey = privateKey.getPublicKey()
 
@@ -125,6 +122,7 @@ export class SignalProtocolService {
     identityKeyPair: KeyPair,
     signedPreKeyId: number
   ): Promise<SignedPreKey> {
+    const { PrivateKey } = await getLibSignal()
     const identityPrivateKey = PrivateKey.deserialize(
       this.decodeFromBase64(identityKeyPair.privateKey)
     )
@@ -169,6 +167,7 @@ export class SignalProtocolService {
    * Helper: Generate an EC key pair
    */
   private async generateKeyPair(): Promise<KeyPair> {
+    const { PrivateKey } = await getLibSignal()
     const privateKey = PrivateKey.generate()
     const publicKey = privateKey.getPublicKey()
 
@@ -191,6 +190,9 @@ export class SignalProtocolService {
     bundle: PreKeyBundleData
   ): Promise<void> {
     this.ensureInitialized()
+
+    const lib = await getLibSignal()
+    const { PublicKey, SignalProtocolAddress, PreKeyBundle } = lib
 
     const [recipientId, deviceId] = this.parseAddress(recipientAddress)
     const address = SignalProtocolAddress.new(recipientId, deviceId)
@@ -226,7 +228,7 @@ export class SignalProtocolService {
     )
 
     // Process the bundle and create session
-    await processPreKeyBundle(
+    await lib.processPreKeyBundle(
       preKeyBundle,
       address,
       this.keyStore!.getSessionStore(),
@@ -242,6 +244,7 @@ export class SignalProtocolService {
   async hasSession(remoteAddress: string): Promise<boolean> {
     this.ensureInitialized()
 
+    const { SignalProtocolAddress } = await getLibSignal()
     const [recipientId, deviceId] = this.parseAddress(remoteAddress)
     const address = SignalProtocolAddress.new(recipientId, deviceId)
 
@@ -261,6 +264,7 @@ export class SignalProtocolService {
   ): Promise<EncryptedMessage> {
     this.ensureInitialized()
 
+    const { SignalProtocolAddress, SessionCipher } = await getLibSignal()
     const [recipientId, deviceId] = this.parseAddress(recipientAddress)
     const address = SignalProtocolAddress.new(recipientId, deviceId)
 
@@ -294,6 +298,7 @@ export class SignalProtocolService {
   ): Promise<string> {
     this.ensureInitialized()
 
+    const { SignalProtocolAddress, SessionCipher, PreKeySignalMessage, SignalMessage } = await getLibSignal()
     const [senderId, deviceId] = this.parseAddress(senderAddress)
     const address = SignalProtocolAddress.new(senderId, deviceId)
 
@@ -309,14 +314,12 @@ export class SignalProtocolService {
     // Decrypt based on message type
     if (encryptedMessage.type === 'prekey') {
       // PreKey message (first message in a conversation)
-      const { PreKeySignalMessage } = await import('@signalapp/libsignal-client')
       const ciphertext = PreKeySignalMessage.deserialize(
         this.decodeFromBase64(encryptedMessage.body)
       )
       plaintextBuffer = await cipher.decryptPreKeySignalMessage(ciphertext)
     } else {
       // Regular message
-      const { SignalMessage } = await import('@signalapp/libsignal-client')
       const ciphertext = SignalMessage.deserialize(
         this.decodeFromBase64(encryptedMessage.body)
       )
@@ -340,6 +343,7 @@ export class SignalProtocolService {
   ): Promise<string> {
     this.ensureInitialized()
 
+    const { SignalProtocolAddress, SenderKeyDistributionMessage } = await getLibSignal()
     const distributionId = this.generateDistributionId()
     const senderAddress = SignalProtocolAddress.new(senderId, 1)
 
@@ -362,6 +366,7 @@ export class SignalProtocolService {
   ): Promise<void> {
     this.ensureInitialized()
 
+    const { SignalProtocolAddress, SenderKeyDistributionMessage } = await getLibSignal()
     const [senderId, deviceId] = this.parseAddress(senderAddress)
     const address = SignalProtocolAddress.new(senderId, deviceId)
     const distributionId = this.generateDistributionId()
@@ -387,7 +392,7 @@ export class SignalProtocolService {
   ): Promise<string> {
     this.ensureInitialized()
 
-    const { GroupCipher } = await import('@signalapp/libsignal-client')
+    const { GroupCipher, SignalProtocolAddress } = await getLibSignal()
     const distributionId = this.generateDistributionId()
     const senderAddress = SignalProtocolAddress.new(senderId, 1)
 
@@ -413,7 +418,7 @@ export class SignalProtocolService {
   ): Promise<string> {
     this.ensureInitialized()
 
-    const { GroupCipher } = await import('@signalapp/libsignal-client')
+    const { GroupCipher, SignalProtocolAddress } = await getLibSignal()
     const [senderId, deviceId] = this.parseAddress(senderAddress)
     const address = SignalProtocolAddress.new(senderId, deviceId)
     const distributionId = this.generateDistributionId()
@@ -478,6 +483,7 @@ export class SignalProtocolService {
     message: string,
     signature: string
   ): Promise<boolean> {
+    const { PublicKey } = await getLibSignal()
     try {
       const pubKey = PublicKey.deserialize(this.decodeFromBase64(publicKey))
       const messageBytes = this.decodeFromBase64(message)
@@ -494,6 +500,7 @@ export class SignalProtocolService {
    * Sign data with a private key
    */
   async signData(privateKey: string, data: string): Promise<string> {
+    const { PrivateKey } = await getLibSignal()
     const privKey = PrivateKey.deserialize(this.decodeFromBase64(privateKey))
     const dataBytes = this.decodeFromBase64(data)
     const signature = privKey.sign(dataBytes)
@@ -523,6 +530,7 @@ export class SignalProtocolService {
   async deleteSession(remoteAddress: string): Promise<void> {
     this.ensureInitialized()
 
+    const { SignalProtocolAddress } = await getLibSignal()
     const [recipientId, deviceId] = this.parseAddress(remoteAddress)
     const address = SignalProtocolAddress.new(recipientId, deviceId)
 

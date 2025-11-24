@@ -141,6 +141,18 @@
             :permissions="permissions"
           />
 
+          <!-- Bots Section -->
+          <ServerBotsSettings
+            v-if="activeSection === 'bots'"
+            :server-id="serverId"
+          />
+
+          <!-- Encryption Settings Section -->
+          <ServerEncryptionSettings
+            v-if="activeSection === 'encryption'"
+            :server-id="serverId"
+          />
+
           <!-- Advanced Settings Section -->
           <ServerAdvancedSettings
             v-if="activeSection === 'advanced'"
@@ -172,6 +184,8 @@ import ServerBasicInfo from '@/components/settings/ServerBasicInfo.vue'
 import ServerEmojiManagement from '@/components/settings/ServerEmojiManagement.vue'
 import ServerPrivacySettings from '@/components/settings/ServerPrivacySettings.vue'
 import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings.vue'
+import ServerEncryptionSettings from '@/components/settings/ServerEncryptionSettings.vue'
+import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 
 interface Props {
   serverId: string
@@ -237,6 +251,16 @@ const availableSections = computed(() => {
   
   // Always show emoji section but with different permissions
   sections.push({ id: 'emoji', label: t('server.emoji') })
+  
+  // Bots section - server owners can manage
+  if (permissions.value.canManageServer) {
+    sections.push({ id: 'bots', label: '🤖 ' + t('server.bots') })
+  }
+  
+  // Encryption settings - server owners can configure
+  if (permissions.value.canManageServer) {
+    sections.push({ id: 'encryption', label: '🔐 ' + t('server.encryption') })
+  }
   
   // Only show privacy settings if user can manage server
   if (permissions.value.canChangePrivacySettings) {
