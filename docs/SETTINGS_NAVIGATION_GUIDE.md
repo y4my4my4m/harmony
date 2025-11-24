@@ -57,7 +57,7 @@
 - View member coverage statistics
 
 ### 2. **User Settings** (For Users)
-**Location:** `/settings` → “Security” tab  
+**Location:** `/settings` → “Privacy & Safety” tab  
 **Component:** `EncryptionSettings.vue` ✅  
 **Purpose:** Set up YOUR encryption keys  
 **Who:** All users
@@ -83,7 +83,8 @@ Harmony App
 │     └─ Delete/disable bots
 │
 ├─ User Settings (/settings)
-│  ├─ Security (EncryptionSettings.vue)
+│  ├─ Privacy & Safety (includes EncryptionSettings.vue)
+│  │  ├─ Privacy controls
 │  │  ├─ Run key setup wizard
 │  │  ├─ Rotate keys / export backups
 │  │  └─ Reset encryption
@@ -138,7 +139,7 @@ Users can now manage their own bots directly from settings.
 ### 4. User Settings - Encryption
 **Status:** ✅ **NOW AVAILABLE**
 
-Full E2EE setup workflow lives under the “Security” tab.
+Full E2EE setup workflow lives under “Privacy & Safety”.
 
 ---
 

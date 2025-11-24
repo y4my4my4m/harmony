@@ -107,19 +107,17 @@
             @upload-banner="handleBannerUpload"
           />
 
-          <!-- Privacy & Safety Section -->
-          <PrivacySettings 
-            v-else-if="activeSection === 'privacy'"
-            :profile="profile"
-            :loading="loading"
-            @update-privacy="handlePrivacyUpdate"
-          />
-
-          <!-- Security / Encryption -->
-          <EncryptionSettings
-            v-else-if="activeSection === 'security'"
-            :loading="loading"
-          />
+          <!-- Privacy & Safety Section (includes security/encryption) -->
+          <template v-else-if="activeSection === 'privacy'">
+            <PrivacySettings 
+              :profile="profile"
+              :loading="loading"
+              @update-privacy="handlePrivacyUpdate"
+            />
+            <EncryptionSettings
+              :loading="loading"
+            />
+          </template>
 
           <!-- My Bots -->
           <UserBotsManagement
@@ -227,7 +225,6 @@ import MicIcon from '@/components/icons/Mic.vue'
 import KeyboardIcon from '@/components/icons/Keyboard.vue'
 import GlobeIcon from '@/components/icons/Globe.vue'
 import CogIcon from '@/components/icons/Cog.vue'
-import LockIcon from '@/components/icons/Lock.vue'
 import RobotIcon from '@/components/icons/Robot.vue'
 import LogoutIcon from '@/components/icons/Logout.vue'
 import CloseIcon from '@/components/icons/Close.vue'
@@ -270,7 +267,6 @@ const currentSectionLabel = computed(() => {
 const userSections = computed(() => [
   { id: 'account', label: 'settings.account', icon: UserIcon },
   { id: 'privacy', label: 'settings.privacy', icon: ShieldIcon },
-  { id: 'security', label: 'settings.security', icon: LockIcon },
   { id: 'bots', label: 'settings.myBots', icon: RobotIcon }
 ])
 

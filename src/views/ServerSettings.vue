@@ -134,34 +134,32 @@
           />
 
           <!-- Privacy Settings Section -->
-          <ServerPrivacySettings
-            v-if="activeSection === 'privacy'"
-            v-model:isPublic="server.public"
-            :loading="loading"
-            :permissions="permissions"
-          />
-
-          <!-- Bots Section -->
-          <ServerBotsSettings
-            v-if="activeSection === 'bots'"
-            :server-id="serverId"
-          />
-
-          <!-- Encryption Settings Section -->
-          <ServerEncryptionSettings
-            v-if="activeSection === 'encryption'"
-            :server-id="serverId"
-          />
+          <template v-if="activeSection === 'privacy'">
+            <ServerPrivacySettings
+              v-model:isPublic="server.public"
+              :loading="loading"
+              :permissions="permissions"
+            />
+            <ServerEncryptionSettings
+              :server-id="serverId"
+              v-if="permissions.canManageServer"
+            />
+          </template>
 
           <!-- Advanced Settings Section -->
-          <ServerAdvancedSettings
-            v-if="activeSection === 'advanced'"
-            :server-id="serverId"
-            :server-name="server.name"
-            :created-at="server.created_at"
-            :loading="loading"
-            :permissions="{ canDeleteServer: permissions.canDeleteServer }"
-          />
+          <template v-if="activeSection === 'advanced'">
+            <ServerAdvancedSettings
+              :server-id="serverId"
+              :server-name="server.name"
+              :created-at="server.created_at"
+              :loading="loading"
+              :permissions="{ canDeleteServer: permissions.canDeleteServer }"
+            />
+            <ServerBotsSettings
+              v-if="permissions.canManageServer"
+              :server-id="serverId"
+            />
+          </template>
         </div>
       </div>
     </div>
@@ -251,16 +249,6 @@ const availableSections = computed(() => {
   
   // Always show emoji section but with different permissions
   sections.push({ id: 'emoji', label: t('server.emoji') })
-  
-  // Bots section - server owners can manage
-  if (permissions.value.canManageServer) {
-    sections.push({ id: 'bots', label: '🤖 ' + t('server.bots') })
-  }
-  
-  // Encryption settings - server owners can configure
-  if (permissions.value.canManageServer) {
-    sections.push({ id: 'encryption', label: '🔐 ' + t('server.encryption') })
-  }
   
   // Only show privacy settings if user can manage server
   if (permissions.value.canChangePrivacySettings) {
