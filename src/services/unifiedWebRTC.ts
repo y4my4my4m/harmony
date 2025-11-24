@@ -1,6 +1,20 @@
 import { supabase } from '@/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { webrtcEncryptionService } from '@/services/encryption';
+
+// Lazy load encryption service to avoid loading native modules in browser
+let webrtcEncryptionService: any = null
+async function getWebRTCEncryptionService() {
+  if (!webrtcEncryptionService) {
+    try {
+      const module = await import('@/services/encryption/WebRTCEncryptionService')
+      webrtcEncryptionService = module.webrtcEncryptionService
+    } catch (error) {
+      console.warn('⚠️ WebRTC encryption service not available:', error)
+      webrtcEncryptionService = null
+    }
+  }
+  return webrtcEncryptionService
+}
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -1064,9 +1078,12 @@ export class UnifiedWebRTCService {
     // Add participant to encryption if enabled
     if (this.encryptionEnabled && this.currentUserId) {
       try {
-        // Initialize encryption for new participant
-        await webrtcEncryptionService.addParticipant(userId);
-        console.log('🔐 Encryption initialized for new participant:', userId);
+        const encryptionService = await getWebRTCEncryptionService()
+        if (encryptionService) {
+          // Initialize encryption for new participant
+          await encryptionService.addParticipant(userId);
+          console.log('🔐 Encryption initialized for new participant:', userId);
+        }
       } catch (error) {
         console.error('❌ Failed to initialize encryption for participant:', error);
       }
@@ -1083,7 +1100,10 @@ export class UnifiedWebRTCService {
     
     // Remove from encryption if enabled
     if (this.encryptionEnabled) {
-      webrtcEncryptionService.removeParticipant(userId);
+      const encryptionService = await getWebRTCEncryptionService()
+      if (encryptionService) {
+        encryptionService.removeParticipant(userId);
+      }
     }
     
     const connection = this.connections.get(userId);

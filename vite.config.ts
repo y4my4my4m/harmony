@@ -35,6 +35,9 @@ export default defineConfig({
     include: [
       'simple-peer',
     ],
+    exclude: [
+      '@signalapp/libsignal-client',  // Native Node.js module - can't run in browser
+    ]
   },
   build: {
     rollupOptions: {

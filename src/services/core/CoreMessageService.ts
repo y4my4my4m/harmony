@@ -17,7 +17,21 @@
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
-import { messageEncryptionService } from '@/services/encryption'
+
+// Lazy load encryption service to avoid loading native modules in browser
+let messageEncryptionService: any = null
+async function getEncryptionService() {
+  if (!messageEncryptionService) {
+    try {
+      const module = await import('@/services/encryption/MessageEncryptionService')
+      messageEncryptionService = module.messageEncryptionService
+    } catch (error) {
+      console.warn('⚠️ Encryption service not available:', error)
+      messageEncryptionService = null
+    }
+  }
+  return messageEncryptionService
+}
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -69,9 +83,10 @@ export class CoreMessageService {
       let encrypted = false
       let encryptionMetadata = null
 
-      if (messageEncryptionService.isInitialized()) {
+      const encryptionService = await getEncryptionService()
+      if (encryptionService && encryptionService.isInitialized()) {
         try {
-          const policy = await messageEncryptionService.checkServerEncryptionPolicy(serverId)
+          const policy = await encryptionService.checkServerEncryptionPolicy(serverId)
           
           if (policy.mode === 'required' || policy.mode === 'required_local_only') {
             if (!policy.hasKeys) {
@@ -88,7 +103,7 @@ export class CoreMessageService {
             
             if (recipientIds.length > 0) {
               // Encrypt message
-              const encryptedData = await messageEncryptionService.encryptMessage(content, recipientIds)
+              const encryptedData = await encryptionService.encryptMessage(content, recipientIds)
               finalContent = encryptedData.content
               encrypted = true
               encryptionMetadata = encryptedData.encryption_metadata
@@ -98,7 +113,7 @@ export class CoreMessageService {
         } catch (error) {
           console.error('❌ Encryption failed:', error)
           // If encryption is required, don't send unencrypted
-          const policy = await messageEncryptionService.checkServerEncryptionPolicy(serverId)
+          const policy = await encryptionService.checkServerEncryptionPolicy(serverId)
           if (policy.mode === 'required' || policy.mode === 'required_local_only') {
             throw error
           }
@@ -163,9 +178,10 @@ export class CoreMessageService {
       let encrypted = false
       let encryptionMetadata = null
 
-      if (messageEncryptionService.isInitialized()) {
+      const encryptionService = await getEncryptionService()
+      if (encryptionService && encryptionService.isInitialized()) {
         try {
-          const status = await messageEncryptionService.checkConversationEncryption(conversationId)
+          const status = await encryptionService.checkConversationEncryption(conversationId)
           
           if (status.enabled) {
             // Get conversation participants
@@ -179,7 +195,7 @@ export class CoreMessageService {
             
             if (recipientIds.length > 0) {
               // Encrypt message
-              const encryptedData = await messageEncryptionService.encryptMessage(content, recipientIds)
+              const encryptedData = await encryptionService.encryptMessage(content, recipientIds)
               finalContent = encryptedData.content
               encrypted = true
               encryptionMetadata = encryptedData.encryption_metadata
@@ -189,7 +205,7 @@ export class CoreMessageService {
         } catch (error) {
           console.error('❌ DM encryption failed:', error)
           // DMs are typically always encrypted if enabled, so throw error
-          const status = await messageEncryptionService.checkConversationEncryption(conversationId)
+          const status = await encryptionService.checkConversationEncryption(conversationId)
           if (status.enabled) {
             throw error
           }
