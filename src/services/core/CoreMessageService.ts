@@ -183,7 +183,30 @@ export class CoreMessageService {
         try {
           const status = await encryptionService.checkConversationEncryption(conversationId)
           
-          if (status.enabled) {
+          // Auto-enable encryption if both parties have keys and it's not already enabled
+          if (!status.enabled && status.hasKeys) {
+            // Check if all participants have encryption keys
+            const allHaveKeys = status.mode === 'optional' // This means everyone has keys
+            
+            if (allHaveKeys) {
+              console.log('🔐 Auto-enabling encryption for conversation...')
+              try {
+                await encryptionService.enableConversationEncryption(conversationId)
+                // Re-check status after enabling
+                const newStatus = await encryptionService.checkConversationEncryption(conversationId)
+                if (newStatus.enabled) {
+                  console.log('✅ Encryption auto-enabled for conversation')
+                }
+              } catch (error) {
+                console.warn('⚠️ Could not auto-enable encryption:', error)
+              }
+            }
+          }
+          
+          // Re-check if encryption is now enabled
+          const finalStatus = await encryptionService.checkConversationEncryption(conversationId)
+          
+          if (finalStatus.enabled) {
             // Get conversation participants
             const { data: participants } = await supabase
               .from('conversation_participants')

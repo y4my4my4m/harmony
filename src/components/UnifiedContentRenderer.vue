@@ -150,6 +150,27 @@
           v-else-if="part && part.type === 'system'" 
           class="system-message"
         >[{{ part.event_type }}]</span>
+        
+        <!-- Encrypted messages (cannot be decrypted) -->
+        <div 
+          v-else-if="part && part.type === 'encrypted'"
+          class="encrypted-message-container"
+        >
+          <div class="encrypted-message">
+            <div class="encrypted-header">
+              <span class="encrypted-icon">🔐</span>
+              <span class="encrypted-label">Encrypted Message</span>
+            </div>
+            <div class="encrypted-content">
+              <div class="encrypted-visual-effect">
+                <span class="encrypted-char" v-for="i in 50" :key="i">{{ getRandomChar() }}</span>
+              </div>
+              <div class="encrypted-hint">
+                You need encryption keys to view this message
+              </div>
+            </div>
+          </div>
+        </div>
       </template>
     </template>
   </div>
@@ -213,6 +234,12 @@ const isPreviewMode = computed(() => props.mode === 'preview');
 
 // Image loading state
 const imageLoaded = ref(props.imageLoaded);
+
+// Random character generator for encrypted message effect
+const getRandomChar = () => {
+  const chars = '█▓▒░▄▀■□▪▫●○◘◙▬¤§¶ƒαßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■'
+  return chars[Math.floor(Math.random() * chars.length)]
+}
 
 // Event handlers
 const handleContentClick = (event: Event) => {
@@ -548,6 +575,84 @@ const formatFileSize = (bytes: number): string => {
   color: #72767d;
   font-style: italic;
   opacity: 0.8;
+}
+
+/* Encrypted messages */
+.encrypted-message-container {
+  width: 100%;
+  margin: 4px 0;
+}
+
+.encrypted-message {
+  background: linear-gradient(135deg, #1a1d21 0%, #252932 100%);
+  border: 1px solid #3c4049;
+  border-radius: 8px;
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.encrypted-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #b9bbbe;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.encrypted-icon {
+  font-size: 1.2em;
+}
+
+.encrypted-label {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.85em;
+}
+
+.encrypted-content {
+  position: relative;
+}
+
+.encrypted-visual-effect {
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #4a5161;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: none;
+  opacity: 0.6;
+  animation: encrypted-glitch 3s infinite;
+}
+
+.encrypted-char {
+  display: inline-block;
+  animation: flicker 4s infinite;
+  animation-delay: calc(var(--i, 0) * 0.1s);
+}
+
+@keyframes encrypted-glitch {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.encrypted-hint {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  color: #8e9297;
+  font-size: 0.85em;
+  text-align: center;
+  font-style: italic;
 }
 
 /* Typography */
