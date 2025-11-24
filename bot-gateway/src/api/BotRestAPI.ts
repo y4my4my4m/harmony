@@ -283,14 +283,19 @@ export class BotRestAPI {
       const { messageId, emoji } = req.params
       const botId = req.bot!.id
       
+      console.log('➕ Adding reaction:', { messageId, emoji, botId });
+      
       // Get message to check permissions
-      const { data: message } = await supabase
+      const { data: message, error: messageError } = await supabase
         .from('messages')
         .select('channel_id')
         .eq('id', messageId)
         .single()
       
+      console.log('🔍 Message lookup result:', { message, messageError });
+      
       if (!message) {
+        console.log('❌ Message not found:', messageId);
         return res.status(404).json({ error: 'Message not found' })
       }
       
@@ -298,6 +303,8 @@ export class BotRestAPI {
       if (!canReact) {
         return res.status(403).json({ error: 'Missing permission: add_reactions' })
       }
+      
+      console.log('💾 Inserting reaction:', { message_id: messageId, bot_id: botId, emoji_id: emoji });
       
       const { error } = await supabase
         .from('reactions')
@@ -308,11 +315,15 @@ export class BotRestAPI {
         })
       
       if (error) {
+        console.error('❌ Reaction insert error:', error);
         return res.status(500).json({ error: error.message })
       }
       
+      console.log('✅ Reaction added successfully');
+      
       res.status(204).send()
     } catch (error: any) {
+      console.error('❌ Add reaction exception:', error);
       res.status(500).json({ error: error.message })
     }
   }
@@ -553,7 +564,8 @@ export class BotRestAPI {
       content: this.contentToText(message.content),
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,
-      mentions: this.extractMentions(message.content)
+      mentions: this.extractMentions(message.content),
+      metadata: message.metadata // Include metadata in response
     }
   }
   
@@ -669,32 +681,47 @@ export class BotRestAPI {
       const { name, url, server_id, domain } = req.body
       const botId = req.bot!.id
       
+      console.log('📝 Creating emoji:', { name, url, server_id, domain, botId });
+      
       // Validate required fields
       if (!name || !url) {
         return res.status(400).json({ error: 'Missing required fields: name, url' })
       }
       
-      // Create emoji entry (same as ActivityPub does)
-      const { data: newEmoji, error: insertError } = await supabase
-        .from('emojis')
-        .insert({
-          name,
-          url,
-          server_id: server_id || null, // null = global/federated emoji
-          uploader: botId,
-          domain: domain || null
-        })
-        .select()
-        .single()
-      
-      if (insertError) {
-        return res.status(500).json({ error: insertError.message })
+      // Only allow federated emojis (server_id must be null) from bots
+      if (server_id !== null && server_id !== undefined) {
+        return res.status(403).json({ error: 'Bots can only create federated emojis (server_id must be null)' })
       }
       
-      await this.logBotAction(botId, 'emoji_create', { emojiId: newEmoji.id, name })
+      // Use RPC function to create emoji (bypasses RLS with SECURITY DEFINER)
+      const { data: newEmoji, error: insertError } = await supabase
+        .rpc('create_federated_emoji', {
+          p_name: name,
+          p_url: url,
+          p_uploader: botId,
+          p_domain: domain || null
+        })
       
-      res.status(201).json(newEmoji)
+      if (insertError) {
+        console.error('❌ Emoji insert error:', insertError);
+        console.error('❌ Error details:', JSON.stringify(insertError, null, 2));
+        return res.status(500).json({ error: insertError.message, details: insertError })
+      }
+      
+      // RPC returns an array, get first result
+      const emoji = Array.isArray(newEmoji) && newEmoji.length > 0 ? newEmoji[0] : null
+      
+      if (!emoji) {
+        return res.status(500).json({ error: 'Failed to create emoji' })
+      }
+      
+      console.log('✅ Emoji created successfully:', emoji);
+      
+      await this.logBotAction(botId, 'emoji_create', { emojiId: emoji.id, name })
+      
+      res.status(201).json(emoji)
     } catch (error: any) {
+      console.error('❌ Create emoji exception:', error);
       res.status(500).json({ error: error.message })
     }
   }

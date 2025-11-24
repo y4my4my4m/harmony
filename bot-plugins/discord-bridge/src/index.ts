@@ -283,16 +283,37 @@ if (config.settings.syncDeletes) {
 // HARMONY -> DISCORD
 // =====================================================
 
-harmonyClient.on('ready', (data: any) => {
+harmonyClient.on('ready', async (data: any) => {
   console.log(`✅ Harmony bot connected: ${data.bot.username} (${data.bot.id})`);
   
   // Store bot ID for filtering
   (harmonyClient as any).botId = data.bot.id;
   
-  // Subscribe to all mapped Harmony channels
+  // Subscribe to all mapped Harmony channels and load recent messages for mapping
   for (const mapping of config.channelMappings) {
     console.log(`📡 Subscribing to Harmony channel: ${mapping.name || mapping.harmony}`);
-    // Gateway will automatically dispatch events for channels the bot has access to
+    
+    // Load recent messages to restore message ID mappings
+    try {
+      console.log(`📥 Loading recent messages from ${mapping.name || mapping.harmony}...`);
+      const recentMessages = await harmonyClient.loadRecentMessages(mapping.harmony, 100);
+      
+      let restoredCount = 0;
+      for (const msg of recentMessages) {
+        if (msg.metadata?.discord_message_id && msg.id) {
+          const discordMsgId = msg.metadata.discord_message_id;
+          discordToHarmonyMessages.set(discordMsgId, msg.id);
+          harmonyToDiscordMessages.set(msg.id, discordMsgId);
+          restoredCount++;
+        }
+      }
+      
+      if (restoredCount > 0) {
+        console.log(`✅ Restored ${restoredCount} message mappings from ${mapping.name || mapping.harmony}`);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to load recent messages from ${mapping.name || mapping.harmony}:`, error);
+    }
   }
 });
 

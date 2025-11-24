@@ -175,7 +175,7 @@ export class HarmonyClient extends EventEmitter {
   }
   
   async addReaction(channelId: string, messageId: string, emoji: string): Promise<any> {
-    const response = await fetch(`${this.apiUrl}/api/v1/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
+    const response = await fetch(`${this.apiUrl}/api/v1/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bot ${this.botToken}`,
@@ -184,8 +184,13 @@ export class HarmonyClient extends EventEmitter {
     })
     
     if (!response.ok) {
-      const error = await response.json()
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
       throw new Error(error.error || 'Failed to add reaction')
+    }
+    
+    // API returns 204 No Content on success
+    if (response.status === 204) {
+      return { success: true }
     }
     
     return response.json()
@@ -292,6 +297,26 @@ export class HarmonyClient extends EventEmitter {
     
     if (!response.ok) {
       throw new Error('Failed to fetch guild members')
+    }
+    
+    return response.json()
+  }
+  
+  /**
+   * Load recent messages for a channel to restore message ID mappings
+   * This is called on startup to restore mappings for recent messages
+   */
+  async loadRecentMessages(channelId: string, limit: number = 100): Promise<any[]> {
+    const response = await fetch(`${this.apiUrl}/api/v1/channels/${channelId}/messages?limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bot ${this.botToken}`
+      }
+    })
+    
+    if (!response.ok) {
+      console.error('Failed to fetch recent messages')
+      return []
     }
     
     return response.json()
