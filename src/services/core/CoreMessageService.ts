@@ -17,6 +17,7 @@
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
+import { messageEncryptionService } from '@/services/encryption'
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -63,15 +64,58 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
+      // Check encryption policy
+      let finalContent = content
+      let encrypted = false
+      let encryptionMetadata = null
+
+      if (messageEncryptionService.isInitialized()) {
+        try {
+          const policy = await messageEncryptionService.checkServerEncryptionPolicy(serverId)
+          
+          if (policy.mode === 'required' || policy.mode === 'required_local_only') {
+            if (!policy.hasKeys) {
+              throw this.createError('ENCRYPTION_REQUIRED', 'Encryption required but keys not set up. Please enable E2EE in settings.')
+            }
+            
+            // Get all server members for encryption
+            const { data: members } = await supabase
+              .from('user_servers')
+              .select('user_id')
+              .eq('server_id', serverId)
+            
+            const recipientIds = members?.map(m => m.user_id).filter(id => id !== currentUser.id) || []
+            
+            if (recipientIds.length > 0) {
+              // Encrypt message
+              const encryptedData = await messageEncryptionService.encryptMessage(content, recipientIds)
+              finalContent = encryptedData.content
+              encrypted = true
+              encryptionMetadata = encryptedData.encryption_metadata
+              console.log(`🔐 Message encrypted for ${recipientIds.length} recipients`)
+            }
+          }
+        } catch (error) {
+          console.error('❌ Encryption failed:', error)
+          // If encryption is required, don't send unencrypted
+          const policy = await messageEncryptionService.checkServerEncryptionPolicy(serverId)
+          if (policy.mode === 'required' || policy.mode === 'required_local_only') {
+            throw error
+          }
+        }
+      }
+
       const messageData = {
         user_id: currentUser.id,
         channel_id: channelId,
-        content: content,
+        content: finalContent,
         reply_to: replyTo || null,
+        encrypted,
+        encryption_metadata: encryptionMetadata,
         metadata: { created_via: 'harmony_client' }
       }
 
-      console.log('📤 Inserting message to database:', messageData)
+      console.log('📤 Inserting message to database:', { ...messageData, content: encrypted ? '[encrypted]' : messageData.content })
       
       const { data: message, error } = await supabase
         .from('messages')
@@ -114,11 +158,51 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
+      // Check encryption for conversation
+      let finalContent = content
+      let encrypted = false
+      let encryptionMetadata = null
+
+      if (messageEncryptionService.isInitialized()) {
+        try {
+          const status = await messageEncryptionService.checkConversationEncryption(conversationId)
+          
+          if (status.enabled) {
+            // Get conversation participants
+            const { data: participants } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', conversationId)
+              .is('left_at', null)
+            
+            const recipientIds = participants?.map(p => p.user_id).filter(id => id !== currentUser.id) || []
+            
+            if (recipientIds.length > 0) {
+              // Encrypt message
+              const encryptedData = await messageEncryptionService.encryptMessage(content, recipientIds)
+              finalContent = encryptedData.content
+              encrypted = true
+              encryptionMetadata = encryptedData.encryption_metadata
+              console.log(`🔐 DM encrypted for ${recipientIds.length} recipients`)
+            }
+          }
+        } catch (error) {
+          console.error('❌ DM encryption failed:', error)
+          // DMs are typically always encrypted if enabled, so throw error
+          const status = await messageEncryptionService.checkConversationEncryption(conversationId)
+          if (status.enabled) {
+            throw error
+          }
+        }
+      }
+
       const messageData = {
         user_id: currentUser.id,
         conversation_id: conversationId,
-        content: content,
+        content: finalContent,
         reply_to: replyTo || null,
+        encrypted,
+        encryption_metadata: encryptionMetadata,
         metadata: { created_via: 'harmony_client' }
       }
 
