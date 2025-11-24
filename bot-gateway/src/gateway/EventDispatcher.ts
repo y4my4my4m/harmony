@@ -15,8 +15,9 @@ export class EventDispatcher {
     // Use polling instead of realtime subscriptions for local development
     // This is more reliable with local Supabase and service role
     this.startPolling()
+    this.startRealtimeSubscriptions()
     
-    console.log('✅ Event Dispatcher started with polling mode')
+    console.log('✅ Event Dispatcher started with polling mode + realtime for edits/deletes')
   }
   
   private startPolling() {
@@ -26,6 +27,30 @@ export class EventDispatcher {
     this.pollingInterval = setInterval(async () => {
       await this.pollMessages()
     }, 1000)
+  }
+  
+  private startRealtimeSubscriptions() {
+    console.log('🔄 Starting realtime subscriptions for message updates/deletes...')
+    
+    // Subscribe to message updates
+    const updateChannel = supabase
+      .channel('bot-message-updates')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => this.handleMessageUpdate(payload)
+      )
+      .subscribe()
+    
+    // Subscribe to message deletes
+    const deleteChannel = supabase
+      .channel('bot-message-deletes')
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'messages' },
+        (payload) => this.handleMessageDelete(payload)
+      )
+      .subscribe()
+    
+    this.subscriptions.push(updateChannel, deleteChannel)
   }
   
   private async pollMessages() {
@@ -138,15 +163,113 @@ export class EventDispatcher {
   private async handleMessageUpdate(payload: any) {
     const message = payload.new
     
-    // Similar logic to CREATE
-    // ... (implementation similar to above)
+    console.log(`📝 EventDispatcher: Message updated`, {
+      id: message.id,
+      channel_id: message.channel_id
+    });
+    
+    // Skip encrypted messages (bots can't read them)
+    if (message.encrypted) {
+      console.log('⏭️  Skipping encrypted message');
+      return
+    }
+    
+    // Get server ID from channel
+    let serverId: string | null = null
+    
+    if (message.channel_id) {
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('server_id')
+        .eq('id', message.channel_id)
+        .single()
+      
+      serverId = channel?.server_id
+    }
+    
+    if (!serverId) {
+      console.log('⚠️  No server ID found, skipping dispatch');
+      return
+    }
+    
+    // Get bots with permissions in this server
+    const { data: botPermissions } = await supabase
+      .from('bot_server_permissions')
+      .select('bot_id, read_messages')
+      .eq('server_id', serverId)
+      .eq('read_messages', true)
+      .eq('is_active', true)
+    
+    if (!botPermissions || botPermissions.length === 0) {
+      return
+    }
+    
+    // Format and dispatch event
+    const event = {
+      op: 0,
+      t: 'MESSAGE_UPDATE',
+      d: await this.formatMessage(message)
+    }
+    
+    const botIds = botPermissions.map(bp => bp.bot_id)
+    this.gateway.sendToMultipleBots(botIds, event)
+    
+    console.log(`📨 Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
   }
   
   private async handleMessageDelete(payload: any) {
     const message = payload.old
     
-    // Similar logic to CREATE
-    // ... (implementation similar to above)
+    console.log(`🗑️ EventDispatcher: Message deleted`, {
+      id: message.id,
+      channel_id: message.channel_id
+    });
+    
+    // Get server ID from channel
+    let serverId: string | null = null
+    
+    if (message.channel_id) {
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('server_id')
+        .eq('id', message.channel_id)
+        .single()
+      
+      serverId = channel?.server_id
+    }
+    
+    if (!serverId) {
+      console.log('⚠️  No server ID found, skipping dispatch');
+      return
+    }
+    
+    // Get bots with permissions in this server
+    const { data: botPermissions } = await supabase
+      .from('bot_server_permissions')
+      .select('bot_id, read_messages')
+      .eq('server_id', serverId)
+      .eq('read_messages', true)
+      .eq('is_active', true)
+    
+    if (!botPermissions || botPermissions.length === 0) {
+      return
+    }
+    
+    // Format and dispatch event
+    const event = {
+      op: 0,
+      t: 'MESSAGE_DELETE',
+      d: {
+        id: message.id,
+        channel_id: message.channel_id,
+        metadata: message.metadata
+      }
+    }
+    
+    const botIds = botPermissions.map(bp => bp.bot_id)
+    this.gateway.sendToMultipleBots(botIds, event)
+    
+    console.log(`📨 Dispatched MESSAGE_DELETE to ${botIds.length} bots`)
   }
   
   // =====================================================

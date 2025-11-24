@@ -174,13 +174,53 @@ export class HarmonyClient extends EventEmitter {
     return response.json()
   }
   
-  async addReaction(channelId: string, messageId: string, emoji: string): Promise<any> {
+  async editMessage(messageId: string, content: string | any[]): Promise<any> {
+    const response = await fetch(`${this.apiUrl}/api/v1/messages/${messageId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bot ${this.botToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ content })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+      throw new Error(error.error || 'Failed to edit message')
+    }
+    
+    return response.json()
+  }
+  
+  async deleteMessage(messageId: string): Promise<any> {
+    const response = await fetch(`${this.apiUrl}/api/v1/messages/${messageId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bot ${this.botToken}`
+      }
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+      throw new Error(error.error || 'Failed to delete message')
+    }
+    
+    // DELETE returns 204 No Content on success
+    if (response.status === 204) {
+      return { success: true }
+    }
+    
+    return response.json()
+  }
+  
+  async addReaction(channelId: string, messageId: string, emoji: string, metadata?: any): Promise<any> {
     const response = await fetch(`${this.apiUrl}/api/v1/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bot ${this.botToken}`,
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify({ metadata: metadata || null })
     })
     
     if (!response.ok) {

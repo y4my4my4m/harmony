@@ -193,8 +193,20 @@ discordClient.on('messageReactionAdd', async (reaction, user) => {
       return
     }
     
-    // Add reaction to Harmony message
-    await harmonyClient.addReaction(harmonyChannelId, harmonyMessageId, emojiIdentifier)
+    // Prepare Discord user metadata for attribution
+    const reactionMetadata = {
+      discord_user: {
+        id: user.id,
+        username: user.username,
+        discriminator: user.discriminator,
+        display_name: user.globalName || user.username,
+        avatar_url: user.displayAvatarURL({ size: 128 })
+      },
+      bridge_source: 'discord'
+    }
+    
+    // Add reaction to Harmony message with Discord user metadata
+    await harmonyClient.addReaction(harmonyChannelId, harmonyMessageId, emojiIdentifier, reactionMetadata)
     console.log(`✅ Discord -> Harmony reaction: ${emojiIdentifier} on message ${harmonyMessageId}`)
   } catch (error: any) {
     console.error('❌ Failed to bridge reaction Discord -> Harmony:', error.message)
@@ -290,17 +302,52 @@ if (config.settings.syncEdits) {
     const harmonyChannelId = mapper.getHarmonyChannel(newMsg.channelId)
     if (!harmonyChannelId) return
     
-    // Note: Harmony doesn't support message editing via bot API yet
-    // This would require storing message ID mappings
-    console.log('📝 Discord message edited (not bridged - requires ID mapping)')
+    try {
+      // Get Harmony message ID from mapping
+      const harmonyMessageId = discordToHarmonyMessages.get(newMsg.id)
+      if (!harmonyMessageId) {
+        console.log(`⚠️  No message mapping found for Discord message ${newMsg.id}`)
+        return
+      }
+      
+      // Translate the new content
+      const contentParts = translator.discordToHarmonyParts(newMsg)
+      
+      // Edit the message in Harmony
+      await harmonyClient.editMessage(harmonyMessageId, contentParts)
+      console.log(`✅ Discord -> Harmony edit: Message ${harmonyMessageId}`)
+    } catch (error) {
+      console.error('❌ Failed to bridge edit Discord -> Harmony:', error)
+    }
   })
 }
 
 // Handle Discord message deletes
 if (config.settings.syncDeletes) {
-  discordClient.on('messageDelete', async (_msg) => {
-    // Similar to edits - requires message ID mapping
-    console.log('🗑️ Discord message deleted (not bridged - requires ID mapping)')
+  discordClient.on('messageDelete', async (msg) => {
+    if (msg.author?.bot) return
+    
+    const harmonyChannelId = mapper.getHarmonyChannel(msg.channelId)
+    if (!harmonyChannelId) return
+    
+    try {
+      // Get Harmony message ID from mapping
+      const harmonyMessageId = discordToHarmonyMessages.get(msg.id)
+      if (!harmonyMessageId) {
+        console.log(`⚠️  No message mapping found for Discord message ${msg.id}`)
+        return
+      }
+      
+      // Delete the message in Harmony
+      await harmonyClient.deleteMessage(harmonyMessageId)
+      console.log(`✅ Discord -> Harmony delete: Message ${harmonyMessageId}`)
+      
+      // Clean up mapping
+      discordToHarmonyMessages.delete(msg.id)
+      harmonyToDiscordMessages.delete(harmonyMessageId)
+    } catch (error) {
+      console.error('❌ Failed to bridge delete Discord -> Harmony:', error)
+    }
   })
 }
 
@@ -456,6 +503,119 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     console.log(`✅ Harmony -> Discord (puppeted): ${uniqueUsername} in #${discordChannelId}`)
   } catch (error) {
     console.error('❌ Failed to bridge Harmony -> Discord:', error)
+  }
+})
+
+// Handle Harmony message updates
+harmonyClient.on('messageUpdate', async (msg: any) => {
+  console.log(`📝 Harmony message updated:`, { id: msg.id, channel_id: msg.channel_id });
+  
+  // Don't bridge messages that came from Discord (prevent loops!)
+  if (msg.metadata?.bridge_source === 'discord') {
+    console.log('⏭️  Skipping message from Discord (preventing loop)')
+    return
+  }
+  
+  // Get Discord message ID from mapping
+  const discordMessageId = harmonyToDiscordMessages.get(msg.id)
+  if (!discordMessageId) {
+    console.log('⚠️  No message mapping found for Harmony message', msg.id)
+    return
+  }
+  
+  // Get Discord channel from mapping
+  const discordChannelId = mapper.getDiscordChannel(msg.channel_id)
+  if (!discordChannelId) {
+    console.log('⏭️  Channel not mapped')
+    return
+  }
+  
+  if (!mapper.shouldBridgeFromHarmony(msg.channel_id)) {
+    console.log('⏭️  Bridging disabled for this channel')
+    return
+  }
+  
+  try {
+    // Get the webhook message to edit it
+    const discordChannel = await discordClient.channels.fetch(discordChannelId) as TextChannel
+    if (!discordChannel) {
+      console.error('❌ Discord channel not found')
+      return
+    }
+    
+    const webhook = await getOrCreateWebhook(discordChannelId)
+    if (!webhook) {
+      console.error('❌ Could not get webhook')
+      return
+    }
+    
+    // Convert content
+    const contentText = translator.harmonyToDiscord(msg)
+    
+    // Edit the webhook message
+    await webhook.editMessage(discordMessageId, {
+      content: contentText
+    })
+    
+    console.log(`✅ Harmony -> Discord edit: Message ${discordMessageId}`)
+  } catch (error) {
+    console.error('❌ Failed to bridge edit Harmony -> Discord:', error)
+  }
+})
+
+// Handle Harmony message deletes
+harmonyClient.on('messageDelete', async (msg: any) => {
+  console.log(`🗑️ Harmony message deleted:`, { id: msg.id, channel_id: msg.channel_id });
+  
+  // Don't bridge messages that came from Discord (prevent loops!)
+  if (msg.metadata?.bridge_source === 'discord') {
+    console.log('⏭️  Skipping message from Discord (preventing loop)')
+    return
+  }
+  
+  // Get Discord message ID from mapping
+  const discordMessageId = harmonyToDiscordMessages.get(msg.id)
+  if (!discordMessageId) {
+    console.log('⚠️  No message mapping found for Harmony message', msg.id)
+    return
+  }
+  
+  // Get Discord channel from mapping
+  const discordChannelId = mapper.getDiscordChannel(msg.channel_id)
+  if (!discordChannelId) {
+    console.log('⏭️  Channel not mapped')
+    return
+  }
+  
+  if (!mapper.shouldBridgeFromHarmony(msg.channel_id)) {
+    console.log('⏭️  Bridging disabled for this channel')
+    return
+  }
+  
+  try {
+    // Get the webhook to delete the message
+    const discordChannel = await discordClient.channels.fetch(discordChannelId) as TextChannel
+    if (!discordChannel) {
+      console.error('❌ Discord channel not found')
+      return
+    }
+    
+    const webhook = await getOrCreateWebhook(discordChannelId)
+    if (!webhook) {
+      console.error('❌ Could not get webhook')
+      return
+    }
+    
+    // Delete the webhook message
+    await webhook.deleteMessage(discordMessageId)
+    
+    console.log(`✅ Harmony -> Discord delete: Message ${discordMessageId}`)
+    
+    // Clean up mapping
+    harmonyToDiscordMessages.delete(msg.id)
+    discordToHarmonyMessages.delete(discordMessageId)
+  } catch (error) {
+    console.error('❌ Failed to bridge delete Harmony -> Discord:', error)
   }
 })
 

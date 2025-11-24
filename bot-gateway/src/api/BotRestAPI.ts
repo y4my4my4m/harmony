@@ -35,6 +35,9 @@ export class BotRestAPI {
     // Get channel messages
     this.router.get('/channels/:channelId/messages', this.getMessages.bind(this))
     
+    // Get single message
+    this.router.get('/messages/:messageId', this.getMessage.bind(this))
+    
     // Edit message
     this.router.patch('/messages/:messageId', this.editMessage.bind(this))
     
@@ -189,6 +192,47 @@ export class BotRestAPI {
     }
   }
   
+  private async getMessage(req: BotRequest, res: Response) {
+    try {
+      const { messageId } = req.params
+      const botId = req.bot!.id
+      
+      // Get message with author info
+      const { data: message, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
+        `)
+        .eq('id', messageId)
+        .single()
+      
+      if (error || !message) {
+        return res.status(404).json({ error: 'Message not found' })
+      }
+      
+      // Check if bot has permission to read messages in this channel
+      const { data: channel } = await supabase
+        .from('channels')
+        .select('server_id')
+        .eq('id', message.channel_id)
+        .single()
+      
+      if (!channel) {
+        return res.status(404).json({ error: 'Channel not found' })
+      }
+      
+      const canRead = await this.checkChannelPermission(botId, message.channel_id, 'read_messages')
+      if (!canRead) {
+        return res.status(403).json({ error: 'Missing permission: read_messages' })
+      }
+      
+      res.json(this.formatMessage(message))
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+  
   private async editMessage(req: BotRequest, res: Response) {
     try {
       const { messageId } = req.params
@@ -217,8 +261,7 @@ export class BotRestAPI {
       const { data: updated, error } = await supabase
         .from('messages')
         .update({ 
-          content: messageContent,
-          updated_at: new Date().toISOString()
+          content: messageContent
         })
         .eq('id', messageId)
         .select(`
@@ -284,21 +327,17 @@ export class BotRestAPI {
   private async addReaction(req: BotRequest, res: Response) {
     try {
       const { messageId, emoji } = req.params
+      const { metadata } = req.body
       const botId = req.bot!.id
       
-      console.log('➕ Adding reaction:', { messageId, emoji, botId });
-      
       // Get message to check permissions
-      const { data: message, error: messageError } = await supabase
+      const { data: message } = await supabase
         .from('messages')
         .select('channel_id')
         .eq('id', messageId)
         .single()
       
-      console.log('🔍 Message lookup result:', { message, messageError });
-      
       if (!message) {
-        console.log('❌ Message not found:', messageId);
         return res.status(404).json({ error: 'Message not found' })
       }
       
@@ -307,22 +346,19 @@ export class BotRestAPI {
         return res.status(403).json({ error: 'Missing permission: add_reactions' })
       }
       
-      console.log('💾 Inserting reaction:', { message_id: messageId, bot_id: botId, emoji_id: emoji });
-      
       const { error } = await supabase
         .from('reactions')
         .insert({
           message_id: messageId,
-          bot_id: botId,  // Use bot_id instead of user_id
-          emoji_id: emoji
+          bot_id: botId,
+          emoji_id: emoji,
+          metadata: metadata || null
         })
       
       if (error) {
         console.error('❌ Reaction insert error:', error);
         return res.status(500).json({ error: error.message })
       }
-      
-      console.log('✅ Reaction added successfully');
       
       res.status(204).send()
     } catch (error: any) {
@@ -336,17 +372,14 @@ export class BotRestAPI {
       const { messageId, emoji } = req.params
       const botId = req.bot!.id
       
-      console.log('➖ Removing reaction:', { messageId, emoji, botId });
-      
       // Get message to check permissions
-      const { data: message, error: messageError } = await supabase
+      const { data: message } = await supabase
         .from('messages')
         .select('channel_id')
         .eq('id', messageId)
         .single()
       
       if (!message) {
-        console.log('❌ Message not found:', messageId);
         return res.status(404).json({ error: 'Message not found' })
       }
       
@@ -354,8 +387,6 @@ export class BotRestAPI {
       if (!canReact) {
         return res.status(403).json({ error: 'Missing permission: add_reactions' })
       }
-      
-      console.log('🗑️ Deleting reaction:', { message_id: messageId, bot_id: botId, emoji_id: emoji });
       
       // Delete the bot's reaction for this emoji on this message
       const { error } = await supabase
@@ -369,8 +400,6 @@ export class BotRestAPI {
         console.error('❌ Reaction delete error:', error);
         return res.status(500).json({ error: error.message })
       }
-      
-      console.log('✅ Reaction removed successfully');
       
       res.status(204).send()
     } catch (error: any) {
@@ -732,8 +761,6 @@ export class BotRestAPI {
       const { name, url, server_id, domain } = req.body
       const botId = req.bot!.id
       
-      console.log('📝 Creating emoji:', { name, url, server_id, domain, botId });
-      
       // Validate required fields
       if (!name || !url) {
         return res.status(400).json({ error: 'Missing required fields: name, url' })
@@ -755,8 +782,7 @@ export class BotRestAPI {
       
       if (insertError) {
         console.error('❌ Emoji insert error:', insertError);
-        console.error('❌ Error details:', JSON.stringify(insertError, null, 2));
-        return res.status(500).json({ error: insertError.message, details: insertError })
+        return res.status(500).json({ error: insertError.message })
       }
       
       // RPC returns an array, get first result
@@ -765,8 +791,6 @@ export class BotRestAPI {
       if (!emoji) {
         return res.status(500).json({ error: 'Failed to create emoji' })
       }
-      
-      console.log('✅ Emoji created successfully:', emoji);
       
       await this.logBotAction(botId, 'emoji_create', { emojiId: emoji.id, name })
       
