@@ -14,6 +14,20 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    },
+    // For local Supabase, realtime goes through Kong
+    headers: {
+      apikey: supabaseServiceKey
+    }
+  },
+  global: {
+    headers: {
+      apikey: supabaseServiceKey
+    }
   }
 })
 

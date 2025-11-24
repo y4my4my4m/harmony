@@ -3,100 +3,85 @@ import type { WebSocketGateway } from './WebSocketGateway.js'
 
 export class EventDispatcher {
   private subscriptions: any[] = []
+  private pollingInterval: NodeJS.Timeout | null = null
+  private lastProcessedTimestamp: Date = new Date()
+  private processedMessageIds: Set<string> = new Set()
   
   constructor(private gateway: WebSocketGateway) {}
   
   async start() {
     console.log('🎯 Starting Event Dispatcher...')
     
-    // Subscribe to message events
-    this.subscribeToMessages()
+    // Use polling instead of realtime subscriptions for local development
+    // This is more reliable with local Supabase and service role
+    this.startPolling()
     
-    // Subscribe to member events
-    this.subscribeToMemberEvents()
-    
-    // Subscribe to channel events
-    this.subscribeToChannelEvents()
-    
-    console.log('✅ Event Dispatcher started')
+    console.log('✅ Event Dispatcher started with polling mode')
   }
   
-  private subscribeToMessages() {
-    const channel = supabase
-      .channel('bot_message_events')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        this.handleMessageCreate.bind(this)
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages' },
-        this.handleMessageUpdate.bind(this)
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'messages' },
-        this.handleMessageDelete.bind(this)
-      )
-      .subscribe()
+  private startPolling() {
+    console.log('🔄 Starting polling mode for message events (every 1 second)...')
     
-    this.subscriptions.push(channel)
-    console.log('📬 Subscribed to message events')
+    // Poll every second for new messages
+    this.pollingInterval = setInterval(async () => {
+      await this.pollMessages()
+    }, 1000)
   }
   
-  private subscribeToMemberEvents() {
-    const channel = supabase
-      .channel('bot_member_events')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'server_members' },
-        this.handleMemberJoin.bind(this)
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'server_members' },
-        this.handleMemberLeave.bind(this)
-      )
-      .subscribe()
-    
-    this.subscriptions.push(channel)
-    console.log('👥 Subscribed to member events')
+  private async pollMessages() {
+    try {
+      // Get messages created since last check
+      const { data: messages, error } = await supabase
+        .from('messages')
+        .select('*')
+        .gt('created_at', this.lastProcessedTimestamp.toISOString())
+        .order('created_at', { ascending: true })
+        .limit(50)
+      
+      if (error) {
+        console.error('❌ Error polling messages:', error)
+        return
+      }
+      
+      if (messages && messages.length > 0) {
+        // Only log if we have NEW unprocessed messages
+        const newMessages = messages.filter(m => !this.processedMessageIds.has(m.id))
+        
+        if (newMessages.length > 0) {
+          console.log(`📨 Polled ${newMessages.length} new messages`)
+          
+          for (const message of newMessages) {
+            await this.handleMessageCreate({ new: message })
+            this.processedMessageIds.add(message.id)
+            this.lastProcessedTimestamp = new Date(message.created_at)
+            
+            // Keep set size reasonable (only keep last 1000 IDs)
+            if (this.processedMessageIds.size > 1000) {
+              const idsArray = Array.from(this.processedMessageIds);
+              this.processedMessageIds = new Set(idsArray.slice(-1000));
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Polling error:', error)
+    }
   }
   
-  private subscribeToChannelEvents() {
-    const channel = supabase
-      .channel('bot_channel_events')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'channels' },
-        this.handleChannelCreate.bind(this)
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'channels' },
-        this.handleChannelUpdate.bind(this)
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'channels' },
-        this.handleChannelDelete.bind(this)
-      )
-      .subscribe()
-    
-    this.subscriptions.push(channel)
-    console.log('📺 Subscribed to channel events')
-  }
-  
-  // =====================================================
-  // MESSAGE EVENTS
-  // =====================================================
-  
-  private async handleMessageCreate(payload: any) {
+  async handleMessageCreate(payload: any) {
     const message = payload.new
+    
+    console.log(`🔔 EventDispatcher: Message received`, {
+      id: message.id,
+      channel_id: message.channel_id,
+      user_id: message.user_id,
+      bot_id: message.bot_id,
+      encrypted: message.encrypted
+    });
     
     // Skip encrypted messages (bots can't read them)
     if (message.encrypted) {
+      console.log('⏭️  Skipping encrypted message');
       return
     }
     
@@ -114,9 +99,13 @@ export class EventDispatcher {
         .single()
       
       serverId = channel?.server_id
+      console.log(`📍 Channel lookup: channel_id=${message.channel_id}, server_id=${serverId}`);
     }
     
-    if (!serverId) return
+    if (!serverId) {
+      console.log('⚠️  No server ID found, skipping dispatch');
+      return
+    }
     
     // Get bots with permissions in this server
     const { data: botPermissions } = await supabase
@@ -126,7 +115,10 @@ export class EventDispatcher {
       .eq('read_messages', true)
       .eq('is_active', true)
     
+    console.log(`🔍 Found ${botPermissions?.length || 0} bots with read_messages permission in server ${serverId}`);
+    
     if (!botPermissions || botPermissions.length === 0) {
+      console.log('⚠️  No bots have permission to read messages in this server');
       return
     }
     
@@ -140,7 +132,7 @@ export class EventDispatcher {
     const botIds = botPermissions.map(bp => bp.bot_id)
     this.gateway.sendToMultipleBots(botIds, event)
     
-    console.log(`📨 Dispatched MESSAGE_CREATE to ${botIds.length} bots`)
+    console.log(`📨 Dispatched MESSAGE_CREATE to ${botIds.length} bots:`, botIds)
   }
   
   private async handleMessageUpdate(payload: any) {
@@ -155,95 +147,6 @@ export class EventDispatcher {
     
     // Similar logic to CREATE
     // ... (implementation similar to above)
-  }
-  
-  // =====================================================
-  // MEMBER EVENTS
-  // =====================================================
-  
-  private async handleMemberJoin(payload: any) {
-    const membership = payload.new
-    
-    const { data: botPermissions } = await supabase
-      .from('bot_server_permissions')
-      .select('bot_id')
-      .eq('server_id', membership.server_id)
-      .eq('is_active', true)
-    
-    if (!botPermissions || botPermissions.length === 0) return
-    
-    const event = {
-      op: 0,
-      t: 'MEMBER_JOIN',
-      d: {
-        guild_id: membership.server_id,
-        user_id: membership.user_id,
-        joined_at: membership.created_at
-      }
-    }
-    
-    const botIds = botPermissions.map(bp => bp.bot_id)
-    this.gateway.sendToMultipleBots(botIds, event)
-    
-    console.log(`👋 Dispatched MEMBER_JOIN to ${botIds.length} bots`)
-  }
-  
-  private async handleMemberLeave(payload: any) {
-    const membership = payload.old
-    
-    const { data: botPermissions } = await supabase
-      .from('bot_server_permissions')
-      .select('bot_id')
-      .eq('server_id', membership.server_id)
-      .eq('is_active', true)
-    
-    if (!botPermissions || botPermissions.length === 0) return
-    
-    const event = {
-      op: 0,
-      t: 'MEMBER_LEAVE',
-      d: {
-        guild_id: membership.server_id,
-        user_id: membership.user_id
-      }
-    }
-    
-    const botIds = botPermissions.map(bp => bp.bot_id)
-    this.gateway.sendToMultipleBots(botIds, event)
-  }
-  
-  // =====================================================
-  // CHANNEL EVENTS
-  // =====================================================
-  
-  private async handleChannelCreate(payload: any) {
-    const channel = payload.new
-    
-    const { data: botPermissions } = await supabase
-      .from('bot_server_permissions')
-      .select('bot_id, view_channels')
-      .eq('server_id', channel.server_id)
-      .eq('view_channels', true)
-      .eq('is_active', true)
-    
-    if (!botPermissions || botPermissions.length === 0) return
-    
-    const event = {
-      op: 0,
-      t: 'CHANNEL_CREATE',
-      d: this.formatChannel(channel)
-    }
-    
-    const botIds = botPermissions.map(bp => bp.bot_id)
-    this.gateway.sendToMultipleBots(botIds, event)
-  }
-  
-  private async handleChannelUpdate(payload: any) {
-    // Similar to CREATE
-  }
-  
-  private async handleChannelDelete(payload: any) {
-    // Similar to CREATE
   }
   
   // =====================================================
@@ -318,7 +221,7 @@ export class EventDispatcher {
     if (Array.isArray(content)) {
       return content
         .filter(part => part.type === 'text')
-        .map(part => part.value || '')
+        .map(part => part.text || part.value || '')
         .join(' ')
     }
     
@@ -334,22 +237,16 @@ export class EventDispatcher {
       .filter(Boolean)
   }
   
-  private formatChannel(channel: any) {
-    return {
-      id: channel.id,
-      guild_id: channel.server_id,
-      name: channel.name,
-      type: channel.type,
-      position: channel.position,
-      parent_id: channel.parent_id
-    }
-  }
-  
   // =====================================================
   // SHUTDOWN
   // =====================================================
   
   async shutdown() {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval)
+      this.pollingInterval = null
+    }
+    
     for (const channel of this.subscriptions) {
       await channel.unsubscribe()
     }
@@ -357,4 +254,3 @@ export class EventDispatcher {
     console.log('🛑 Event Dispatcher shut down')
   }
 }
-

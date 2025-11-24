@@ -1,4 +1,4 @@
-import { Client as DiscordClient, GatewayIntentBits, Message as DiscordMessage } from 'discord.js'
+import { Client as DiscordClient, GatewayIntentBits, Message as DiscordMessage, Webhook, TextChannel } from 'discord.js'
 import { HarmonyClient } from './HarmonyClient.js'
 import { MessageTranslator } from './MessageTranslator.js'
 import { ChannelMapper } from './ChannelMapper.js'
@@ -10,6 +10,68 @@ dotenv.config()
 const mapper = new ChannelMapper('./config/bridge-config.yml')
 const config = mapper.getConfig()
 const translator = new MessageTranslator()
+
+// Webhook cache for puppeting
+const webhookCache = new Map<string, Webhook>()
+
+// Get or create webhook for channel (for puppeting)
+async function getOrCreateWebhook(channelId: string): Promise<Webhook | null> {
+  try {
+    // Return cached webhook
+    if (webhookCache.has(channelId)) {
+      return webhookCache.get(channelId)!
+    }
+    
+    const channel = await discordClient.channels.fetch(channelId) as TextChannel
+    if (!channel || !channel.isTextBased()) {
+      return null
+    }
+    
+    // Find existing Harmony Bridge webhook
+    const webhooks = await channel.fetchWebhooks()
+    let webhook = webhooks.find(wh => wh.name === 'Harmony Bridge')
+    
+    // Create if doesn't exist
+    if (!webhook) {
+      console.log(`🔨 Creating webhook for channel ${channelId}`)
+      webhook = await channel.createWebhook({
+        name: 'Harmony Bridge',
+        avatar: 'https://raw.githubusercontent.com/your-repo/harmony/main/public/icon.png' // Optional: your Harmony icon
+      })
+    }
+    
+    webhookCache.set(channelId, webhook)
+    return webhook
+  } catch (error) {
+    console.error(`❌ Failed to get/create webhook for ${channelId}:`, error)
+    return null
+  }
+}
+
+// Generate unique username to avoid collisions with Discord users
+async function generateUniqueUsername(baseUsername: string, guildId: string): Promise<string> {
+  try {
+    const guild = await discordClient.guilds.fetch(guildId)
+    const members = await guild.members.fetch()
+    
+    // Check if any Discord member has this exact username
+    const hasCollision = members.some(member => 
+      member.user.username.toLowerCase() === baseUsername.toLowerCase() ||
+      member.displayName.toLowerCase() === baseUsername.toLowerCase()
+    )
+    
+    if (hasCollision) {
+      // Add -harmony suffix to disambiguate
+      return `${baseUsername}-harmony`
+    }
+    
+    return baseUsername
+  } catch (error) {
+    console.error('Failed to check username collision:', error)
+    // Fallback: always add suffix if we can't check
+    return `${baseUsername}-harmony`
+  }
+}
 
 // Initialize Discord client
 const discordClient = new DiscordClient({
@@ -108,10 +170,16 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     author: msg.author?.username,
     authorId: msg.author?.id,
     isBot: msg.author?.bot,
+    bridge_source: msg.metadata?.bridge_source,
     channelId: msg.channel_id,
-    content: msg.content?.substring(0, 50),
-    metadata: msg.metadata
+    content: msg.content?.substring(0, 50)
   });
+  
+  // Don't bridge messages that came from Discord (prevent loops!)
+  if (msg.metadata?.bridge_source === 'discord') {
+    console.log('⏭️  Skipping message from Discord (preventing loop)')
+    return
+  }
   
   // Don't bridge messages from this bot (avoid loops)
   const botId = (harmonyClient as any).botId
@@ -120,7 +188,7 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     return
   }
   
-  // Don't bridge other bot messages (but allow Discord puppeted messages)
+  // Don't bridge other bot messages (except Discord users)
   if (msg.author?.bot && !msg.author?.discord_user) {
     console.log('⏭️  Skipping bot message')
     return
@@ -139,20 +207,34 @@ harmonyClient.on('messageCreate', async (msg: any) => {
   }
   
   try {
-    // Get Discord channel
-    const discordChannel = await discordClient.channels.fetch(discordChannelId) as any
-    
-    if (!discordChannel || !discordChannel.isTextBased()) {
-      console.error('❌ Discord channel not found or not text-based')
+    // Get Discord channel to find guild ID
+    const discordChannel = await discordClient.channels.fetch(discordChannelId) as TextChannel
+    if (!discordChannel || !discordChannel.guild) {
+      console.error('❌ Discord channel not found or not in a guild')
       return
     }
     
-    // Translate message
-    const content = translator.harmonyToDiscord(msg)
+    // Get webhook for puppeting
+    const webhook = await getOrCreateWebhook(discordChannelId)
     
-    // Send to Discord
-    await discordChannel.send(content)
-    console.log(`✅ Harmony -> Discord: ${msg.author?.username || 'unknown'} in #${msg.channel_id}`)
+    if (!webhook) {
+      console.error('❌ Could not get webhook, message not sent')
+      return
+    }
+    
+    // Generate unique username (check for collisions)
+    const baseUsername = msg.author?.display_name || msg.author?.username || 'Harmony User'
+    const uniqueUsername = await generateUniqueUsername(baseUsername, discordChannel.guild.id)
+    
+    // Send via webhook (puppeting!)
+    await webhook.send({
+      content: msg.content,
+      username: uniqueUsername,
+      avatarURL: msg.author?.avatar || undefined,
+      allowedMentions: { parse: [] } // Prevent mention abuse
+    })
+    
+    console.log(`✅ Harmony -> Discord (puppeted): ${uniqueUsername} in #${discordChannelId}`)
   } catch (error) {
     console.error('❌ Failed to bridge Harmony -> Discord:', error)
   }
