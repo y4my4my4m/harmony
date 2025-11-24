@@ -1,193 +1,205 @@
 <template>
-  <div class="encryption-indicator" :class="{ active: isEncrypted, checking: isChecking }">
-    <svg class="lock-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path 
-        v-if="isEncrypted"
-        d="M12 2C9.243 2 7 4.243 7 7v3H6c-1.103 0-2 .897-2 2v8c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2v-8c0-1.103-.897-2-2-2h-1V7c0-2.757-2.243-5-5-5zm3 8H9V7c0-1.654 1.346-3 3-3s3 1.346 3 3v3z" 
-        fill="currentColor"
-      />
-      <path 
-        v-else
-        d="M12 2C9.243 2 7 4.243 7 7v1H6c-1.103 0-2 .897-2 2v10c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2V10c0-1.103-.897-2-2-2h-1V7c0-2.757-2.243-5-5-5zm4 8v10H8V10h8zM9 7c0-1.654 1.346-3 3-3s3 1.346 3 3v1H9V7z" 
-        fill="currentColor" 
-        opacity="0.5"
-      />
-    </svg>
-    
-    <Transition name="fade">
-      <span v-if="showText" class="indicator-text">
-        <template v-if="isChecking">Checking...</template>
-        <template v-else-if="isEncrypted">E2EE Active</template>
-        <template v-else>Not Encrypted</template>
-      </span>
-    </Transition>
-    
-    <div v-if="showTooltip" class="tooltip">
-      <template v-if="isEncrypted">
-        <strong>🔒 End-to-End Encrypted</strong>
-        <p>Only you and recipients can read these messages</p>
-      </template>
-      <template v-else>
-        <strong>🔓 Not Encrypted</strong>
-        <p>Messages are visible to the server</p>
-        <button v-if="canEnable" @click="handleEnableEncryption" class="enable-btn">
-          Enable E2EE
-        </button>
-      </template>
-    </div>
+  <div v-if="isVisible" class="encryption-indicator" :class="indicatorClass" :title="tooltip">
+    <span class="icon">{{ icon }}</span>
+    <span v-if="showLabel" class="label">{{ label }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue'
-import { messageEncryptionService } from '@/services/encryption'
+import { computed } from 'vue'
 
-const props = withDefaults(defineProps<{
-  serverId?: string
-  conversationId?: string
-  showText?: boolean
-  showTooltip?: boolean
-}>(), {
-  showText: true,
-  showTooltip: false
+interface Props {
+  encrypted?: boolean
+  mode?: 'message' | 'voice' | 'server' | 'dm'
+  showLabel?: boolean
+  size?: 'small' | 'medium' | 'large'
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  encrypted: false,
+  mode: 'message',
+  showLabel: false,
+  size: 'medium'
 })
 
-const emit = defineEmits<{
-  (e: 'enableEncryption'): void
-}>()
+const isVisible = computed(() => {
+  // Always show for server/dm mode, only show for message/voice if encrypted
+  return props.mode === 'server' || props.mode === 'dm' || props.encrypted
+})
 
-const isEncrypted = ref(false)
-const isChecking = ref(true)
-const canEnable = ref(false)
-
-const checkEncryptionStatus = async () => {
-  isChecking.value = true
-  
-  try {
-    if (props.serverId) {
-      const policy = await messageEncryptionService.checkServerEncryptionPolicy(props.serverId)
-      isEncrypted.value = policy.enabled
-      canEnable.value = !policy.enabled && policy.hasKeys && policy.mode === 'optional'
-    } else if (props.conversationId) {
-      const status = await messageEncryptionService.checkConversationEncryption(props.conversationId)
-      isEncrypted.value = status.enabled
-      canEnable.value = status.can Enable_encryption || false
-    }
-  } catch (error) {
-    console.error('Failed to check encryption status:', error)
-    isEncrypted.value = false
-  } finally {
-    isChecking.value = false
+const icon = computed(() => {
+  if (props.encrypted) {
+    return '🔐'
+  } else {
+    return '🔓'
   }
-}
-
-watch(() => [props.serverId, props.conversationId], checkEncryptionStatus, { immediate: true })
-
-onMounted(() => {
-  checkEncryptionStatus()
 })
 
-function handleEnableEncryption() {
-  emit('enableEncryption')
-}
+const label = computed(() => {
+  if (props.encrypted) {
+    switch (props.mode) {
+      case 'message':
+        return 'Encrypted'
+      case 'voice':
+        return 'E2EE Call'
+      case 'server':
+        return 'E2EE Enabled'
+      case 'dm':
+        return 'Encrypted'
+      default:
+        return 'Encrypted'
+    }
+  } else {
+    switch (props.mode) {
+      case 'message':
+        return 'Plaintext'
+      case 'voice':
+        return 'Unencrypted Call'
+      case 'server':
+        return 'E2EE Disabled'
+      case 'dm':
+        return 'Plaintext'
+      default:
+        return 'Unencrypted'
+    }
+  }
+})
+
+const tooltip = computed(() => {
+  if (props.encrypted) {
+    switch (props.mode) {
+      case 'message':
+        return 'This message is end-to-end encrypted. Only participants can read it.'
+      case 'voice':
+        return 'This call is end-to-end encrypted using insertable streams.'
+      case 'server':
+        return 'This server requires end-to-end encryption for all messages.'
+      case 'dm':
+        return 'This conversation is encrypted end-to-end.'
+      default:
+        return 'End-to-end encrypted'
+    }
+  } else {
+    switch (props.mode) {
+      case 'message':
+        return 'This message is not encrypted. Server operators can read it.'
+      case 'voice':
+        return 'This call is not encrypted. Consider enabling E2EE in settings.'
+      case 'server':
+        return 'This server does not require encryption.'
+      case 'dm':
+        return 'This conversation is not encrypted. Enable E2EE in settings.'
+      default:
+        return 'Not encrypted'
+    }
+  }
+})
+
+const indicatorClass = computed(() => {
+  return [
+    `size-${props.size}`,
+    props.encrypted ? 'encrypted' : 'unencrypted',
+    `mode-${props.mode}`
+  ]
+})
 </script>
 
 <style scoped>
 .encryption-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: 4px;
+  padding: 2px 6px;
   border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: help;
   transition: all 0.2s;
-  cursor: default;
-  position: relative;
 }
 
-.encryption-indicator.active {
-  color: var(--success, #27ae60);
+.encryption-indicator.size-small {
+  font-size: 10px;
+  padding: 1px 4px;
+  gap: 2px;
 }
 
-.encryption-indicator:not(.active) {
-  color: var(--text-tertiary);
+.encryption-indicator.size-small .icon {
+  font-size: 10px;
 }
 
-.encryption-indicator.checking {
-  opacity: 0.5;
-}
-
-.lock-icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
-
-.indicator-text {
+.encryption-indicator.size-medium {
   font-size: 12px;
-  font-weight: 500;
+  padding: 2px 6px;
+  gap: 4px;
+}
+
+.encryption-indicator.size-medium .icon {
+  font-size: 12px;
+}
+
+.encryption-indicator.size-large {
+  font-size: 14px;
+  padding: 4px 8px;
+  gap: 6px;
+}
+
+.encryption-indicator.size-large .icon {
+  font-size: 16px;
+}
+
+.encryption-indicator.encrypted {
+  background: rgba(var(--color-success-rgb), 0.1);
+  color: var(--color-success);
+  border: 1px solid rgba(var(--color-success-rgb), 0.3);
+}
+
+.encryption-indicator.encrypted:hover {
+  background: rgba(var(--color-success-rgb), 0.2);
+}
+
+.encryption-indicator.unencrypted {
+  background: rgba(var(--color-warning-rgb), 0.1);
+  color: var(--color-warning);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.3);
+}
+
+.encryption-indicator.unencrypted:hover {
+  background: rgba(var(--color-warning-rgb), 0.2);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.label {
   white-space: nowrap;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s;
+/* Mode-specific styles */
+.encryption-indicator.mode-voice {
+  animation: pulse 2s ease-in-out infinite;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
-.tooltip {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  margin-bottom: 8px;
-  padding: 12px;
-  background: var(--bg-tooltip, rgba(0, 0, 0, 0.9));
-  color: white;
-  border-radius: 6px;
-  font-size: 13px;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s;
-  z-index: 1000;
-  min-width: 200px;
-}
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .encryption-indicator.encrypted {
+    background: rgba(var(--color-success-rgb), 0.15);
+  }
 
-.encryption-indicator:hover .tooltip {
-  opacity: 1;
-  pointer-events: all;
-}
-
-.tooltip strong {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.tooltip p {
-  margin: 0;
-  opacity: 0.8;
-  font-size: 12px;
-}
-
-.enable-btn {
-  margin-top: 8px;
-  padding: 6px 12px;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  width: 100%;
-}
-
-.enable-btn:hover {
-  background: var(--primary-hover);
+  .encryption-indicator.unencrypted {
+    background: rgba(var(--color-warning-rgb), 0.15);
+  }
 }
 </style>
-

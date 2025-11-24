@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { webrtcEncryptionService } from '@/services/encryption';
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -84,6 +85,9 @@ export class UnifiedWebRTCService {
   private selectedInputDevice: string | null = null;
   private selectedOutputDevice: string | null = null;
   private selectedVideoDevice: string | null = null;
+  
+  // Encryption
+  private encryptionEnabled = false;
   
   constructor() {
     this.setupCleanup();
@@ -1057,6 +1061,17 @@ export class UnifiedWebRTCService {
     // Store their media state
     this.allUserStates.set(userId, mediaState);
     
+    // Add participant to encryption if enabled
+    if (this.encryptionEnabled && this.currentUserId) {
+      try {
+        // Initialize encryption for new participant
+        await webrtcEncryptionService.addParticipant(userId);
+        console.log('🔐 Encryption initialized for new participant:', userId);
+      } catch (error) {
+        console.error('❌ Failed to initialize encryption for participant:', error);
+      }
+    }
+    
     // Create peer connection
     await this.createPeerConnection(userId, true); // We initiate since they just joined
     
@@ -1065,6 +1080,11 @@ export class UnifiedWebRTCService {
 
   private async handleUserLeft(userId: string): Promise<void> {
     console.log('👋 User left:', userId);
+    
+    // Remove from encryption if enabled
+    if (this.encryptionEnabled) {
+      webrtcEncryptionService.removeParticipant(userId);
+    }
     
     const connection = this.connections.get(userId);
     if (connection) {
@@ -1155,7 +1175,9 @@ export class UnifiedWebRTCService {
         { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
         { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
       ],
-      iceCandidatePoolSize: 10
+      iceCandidatePoolSize: 10,
+      // Enable insertable streams for E2EE
+      encodedInsertableStreams: this.encryptionEnabled
     });
     
     const connection: UserConnection = {

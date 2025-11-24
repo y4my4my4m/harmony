@@ -19,7 +19,7 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 
 export const config = {
   supabaseUrl,
-  port: parseInt(process.env.PORT || '3001'),
+  port: parseInt(process.env.PORT || '3002'),
   nodeEnv: process.env.NODE_ENV || 'development',
   instanceDomain: process.env.INSTANCE_DOMAIN || 'localhost:3000',
   websocket: {
