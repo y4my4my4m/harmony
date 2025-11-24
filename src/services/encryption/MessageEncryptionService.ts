@@ -10,10 +10,10 @@
  * - Server encryption policy enforcement
  */
 
-import { signalProtocolService } from './SignalProtocolService'
-import { EncryptionKeyStore } from './EncryptionKeyStore'
-import { supabase } from '@/lib/supabase'
-import type { MessagePart } from '@/types'
+import { signalProtocolService } from './SignalProtocolService';
+import { EncryptionKeyStore } from './EncryptionKeyStore';
+import { supabase } from '@/supabase';
+import type { MessagePart } from '@/types';
 
 export interface EncryptionStatus {
   enabled: boolean
