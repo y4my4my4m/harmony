@@ -497,8 +497,7 @@ onMounted(() => {
 <style scoped>
 /* Reuse styles from existing settings components */
 .user-bots-management {
-  max-width: 900px;
-  margin: 0 auto;
+  max-width: 700px;
 }
 
 .settings-header {
@@ -508,13 +507,13 @@ onMounted(() => {
 .settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: var(--color-text-primary, #ffffff);
+  color: #ffffff;
   margin: 0 0 8px 0;
 }
 
 .settings-description {
   font-size: 14px;
-  color: var(--color-text-secondary, #b9bbbe);
+  color: #b9bbbe;
   margin: 0;
 }
 
@@ -566,14 +565,14 @@ onMounted(() => {
 
 .bot-card {
   padding: 20px;
-  background: var(--color-background-secondary, #2f3136);
-  border: 1px solid var(--color-border, #40444b);
+  background: var(--h-chat);
+  border: 1px solid var(--h-chat-light);
   border-radius: 8px;
   transition: all 0.2s;
 }
 
 .bot-card:hover {
-  border-color: var(--color-primary, #5865f2);
+  border-color: #5865f2;
 }
 
 .bot-header {

@@ -142,7 +142,7 @@
             />
             <ServerEncryptionSettings
               :server-id="serverId"
-              v-if="permissions.canManageServer"
+              v-if="permissions.canChangePrivacySettings"
             />
           </template>
 
@@ -156,7 +156,7 @@
               :permissions="{ canDeleteServer: permissions.canDeleteServer }"
             />
             <ServerBotsSettings
-              v-if="permissions.canManageServer"
+              v-if="permissions.canEditBasicInfo"
               :server-id="serverId"
             />
           </template>
@@ -244,22 +244,11 @@ const emojiPermissions = computed(() => ({
 // Available sections based on permissions
 const availableSections = computed(() => {
   const sections = [
-    { id: 'overview', label: t('server.overview') }
+    { id: 'overview', label: t('server.overview') },
+    { id: 'emoji', label: t('server.emoji') },
+    { id: 'privacy', label: t('server.privacySettings') },
+    { id: 'advanced', label: t('server.advancedSettings') }
   ]
-  
-  // Always show emoji section but with different permissions
-  sections.push({ id: 'emoji', label: t('server.emoji') })
-  
-  // Only show privacy settings if user can manage server
-  if (permissions.value.canChangePrivacySettings) {
-    sections.push({ id: 'privacy', label: t('server.privacySettings') })
-  }
-  
-  // Only show advanced settings if user has advanced permissions
-  if (permissions.value.canDeleteServer) {
-    sections.push({ id: 'advanced', label: t('server.advancedSettings') })
-  }
-  
   return sections
 })
 

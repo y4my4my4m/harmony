@@ -1,8 +1,10 @@
 <template>
   <div class="encryption-settings">
     <div class="settings-header">
-      <h2>🔐 Encryption Settings</h2>
-      <p>Manage your end-to-end encryption preferences</p>
+      <h2 class="settings-title">🔐 {{ $t('settings.encryptionTitle', 'Encryption Settings') }}</h2>
+      <p class="settings-description">
+        {{ $t('settings.encryptionDescription', 'Manage your end-to-end encryption preferences') }}
+      </p>
     </div>
     
     <div v-if="!isInitialized" class="loading-state">
@@ -10,12 +12,10 @@
       <p>Loading encryption status...</p>
     </div>
     
-    <div v-else class="settings-content">
+    <div v-else>
       <!-- Encryption Status -->
-      <div class="setting-section">
-        <div class="section-header">
-          <h3>Status</h3>
-        </div>
+      <div class="settings-section">
+        <h3 class="section-title">Status</h3>
         
         <div class="status-card" :class="{ enabled: encryptionStatus.hasKeys }">
           <div class="status-icon">
@@ -43,10 +43,8 @@
       </div>
       
       <!-- Key Statistics -->
-      <div v-if="encryptionStatus.hasKeys" class="setting-section">
-        <div class="section-header">
-          <h3>Key Management</h3>
-        </div>
+      <div v-if="encryptionStatus.hasKeys" class="settings-section">
+        <h3 class="section-title">Key Management</h3>
         
         <div class="stats-grid">
           <div class="stat-card">
@@ -76,10 +74,8 @@
       </div>
       
       <!-- Backup & Recovery -->
-      <div v-if="encryptionStatus.hasKeys" class="setting-section">
-        <div class="section-header">
-          <h3>Backup & Recovery</h3>
-        </div>
+      <div v-if="encryptionStatus.hasKeys" class="settings-section">
+        <h3 class="section-title">Backup & Recovery</h3>
         
         <div class="backup-options">
           <div class="option-card">
@@ -103,10 +99,8 @@
       </div>
       
       <!-- Advanced Options -->
-      <div v-if="encryptionStatus.hasKeys" class="setting-section">
-        <div class="section-header">
-          <h3>Advanced</h3>
-        </div>
+      <div v-if="encryptionStatus.hasKeys" class="settings-section">
+        <h3 class="section-title">Advanced</h3>
         
         <div class="advanced-options">
           <label class="checkbox-option">
@@ -306,25 +300,24 @@ onMounted(() => {
 
 <style scoped>
 .encryption-settings {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 24px;
+  max-width: 700px;
 }
 
 .settings-header {
   margin-bottom: 32px;
 }
 
-.settings-header h2 {
+.settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 8px;
+  color: #ffffff;
+  margin: 0 0 8px 0;
 }
 
-.settings-header p {
-  color: var(--text-secondary);
+.settings-description {
   font-size: 14px;
+  color: #b9bbbe;
+  margin: 0;
 }
 
 .loading-state {
@@ -346,18 +339,19 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
-.setting-section {
+.settings-section {
   margin-bottom: 32px;
+  padding: 24px;
+  background-color: var(--h-chat);
+  border-radius: 8px;
+  border: 1px solid var(--h-chat-light);
 }
 
-.section-header {
-  margin-bottom: 16px;
-}
-
-.section-header h3 {
+.section-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #ffffff;
+  margin: 0 0 20px 0;
 }
 
 .status-card {
