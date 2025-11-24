@@ -663,6 +663,17 @@ export const useChatStore = defineStore('chat', {
               is_system: payload.new.is_system,
               metadata: payload.new.metadata || null,
             };
+            
+            // Debug: Log bot messages with metadata
+            if (newMessage.bot_id) {
+              console.log('🤖 Real-time bot message received:', {
+                id: newMessage.id,
+                bot_id: newMessage.bot_id,
+                has_metadata: !!newMessage.metadata,
+                has_discord_user: !!newMessage.metadata?.discord_user,
+                discord_username: newMessage.metadata?.discord_user?.username
+              });
+            }
 
             this.addMessageToCache(newMessage);
             listenedMessageIds.add(newMessage.id);

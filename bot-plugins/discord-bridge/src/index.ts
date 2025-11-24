@@ -104,7 +104,14 @@ harmonyClient.on('ready', (data: any) => {
 })
 
 harmonyClient.on('messageCreate', async (msg: any) => {
-  console.log(`📨 Received Harmony message from ${msg.author?.username} (${msg.author?.id})`)
+  console.log(`📨 Received Harmony message:`, {
+    author: msg.author?.username,
+    authorId: msg.author?.id,
+    isBot: msg.author?.bot,
+    channelId: msg.channel_id,
+    content: msg.content?.substring(0, 50),
+    metadata: msg.metadata
+  });
   
   // Don't bridge messages from this bot (avoid loops)
   const botId = (harmonyClient as any).botId
@@ -113,8 +120,8 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     return
   }
   
-  // Don't bridge other bot messages either
-  if (msg.author?.bot) {
+  // Don't bridge other bot messages (but allow Discord puppeted messages)
+  if (msg.author?.bot && !msg.author?.discord_user) {
     console.log('⏭️  Skipping bot message')
     return
   }

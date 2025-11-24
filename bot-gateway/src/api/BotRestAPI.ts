@@ -82,6 +82,7 @@ export class BotRestAPI {
       const botId = req.bot!.id
       
       console.log(`🔍 Bot ${req.bot!.username} (${botId}) attempting to send message to channel ${channelId}`)
+      console.log(`🔍 Received metadata:`, JSON.stringify(metadata, null, 2))
       
       // Check permissions
       const canSend = await this.checkChannelPermission(botId, channelId, 'send_messages')

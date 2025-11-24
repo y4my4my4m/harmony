@@ -270,20 +270,34 @@ export class EventDispatcher {
         bot: false
       } : null
     } else if (message.bot_id) {
-      // Bot message
-      const { data } = await supabase
-        .from('bots')
-        .select('id, username, display_name, avatar_url')
-        .eq('id', message.bot_id)
-        .single()
-      
-      author = data ? {
-        id: data.id,
-        username: data.username,
-        display_name: data.display_name,
-        avatar: data.avatar_url,
-        bot: true
-      } : null
+      // Bot message - check if it has Discord user metadata
+      if (message.metadata?.discord_user) {
+        // Use Discord user info for author
+        const discordUser = message.metadata.discord_user
+        author = {
+          id: discordUser.id,
+          username: discordUser.username,
+          display_name: discordUser.display_name,
+          avatar: discordUser.avatar_url,
+          bot: false, // Treat as regular user for display
+          discord_user: true
+        }
+      } else {
+        // Regular bot message
+        const { data } = await supabase
+          .from('bots')
+          .select('id, username, display_name, avatar_url')
+          .eq('id', message.bot_id)
+          .single()
+        
+        author = data ? {
+          id: data.id,
+          username: data.username,
+          display_name: data.display_name,
+          avatar: data.avatar_url,
+          bot: true
+        } : null
+      }
     }
     
     return {
@@ -293,7 +307,8 @@ export class EventDispatcher {
       content: this.contentToText(message.content),
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,
-      mentions: this.extractMentions(message.content)
+      mentions: this.extractMentions(message.content),
+      metadata: message.metadata // Include metadata in event
     }
   }
   

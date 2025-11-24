@@ -359,7 +359,14 @@ const isMessageFromBot = (message: Message): boolean => {
 
 // Helper function to check if message is from Discord bridge (has Discord user metadata)
 const hasDiscordUserMetadata = (message: Message): boolean => {
-  return !!message.metadata?.discord_user;
+  const hasMetadata = !!message.metadata?.discord_user;
+  // if (message.bot_id && !hasMetadata) {
+  //   console.log('🔍 Bot message without Discord metadata:', message.id, message.metadata);
+  // }
+  // if (hasMetadata) {
+  //   console.log('✅ Discord user found:', message.metadata?.discord_user);
+  // }
+  return hasMetadata;
 };
 
 // Helper function to get Discord user info from metadata
@@ -391,26 +398,75 @@ const getBotColor = (botId: string): ComputedRef<string> => {
   return computed(() => '#5865F2'); // Discord bot color
 };
 
-// Unified helper functions that work for both users and bots
+// Unified helper functions that work for users, bots, and Discord users
+// IMPORTANT: All checks must be INSIDE computed() for reactivity
 const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
-  if (message.bot_id) {
-    return getBotDisplayName(message.bot_id);
-  }
-  return message.user_id ? getUserDisplayName(message.user_id) : computed(() => 'Unknown');
+  return computed(() => {
+    // Check for Discord user metadata first (puppeting)
+    if (message.metadata?.discord_user) {
+      const discordUser = message.metadata.discord_user;
+      return discordUser.display_name || discordUser.username || 'Discord User';
+    }
+    
+    // Regular bot
+    if (message.bot_id) {
+      if (!botDataCache.value.has(message.bot_id) && !fetchingBots.value.has(message.bot_id)) {
+        fetchBotData(message.bot_id);
+      }
+      const bot = botDataCache.value.get(message.bot_id);
+      return bot?.display_name || bot?.username || `Bot-${message.bot_id.slice(0, 8)}`;
+    }
+    
+    // Regular user
+    if (message.user_id) {
+      return getUserDisplayName(message.user_id).value;
+    }
+    
+    return 'Unknown';
+  });
 };
 
 const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
-  if (message.bot_id) {
-    return getBotAvatarUrl(message.bot_id);
-  }
-  return message.user_id ? getUserAvatarUrl(message.user_id) : computed(() => '/default_avatar.png');
+  return computed(() => {
+    // Check for Discord user metadata first (puppeting)
+    if (message.metadata?.discord_user) {
+      return message.metadata.discord_user.avatar_url || '/default_avatar.png';
+    }
+    
+    // Regular bot
+    if (message.bot_id) {
+      const bot = botDataCache.value.get(message.bot_id);
+      return bot?.avatar_url || '/default_avatar.png';
+    }
+    
+    // Regular user
+    if (message.user_id) {
+      return getUserAvatarUrl(message.user_id).value;
+    }
+    
+    return '/default_avatar.png';
+  });
 };
 
 const getAuthorColor = (message: Message): ComputedRef<string> => {
-  if (message.bot_id) {
-    return getBotColor(message.bot_id);
-  }
-  return message.user_id ? getUserColor(message.user_id) : computed(() => '#dddddd');
+  return computed(() => {
+    // Check for Discord user metadata first (puppeting)
+    if (message.metadata?.discord_user) {
+      return '#7289DA'; // Discord blurple
+    }
+    
+    // Regular bot
+    if (message.bot_id) {
+      return '#5865F2';
+    }
+    
+    // Regular user
+    if (message.user_id) {
+      return getUserColor(message.user_id).value;
+    }
+    
+    return '#dddddd';
+  });
 };
 
 // Unified computed properties that work for both chat and DMs
