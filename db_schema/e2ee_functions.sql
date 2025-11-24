@@ -111,7 +111,11 @@ DECLARE
     v_result JSONB;
 BEGIN
     -- Only allow users to rotate their own prekeys
-    IF auth.uid() != p_user_id THEN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = p_user_id
+        AND auth_user_id = auth.uid()
+    ) THEN
         RAISE EXCEPTION 'Unauthorized: Cannot rotate prekeys for another user';
     END IF;
     
@@ -223,7 +227,7 @@ CREATE OR REPLACE FUNCTION public.initialize_user_encryption(
     p_identity_private_key_encrypted TEXT,
     p_device_id TEXT DEFAULT 'default'
 )
-RETURNS UUID
+RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -231,7 +235,11 @@ DECLARE
     v_key_pair_id UUID;
 BEGIN
     -- Only allow users to initialize their own encryption
-    IF auth.uid() != p_user_id THEN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = p_user_id
+        AND auth_user_id = auth.uid()
+    ) THEN
         RAISE EXCEPTION 'Unauthorized: Cannot initialize encryption for another user';
     END IF;
     
@@ -303,7 +311,11 @@ DECLARE
     v_inserted_count INTEGER := 0;
 BEGIN
     -- Only allow users to add their own prekeys
-    IF auth.uid() != p_user_id THEN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = p_user_id
+        AND auth_user_id = auth.uid()
+    ) THEN
         RAISE EXCEPTION 'Unauthorized: Cannot add prekeys for another user';
     END IF;
     
@@ -362,7 +374,11 @@ DECLARE
     v_session public.encryption_sessions;
 BEGIN
     -- Only allow users to get their own sessions
-    IF auth.uid() != p_local_user_id THEN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = p_local_user_id
+        AND auth_user_id = auth.uid()
+    ) THEN
         RAISE EXCEPTION 'Unauthorized: Cannot access sessions for another user';
     END IF;
     
@@ -406,7 +422,11 @@ DECLARE
     v_session_id UUID;
 BEGIN
     -- Only allow users to save their own sessions
-    IF auth.uid() != p_local_user_id THEN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = p_local_user_id
+        AND auth_user_id = auth.uid()
+    ) THEN
         RAISE EXCEPTION 'Unauthorized: Cannot save sessions for another user';
     END IF;
     
@@ -586,8 +606,9 @@ BEGIN
     -- Check if caller is a participant
     IF NOT EXISTS (
         SELECT 1 FROM public.conversation_participants
-        WHERE conversation_id = p_conversation_id
-        AND user_id = auth.uid()
+        JOIN public.profiles ON profiles.id = conversation_participants.user_id
+        WHERE conversation_participants.conversation_id = p_conversation_id
+        AND profiles.auth_user_id = auth.uid()
     ) THEN
         RAISE EXCEPTION 'Unauthorized: Not a participant of this conversation';
     END IF;
@@ -624,7 +645,7 @@ BEGIN
         related_conversation_id,
         metadata
     ) VALUES (
-        auth.uid(),
+        (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid()),
         'encryption_enabled',
         'info',
         'Conversation encryption enabled',

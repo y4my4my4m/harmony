@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.bots (
     bio TEXT,
     
     -- Owner
-    owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    owner_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     
     -- Bot flags
     is_verified BOOLEAN DEFAULT false,
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS public.bot_server_permissions (
     server_id UUID NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
     
     -- Installation metadata
-    installed_by UUID NOT NULL REFERENCES auth.users(id),
+    installed_by UUID NOT NULL REFERENCES public.profiles(id),
     installed_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     
     -- Permissions (Discord-like permission flags)
@@ -307,7 +307,7 @@ CREATE TABLE IF NOT EXISTS public.bot_audit_log (
     -- Context
     server_id UUID REFERENCES public.servers(id) ON DELETE SET NULL,
     channel_id UUID REFERENCES public.channels(id) ON DELETE SET NULL,
-    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     
     -- Details
     description TEXT,
@@ -378,11 +378,24 @@ ALTER TABLE public.bot_presence ENABLE ROW LEVEL SECURITY;
 -- Bots Policies
 CREATE POLICY "Public bots are viewable by everyone"
     ON public.bots FOR SELECT
-    USING (is_public = true OR owner_id = auth.uid());
+    USING (
+        is_public = true 
+        OR EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = bots.owner_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Bot owners can manage their bots"
     ON public.bots FOR ALL
-    USING (owner_id = auth.uid());
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = bots.owner_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 -- Bot Tokens Policies (very restricted)
 CREATE POLICY "Bot owners can manage tokens"
@@ -390,8 +403,9 @@ CREATE POLICY "Bot owners can manage tokens"
     USING (
         EXISTS (
             SELECT 1 FROM public.bots
+            JOIN public.profiles ON profiles.id = bots.owner_id
             WHERE bots.id = bot_tokens.bot_id
-            AND bots.owner_id = auth.uid()
+            AND profiles.auth_user_id = auth.uid()
         )
     );
 
@@ -400,9 +414,10 @@ CREATE POLICY "Server members can view bot permissions"
     ON public.bot_server_permissions FOR SELECT
     USING (
         EXISTS (
-            SELECT 1 FROM public.server_members
-            WHERE server_members.server_id = bot_server_permissions.server_id
-            AND server_members.user_id = auth.uid()
+            SELECT 1 FROM public.user_servers
+            JOIN public.profiles ON profiles.id = user_servers.user_id
+            WHERE user_servers.server_id = bot_server_permissions.server_id
+            AND profiles.auth_user_id = auth.uid()
         )
     );
 
@@ -411,8 +426,9 @@ CREATE POLICY "Server owners can manage bot permissions"
     USING (
         EXISTS (
             SELECT 1 FROM public.servers
+            JOIN public.profiles ON profiles.id = servers.owner
             WHERE servers.id = bot_server_permissions.server_id
-            AND servers.owner_id = auth.uid()
+            AND profiles.auth_user_id = auth.uid()
         )
     );
 
@@ -426,8 +442,9 @@ CREATE POLICY "Bot owners can manage commands"
     USING (
         EXISTS (
             SELECT 1 FROM public.bots
+            JOIN public.profiles ON profiles.id = bots.owner_id
             WHERE bots.id = bot_commands.bot_id
-            AND bots.owner_id = auth.uid()
+            AND profiles.auth_user_id = auth.uid()
         )
     );
 
@@ -437,8 +454,9 @@ CREATE POLICY "Bot owners can view audit logs"
     USING (
         EXISTS (
             SELECT 1 FROM public.bots
+            JOIN public.profiles ON profiles.id = bots.owner_id
             WHERE bots.id = bot_audit_log.bot_id
-            AND bots.owner_id = auth.uid()
+            AND profiles.auth_user_id = auth.uid()
         )
     );
 
@@ -546,8 +564,9 @@ BEGIN
     -- Check if user is server owner or admin
     IF NOT EXISTS (
         SELECT 1 FROM public.servers
-        WHERE id = p_server_id
-        AND owner_id = p_installed_by
+        JOIN public.profiles ON profiles.id = servers.owner
+        WHERE servers.id = p_server_id
+        AND profiles.auth_user_id = auth.uid()
     ) THEN
         RAISE EXCEPTION 'Only server owners can add bots';
     END IF;
@@ -555,8 +574,9 @@ BEGIN
     -- Check if bot is public or owned by installer
     IF NOT EXISTS (
         SELECT 1 FROM public.bots
-        WHERE id = p_bot_id
-        AND (is_public = true OR owner_id = p_installed_by)
+        JOIN public.profiles ON profiles.id = bots.owner_id
+        WHERE bots.id = p_bot_id
+        AND (bots.is_public = true OR profiles.auth_user_id = auth.uid())
     ) THEN
         RAISE EXCEPTION 'Bot not found or not accessible';
     END IF;

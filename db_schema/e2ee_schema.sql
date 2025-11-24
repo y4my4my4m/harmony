@@ -11,7 +11,7 @@
 
 CREATE TABLE IF NOT EXISTS public.user_key_pairs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     device_id TEXT DEFAULT 'default', -- For future per-device support
     
     -- Signal Protocol Keys (stored as base64)
@@ -48,7 +48,7 @@ COMMENT ON COLUMN public.user_key_pairs.identity_private_key_encrypted IS 'Priva
 
 CREATE TABLE IF NOT EXISTS public.prekeys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     device_id TEXT DEFAULT 'default',
     
     -- Prekey data
@@ -88,9 +88,9 @@ CREATE TABLE IF NOT EXISTS public.encryption_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- Session participants
-    local_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    local_user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     local_device_id TEXT DEFAULT 'default',
-    remote_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    remote_user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     remote_device_id TEXT DEFAULT 'default',
     
     -- Session state (stored as base64 serialized session)
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS public.server_encryption_settings (
     -- Metadata
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_by UUID REFERENCES auth.users(id),
+    updated_by UUID REFERENCES public.profiles(id),
     
     metadata JSONB DEFAULT '{}'::jsonb
 );
@@ -194,7 +194,7 @@ COMMENT ON TABLE public.conversation_encryption_settings IS 'E2EE settings per c
 
 CREATE TABLE IF NOT EXISTS public.encryption_audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     
     event_type TEXT NOT NULL CHECK (event_type IN (
         'key_generated',
@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS public.encryption_audit_log (
     description TEXT,
     
     -- Related entities
-    related_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    related_user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     related_conversation_id UUID REFERENCES public.conversations(id) ON DELETE SET NULL,
     related_server_id UUID REFERENCES public.servers(id) ON DELETE SET NULL,
     
@@ -249,28 +249,64 @@ ALTER TABLE public.encryption_audit_log ENABLE ROW LEVEL SECURITY;
 -- User Key Pairs Policies
 CREATE POLICY "Users can view their own key pairs"
     ON public.user_key_pairs FOR SELECT
-    USING (auth.uid() = user_id);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = user_key_pairs.user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Users can insert their own key pairs"
     ON public.user_key_pairs FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = user_key_pairs.user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Users can update their own key pairs"
     ON public.user_key_pairs FOR UPDATE
-    USING (auth.uid() = user_id);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = user_key_pairs.user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 -- Prekeys Policies
 CREATE POLICY "Users can view their own prekeys"
     ON public.prekeys FOR SELECT
-    USING (auth.uid() = user_id);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = prekeys.user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Users can insert their own prekeys"
     ON public.prekeys FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = prekeys.user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Users can update their own prekeys"
     ON public.prekeys FOR UPDATE
-    USING (auth.uid() = user_id);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = prekeys.user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 -- Allow others to fetch public prekeys for key exchange
 CREATE POLICY "Users can view others' unused public prekeys"
@@ -280,11 +316,29 @@ CREATE POLICY "Users can view others' unused public prekeys"
 -- Encryption Sessions Policies
 CREATE POLICY "Users can view their own sessions"
     ON public.encryption_sessions FOR SELECT
-    USING (auth.uid() = local_user_id OR auth.uid() = remote_user_id);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = encryption_sessions.local_user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+        OR
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = encryption_sessions.remote_user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Users can manage their own sessions"
     ON public.encryption_sessions FOR ALL
-    USING (auth.uid() = local_user_id);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = encryption_sessions.local_user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 -- Server Encryption Settings Policies
 CREATE POLICY "Everyone can view server encryption settings"
@@ -296,8 +350,9 @@ CREATE POLICY "Server owners can manage encryption settings"
     USING (
         EXISTS (
             SELECT 1 FROM public.servers
+            JOIN public.profiles ON profiles.id = servers.owner
             WHERE servers.id = server_encryption_settings.server_id
-            AND servers.owner_id = auth.uid()
+            AND profiles.auth_user_id = auth.uid()
         )
     );
 
@@ -307,8 +362,9 @@ CREATE POLICY "Conversation participants can view encryption settings"
     USING (
         EXISTS (
             SELECT 1 FROM public.conversation_participants
+            JOIN public.profiles ON profiles.id = conversation_participants.user_id
             WHERE conversation_participants.conversation_id = conversation_encryption_settings.conversation_id
-            AND conversation_participants.user_id = auth.uid()
+            AND profiles.auth_user_id = auth.uid()
         )
     );
 
@@ -317,15 +373,22 @@ CREATE POLICY "Conversation participants can update encryption settings"
     USING (
         EXISTS (
             SELECT 1 FROM public.conversation_participants
+            JOIN public.profiles ON profiles.id = conversation_participants.user_id
             WHERE conversation_participants.conversation_id = conversation_encryption_settings.conversation_id
-            AND conversation_participants.user_id = auth.uid()
+            AND profiles.auth_user_id = auth.uid()
         )
     );
 
 -- Encryption Audit Log Policies
 CREATE POLICY "Users can view their own audit logs"
     ON public.encryption_audit_log FOR SELECT
-    USING (auth.uid() = user_id);
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = encryption_audit_log.user_id
+            AND profiles.auth_user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "System can insert audit logs"
     ON public.encryption_audit_log FOR INSERT
@@ -337,7 +400,7 @@ CREATE POLICY "Admins can view all audit logs"
     USING (
         EXISTS (
             SELECT 1 FROM public.profiles
-            WHERE profiles.id = auth.uid()
+            WHERE profiles.auth_user_id = auth.uid()
             AND profiles.is_admin = true
         )
     );
