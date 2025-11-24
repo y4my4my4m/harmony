@@ -187,6 +187,67 @@ export class MessageTranslator {
    * Convert Harmony message to Discord format
    */
   harmonyToDiscord(harmonyMsg: any): string {
+    let content = ''
+    
+    // If content_raw exists, use it to properly parse MessageParts
+    if (harmonyMsg.content_raw && Array.isArray(harmonyMsg.content_raw)) {
+      const parts = harmonyMsg.content_raw.map((part: any) => {
+        if (part.type === 'text') {
+          return part.text || ''
+        } else if (part.type === 'emoji') {
+          // Convert Harmony emoji to Discord format
+          const emoji = part.emoji
+          if (emoji) {
+            // If it's a Discord emoji (has domain), try to use Discord format
+            if (emoji.domain === 'discord.com') {
+              // Use emoji name with colons (Discord will render it if it exists in the server)
+              return `:${emoji.name}:`
+            } else {
+              // For Harmony native emojis, use the name with colons
+              // Discord won't render it, but it's readable
+              return `:${emoji.name}:`
+            }
+          }
+          return ''
+        } else if (part.type === 'file') {
+          // File attachments - Discord will auto-embed images/videos
+          return part.url || ''
+        } else if (part.type === 'url') {
+          // URL parts
+          return part.url || ''
+        }
+        return ''
+      })
+      
+      content = parts.filter(Boolean).join('')
+    } else if (harmonyMsg.content) {
+      // Fallback to simple content string
+      content = harmonyMsg.content
+    }
+    
+    // Remove [Discord] prefix if present (avoid loops)
+    content = content.replace(/^\*\*\[Discord\]\*\*\s+/, '')
+    
+    // Extract username if in "username: message" format
+    const match = content.match(/^(.+?):\s+(.+)$/)
+    if (match) {
+      const [, username, message] = match
+      // Don't add prefix since we're using puppeting
+      content = message
+    }
+    
+    // Limit length to Discord's 2000 character limit
+    if (content.length > 2000) {
+      content = content.substring(0, 1997) + '...'
+    }
+    
+    return content
+  }
+  
+  /**
+   * Convert Harmony message to Discord format (old method, kept for compatibility)
+   */
+  harmonyToDiscordOld(harmonyMsg: any): string {
     let content = harmonyMsg.content
     
     // Remove [Discord] prefix if present (avoid loops)

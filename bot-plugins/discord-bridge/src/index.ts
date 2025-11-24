@@ -260,10 +260,10 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     // Discord won't be able to fetch localhost URLs, so skip avatar in local dev
     const avatarURL = msg.author?.avatar?.startsWith('http://localhost') ? undefined : msg.author?.avatar
     
-    // Ensure content is a string (might be array of MessageParts)
-    const contentText = msg.content
+    // Convert Harmony MessageParts to Discord format
+    const contentText = translator.harmonyToDiscord(msg)
     if (!contentText || contentText.trim() === '') {
-      console.error('❌ Message content is empty, cannot send to Discord')
+      console.error('❌ Message content is empty after translation, cannot send to Discord')
       return
     }
     
