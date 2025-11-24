@@ -965,7 +965,7 @@ const deleteMessage = (messageId: string) => {
 };
 
 const openEmojiReactor = (message: Message, event: MouseEvent) => {
-  emit('toggleEmojiList', true, message, event.target as HTMLElement);
+  emit('toggleEmojiList', true, message, event.currentTarget as HTMLElement);
 };
 
 const handleToggleReaction = (messageId: string, emoji: Emoji) => {

@@ -39,8 +39,8 @@
         </div>
         
         <div class="wizard-actions">
-          <button class="btn-secondary" @click="$emit('close')">Maybe Later</button>
-          <button class="btn-primary" @click="step = 2">Get Started</button>
+          <button class="btn btn-ghost" @click="$emit('close')">Maybe Later</button>
+          <button class="btn btn-primary" @click="step = 2">Get Started</button>
         </div>
       </div>
       
@@ -86,9 +86,9 @@
         </div>
         
         <div class="wizard-actions">
-          <button class="btn-secondary" @click="step = 1">Back</button>
+          <button class="btn btn-secondary" @click="step = 1">Back</button>
           <button 
-            class="btn-primary" 
+            class="btn btn-primary" 
             @click="handleContinue"
             :disabled="!isPasswordValid || isProcessing"
           >
@@ -143,7 +143,7 @@
             <p>Save this code in a secure location. You'll need it to recover your account.</p>
             <div class="backup-code">
               <code>{{ backupCode }}</code>
-              <button class="btn-copy" @click="copyBackupCode">
+              <button class="btn btn-success" @click="copyBackupCode">
                 <span v-if="copied">Copied!</span>
                 <span v-else>Copy</span>
               </button>
@@ -161,7 +161,7 @@
         </div>
         
         <div class="wizard-actions">
-          <button class="btn-primary" @click="handleComplete">Done</button>
+          <button class="btn btn-primary" @click="handleComplete">Done</button>
         </div>
       </div>
       
@@ -169,7 +169,7 @@
       <div v-if="errorMessage" class="error-banner">
         <span class="error-icon">❌</span>
         <span>{{ errorMessage }}</span>
-        <button @click="errorMessage = null">×</button>
+        <button class="btn btn-danger" @click="errorMessage = null">×</button>
       </div>
     </div>
   </div>
@@ -294,7 +294,8 @@ function handleComplete() {
 }
 
 .key-setup-wizard {
-  background: var(--bg-primary);
+  background: var(--background-primary-alpha);
+  backdrop-filter: blur(10px);
   border-radius: 12px;
   width: 90%;
   max-width: 560px;
@@ -607,40 +608,6 @@ function handleComplete() {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-}
-
-.btn-secondary,
-.btn-primary {
-  padding: 12px 24px;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-  font-size: 14px;
-}
-
-.btn-secondary {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
-.btn-secondary:hover {
-  background: var(--bg-tertiary);
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .error-banner {
