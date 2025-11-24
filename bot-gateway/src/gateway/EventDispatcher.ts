@@ -279,6 +279,7 @@ export class EventDispatcher {
   /**
    * Convert a relative avatar path to a full URL
    * Handles both Supabase storage paths and external URLs
+   * Uses PUBLIC_URL for external-facing URLs (for Discord, ActivityPub, etc.)
    */
   private formatAvatarUrl(avatarPath: string | null | undefined): string | undefined {
     if (!avatarPath) return undefined
@@ -288,10 +289,10 @@ export class EventDispatcher {
       return avatarPath
     }
     
-    // If it's a relative path, construct the full Supabase storage URL
-    const supabaseUrl = process.env.SUPABASE_URL
-    if (!supabaseUrl) {
-      console.warn('SUPABASE_URL not set, cannot construct avatar URL')
+    // Use PUBLIC_URL for external-facing resources, fallback to SUPABASE_URL
+    const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL
+    if (!publicUrl) {
+      console.warn('PUBLIC_URL or SUPABASE_URL not set, cannot construct avatar URL')
       return undefined
     }
     
@@ -299,7 +300,7 @@ export class EventDispatcher {
     const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
     
     // Construct full URL with image optimization params
-    return `${supabaseUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
+    return `${publicUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
   }
   
   private async formatMessage(message: any) {
