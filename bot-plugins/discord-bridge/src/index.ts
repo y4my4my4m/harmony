@@ -1,4 +1,4 @@
-import { Client as DiscordClient, GatewayIntentBits, Message as DiscordMessage, Webhook, TextChannel } from 'discord.js'
+import { Client as DiscordClient, GatewayIntentBits, Message as DiscordMessage, Webhook, TextChannel, Partials } from 'discord.js'
 import { HarmonyClient } from './HarmonyClient.js'
 import { MessageTranslator } from './MessageTranslator.js'
 import { ChannelMapper } from './ChannelMapper.js'
@@ -13,6 +13,11 @@ const translator = new MessageTranslator()
 
 // Webhook cache for puppeting
 const webhookCache = new Map<string, Webhook>()
+
+// Message ID mapping: Discord message ID -> Harmony message ID
+const discordToHarmonyMessages = new Map<string, string>()
+// Message ID mapping: Harmony message ID -> Discord message ID
+const harmonyToDiscordMessages = new Map<string, string>()
 
 // Get or create webhook for channel (for puppeting)
 async function getOrCreateWebhook(channelId: string): Promise<Webhook | null> {
@@ -61,8 +66,10 @@ const discordClient = new DiscordClient({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions
+  ],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 })
 
 // Initialize Harmony client
@@ -93,8 +100,19 @@ discordClient.on('messageCreate', async (msg: DiscordMessage) => {
     // Extract Discord user metadata for puppeting
     const metadata = translator.extractDiscordUserMetadata(msg)
     
+    // Store Discord message ID in metadata for reaction mapping
+    metadata.discord_message_id = msg.id
+    
     // Send to Harmony with MessageParts array
-    await harmonyClient.sendMessage(harmonyChannelId, contentParts, metadata)
+    const result = await harmonyClient.sendMessage(harmonyChannelId, contentParts, metadata)
+    
+    // Store message ID mapping for reactions
+    if (result?.message?.id) {
+      discordToHarmonyMessages.set(msg.id, result.message.id)
+      harmonyToDiscordMessages.set(result.message.id, msg.id)
+      console.log(`📌 Stored message mapping: Discord ${msg.id} <-> Harmony ${result.message.id}`)
+    }
+    
     console.log(`✅ Discord -> Harmony: ${msg.author.username} in #${msg.channel}`)
   } catch (error) {
     console.error('❌ Failed to bridge Discord -> Harmony:', error)
@@ -106,21 +124,80 @@ discordClient.on('messageReactionAdd', async (reaction, user) => {
   // Ignore bot reactions
   if (user.bot) return
   
+  // Fetch partial reaction
+  if (reaction.partial) {
+    try {
+      await reaction.fetch()
+    } catch (error) {
+      console.error('❌ Failed to fetch reaction:', error)
+      return
+    }
+  }
+  
   // Check if channel is mapped
   const harmonyChannelId = mapper.getHarmonyChannel(reaction.message.channelId)
   if (!harmonyChannelId) return
   
   if (!mapper.shouldBridgeFromDiscord(reaction.message.channelId)) return
   
+  // Check if syncReactions is enabled in config
+  if (!config.settings.syncReactions) {
+    console.log('⏭️  Reaction syncing disabled in config')
+    return
+  }
+  
   try {
-    // Get emoji (Unicode or custom)
-    const emoji = reaction.emoji.name || ''
+    // Get the Harmony message ID from our mapping
+    const harmonyMessageId = discordToHarmonyMessages.get(reaction.message.id)
+    if (!harmonyMessageId) {
+      console.log(`⚠️  No message mapping found for Discord message ${reaction.message.id}`)
+      return
+    }
     
-    // TODO: Need to store Discord message ID -> Harmony message ID mapping
-    // For now, we can't bridge reactions because we don't have the Harmony message ID
-    console.log(`🎭 Discord reaction added: ${emoji} (not bridged - requires message ID mapping)`)
-  } catch (error) {
-    console.error('❌ Failed to bridge reaction Discord -> Harmony:', error)
+    // Get bot ID for emoji creation
+    const botId = (harmonyClient as any).botId
+    if (!botId) {
+      console.error('❌ Bot ID not available')
+      return
+    }
+    
+    // Get emoji (Unicode or custom)
+    let emojiIdentifier: string | null = null
+    
+    if (reaction.emoji.id) {
+      // Custom Discord emoji - find or create it in Harmony (same as ActivityPub does)
+      const emojiName = reaction.emoji.name || 'unknown'
+      const isAnimated = reaction.emoji.animated || false
+      console.log(`🎭 Discord custom emoji: ${emojiName} (ID: ${reaction.emoji.id}, animated: ${isAnimated})`)
+      
+      // Find or create the emoji in Harmony
+      emojiIdentifier = await harmonyClient.findOrCreateDiscordEmoji(
+        emojiName,
+        reaction.emoji.id,
+        isAnimated,
+        botId
+      )
+      
+      if (!emojiIdentifier) {
+        console.error(`❌ Could not create/find Discord emoji: ${emojiName}`)
+        return
+      }
+    } else {
+      // Unicode emoji
+      emojiIdentifier = reaction.emoji.name || ''
+      console.log(`🎭 Discord Unicode emoji: ${emojiIdentifier}`)
+    }
+    
+    if (!emojiIdentifier) {
+      console.error('❌ Could not determine emoji identifier')
+      return
+    }
+    
+    // Add reaction to Harmony message
+    await harmonyClient.addReaction(harmonyChannelId, harmonyMessageId, emojiIdentifier)
+    console.log(`✅ Discord -> Harmony reaction: ${emojiIdentifier} on message ${harmonyMessageId}`)
+  } catch (error: any) {
+    console.error('❌ Failed to bridge reaction Discord -> Harmony:', error.message)
   }
 })
 
@@ -128,20 +205,55 @@ discordClient.on('messageReactionRemove', async (reaction, user) => {
   // Ignore bot reactions
   if (user.bot) return
   
+  // Fetch partial reaction
+  if (reaction.partial) {
+    try {
+      await reaction.fetch()
+    } catch (error) {
+      console.error('❌ Failed to fetch reaction:', error)
+      return
+    }
+  }
+  
   // Check if channel is mapped
   const harmonyChannelId = mapper.getHarmonyChannel(reaction.message.channelId)
   if (!harmonyChannelId) return
   
   if (!mapper.shouldBridgeFromDiscord(reaction.message.channelId)) return
   
+  // Check if syncReactions is enabled in config
+  if (!config.settings.syncReactions) {
+    console.log('⏭️  Reaction syncing disabled in config')
+    return
+  }
+  
   try {
-    // Get emoji (Unicode or custom)
-    const emoji = reaction.emoji.name || ''
+    // Get the Harmony message ID from our mapping
+    const harmonyMessageId = discordToHarmonyMessages.get(reaction.message.id)
+    if (!harmonyMessageId) {
+      console.log(`⚠️  No message mapping found for Discord message ${reaction.message.id}`)
+      return
+    }
     
-    // TODO: Need to store Discord message ID -> Harmony message ID mapping
-    console.log(`🎭 Discord reaction removed: ${emoji} (not bridged - requires message ID mapping)`)
+    // Get emoji (Unicode or custom)
+    let emojiIdentifier: string
+    
+    if (reaction.emoji.id) {
+      // Custom Discord emoji
+      emojiIdentifier = reaction.emoji.name || reaction.emoji.id
+      console.log(`🎭 Discord custom emoji: ${emojiIdentifier} (ID: ${reaction.emoji.id})`)
+    } else {
+      // Unicode emoji
+      emojiIdentifier = reaction.emoji.name || ''
+      console.log(`🎭 Discord Unicode emoji: ${emojiIdentifier}`)
+    }
+    
+    // Remove reaction from Harmony message
+    // Note: We don't pass userId because we want to remove the bot's reaction
+    await harmonyClient.removeReaction(harmonyChannelId, harmonyMessageId, emojiIdentifier)
+    console.log(`✅ Discord -> Harmony reaction removed: ${emojiIdentifier} from message ${harmonyMessageId}`)
   } catch (error) {
-    console.error('❌ Failed to bridge reaction Discord -> Harmony:', error)
+    console.error('❌ Failed to bridge reaction removal Discord -> Harmony:', error)
   }
 })
 
@@ -191,10 +303,19 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     avatar: msg.author?.avatar,
     isBot: msg.author?.bot,
     bridge_source: msg.metadata?.bridge_source,
+    discord_message_id: msg.metadata?.discord_message_id,
     channelId: msg.channel_id,
     content: msg.content,
     content_raw: msg.content_raw
   });
+  
+  // If this message came from Discord and has the Discord message ID in metadata, store the mapping
+  if (msg.metadata?.discord_message_id && msg.id) {
+    const discordMsgId = msg.metadata.discord_message_id
+    discordToHarmonyMessages.set(discordMsgId, msg.id)
+    harmonyToDiscordMessages.set(msg.id, discordMsgId)
+    console.log(`📌 Restored message mapping from metadata: Discord ${discordMsgId} <-> Harmony ${msg.id}`)
+  }
   
   // Don't bridge messages that came from Discord (prevent loops!)
   if (msg.metadata?.bridge_source === 'discord') {
@@ -277,6 +398,13 @@ harmonyClient.on('messageCreate', async (msg: any) => {
       avatarURL: avatarURL,
       allowedMentions: { parse: [] } // Prevent mention abuse
     })
+    
+    // Store message ID mapping for reactions
+    if (webhookResult?.id && msg.id) {
+      harmonyToDiscordMessages.set(msg.id, webhookResult.id)
+      discordToHarmonyMessages.set(webhookResult.id, msg.id)
+      console.log(`📌 Stored message mapping: Harmony ${msg.id} <-> Discord ${webhookResult.id}`)
+    }
     
     console.log(`✅ Webhook sent! Message ID: ${webhookResult.id}`)
     console.log(`✅ Harmony -> Discord (puppeted): ${uniqueUsername} in #${discordChannelId}`)

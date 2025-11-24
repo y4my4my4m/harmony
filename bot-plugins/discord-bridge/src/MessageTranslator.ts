@@ -308,5 +308,35 @@ export class MessageTranslator {
     
     return '\n📎 ' + attachments.map(url => `<${url}>`).join(' ')
   }
+  
+  /**
+   * Convert Discord emoji (for reactions) to Harmony emoji ID
+   * This looks up or creates the emoji in Harmony's database
+   */
+  async discordEmojiToHarmonyId(
+    discordEmojiId: string | null,
+    discordEmojiName: string | null,
+    isAnimated: boolean = false
+  ): Promise<string | null> {
+    // For Unicode emojis, just return the emoji character as-is
+    if (!discordEmojiId && discordEmojiName) {
+      // Unicode emoji - Harmony should handle it directly
+      // Return the name which is the actual emoji character
+      return discordEmojiName
+    }
+    
+    // For custom Discord emojis, we need to find or create it in Harmony
+    if (discordEmojiId && discordEmojiName) {
+      // Build the Discord CDN URL
+      const discordEmojiUrl = `https://cdn.discordapp.com/emojis/${discordEmojiId}.${isAnimated ? 'gif' : 'png'}`
+      
+      // For now, return a special format that the bridge can handle
+      // Format: discord:name:id
+      // The bot API will need to handle this format
+      return `discord:${discordEmojiName}:${discordEmojiId}`
+    }
+    
+    return null
+  }
 }
 

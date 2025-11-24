@@ -61,6 +61,16 @@ export class BotRestAPI {
     this.router.get('/guilds/:guildId/channels', this.getGuildChannels.bind(this))
     
     // =====================================================
+    // EMOJI ENDPOINTS
+    // =====================================================
+    
+    // Get emojis (query by URL if provided)
+    this.router.get('/emojis', this.getEmojis.bind(this))
+    
+    // Create emoji (for Discord/federated emojis)
+    this.router.post('/emojis', this.createEmoji.bind(this))
+    
+    // =====================================================
     // USER ENDPOINTS
     // =====================================================
     
@@ -625,6 +635,68 @@ export class BotRestAPI {
       .filter(part => part.type === 'mention')
       .map(part => part.user_id)
       .filter(Boolean)
+  }
+  
+  // =====================================================
+  // EMOJI METHODS
+  // =====================================================
+  
+  private async getEmojis(req: BotRequest, res: Response) {
+    try {
+      const { url } = req.query
+      
+      let query = supabase.from('emojis').select('*')
+      
+      // If URL is provided, filter by it (for checking if Discord emoji exists)
+      if (url && typeof url === 'string') {
+        query = query.eq('url', url)
+      }
+      
+      const { data: emojis, error } = await query
+      
+      if (error) {
+        return res.status(500).json({ error: error.message })
+      }
+      
+      res.json(emojis || [])
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+  
+  private async createEmoji(req: BotRequest, res: Response) {
+    try {
+      const { name, url, server_id, domain } = req.body
+      const botId = req.bot!.id
+      
+      // Validate required fields
+      if (!name || !url) {
+        return res.status(400).json({ error: 'Missing required fields: name, url' })
+      }
+      
+      // Create emoji entry (same as ActivityPub does)
+      const { data: newEmoji, error: insertError } = await supabase
+        .from('emojis')
+        .insert({
+          name,
+          url,
+          server_id: server_id || null, // null = global/federated emoji
+          uploader: botId,
+          domain: domain || null
+        })
+        .select()
+        .single()
+      
+      if (insertError) {
+        return res.status(500).json({ error: insertError.message })
+      }
+      
+      await this.logBotAction(botId, 'emoji_create', { emojiId: newEmoji.id, name })
+      
+      res.status(201).json(newEmoji)
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
   }
   
   // =====================================================

@@ -184,11 +184,6 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 // --- Lifecycle Hooks ---
 
 onMounted(() => {
-  console.log('EmojiPopup mounted, triggerElement:', props.triggerElement);
-  console.log('triggerElementRef.value:', triggerElementRef.value);
-  console.log('resolvedEmojis:', emojiCacheStore.resolvedEmojis);
-  console.log('filteredEmojiList:', filteredEmojiList.value);
-  
   // Add event listeners with a small delay to prevent immediate closure
   setTimeout(() => {
     document.addEventListener('click', handleClickOutside);
@@ -196,14 +191,7 @@ onMounted(() => {
   }, 100);
 
   nextTick(() => {
-    console.log('In nextTick, calling updatePosition()');
     updatePosition();
-    console.log('After updatePosition(), positionStyle:', positionStyle.value);
-    console.log('emojiPopup element:', emojiPopup.value);
-    if (emojiPopup.value) {
-      console.log('emojiPopup computed styles:', window.getComputedStyle(emojiPopup.value));
-      console.log('emojiPopup getBoundingClientRect:', emojiPopup.value.getBoundingClientRect());
-    }
     searchInput.value?.focus();
   });
 });

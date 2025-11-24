@@ -8,6 +8,7 @@ Cross-platform bridge connecting Discord and Harmony servers.
 - ✅ User mention translation
 - ✅ Custom emoji translation
 - ✅ Attachment support
+- ✅ Reaction syncing
 - ✅ Loop prevention
 - ✅ Configurable channel mappings
 
@@ -91,7 +92,7 @@ channelMappings:
 
 settings:
   syncAttachments: true
-  syncReactions: false
+  syncReactions: true
   syncEdits: false
   syncDeletes: false
   mentionTranslation: true
@@ -188,11 +189,11 @@ CMD ["npm", "start"]
 
 ## Limitations
 
-- Message edits/deletes not synced (requires message ID mapping)
-- Reactions not yet supported
+- Message edits/deletes not synced (optional, can be enabled with message ID mapping)
 - No voice/video bridging
 - Embeds are simplified
 - 2000 character Discord limit
+- Custom Discord emojis are synced by name (Harmony must have matching emoji)
 
 ## License
 

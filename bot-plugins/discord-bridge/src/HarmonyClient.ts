@@ -191,6 +191,76 @@ export class HarmonyClient extends EventEmitter {
     return response.json()
   }
   
+  /**
+   * Find or create a Discord custom emoji in Harmony
+   * Returns the Harmony emoji ID
+   * Uses the same approach as ActivityPub remote emoji handling
+   */
+  async findOrCreateDiscordEmoji(
+    emojiName: string,
+    discordEmojiId: string,
+    isAnimated: boolean = false,
+    botId: string
+  ): Promise<string | null> {
+    try {
+      // Build the Discord CDN URL
+      const discordEmojiUrl = `https://cdn.discordapp.com/emojis/${discordEmojiId}.${isAnimated ? 'gif' : 'png'}`
+      const cleanName = emojiName.replace(/:/g, '') // Remove colons (same as ActivityPub)
+      
+      console.log(`🔍 Looking for existing emoji with URL: ${discordEmojiUrl}`)
+      
+      // Check if emoji already exists by URL (same as ActivityPub does)
+      // We'll make a direct supabase check via the API
+      const checkResponse = await fetch(`${this.apiUrl}/api/v1/emojis?url=${encodeURIComponent(discordEmojiUrl)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bot ${this.botToken}`
+        }
+      })
+      
+      if (checkResponse.ok) {
+        const emojis = await checkResponse.json()
+        if (emojis && emojis.length > 0) {
+          console.log(`♻️  Using existing Discord emoji: ${cleanName} (${emojis[0].id})`)
+          return emojis[0].id
+        }
+      }
+      
+      // Emoji doesn't exist - create it just like ActivityPub does
+      console.log(`➕ Creating new Discord emoji entry: ${cleanName}`)
+      
+      // Create emoji via bot API
+      const createResponse = await fetch(`${this.apiUrl}/api/v1/emojis`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bot ${this.botToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: cleanName,
+          url: discordEmojiUrl,
+          server_id: null, // Global/federated emoji (same as ActivityPub)
+          uploader: botId,
+          domain: 'discord.com' // Mark as Discord emoji
+        })
+      })
+      
+      if (!createResponse.ok) {
+        const error = await createResponse.json().catch(() => ({}))
+        console.error(`❌ Failed to create Discord emoji: ${error.error || 'Unknown error'}`)
+        return null
+      }
+      
+      const newEmoji = await createResponse.json()
+      console.log(`✨ Created Discord emoji: ${cleanName} (ID: ${newEmoji.id})`)
+      return newEmoji.id
+    } catch (error) {
+      console.error(`❌ Error finding/creating Discord emoji:`, error)
+      return null
+    }
+  }
+
+  
   async removeReaction(channelId: string, messageId: string, emoji: string, userId?: string): Promise<any> {
     const url = userId 
       ? `${this.apiUrl}/api/v1/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/${userId}`
