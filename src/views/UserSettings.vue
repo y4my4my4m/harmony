@@ -108,16 +108,12 @@
           />
 
           <!-- Privacy & Safety Section (includes security/encryption) -->
-          <template v-else-if="activeSection === 'privacy'">
-            <PrivacySettings 
-              :profile="profile"
-              :loading="loading"
-              @update-privacy="handlePrivacyUpdate"
-            />
-            <EncryptionSettings
-              :loading="loading"
-            />
-          </template>
+          <PrivacySettings 
+            v-if="activeSection === 'privacy'"
+            :profile="profile"
+            :loading="loading"
+            @update-privacy="handlePrivacyUpdate"
+          />
 
           <!-- My Bots -->
           <UserBotsManagement

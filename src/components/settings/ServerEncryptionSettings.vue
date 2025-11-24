@@ -1,8 +1,8 @@
 <template>
-  <div class="encryption-settings">
-    <div class="settings-header">
-      <h3>🔐 Server Encryption Policy</h3>
-      <p class="description">
+  <div class="server-encryption-settings">
+    <div class="settings-section">
+      <h2 class="section-title">🔐 Server Encryption Policy</h2>
+      <p class="section-description">
         Control end-to-end encryption requirements for this server
       </p>
     </div>
@@ -12,7 +12,7 @@
       <p>Loading encryption settings...</p>
     </div>
 
-    <div v-else class="settings-content">
+    <div v-else class="settings-card">
       <!-- Current Status -->
       <div class="status-card" :class="statusClass">
         <div class="status-icon">
@@ -123,14 +123,14 @@
       <!-- Action Buttons -->
       <div class="actions">
         <button
-          class="btn-primary"
+          class="btn btn-primary"
           @click="saveSettings"
           :disabled="!hasChanges || saving"
         >
           {{ saving ? 'Saving...' : 'Save Changes' }}
         </button>
         <button
-          class="btn-secondary"
+          class="btn btn-secondary"
           @click="resetSettings"
           :disabled="!hasChanges || saving"
         >
@@ -456,35 +456,52 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.encryption-settings {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 24px;
+.server-encryption-settings {
+  margin-top: 24px;
 }
 
-.settings-header {
-  margin-bottom: 32px;
+.settings-section {
+  margin-bottom: 24px;
 }
 
-.settings-header h3 {
-  font-size: 24px;
+.section-title {
+  font-size: 20px;
   font-weight: 600;
+  color: #ffffff;
   margin: 0 0 8px 0;
-  color: var(--color-text-primary);
 }
 
-.settings-header .description {
-  color: var(--color-text-secondary);
+.section-description {
+  font-size: 14px;
+  color: #b9bbbe;
   margin: 0;
 }
 
+.settings-card {
+  background-color: var(--h-chat);
+  border-radius: 8px;
+  border: 1px solid var(--h-chat-light);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
 .loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-  gap: 16px;
+  text-align: center;
+  padding: 48px 0;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--h-chat-light);
+  border-top-color: #5865f2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .spinner {

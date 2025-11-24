@@ -1,7 +1,7 @@
 <template>
   <div class="user-bots-management">
     <div class="settings-header">
-      <h2 class="settings-title">🤖 {{ $t('settings.myBots') }}</h2>
+      <h2 class="settings-title">{{ $t('settings.myBots') }}</h2>
       <p class="settings-description">
         {{ $t('settings.myBotsDescription') }}
       </p>
@@ -13,19 +13,22 @@
     </div>
 
     <!-- No Bots State -->
-    <div v-else-if="myBots.length === 0" class="empty-state">
-      <div class="empty-icon">🤖</div>
-      <h3>No Bots Yet</h3>
-      <p>Create your first bot to automate tasks, integrate services, or bridge with other platforms</p>
-      <button @click="showCreateModal = true" class="btn-primary">
-        Create Your First Bot
-      </button>
+    <div v-else-if="myBots.length === 0" class="settings-section">
+      <div class="empty-state">
+        <div class="empty-icon">🤖</div>
+        <h3>No Bots Yet</h3>
+        <p>Create your first bot to automate tasks, integrate services, or bridge with other platforms</p>
+        <button @click="showCreateModal = true" class="btn btn-primary">
+          Create Your First Bot
+        </button>
+      </div>
     </div>
 
     <!-- My Bots List -->
-    <div v-else class="bots-section">
-      <div class="section-actions">
-        <button @click="showCreateModal = true" class="btn-primary">
+    <div v-else class="settings-section">
+      <div class="section-header">
+        <h3 class="section-title">Your Bots ({{ myBots.length }})</h3>
+        <button @click="showCreateModal = true" class="btn btn-primary">
           Create New Bot
         </button>
       </div>
@@ -517,6 +520,28 @@ onMounted(() => {
   margin: 0;
 }
 
+.settings-section {
+  margin-bottom: 32px;
+  padding: 24px;
+  background-color: var(--h-chat);
+  border-radius: 8px;
+  border: 1px solid var(--h-chat-light);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
 .loading-state,
 .empty-state {
   text-align: center;
@@ -565,10 +590,15 @@ onMounted(() => {
 
 .bot-card {
   padding: 20px;
-  background: var(--h-chat);
+  background: var(--h-chat-dark);
   border: 1px solid var(--h-chat-light);
   border-radius: 8px;
   transition: all 0.2s;
+  margin-bottom: 16px;
+}
+
+.bot-card:last-child {
+  margin-bottom: 0;
 }
 
 .bot-card:hover {
@@ -693,12 +723,13 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.btn,
 .btn-primary,
 .btn-secondary,
 .btn-danger,
 .btn-copy {
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 4px;
   font-weight: 500;
   font-size: 14px;
   cursor: pointer;
@@ -707,12 +738,12 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--color-primary, #5865f2);
+  background: #5865f2;
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--color-primary-hover, #4752c4);
+  background: #4752c4;
 }
 
 .btn-primary:disabled {
@@ -721,12 +752,13 @@ onMounted(() => {
 }
 
 .btn-secondary {
-  background: var(--color-background-tertiary, #4f545c);
-  color: var(--color-text-primary, #ffffff);
+  background: transparent;
+  color: #b9bbbe;
+  border: 1px solid var(--h-chat-light);
 }
 
 .btn-secondary:hover {
-  background: var(--color-background-quaternary, #5d6269);
+  background: var(--h-chat-light);
 }
 
 .btn-danger {

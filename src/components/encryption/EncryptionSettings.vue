@@ -1,12 +1,5 @@
 <template>
-  <div class="encryption-settings">
-    <div class="settings-header">
-      <h2 class="settings-title">🔐 {{ $t('settings.encryptionTitle', 'Encryption Settings') }}</h2>
-      <p class="settings-description">
-        {{ $t('settings.encryptionDescription', 'Manage your end-to-end encryption preferences') }}
-      </p>
-    </div>
-    
+  <div class="user-encryption-settings">
     <div v-if="!isInitialized" class="loading-state">
       <div class="spinner"></div>
       <p>Loading encryption status...</p>
@@ -14,8 +7,11 @@
     
     <div v-else>
       <!-- Encryption Status -->
-      <div class="settings-section">
-        <h3 class="section-title">Status</h3>
+      <div class="subsection">
+        <h4 class="subsection-title">Status</h4>
+        <p class="subsection-description">
+          Manage your end-to-end encryption preferences
+        </p>
         
         <div class="status-card" :class="{ enabled: encryptionStatus.hasKeys }">
           <div class="status-icon">
@@ -35,7 +31,7 @@
           <button 
             v-if="!encryptionStatus.hasKeys"
             @click="showSetupWizard = true"
-            class="btn-primary"
+            class="btn btn-primary btn-sm"
           >
             Enable E2EE
           </button>
@@ -43,8 +39,8 @@
       </div>
       
       <!-- Key Statistics -->
-      <div v-if="encryptionStatus.hasKeys" class="settings-section">
-        <h3 class="section-title">Key Management</h3>
+      <div v-if="encryptionStatus.hasKeys" class="subsection">
+        <h4 class="subsection-title">Key Management</h4>
         
         <div class="stats-grid">
           <div class="stat-card">
@@ -74,8 +70,8 @@
       </div>
       
       <!-- Backup & Recovery -->
-      <div v-if="encryptionStatus.hasKeys" class="settings-section">
-        <h3 class="section-title">Backup & Recovery</h3>
+      <div v-if="encryptionStatus.hasKeys" class="subsection">
+        <h4 class="subsection-title">Backup & Recovery</h4>
         
         <div class="backup-options">
           <div class="option-card">
@@ -99,8 +95,8 @@
       </div>
       
       <!-- Advanced Options -->
-      <div v-if="encryptionStatus.hasKeys" class="settings-section">
-        <h3 class="section-title">Advanced</h3>
+      <div v-if="encryptionStatus.hasKeys" class="subsection">
+        <h4 class="subsection-title">Advanced</h4>
         
         <div class="advanced-options">
           <label class="checkbox-option">
@@ -299,25 +295,31 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.encryption-settings {
-  max-width: 700px;
-}
 
-.settings-header {
+.subsection {
   margin-bottom: 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--h-chat-light);
 }
 
-.settings-title {
-  font-size: 24px;
+.subsection:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.subsection-title {
+  font-size: 16px;
   font-weight: 600;
   color: #ffffff;
   margin: 0 0 8px 0;
 }
 
-.settings-description {
+.subsection-description {
   font-size: 14px;
   color: #b9bbbe;
-  margin: 0;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
 }
 
 .loading-state {
@@ -328,8 +330,8 @@ onMounted(() => {
 .spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid var(--border-color);
-  border-top-color: var(--primary);
+  border: 4px solid var(--h-chat-light);
+  border-top-color: #5865f2;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;
@@ -360,7 +362,7 @@ onMounted(() => {
   gap: 16px;
   padding: 20px;
   background: var(--bg-secondary);
-  border: 2px solid var(--border-color);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   transition: all 0.3s;
 }
@@ -515,49 +517,7 @@ onMounted(() => {
   margin: 0;
 }
 
-.btn-primary,
-.btn-secondary,
-.btn-danger {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-  font-size: 14px;
-}
 
-.btn-primary {
-  background: var(--primary);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: var(--primary-hover);
-}
-
-.btn-secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.btn-secondary:hover {
-  background: var(--bg-quaternary);
-}
-
-.btn-secondary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-danger {
-  background: #e74c3c;
-  color: white;
-}
-
-.btn-danger:hover {
-  background: #c0392b;
-}
 
 .modal-overlay {
   position: fixed;

@@ -13,8 +13,8 @@
     </div>
 
     <!-- Bot Browser (Add New Bot) -->
-    <div v-if="!loading" class="bot-browser">
-      <div class="section-header">
+    <div v-if="!loading" class="settings-card">
+      <div class="card-header">
         <h3>Add Bots</h3>
         <input
           v-model="searchQuery"
@@ -63,8 +63,8 @@
     </div>
 
     <!-- Installed Bots -->
-    <div v-if="!loading && installedBots.length > 0" class="installed-bots">
-      <div class="section-header">
+    <div v-if="!loading && installedBots.length > 0" class="settings-card">
+      <div class="card-header">
         <h3>Installed Bots ({{ installedBots.length }})</h3>
       </div>
 
@@ -430,7 +430,237 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* Styles similar to ServerEncryptionSettings.vue */
-/* ... Add styles here (I can provide full styles if needed) ... */
+.server-bots-settings {
+  margin-top: 24px;
+}
+
+.settings-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+}
+
+.section-description {
+  font-size: 14px;
+  color: #b9bbbe;
+  margin: 0;
+}
+
+.settings-card {
+  background-color: var(--h-chat);
+  border-radius: 8px;
+  border: 1px solid var(--h-chat-light);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.card-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.search-input {
+  padding: 8px 12px;
+  background-color: var(--h-chat-dark);
+  border: 1px solid var(--h-chat-light);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #5865f2;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 48px 0;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--h-chat-light);
+  border-top-color: #5865f2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 32px;
+  color: #b9bbbe;
+}
+
+.bots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.bot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background-color: var(--h-chat-dark);
+  border: 1px solid var(--h-chat-light);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.bot-card:hover {
+  border-color: #5865f2;
+  transform: translateY(-2px);
+}
+
+.bot-avatar img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.bot-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  background-color: #5865f2;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 3px;
+  margin-top: 4px;
+}
+
+.bot-info h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 4px 0;
+}
+
+.bot-bio {
+  font-size: 13px;
+  color: #b9bbbe;
+  margin: 0;
+}
+
+.bot-stats {
+  font-size: 12px;
+  color: #72767d;
+  margin-top: 8px;
+}
+
+.bot-stats span {
+  margin-right: 12px;
+}
+
+.bots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.bot-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background-color: var(--h-chat-dark);
+  border: 1px solid var(--h-chat-light);
+  border-radius: 8px;
+}
+
+.bot-status {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #43b581;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  border: 2px solid var(--h-chat);
+}
+
+.install-date {
+  font-size: 12px;
+  color: #72767d;
+  display: block;
+  margin-top: 4px;
+}
+
+.bot-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: #5865f2;
+  color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #4752c4;
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: #b9bbbe;
+  border: 1px solid var(--h-chat-light);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--h-chat-light);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background-color: #ed4245;
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background-color: #c03537;
+}
 </style>
 
