@@ -67,6 +67,18 @@ export class HarmonyClient extends EventEmitter {
   }
   
   private handlePayload(payload: any) {
+    // Check if this is a READY event (could be in different formats)
+    if (payload.t === 'READY' || payload.type === 'READY') {
+      this.sessionId = payload.d.session_id
+      console.log('✅ Harmony bot ready:', payload.d.bot.username)
+      this.emit('ready', payload.d)
+      
+      // Start heartbeat
+      const interval = payload.d.heartbeat_interval || 30000
+      this.startHeartbeat(interval)
+      return
+    }
+    
     switch (payload.op) {
       case 0: // DISPATCH
         this.handleEvent(payload.t, payload.d)
@@ -81,17 +93,6 @@ export class HarmonyClient extends EventEmitter {
       case 11: // HEARTBEAT_ACK
         // Heartbeat acknowledged
         break
-        
-      default:
-        if (payload.t === 'READY') {
-          this.sessionId = payload.d.session_id
-          console.log('✅ Harmony bot ready:', payload.d.bot.username)
-          this.emit('ready', payload.d)
-          
-          // Start heartbeat
-          const interval = payload.d.heartbeat_interval || 30000
-          this.startHeartbeat(interval)
-        }
     }
   }
   
@@ -107,6 +108,14 @@ export class HarmonyClient extends EventEmitter {
         
       case 'MESSAGE_DELETE':
         this.emit('messageDelete', data)
+        break
+        
+      case 'MESSAGE_REACTION_ADD':
+        this.emit('reactionAdd', data)
+        break
+        
+      case 'MESSAGE_REACTION_REMOVE':
+        this.emit('reactionRemove', data)
         break
         
       case 'MEMBER_JOIN':
@@ -144,7 +153,7 @@ export class HarmonyClient extends EventEmitter {
   
   // REST API Methods
   
-  async sendMessage(channelId: string, content: string, metadata?: any): Promise<any> {
+  async sendMessage(channelId: string, content: string | any[], metadata?: any): Promise<any> {
     const response = await fetch(`${this.apiUrl}/api/v1/channels/${channelId}/messages`, {
       method: 'POST',
       headers: {
@@ -160,6 +169,44 @@ export class HarmonyClient extends EventEmitter {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.error || 'Failed to send message')
+    }
+    
+    return response.json()
+  }
+  
+  async addReaction(channelId: string, messageId: string, emoji: string): Promise<any> {
+    const response = await fetch(`${this.apiUrl}/api/v1/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bot ${this.botToken}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to add reaction')
+    }
+    
+    return response.json()
+  }
+  
+  async removeReaction(channelId: string, messageId: string, emoji: string, userId?: string): Promise<any> {
+    const url = userId 
+      ? `${this.apiUrl}/api/v1/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/${userId}`
+      : `${this.apiUrl}/api/v1/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`
+    
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bot ${this.botToken}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to remove reaction')
     }
     
     return response.json()

@@ -508,11 +508,15 @@ export class BotRestAPI {
   // FORMATTERS
   // =====================================================
   
-  private formatContent(content: string, embeds?: any[]): any[] {
+  private formatContent(content: string | any[], embeds?: any[]): any[] {
     const parts: any[] = []
     
-    if (content) {
-      parts.push({ type: 'text', text: content })  // Use 'text' not 'value'
+    // If content is already an array of MessageParts, use it directly
+    if (Array.isArray(content)) {
+      parts.push(...content)
+    } else if (content) {
+      // If content is a string, wrap it in a text part
+      parts.push({ type: 'text', text: content })
     }
     
     if (embeds && embeds.length > 0) {
