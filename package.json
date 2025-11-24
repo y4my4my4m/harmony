@@ -38,6 +38,7 @@
     "docs:legacy": "concurrently \"npm run docs:generate -- --watch\" \"npm run docs:serve\""
   },
   "dependencies": {
+    "@signalapp/libsignal-client": "^0.46.0",
     "@supabase/supabase-js": "^2.39.2",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
@@ -46,6 +47,7 @@
     "@vueuse/core": "^10.7.2",
     "@yeger/vue-masonry-wall": "^5.0.5",
     "date-fns": "^3.2.0",
+    "discord.js": "^14.14.1",
     "mediasoup-client": "^3.7.2",
     "pinia": "^2.1.7",
     "qrcode": "^1.5.4",
@@ -60,7 +62,9 @@
     "vue-router": "^4.2.5",
     "vue-toastification": "next",
     "vue3-lazyload": "^0.3.8",
-    "vuedraggable": "next"
+    "vuedraggable": "next",
+    "ws": "^8.16.0",
+    "yaml": "^2.3.4"
   },
   "devDependencies": {
     "@microsoft/api-extractor": "^7.52.8",
