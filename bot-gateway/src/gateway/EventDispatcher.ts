@@ -95,15 +95,13 @@ export class EventDispatcher {
   private async handleMessageCreate(payload: any) {
     const message = payload.new
     
-    // Skip bot messages to prevent loops
-    if (message.metadata?.bot) {
-      return
-    }
-    
     // Skip encrypted messages (bots can't read them)
     if (message.encrypted) {
       return
     }
+    
+    // Note: We DO dispatch bot messages so other bots can see them
+    // Each bot should filter out its own messages using the author.id
     
     // Get server ID from channel
     let serverId: string | null = null
@@ -253,21 +251,45 @@ export class EventDispatcher {
   // =====================================================
   
   private async formatMessage(message: any) {
-    // Get author info
-    const { data: author } = await supabase
-      .from('profiles')
-      .select('id, username, display_name, avatar_url')
-      .eq('id', message.user_id)
-      .single()
+    // Get author info - could be user or bot
+    let author = null
+    
+    if (message.user_id) {
+      // User message
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', message.user_id)
+        .single()
+      
+      author = data ? {
+        id: data.id,
+        username: data.username,
+        display_name: data.display_name,
+        avatar: data.avatar_url,
+        bot: false
+      } : null
+    } else if (message.bot_id) {
+      // Bot message
+      const { data } = await supabase
+        .from('bots')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', message.bot_id)
+        .single()
+      
+      author = data ? {
+        id: data.id,
+        username: data.username,
+        display_name: data.display_name,
+        avatar: data.avatar_url,
+        bot: true
+      } : null
+    }
     
     return {
       id: message.id,
       channel_id: message.channel_id,
-      author: author ? {
-        id: author.id,
-        username: author.username,
-        avatar: author.avatar_url
-      } : null,
+      author,
       content: this.contentToText(message.content),
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,

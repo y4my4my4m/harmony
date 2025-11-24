@@ -88,7 +88,10 @@ if (config.settings.syncDeletes) {
 // =====================================================
 
 harmonyClient.on('ready', (data: any) => {
-  console.log(`✅ Harmony bot connected: ${data.bot.username}`)
+  console.log(`✅ Harmony bot connected: ${data.bot.username} (${data.bot.id})`)
+  
+  // Store bot ID for filtering
+  (harmonyClient as any).botId = data.bot.id
   
   // Subscribe to all mapped Harmony channels
   for (const mapping of config.channelMappings) {
@@ -98,17 +101,32 @@ harmonyClient.on('ready', (data: any) => {
 })
 
 harmonyClient.on('messageCreate', async (msg: any) => {
-  // Don't bridge messages from bots (including this bridge)
-  if (msg.author?.id === config.harmony.token) return
+  console.log(`📨 Received Harmony message from ${msg.author?.username} (${msg.author?.id})`)
   
-  // Check if already from Discord (avoid loops)
-  if (msg.content.includes('[Discord]')) return
+  // Don't bridge messages from this bot (avoid loops)
+  const botId = (harmonyClient as any).botId
+  if (msg.author?.id === botId) {
+    console.log('⏭️  Skipping own message')
+    return
+  }
+  
+  // Don't bridge other bot messages either
+  if (msg.author?.bot) {
+    console.log('⏭️  Skipping bot message')
+    return
+  }
   
   // Check if channel is mapped
   const discordChannelId = mapper.getDiscordChannel(msg.channel_id)
-  if (!discordChannelId) return
+  if (!discordChannelId) {
+    console.log('⏭️  Channel not mapped')
+    return
+  }
   
-  if (!mapper.shouldBridgeFromHarmony(msg.channel_id)) return
+  if (!mapper.shouldBridgeFromHarmony(msg.channel_id)) {
+    console.log('⏭️  Bridging disabled for this channel')
+    return
+  }
   
   try {
     // Get Discord channel

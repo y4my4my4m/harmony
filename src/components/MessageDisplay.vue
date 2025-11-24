@@ -117,16 +117,17 @@
         <div v-if="shouldShowHeader(message, index)" class="message-header">
           <div class="message-avatar">
             <Avatar 
-              :src="getUserAvatarUrl(message.user_id).value"
+              :src="getAuthorAvatarUrl(message).value"
               size="sm" 
               :interactive="true"
-              @click="showUserProfile(message.user_id, $event)"
+              @click="getMessageAuthorId(message) && showUserProfile(getMessageAuthorId(message), $event)"
             />
           </div>
           <div class="message-main">
             <div class="message-meta">
-              <span class="username" :style="{color: getUserColor(message.user_id).value}" @click="showUserProfile(message.user_id, $event)">
-                {{ getUserDisplayName(message.user_id).value }}
+              <span class="username" :style="{color: getAuthorColor(message).value}" @click="getMessageAuthorId(message) && showUserProfile(getMessageAuthorId(message), $event)">
+                {{ getAuthorDisplayName(message).value }}
+                <span v-if="isMessageFromBot(message)" class="bot-badge">BOT</span>
               </span>
               <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
             </div>
@@ -315,6 +316,55 @@ const {
   fetchUserProfile,
   getUserProfile
 } = useUserData();
+
+// Helper function to get author ID from message (handles both users and bots)
+const getMessageAuthorId = (message: Message): string | null => {
+  return message.user_id || message.bot_id || null;
+};
+
+// Helper function to check if message is from a bot
+const isMessageFromBot = (message: Message): boolean => {
+  return !!message.bot_id;
+};
+
+// Helper functions for bot display (with fallbacks if we don't have bot data loaded)
+const getBotDisplayName = (botId: string): ComputedRef<string> => {
+  return computed(() => {
+    // TODO: Implement proper bot data caching
+    // For now, return a placeholder
+    return `Bot-${botId.slice(0, 8)}`;
+  });
+};
+
+const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
+  return computed(() => '/default_avatar.png'); // TODO: Implement proper bot avatar loading
+};
+
+const getBotColor = (botId: string): ComputedRef<string> => {
+  return computed(() => '#5865F2'); // Discord bot color
+};
+
+// Unified helper functions that work for both users and bots
+const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
+  if (message.bot_id) {
+    return getBotDisplayName(message.bot_id);
+  }
+  return message.user_id ? getUserDisplayName(message.user_id) : computed(() => 'Unknown');
+};
+
+const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
+  if (message.bot_id) {
+    return getBotAvatarUrl(message.bot_id);
+  }
+  return message.user_id ? getUserAvatarUrl(message.user_id) : computed(() => '/default_avatar.png');
+};
+
+const getAuthorColor = (message: Message): ComputedRef<string> => {
+  if (message.bot_id) {
+    return getBotColor(message.bot_id);
+  }
+  return message.user_id ? getUserColor(message.user_id) : computed(() => '#dddddd');
+};
 
 // Unified computed properties that work for both chat and DMs
 const isLoadingOlderMessages = computed(() => {
@@ -1054,10 +1104,25 @@ const closeInviteModal = () => {
   font-size: 1rem;
   cursor: pointer;
   transition: text-decoration 0.1s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .username:hover {
   text-decoration: underline;
+}
+
+.bot-badge {
+  display: inline-block;
+  background: #5865F2;
+  color: white;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.1875rem;
+  vertical-align: middle;
+  margin-left: 0.25rem;
 }
 
 .timestamp {

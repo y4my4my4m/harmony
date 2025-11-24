@@ -247,7 +247,8 @@ export interface Message {
   created_at: Date;
   channel_id?: string;
   conversation_id?: string; // for DMs
-  user_id: string;
+  user_id?: string; // Optional - for user messages
+  bot_id?: string; // Optional - for bot messages
   content: MessagePart[];
   reply_to?: string;
   reactions?: Reaction[]; // doesn't exist in the database, we're transforming it
