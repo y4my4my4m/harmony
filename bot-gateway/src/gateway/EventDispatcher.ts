@@ -208,6 +208,7 @@ export class EventDispatcher {
       channel_id: message.channel_id,
       author,
       content: this.contentToText(message.content),
+      content_raw: message.content, // Also include raw content for debugging
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,
       mentions: this.extractMentions(message.content),
@@ -220,9 +221,10 @@ export class EventDispatcher {
     
     if (Array.isArray(content)) {
       return content
-        .filter(part => part.type === 'text')
+        .filter(part => part && part.type === 'text')
         .map(part => part.text || part.value || '')
         .join(' ')
+        .trim()
     }
     
     return ''

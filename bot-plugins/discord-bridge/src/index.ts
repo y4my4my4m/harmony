@@ -156,7 +156,8 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     isBot: msg.author?.bot,
     bridge_source: msg.metadata?.bridge_source,
     channelId: msg.channel_id,
-    content: msg.content?.substring(0, 50)
+    content: msg.content,
+    content_raw: msg.content_raw
   });
   
   // Don't bridge messages that came from Discord (prevent loops!)
@@ -214,21 +215,28 @@ harmonyClient.on('messageCreate', async (msg: any) => {
     
     console.log(`✅ Got webhook: ${webhook.name}`);
     
-    // Generate unique username (check for collisions)
-    console.log(`🔨 Generating unique username...`);
+    // Generate unique username (simple suffix)
     const baseUsername = msg.author?.display_name || msg.author?.username || 'Harmony User'
-    const uniqueUsername = await generateUniqueUsername(baseUsername, discordChannel.guild.id)
+    const uniqueUsername = `${baseUsername} [H]` // Simple suffix for Harmony users
     console.log(`✅ Username: ${uniqueUsername}`);
     
     // Avatar URL is already complete from Supabase storage
-    const avatarURL = msg.author?.avatar || undefined
+    // Discord won't be able to fetch localhost URLs, so skip avatar in local dev
+    const avatarURL = msg.author?.avatar?.startsWith('http://localhost') ? undefined : msg.author?.avatar
     
-    console.log(`🎨 Puppeting as ${uniqueUsername} with avatar: ${avatarURL || 'none'}`)
-    console.log(`📝 Message content: ${msg.content}`)
+    // Ensure content is a string (might be array of MessageParts)
+    let contentText = msg.content
+    if (!contentText || contentText.trim() === '') {
+      console.error('❌ Message content is empty, cannot send to Discord')
+      return
+    }
+    
+    console.log(`🎨 Puppeting as ${uniqueUsername} with avatar: ${avatarURL || 'default'}`)
+    console.log(`📝 Message content: "${contentText}"`)
     
     // Send via webhook (puppeting!)
     const webhookResult = await webhook.send({
-      content: msg.content,
+      content: contentText,
       username: uniqueUsername,
       avatarURL: avatarURL,
       allowedMentions: { parse: [] } // Prevent mention abuse
