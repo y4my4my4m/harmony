@@ -235,25 +235,50 @@ discordClient.on('messageReactionRemove', async (reaction, user) => {
       return
     }
     
+    // Get bot ID for emoji lookup
+    const botId = (harmonyClient as any).botId
+    if (!botId) {
+      console.error('❌ Bot ID not available')
+      return
+    }
+    
     // Get emoji (Unicode or custom)
-    let emojiIdentifier: string
+    let emojiIdentifier: string | null = null
     
     if (reaction.emoji.id) {
-      // Custom Discord emoji
-      emojiIdentifier = reaction.emoji.name || reaction.emoji.id
-      console.log(`🎭 Discord custom emoji: ${emojiIdentifier} (ID: ${reaction.emoji.id})`)
+      // Custom Discord emoji - need to look it up in Harmony (same as add)
+      const emojiName = reaction.emoji.name || 'unknown'
+      const isAnimated = reaction.emoji.animated || false
+      console.log(`🎭 Discord custom emoji: ${emojiName} (ID: ${reaction.emoji.id})`)
+      
+      // Find the emoji in Harmony (should already exist from when it was added)
+      emojiIdentifier = await harmonyClient.findOrCreateDiscordEmoji(
+        emojiName,
+        reaction.emoji.id,
+        isAnimated,
+        botId
+      )
+      
+      if (!emojiIdentifier) {
+        console.error(`❌ Could not find Discord emoji: ${emojiName}`)
+        return
+      }
     } else {
       // Unicode emoji
       emojiIdentifier = reaction.emoji.name || ''
       console.log(`🎭 Discord Unicode emoji: ${emojiIdentifier}`)
     }
     
+    if (!emojiIdentifier) {
+      console.error('❌ Could not determine emoji identifier')
+      return
+    }
+    
     // Remove reaction from Harmony message
-    // Note: We don't pass userId because we want to remove the bot's reaction
     await harmonyClient.removeReaction(harmonyChannelId, harmonyMessageId, emojiIdentifier)
     console.log(`✅ Discord -> Harmony reaction removed: ${emojiIdentifier} from message ${harmonyMessageId}`)
-  } catch (error) {
-    console.error('❌ Failed to bridge reaction removal Discord -> Harmony:', error)
+  } catch (error: any) {
+    console.error('❌ Failed to bridge reaction removal Discord -> Harmony:', error.message)
   }
 })
 

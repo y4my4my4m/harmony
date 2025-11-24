@@ -44,6 +44,9 @@ export class BotRestAPI {
     // Add reaction
     this.router.put('/messages/:messageId/reactions/:emoji', this.addReaction.bind(this))
     
+    // Remove reaction
+    this.router.delete('/messages/:messageId/reactions/:emoji', this.removeReaction.bind(this))
+    
     // Trigger typing indicator
     this.router.post('/channels/:channelId/typing', this.triggerTyping.bind(this))
     
@@ -324,6 +327,54 @@ export class BotRestAPI {
       res.status(204).send()
     } catch (error: any) {
       console.error('❌ Add reaction exception:', error);
+      res.status(500).json({ error: error.message })
+    }
+  }
+  
+  private async removeReaction(req: BotRequest, res: Response) {
+    try {
+      const { messageId, emoji } = req.params
+      const botId = req.bot!.id
+      
+      console.log('➖ Removing reaction:', { messageId, emoji, botId });
+      
+      // Get message to check permissions
+      const { data: message, error: messageError } = await supabase
+        .from('messages')
+        .select('channel_id')
+        .eq('id', messageId)
+        .single()
+      
+      if (!message) {
+        console.log('❌ Message not found:', messageId);
+        return res.status(404).json({ error: 'Message not found' })
+      }
+      
+      const canReact = await this.checkChannelPermission(botId, message.channel_id, 'add_reactions')
+      if (!canReact) {
+        return res.status(403).json({ error: 'Missing permission: add_reactions' })
+      }
+      
+      console.log('🗑️ Deleting reaction:', { message_id: messageId, bot_id: botId, emoji_id: emoji });
+      
+      // Delete the bot's reaction for this emoji on this message
+      const { error } = await supabase
+        .from('reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('bot_id', botId)
+        .eq('emoji_id', emoji)
+      
+      if (error) {
+        console.error('❌ Reaction delete error:', error);
+        return res.status(500).json({ error: error.message })
+      }
+      
+      console.log('✅ Reaction removed successfully');
+      
+      res.status(204).send()
+    } catch (error: any) {
+      console.error('❌ Remove reaction exception:', error);
       res.status(500).json({ error: error.message })
     }
   }

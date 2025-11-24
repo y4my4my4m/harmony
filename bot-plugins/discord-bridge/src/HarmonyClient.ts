@@ -267,9 +267,8 @@ export class HarmonyClient extends EventEmitter {
 
   
   async removeReaction(channelId: string, messageId: string, emoji: string, userId?: string): Promise<any> {
-    const url = userId 
-      ? `${this.apiUrl}/api/v1/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/${userId}`
-      : `${this.apiUrl}/api/v1/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`
+    // Note: Bot API doesn't need channelId or userId - bot removes its own reaction
+    const url = `${this.apiUrl}/api/v1/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`
     
     const response = await fetch(url, {
       method: 'DELETE',
@@ -280,8 +279,13 @@ export class HarmonyClient extends EventEmitter {
     })
     
     if (!response.ok) {
-      const error = await response.json()
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }))
       throw new Error(error.error || 'Failed to remove reaction')
+    }
+    
+    // API returns 204 No Content on success
+    if (response.status === 204) {
+      return { success: true }
     }
     
     return response.json()
