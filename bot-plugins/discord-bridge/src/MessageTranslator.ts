@@ -1,6 +1,6 @@
 export class MessageTranslator {
   /**
-   * Convert Discord message to Harmony format
+   * Convert Discord message to Harmony format (plain content only)
    */
   discordToHarmony(discordMsg: any): string {
     let content = discordMsg.content
@@ -26,9 +26,23 @@ export class MessageTranslator {
     // Translate custom emojis: <:name:123> or <a:name:123> -> :name:
     content = content.replace(/<a?:(\w+):\d+>/g, ':$1:')
     
-    // Add Discord badge
-    const username = discordMsg.author.username
-    return `**[Discord]** ${username}: ${content}`
+    return content
+  }
+  
+  /**
+   * Extract Discord user metadata for puppeting
+   */
+  extractDiscordUserMetadata(discordMsg: any): any {
+    return {
+      discord_user: {
+        id: discordMsg.author.id,
+        username: discordMsg.author.username,
+        discriminator: discordMsg.author.discriminator,
+        display_name: discordMsg.author.globalName || discordMsg.author.username,
+        avatar_url: discordMsg.author.displayAvatarURL({ size: 256 })
+      },
+      bridge_source: 'discord'
+    }
   }
   
   /**

@@ -127,7 +127,8 @@
             <div class="message-meta">
               <span class="username" :style="{color: getAuthorColor(message).value}" @click="getMessageAuthorId(message) && showUserProfile(getMessageAuthorId(message), $event)">
                 {{ getAuthorDisplayName(message).value }}
-                <span v-if="isMessageFromBot(message)" class="bot-badge">BOT</span>
+                <span v-if="hasDiscordUserMetadata(message)" class="bot-badge discord">DISCORD</span>
+                <span v-else-if="isMessageFromBot(message)" class="bot-badge">BOT</span>
               </span>
               <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
             </div>
@@ -317,6 +318,35 @@ const {
   getUserProfile
 } = useUserData();
 
+// Bot data cache
+const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
+const fetchingBots = ref<Set<string>>(new Set());
+
+// Fetch bot data from database
+const fetchBotData = async (botId: string) => {
+  if (botDataCache.value.has(botId) || fetchingBots.value.has(botId)) {
+    return;
+  }
+  
+  fetchingBots.value.add(botId);
+  
+  try {
+    const { data, error } = await supabase
+      .from('bots')
+      .select('id, username, display_name, avatar_url')
+      .eq('id', botId)
+      .single();
+    
+    if (!error && data) {
+      botDataCache.value.set(botId, data);
+    }
+  } catch (error) {
+    console.error('Failed to fetch bot data:', error);
+  } finally {
+    fetchingBots.value.delete(botId);
+  }
+};
+
 // Helper function to get author ID from message (handles both users and bots)
 const getMessageAuthorId = (message: Message): string | null => {
   return message.user_id || message.bot_id || null;
@@ -327,17 +357,34 @@ const isMessageFromBot = (message: Message): boolean => {
   return !!message.bot_id;
 };
 
-// Helper functions for bot display (with fallbacks if we don't have bot data loaded)
+// Helper function to check if message is from Discord bridge (has Discord user metadata)
+const hasDiscordUserMetadata = (message: Message): boolean => {
+  return !!message.metadata?.discord_user;
+};
+
+// Helper function to get Discord user info from metadata
+const getDiscordUserInfo = (message: Message): { username: string; display_name: string; avatar_url: string } | null => {
+  return message.metadata?.discord_user || null;
+};
+
+// Helper functions for bot display
 const getBotDisplayName = (botId: string): ComputedRef<string> => {
   return computed(() => {
-    // TODO: Implement proper bot data caching
-    // For now, return a placeholder
-    return `Bot-${botId.slice(0, 8)}`;
+    // Trigger fetch if not cached
+    if (!botDataCache.value.has(botId) && !fetchingBots.value.has(botId)) {
+      fetchBotData(botId);
+    }
+    
+    const bot = botDataCache.value.get(botId);
+    return bot?.display_name || bot?.username || `Bot-${botId.slice(0, 8)}`;
   });
 };
 
 const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
-  return computed(() => '/default_avatar.png'); // TODO: Implement proper bot avatar loading
+  return computed(() => {
+    const bot = botDataCache.value.get(botId);
+    return bot?.avatar_url || '/default_avatar.png';
+  });
 };
 
 const getBotColor = (botId: string): ComputedRef<string> => {
@@ -1123,6 +1170,10 @@ const closeInviteModal = () => {
   border-radius: 0.1875rem;
   vertical-align: middle;
   margin-left: 0.25rem;
+}
+
+.bot-badge.discord {
+  background: #7289DA;
 }
 
 .timestamp {

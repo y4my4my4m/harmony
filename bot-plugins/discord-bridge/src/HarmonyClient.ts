@@ -144,14 +144,17 @@ export class HarmonyClient extends EventEmitter {
   
   // REST API Methods
   
-  async sendMessage(channelId: string, content: string): Promise<any> {
+  async sendMessage(channelId: string, content: string, metadata?: any): Promise<any> {
     const response = await fetch(`${this.apiUrl}/api/v1/channels/${channelId}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bot ${this.botToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ 
+        content,
+        metadata 
+      })
     })
     
     if (!response.ok) {

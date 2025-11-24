@@ -42,7 +42,7 @@ discordClient.on('messageCreate', async (msg: DiscordMessage) => {
   if (!mapper.shouldBridgeFromDiscord(msg.channelId)) return
   
   try {
-    // Translate message
+    // Translate message content (without username prefix)
     let content = translator.discordToHarmony(msg)
     
     // Add attachments if enabled
@@ -53,8 +53,11 @@ discordClient.on('messageCreate', async (msg: DiscordMessage) => {
       }
     }
     
-    // Send to Harmony
-    await harmonyClient.sendMessage(harmonyChannelId, content)
+    // Extract Discord user metadata for puppeting
+    const metadata = translator.extractDiscordUserMetadata(msg)
+    
+    // Send to Harmony with metadata
+    await harmonyClient.sendMessage(harmonyChannelId, content, metadata)
     console.log(`✅ Discord -> Harmony: ${msg.author.username} in #${msg.channel}`)
   } catch (error) {
     console.error('❌ Failed to bridge Discord -> Harmony:', error)

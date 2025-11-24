@@ -78,7 +78,7 @@ export class BotRestAPI {
   private async sendMessage(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
-      const { content, embeds, reply_to } = req.body
+      const { content, embeds, reply_to, metadata } = req.body
       const botId = req.bot!.id
       
       console.log(`🔍 Bot ${req.bot!.username} (${botId}) attempting to send message to channel ${channelId}`)
@@ -95,6 +95,13 @@ export class BotRestAPI {
       // Format content
       const messageContent = this.formatContent(content, embeds)
       
+      // Merge metadata with bot flag and any custom metadata from bridge
+      const messageMetadata = {
+        bot: true,
+        created_via: 'bot_api',
+        ...metadata
+      }
+      
       // Insert message
       const { data: message, error } = await supabase
         .from('messages')
@@ -103,7 +110,7 @@ export class BotRestAPI {
           bot_id: botId,  // Use bot_id instead of user_id
           content: messageContent,
           reply_to: reply_to || null,
-          metadata: { bot: true, created_via: 'bot_api' }
+          metadata: messageMetadata
         })
         .select(`
           *,
@@ -504,7 +511,7 @@ export class BotRestAPI {
     const parts: any[] = []
     
     if (content) {
-      parts.push({ type: 'text', value: content })
+      parts.push({ type: 'text', text: content })  // Use 'text' not 'value'
     }
     
     if (embeds && embeds.length > 0) {
@@ -599,7 +606,7 @@ export class BotRestAPI {
     if (Array.isArray(content)) {
       return content
         .filter(part => part.type === 'text')
-        .map(part => part.value || '')
+        .map(part => part.text || part.value || '')  // Support both 'text' and 'value' for compatibility
         .join(' ')
     }
     
