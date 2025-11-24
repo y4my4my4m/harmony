@@ -197,16 +197,27 @@ export class MessageTranslator {
         } else if (part.type === 'emoji') {
           // Convert Harmony emoji to Discord format
           const emoji = part.emoji
+          console.log('🎭 Converting emoji to Discord:', JSON.stringify(emoji, null, 2))
           if (emoji) {
-            // If it's a Discord emoji (has domain), try to use Discord format
-            if (emoji.domain === 'discord.com') {
-              // Use emoji name with colons (Discord will render it if it exists in the server)
-              return `:${emoji.name}:`
-            } else {
-              // For Harmony native emojis, use the name with colons
-              // Discord won't render it, but it's readable
-              return `:${emoji.name}:`
+            // If it's a Discord emoji (has domain), try to reconstruct Discord emoji format
+            if (emoji.domain === 'discord.com' && emoji.url) {
+              // Extract Discord emoji ID from URL: https://cdn.discordapp.com/emojis/123.png
+              const match = emoji.url.match(/emojis\/(\d+)\.(png|gif|webp)/)
+              if (match) {
+                const emojiId = match[1]
+                const isAnimated = match[2] === 'gif'
+                // Use Discord emoji format: <:name:id> or <a:name:id> for animated
+                return `<${isAnimated ? 'a' : ''}:${emoji.name}:${emojiId}>`
+              }
             }
+            
+            // For Harmony native emojis, we can't render them in Discord directly
+            // Option 1: Just show the name (current)
+            // Option 2: Send the image URL (but Discord won't render localhost URLs)
+            // Option 3: Upload as attachment (would require more complex logic)
+            
+            // For now, just use the name
+            return `:${emoji.name}:`
           }
           return ''
         } else if (part.type === 'file') {
