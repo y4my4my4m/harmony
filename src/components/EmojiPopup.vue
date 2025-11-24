@@ -1,5 +1,5 @@
 <template>
-  <div ref="emojiPopup" class="emoji-popup" :style="positionStyle" v-click-outside="handleClickOutside">
+  <div ref="emojiPopup" class="emoji-popup" :style="positionStyle">
     <!-- Search Input -->
     <div class="emoji-search">
       <input
@@ -168,9 +168,11 @@ const selectEmoji = (emoji: Emoji): void => {
   emit('sendEmoji', emoji);
 };
 
-const handleClickOutside = (): void => {
+const handleClickOutside = (event: MouseEvent): void => {
   // Close the popup when clicking outside
-      props.closeEmojiList?.();
+  if (emojiPopup.value && !emojiPopup.value.contains(event.target as Node)) {
+    props.closeEmojiList?.();
+  }
 };
 
 const handleKeyDown = (event: KeyboardEvent): void => {
@@ -182,15 +184,32 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 // --- Lifecycle Hooks ---
 
 onMounted(() => {
-  document.addEventListener('keydown', handleKeyDown);
+  console.log('EmojiPopup mounted, triggerElement:', props.triggerElement);
+  console.log('triggerElementRef.value:', triggerElementRef.value);
+  console.log('resolvedEmojis:', emojiCacheStore.resolvedEmojis);
+  console.log('filteredEmojiList:', filteredEmojiList.value);
+  
+  // Add event listeners with a small delay to prevent immediate closure
+  setTimeout(() => {
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+  }, 100);
 
   nextTick(() => {
+    console.log('In nextTick, calling updatePosition()');
     updatePosition();
+    console.log('After updatePosition(), positionStyle:', positionStyle.value);
+    console.log('emojiPopup element:', emojiPopup.value);
+    if (emojiPopup.value) {
+      console.log('emojiPopup computed styles:', window.getComputedStyle(emojiPopup.value));
+      console.log('emojiPopup getBoundingClientRect:', emojiPopup.value.getBoundingClientRect());
+    }
     searchInput.value?.focus();
   });
 });
 
 onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeyDown);
 });
 
