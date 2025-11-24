@@ -627,6 +627,7 @@ export const useChatStore = defineStore('chat', {
                 channel_id: payload.new.channel_id,
                 conversation_id: payload.new.conversation_id,
                 user_id: payload.new.user_id,
+                bot_id: payload.new.bot_id, // Add bot_id support
                 content: payload.new.content,
                 reactions: payload.new.reactions,
                 reply_to: payload.new.reply_to,
@@ -655,6 +656,7 @@ export const useChatStore = defineStore('chat', {
               channel_id: payload.new.channel_id,
               conversation_id: payload.new.conversation_id,
               user_id: payload.new.user_id,
+              bot_id: payload.new.bot_id, // Add bot_id support
               content: payload.new.content,
               reactions: payload.new.reactions,
               reply_to: payload.new.reply_to,
@@ -690,6 +692,7 @@ export const useChatStore = defineStore('chat', {
               channel_id: payload.new.channel_id,
               conversation_id: payload.new.conversation_id,
               user_id: payload.new.user_id,
+              bot_id: payload.new.bot_id, // Add bot_id support
               content: payload.new.content,
               reactions: payload.new.reactions,
               reply_to: payload.new.reply_to,

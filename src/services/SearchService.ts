@@ -186,6 +186,7 @@ export class SearchService {
         channel_id: msg.channel_id,
         conversation_id: msg.conversation_id,
         user_id: msg.user_id,
+        bot_id: msg.bot_id, // Add bot_id support
         content: msg.content,
         reply_to: msg.reply_to,
         is_system: msg.is_system || false,
