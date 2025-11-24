@@ -17,13 +17,15 @@ export class HarmonyClient extends EventEmitter {
   private ws: WebSocket | null = null
   private botToken: string
   private gatewayUrl: string
+  private apiUrl: string
   private heartbeatInterval: NodeJS.Timeout | null = null
   private sessionId: string | null = null
   
-  constructor(botToken: string, gatewayUrl: string = 'ws://localhost:3001/gateway') {
+  constructor(botToken: string, gatewayUrl: string = 'ws://localhost:3002/gateway', apiUrl: string = 'http://localhost:3002') {
     super()
     this.botToken = botToken
     this.gatewayUrl = gatewayUrl
+    this.apiUrl = apiUrl
   }
   
   async connect() {
@@ -143,7 +145,7 @@ export class HarmonyClient extends EventEmitter {
   // REST API Methods
   
   async sendMessage(channelId: string, content: string): Promise<any> {
-    const response = await fetch(`http://localhost:3001/api/v1/channels/${channelId}/messages`, {
+    const response = await fetch(`${this.apiUrl}/api/v1/channels/${channelId}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bot ${this.botToken}`,
@@ -161,7 +163,7 @@ export class HarmonyClient extends EventEmitter {
   }
   
   async getGuildMembers(guildId: string): Promise<any[]> {
-    const response = await fetch(`http://localhost:3001/api/v1/guilds/${guildId}/members`, {
+    const response = await fetch(`${this.apiUrl}/api/v1/guilds/${guildId}/members`, {
       method: 'GET',
       headers: {
         'Authorization': `Bot ${this.botToken}`

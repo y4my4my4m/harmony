@@ -81,9 +81,14 @@ export class BotRestAPI {
       const { content, embeds, reply_to } = req.body
       const botId = req.bot!.id
       
+      console.log(`🔍 Bot ${req.bot!.username} (${botId}) attempting to send message to channel ${channelId}`)
+      
       // Check permissions
       const canSend = await this.checkChannelPermission(botId, channelId, 'send_messages')
+      console.log(`🔍 Permission check result: ${canSend}`)
+      
       if (!canSend) {
+        console.log(`❌ Permission denied for bot ${botId} in channel ${channelId}`)
         return res.status(403).json({ error: 'Missing permission: send_messages' })
       }
       
@@ -95,14 +100,14 @@ export class BotRestAPI {
         .from('messages')
         .insert({
           channel_id: channelId,
-          user_id: botId,
+          bot_id: botId,  // Use bot_id instead of user_id
           content: messageContent,
           reply_to: reply_to || null,
           metadata: { bot: true, created_via: 'bot_api' }
         })
         .select(`
           *,
-          author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url)
+          author:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
         `)
         .single()
       
@@ -137,7 +142,8 @@ export class BotRestAPI {
         .from('messages')
         .select(`
           *,
-          author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url)
+          user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
+          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
         `)
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
@@ -171,12 +177,12 @@ export class BotRestAPI {
       // Check if bot owns the message
       const { data: message } = await supabase
         .from('messages')
-        .select('user_id, channel_id')
+        .select('user_id, bot_id, channel_id')
         .eq('id', messageId)
         .single()
       
-      if (!message || message.user_id !== botId) {
-        return res.status(403).json({ error: 'Cannot edit messages from other users' })
+      if (!message || message.bot_id !== botId) {
+        return res.status(403).json({ error: 'Cannot edit messages from other bots or users' })
       }
       
       // Check permissions
@@ -196,7 +202,8 @@ export class BotRestAPI {
         .eq('id', messageId)
         .select(`
           *,
-          author:profiles!messages_user_id_fkey(id, username, display_name, avatar_url)
+          user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
+          bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
         `)
         .single()
       
@@ -220,7 +227,7 @@ export class BotRestAPI {
       // Check if bot owns the message
       const { data: message } = await supabase
         .from('messages')
-        .select('user_id, channel_id')
+        .select('user_id, bot_id, channel_id')
         .eq('id', messageId)
         .single()
       
@@ -228,7 +235,7 @@ export class BotRestAPI {
         return res.status(404).json({ error: 'Message not found' })
       }
       
-      if (message.user_id !== botId) {
+      if (message.bot_id !== botId) {
         // Check if bot has manage_messages permission
         const canManage = await this.checkChannelPermission(botId, message.channel_id, 'manage_messages')
         if (!canManage) {
@@ -278,7 +285,7 @@ export class BotRestAPI {
         .from('reactions')
         .insert({
           message_id: messageId,
-          user_id: botId,
+          bot_id: botId,  // Use bot_id instead of user_id
           emoji_id: emoji
         })
       
@@ -455,20 +462,24 @@ export class BotRestAPI {
   
   private async checkChannelPermission(botId: string, channelId: string, permission: string): Promise<boolean> {
     // Get server ID from channel
-    const { data: channel } = await supabase
+    const { data: channel, error: channelError } = await supabase
       .from('channels')
       .select('server_id')
       .eq('id', channelId)
       .single()
     
+    console.log(`🔍 Channel lookup: channelId=${channelId}, serverId=${channel?.server_id}, error=${channelError?.message}`)
+    
     if (!channel) return false
     
     // Check bot permission
-    const { data } = await supabase.rpc('check_bot_permission', {
+    const { data, error } = await supabase.rpc('check_bot_permission', {
       p_bot_id: botId,
       p_server_id: channel.server_id,
       p_permission: permission
     })
+    
+    console.log(`🔍 Permission RPC result: permission=${permission}, result=${data}, error=${error?.message}`)
     
     return data === true
   }
@@ -504,14 +515,18 @@ export class BotRestAPI {
   }
   
   private formatMessage(message: any) {
+    // Use bot if present, otherwise use user
+    const author = message.bot || message.user
+    
     return {
       id: message.id,
       channel_id: message.channel_id,
-      author: message.author ? {
-        id: message.author.id,
-        username: message.author.username,
-        display_name: message.author.display_name,
-        avatar: message.author.avatar_url
+      author: author ? {
+        id: author.id,
+        username: author.username,
+        display_name: author.display_name,
+        avatar: author.avatar_url,
+        bot: !!message.bot  // Flag to indicate if this is a bot message
       } : null,
       content: this.contentToText(message.content),
       timestamp: message.created_at,

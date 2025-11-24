@@ -23,7 +23,8 @@ const discordClient = new DiscordClient({
 // Initialize Harmony client
 const harmonyClient = new HarmonyClient(
   config.harmony.token,
-  config.harmony.gatewayUrl
+  config.harmony.gatewayUrl,
+  config.harmony.apiUrl
 )
 
 // =====================================================
@@ -88,6 +89,12 @@ if (config.settings.syncDeletes) {
 
 harmonyClient.on('ready', (data: any) => {
   console.log(`✅ Harmony bot connected: ${data.bot.username}`)
+  
+  // Subscribe to all mapped Harmony channels
+  for (const mapping of config.channelMappings) {
+    console.log(`📡 Subscribing to Harmony channel: ${mapping.name || mapping.harmony}`)
+    // Gateway will automatically dispatch events for channels the bot has access to
+  }
 })
 
 harmonyClient.on('messageCreate', async (msg: any) => {

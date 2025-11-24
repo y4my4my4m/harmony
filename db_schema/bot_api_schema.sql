@@ -585,14 +585,47 @@ BEGIN
     INSERT INTO public.bot_server_permissions (
         bot_id,
         server_id,
-        installed_by
+        installed_by,
+        read_messages,
+        send_messages,
+        manage_messages,
+        embed_links,
+        attach_files,
+        mention_everyone,
+        add_reactions,
+        manage_channels,
+        kick_members,
+        ban_members
     ) VALUES (
         p_bot_id,
         p_server_id,
-        p_installed_by
+        p_installed_by,
+        COALESCE((p_permissions->>'read_messages')::BOOLEAN, true),
+        COALESCE((p_permissions->>'send_messages')::BOOLEAN, true),
+        COALESCE((p_permissions->>'manage_messages')::BOOLEAN, false),
+        COALESCE((p_permissions->>'embed_links')::BOOLEAN, true),
+        COALESCE((p_permissions->>'attach_files')::BOOLEAN, true),
+        COALESCE((p_permissions->>'mention_everyone')::BOOLEAN, false),
+        COALESCE((p_permissions->>'add_reactions')::BOOLEAN, true),
+        COALESCE((p_permissions->>'manage_channels')::BOOLEAN, false),
+        COALESCE((p_permissions->>'kick_members')::BOOLEAN, false),
+        COALESCE((p_permissions->>'ban_members')::BOOLEAN, false)
     )
     ON CONFLICT (bot_id, server_id)
-    DO UPDATE SET is_active = true
+    DO UPDATE SET 
+        is_active = true,
+        read_messages = COALESCE((p_permissions->>'read_messages')::BOOLEAN, true),
+        send_messages = COALESCE((p_permissions->>'send_messages')::BOOLEAN, true),
+        manage_messages = COALESCE((p_permissions->>'manage_messages')::BOOLEAN, false),
+        embed_links = COALESCE((p_permissions->>'embed_links')::BOOLEAN, true),
+        attach_files = COALESCE((p_permissions->>'attach_files')::BOOLEAN, true),
+        mention_everyone = COALESCE((p_permissions->>'mention_everyone')::BOOLEAN, false),
+        add_reactions = COALESCE((p_permissions->>'add_reactions')::BOOLEAN, true),
+        manage_channels = COALESCE((p_permissions->>'manage_channels')::BOOLEAN, false),
+        kick_members = COALESCE((p_permissions->>'kick_members')::BOOLEAN, false),
+        ban_members = COALESCE((p_permissions->>'ban_members')::BOOLEAN, false),
+        installed_by = p_installed_by,
+        installed_at = NOW()
     RETURNING id INTO v_permission_id;
     
     -- Update bot server count

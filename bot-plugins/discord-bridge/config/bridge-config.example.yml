@@ -9,7 +9,7 @@ discord:
 harmony:
   token: "YOUR_HARMONY_BOT_TOKEN"
   gatewayUrl: "ws://localhost:3001/gateway"
-  apiUrl: "http://localhost:3001/api/v1"
+  apiUrl: "http://localhost:3002"
 
 # Channel Mappings
 # Each mapping connects a Discord channel to a Harmony channel
