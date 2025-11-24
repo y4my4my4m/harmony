@@ -296,8 +296,11 @@ export class SignalProtocolService {
     return btoa(binary)
   }
 
-  private decodeFromBase64(base64: string): ArrayBuffer {
-    const binary = atob(base64)
+  private decodeFromBase64(data: string | ArrayBuffer): ArrayBuffer {
+    if (data instanceof ArrayBuffer) {
+      return data
+    }
+    const binary = atob(data)
     const bytes = new Uint8Array(binary.length)
     for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i)

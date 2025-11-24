@@ -177,28 +177,36 @@ export class MessageEncryptionService {
       .eq('user_id', this.currentUserId)
       .eq('device_id', 'default')
 
-    const identityKeyPair = await signalProtocolService.generateIdentityKeyPair()
+    // LOAD existing identity key from store instead of generating new one!
+    // Using a different identity key than what's in user_key_pairs will cause signature verification failures
+    const identityKeyPair = await this.keyStore.getIdentityKeyPair()
+    if (!identityKeyPair) {
+      throw new Error('Identity key not found in store - cannot generate prekeys')
+    }
 
-    // Generate signed prekey
+    // Generate signed prekey using the existing identity key
     const signedPreKey = await signalProtocolService.generateSignedPreKey(
-      identityKeyPair,
+      { 
+        publicKey: this.arrayBufferToBase64(identityKeyPair.pubKey),
+        privateKey: this.arrayBufferToBase64(identityKeyPair.privKey)
+      },
       1
     )
 
     // Generate one-time prekeys (100 keys)
     const preKeys = await signalProtocolService.generatePreKeys(1, 100)
 
-    // Save signed prekey to database
-    await supabase.from('prekeys').insert({
+    // Save signed prekey to database with upsert
+    await supabase.from('prekeys').upsert({
       user_id: this.currentUserId,
       device_id: 'default',
       prekey_id: signedPreKey.id,
       public_key: signedPreKey.keyPair.publicKey,
       is_signed: true,
       signature: signedPreKey.signature
-    })
+    }, { onConflict: 'user_id, device_id, prekey_id' })
 
-    // Save one-time prekeys to database (batch insert)
+    // Save one-time prekeys to database (batch upsert)
     const prekeyData = preKeys.map(pk => ({
       user_id: this.currentUserId,
       device_id: 'default',
@@ -211,7 +219,7 @@ export class MessageEncryptionService {
     // Insert in batches of 50
     for (let i = 0; i < prekeyData.length; i += 50) {
       const batch = prekeyData.slice(i, i + 50)
-      await supabase.from('prekeys').insert(batch)
+      await supabase.from('prekeys').upsert(batch, { onConflict: 'user_id, device_id, prekey_id' })
     }
 
     console.log('✅ Generated and uploaded prekeys')
@@ -450,16 +458,30 @@ export class MessageEncryptionService {
       throw new Error(`Failed to fetch prekey bundle: ${error?.message}`)
     }
 
+    console.log('📦 Prekey bundle from database:', bundle)
+
+    // Transform database format to the format expected by the library
+    const transformedBundle = {
+      identityKey: this.base64ToArrayBuffer(bundle.identity_key),
+      registrationId: bundle.registration_id || 1,
+      deviceId: 1,
+      signedPreKey: {
+        id: bundle.signed_prekey.id,
+        publicKey: this.base64ToArrayBuffer(bundle.signed_prekey.public_key),
+        signature: this.base64ToArrayBuffer(bundle.signed_prekey.signature)
+      },
+      oneTimePreKey: bundle.one_time_prekey ? {
+        id: bundle.one_time_prekey.id,
+        publicKey: this.base64ToArrayBuffer(bundle.one_time_prekey.public_key)
+      } : undefined
+    }
+
+    console.log('🔄 Transformed bundle:', transformedBundle)
+
     // Process the prekey bundle to establish session
     await signalProtocolService.processPreKeyBundle(
       `${recipientId}:1`,
-      {
-        identityKey: bundle.identity_key,
-        registrationId: bundle.registration_id || 1,
-        deviceId: 1,
-        signedPreKey: bundle.signed_prekey,
-        oneTimePreKey: bundle.one_time_prekey
-      }
+      transformedBundle
     )
 
     console.log(`✅ Session established with ${recipientId}`)
@@ -617,6 +639,15 @@ export class MessageEncryptionService {
   // =====================================================
   // HELPER METHODS
   // =====================================================
+
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return btoa(binary)
+  }
 
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
     const binary = atob(base64)

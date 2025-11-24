@@ -1,6 +1,12 @@
 <template>
   <div class="key-setup-wizard-overlay" @click.self="$emit('close')">
     <div class="key-setup-wizard">
+      <!-- Error State -->
+      <div v-if="errorMessage" class="error-banner">
+        <span class="error-icon">❌</span>
+        <span>{{ errorMessage }}</span>
+        <button class="btn btn-danger" @click="errorMessage = null">×</button>
+      </div>
       <!-- Step 1: Introduction -->
       <div v-if="step === 1" class="wizard-step">
         <div class="wizard-header">
@@ -165,12 +171,6 @@
         </div>
       </div>
       
-      <!-- Error State -->
-      <div v-if="errorMessage" class="error-banner">
-        <span class="error-icon">❌</span>
-        <span>{{ errorMessage }}</span>
-        <button class="btn btn-danger" @click="errorMessage = null">×</button>
-      </div>
     </div>
   </div>
 </template>
@@ -613,10 +613,11 @@ function handleComplete() {
 }
 
 .error-banner {
-  position: absolute;
-  top: 16px;
+  position: relative;
+  margin: 16px;
+  /* top: 16px;
   left: 16px;
-  right: 16px;
+  right: 16px; */
   padding: 12px 16px;
   background: rgba(231, 76, 60, 0.1);
   border: 1px solid rgba(231, 76, 60, 0.3);
