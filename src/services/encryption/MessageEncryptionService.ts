@@ -65,9 +65,16 @@ export class MessageEncryptionService {
     this.keyStore = new EncryptionKeyStore(userId)
     await this.keyStore.initialize()
 
-    // Set encryption key if password provided
-    if (password) {
+    // Try to restore encryption key from session first
+    const restored = await this.keyStore.tryRestoreSessionKey()
+    
+    if (restored) {
+      console.log('✅ Encryption key restored from session')
+    } else if (password) {
+      // Set encryption key if password provided
       await this.keyStore.setEncryptionKey(password)
+    } else {
+      console.log('ℹ️ Encryption service initialized without key - operations requiring encryption will need password')
     }
 
     // Initialize Signal Protocol Service
@@ -216,6 +223,7 @@ export class MessageEncryptionService {
 
   /**
    * Encrypt message content for recipients
+   * Encrypts text and URLs within MessageParts while preserving structure
    */
   async encryptMessage(
     content: MessagePart[],
@@ -227,38 +235,66 @@ export class MessageEncryptionService {
 
     console.log(`🔐 Encrypting message for ${recipientIds.length} recipients`)
 
-    // Serialize content to JSON
-    const plaintext = JSON.stringify(content)
+    // Process each message part
+    const encryptedContent: MessagePart[] = []
 
-    // Encrypt for each recipient
-    const encryptedForRecipients: Record<string, string> = {}
+    for (const part of content) {
+      if (part.type === 'text' && part.text) {
+        // Encrypt text content for each recipient
+        const encryptedForRecipients: Record<string, string> = {}
 
-    for (const recipientId of recipientIds) {
-      const recipientAddress = `${recipientId}:1` // Device ID 1 for now
+        for (const recipientId of recipientIds) {
+          const recipientAddress = `${recipientId}:1`
 
-      // Check if we have a session with this recipient
-      const hasSession = await signalProtocolService.hasSession(recipientAddress)
+          // Check if we have a session with this recipient
+          const hasSession = await signalProtocolService.hasSession(recipientAddress)
+          if (!hasSession) {
+            await this.establishSession(recipientId)
+          }
 
-      if (!hasSession) {
-        // Fetch prekey bundle and establish session
-        await this.establishSession(recipientId)
+          // Encrypt the text
+          const encryptedMsg = await signalProtocolService.encryptMessage(
+            recipientAddress,
+            part.text
+          )
+
+          encryptedForRecipients[recipientId] = JSON.stringify(encryptedMsg)
+        }
+
+        // Keep the structure but mark as encrypted_text with payloads
+        encryptedContent.push({
+          type: 'encrypted_text',
+          encrypted_payloads: encryptedForRecipients
+        })
+      } else if (part.type === 'url' && part.url) {
+        // Encrypt URLs for each recipient
+        const encryptedForRecipients: Record<string, string> = {}
+
+        for (const recipientId of recipientIds) {
+          const recipientAddress = `${recipientId}:1`
+
+          const hasSession = await signalProtocolService.hasSession(recipientAddress)
+          if (!hasSession) {
+            await this.establishSession(recipientId)
+          }
+
+          const encryptedMsg = await signalProtocolService.encryptMessage(
+            recipientAddress,
+            part.url
+          )
+
+          encryptedForRecipients[recipientId] = JSON.stringify(encryptedMsg)
+        }
+
+        encryptedContent.push({
+          type: 'encrypted_url',
+          encrypted_payloads: encryptedForRecipients
+        })
+      } else {
+        // Non-sensitive parts (emoji, mention, system) - keep as-is
+        encryptedContent.push(part)
       }
-
-      // Encrypt the message
-      const encryptedMsg = await signalProtocolService.encryptMessage(
-        recipientAddress,
-        plaintext
-      )
-
-      encryptedForRecipients[recipientId] = JSON.stringify(encryptedMsg)
     }
-
-    // Create encrypted content structure
-    // The content array contains one part per recipient with their encrypted data
-    const encryptedContent: MessagePart[] = [{
-      type: 'encrypted',
-      encrypted_payloads: encryptedForRecipients
-    }]
 
     return {
       encrypted: true,

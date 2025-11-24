@@ -151,23 +151,28 @@
           class="system-message"
         >[{{ part.event_type }}]</span>
         
-        <!-- Encrypted messages (cannot be decrypted) -->
+        <!-- Encrypted text (cannot be decrypted) -->
         <div 
-          v-else-if="part && part.type === 'encrypted'"
-          class="encrypted-message-container"
+          v-else-if="part && part.type === 'encrypted_text'"
+          class="encrypted-message-container inline"
         >
-          <div class="encrypted-message">
-            <div class="encrypted-header">
-              <span class="encrypted-icon">🔐</span>
-              <span class="encrypted-label">Encrypted Message</span>
+          <div class="encrypted-message inline">
+            <span class="encrypted-icon">🔐</span>
+            <div class="encrypted-visual-effect inline">
+              <span class="encrypted-char" v-for="i in 20" :key="i">{{ getRandomChar() }}</span>
             </div>
-            <div class="encrypted-content">
-              <div class="encrypted-visual-effect">
-                <span class="encrypted-char" v-for="i in 50" :key="i">{{ getRandomChar() }}</span>
-              </div>
-              <div class="encrypted-hint">
-                You need encryption keys to view this message
-              </div>
+          </div>
+        </div>
+        
+        <!-- Encrypted URL (cannot be decrypted) -->
+        <div 
+          v-else-if="part && part.type === 'encrypted_url'"
+          class="encrypted-message-container inline"
+        >
+          <div class="encrypted-message inline">
+            <span class="encrypted-icon">🔐</span>
+            <div class="encrypted-visual-effect inline">
+              <span class="encrypted-char" v-for="i in 15" :key="i">{{ getRandomChar() }}</span>
             </div>
           </div>
         </div>
@@ -579,80 +584,55 @@ const formatFileSize = (bytes: number): string => {
 
 /* Encrypted messages */
 .encrypted-message-container {
-  width: 100%;
-  margin: 4px 0;
+  display: inline-block;
+  margin: 0 2px;
+}
+
+.encrypted-message-container.inline {
+  display: inline;
 }
 
 .encrypted-message {
   background: linear-gradient(135deg, #1a1d21 0%, #252932 100%);
   border: 1px solid #3c4049;
-  border-radius: 8px;
-  padding: 12px;
-  position: relative;
-  overflow: hidden;
+  border-radius: 4px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.encrypted-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  color: #b9bbbe;
-  font-size: 0.9em;
-  font-weight: 500;
+.encrypted-message.inline {
+  border-radius: 3px;
+  padding: 2px 6px;
 }
 
 .encrypted-icon {
-  font-size: 1.2em;
-}
-
-.encrypted-label {
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-size: 0.85em;
-}
-
-.encrypted-content {
-  position: relative;
+  font-size: 0.9em;
 }
 
 .encrypted-visual-effect {
   font-family: monospace;
   font-size: 11px;
-  line-height: 1.4;
   color: #4a5161;
-  white-space: pre-wrap;
-  word-break: break-all;
   user-select: none;
-  opacity: 0.6;
-  animation: encrypted-glitch 3s infinite;
+  opacity: 0.7;
+  display: inline;
+}
+
+.encrypted-visual-effect.inline {
+  font-size: 10px;
 }
 
 .encrypted-char {
-  display: inline-block;
+  display: inline;
   animation: flicker 4s infinite;
   animation-delay: calc(var(--i, 0) * 0.1s);
-}
-
-@keyframes encrypted-glitch {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 0.4; }
 }
 
 @keyframes flicker {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
-}
-
-.encrypted-hint {
-  margin-top: 8px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 4px;
-  color: #8e9297;
-  font-size: 0.85em;
-  text-align: center;
-  font-style: italic;
 }
 
 /* Typography */

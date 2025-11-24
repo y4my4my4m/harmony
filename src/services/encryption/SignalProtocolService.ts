@@ -189,7 +189,9 @@ export class SignalProtocolService {
   ): Promise<void> {
     this.ensureInitialized()
 
-    const address = SignalProtocolAddress.fromString(recipientAddress)
+    // Parse the address (format: "userId:deviceId")
+    const [userId, deviceId] = recipientAddress.split(':')
+    const address = new SignalProtocolAddress(userId, parseInt(deviceId))
     const sessionBuilder = new SessionBuilder(this.keyStore!, address)
 
     // Build the prekey bundle in the format expected by the library
@@ -216,7 +218,10 @@ export class SignalProtocolService {
   async hasSession(recipientAddress: string): Promise<boolean> {
     this.ensureInitialized()
     
-    const address = SignalProtocolAddress.fromString(recipientAddress)
+    // Parse the address (format: "userId:deviceId")
+    const [userId, deviceId] = recipientAddress.split(':')
+    const address = new SignalProtocolAddress(userId, parseInt(deviceId))
+    
     const sessionRecord = await this.keyStore!.loadSession(address.toString())
     
     return sessionRecord !== undefined && sessionRecord !== null
@@ -235,7 +240,9 @@ export class SignalProtocolService {
   ): Promise<EncryptedMessage> {
     this.ensureInitialized()
 
-    const address = SignalProtocolAddress.fromString(recipientAddress)
+    // Parse the address (format: "userId:deviceId")
+    const [userId, deviceId] = recipientAddress.split(':')
+    const address = new SignalProtocolAddress(userId, parseInt(deviceId))
     const sessionCipher = new SessionCipher(this.keyStore!, address)
 
     const ciphertext = await sessionCipher.encrypt(this.stringToArrayBuffer(plaintext))
@@ -256,7 +263,9 @@ export class SignalProtocolService {
   ): Promise<string> {
     this.ensureInitialized()
 
-    const address = SignalProtocolAddress.fromString(senderAddress)
+    // Parse the address (format: "userId:deviceId")
+    const [userId, deviceId] = senderAddress.split(':')
+    const address = new SignalProtocolAddress(userId, parseInt(deviceId))
     const sessionCipher = new SessionCipher(this.keyStore!, address)
 
     const messageBody = this.decodeFromBase64(encryptedMessage.body)

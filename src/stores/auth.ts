@@ -86,6 +86,9 @@ export const useAuthStore = defineStore('auth', {
         this.setupOfflineHandlers(this.session.user.id);
         // Note: Notification system is now initialized by RouteAwareInitialization
         // to only load unread count initially (full list loads on-demand)
+        
+        // Initialize encryption service if user has keys
+        this.initializeEncryptionIfAvailable(this.session.user.id);
       }
 
       supabase.auth.onAuthStateChange(async (event, session) => {
@@ -180,6 +183,32 @@ export const useAuthStore = defineStore('auth', {
         console.log('User set to offline:', userId);
       } catch (error) {
         console.error('Error setting user offline:', error);
+      }
+    },
+
+    async initializeEncryptionIfAvailable(userId: string) {
+      try {
+        console.log('🔐 Checking if user has encryption keys...');
+        
+        // Check if user has encryption keys set up
+        const { data: hasKeys } = await supabase
+          .rpc('user_has_encryption', { p_user_id: userId });
+        
+        if (hasKeys) {
+          console.log('✅ User has encryption keys - initializing encryption service (without password)');
+          
+          // Initialize encryption service without password
+          // This allows checking keys and basic operations
+          // Actual encryption will require password prompt if needed
+          const { messageEncryptionService } = await import('@/services/encryption/MessageEncryptionService');
+          await messageEncryptionService.initialize(userId);
+          
+          console.log('✅ Encryption service initialized');
+        } else {
+          console.log('ℹ️ User does not have encryption keys');
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize encryption:', error);
       }
     },
 

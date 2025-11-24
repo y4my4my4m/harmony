@@ -123,11 +123,63 @@ export class EncryptionKeyStore implements StorageType {
       },
       keyMaterial,
       { name: 'AES-GCM', length: 256 },
-      false,
+      true, // Make it extractable so we can store it
       ['encrypt', 'decrypt']
     )
 
-    console.log('✅ Encryption key derived from password')
+    // Store the derived key in sessionStorage for this session
+    // This allows encryption without re-entering password
+    try {
+      const exported = await crypto.subtle.exportKey('raw', this.encryptionKey)
+      const keyArray = Array.from(new Uint8Array(exported))
+      const keyBase64 = btoa(String.fromCharCode(...keyArray))
+      sessionStorage.setItem(`e2ee_key_${this.userId}`, keyBase64)
+      console.log('✅ Encryption key derived and cached for session')
+    } catch (error) {
+      console.warn('⚠️ Could not cache encryption key:', error)
+    }
+  }
+
+  /**
+   * Try to restore encryption key from sessionStorage
+   */
+  async tryRestoreSessionKey(): Promise<boolean> {
+    try {
+      const keyBase64 = sessionStorage.getItem(`e2ee_key_${this.userId}`)
+      if (!keyBase64) {
+        return false
+      }
+
+      // Convert base64 back to ArrayBuffer
+      const keyString = atob(keyBase64)
+      const keyArray = new Uint8Array(keyString.length)
+      for (let i = 0; i < keyString.length; i++) {
+        keyArray[i] = keyString.charCodeAt(i)
+      }
+
+      // Import the key
+      this.encryptionKey = await crypto.subtle.importKey(
+        'raw',
+        keyArray.buffer,
+        { name: 'AES-GCM', length: 256 },
+        true,
+        ['encrypt', 'decrypt']
+      )
+
+      console.log('✅ Encryption key restored from session')
+      return true
+    } catch (error) {
+      console.error('❌ Failed to restore session key:', error)
+      return false
+    }
+  }
+
+  /**
+   * Clear the cached encryption key
+   */
+  clearSessionKey(): void {
+    sessionStorage.removeItem(`e2ee_key_${this.userId}`)
+    this.encryptionKey = null
   }
 
   // =====================================================
