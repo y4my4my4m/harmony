@@ -23,69 +23,55 @@
 
 /* ===== MESSAGE DISPLAY MODES ===== */
 
-/* Cozy Mode (default) - More spacing, larger elements */
-[data-message-display="cozy"] .message-item,
-[data-message-display="cozy"] .chat-message-container {
-  margin-bottom: 16px;
-  padding: 8px 16px;
-}
-
+/* Cozy Mode (default) - Discord-like spacing with avatars */
 [data-message-display="cozy"] .message-avatar,
 [data-message-display="cozy"] .user-avatar {
   width: 40px;
   height: 40px;
 }
 
-[data-message-display="cozy"] .message-header {
-  margin-bottom: 4px;
-}
-
 [data-message-display="cozy"] .message-author {
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 500;
 }
 
-[data-message-display="cozy"] .message-content {
-  line-height: 1.5;
+[data-message-display="cozy"] .message-content,
+[data-message-display="cozy"] .unified-content {
+  line-height: 1.375;
 }
 
-/* Compact Mode - Reduced spacing, smaller elements */
-[data-message-display="compact"] .message-item,
-[data-message-display="compact"] .chat-message-container {
-  margin-bottom: 4px;
-  padding: 2px 16px;
-}
-
+/* Compact Mode - Smaller avatars, tighter spacing */
 [data-message-display="compact"] .message-avatar,
 [data-message-display="compact"] .user-avatar {
   width: 32px;
   height: 32px;
 }
 
+[data-message-display="compact"] .message-gutter {
+  width: 48px; /* 32px avatar + 16px gap */
+}
+
 [data-message-display="compact"] .message-header {
-  margin-bottom: 2px;
+  gap: 16px;
 }
 
 [data-message-display="compact"] .message-author {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
-[data-message-display="compact"] .message-content {
-  line-height: 1.3;
+[data-message-display="compact"] .message-content,
+[data-message-display="compact"] .unified-content {
+  line-height: 1.375;
 }
 
-[data-message-display="compact"] .message-timestamp {
-  font-size: 10px;
+[data-message-display="compact"] .message-timestamp,
+[data-message-display="compact"] .timestamp {
+  font-size: 0.6875rem;
 }
 
-/* Compact mode - hide consecutive usernames (same author) */
-[data-message-display="compact"] .message-item.same-author .message-author {
-  display: none;
-}
-
-[data-message-display="compact"] .message-item.same-author .message-avatar {
-  opacity: 0;
+[data-message-display="compact"] .reactions-gutter {
+  width: 48px; /* 32px avatar + 16px gap */
 }
 
 /* ===== COMPACT MODE (GLOBAL) ===== */

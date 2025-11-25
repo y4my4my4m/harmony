@@ -154,7 +154,7 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
 }
 
 .reactions-gutter {
-  width: 48px;
+  width: 56px; /* 40px avatar + 16px gap to align with message content */
   flex-shrink: 0;
 }
 

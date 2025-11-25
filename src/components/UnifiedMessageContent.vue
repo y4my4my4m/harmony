@@ -767,7 +767,6 @@ export default defineComponent({
 
 <style scoped>
 .unified-content {
-  margin-bottom: 4px;
   line-height: 1.375;
   word-wrap: break-word;
   overflow-wrap: break-word;
@@ -896,7 +895,7 @@ export default defineComponent({
 
 /* Media containers */
 .media-container {
-  margin: 4px 0 8px 0;
+  margin: 4px 0;
   max-width: 100%;
 }
 

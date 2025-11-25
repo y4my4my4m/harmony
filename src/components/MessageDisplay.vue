@@ -1170,7 +1170,7 @@ const closeInviteModal = () => {
 /* Individual message item */
 .message-item {
   position: relative;
-  padding: 2px 48px 2px 16px;
+  padding: 0.125rem 48px 0.125rem 16px; /* 2px vertical padding like Discord */
   transition: background-color 0.1s ease-out;
 }
 
@@ -1346,9 +1346,7 @@ const closeInviteModal = () => {
   width: 56px; /* 40px avatar + 16px gap = 56px to align with header messages */
   flex-shrink: 0;
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 1.375rem; /* Match line height */
 }
 
 /* Show timestamp on hover for compact messages */
@@ -1357,9 +1355,8 @@ const closeInviteModal = () => {
   position: absolute;
   left: 0;
   right: 0;
-  top: 3px;
-  bottom: 0;
-  min-height: 24px;
+  top: 0;
+  line-height: 1.375rem;
   text-align: center;
   font-size: 0.6875rem;
   color: #72767d;

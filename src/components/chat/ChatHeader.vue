@@ -175,7 +175,7 @@ const handleMoreClick = () => {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0 0 2px 0;
+  margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
