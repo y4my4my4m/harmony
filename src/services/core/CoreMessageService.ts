@@ -287,10 +287,65 @@ export class CoreMessageService {
    */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
+      // Get current user from cached userDataService (no database calls)
+      const currentUser = userDataService.getCurrentUser()
+      if (!currentUser?.id) {
+        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      }
+
+      // First, get the original message to check if it's encrypted
+      const { data: originalMessage, error: fetchError } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('id', messageId)
+        .single()
+
+      if (fetchError) throw this.createError('FETCH_FAILED', fetchError.message, fetchError)
+      if (!originalMessage) throw this.createError('NOT_FOUND', 'Message not found')
+
+      let finalContent = newContent
+      let encrypted = false
+      let encryptionMetadata = null
+
+      // If the original message was encrypted, re-encrypt the edited content
+      if (originalMessage.encrypted && originalMessage.encryption_metadata) {
+        console.log('🔐 Original message was encrypted - re-encrypting edited content')
+        
+        const encryptionService = await getEncryptionService()
+        if (encryptionService && encryptionService.isInitialized()) {
+          try {
+            // Get the list of recipients from the original encryption metadata
+            const recipientIds = originalMessage.encryption_metadata.encrypted_for || []
+            
+            // IMPORTANT: Include yourself in the recipients if not already there
+            if (!recipientIds.includes(currentUser.id)) {
+              recipientIds.push(currentUser.id)
+            }
+
+            console.log(`🔐 Re-encrypting for ${recipientIds.length} recipients (including self)`)
+            
+            // Encrypt the new content for the same recipients
+            const encryptedData = await encryptionService.encryptMessage(newContent, recipientIds)
+            finalContent = encryptedData.content
+            encrypted = true
+            encryptionMetadata = encryptedData.encryption_metadata
+            console.log(`✅ Edited message re-encrypted successfully`)
+          } catch (error) {
+            console.error('❌ Re-encryption failed:', error)
+            throw this.createError('ENCRYPTION_FAILED', 'Failed to re-encrypt edited message', error)
+          }
+        } else {
+          throw this.createError('ENCRYPTION_SERVICE_UNAVAILABLE', 'Encryption service not available')
+        }
+      }
+
+      // Update the message with the new content (encrypted or plaintext)
       const { data: message, error } = await supabase
         .from('messages')
         .update({ 
-          content: newContent,
+          content: finalContent,
+          encrypted,
+          encryption_metadata: encryptionMetadata,
         })
         .eq('id', messageId)
         .select('*')

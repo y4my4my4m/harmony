@@ -248,6 +248,7 @@ export interface ReactionGroup {
 export interface Message {
   id: string;
   created_at: Date;
+  updated_at?: Date; // Timestamp when message was last edited
   channel_id?: string;
   conversation_id?: string; // for DMs
   user_id?: string; // Optional - for user messages

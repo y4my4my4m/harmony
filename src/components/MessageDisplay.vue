@@ -132,6 +132,12 @@
               </span>
               <span class="timestamp">
                 {{ formatTimestamp(message.created_at) }}
+                <!-- Edited indicator -->
+                <span 
+                  v-if="isMessageEdited(message)" 
+                  class="edited-indicator"
+                  :title="message.updated_at ? `Edited at ${formatTimestamp(message.updated_at)}` : 'Edited'"
+                >(edited)</span>
                 <!-- Encryption indicators -->
                 <span 
                   v-if="message.decrypted" 
@@ -899,6 +905,19 @@ const formatTimestamp = (timestamp: Date) => {
   return format(date, 'MMM d, yyyy \'at\' p');
 };
 
+// Check if message has been edited
+const isMessageEdited = (message: Message): boolean => {
+  if (!message.updated_at || !message.created_at) return false;
+  
+  // Parse both timestamps
+  const createdAt = new Date(message.created_at).getTime();
+  const updatedAt = new Date(message.updated_at).getTime();
+  
+  // Consider edited if updated_at is more than 1 second after created_at
+  // (allows for small timing differences in the database)
+  return updatedAt - createdAt > 1000;
+};
+
 const formatTimeOnly = (timestamp: Date) => {
   const date = new Date(timestamp);
   if (!isValid(date)) return '';
@@ -1253,6 +1272,20 @@ const closeInviteModal = () => {
   font-size: 0.75rem;
   color: #a3a6aa;
   font-weight: 400;
+}
+
+.edited-indicator {
+  font-size: 0.65rem;
+  color: #72767d;
+  font-style: italic;
+  margin-left: 0.25rem;
+  opacity: 0.8;
+  cursor: help;
+  transition: opacity 0.2s;
+}
+
+.edited-indicator:hover {
+  opacity: 1;
 }
 
 /* Compact message (no header) */
