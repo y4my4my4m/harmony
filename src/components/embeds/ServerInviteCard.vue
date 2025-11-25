@@ -191,9 +191,15 @@ async function loadInviteData() {
     }
 
     // Use getServerIconUrl to construct the full icon URL from the relative path
+    const iconUrl = getServerIconUrl(server.icon);
+    console.log('🎫 Server icon processing:', { 
+      rawIcon: server.icon, 
+      constructedUrl: iconUrl 
+    });
+    
     serverData.value = {
       name: server.name,
-      icon_url: getServerIconUrl(server.icon),
+      icon_url: iconUrl,
       description: server.description,
       member_count: memberCount || 0,
       server_id: server.id
