@@ -304,6 +304,15 @@ export class MessageEncryptionService {
     const symmetricKeyBase64 = this.arrayBufferToBase64(symmetricKey.buffer)
     
     for (const recipientId of recipientIds) {
+      // Special case: For self-encryption, just store the key directly (no Signal Protocol needed)
+      if (recipientId === this.currentUserId) {
+        encryptedKeys[recipientId] = JSON.stringify({
+          type: 'direct',
+          key: symmetricKeyBase64
+        })
+        continue
+      }
+      
       const recipientAddress = `${recipientId}:1`
       const hasSession = await signalProtocolService.hasSession(recipientAddress)
       if (!hasSession) {
@@ -373,25 +382,33 @@ export class MessageEncryptionService {
     console.log(`🔓 Decrypting message (hybrid) from ${senderId}`)
 
     try {
-      // Step 1: Decrypt the symmetric key using Signal Protocol
+      // Step 1: Decrypt the symmetric key
       const encryptedKeyData = JSON.parse(encryptedKey)
       const senderAddress = `${senderId}:1`
-      
+
       console.log(`  - Message type: ${encryptedKeyData.type}`)
       console.log(`  - Decrypting symmetric key from address: ${senderAddress}`)
       
       let symmetricKeyBase64: string
-      try {
-        symmetricKeyBase64 = await signalProtocolService.decryptMessage(senderAddress, encryptedKeyData)
-      } catch (sessionError: any) {
-        // If session doesn't exist, the session might have been cleared
-        console.error('❌ Session error:', sessionError.message)
-        
-        if (sessionError.message?.includes('unable to find session')) {
-          throw new Error('Session not found - encryption keys may have been cleared. Try re-initializing encryption.')
+      
+      // Special case: Direct key storage for self-encrypted messages
+      if (encryptedKeyData.type === 'direct') {
+        console.log('  - Using direct key (self-encrypted)')
+        symmetricKeyBase64 = encryptedKeyData.key
+      } else {
+        // Regular Signal Protocol decryption for other users
+        try {
+          symmetricKeyBase64 = await signalProtocolService.decryptMessage(senderAddress, encryptedKeyData)
+        } catch (sessionError: any) {
+          // If session doesn't exist, the session might have been cleared
+          console.error('❌ Session error:', sessionError.message)
+          
+          if (sessionError.message?.includes('unable to find session')) {
+            throw new Error('Session not found - encryption keys may have been cleared. Try re-initializing encryption.')
+          }
+          
+          throw sessionError
         }
-        
-        throw sessionError
       }
       
       const symmetricKey = this.base64ToArrayBuffer(symmetricKeyBase64)
@@ -422,7 +439,7 @@ export class MessageEncryptionService {
       const decoder = new TextDecoder()
       const decryptedJson = decoder.decode(decryptedBuffer)
       const decryptedContent: MessagePart[] = JSON.parse(decryptedJson)
-      
+
       console.log('✅ Message decrypted successfully (hybrid)')
       return decryptedContent
     } catch (error) {
@@ -502,7 +519,7 @@ export class MessageEncryptionService {
     console.log('🔄 Transformed bundle:', transformedBundle)
 
     // Process the prekey bundle to establish session
-    await signalProtocolService.processPreKeyBundle(
+    await signalProtocolService.createSessionFromPreKeyBundle(
       `${recipientId}:1`,
       transformedBundle
     )
