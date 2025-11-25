@@ -357,12 +357,13 @@ class UserDataService extends EventTarget {
       return
     }
     
-    // Track basic presence info globally
+    // Track basic presence info globally (including color for real-time user color sync)
     await this.globalChannel.track({
       user_id: this.currentUserId,
       username: userData.username,
       display_name: userData.displayName,
       avatar_url: userData.avatarUrl,
+      color: userData.color,
       status: userData.status,
       online_at: new Date().toISOString()
     })
@@ -478,7 +479,8 @@ class UserDataService extends EventTarget {
       avatarUrl: presence.avatar_url || existing?.avatarUrl,
       bannerUrl: existing?.bannerUrl,
       bio: existing?.bio,
-      color: existing?.color,
+      // 🎨 Use color from presence if provided (real-time color sync)
+      color: presence.color || existing?.color,
       domain: existing?.domain,
       isLocal: existing?.isLocal || false,
       status: userStatus,
@@ -494,7 +496,7 @@ class UserDataService extends EventTarget {
     
     // 🔥 CRITICAL FIX: Force UI updates for global presence changes
     // This ensures that users see each other online regardless of current view
-    console.log(`🌐 Global presence update: User ${userId} is now online with status ${UserStatus[userStatus]} (source: global_presence)`)
+    console.log(`🌐 Global presence update: User ${userId} is now online with status ${UserStatus[userStatus]}, color: ${userData.color || 'none'} (source: global_presence)`)
     this.emitEvent('user-updated', { userId })
     this.emitEvent('global-presence-updated', { userId, isOnline: true })
   }
@@ -529,7 +531,8 @@ class UserDataService extends EventTarget {
       avatarUrl: presence.avatar_url || existing?.avatarUrl,
       bannerUrl: presence.banner_url || existing?.bannerUrl,
       bio: existing?.bio,
-      color: existing?.color,
+      // 🎨 Use color from presence if provided (real-time color sync)
+      color: presence.color || existing?.color,
       domain: existing?.domain || 'har.mony.lol',
       isLocal: existing?.isLocal || false,
       status: userStatus,
@@ -725,6 +728,7 @@ class UserDataService extends EventTarget {
       display_name: userData.displayName,
       avatar_url: userData.avatarUrl,
       banner_url: userData.bannerUrl,
+      color: userData.color,
       status: userData.status,
       server_id: serverId,
       online_at: new Date().toISOString()
@@ -1223,6 +1227,7 @@ class UserDataService extends EventTarget {
             display_name: userData.displayName,
             avatar_url: userData.avatarUrl,
             banner_url: userData.bannerUrl,
+            color: userData.color,
             status: status,
             server_id: context.id,
             online_at: new Date().toISOString()

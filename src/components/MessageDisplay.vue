@@ -871,7 +871,34 @@ const handleWheel = (event: WheelEvent) => {
 const shouldShowHeader = (message: Message, index: number): boolean => {
   if (index === 0) return true;
   const prevMessage = props.messages[index - 1];
-  if (!prevMessage || prevMessage.user_id !== message.user_id) return true;
+  if (!prevMessage) return true;
+  
+  // For bot-puppeted messages (e.g., Discord bridge), compare the puppeted user identity
+  // rather than the bot_id, since multiple Discord users are puppeted through the same bot
+  if (message.bot_id && prevMessage.bot_id) {
+    const currentDiscordUser = message.metadata?.discord_user;
+    const prevDiscordUser = prevMessage.metadata?.discord_user;
+    
+    // If both have discord_user metadata, compare by discord user id or username
+    if (currentDiscordUser && prevDiscordUser) {
+      const currentId = currentDiscordUser.id || currentDiscordUser.username;
+      const prevId = prevDiscordUser.id || prevDiscordUser.username;
+      if (currentId !== prevId) return true;
+    } 
+    // If one has discord_user and the other doesn't, show header
+    else if (currentDiscordUser !== prevDiscordUser) {
+      return true;
+    }
+    // If neither has discord_user, compare bot_ids (same bot = same author)
+    else if (message.bot_id !== prevMessage.bot_id) {
+      return true;
+    }
+  } 
+  // Standard user message comparison
+  else if (prevMessage.user_id !== message.user_id || prevMessage.bot_id !== message.bot_id) {
+    return true;
+  }
+  
   if (message.reply_to) return true;
   const timeDiff = new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime();
   return timeDiff > 5 * 60 * 1000;

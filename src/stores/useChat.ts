@@ -649,6 +649,9 @@ export const useChatStore = defineStore('chat', {
                 reply_to: payload.new.reply_to,
                 is_system: payload.new.is_system,
                 metadata: payload.new.metadata || null,
+                // 🔐 Include encryption fields for real-time decryption
+                encrypted: payload.new.encrypted || false,
+                encryption_metadata: payload.new.encryption_metadata || null,
               };
               try {
                 ensureMessageEmbeds(resolvedMessage);
@@ -682,6 +685,9 @@ export const useChatStore = defineStore('chat', {
               reply_to: payload.new.reply_to,
               is_system: payload.new.is_system,
               metadata: payload.new.metadata || null,
+              // 🔐 Include encryption fields for real-time decryption
+              encrypted: payload.new.encrypted || false,
+              encryption_metadata: payload.new.encryption_metadata || null,
             };
             
             // Debug: Log bot messages with metadata
@@ -695,10 +701,13 @@ export const useChatStore = defineStore('chat', {
               });
             }
 
+            // 🔐 Decrypt encrypted messages or show glyphs if encryption not available
             if (newMessage.encrypted) {
+              console.log('🔐 Real-time encrypted message received, attempting decryption...');
               try {
                 const decrypted = await processMessageDecryption([newMessage]);
                 newMessage = decrypted[0];
+                console.log('🔓 Real-time message decryption result:', newMessage.decrypted ? 'success' : 'glyphs shown');
               } catch (error) {
                 console.warn('Failed to decrypt real-time message:', error);
               }
@@ -725,8 +734,8 @@ export const useChatStore = defineStore('chat', {
             table: 'messages',
             filter: `channel_id=eq.${channelId}`
           },
-          (payload) => {
-            const updatedMessage: Message = {
+          async (payload) => {
+            let updatedMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
               channel_id: payload.new.channel_id,
@@ -739,7 +748,20 @@ export const useChatStore = defineStore('chat', {
               is_system: payload.new.is_system,
               updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
               metadata: payload.new.metadata || null,
+              // 🔐 Include encryption fields for real-time decryption
+              encrypted: payload.new.encrypted || false,
+              encryption_metadata: payload.new.encryption_metadata || null,
             };
+
+            // 🔐 Decrypt if encrypted (for edited encrypted messages)
+            if (updatedMessage.encrypted) {
+              try {
+                const decrypted = await processMessageDecryption([updatedMessage]);
+                updatedMessage = decrypted[0];
+              } catch (error) {
+                console.warn('Failed to decrypt updated real-time message:', error);
+              }
+            }
 
             this.updateMessageInCache(updatedMessage.id, updatedMessage);
             console.log('🔄 Message updated via real-time:', updatedMessage.id);
