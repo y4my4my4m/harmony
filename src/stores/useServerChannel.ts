@@ -1904,6 +1904,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     /**
      * Subscribe to user's server list changes (join/leave servers)
+     * Also subscribes to server updates (name, icon, description) and deletions
      */
     async subscribeToUserServers(userId: string): Promise<void> {
       // Unsubscribe from previous subscription if any
@@ -1914,6 +1915,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       
       this.userServersSubscription = supabase
         .channel(`user-servers:${userId}`)
+        // Listen for user joining/leaving servers
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'user_servers', filter: `user_id=eq.${userId}` },
@@ -1923,6 +1925,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
           'postgres_changes',
           { event: 'DELETE', schema: 'public', table: 'user_servers', filter: `user_id=eq.${userId}` },
           (payload) => this._handleUserServerLeave(payload)
+        )
+        // Listen for server updates (name, icon, description changes)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'servers' },
+          (payload) => this._handleServerUpdate(payload)
+        )
+        // Listen for server deletions
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'servers' },
+          (payload) => this._handleServerDelete(payload)
         )
         .subscribe((status) => {
           console.log(`📡 User servers subscription status for ${userId}:`, status);
@@ -1987,6 +2001,66 @@ export const useServerChannelStore = defineStore('serverChannel', {
       
       // If this was the current server, switch to another
       if (this.currentServerId === serverId) {
+        if (this.servers.length > 0) {
+          this.setCurrentServer(this.servers[0].id);
+        } else {
+          this.currentServerId = null;
+          this.currentServer = {} as Server;
+          this.channels = [];
+          this.categories = [];
+          this.categoryChannels = {};
+        }
+      }
+    },
+
+    /**
+     * Handle server update (name, icon, description, etc.) - real-time
+     */
+    _handleServerUpdate(payload: any): void {
+      const updatedServer = payload.new as Server;
+      console.log('📝 Real-time: Server updated:', updatedServer.id, updatedServer.name);
+      
+      // Only update if this server is in the user's list
+      const serverIndex = this.servers.findIndex(s => s.id === updatedServer.id);
+      if (serverIndex === -1) {
+        // Server not in user's list, ignore
+        return;
+      }
+      
+      // Update server in the list
+      this.servers[serverIndex] = { ...this.servers[serverIndex], ...updatedServer };
+      console.log('✅ Server updated in list:', updatedServer.name);
+      
+      // If this is the current server, also update currentServer
+      if (this.currentServerId === updatedServer.id) {
+        this.currentServer = { ...this.currentServer, ...updatedServer };
+        console.log('✅ Current server updated:', updatedServer.name);
+      }
+    },
+
+    /**
+     * Handle server deletion - real-time
+     */
+    _handleServerDelete(payload: any): void {
+      const deletedServer = payload.old as Server;
+      console.log('🗑️ Real-time: Server deleted:', deletedServer.id);
+      
+      // Check if this server is in the user's list
+      const serverExists = this.servers.some(s => s.id === deletedServer.id);
+      if (!serverExists) {
+        // Server not in user's list, ignore
+        return;
+      }
+      
+      // Remove server from list
+      this.servers = this.servers.filter(s => s.id !== deletedServer.id);
+      console.log('✅ Deleted server removed from list:', deletedServer.name || deletedServer.id);
+      
+      // If this was the current server, switch to another
+      if (this.currentServerId === deletedServer.id) {
+        const toast = useToast();
+        toast.info(`Server "${deletedServer.name || 'Unknown'}" has been deleted`);
+        
         if (this.servers.length > 0) {
           this.setCurrentServer(this.servers[0].id);
         } else {

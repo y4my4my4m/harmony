@@ -656,11 +656,14 @@ export const useChatStore = defineStore('chat', {
               };
               try {
                 ensureMessageEmbeds(resolvedMessage);
-                // Check for encryption with fallback detection
+                // Check for encryption with improved fallback detection
+                const contentText = Array.isArray(resolvedMessage.content) && resolvedMessage.content[0]?.type === 'text' 
+                  ? resolvedMessage.content[0].text 
+                  : null;
+                const looksLikeBase64 = contentText && /^[A-Za-z0-9+/=]{20,}$/.test(contentText);
                 const looksEncrypted = resolvedMessage.encrypted || 
-                  (typeof resolvedMessage.content === 'string' && 
-                   resolvedMessage.content.match(/^[A-Za-z0-9+/=]{20,}$/) &&
-                   resolvedMessage.encryption_metadata);
+                  resolvedMessage.encryption_metadata ||
+                  (looksLikeBase64 && resolvedMessage.encryption_metadata);
                 if (looksEncrypted) {
                   if (!resolvedMessage.encrypted && resolvedMessage.encryption_metadata) {
                     resolvedMessage.encrypted = true;
@@ -724,19 +727,27 @@ export const useChatStore = defineStore('chat', {
             }
 
             // 🔐 Decrypt encrypted messages or show glyphs if encryption not available
-            // Also check if content looks like base64 encrypted data as fallback detection
+            // Check multiple conditions for encryption detection:
+            // 1. Explicit encrypted flag
+            // 2. Has encryption_metadata (most reliable indicator)
+            // 3. Content looks like base64 and has metadata (fallback)
+            const contentText = Array.isArray(newMessage.content) && newMessage.content[0]?.type === 'text' 
+              ? newMessage.content[0].text 
+              : null;
+            const looksLikeBase64 = contentText && /^[A-Za-z0-9+/=]{20,}$/.test(contentText);
+            
             const looksEncrypted = newMessage.encrypted || 
-              (typeof newMessage.content === 'string' && 
-               newMessage.content.match(/^[A-Za-z0-9+/=]{20,}$/) &&
-               newMessage.encryption_metadata);
+              newMessage.encryption_metadata ||
+              (looksLikeBase64 && newMessage.encryption_metadata);
             
             if (looksEncrypted) {
               console.log('🔐 Real-time encrypted message received, attempting decryption...', {
                 encrypted_flag: newMessage.encrypted,
-                has_metadata: !!newMessage.encryption_metadata
+                has_metadata: !!newMessage.encryption_metadata,
+                content_looks_like_base64: looksLikeBase64
               });
               try {
-                // Ensure encrypted flag is set if we detected encryption by content
+                // Ensure encrypted flag is set if we detected encryption by metadata
                 if (!newMessage.encrypted && newMessage.encryption_metadata) {
                   newMessage.encrypted = true;
                 }

@@ -3,6 +3,9 @@
  * 
  * Provides reactive search state, debouncing, filter management,
  * and search execution with pagination support.
+ * 
+ * For encrypted messages (E2EE), use useLocalMessageSearch instead,
+ * which performs client-side search on already-decrypted messages.
  */
 
 import { ref, computed, watch } from 'vue'
@@ -21,6 +24,17 @@ export interface SearchFilters {
   fromDate?: Date | null
   toDate?: Date | null
 }
+
+/**
+ * Note on E2EE Search:
+ * 
+ * For end-to-end encrypted messages, server-side search cannot access
+ * the decrypted content. In these cases, use the `useLocalMessageSearch`
+ * composable which performs client-side filtering on messages that are
+ * already loaded and decrypted in memory.
+ * 
+ * @see useLocalMessageSearch
+ */
 
 export function useMessageSearch() {
   // State
