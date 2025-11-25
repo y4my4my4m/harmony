@@ -180,19 +180,40 @@ export class SearchService {
       }
 
       // Transform database format to Message type
-      return (data || []).map(msg => ({
+      const messages: Message[] = (data || []).map(msg => ({
         id: msg.id,
         created_at: new Date(msg.created_at),
+        updated_at: msg.updated_at ? new Date(msg.updated_at) : undefined,
         channel_id: msg.channel_id,
         conversation_id: msg.conversation_id,
         user_id: msg.user_id,
-        bot_id: msg.bot_id, // Add bot_id support
+        bot_id: msg.bot_id,
         content: msg.content,
         reply_to: msg.reply_to,
         is_system: msg.is_system || false,
         metadata: msg.metadata,
-        reactions: [] // Will be loaded separately if needed
+        reactions: [],
+        // 🔐 Include encryption fields for decryption
+        encrypted: msg.encrypted || false,
+        encryption_metadata: msg.encryption_metadata || undefined
       }))
+
+      // 🔐 Decrypt encrypted messages
+      if (messages.some(m => m.encrypted || m.encryption_metadata)) {
+        console.log('🔐 Search results contain encrypted messages, attempting decryption...')
+        try {
+          const { processMessageDecryption } = await import('@/utils/messageDecryption')
+          const decryptedMessages = await processMessageDecryption(messages)
+          console.log('🔓 Search result decryption complete')
+          return decryptedMessages
+        } catch (decryptError) {
+          console.warn('⚠️ Failed to decrypt search results:', decryptError)
+          // Return messages as-is if decryption fails
+          return messages
+        }
+      }
+
+      return messages
     } catch (error) {
       console.error('❌ Failed to load messages by IDs:', error)
       throw error
