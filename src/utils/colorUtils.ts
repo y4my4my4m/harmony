@@ -437,6 +437,13 @@ export function generatePreviewColors(
 }
 
 /**
+ * Format OKLCH as CSS string with alpha
+ */
+function oklchToStringAlpha(l: number, c: number, h: number, alpha: number): string {
+  return `oklch(${l.toFixed(2)}% ${c.toFixed(3)} ${h.toFixed(1)} / ${alpha.toFixed(2)})`
+}
+
+/**
  * Apply theme palette to CSS custom properties using OKLCH
  */
 export function applyThemePalette(palette: ThemePalette): void {
@@ -449,6 +456,14 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary', palette.primary)
   root.style.setProperty('--h-primary-light', palette.primaryLight)
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
+  
+  // Primary color alpha variants
+  const primaryOklch = hexToOklch(palette.primary)
+  if (primaryOklch) {
+    root.style.setProperty('--harmony-primary-alpha', oklchToStringAlpha(primaryOklch.l, primaryOklch.c, primaryOklch.h, 0.15))
+    root.style.setProperty('--harmony-primary-alpha-light', oklchToStringAlpha(primaryOklch.l, primaryOklch.c, primaryOklch.h, 0.1))
+    root.style.setProperty('--harmony-primary-alpha-strong', oklchToStringAlpha(primaryOklch.l, primaryOklch.c, primaryOklch.h, 0.25))
+  }
   
   // Convert background colors to OKLCH for proper hue/chroma application
   const bgChatOklch = hexToOklch(palette.bgChat)
@@ -464,11 +479,16 @@ export function applyThemePalette(palette: ThemePalette): void {
     root.style.setProperty('--h-chat-lighter', oklchToString(bgChatOklch.l + 5, bgChatOklch.c, bgChatOklch.h))
     root.style.setProperty('--h-chat-dark', oklchToString(bgChatOklch.l - 8, bgChatOklch.c, bgChatOklch.h))
     root.style.setProperty('--h-chat-darker', oklchToString(bgChatOklch.l - 12, bgChatOklch.c, bgChatOklch.h))
+    // Alpha variants
+    root.style.setProperty('--h-chat-alpha', oklchToStringAlpha(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h, 0.67))
+    root.style.setProperty('--h-chat-alpha-light', oklchToStringAlpha(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h, 0.5))
   }
   
   if (bgSidebarOklch) {
     root.style.setProperty('--h-sidebar', oklchToString(bgSidebarOklch.l, bgSidebarOklch.c, bgSidebarOklch.h))
     root.style.setProperty('--h-sidebar-light', oklchToString(bgSidebarOklch.l + 4, bgSidebarOklch.c, bgSidebarOklch.h))
+    // Alpha variants
+    root.style.setProperty('--h-sidebar-alpha', oklchToStringAlpha(bgSidebarOklch.l, bgSidebarOklch.c, bgSidebarOklch.h, 0.67))
   }
   
   if (bgTertiaryOklch) {
@@ -476,25 +496,34 @@ export function applyThemePalette(palette: ThemePalette): void {
     root.style.setProperty('--h-black-light', oklchToString(bgTertiaryOklch.l + 11, bgTertiaryOklch.c, bgTertiaryOklch.h))
     root.style.setProperty('--h-black-lighter', oklchToString(bgTertiaryOklch.l + 14, bgTertiaryOklch.c, bgTertiaryOklch.h))
     root.style.setProperty('--h-black-darker', oklchToString(bgTertiaryOklch.l - 2, bgTertiaryOklch.c, bgTertiaryOklch.h))
+    // Alpha variants
+    root.style.setProperty('--h-black-alpha', oklchToStringAlpha(bgTertiaryOklch.l + 6, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.67))
   }
   
   // System background colors - use OKLCH for custom hue
   if (bgPrimaryOklch) {
     root.style.setProperty('--background-primary', oklchToString(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h))
+    // Alpha variant (0xaa = 170/255 ≈ 0.67)
+    root.style.setProperty('--background-primary-alpha', oklchToStringAlpha(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h, 0.67))
   }
   if (bgSecondaryOklch) {
     root.style.setProperty('--background-secondary', oklchToString(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h))
     root.style.setProperty('--background-quaternary', oklchToString(bgSecondaryOklch.l + 2, bgSecondaryOklch.c, bgSecondaryOklch.h))
+    // Alpha variant
+    root.style.setProperty('--background-secondary-alpha', oklchToStringAlpha(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h, 0.67))
   }
   if (bgTertiaryOklch) {
     root.style.setProperty('--background-tertiary', oklchToString(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h))
     root.style.setProperty('--background-quinary', oklchToString(bgTertiaryOklch.l + 2, bgTertiaryOklch.c, bgTertiaryOklch.h))
+    // Alpha variant
+    root.style.setProperty('--background-tertiary-alpha', oklchToStringAlpha(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.67))
   }
   
   // Text colors
   root.style.setProperty('--text-primary', palette.textPrimary)
   root.style.setProperty('--text-secondary', palette.textSecondary)
   root.style.setProperty('--text-tertiary', palette.textTertiary)
+  root.style.setProperty('--text-muted', palette.isLightTheme ? '#5e6168' : '#6d6f78')
   
   // Border colors
   root.style.setProperty('--border-primary', palette.borderPrimary)
