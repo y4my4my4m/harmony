@@ -650,12 +650,20 @@ export const useChatStore = defineStore('chat', {
                 is_system: payload.new.is_system,
                 metadata: payload.new.metadata || null,
                 // 🔐 Include encryption fields for real-time decryption
-                encrypted: payload.new.encrypted || false,
+                encrypted: payload.new.encrypted === true || payload.new.encrypted === 'true',
                 encryption_metadata: payload.new.encryption_metadata || null,
               };
               try {
                 ensureMessageEmbeds(resolvedMessage);
-                if (resolvedMessage.encrypted) {
+                // Check for encryption with fallback detection
+                const looksEncrypted = resolvedMessage.encrypted || 
+                  (typeof resolvedMessage.content === 'string' && 
+                   resolvedMessage.content.match(/^[A-Za-z0-9+/=]{20,}$/) &&
+                   resolvedMessage.encryption_metadata);
+                if (looksEncrypted) {
+                  if (!resolvedMessage.encrypted && resolvedMessage.encryption_metadata) {
+                    resolvedMessage.encrypted = true;
+                  }
                   const decrypted = await processMessageDecryption([resolvedMessage]);
                   resolvedMessage = decrypted[0];
                 }
@@ -673,6 +681,17 @@ export const useChatStore = defineStore('chat', {
               return;
             }
             
+            // 🔐 Debug: Log raw payload encryption fields to diagnose real-time decryption issues
+            console.log('🔐 Real-time message payload encryption fields:', {
+              id: payload.new.id,
+              encrypted: payload.new.encrypted,
+              encrypted_type: typeof payload.new.encrypted,
+              has_encryption_metadata: !!payload.new.encryption_metadata,
+              content_preview: typeof payload.new.content === 'string' 
+                ? payload.new.content.substring(0, 50) 
+                : 'not a string'
+            });
+
             let newMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
@@ -686,7 +705,8 @@ export const useChatStore = defineStore('chat', {
               is_system: payload.new.is_system,
               metadata: payload.new.metadata || null,
               // 🔐 Include encryption fields for real-time decryption
-              encrypted: payload.new.encrypted || false,
+              // Handle both boolean and truthy values from database
+              encrypted: payload.new.encrypted === true || payload.new.encrypted === 'true',
               encryption_metadata: payload.new.encryption_metadata || null,
             };
             
@@ -702,9 +722,22 @@ export const useChatStore = defineStore('chat', {
             }
 
             // 🔐 Decrypt encrypted messages or show glyphs if encryption not available
-            if (newMessage.encrypted) {
-              console.log('🔐 Real-time encrypted message received, attempting decryption...');
+            // Also check if content looks like base64 encrypted data as fallback detection
+            const looksEncrypted = newMessage.encrypted || 
+              (typeof newMessage.content === 'string' && 
+               newMessage.content.match(/^[A-Za-z0-9+/=]{20,}$/) &&
+               newMessage.encryption_metadata);
+            
+            if (looksEncrypted) {
+              console.log('🔐 Real-time encrypted message received, attempting decryption...', {
+                encrypted_flag: newMessage.encrypted,
+                has_metadata: !!newMessage.encryption_metadata
+              });
               try {
+                // Ensure encrypted flag is set if we detected encryption by content
+                if (!newMessage.encrypted && newMessage.encryption_metadata) {
+                  newMessage.encrypted = true;
+                }
                 const decrypted = await processMessageDecryption([newMessage]);
                 newMessage = decrypted[0];
                 console.log('🔓 Real-time message decryption result:', newMessage.decrypted ? 'success' : 'glyphs shown');

@@ -1272,6 +1272,10 @@ class UserDataService extends EventTarget {
       // Broadcast profile changes to relevant contexts only (context-aware)
       await this.broadcastProfileToContexts(profileData)
       
+      // 🎨 Re-track globally to update presence with new profile data (including color)
+      // This ensures other users see the updated color immediately via global presence
+      await this.trackCurrentUserGlobally()
+      
       this.emitEvent('user-updated', { userId: this.currentUserId })
       console.log('✅ Profile updated and broadcast to relevant contexts')
       

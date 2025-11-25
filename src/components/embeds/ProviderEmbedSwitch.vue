@@ -1,5 +1,13 @@
 <template>
-  <div class="provider-embed" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
+  <!-- Server Invite Card - special handling without header/collapse -->
+  <ServerInviteCard 
+    v-if="isServerInvite && inviteCode"
+    :invite-code="inviteCode"
+    :invite-url="payload.url"
+  />
+  
+  <!-- Regular embed with header/collapse -->
+  <div v-else class="provider-embed" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
     <div class="provider-embed__header">
       <div class="provider-embed__label">
         {{ providerLabel }}
@@ -54,6 +62,7 @@ import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl } from '@/uti
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
+import ServerInviteCard from './ServerInviteCard.vue';
 
 const props = defineProps<{
   payload: EmbedPayload;
@@ -69,11 +78,45 @@ const isPlaying = ref(false);
 
 const { registerVideo, returnToOriginalPosition, hasFloatingVideo, getFloatingVideoMessageId } = useFloatingVideo();
 
+// Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
+const isServerInvite = computed(() => {
+  if (props.payload.provider === 'harmony-invite') return true;
+  
+  try {
+    const url = new URL(props.payload.url);
+    // Match /invite/CODE pattern on any harmony instance
+    const inviteMatch = url.pathname.match(/^\/invite\/([A-Za-z0-9]+)$/);
+    if (inviteMatch) {
+      // Check if it's a known harmony instance or current origin
+      const harmonyDomains = ['har.mony.lol', 'harmony.local', 'localhost'];
+      const isHarmonyDomain = harmonyDomains.some(d => url.hostname.includes(d)) || 
+                              url.origin === window.location.origin;
+      return isHarmonyDomain;
+    }
+  } catch {
+    // Invalid URL
+  }
+  return false;
+});
+
+const inviteCode = computed(() => {
+  if (!isServerInvite.value) return null;
+  try {
+    const url = new URL(props.payload.url);
+    const match = url.pathname.match(/^\/invite\/([A-Za-z0-9]+)$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+});
+
 const isHarmony = computed(() => props.payload.provider === 'harmony-post');
 const providerLabel = computed(() => {
   switch (props.payload.provider) {
     case 'harmony-post':
       return 'Harmony Post';
+    case 'harmony-invite':
+      return 'Server Invite';
     case 'youtube':
       return 'YouTube';
     case 'spotify':

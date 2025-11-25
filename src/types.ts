@@ -126,7 +126,7 @@ export interface UrlContent {
   embedId?: string;
 }
 
-export type EmbedProvider = 'harmony-post' | 'youtube' | 'spotify' | 'generic';
+export type EmbedProvider = 'harmony-post' | 'harmony-invite' | 'youtube' | 'spotify' | 'generic';
 
 export interface HarmonyEmbedSummary {
   postId: string;
