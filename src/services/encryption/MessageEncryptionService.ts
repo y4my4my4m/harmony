@@ -313,19 +313,19 @@ export class MessageEncryptionService {
         continue
       }
       
-      const recipientAddress = `${recipientId}:1`
-      const hasSession = await signalProtocolService.hasSession(recipientAddress)
-      if (!hasSession) {
-        await this.establishSession(recipientId)
-      }
+          const recipientAddress = `${recipientId}:1`
+          const hasSession = await signalProtocolService.hasSession(recipientAddress)
+          if (!hasSession) {
+            await this.establishSession(recipientId)
+          }
 
       const encryptedKey = await signalProtocolService.encryptMessage(
-        recipientAddress,
+            recipientAddress,
         symmetricKeyBase64
-      )
+          )
 
       encryptedKeys[recipientId] = JSON.stringify(encryptedKey)
-    }
+        }
 
     // Store encrypted message in content as base64 text
     const encryptedContent: MessagePart[] = [{
@@ -384,7 +384,7 @@ export class MessageEncryptionService {
     try {
       // Step 1: Decrypt the symmetric key
       const encryptedKeyData = JSON.parse(encryptedKey)
-      const senderAddress = `${senderId}:1`
+    const senderAddress = `${senderId}:1`
 
       console.log(`  - Message type: ${encryptedKeyData.type}`)
       console.log(`  - Decrypting symmetric key from address: ${senderAddress}`)

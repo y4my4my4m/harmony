@@ -22,9 +22,23 @@
         <span 
           v-if="part && part.type === 'text'" 
           class="text-content"
-          :class="{ 'selectable': selectable }"
-          v-html="renderTextWithMarkdown(part.text)"
-        ></span>
+          :class="{ 
+            'selectable': selectable,
+            'encrypted-glyphs': props.encrypted
+          }"
+        >
+          <template v-if="props.encrypted">
+            <span 
+              v-for="(char, idx) in part.text.split('')" 
+              :key="idx"
+              class="glyph-char"
+              :style="{ animationDelay: `${idx * 0.05}s` }"
+            >{{ char }}</span>
+          </template>
+          <template v-else>
+            <span v-html="renderTextWithMarkdown(part.text)"></span>
+          </template>
+        </span>
         
         <!-- User mentions -->
         <span 
@@ -175,6 +189,7 @@ interface Props {
   enableMarkdown?: boolean;
   selectable?: boolean;
   imageLoaded?: Record<string, boolean>;
+  encrypted?: boolean; // Is this message encrypted?
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -186,7 +201,8 @@ const props = withDefaults(defineProps<Props>(), {
   singleLine: false,
   enableMarkdown: true,
   selectable: true,
-  imageLoaded: () => ({})
+  imageLoaded: () => ({}),
+  encrypted: false
 });
 
 const emit = defineEmits<{
@@ -569,6 +585,105 @@ const formatFileSize = (bytes: number): string => {
 @keyframes encrypted-flicker {
   0%, 100% { opacity: 0.7; }
   50% { opacity: 0.3; }
+}
+
+/* Encrypted messages - Mysterious glyphs */
+.encrypted-glyphs {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  letter-spacing: 0.15em;
+  user-select: none;
+  background: linear-gradient(90deg, rgba(88, 101, 242, 0.05), rgba(88, 101, 242, 0.1), rgba(88, 101, 242, 0.05));
+  border-radius: 4px;
+  padding: 2px 6px;
+  display: inline-block;
+  position: relative;
+}
+
+.glyph-char {
+  display: inline-block;
+  color: #7289da;
+  opacity: 0.7;
+  animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite;
+  text-shadow: 
+    0 0 5px rgba(114, 137, 218, 0.5),
+    0 0 10px rgba(114, 137, 218, 0.3);
+  transition: all 0.3s ease;
+}
+
+.glyph-char:hover {
+  color: #5865f2;
+  opacity: 1;
+  text-shadow: 
+    0 0 8px rgba(88, 101, 242, 0.8),
+    0 0 15px rgba(88, 101, 242, 0.5),
+    0 0 20px rgba(88, 101, 242, 0.3);
+  transform: scale(1.1);
+}
+
+.glyph-char:nth-child(3n) {
+  animation-duration: 2.5s, 4.5s;
+}
+
+.glyph-char:nth-child(3n+1) {
+  animation-duration: 3.5s, 5.5s;
+  animation-delay: 0.5s, 1s;
+}
+
+.glyph-char:nth-child(3n+2) {
+  animation-duration: 2.8s, 4.8s;
+  animation-delay: 0.3s, 0.7s;
+}
+
+.glyph-char:nth-child(5n) {
+  animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite, glyphGlow 2s ease-in-out infinite;
+}
+
+@keyframes glyphFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes glyphGlitch {
+  0%, 90%, 100% {
+    transform: translateY(0) skew(0deg);
+    opacity: 0.7;
+  }
+  92% {
+    transform: translateY(-2px) skew(-1deg);
+    opacity: 0.5;
+  }
+  94% {
+    transform: translateY(2px) skew(1deg);
+    opacity: 0.9;
+  }
+  96% {
+    transform: translateY(-1px) skew(-0.5deg);
+    opacity: 0.6;
+  }
+  98% {
+    transform: translateY(1px) skew(0.5deg);
+    opacity: 0.8;
+  }
+}
+
+@keyframes glyphGlow {
+  0%, 100% {
+    text-shadow: 
+      0 0 5px rgba(114, 137, 218, 0.5),
+      0 0 10px rgba(114, 137, 218, 0.3);
+    color: #7289da;
+  }
+  50% {
+    text-shadow: 
+      0 0 10px rgba(88, 101, 242, 0.9),
+      0 0 20px rgba(88, 101, 242, 0.6),
+      0 0 30px rgba(88, 101, 242, 0.4);
+    color: #5865f2;
+  }
 }
 
 /* Typography */

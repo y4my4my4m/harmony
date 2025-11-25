@@ -18,14 +18,30 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     encryptionService = module.messageEncryptionService
   } catch (error) {
     console.warn('⚠️ Encryption service not available:', error)
-    return messages
+    // Replace all encrypted messages with glyphs for users without encryption
+    return messages.map(msg => {
+      if (msg.encrypted) {
+        return {
+          ...msg,
+          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }]
+        }
+      }
+      return msg
+    })
   }
 
   if (!encryptionService || !encryptionService.isInitialized()) {
-    console.log('ℹ️ Encryption not initialized - encrypted messages will show as encrypted')
-    console.log('  - Service exists:', !!encryptionService)
-    console.log('  - Is initialized:', encryptionService?.isInitialized())
-    return messages
+    console.log('ℹ️ Encryption not initialized - encrypted messages will show as glyphs')
+    // Replace all encrypted messages with glyphs for users without encryption
+    return messages.map(msg => {
+      if (msg.encrypted) {
+        return {
+          ...msg,
+          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }]
+        }
+      }
+      return msg
+    })
   }
 
   // Get current user ID from Supabase session
@@ -34,8 +50,17 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   const currentUserId = user?.id
   
   if (!currentUserId) {
-    console.log('ℹ️ No user session - encrypted messages will show as encrypted')
-    return messages
+    console.log('ℹ️ No user session - encrypted messages will show as glyphs')
+    // Replace all encrypted messages with glyphs
+    return messages.map(msg => {
+      if (msg.encrypted) {
+        return {
+          ...msg,
+          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }]
+        }
+      }
+      return msg
+    })
   }
 
   console.log(`🔑 Processing ${messages.length} messages for decryption (user: ${currentUserId})`)
@@ -73,7 +98,8 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
         
         return {
           ...message,
-          content: decryptedContent
+          content: decryptedContent,
+          encrypted: false // Mark as decrypted so we don't show glyphs
         }
       } catch (error) {
         console.error(`❌ Cannot decrypt message ${message.id}:`, error)
@@ -81,7 +107,8 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
         const obfuscatedText = generateObfuscatedPlaceholder(100)
         return {
           ...message,
-          content: [{ type: 'text' as const, text: obfuscatedText }]
+          content: [{ type: 'text' as const, text: obfuscatedText }],
+          encrypted: true // Keep encrypted flag so glyphs show
         }
       }
     })
