@@ -189,6 +189,12 @@
             <h3>{{ $t('message.search') }}</h3>
             <p>{{ $t('message.searchAcrossMessages') }}</p>
             
+            <!-- E2EE Notice -->
+            <div class="encryption-notice">
+              <Icon name="lock" :size="14" />
+              <span>{{ $t('message.encryptedSearchNotice', 'End-to-end encrypted messages cannot be searched server-side. Use in-conversation search for encrypted DMs.') }}</span>
+            </div>
+            
             <!-- Recent Searches -->
             <div v-if="recentSearches.length > 0" class="recent-searches">
               <h4>{{ $t('message.recentSearches') }}</h4>
@@ -876,6 +882,25 @@ onMounted(() => {
 
 .retry-btn:hover {
   background: #4752c4;
+}
+
+.encryption-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(250, 168, 26, 0.1);
+  border: 1px solid rgba(250, 168, 26, 0.3);
+  border-radius: 4px;
+  color: #faa81a;
+  font-size: 12px;
+  text-align: left;
+  max-width: 400px;
+  margin-top: 16px;
+}
+
+.encryption-notice span {
+  line-height: 1.4;
 }
 
 .recent-searches {
