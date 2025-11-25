@@ -243,9 +243,24 @@ async function handleJoin() {
   }
 }
 
-function handleGoToServer() {
+async function handleGoToServer() {
   if (serverData.value?.server_id) {
-    router.push(`/chat/${serverData.value.server_id}`);
+    // Set the server in the store so ChatLayout knows which server to display
+    serverStore.setCurrentServer(serverData.value.server_id);
+    
+    // Fetch channels for this server
+    await serverStore.fetchCategoriesAndChannels(serverData.value.server_id);
+    
+    // Get the default channel
+    const defaultChannel = serverStore.getDefaultChannel();
+    
+    if (defaultChannel) {
+      // Navigate to the server with its default channel
+      router.push(`/chat/${serverData.value.server_id}/${defaultChannel}`);
+    } else {
+      // Fallback: just go to chat and let the app figure it out
+      router.push('/chat');
+    }
   }
 }
 
