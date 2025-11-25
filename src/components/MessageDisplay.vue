@@ -162,6 +162,12 @@
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
             />
+            <!-- Edited indicator for messages with headers -->
+            <span 
+              v-if="isMessageEdited(message)" 
+              class="edited-indicator inline"
+              :title="message.updated_at ? `Edited at ${formatTimestamp(message.updated_at)}` : 'Edited'"
+            >(edited)</span>
           </div>
         </div>
         

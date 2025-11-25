@@ -77,10 +77,19 @@
           <div class="option-card">
             <div class="option-icon">💾</div>
             <div class="option-info">
-              <strong>Export Backup Code</strong>
-              <p>Generate a new recovery code for your account</p>
+              <strong>Export Encrypted Backup</strong>
+              <p>Download your encryption keys as an encrypted file</p>
             </div>
-            <button @click="handleExportBackup" class="btn btn-secondary">Export</button>
+            <button @click="showBackupExportModal = true" class="btn btn-secondary">Export</button>
+          </div>
+          
+          <div class="option-card">
+            <div class="option-icon">🔄</div>
+            <div class="option-info">
+              <strong>Restore from Backup</strong>
+              <p>Import encryption keys from a backup file</p>
+            </div>
+            <button @click="showBackupImportModal = true" class="btn btn-secondary">Import</button>
           </div>
           
           <div class="option-card warning">
@@ -90,6 +99,21 @@
               <p>Delete all keys and start fresh (irreversible)</p>
             </div>
             <button @click="confirmReset = true" class="btn btn-danger">Reset</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Recovery option when encryption is NOT set up -->
+      <div v-if="!encryptionStatus.hasKeys" class="subsection">
+        <h4 class="subsection-title">Recovery</h4>
+        <div class="backup-options">
+          <div class="option-card">
+            <div class="option-icon">🔄</div>
+            <div class="option-info">
+              <strong>Restore from Backup</strong>
+              <p>Have a backup file? Restore your encryption keys</p>
+            </div>
+            <button @click="showBackupImportModal = true" class="btn btn-secondary">Import Backup</button>
           </div>
         </div>
       </div>
@@ -140,8 +164,102 @@
             <strong>This action cannot be undone.</strong>
           </p>
           <div class="modal-actions">
-            <button @click="confirmReset = false" class="btn-secondary">Cancel</button>
-            <button @click="handleResetEncryption" class="btn-danger">Reset Encryption</button>
+            <button @click="confirmReset = false" class="btn btn-secondary">Cancel</button>
+            <button @click="handleResetEncryption" class="btn btn-danger">Reset Encryption</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    
+    <!-- Backup Export Modal -->
+    <Teleport to="body">
+      <div v-if="showBackupExportModal" class="modal-overlay" @click.self="showBackupExportModal = false">
+        <div class="modal">
+          <h2>💾 Export Encrypted Backup</h2>
+          <p>
+            Create a password to protect your backup file. This can be different from your main encryption password.
+          </p>
+          <div class="form-group">
+            <label>Backup Password</label>
+            <input 
+              v-model="backupPassword" 
+              type="password" 
+              placeholder="Enter a strong password for your backup"
+            />
+          </div>
+          <div class="form-group">
+            <label>Confirm Password</label>
+            <input 
+              v-model="backupPasswordConfirm" 
+              type="password" 
+              placeholder="Confirm your backup password"
+            />
+          </div>
+          <p class="warning-text" v-if="backupPassword && backupPasswordConfirm && backupPassword !== backupPasswordConfirm">
+            Passwords do not match
+          </p>
+          <div class="modal-actions">
+            <button @click="showBackupExportModal = false; backupPassword = ''; backupPasswordConfirm = ''" class="btn-secondary">Cancel</button>
+            <button 
+              @click="handleExportBackup" 
+              :disabled="!backupPassword || backupPassword !== backupPasswordConfirm || isExporting"
+              class="btn btn-primary"
+            >
+              <span v-if="isExporting">Exporting...</span>
+              <span v-else>Export Backup</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    
+    <!-- Backup Import Modal -->
+    <Teleport to="body">
+      <div v-if="showBackupImportModal" class="modal-overlay" @click.self="showBackupImportModal = false">
+        <div class="modal">
+          <h2>🔄 Restore from Backup</h2>
+          <p>
+            Select your backup file and enter the passwords to restore your encryption keys.
+          </p>
+          <div class="form-group">
+            <label>Backup File</label>
+            <input 
+              type="file" 
+              accept=".harmony-backup,.txt"
+              @change="handleBackupFileSelect"
+            />
+            <p v-if="selectedBackupFile" class="file-selected">
+              Selected: {{ selectedBackupFile.name }}
+            </p>
+          </div>
+          <div class="form-group">
+            <label>Backup Password</label>
+            <input 
+              v-model="importBackupPassword" 
+              type="password" 
+              placeholder="Password used when creating the backup"
+            />
+          </div>
+          <div class="form-group">
+            <label>Main Encryption Password</label>
+            <input 
+              v-model="importMainPassword" 
+              type="password" 
+              placeholder="Your main encryption password"
+            />
+            <p class="form-hint">This is the password you use to unlock your encryption</p>
+          </div>
+          <p v-if="importError" class="warning-text">{{ importError }}</p>
+          <div class="modal-actions">
+            <button @click="closeImportModal" class="btn-secondary">Cancel</button>
+            <button 
+              @click="handleImportBackup" 
+              :disabled="!selectedBackupFile || !importBackupPassword || !importMainPassword || isImporting"
+              class="btn btn-primary"
+            >
+              <span v-if="isImporting">Restoring...</span>
+              <span v-else>Restore Backup</span>
+            </button>
           </div>
         </div>
       </div>
@@ -182,6 +300,21 @@ const confirmReset = ref(false)
 const isRotating = ref(false)
 const autoRotateKeys = ref(true)
 const notifyEncryptionStatus = ref(true)
+
+// Backup export state
+const showBackupExportModal = ref(false)
+const backupPassword = ref('')
+const backupPasswordConfirm = ref('')
+const isExporting = ref(false)
+
+// Backup import state
+const showBackupImportModal = ref(false)
+const selectedBackupFile = ref<File | null>(null)
+const selectedBackupData = ref<string>('')
+const importBackupPassword = ref('')
+const importMainPassword = ref('')
+const isImporting = ref(false)
+const importError = ref<string | null>(null)
 
 const prekeyStatus = computed(() => {
   const count = encryptionStatus.value.keyCount
@@ -239,27 +372,94 @@ async function handleRotateKeys() {
   }
 }
 
-function handleExportBackup() {
-  // Generate and download backup code
-  const backupCode = generateBackupCode()
-  const blob = new Blob([`Harmony E2EE Backup Code\n\n${backupCode}\n\nKeep this code safe!`], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `harmony-backup-${Date.now()}.txt`
-  a.click()
-  URL.revokeObjectURL(url)
-  
-  toast.success('Backup code exported')
+async function handleExportBackup() {
+  const service = await getEncryptionService()
+  if (!service) {
+    toast.error('Encryption service is not available')
+    return
+  }
+
+  isExporting.value = true
+  try {
+    const encryptedBackup = await service.exportBackup(backupPassword.value)
+    
+    // Download the backup file
+    const blob = new Blob([encryptedBackup], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `harmony-e2ee-backup-${new Date().toISOString().split('T')[0]}.harmony-backup`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    toast.success('Backup exported successfully! Keep this file safe.')
+    showBackupExportModal.value = false
+    backupPassword.value = ''
+    backupPasswordConfirm.value = ''
+  } catch (error: any) {
+    console.error('Failed to export backup:', error)
+    toast.error(error.message || 'Failed to export backup')
+  } finally {
+    isExporting.value = false
+  }
 }
 
-function generateBackupCode(): string {
-  const segments = []
-  for (let i = 0; i < 4; i++) {
-    const segment = Math.random().toString(36).substring(2, 6).toUpperCase()
-    segments.push(segment)
+function handleBackupFileSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  
+  selectedBackupFile.value = file
+  importError.value = null
+  
+  // Read file content
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    selectedBackupData.value = e.target?.result as string
   }
-  return segments.join('-')
+  reader.onerror = () => {
+    importError.value = 'Failed to read backup file'
+    selectedBackupFile.value = null
+  }
+  reader.readAsText(file)
+}
+
+async function handleImportBackup() {
+  if (!selectedBackupData.value || !importBackupPassword.value || !importMainPassword.value) {
+    importError.value = 'Please fill in all fields'
+    return
+  }
+
+  const service = await getEncryptionService()
+  if (!service) {
+    toast.error('Encryption service is not available')
+    return
+  }
+
+  isImporting.value = true
+  importError.value = null
+  
+  try {
+    await service.importBackup(selectedBackupData.value, importBackupPassword.value, importMainPassword.value)
+    
+    toast.success('Backup restored successfully! Your encryption keys have been recovered.')
+    closeImportModal()
+    await loadEncryptionStatus()
+  } catch (error: any) {
+    console.error('Failed to import backup:', error)
+    importError.value = error.message || 'Failed to restore backup. Check your passwords.'
+  } finally {
+    isImporting.value = false
+  }
+}
+
+function closeImportModal() {
+  showBackupImportModal.value = false
+  selectedBackupFile.value = null
+  selectedBackupData.value = ''
+  importBackupPassword.value = ''
+  importMainPassword.value = ''
+  importError.value = null
 }
 
 async function handleResetEncryption() {
@@ -564,6 +764,57 @@ onMounted(() => {
   gap: 12px;
   justify-content: flex-end;
   margin-top: 24px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"] {
+  width: 100%;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color, #40444b);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.form-group input[type="file"] {
+  width: 100%;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color, #40444b);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--primary, #5865f2);
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.file-selected {
+  font-size: 12px;
+  color: var(--success, #27ae60);
+  margin-top: 4px;
 }
 </style>
 

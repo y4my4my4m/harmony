@@ -436,6 +436,256 @@ export class EncryptionKeyStore implements StorageType {
   }
 
   // =====================================================
+  // BACKUP & RECOVERY METHODS
+  // =====================================================
+
+  /**
+   * Export all encryption keys as an encrypted backup
+   * Returns a base64-encoded encrypted blob that can be saved
+   */
+  async exportBackup(backupPassword: string): Promise<string> {
+    if (!this.db) throw new Error('Database not initialized')
+    if (!this.encryptionKey) throw new Error('Encryption key not set - unlock first')
+
+    // Collect all data from stores
+    const backup: Record<string, any> = {
+      version: 1,
+      userId: this.userId,
+      timestamp: Date.now(),
+      stores: {}
+    }
+
+    // Export identity
+    const identity = await this.getFromStore<StoredIdentity>(STORES.IDENTITY, this.userId)
+    if (identity) {
+      backup.stores.identity = identity
+    }
+
+    // Export all prekeys
+    backup.stores.prekeys = await this.getAllFromStore(STORES.PREKEYS)
+    
+    // Export all signed prekeys
+    backup.stores.signedPrekeys = await this.getAllFromStore(STORES.SIGNED_PREKEYS)
+    
+    // Export sessions
+    backup.stores.sessions = await this.getAllFromStore(STORES.SESSIONS)
+    
+    // Export metadata
+    backup.stores.metadata = await this.getAllFromStore(STORES.METADATA)
+
+    // Serialize and encrypt with backup password
+    const backupJson = JSON.stringify(backup)
+    const encrypted = await this.encryptWithPassword(backupJson, backupPassword)
+    
+    console.log('✅ Backup exported successfully')
+    return encrypted
+  }
+
+  /**
+   * Import and restore from an encrypted backup
+   */
+  async importBackup(encryptedBackup: string, backupPassword: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized')
+
+    // Decrypt the backup
+    let backupJson: string
+    try {
+      backupJson = await this.decryptWithPassword(encryptedBackup, backupPassword)
+    } catch (error) {
+      throw new Error('Invalid backup password or corrupted backup')
+    }
+
+    const backup = JSON.parse(backupJson)
+    
+    if (backup.version !== 1) {
+      throw new Error('Unsupported backup version')
+    }
+
+    if (backup.userId !== this.userId) {
+      throw new Error('Backup belongs to a different user')
+    }
+
+    // Clear existing data
+    await this.clearAllStores()
+
+    // Restore identity
+    if (backup.stores.identity) {
+      await this.putInStore(STORES.IDENTITY, backup.stores.identity)
+    }
+
+    // Restore prekeys
+    if (backup.stores.prekeys) {
+      for (const prekey of backup.stores.prekeys) {
+        await this.putInStore(STORES.PREKEYS, prekey)
+      }
+    }
+
+    // Restore signed prekeys
+    if (backup.stores.signedPrekeys) {
+      for (const signedPrekey of backup.stores.signedPrekeys) {
+        await this.putInStore(STORES.SIGNED_PREKEYS, signedPrekey)
+      }
+    }
+
+    // Restore sessions
+    if (backup.stores.sessions) {
+      for (const session of backup.stores.sessions) {
+        await this.putInStore(STORES.SESSIONS, session)
+      }
+    }
+
+    // Restore metadata
+    if (backup.stores.metadata) {
+      for (const meta of backup.stores.metadata) {
+        await this.putInStore(STORES.METADATA, meta)
+      }
+    }
+
+    console.log('✅ Backup imported successfully')
+  }
+
+  /**
+   * Encrypt data with a password (for backup)
+   */
+  private async encryptWithPassword(data: string, password: string): Promise<string> {
+    const encoder = new TextEncoder()
+    const passwordData = encoder.encode(password)
+    
+    // Generate a random salt
+    const salt = crypto.getRandomValues(new Uint8Array(16))
+    
+    // Derive key from password
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      passwordData,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveKey']
+    )
+
+    const key = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt']
+    )
+
+    const dataBytes = encoder.encode(data)
+    const iv = crypto.getRandomValues(new Uint8Array(12))
+
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      dataBytes
+    )
+
+    // Combine salt + iv + encrypted data
+    const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength)
+    combined.set(salt)
+    combined.set(iv, salt.length)
+    combined.set(new Uint8Array(encrypted), salt.length + iv.length)
+
+    return this.arrayBufferToBase64(combined)
+  }
+
+  /**
+   * Decrypt data with a password (for backup)
+   */
+  private async decryptWithPassword(encryptedData: string, password: string): Promise<string> {
+    const encoder = new TextEncoder()
+    const passwordData = encoder.encode(password)
+    
+    const combined = this.base64ToArrayBuffer(encryptedData)
+    const combinedArray = new Uint8Array(combined)
+    
+    // Extract salt, iv, and encrypted data
+    const salt = combinedArray.slice(0, 16)
+    const iv = combinedArray.slice(16, 28)
+    const data = combinedArray.slice(28)
+
+    // Derive key from password
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      passwordData,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveKey']
+    )
+
+    const key = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt']
+    )
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      data
+    )
+
+    const decoder = new TextDecoder()
+    return decoder.decode(decrypted)
+  }
+
+  /**
+   * Get all items from a store
+   */
+  private async getAllFromStore(storeName: string): Promise<any[]> {
+    if (!this.db) throw new Error('Database not initialized')
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(storeName, 'readonly')
+      const store = transaction.objectStore(storeName)
+      const request = store.getAll()
+
+      request.onsuccess = () => resolve(request.result || [])
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  /**
+   * Clear all stores (for import)
+   */
+  private async clearAllStores(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const storeNames = [STORES.IDENTITY, STORES.SESSIONS, STORES.PREKEYS, STORES.SIGNED_PREKEYS, STORES.METADATA]
+    
+    for (const storeName of storeNames) {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = this.db!.transaction(storeName, 'readwrite')
+        const store = transaction.objectStore(storeName)
+        const request = store.clear()
+
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+      })
+    }
+  }
+
+  /**
+   * Check if we have any stored keys
+   */
+  async hasStoredKeys(): Promise<boolean> {
+    const identity = await this.getFromStore<StoredIdentity>(STORES.IDENTITY, this.userId)
+    return !!identity
+  }
+
+  // =====================================================
   // UTILITY METHODS
   // =====================================================
 

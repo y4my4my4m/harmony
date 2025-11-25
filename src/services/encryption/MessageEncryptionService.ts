@@ -698,6 +698,53 @@ export class MessageEncryptionService {
   }
 
   // =====================================================
+  // BACKUP & RECOVERY
+  // =====================================================
+
+  /**
+   * Export encryption keys as an encrypted backup file
+   * @param backupPassword Password to encrypt the backup (can be different from main password)
+   * @returns Base64 encoded encrypted backup data
+   */
+  async exportBackup(backupPassword: string): Promise<string> {
+    if (!this.keyStore) {
+      throw new Error('Encryption not initialized')
+    }
+    
+    return await this.keyStore.exportBackup(backupPassword)
+  }
+
+  /**
+   * Import and restore encryption keys from a backup
+   * @param encryptedBackup The encrypted backup data
+   * @param backupPassword The password used to encrypt the backup
+   * @param mainPassword The main encryption password to re-derive the encryption key
+   */
+  async importBackup(encryptedBackup: string, backupPassword: string, mainPassword: string): Promise<void> {
+    if (!this.keyStore) {
+      throw new Error('Encryption not initialized')
+    }
+
+    // First, set the main encryption key
+    await this.keyStore.setEncryptionKey(mainPassword)
+    
+    // Then import the backup
+    await this.keyStore.importBackup(encryptedBackup, backupPassword)
+    
+    console.log('✅ Backup imported and encryption restored')
+  }
+
+  /**
+   * Check if user has stored encryption keys
+   */
+  async hasStoredKeys(): Promise<boolean> {
+    if (!this.keyStore) {
+      return false
+    }
+    return await this.keyStore.hasStoredKeys()
+  }
+
+  // =====================================================
   // CLEANUP
   // =====================================================
 

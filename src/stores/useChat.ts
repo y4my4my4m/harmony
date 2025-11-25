@@ -640,6 +640,7 @@ export const useChatStore = defineStore('chat', {
               let resolvedMessage: Message = {
                 id: payload.new.id,
                 created_at: new Date(payload.new.created_at),
+                updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
                 channel_id: payload.new.channel_id,
                 conversation_id: payload.new.conversation_id,
                 user_id: payload.new.user_id,
@@ -695,6 +696,7 @@ export const useChatStore = defineStore('chat', {
             let newMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
+              updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
               channel_id: payload.new.channel_id,
               conversation_id: payload.new.conversation_id,
               user_id: payload.new.user_id,

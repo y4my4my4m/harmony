@@ -22,7 +22,7 @@
     <template v-else-if="serverData">
       <div class="server-invite-card__icon">
         <img 
-          v-if="serverData.icon_url" 
+          v-if="hasCustomIcon" 
           :src="serverData.icon_url" 
           :alt="serverData.name"
           class="server-image"
@@ -82,6 +82,7 @@ import { supabase } from '@/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { acceptInvite } from '@/services/inviteService';
+import { getServerIconUrl } from '@/utils/serverUtils';
 
 interface ServerInviteData {
   name: string;
@@ -114,6 +115,12 @@ const isJoined = ref(false);
 
 const serverInitial = computed(() => {
   return serverData.value?.name?.charAt(0).toUpperCase() || 'S';
+});
+
+// Check if server has a custom icon (not the default fallback)
+const hasCustomIcon = computed(() => {
+  const iconUrl = serverData.value?.icon_url;
+  return iconUrl && iconUrl !== '/default_server.png';
 });
 
 async function loadInviteData() {
@@ -150,9 +157,10 @@ async function loadInviteData() {
     }
 
     // Step 2: Fetch server details separately
+    // Note: The column is 'icon' not 'icon_url' - it stores a relative path
     const { data: server, error: serverError } = await supabase
       .from('servers')
-      .select('id, name, icon_url, description')
+      .select('id, name, icon, description')
       .eq('id', invite.server_id)
       .single();
 
@@ -182,9 +190,10 @@ async function loadInviteData() {
       isJoined.value = !!membership;
     }
 
+    // Use getServerIconUrl to construct the full icon URL from the relative path
     serverData.value = {
       name: server.name,
-      icon_url: server.icon_url,
+      icon_url: getServerIconUrl(server.icon),
       description: server.description,
       member_count: memberCount || 0,
       server_id: server.id
@@ -216,7 +225,7 @@ async function handleJoin() {
       emit('joined', result.serverId);
       
       // Refresh server list
-      await serverStore.fetchUserServers(authStore.session.user.id);
+      await serverStore.fetchServersForUser(authStore.session.user.id);
     } else {
       toast.error(result.error || 'Failed to join server');
     }
@@ -344,6 +353,7 @@ watch(() => props.inviteCode, () => {
   color: #8e9297;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
