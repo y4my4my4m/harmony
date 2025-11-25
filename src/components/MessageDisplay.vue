@@ -1170,8 +1170,7 @@ const closeInviteModal = () => {
 /* Individual message item */
 .message-item {
   position: relative;
-  margin-bottom: 1px;
-  padding: 0 16px;
+  padding: 2px 48px 2px 16px;
   transition: background-color 0.1s ease-out;
 }
 
@@ -1181,14 +1180,15 @@ const closeInviteModal = () => {
 
 /* Reply reference styling */
 .reply-reference {
-  margin-left: 48px;
+  margin-left: 56px; /* Match the gutter width */
+  margin-bottom: 4px;
   cursor: pointer;
   position: relative;
 }
 
 .reply-spine {
   position: absolute;
-  left: -32px;
+  left: -36px;
   bottom: -1px;
   width: 2px;
   height: 12px;
@@ -1201,7 +1201,7 @@ const closeInviteModal = () => {
   position: absolute;
   top: 0;
   left: 0;
-  width: 30px;
+  width: 34px;
   height: 2px;
   background-color: #4f545c;
   border-radius: 1px;
@@ -1242,28 +1242,26 @@ const closeInviteModal = () => {
   display: flex;
   flex-direction: column;
   position: relative;
-  padding: 4px 0;
 }
 
-/* .message-group.has-header {
-  margin-top: 16px;
-} */
+/* Messages with headers get extra top margin for visual separation */
+.message-group.has-header {
+  margin-top: 1.0625rem;
+}
 
 .message-group.compact {
-  margin-top: 0.125rem;
+  margin-top: 0;
 }
 
 /* Message header with avatar + username + timestamp */
 .message-header {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 2px 0;
+  gap: 16px;
 }
 
 .message-avatar {
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
 .message-main {
@@ -1275,7 +1273,7 @@ const closeInviteModal = () => {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-bottom: 2px;
+  line-height: 1.375rem;
 }
 
 .username {
@@ -1341,28 +1339,31 @@ const closeInviteModal = () => {
 .message-content-only {
   display: flex;
   align-items: flex-start;
-  padding: 0.125rem 0;
   min-height: 1.375rem;
 }
 
 .message-gutter {
-  width: 48px;
-  margin-left: 4px;
+  width: 56px; /* 40px avatar + 16px gap = 56px to align with header messages */
   flex-shrink: 0;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Show timestamp on hover for compact messages */
 .message-content-only:hover .message-gutter::before {
   content: attr(data-timestamp);
   position: absolute;
-  right: 2px;
-  top: 50%;
+  left: 0;
+  right: 0;
+  top: 3px;
+  bottom: 0;
+  min-height: 24px;
+  text-align: center;
   font-size: 0.6875rem;
-  color: #a3a6aa;
-  padding: 0 4px;
-  border-radius: 3px;
-  width: calc(100% + 10px);
+  color: #72767d;
+  font-weight: 500;
 }
 
 /* Message actions */
