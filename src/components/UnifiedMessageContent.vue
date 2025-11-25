@@ -1122,6 +1122,7 @@ export default defineComponent({
     0 0 5px rgba(114, 137, 218, 0.5),
     0 0 10px rgba(114, 137, 218, 0.3);
   transition: all 0.3s ease;
+  user-select: all;
 }
 
 .encrypted-glyphs .glyph-char:hover {

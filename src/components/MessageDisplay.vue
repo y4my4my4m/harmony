@@ -1741,6 +1741,8 @@ const closeInviteModal = () => {
   vertical-align: middle;
   cursor: help;
   transition: all 0.2s ease;
+  position: relative;
+  top: -1px;
 }
 
 .encryption-dot.decrypted {
@@ -1764,6 +1766,9 @@ const closeInviteModal = () => {
   filter: drop-shadow(0 0 3px rgba(237, 66, 69, 0.4));
   cursor: help;
   transition: all 0.2s ease;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
 }
 
 .encryption-indicator.locked:hover {
