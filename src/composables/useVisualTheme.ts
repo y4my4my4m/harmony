@@ -505,7 +505,7 @@ export function useVisualTheme() {
    * Update custom background lightness
    */
   function setCustomBackgroundLightness(lightness: number) {
-    settings.value.customBackgroundLightness = Math.max(-10, Math.min(10, lightness))
+    settings.value.customBackgroundLightness = Math.max(-50, Math.min(50, lightness))
   }
   
   /**

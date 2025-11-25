@@ -322,15 +322,16 @@ export function generateThemePalette(
 
   if (isLight) {
     // Light theme - use background hue for subtle tinting
-    // Lightness offset: negative = darker, positive = lighter (but capped)
+    // Lightness offset: -50 to +50, negative = darker, positive = lighter
     const bgTintChroma = 0.02 // Very subtle chroma for backgrounds
     
     // Base lightness levels for light mode (high values)
-    const baseLightness = 98 + (lightnessOffset * 0.3) // Range from ~88 to 100
-    const bgPrimaryOklch = { l: Math.min(100, Math.max(85, baseLightness)), c: bgTintChroma, h: bgHue }
-    const bgSecondaryOklch = { l: Math.min(100, Math.max(83, baseLightness - 2)), c: bgTintChroma, h: bgHue }
-    const bgTertiaryOklch = { l: Math.min(100, Math.max(81, baseLightness - 4)), c: bgTintChroma, h: bgHue }
-    const sidebarOklch = { l: Math.min(100, Math.max(80, baseLightness - 4)), c: bgTintChroma * 1.5, h: bgHue }
+    // Scale: at 0 = 98, at -50 = 68, at +50 = 100 (capped)
+    const baseLightness = 98 + (lightnessOffset * 0.6)
+    const bgPrimaryOklch = { l: Math.min(100, Math.max(60, baseLightness)), c: bgTintChroma, h: bgHue }
+    const bgSecondaryOklch = { l: Math.min(100, Math.max(58, baseLightness - 2)), c: bgTintChroma, h: bgHue }
+    const bgTertiaryOklch = { l: Math.min(100, Math.max(56, baseLightness - 4)), c: bgTintChroma, h: bgHue }
+    const sidebarOklch = { l: Math.min(100, Math.max(55, baseLightness - 4)), c: bgTintChroma * 1.5, h: bgHue }
     
     return {
       primary: primaryColor,
@@ -355,23 +356,23 @@ export function generateThemePalette(
     }
   } else {
     // Dark theme - use background hue with low chroma for UI tone
-    // Lightness offset: negative = darker, positive = lighter
+    // Lightness offset: -50 to +50, negative = darker, positive = lighter
     const bgTintChroma = 0.015 // Subtle chroma for dark backgrounds
     
-    // Base lightness levels for dark mode (low values)
-    // lightnessOffset ranges from -10 to +10, so we scale it appropriately
-    const chatBaseLightness = 19.5 + (lightnessOffset * 0.5) // Range from ~14 to ~25
+    // Base lightness levels for dark mode
+    // Scale: at 0 = ~20, at -50 = ~5 (very dark), at +50 = ~45 (lighter dark)
+    const chatBaseLightness = 19.5 + (lightnessOffset * 0.5)
     const sidebarBaseLightness = 17 + (lightnessOffset * 0.5)
-    const systemBaseLightness = 12 + (lightnessOffset * 0.4)
+    const systemBaseLightness = 12 + (lightnessOffset * 0.45)
     
     // Chat/content areas (lighter, more visible)
-    const bgChatOklch = { l: Math.max(8, Math.min(35, chatBaseLightness)), c: bgTintChroma, h: bgHue }
-    const sidebarOklch = { l: Math.max(6, Math.min(30, sidebarBaseLightness)), c: bgTintChroma * 1.5, h: bgHue }
+    const bgChatOklch = { l: Math.max(3, Math.min(50, chatBaseLightness)), c: bgTintChroma, h: bgHue }
+    const sidebarOklch = { l: Math.max(2, Math.min(45, sidebarBaseLightness)), c: bgTintChroma * 1.5, h: bgHue }
     
     // System backgrounds (darker, for structure)
-    const systemBgPrimaryOklch = { l: Math.max(5, Math.min(25, systemBaseLightness)), c: bgTintChroma, h: bgHue }
-    const systemBgSecondaryOklch = { l: Math.max(4, Math.min(22, systemBaseLightness - 1.5)), c: bgTintChroma, h: bgHue }
-    const systemBgTertiaryOklch = { l: Math.max(3, Math.min(20, systemBaseLightness - 3.5)), c: bgTintChroma, h: bgHue }
+    const systemBgPrimaryOklch = { l: Math.max(2, Math.min(40, systemBaseLightness)), c: bgTintChroma, h: bgHue }
+    const systemBgSecondaryOklch = { l: Math.max(1, Math.min(38, systemBaseLightness - 1.5)), c: bgTintChroma, h: bgHue }
+    const systemBgTertiaryOklch = { l: Math.max(1, Math.min(35, systemBaseLightness - 3.5)), c: bgTintChroma, h: bgHue }
     
     return {
       primary: primaryColor,
@@ -418,19 +419,19 @@ export function generatePreviewColors(
   const bgTintChroma = mode === 'light' ? 0.02 : 0.015
   
   if (mode === 'light') {
-    const baseLightness = 98 + (lightnessOffset * 0.3)
+    const baseLightness = 98 + (lightnessOffset * 0.6)
     return {
-      bgMain: oklchToHex(Math.min(100, Math.max(85, baseLightness)), bgTintChroma, bgOklch.h),
-      bgSidebar: oklchToHex(Math.min(100, Math.max(80, baseLightness - 4)), bgTintChroma * 1.5, bgOklch.h),
-      bgHeader: oklchToHex(Math.min(100, Math.max(82, baseLightness - 2)), bgTintChroma, bgOklch.h),
+      bgMain: oklchToHex(Math.min(100, Math.max(60, baseLightness)), bgTintChroma, bgOklch.h),
+      bgSidebar: oklchToHex(Math.min(100, Math.max(55, baseLightness - 4)), bgTintChroma * 1.5, bgOklch.h),
+      bgHeader: oklchToHex(Math.min(100, Math.max(58, baseLightness - 2)), bgTintChroma, bgOklch.h),
     }
   } else {
     const chatBaseLightness = 19.5 + (lightnessOffset * 0.5)
     const sidebarBaseLightness = 17 + (lightnessOffset * 0.5)
     return {
-      bgMain: oklchToHex(Math.max(8, Math.min(35, chatBaseLightness)), bgTintChroma, bgOklch.h),
-      bgSidebar: oklchToHex(Math.max(6, Math.min(30, sidebarBaseLightness)), bgTintChroma * 1.5, bgOklch.h),
-      bgHeader: oklchToHex(Math.max(6, Math.min(30, sidebarBaseLightness)), bgTintChroma, bgOklch.h),
+      bgMain: oklchToHex(Math.max(3, Math.min(50, chatBaseLightness)), bgTintChroma, bgOklch.h),
+      bgSidebar: oklchToHex(Math.max(2, Math.min(45, sidebarBaseLightness)), bgTintChroma * 1.5, bgOklch.h),
+      bgHeader: oklchToHex(Math.max(2, Math.min(45, sidebarBaseLightness)), bgTintChroma, bgOklch.h),
     }
   }
 }

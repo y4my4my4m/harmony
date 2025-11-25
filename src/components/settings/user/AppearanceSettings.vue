@@ -80,8 +80,8 @@
             <input
               v-model.number="settings.customBackgroundLightness"
               type="range"
-              min="-10"
-              max="10"
+              min="-50"
+              max="50"
               step="1"
               class="lightness-slider"
               @input="onLightnessChange"
