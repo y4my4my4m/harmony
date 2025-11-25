@@ -120,65 +120,79 @@ async function loadInviteData() {
   loading.value = true;
   error.value = null;
   
+  console.log('🎫 Loading invite data for code:', props.inviteCode);
+  
   try {
-    // Fetch invite details with server info
-    const { data, error: fetchError } = await supabase
+    // Step 1: Fetch invite details
+    const { data: invite, error: inviteError } = await supabase
       .from('invites')
-      .select(`
-        *,
-        servers!inner (
-          id,
-          name,
-          icon_url,
-          description
-        )
-      `)
+      .select('*')
       .eq('code', props.inviteCode)
       .single();
 
-    if (fetchError || !data) {
+    console.log('🎫 Invite query result:', { invite, inviteError });
+
+    if (inviteError || !invite) {
+      console.error('🎫 Invite fetch error:', inviteError);
       error.value = 'Invite not found or has expired';
       return;
     }
 
-    // Check if invite is valid
-    if (data.used && data.max_uses === 1) {
+    // Check if invite is valid (used column means single-use invite was used)
+    if (invite.used) {
       error.value = 'This invite has already been used';
       return;
     }
 
-    if (data.expires_at && new Date() > new Date(data.expires_at)) {
+    if (invite.expires_at && new Date() > new Date(invite.expires_at)) {
       error.value = 'This invite has expired';
       return;
     }
 
-    // Get member count
+    // Step 2: Fetch server details separately
+    const { data: server, error: serverError } = await supabase
+      .from('servers')
+      .select('id, name, icon_url, description')
+      .eq('id', invite.server_id)
+      .single();
+
+    console.log('🎫 Server query result:', { server, serverError });
+
+    if (serverError || !server) {
+      console.error('🎫 Server fetch error:', serverError);
+      error.value = 'Server not found';
+      return;
+    }
+
+    // Step 3: Get member count
     const { count: memberCount } = await supabase
       .from('user_servers')
       .select('*', { count: 'exact', head: true })
-      .eq('server_id', data.servers.id);
+      .eq('server_id', server.id);
 
-    // Check if current user is already a member
+    // Step 4: Check if current user is already a member
     if (authStore.session?.user?.id) {
       const { data: membership } = await supabase
         .from('user_servers')
         .select('id')
         .eq('user_id', authStore.session.user.id)
-        .eq('server_id', data.servers.id)
+        .eq('server_id', server.id)
         .single();
       
       isJoined.value = !!membership;
     }
 
     serverData.value = {
-      name: data.servers.name,
-      icon_url: data.servers.icon_url,
-      description: data.servers.description,
+      name: server.name,
+      icon_url: server.icon_url,
+      description: server.description,
       member_count: memberCount || 0,
-      server_id: data.servers.id
+      server_id: server.id
     };
+    
+    console.log('🎫 Server data loaded:', serverData.value);
   } catch (err) {
-    console.error('Error loading invite:', err);
+    console.error('🎫 Error loading invite:', err);
     error.value = 'Failed to load invite details';
   } finally {
     loading.value = false;
