@@ -1,7 +1,7 @@
 <template>
   <div class="server-sidebar">
     <div
-      :style="{ backgroundImage: 'url(/icon16.png)' }"
+      :style="{ backgroundImage: 'url(/icon16.png)', margin: '8px' }"
       class="portal"
       title="Harmony Portal"
       @click="togglePublicServers"

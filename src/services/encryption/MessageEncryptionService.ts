@@ -59,11 +59,33 @@ export class MessageEncryptionService {
 
   /**
    * Initialize the service for a user
+   * @param userId - The auth user ID (from session.user.id)
+   * @param password - Optional password for encryption key
    */
   async initialize(userId: string, password?: string): Promise<void> {
-    this.currentUserId = userId
+    // Get profile ID from database (encryption keys are stored by profile_id)
+    // This is important because encrypted_keys in messages use profile_id, not auth_user_id
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('auth_user_id', userId)
+        .single()
+      
+      if (profile?.id) {
+        this.currentUserId = profile.id
+        console.log(`🔐 Using profile ID for encryption: ${this.currentUserId} (auth: ${userId})`)
+      } else {
+        // Fallback to auth user ID if no profile found
+        this.currentUserId = userId
+        console.warn(`⚠️ No profile found for auth user ${userId}, using auth ID as fallback`)
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to get profile ID, using auth user ID:', error)
+      this.currentUserId = userId
+    }
 
-    // Create key store
+    // Create key store (uses auth user ID for key storage)
     this.keyStore = new EncryptionKeyStore(userId)
     await this.keyStore.initialize()
 
@@ -83,7 +105,7 @@ export class MessageEncryptionService {
     await signalProtocolService.initialize(this.keyStore)
 
     this.initialized = true
-    console.log('✅ MessageEncryptionService initialized for user', userId)
+    console.log('✅ MessageEncryptionService initialized for user (profile ID):', this.currentUserId)
   }
 
   /**
@@ -91,6 +113,13 @@ export class MessageEncryptionService {
    */
   isInitialized(): boolean {
     return this.initialized
+  }
+
+  /**
+   * Get the current user's profile ID (used for encryption key lookups)
+   */
+  getCurrentUserId(): string | null {
+    return this.currentUserId
   }
 
   /**

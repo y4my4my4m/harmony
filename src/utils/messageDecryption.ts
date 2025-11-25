@@ -44,13 +44,12 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     })
   }
 
-  // Get current user ID from Supabase session
-  const { supabase } = await import('@/supabase')
-  const { data: { user } } = await supabase.auth.getUser()
-  const currentUserId = user?.id
+  // Get current user's profile ID from the encryption service (already resolved during init)
+  // This avoids duplicate database queries - the service stores the profile ID, not auth user ID
+  const currentUserId = encryptionService.getCurrentUserId()
   
   if (!currentUserId) {
-    console.log('ℹ️ No user session - encrypted messages will show as glyphs')
+    console.log('ℹ️ No user ID in encryption service - encrypted messages will show as glyphs')
     // Replace all encrypted messages with glyphs
     return messages.map(msg => {
       if (msg.encrypted) {
