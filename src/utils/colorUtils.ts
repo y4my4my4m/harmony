@@ -292,12 +292,15 @@ export interface ThemePalette {
 }
 
 /**
- * Generate theme palette from accent color and background color
+ * Generate theme palette from primary color, accent color, and background settings
  */
 export function generateThemePalette(
   accentHex: string, 
   forcedMode?: 'light' | 'dark',
-  backgroundHex?: string
+  backgroundHex?: string,
+  lightnessOffset: number = 0,
+  primaryHex?: string,
+  chromaOffset: number = 0
 ): ThemePalette {
   const isLight = forcedMode === 'light' || (forcedMode === undefined && isLightColor(accentHex))
   const baseOklch = hexToOklch(accentHex)
@@ -306,6 +309,9 @@ export function generateThemePalette(
     throw new Error('Invalid accent color')
   }
 
+  // Use primary color if provided, otherwise use accent
+  const primaryColor = primaryHex || accentHex
+  
   // If background color is provided, use its hue for the UI backgrounds
   let bgHue = baseOklch.h
   if (backgroundHex) {
@@ -317,18 +323,24 @@ export function generateThemePalette(
 
   if (isLight) {
     // Light theme - use background hue for subtle tinting
-    const bgTintChroma = 0.02 // Very subtle chroma for backgrounds
+    // Lightness offset: -50 to +50, negative = darker, positive = lighter
+    // Chroma offset: -30 to +30, affects color saturation
+    const baseChroma = 0.02
+    const bgTintChroma = Math.max(0, Math.min(0.15, baseChroma + (chromaOffset * 0.004)))
     
-    const bgPrimaryOklch = { l: 98, c: bgTintChroma, h: bgHue }
-    const bgSecondaryOklch = { l: 96, c: bgTintChroma, h: bgHue }
-    const bgTertiaryOklch = { l: 94, c: bgTintChroma, h: bgHue }
-    const sidebarOklch = { l: 94, c: bgTintChroma * 1.5, h: bgHue }
+    // Base lightness levels for light mode (high values)
+    // Scale: at 0 = 98, at -50 = 68, at +50 = 100 (capped)
+    const baseLightness = 98 + (lightnessOffset * 0.6)
+    const bgPrimaryOklch = { l: Math.min(100, Math.max(60, baseLightness)), c: bgTintChroma, h: bgHue }
+    const bgSecondaryOklch = { l: Math.min(100, Math.max(58, baseLightness - 2)), c: bgTintChroma, h: bgHue }
+    const bgTertiaryOklch = { l: Math.min(100, Math.max(56, baseLightness - 4)), c: bgTintChroma, h: bgHue }
+    const sidebarOklch = { l: Math.min(100, Math.max(55, baseLightness - 4)), c: bgTintChroma * 1.5, h: bgHue }
     
     return {
-      primary: accentHex,
-      primaryHover: adjustLightness(accentHex, -10),
-      primaryLight: adjustLightness(accentHex, 20),
-      primaryDark: adjustLightness(accentHex, -15),
+      primary: primaryColor,
+      primaryHover: adjustLightness(primaryColor, -10),
+      primaryLight: adjustLightness(primaryColor, 20),
+      primaryDark: adjustLightness(primaryColor, -15),
       
       bgPrimary: oklchToHex(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h),
       bgSecondary: oklchToHex(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h),
@@ -336,33 +348,42 @@ export function generateThemePalette(
       bgChat: oklchToHex(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h),
       bgSidebar: oklchToHex(sidebarOklch.l, sidebarOklch.c, sidebarOklch.h),
       
-      textPrimary: '#2e3338',
-      textSecondary: '#4e5058',
-      textTertiary: '#6e7178',
+      textPrimary: '#1a1c1e',
+      textSecondary: '#3d4148',
+      textTertiary: '#5c6168',
       
-      borderPrimary: 'rgba(0, 0, 0, 0.12)',
-      borderSecondary: 'rgba(0, 0, 0, 0.08)',
+      borderPrimary: 'rgba(0, 0, 0, 0.15)',
+      borderSecondary: 'rgba(0, 0, 0, 0.10)',
       
       isLightTheme: true,
     }
   } else {
     // Dark theme - use background hue with low chroma for UI tone
-    const bgTintChroma = 0.015 // Subtle chroma for dark backgrounds
+    // Lightness offset: -50 to +50, negative = darker, positive = lighter
+    // Chroma offset: -30 to +30, affects color saturation
+    const baseChroma = 0.015
+    const bgTintChroma = Math.max(0, Math.min(0.12, baseChroma + (chromaOffset * 0.003)))
+    
+    // Base lightness levels for dark mode
+    // Scale: at 0 = ~20, at -50 = ~5 (very dark), at +50 = ~45 (lighter dark)
+    const chatBaseLightness = 19.5 + (lightnessOffset * 0.5)
+    const sidebarBaseLightness = 17 + (lightnessOffset * 0.5)
+    const systemBaseLightness = 12 + (lightnessOffset * 0.45)
     
     // Chat/content areas (lighter, more visible)
-    const bgChatOklch = { l: 19.5, c: bgTintChroma, h: bgHue }  // ~#313338
-    const sidebarOklch = { l: 17, c: bgTintChroma * 1.5, h: bgHue }  // ~#2b2d31
+    const bgChatOklch = { l: Math.max(3, Math.min(50, chatBaseLightness)), c: bgTintChroma, h: bgHue }
+    const sidebarOklch = { l: Math.max(2, Math.min(45, sidebarBaseLightness)), c: bgTintChroma * 1.5, h: bgHue }
     
     // System backgrounds (darker, for structure)
-    const systemBgPrimaryOklch = { l: 12, c: bgTintChroma, h: bgHue }  // ~#1a1a1e (BaseLayout)
-    const systemBgSecondaryOklch = { l: 10.5, c: bgTintChroma, h: bgHue }  // ~#17181a
-    const systemBgTertiaryOklch = { l: 8.5, c: bgTintChroma, h: bgHue }  // ~#121214 (server sidebar)
+    const systemBgPrimaryOklch = { l: Math.max(2, Math.min(40, systemBaseLightness)), c: bgTintChroma, h: bgHue }
+    const systemBgSecondaryOklch = { l: Math.max(1, Math.min(38, systemBaseLightness - 1.5)), c: bgTintChroma, h: bgHue }
+    const systemBgTertiaryOklch = { l: Math.max(1, Math.min(35, systemBaseLightness - 3.5)), c: bgTintChroma, h: bgHue }
     
     return {
-      primary: accentHex,
-      primaryHover: adjustLightness(accentHex, -8),
-      primaryLight: adjustLightness(accentHex, 15),
-      primaryDark: adjustLightness(accentHex, -12),
+      primary: primaryColor,
+      primaryHover: adjustLightness(primaryColor, -8),
+      primaryLight: adjustLightness(primaryColor, 15),
+      primaryDark: adjustLightness(primaryColor, -12),
       
       // System backgrounds (for BaseLayout, server sidebar, etc.)
       bgPrimary: oklchToHex(systemBgPrimaryOklch.l, systemBgPrimaryOklch.c, systemBgPrimaryOklch.h),
@@ -386,6 +407,51 @@ export function generateThemePalette(
 }
 
 /**
+ * Generate preview colors for theme card based on background settings
+ */
+export function generatePreviewColors(
+  backgroundHex: string,
+  mode: 'light' | 'dark',
+  lightnessOffset: number = 0,
+  chromaOffset: number = 0
+): { bgMain: string; bgSidebar: string; bgHeader: string } {
+  const bgOklch = hexToOklch(backgroundHex)
+  if (!bgOklch) {
+    return mode === 'light' 
+      ? { bgMain: '#ffffff', bgSidebar: '#f2f3f5', bgHeader: '#f6f6f6' }
+      : { bgMain: '#313338', bgSidebar: '#2b2d31', bgHeader: '#2f3136' }
+  }
+  
+  // Calculate chroma based on mode and offset
+  const baseChroma = mode === 'light' ? 0.02 : 0.015
+  const bgTintChroma = Math.max(0, Math.min(mode === 'light' ? 0.15 : 0.12, baseChroma + (chromaOffset * (mode === 'light' ? 0.004 : 0.003))))
+  
+  if (mode === 'light') {
+    const baseLightness = 98 + (lightnessOffset * 0.6)
+    return {
+      bgMain: oklchToHex(Math.min(100, Math.max(60, baseLightness)), bgTintChroma, bgOklch.h),
+      bgSidebar: oklchToHex(Math.min(100, Math.max(55, baseLightness - 4)), bgTintChroma * 1.5, bgOklch.h),
+      bgHeader: oklchToHex(Math.min(100, Math.max(58, baseLightness - 2)), bgTintChroma, bgOklch.h),
+    }
+  } else {
+    const chatBaseLightness = 19.5 + (lightnessOffset * 0.5)
+    const sidebarBaseLightness = 17 + (lightnessOffset * 0.5)
+    return {
+      bgMain: oklchToHex(Math.max(3, Math.min(50, chatBaseLightness)), bgTintChroma, bgOklch.h),
+      bgSidebar: oklchToHex(Math.max(2, Math.min(45, sidebarBaseLightness)), bgTintChroma * 1.5, bgOklch.h),
+      bgHeader: oklchToHex(Math.max(2, Math.min(45, sidebarBaseLightness)), bgTintChroma, bgOklch.h),
+    }
+  }
+}
+
+/**
+ * Format OKLCH as CSS string with alpha
+ */
+function oklchToStringAlpha(l: number, c: number, h: number, alpha: number): string {
+  return `oklch(${l.toFixed(2)}% ${c.toFixed(3)} ${h.toFixed(1)} / ${alpha.toFixed(2)})`
+}
+
+/**
  * Apply theme palette to CSS custom properties using OKLCH
  */
 export function applyThemePalette(palette: ThemePalette): void {
@@ -398,6 +464,14 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary', palette.primary)
   root.style.setProperty('--h-primary-light', palette.primaryLight)
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
+  
+  // Primary color alpha variants
+  const primaryOklch = hexToOklch(palette.primary)
+  if (primaryOklch) {
+    root.style.setProperty('--harmony-primary-alpha', oklchToStringAlpha(primaryOklch.l, primaryOklch.c, primaryOklch.h, 0.15))
+    root.style.setProperty('--harmony-primary-alpha-light', oklchToStringAlpha(primaryOklch.l, primaryOklch.c, primaryOklch.h, 0.1))
+    root.style.setProperty('--harmony-primary-alpha-strong', oklchToStringAlpha(primaryOklch.l, primaryOklch.c, primaryOklch.h, 0.25))
+  }
   
   // Convert background colors to OKLCH for proper hue/chroma application
   const bgChatOklch = hexToOklch(palette.bgChat)
@@ -413,11 +487,16 @@ export function applyThemePalette(palette: ThemePalette): void {
     root.style.setProperty('--h-chat-lighter', oklchToString(bgChatOklch.l + 5, bgChatOklch.c, bgChatOklch.h))
     root.style.setProperty('--h-chat-dark', oklchToString(bgChatOklch.l - 8, bgChatOklch.c, bgChatOklch.h))
     root.style.setProperty('--h-chat-darker', oklchToString(bgChatOklch.l - 12, bgChatOklch.c, bgChatOklch.h))
+    // Alpha variants
+    root.style.setProperty('--h-chat-alpha', oklchToStringAlpha(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h, 0.67))
+    root.style.setProperty('--h-chat-alpha-light', oklchToStringAlpha(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h, 0.5))
   }
   
   if (bgSidebarOklch) {
     root.style.setProperty('--h-sidebar', oklchToString(bgSidebarOklch.l, bgSidebarOklch.c, bgSidebarOklch.h))
     root.style.setProperty('--h-sidebar-light', oklchToString(bgSidebarOklch.l + 4, bgSidebarOklch.c, bgSidebarOklch.h))
+    // Alpha variants
+    root.style.setProperty('--h-sidebar-alpha', oklchToStringAlpha(bgSidebarOklch.l, bgSidebarOklch.c, bgSidebarOklch.h, 0.67))
   }
   
   if (bgTertiaryOklch) {
@@ -425,25 +504,34 @@ export function applyThemePalette(palette: ThemePalette): void {
     root.style.setProperty('--h-black-light', oklchToString(bgTertiaryOklch.l + 11, bgTertiaryOklch.c, bgTertiaryOklch.h))
     root.style.setProperty('--h-black-lighter', oklchToString(bgTertiaryOklch.l + 14, bgTertiaryOklch.c, bgTertiaryOklch.h))
     root.style.setProperty('--h-black-darker', oklchToString(bgTertiaryOklch.l - 2, bgTertiaryOklch.c, bgTertiaryOklch.h))
+    // Alpha variants
+    root.style.setProperty('--h-black-alpha', oklchToStringAlpha(bgTertiaryOklch.l + 6, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.67))
   }
   
   // System background colors - use OKLCH for custom hue
   if (bgPrimaryOklch) {
     root.style.setProperty('--background-primary', oklchToString(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h))
+    // Alpha variant (0xaa = 170/255 ≈ 0.67)
+    root.style.setProperty('--background-primary-alpha', oklchToStringAlpha(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h, 0.67))
   }
   if (bgSecondaryOklch) {
     root.style.setProperty('--background-secondary', oklchToString(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h))
     root.style.setProperty('--background-quaternary', oklchToString(bgSecondaryOklch.l + 2, bgSecondaryOklch.c, bgSecondaryOklch.h))
+    // Alpha variant
+    root.style.setProperty('--background-secondary-alpha', oklchToStringAlpha(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h, 0.67))
   }
   if (bgTertiaryOklch) {
     root.style.setProperty('--background-tertiary', oklchToString(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h))
     root.style.setProperty('--background-quinary', oklchToString(bgTertiaryOklch.l + 2, bgTertiaryOklch.c, bgTertiaryOklch.h))
+    // Alpha variant
+    root.style.setProperty('--background-tertiary-alpha', oklchToStringAlpha(bgTertiaryOklch.l, bgTertiaryOklch.c, bgTertiaryOklch.h, 0.67))
   }
   
   // Text colors
   root.style.setProperty('--text-primary', palette.textPrimary)
   root.style.setProperty('--text-secondary', palette.textSecondary)
   root.style.setProperty('--text-tertiary', palette.textTertiary)
+  root.style.setProperty('--text-muted', palette.isLightTheme ? '#5e6168' : '#6d6f78')
   
   // Border colors
   root.style.setProperty('--border-primary', palette.borderPrimary)

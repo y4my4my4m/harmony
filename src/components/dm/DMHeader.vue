@@ -18,6 +18,7 @@
           :conversation-id="conversation.id"
           :icon-path="conversation.icon_url"
           size="sm"
+          style="width:32px;height:32px;"
         />
 
         <!-- Direct Chat Avatar -->
@@ -26,6 +27,7 @@
             :src="getAvatarUrl(conversation.other_user?.avatar_url)"
             :alt="getUserDisplayName(conversation.other_user?.id || '').value || conversation.other_user?.display_name || conversation.other_user?.username || 'User'"
             size="sm"
+            style="width:32px;height:32px;"
             :status="otherUserStatus"
           />
           <!-- Federated user indicator -->
