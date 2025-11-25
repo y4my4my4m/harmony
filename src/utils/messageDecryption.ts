@@ -99,7 +99,8 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
         return {
           ...message,
           content: decryptedContent,
-          encrypted: false // Mark as decrypted so we don't show glyphs
+          encrypted: false, // Remove encrypted flag
+          decrypted: true // Add decrypted flag so we can show unlock indicator
         }
       } catch (error) {
         console.error(`❌ Cannot decrypt message ${message.id}:`, error)
@@ -108,7 +109,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
         return {
           ...message,
           content: [{ type: 'text' as const, text: obfuscatedText }],
-          encrypted: true // Keep encrypted flag so glyphs show
+          encrypted: true // Keep encrypted flag so glyphs and lock show
         }
       }
     })

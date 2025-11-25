@@ -257,6 +257,7 @@ export interface Message {
   reactions?: Reaction[]; // doesn't exist in the database, we're transforming it
   is_system?: boolean; // for system messages like join/leave announcements
   encrypted?: boolean; // true if this message is encrypted
+  decrypted?: boolean; // true if this message was encrypted and successfully decrypted (client-side flag)
   encryption_metadata?: {
     algorithm: string;
     encrypted_for: string[];

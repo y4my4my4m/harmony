@@ -329,6 +329,10 @@ export default defineComponent({
     encrypted: {
       type: Boolean,
       default: false
+    },
+    decrypted: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click'],

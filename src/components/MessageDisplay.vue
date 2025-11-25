@@ -130,7 +130,20 @@
                 <span v-if="hasDiscordUserMetadata(message)" class="bot-badge discord">DISCORD</span>
                 <span v-else-if="isMessageFromBot(message)" class="bot-badge">BOT</span>
               </span>
-              <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
+              <span class="timestamp">
+                {{ formatTimestamp(message.created_at) }}
+                <!-- Encryption indicators -->
+                <span 
+                  v-if="message.decrypted" 
+                  class="encryption-dot decrypted"
+                  :title="'End-to-end encrypted'"
+                ></span>
+                <span 
+                  v-else-if="message.encrypted" 
+                  class="encryption-indicator locked"
+                  :title="'End-to-end encrypted - You cannot decrypt this message'"
+                >🔒</span>
+              </span>
             </div>
             <UnifiedMessageContent 
               :content="message.content"
@@ -141,6 +154,7 @@
               :is-single-emoji="checkSingleEmoji(message.content)"
               :embed-payloads="message.metadata?.embeds"
               :encrypted="message.encrypted || false"
+              :decrypted="message.decrypted || false"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -164,6 +178,7 @@
               :is-single-emoji="checkSingleEmoji(message.content)"
               :embed-payloads="message.metadata?.embeds"
               :encrypted="message.encrypted || false"
+              :decrypted="message.decrypted || false"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -1714,5 +1729,55 @@ const closeInviteModal = () => {
 
 @keyframes spin-loader {
   to { transform: rotate(360deg); }
+}
+
+/* Encryption indicators */
+.encryption-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+  cursor: help;
+  transition: all 0.2s ease;
+}
+
+.encryption-dot.decrypted {
+  background-color: #3ba55d;
+  opacity: 0.5;
+  box-shadow: 0 0 3px rgba(59, 165, 93, 0.4);
+}
+
+.encryption-dot.decrypted:hover {
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(59, 165, 93, 0.8);
+  transform: scale(1.2);
+}
+
+.encryption-indicator.locked {
+  display: inline-block;
+  font-size: 0.7em;
+  margin-left: 4px;
+  opacity: 0.6;
+  animation: lockPulse 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 3px rgba(237, 66, 69, 0.4));
+  cursor: help;
+  transition: all 0.2s ease;
+}
+
+.encryption-indicator.locked:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px rgba(237, 66, 69, 0.8));
+  transform: scale(1.1);
+}
+
+@keyframes lockPulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.9;
+  }
 }
 </style>
