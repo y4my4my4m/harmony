@@ -80,7 +80,7 @@
           <p class="setting-description">Reset all audio settings to defaults</p>
         </div>
         <div class="setting-control">
-          <button @click="resetSystem" class="reset-btn danger" :disabled="isLoading">
+          <button @click="resetSystem" class="btn btn-danger" :disabled="isLoading">
             <Icon name="rotate-ccw" />
             {{ $t('common.reset') }}
           </button>

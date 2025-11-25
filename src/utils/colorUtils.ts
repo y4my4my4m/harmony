@@ -299,7 +299,8 @@ export function generateThemePalette(
   forcedMode?: 'light' | 'dark',
   backgroundHex?: string,
   lightnessOffset: number = 0,
-  primaryHex?: string
+  primaryHex?: string,
+  chromaOffset: number = 0
 ): ThemePalette {
   const isLight = forcedMode === 'light' || (forcedMode === undefined && isLightColor(accentHex))
   const baseOklch = hexToOklch(accentHex)
@@ -323,7 +324,9 @@ export function generateThemePalette(
   if (isLight) {
     // Light theme - use background hue for subtle tinting
     // Lightness offset: -50 to +50, negative = darker, positive = lighter
-    const bgTintChroma = 0.02 // Very subtle chroma for backgrounds
+    // Chroma offset: -30 to +30, affects color saturation
+    const baseChroma = 0.02
+    const bgTintChroma = Math.max(0, Math.min(0.15, baseChroma + (chromaOffset * 0.004)))
     
     // Base lightness levels for light mode (high values)
     // Scale: at 0 = 98, at -50 = 68, at +50 = 100 (capped)
@@ -357,7 +360,9 @@ export function generateThemePalette(
   } else {
     // Dark theme - use background hue with low chroma for UI tone
     // Lightness offset: -50 to +50, negative = darker, positive = lighter
-    const bgTintChroma = 0.015 // Subtle chroma for dark backgrounds
+    // Chroma offset: -30 to +30, affects color saturation
+    const baseChroma = 0.015
+    const bgTintChroma = Math.max(0, Math.min(0.12, baseChroma + (chromaOffset * 0.003)))
     
     // Base lightness levels for dark mode
     // Scale: at 0 = ~20, at -50 = ~5 (very dark), at +50 = ~45 (lighter dark)
@@ -407,7 +412,8 @@ export function generateThemePalette(
 export function generatePreviewColors(
   backgroundHex: string,
   mode: 'light' | 'dark',
-  lightnessOffset: number = 0
+  lightnessOffset: number = 0,
+  chromaOffset: number = 0
 ): { bgMain: string; bgSidebar: string; bgHeader: string } {
   const bgOklch = hexToOklch(backgroundHex)
   if (!bgOklch) {
@@ -416,7 +422,9 @@ export function generatePreviewColors(
       : { bgMain: '#313338', bgSidebar: '#2b2d31', bgHeader: '#2f3136' }
   }
   
-  const bgTintChroma = mode === 'light' ? 0.02 : 0.015
+  // Calculate chroma based on mode and offset
+  const baseChroma = mode === 'light' ? 0.02 : 0.015
+  const bgTintChroma = Math.max(0, Math.min(mode === 'light' ? 0.15 : 0.12, baseChroma + (chromaOffset * (mode === 'light' ? 0.004 : 0.003))))
   
   if (mode === 'light') {
     const baseLightness = 98 + (lightnessOffset * 0.6)

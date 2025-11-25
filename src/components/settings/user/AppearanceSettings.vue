@@ -91,6 +91,26 @@
           <div class="lightness-value">{{ settings.customBackgroundLightness > 0 ? '+' : '' }}{{ settings.customBackgroundLightness }}</div>
         </div>
         
+        <!-- Background Chroma (Saturation) -->
+        <div class="chroma-section">
+          <label class="picker-label">Background Saturation</label>
+          <p class="picker-help">Adjust color intensity of the backgrounds</p>
+          <div class="chroma-slider-container">
+            <span class="chroma-label">Muted</span>
+            <input
+              v-model.number="settings.customBackgroundChroma"
+              type="range"
+              min="-30"
+              max="30"
+              step="1"
+              class="chroma-slider"
+              @input="onChromaChange"
+            />
+            <span class="chroma-label">Vivid</span>
+          </div>
+          <div class="chroma-value">{{ settings.customBackgroundChroma > 0 ? '+' : '' }}{{ settings.customBackgroundChroma }}</div>
+        </div>
+        
         <!-- Primary Color -->
         <div class="color-picker-section">
           <label class="picker-label">Primary Color</label>
@@ -321,6 +341,7 @@ const settings = ref({
   customAccentColor: '#5865f2',
   customBackgroundColor: '#5865f2',
   customBackgroundLightness: 0,
+  customBackgroundChroma: 0,
   fontSize: 14,
   zoomLevel: 100,
   showTimestamps: true,
@@ -337,7 +358,8 @@ const customPreviewColors = computed(() => {
   return generatePreviewColors(
     settings.value.customBackgroundColor,
     settings.value.customThemeMode,
-    settings.value.customBackgroundLightness
+    settings.value.customBackgroundLightness,
+    settings.value.customBackgroundChroma
   )
 })
 
@@ -412,7 +434,8 @@ const previewTheme = () => {
         settings.value.customThemeMode,
         settings.value.customBackgroundColor,
         settings.value.customBackgroundLightness,
-        settings.value.customPrimaryColor
+        settings.value.customPrimaryColor,
+        settings.value.customBackgroundChroma
       )
       applyThemePalette(palette)
     } catch (error) {
@@ -424,6 +447,10 @@ const previewTheme = () => {
 }
 
 const onLightnessChange = () => {
+  previewTheme()
+}
+
+const onChromaChange = () => {
   previewTheme()
 }
 
@@ -459,6 +486,7 @@ const saveSettings = () => {
     customAccentColor: settings.value.customAccentColor,
     customBackgroundColor: settings.value.customBackgroundColor,
     customBackgroundLightness: settings.value.customBackgroundLightness,
+    customBackgroundChroma: settings.value.customBackgroundChroma,
     fontSize: settings.value.fontSize,
     zoomLevel: settings.value.zoomLevel,
     showTimestamps: settings.value.showTimestamps,
@@ -495,6 +523,7 @@ onMounted(async () => {
     customAccentColor: currentSettings.customAccentColor || '#5865f2',
     customBackgroundColor: currentSettings.customBackgroundColor || '#5865f2',
     customBackgroundLightness: currentSettings.customBackgroundLightness || 0,
+    customBackgroundChroma: currentSettings.customBackgroundChroma || 0,
     fontSize: currentSettings.fontSize,
     zoomLevel: currentSettings.zoomLevel,
     showTimestamps: currentSettings.showTimestamps,
@@ -780,6 +809,79 @@ onMounted(async () => {
 }
 
 .lightness-value {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #b9bbbe);
+  margin-top: 8px;
+}
+
+/* Chroma (Saturation) Slider */
+.chroma-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: var(--h-chat-darker);
+  border-radius: 8px;
+  border: 1px solid var(--h-chat-light);
+}
+
+.chroma-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.chroma-label {
+  font-size: 11px;
+  color: var(--text-tertiary, #80848e);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  min-width: 50px;
+  text-align: center;
+}
+
+.chroma-slider {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, 
+    oklch(30% 0.00 260), 
+    oklch(30% 0.06 260), 
+    oklch(30% 0.12 260)
+  );
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.chroma-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--h-primary, #5865f2);
+  cursor: pointer;
+  border: 3px solid var(--text-primary, #ffffff);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.chroma-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.chroma-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--h-primary, #5865f2);
+  cursor: pointer;
+  border: 3px solid var(--text-primary, #ffffff);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.chroma-value {
   text-align: center;
   font-size: 12px;
   font-weight: 600;

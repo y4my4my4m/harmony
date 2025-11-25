@@ -19,7 +19,8 @@ export interface VisualThemeSettings {
   customPrimaryColor?: string
   customAccentColor?: string
   customBackgroundColor?: string
-  customBackgroundLightness?: number // -10 to +10
+  customBackgroundLightness?: number // -50 to +50
+  customBackgroundChroma?: number // -30 to +30
   fontSize: number
   zoomLevel: number
   showTimestamps: boolean
@@ -69,6 +70,7 @@ const settings = ref<VisualThemeSettings>({
   customAccentColor: '#5865f2',
   customBackgroundColor: '#5865f2',
   customBackgroundLightness: 0,
+  customBackgroundChroma: 0,
   fontSize: 14,
   zoomLevel: 100,
   showTimestamps: true,
@@ -220,7 +222,8 @@ function applySettings(settings: VisualThemeSettings) {
         settings.customThemeMode,
         settings.customBackgroundColor,
         settings.customBackgroundLightness || 0,
-        settings.customPrimaryColor
+        settings.customPrimaryColor,
+        settings.customBackgroundChroma || 0
       )
       applyThemePalette(palette)
     } catch (error) {
@@ -509,6 +512,7 @@ export function useVisualTheme() {
       customAccentColor: '#5865f2',
       customBackgroundColor: '#5865f2',
       customBackgroundLightness: 0,
+      customBackgroundChroma: 0,
       fontSize: 14,
       zoomLevel: 100,
       showTimestamps: true,
@@ -536,6 +540,13 @@ export function useVisualTheme() {
   }
   
   /**
+   * Update custom background chroma (saturation)
+   */
+  function setCustomBackgroundChroma(chroma: number) {
+    settings.value.customBackgroundChroma = Math.max(-30, Math.min(30, chroma))
+  }
+  
+  /**
    * Get current settings
    */
   const currentSettings = computed(() => ({ ...settings.value }))
@@ -554,6 +565,7 @@ export function useVisualTheme() {
     setCustomAccentColor,
     setCustomBackgroundColor,
     setCustomBackgroundLightness,
+    setCustomBackgroundChroma,
     setFontSize,
     setZoomLevel,
     toggleShowTimestamps,
