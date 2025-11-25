@@ -13,17 +13,22 @@
           Manage your end-to-end encryption preferences
         </p>
         
-        <div class="status-card" :class="{ enabled: encryptionStatus.hasKeys }">
+        <div class="status-card" :class="{ enabled: encryptionStatus.hasKeys, locked: encryptionStatus.hasKeys && needsUnlock }">
           <div class="status-icon">
-            {{ encryptionStatus.hasKeys ? '🔒' : '🔓' }}
+            {{ encryptionStatus.hasKeys ? (needsUnlock ? '🔐' : '🔓') : '🔓' }}
           </div>
           <div class="status-info">
             <strong>
-              {{ encryptionStatus.hasKeys ? 'Encryption Enabled' : 'Encryption Disabled' }}
+              {{ encryptionStatus.hasKeys 
+                ? (needsUnlock ? 'Encryption Locked' : 'Encryption Enabled') 
+                : 'Encryption Disabled' 
+              }}
             </strong>
             <p>
               {{ encryptionStatus.hasKeys 
-                ? 'Your messages are protected with end-to-end encryption' 
+                ? (needsUnlock 
+                    ? 'Enter your password to send/receive encrypted messages' 
+                    : 'Your messages are protected with end-to-end encryption')
                 : 'Enable encryption to protect your messages' 
               }}
             </p>
@@ -35,6 +40,25 @@
           >
             Enable E2EE
           </button>
+          <button 
+            v-else-if="needsUnlock"
+            @click="showUnlockModal = true"
+            class="btn btn-primary btn-sm"
+          >
+            Unlock
+          </button>
+        </div>
+      </div>
+      
+      <!-- Unlock Required Warning -->
+      <div v-if="encryptionStatus.hasKeys && needsUnlock" class="subsection">
+        <div class="warning-card">
+          <div class="warning-icon">⚠️</div>
+          <div class="warning-info">
+            <strong>Encryption Locked</strong>
+            <p>You need to unlock encryption with your password to send and receive encrypted messages from other users.</p>
+          </div>
+          <button @click="showUnlockModal = true" class="btn btn-primary">Unlock Now</button>
         </div>
       </div>
       
@@ -171,6 +195,35 @@
       </div>
     </Teleport>
     
+    <!-- Unlock Encryption Modal -->
+    <Teleport to="body">
+      <div v-if="showUnlockModal" class="modal-overlay" @click.self="showUnlockModal = false">
+        <div class="modal">
+          <h2>🔐 Unlock Encryption</h2>
+          <p>
+            Enter your encryption password to unlock your keys. This is required to send and receive encrypted messages.
+          </p>
+          <div class="form-group">
+            <label>Encryption Password</label>
+            <input 
+              v-model="unlockPassword" 
+              type="password" 
+              placeholder="Enter your encryption password"
+              @keyup.enter="handleUnlock"
+              :disabled="isUnlocking"
+            />
+          </div>
+          <p v-if="unlockError" class="warning-text">{{ unlockError }}</p>
+          <div class="modal-actions">
+            <button @click="showUnlockModal = false; unlockPassword = ''; unlockError = null" class="btn btn-secondary" :disabled="isUnlocking">Cancel</button>
+            <button @click="handleUnlock" class="btn btn-primary" :disabled="isUnlocking || !unlockPassword">
+              {{ isUnlocking ? 'Unlocking...' : 'Unlock' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    
     <!-- Backup Export Modal -->
     <Teleport to="body">
       <div v-if="showBackupExportModal" class="modal-overlay" @click.self="showBackupExportModal = false">
@@ -300,6 +353,13 @@ const confirmReset = ref(false)
 const isRotating = ref(false)
 const autoRotateKeys = ref(true)
 const notifyEncryptionStatus = ref(true)
+const needsUnlock = ref(false)
+
+// Unlock modal state
+const showUnlockModal = ref(false)
+const unlockPassword = ref('')
+const isUnlocking = ref(false)
+const unlockError = ref<string | null>(null)
 
 // Backup export state
 const showBackupExportModal = ref(false)
@@ -342,6 +402,13 @@ async function loadEncryptionStatus() {
     const status = await service.getEncryptionStatus()
     encryptionStatus.value = status
     
+    // Check if encryption needs to be unlocked
+    if (status.hasKeys) {
+      needsUnlock.value = !service.hasEncryptionKeyLoaded()
+    } else {
+      needsUnlock.value = false
+    }
+    
     // TODO: Load active sessions count from database
     activeSessions.value = 0
     
@@ -349,6 +416,41 @@ async function loadEncryptionStatus() {
   } catch (error) {
     console.error('Failed to load encryption status:', error)
     toast.error('Failed to load encryption settings')
+  }
+}
+
+async function handleUnlock() {
+  if (!unlockPassword.value) return
+  
+  const service = await getEncryptionService()
+  if (!service) {
+    unlockError.value = 'Encryption service not available'
+    return
+  }
+  
+  isUnlocking.value = true
+  unlockError.value = null
+  
+  try {
+    await service.unlockEncryption(unlockPassword.value)
+    needsUnlock.value = false
+    showUnlockModal.value = false
+    unlockPassword.value = ''
+    toast.success('Encryption unlocked! You can now send and receive encrypted messages.')
+    
+    // Reprocess any encrypted messages
+    try {
+      const { useChatStore } = await import('@/stores/useChat')
+      const chatStore = useChatStore()
+      await chatStore.reprocessEncryptedMessages()
+    } catch (e) {
+      console.warn('Failed to reprocess messages after unlock:', e)
+    }
+  } catch (error: any) {
+    console.error('Failed to unlock encryption:', error)
+    unlockError.value = error.message || 'Invalid password'
+  } finally {
+    isUnlocking.value = false
   }
 }
 
@@ -667,6 +769,42 @@ onMounted(() => {
 .option-card.warning {
   border: 1px solid rgba(231, 76, 60, 0.3);
   background: rgba(231, 76, 60, 0.05);
+}
+
+.warning-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(241, 196, 15, 0.1);
+  border: 1px solid rgba(241, 196, 15, 0.3);
+  border-radius: 8px;
+}
+
+.warning-card .warning-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.warning-card .warning-info {
+  flex: 1;
+}
+
+.warning-card .warning-info strong {
+  display: block;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.warning-card .warning-info p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.status-card.locked {
+  border: 1px solid rgba(241, 196, 15, 0.5);
+  background: rgba(241, 196, 15, 0.1);
 }
 
 .option-icon {

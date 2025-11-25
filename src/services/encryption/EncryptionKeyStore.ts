@@ -182,6 +182,14 @@ export class EncryptionKeyStore implements StorageType {
     this.encryptionKey = null
   }
 
+  /**
+   * Check if the encryption key is currently loaded
+   * This is needed to know if we can decrypt prekeys from IndexedDB
+   */
+  hasEncryptionKeyLoaded(): boolean {
+    return this.encryptionKey !== null
+  }
+
   // =====================================================
   // STORAGE INTERFACE IMPLEMENTATION
   // =====================================================

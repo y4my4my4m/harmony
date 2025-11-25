@@ -7,6 +7,16 @@
 
 import type { Message, MessagePart } from '@/types'
 
+// Track decryption failures for debugging
+let lastDecryptionError: string | null = null
+
+/**
+ * Get the last decryption error (for debugging/UI display)
+ */
+export function getLastDecryptionError(): string | null {
+  return lastDecryptionError
+}
+
 /**
  * Process messages and attempt to decrypt encrypted ones
  */
@@ -18,6 +28,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     encryptionService = module.messageEncryptionService
   } catch (error) {
     console.warn('⚠️ Encryption service not available:', error)
+    lastDecryptionError = 'Encryption service not available'
     // Replace all encrypted messages with glyphs for users without encryption
     return messages.map(msg => {
       if (msg.encrypted) {
@@ -32,6 +43,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
 
   if (!encryptionService || !encryptionService.isInitialized()) {
     console.log('ℹ️ Encryption not initialized - encrypted messages will show as glyphs')
+    lastDecryptionError = 'Encryption service not initialized'
     // Replace all encrypted messages with glyphs for users without encryption
     return messages.map(msg => {
       if (msg.encrypted) {
@@ -50,6 +62,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   
   if (!currentUserId) {
     console.log('ℹ️ No user ID in encryption service - encrypted messages will show as glyphs')
+    lastDecryptionError = 'User ID not available in encryption service'
     // Replace all encrypted messages with glyphs
     return messages.map(msg => {
       if (msg.encrypted) {
@@ -62,7 +75,11 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     })
   }
 
-  console.log(`🔑 Processing ${messages.length} messages for decryption (user: ${currentUserId})`)
+  // Count encrypted messages for logging
+  const encryptedCount = messages.filter(m => m.encrypted).length
+  if (encryptedCount > 0) {
+    console.log(`🔑 Processing ${encryptedCount}/${messages.length} encrypted messages for decryption (user: ${currentUserId})`)
+  }
 
   // Process each message
   const processedMessages = await Promise.all(
@@ -72,16 +89,24 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
         return message
       }
 
-      console.log(`🔐 Found encrypted message ${message.id}:`)
-      console.log(`  - Algorithm:`, message.encryption_metadata.algorithm)
-      console.log(`  - Encrypted for:`, message.encryption_metadata.encrypted_for)
-      console.log(`  - Has keys:`, Object.keys(message.encryption_metadata.encrypted_keys || {}))
-      console.log(`  - Sender:`, message.encryption_metadata.sender_key_id)
+      // Debug logging for encrypted messages
+      const encryptedFor = message.encryption_metadata.encrypted_for || []
+      const hasKeyInMetadata = message.encryption_metadata.encrypted_keys?.[currentUserId]
+      
+      console.log(`🔐 Processing encrypted message ${message.id}:`)
+      console.log(`  - Sender: ${message.encryption_metadata.sender_key_id}`)
+      console.log(`  - Encrypted for ${encryptedFor.length} users: [${encryptedFor.join(', ')}]`)
+      console.log(`  - Current user ${currentUserId} ${hasKeyInMetadata ? 'HAS' : 'MISSING'} encrypted key`)
 
       // Check if we have an encrypted key for this user
-      const hasKey = message.encryption_metadata.encrypted_keys?.[currentUserId]
-      if (!hasKey) {
+      if (!hasKeyInMetadata) {
         console.log(`❌ No encrypted key for user ${currentUserId} in message ${message.id}`)
+        console.log(`   This could mean:`)
+        console.log(`   - The sender didn't encrypt for this user`)
+        console.log(`   - User ID mismatch (profile ID vs auth ID)`)
+        console.log(`   - Message was sent before user joined/enabled encryption`)
+        
+        lastDecryptionError = `No encrypted key for user in message`
         // Show cool placeholder characters
         const obfuscatedText = generateObfuscatedPlaceholder(100)
         return {
@@ -94,6 +119,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
         console.log(`🔓 Attempting to decrypt message ${message.id} for user ${currentUserId}`)
         const decryptedContent = await encryptionService.decryptMessage(message)
         console.log(`✅ Successfully decrypted message ${message.id}`)
+        lastDecryptionError = null // Clear error on success
         
         return {
           ...message,
@@ -101,8 +127,25 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
           encrypted: false, // Remove encrypted flag
           decrypted: true // Add decrypted flag so we can show unlock indicator
         }
-      } catch (error) {
-        console.error(`❌ Cannot decrypt message ${message.id}:`, error)
+      } catch (error: any) {
+        const errorMessage = error?.message || String(error)
+        console.error(`❌ Cannot decrypt message ${message.id}:`, errorMessage)
+        
+        // Provide more specific error diagnostics
+        if (errorMessage.includes('Encryption key not set')) {
+          console.error('   ⚠️ Encryption password required - user needs to unlock encryption')
+          lastDecryptionError = 'Encryption password required'
+        } else if (errorMessage.includes('Session not found') || errorMessage.includes('unable to find session')) {
+          console.error('   ⚠️ No Signal Protocol session with sender')
+          console.error('   This can happen if encryption keys were regenerated or cleared')
+          lastDecryptionError = 'Encryption session not found'
+        } else if (errorMessage.includes('prekey')) {
+          console.error('   ⚠️ Prekey issue - might need to regenerate encryption keys')
+          lastDecryptionError = 'Prekey error'
+        } else {
+          lastDecryptionError = `Decryption error: ${errorMessage.substring(0, 50)}`
+        }
+        
         // Show cool placeholder characters on error
         const obfuscatedText = generateObfuscatedPlaceholder(100)
         return {

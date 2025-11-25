@@ -91,30 +91,55 @@ export class CoreMessageService {
           
           if (hasKeys) {
             console.log('🔐 Sender has encryption - encrypting message')
+            console.log(`🔐 Current user (sender): ${currentUser.id}`)
             
             // Get all server members
-            const { data: members } = await supabase
+            const { data: members, error: membersError } = await supabase
               .from('user_servers')
               .select('user_id')
               .eq('server_id', serverId)
             
+            if (membersError) {
+              console.error('❌ Failed to get server members:', membersError)
+            }
+            
+            console.log(`🔐 Server ${serverId} has ${members?.length || 0} members:`, members?.map(m => m.user_id))
+            
+            // Get all member IDs except self
             const allUserIds = members?.map(m => m.user_id).filter(id => id !== currentUser.id) || []
+            console.log(`🔐 Other members (excluding self): ${allUserIds.length}`, allUserIds)
             
             // Filter to only users with encryption keys (who can decrypt)
-            const { data: usersWithKeys } = await supabase
-              .from('user_key_pairs')
-              .select('user_id')
-              .in('user_id', allUserIds)
-              .eq('is_active', true)
+            // Use RPC function to bypass RLS policy that prevents seeing other users' keys
+            let usersWithKeysIds: string[] = []
+            if (allUserIds.length > 0) {
+              const { data: keysResult, error: keysError } = await supabase
+                .rpc('get_users_with_encryption_keys', { p_user_ids: allUserIds })
+              
+              if (keysError) {
+                console.error('❌ Failed to check encryption keys:', keysError)
+                // Fallback: try direct query (will only work if RLS policy is updated)
+                const { data: fallbackData } = await supabase
+                  .from('user_key_pairs')
+                  .select('user_id')
+                  .in('user_id', allUserIds)
+                  .eq('is_active', true)
+                usersWithKeysIds = fallbackData?.map(u => u.user_id) || []
+              } else {
+                // RPC returns array of user_ids directly
+                usersWithKeysIds = keysResult || []
+              }
+              console.log(`🔐 Users with encryption keys: ${usersWithKeysIds.length}`, usersWithKeysIds)
+            }
             
-            const recipientIds = usersWithKeys?.map(u => u.user_id) || []
+            const recipientIds = [...usersWithKeysIds]
             
             // IMPORTANT: Always include yourself so you can decrypt your own messages!
             if (!recipientIds.includes(currentUser.id)) {
               recipientIds.push(currentUser.id)
             }
             
-            console.log(`🔐 Encrypting for ${recipientIds.length} recipients (including self)`)
+            console.log(`🔐 Final recipient list (${recipientIds.length} users):`, recipientIds)
             
             // Encrypt message for users who can decrypt (including yourself)
             const encryptedData = await encryptionService.encryptMessage(content, recipientIds)
@@ -231,7 +256,28 @@ export class CoreMessageService {
               .eq('conversation_id', conversationId)
               .is('left_at', null)
             
-            const recipientIds = participants?.map(p => p.user_id).filter(id => id !== currentUser.id) || []
+            // Get all participant IDs (including self for decryption)
+            const allParticipantIds = participants?.map(p => p.user_id) || []
+            
+            // Check which participants have encryption keys using RPC (bypasses RLS)
+            let recipientIds: string[] = []
+            if (allParticipantIds.length > 0) {
+              const { data: keysResult, error: keysError } = await supabase
+                .rpc('get_users_with_encryption_keys', { p_user_ids: allParticipantIds })
+              
+              if (keysError) {
+                console.warn('⚠️ Failed to check encryption keys for DM:', keysError)
+                // Fallback: assume all participants have keys (conversation encryption was enabled)
+                recipientIds = [...allParticipantIds]
+              } else {
+                recipientIds = keysResult || []
+              }
+              
+              // Always include self for decryption
+              if (!recipientIds.includes(currentUser.id)) {
+                recipientIds.push(currentUser.id)
+              }
+            }
             
             if (recipientIds.length > 0) {
               // Encrypt message
@@ -239,7 +285,7 @@ export class CoreMessageService {
               finalContent = encryptedData.content
               encrypted = true
               encryptionMetadata = encryptedData.encryption_metadata
-              console.log(`🔐 DM encrypted for ${recipientIds.length} recipients`)
+              console.log(`🔐 DM encrypted for ${recipientIds.length} recipients:`, recipientIds)
             }
           }
         } catch (error) {

@@ -187,24 +187,23 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async initializeEncryptionIfAvailable(userId: string) {
+    async initializeEncryptionIfAvailable(authUserId: string) {
       try {
-        console.log('🔐 Checking if user has encryption keys...');
+        console.log('🔐 Initializing encryption service...');
         
-        // Check if user has encryption keys set up
-        const { data: hasKeys } = await supabase
-          .rpc('user_has_encryption', { p_user_id: userId });
+        // IMPORTANT: Always initialize the encryption service first
+        // The service internally converts auth_user_id to profile_id
+        // This is required for BOTH senders AND recipients to decrypt messages
+        const { messageEncryptionService } = await import('@/services/encryption/MessageEncryptionService');
+        await messageEncryptionService.initialize(authUserId);
+        
+        // Now check if user has encryption keys (using profile ID internally)
+        const hasKeys = await messageEncryptionService.hasEncryptionKeys();
         
         if (hasKeys) {
-          console.log('✅ User has encryption keys - initializing encryption service (without password)');
+          console.log('✅ User has encryption keys - encryption service ready');
           
-          // Initialize encryption service without password
-          // This allows checking keys and basic operations
-          // Actual encryption will require password prompt if needed
-          const { messageEncryptionService } = await import('@/services/encryption/MessageEncryptionService');
-          await messageEncryptionService.initialize(userId);
-          
-          console.log('✅ Encryption service initialized');
+          // Reprocess any encrypted messages now that we're initialized
           try {
             const chatStore = useChatStore();
             chatStore.reprocessEncryptedMessages();
@@ -212,7 +211,7 @@ export const useAuthStore = defineStore('auth', {
             console.warn('Failed to reprocess messages after encryption init:', reprocessError);
           }
         } else {
-          console.log('ℹ️ User does not have encryption keys');
+          console.log('ℹ️ Encryption service initialized but user has no encryption keys yet');
         }
       } catch (error) {
         console.error('❌ Failed to initialize encryption:', error);

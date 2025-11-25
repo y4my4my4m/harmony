@@ -299,6 +299,15 @@ export class MessageEncryptionService {
       throw new Error('Not initialized')
     }
 
+    // Check if we have recipients other than self
+    const hasOtherRecipients = recipientIds.some(id => id !== this.currentUserId)
+    
+    // If encrypting for others, we need the encryption key to access our identity key
+    if (hasOtherRecipients && !this.keyStore.hasEncryptionKeyLoaded()) {
+      console.error('❌ Cannot encrypt for other users without encryption password')
+      throw new Error('Encryption password required. Please unlock encryption in Settings > Encryption to send encrypted messages to others.')
+    }
+
     console.log(`🔐 Encrypting message (hybrid) for ${recipientIds.length} recipients`)
 
     // Step 1: Generate random 256-bit symmetric key for AES-GCM
@@ -377,6 +386,52 @@ export class MessageEncryptionService {
   }
 
   /**
+   * Check if the encryption key (password-derived) is available for decryption
+   * Without this key, prekeys can't be loaded from IndexedDB
+   */
+  hasEncryptionKeyLoaded(): boolean {
+    if (!this.keyStore) return false
+    return this.keyStore.hasEncryptionKeyLoaded()
+  }
+
+  /**
+   * Unlock encryption by entering the password
+   * This is needed to send/receive encrypted messages in a new session
+   */
+  async unlockEncryption(password: string): Promise<boolean> {
+    if (!this.keyStore) {
+      throw new Error('Encryption service not initialized')
+    }
+
+    try {
+      await this.keyStore.setEncryptionKey(password)
+      
+      // Verify the key works by trying to load the identity key pair
+      const identityKey = await this.keyStore.getIdentityKeyPair()
+      if (!identityKey) {
+        throw new Error('Invalid password - could not decrypt keys')
+      }
+      
+      console.log('✅ Encryption unlocked successfully')
+      return true
+    } catch (error: any) {
+      console.error('❌ Failed to unlock encryption:', error.message)
+      // Clear the bad key
+      this.keyStore.clearSessionKey()
+      throw new Error('Invalid encryption password')
+    }
+  }
+
+  /**
+   * Check if encryption needs to be unlocked (has keys but no password loaded)
+   */
+  needsUnlock(): boolean {
+    if (!this.keyStore) return false
+    // Has stored keys but encryption key not loaded
+    return !this.keyStore.hasEncryptionKeyLoaded()
+  }
+
+  /**
    * Decrypt message content using hybrid encryption
    * 1. Decrypt symmetric key using Signal Protocol
    * 2. Decrypt message content using AES-GCM
@@ -413,7 +468,7 @@ export class MessageEncryptionService {
     try {
       // Step 1: Decrypt the symmetric key
       const encryptedKeyData = JSON.parse(encryptedKey)
-    const senderAddress = `${senderId}:1`
+      const senderAddress = `${senderId}:1`
 
       console.log(`  - Message type: ${encryptedKeyData.type}`)
       console.log(`  - Decrypting symmetric key from address: ${senderAddress}`)
@@ -426,14 +481,24 @@ export class MessageEncryptionService {
         symmetricKeyBase64 = encryptedKeyData.key
       } else {
         // Regular Signal Protocol decryption for other users
+        // IMPORTANT: This requires the user's encryption key to be loaded to access prekeys
         try {
           symmetricKeyBase64 = await signalProtocolService.decryptMessage(senderAddress, encryptedKeyData)
         } catch (sessionError: any) {
-          // If session doesn't exist, the session might have been cleared
-          console.error('❌ Session error:', sessionError.message)
+          const errorMsg = sessionError.message || String(sessionError)
+          console.error('❌ Signal Protocol decryption error:', errorMsg)
           
-          if (sessionError.message?.includes('unable to find session')) {
-            throw new Error('Session not found - encryption keys may have been cleared. Try re-initializing encryption.')
+          // Provide more specific error messages
+          if (errorMsg.includes('Encryption key not set')) {
+            throw new Error('Encryption key not set - please unlock encryption with your password')
+          }
+          
+          if (errorMsg.includes('unable to find session') || errorMsg.includes('Session not found')) {
+            throw new Error('Session not found - encryption keys may need to be regenerated')
+          }
+          
+          if (errorMsg.includes('prekey') || errorMsg.includes('PreKey')) {
+            throw new Error('Prekey error - the sender may have used an outdated encryption key')
           }
           
           throw sessionError
