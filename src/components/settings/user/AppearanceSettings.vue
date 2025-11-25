@@ -18,11 +18,13 @@
           :class="{ active: settings.theme === theme.id }"
           @click="selectTheme(theme.id)"
         >
-          <div class="theme-preview" :style="{ backgroundColor: theme.id === 'custom' ? settings.customAccentColor : theme.preview }">
+          <div class="theme-preview" :style="{ backgroundColor: theme.id === 'custom' ? customPreviewColors.bgMain : theme.preview }">
             <div class="theme-preview-content">
-              <div class="preview-header" :style="{ backgroundColor: theme.id === 'custom' ? settings.customAccentColor : theme.headerColor }"></div>
-              <div class="preview-sidebar" :style="{ backgroundColor: theme.id === 'custom' ? settings.customAccentColor : theme.sidebarColor }"></div>
-              <div class="preview-chat" :style="{ backgroundColor: theme.id === 'custom' ? settings.customAccentColor : theme.chatColor }"></div>
+              <div class="preview-header" :style="{ backgroundColor: theme.id === 'custom' ? customPreviewColors.bgHeader : theme.headerColor }"></div>
+              <div class="preview-sidebar" :style="{ backgroundColor: theme.id === 'custom' ? customPreviewColors.bgSidebar : theme.sidebarColor }"></div>
+              <div class="preview-chat" :style="{ backgroundColor: theme.id === 'custom' ? customPreviewColors.bgMain : theme.chatColor }"></div>
+              <!-- Show accent color dot for custom theme -->
+              <div v-if="theme.id === 'custom'" class="preview-accent-dot" :style="{ backgroundColor: settings.customPrimaryColor }"></div>
             </div>
           </div>
           <div class="theme-info">
@@ -58,10 +60,10 @@
           </div>
         </div>
         
-        <!-- Background Color -->
+        <!-- Background Tone Color -->
         <div class="color-picker-section">
           <label class="picker-label">Background Tone</label>
-          <p class="picker-help">Influences the overall color tone of backgrounds</p>
+          <p class="picker-help">Sets the color hue for all background elements</p>
           <ColorPicker 
             v-model:color="settings.customBackgroundColor"
             @update:color="onCustomBackgroundChange"
@@ -69,10 +71,41 @@
           />
         </div>
         
-        <!-- Accent Color -->
+        <!-- Background Lightness -->
+        <div class="lightness-section">
+          <label class="picker-label">Background Lightness</label>
+          <p class="picker-help">Adjust how light or dark the backgrounds appear</p>
+          <div class="lightness-slider-container">
+            <span class="lightness-label">Darker</span>
+            <input
+              v-model.number="settings.customBackgroundLightness"
+              type="range"
+              min="-10"
+              max="10"
+              step="1"
+              class="lightness-slider"
+              @input="onLightnessChange"
+            />
+            <span class="lightness-label">Lighter</span>
+          </div>
+          <div class="lightness-value">{{ settings.customBackgroundLightness > 0 ? '+' : '' }}{{ settings.customBackgroundLightness }}</div>
+        </div>
+        
+        <!-- Primary Color -->
         <div class="color-picker-section">
-          <label class="picker-label">Accent Color</label>
-          <p class="picker-help">Used for buttons, links, and interactive elements</p>
+          <label class="picker-label">Primary Color</label>
+          <p class="picker-help">Main brand color for buttons and key actions</p>
+          <ColorPicker 
+            v-model:color="settings.customPrimaryColor"
+            @update:color="onCustomColorChange"
+            @change="onCustomColorChange"
+          />
+        </div>
+        
+        <!-- Secondary/Accent Color -->
+        <div class="color-picker-section">
+          <label class="picker-label">Secondary Color</label>
+          <p class="picker-help">Used for links, highlights, and accents</p>
           <ColorPicker 
             v-model:color="settings.customAccentColor"
             @update:color="onCustomColorChange"
@@ -257,7 +290,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import type { User } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
 import { useVisualTheme } from '@/composables/useVisualTheme'
-import { generateThemePalette, applyThemePalette } from '@/utils/colorUtils'
+import { generateThemePalette, applyThemePalette, generatePreviewColors } from '@/utils/colorUtils'
 
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
@@ -284,8 +317,10 @@ const visualTheme = useVisualTheme()
 const settings = ref({
   theme: 'dark' as 'dark' | 'light' | 'midnight' | 'custom',
   customThemeMode: 'dark' as 'dark' | 'light',
+  customPrimaryColor: '#5865f2',
   customAccentColor: '#5865f2',
   customBackgroundColor: '#5865f2',
+  customBackgroundLightness: 0,
   fontSize: 14,
   zoomLevel: 100,
   showTimestamps: true,
@@ -295,6 +330,15 @@ const settings = ref({
   highContrast: false,
   reduceMotion: false,
   screenReaderSupport: false,
+})
+
+// Computed preview colors for custom theme
+const customPreviewColors = computed(() => {
+  return generatePreviewColors(
+    settings.value.customBackgroundColor,
+    settings.value.customThemeMode,
+    settings.value.customBackgroundLightness
+  )
 })
 
 const originalSettings = ref({ ...settings.value })
@@ -366,7 +410,9 @@ const previewTheme = () => {
       const palette = generateThemePalette(
         settings.value.customAccentColor,
         settings.value.customThemeMode,
-        settings.value.customBackgroundColor
+        settings.value.customBackgroundColor,
+        settings.value.customBackgroundLightness,
+        settings.value.customPrimaryColor
       )
       applyThemePalette(palette)
     } catch (error) {
@@ -375,6 +421,10 @@ const previewTheme = () => {
   } else {
     visualTheme.setTheme(settings.value.theme)
   }
+}
+
+const onLightnessChange = () => {
+  previewTheme()
 }
 
 const onFontSizeChange = () => {
@@ -405,8 +455,10 @@ const saveSettings = () => {
   visualTheme.updateSettings({
     theme: settings.value.theme,
     customThemeMode: settings.value.customThemeMode,
+    customPrimaryColor: settings.value.customPrimaryColor,
     customAccentColor: settings.value.customAccentColor,
     customBackgroundColor: settings.value.customBackgroundColor,
+    customBackgroundLightness: settings.value.customBackgroundLightness,
     fontSize: settings.value.fontSize,
     zoomLevel: settings.value.zoomLevel,
     showTimestamps: settings.value.showTimestamps,
@@ -439,8 +491,10 @@ onMounted(async () => {
   settings.value = {
     theme: currentSettings.theme,
     customThemeMode: currentSettings.customThemeMode || 'dark',
+    customPrimaryColor: currentSettings.customPrimaryColor || '#5865f2',
     customAccentColor: currentSettings.customAccentColor || '#5865f2',
     customBackgroundColor: currentSettings.customBackgroundColor || '#5865f2',
+    customBackgroundLightness: currentSettings.customBackgroundLightness || 0,
     fontSize: currentSettings.fontSize,
     zoomLevel: currentSettings.zoomLevel,
     showTimestamps: currentSettings.showTimestamps,
@@ -467,13 +521,13 @@ onMounted(async () => {
 .settings-title {
   font-size: 24px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   margin: 0 0 8px 0;
 }
 
 .settings-description {
   font-size: 14px;
-  color: #b9bbbe;
+  color: var(--text-secondary, #b9bbbe);
   margin: 0;
 }
 
@@ -488,7 +542,7 @@ onMounted(async () => {
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   margin: 0 0 20px 0;
 }
 
@@ -507,11 +561,11 @@ onMounted(async () => {
 }
 
 .theme-option:hover {
-  border-color: #5865f2;
+  border-color: var(--h-primary, #5865f2);
 }
 
 .theme-option.active {
-  border-color: #5865f2;
+  border-color: var(--h-primary, #5865f2);
   background-color: rgba(88, 101, 242, 0.1);
 }
 
@@ -560,14 +614,25 @@ onMounted(async () => {
 .theme-name {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   margin: 0 0 4px 0;
 }
 
 .theme-description {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary, #b9bbbe);
   margin: 0;
+}
+
+.preview-accent-dot {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .custom-color-section {
@@ -579,13 +644,13 @@ onMounted(async () => {
 .section-subtitle {
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   margin: 0 0 8px 0;
 }
 
 .section-help {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary, #b9bbbe);
   margin: 0 0 16px 0;
   line-height: 1.5;
 }
@@ -598,7 +663,7 @@ onMounted(async () => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   margin-bottom: 8px;
 }
 
@@ -612,7 +677,7 @@ onMounted(async () => {
   padding: 12px 16px;
   border: 2px solid var(--h-chat-light);
   background-color: var(--h-chat-darker);
-  color: #b9bbbe;
+  color: var(--text-secondary, #b9bbbe);
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
@@ -621,14 +686,14 @@ onMounted(async () => {
 }
 
 .mode-btn:hover {
-  border-color: #5865f2;
+  border-color: var(--h-primary, #5865f2);
   background-color: var(--h-chat-light);
 }
 
 .mode-btn.active {
-  border-color: #5865f2;
+  border-color: var(--h-primary, #5865f2);
   background-color: rgba(88, 101, 242, 0.15);
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
 }
 
 .color-picker-section {
@@ -639,14 +704,87 @@ onMounted(async () => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   margin-bottom: 4px;
 }
 
 .picker-help {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary, #b9bbbe);
   margin: 0 0 12px 0;
+}
+
+/* Lightness Slider */
+.lightness-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: var(--h-chat-darker);
+  border-radius: 8px;
+  border: 1px solid var(--h-chat-light);
+}
+
+.lightness-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.lightness-label {
+  font-size: 11px;
+  color: var(--text-tertiary, #80848e);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  min-width: 50px;
+  text-align: center;
+}
+
+.lightness-slider {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, 
+    oklch(15% 0.02 260), 
+    oklch(50% 0.02 260), 
+    oklch(85% 0.02 260)
+  );
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.lightness-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--h-primary, #5865f2);
+  cursor: pointer;
+  border: 3px solid var(--text-primary, #ffffff);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.lightness-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.lightness-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--h-primary, #5865f2);
+  cursor: pointer;
+  border: 3px solid var(--text-primary, #ffffff);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.lightness-value {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #b9bbbe);
+  margin-top: 8px;
 }
 
 .setting-item {
@@ -672,13 +810,13 @@ onMounted(async () => {
 .setting-label {
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   margin: 0 0 4px 0;
 }
 
 .setting-description {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary, #b9bbbe);
   margin: 0;
   line-height: 1.4;
 }
@@ -707,7 +845,7 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #5865f2;
+  background: var(--h-primary, #5865f2);
   cursor: pointer;
 }
 
@@ -715,14 +853,14 @@ onMounted(async () => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #5865f2;
+  background: var(--h-primary, #5865f2);
   cursor: pointer;
   border: none;
 }
 
 .font-size-display {
   font-size: 12px;
-  color: #b9bbbe;
+  color: var(--text-secondary, #b9bbbe);
   min-width: 40px;
   text-align: center;
 }
@@ -738,7 +876,7 @@ onMounted(async () => {
   height: 28px;
   border: 1px solid var(--h-chat-light);
   background-color: var(--h-chat-darker);
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   border-radius: 4px;
   cursor: pointer;
   display: flex;
@@ -759,7 +897,7 @@ onMounted(async () => {
 
 .zoom-display {
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   min-width: 60px;
   text-align: center;
 }
@@ -769,14 +907,14 @@ onMounted(async () => {
   background-color: var(--h-chat-darker);
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   font-size: 14px;
   cursor: pointer;
 }
 
 .select-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: var(--h-primary, #5865f2);
 }
 
 .settings-actions {
@@ -805,23 +943,23 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background-color: #5865f2;
+  background-color: var(--h-primary, #5865f2);
   color: #ffffff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #4752c4;
+  background-color: var(--h-primary-dark, #4752c4);
 }
 
 .btn-secondary {
   background-color: transparent;
-  color: #b9bbbe;
-  border: 1px solid #4f545c;
+  color: var(--text-secondary, #b9bbbe);
+  border: 1px solid var(--h-chat-light);
 }
 
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--h-chat-light);
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
 }
 
 .loading-spinner {

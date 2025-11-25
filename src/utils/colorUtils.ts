@@ -292,12 +292,14 @@ export interface ThemePalette {
 }
 
 /**
- * Generate theme palette from accent color and background color
+ * Generate theme palette from primary color, accent color, and background settings
  */
 export function generateThemePalette(
   accentHex: string, 
   forcedMode?: 'light' | 'dark',
-  backgroundHex?: string
+  backgroundHex?: string,
+  lightnessOffset: number = 0,
+  primaryHex?: string
 ): ThemePalette {
   const isLight = forcedMode === 'light' || (forcedMode === undefined && isLightColor(accentHex))
   const baseOklch = hexToOklch(accentHex)
@@ -306,6 +308,9 @@ export function generateThemePalette(
     throw new Error('Invalid accent color')
   }
 
+  // Use primary color if provided, otherwise use accent
+  const primaryColor = primaryHex || accentHex
+  
   // If background color is provided, use its hue for the UI backgrounds
   let bgHue = baseOklch.h
   if (backgroundHex) {
@@ -317,18 +322,21 @@ export function generateThemePalette(
 
   if (isLight) {
     // Light theme - use background hue for subtle tinting
+    // Lightness offset: negative = darker, positive = lighter (but capped)
     const bgTintChroma = 0.02 // Very subtle chroma for backgrounds
     
-    const bgPrimaryOklch = { l: 98, c: bgTintChroma, h: bgHue }
-    const bgSecondaryOklch = { l: 96, c: bgTintChroma, h: bgHue }
-    const bgTertiaryOklch = { l: 94, c: bgTintChroma, h: bgHue }
-    const sidebarOklch = { l: 94, c: bgTintChroma * 1.5, h: bgHue }
+    // Base lightness levels for light mode (high values)
+    const baseLightness = 98 + (lightnessOffset * 0.3) // Range from ~88 to 100
+    const bgPrimaryOklch = { l: Math.min(100, Math.max(85, baseLightness)), c: bgTintChroma, h: bgHue }
+    const bgSecondaryOklch = { l: Math.min(100, Math.max(83, baseLightness - 2)), c: bgTintChroma, h: bgHue }
+    const bgTertiaryOklch = { l: Math.min(100, Math.max(81, baseLightness - 4)), c: bgTintChroma, h: bgHue }
+    const sidebarOklch = { l: Math.min(100, Math.max(80, baseLightness - 4)), c: bgTintChroma * 1.5, h: bgHue }
     
     return {
-      primary: accentHex,
-      primaryHover: adjustLightness(accentHex, -10),
-      primaryLight: adjustLightness(accentHex, 20),
-      primaryDark: adjustLightness(accentHex, -15),
+      primary: primaryColor,
+      primaryHover: adjustLightness(primaryColor, -10),
+      primaryLight: adjustLightness(primaryColor, 20),
+      primaryDark: adjustLightness(primaryColor, -15),
       
       bgPrimary: oklchToHex(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h),
       bgSecondary: oklchToHex(bgSecondaryOklch.l, bgSecondaryOklch.c, bgSecondaryOklch.h),
@@ -336,33 +344,40 @@ export function generateThemePalette(
       bgChat: oklchToHex(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h),
       bgSidebar: oklchToHex(sidebarOklch.l, sidebarOklch.c, sidebarOklch.h),
       
-      textPrimary: '#2e3338',
-      textSecondary: '#4e5058',
-      textTertiary: '#6e7178',
+      textPrimary: '#1a1c1e',
+      textSecondary: '#3d4148',
+      textTertiary: '#5c6168',
       
-      borderPrimary: 'rgba(0, 0, 0, 0.12)',
-      borderSecondary: 'rgba(0, 0, 0, 0.08)',
+      borderPrimary: 'rgba(0, 0, 0, 0.15)',
+      borderSecondary: 'rgba(0, 0, 0, 0.10)',
       
       isLightTheme: true,
     }
   } else {
     // Dark theme - use background hue with low chroma for UI tone
+    // Lightness offset: negative = darker, positive = lighter
     const bgTintChroma = 0.015 // Subtle chroma for dark backgrounds
     
+    // Base lightness levels for dark mode (low values)
+    // lightnessOffset ranges from -10 to +10, so we scale it appropriately
+    const chatBaseLightness = 19.5 + (lightnessOffset * 0.5) // Range from ~14 to ~25
+    const sidebarBaseLightness = 17 + (lightnessOffset * 0.5)
+    const systemBaseLightness = 12 + (lightnessOffset * 0.4)
+    
     // Chat/content areas (lighter, more visible)
-    const bgChatOklch = { l: 19.5, c: bgTintChroma, h: bgHue }  // ~#313338
-    const sidebarOklch = { l: 17, c: bgTintChroma * 1.5, h: bgHue }  // ~#2b2d31
+    const bgChatOklch = { l: Math.max(8, Math.min(35, chatBaseLightness)), c: bgTintChroma, h: bgHue }
+    const sidebarOklch = { l: Math.max(6, Math.min(30, sidebarBaseLightness)), c: bgTintChroma * 1.5, h: bgHue }
     
     // System backgrounds (darker, for structure)
-    const systemBgPrimaryOklch = { l: 12, c: bgTintChroma, h: bgHue }  // ~#1a1a1e (BaseLayout)
-    const systemBgSecondaryOklch = { l: 10.5, c: bgTintChroma, h: bgHue }  // ~#17181a
-    const systemBgTertiaryOklch = { l: 8.5, c: bgTintChroma, h: bgHue }  // ~#121214 (server sidebar)
+    const systemBgPrimaryOklch = { l: Math.max(5, Math.min(25, systemBaseLightness)), c: bgTintChroma, h: bgHue }
+    const systemBgSecondaryOklch = { l: Math.max(4, Math.min(22, systemBaseLightness - 1.5)), c: bgTintChroma, h: bgHue }
+    const systemBgTertiaryOklch = { l: Math.max(3, Math.min(20, systemBaseLightness - 3.5)), c: bgTintChroma, h: bgHue }
     
     return {
-      primary: accentHex,
-      primaryHover: adjustLightness(accentHex, -8),
-      primaryLight: adjustLightness(accentHex, 15),
-      primaryDark: adjustLightness(accentHex, -12),
+      primary: primaryColor,
+      primaryHover: adjustLightness(primaryColor, -8),
+      primaryLight: adjustLightness(primaryColor, 15),
+      primaryDark: adjustLightness(primaryColor, -12),
       
       // System backgrounds (for BaseLayout, server sidebar, etc.)
       bgPrimary: oklchToHex(systemBgPrimaryOklch.l, systemBgPrimaryOklch.c, systemBgPrimaryOklch.h),
@@ -381,6 +396,41 @@ export function generateThemePalette(
       borderSecondary: 'rgba(255, 255, 255, 0.06)',
       
       isLightTheme: false,
+    }
+  }
+}
+
+/**
+ * Generate preview colors for theme card based on background settings
+ */
+export function generatePreviewColors(
+  backgroundHex: string,
+  mode: 'light' | 'dark',
+  lightnessOffset: number = 0
+): { bgMain: string; bgSidebar: string; bgHeader: string } {
+  const bgOklch = hexToOklch(backgroundHex)
+  if (!bgOklch) {
+    return mode === 'light' 
+      ? { bgMain: '#ffffff', bgSidebar: '#f2f3f5', bgHeader: '#f6f6f6' }
+      : { bgMain: '#313338', bgSidebar: '#2b2d31', bgHeader: '#2f3136' }
+  }
+  
+  const bgTintChroma = mode === 'light' ? 0.02 : 0.015
+  
+  if (mode === 'light') {
+    const baseLightness = 98 + (lightnessOffset * 0.3)
+    return {
+      bgMain: oklchToHex(Math.min(100, Math.max(85, baseLightness)), bgTintChroma, bgOklch.h),
+      bgSidebar: oklchToHex(Math.min(100, Math.max(80, baseLightness - 4)), bgTintChroma * 1.5, bgOklch.h),
+      bgHeader: oklchToHex(Math.min(100, Math.max(82, baseLightness - 2)), bgTintChroma, bgOklch.h),
+    }
+  } else {
+    const chatBaseLightness = 19.5 + (lightnessOffset * 0.5)
+    const sidebarBaseLightness = 17 + (lightnessOffset * 0.5)
+    return {
+      bgMain: oklchToHex(Math.max(8, Math.min(35, chatBaseLightness)), bgTintChroma, bgOklch.h),
+      bgSidebar: oklchToHex(Math.max(6, Math.min(30, sidebarBaseLightness)), bgTintChroma * 1.5, bgOklch.h),
+      bgHeader: oklchToHex(Math.max(6, Math.min(30, sidebarBaseLightness)), bgTintChroma, bgOklch.h),
     }
   }
 }

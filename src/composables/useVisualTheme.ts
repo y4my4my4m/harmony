@@ -16,8 +16,10 @@ import { useAuthStore } from '@/stores/auth'
 export interface VisualThemeSettings {
   theme: 'dark' | 'light' | 'midnight' | 'custom'
   customThemeMode?: 'dark' | 'light'
+  customPrimaryColor?: string
   customAccentColor?: string
   customBackgroundColor?: string
+  customBackgroundLightness?: number // -10 to +10
   fontSize: number
   zoomLevel: number
   showTimestamps: boolean
@@ -63,8 +65,10 @@ const PRESET_THEMES = {
 const settings = ref<VisualThemeSettings>({
   theme: 'dark',
   customThemeMode: 'dark',
+  customPrimaryColor: '#5865f2',
   customAccentColor: '#5865f2',
   customBackgroundColor: '#5865f2',
+  customBackgroundLightness: 0,
   fontSize: 14,
   zoomLevel: 100,
   showTimestamps: true,
@@ -187,7 +191,9 @@ function applySettings(settings: VisualThemeSettings) {
       const palette = generateThemePalette(
         settings.customAccentColor,
         settings.customThemeMode,
-        settings.customBackgroundColor
+        settings.customBackgroundColor,
+        settings.customBackgroundLightness || 0,
+        settings.customPrimaryColor
       )
       applyThemePalette(palette)
     } catch (error) {
@@ -472,8 +478,10 @@ export function useVisualTheme() {
     settings.value = {
       theme: 'dark',
       customThemeMode: 'dark',
+      customPrimaryColor: '#5865f2',
       customAccentColor: '#5865f2',
       customBackgroundColor: '#5865f2',
+      customBackgroundLightness: 0,
       fontSize: 14,
       zoomLevel: 100,
       showTimestamps: true,
@@ -483,6 +491,21 @@ export function useVisualTheme() {
       reduceMotion: false,
       screenReaderSupport: false,
     }
+  }
+  
+  /**
+   * Update custom primary color
+   */
+  function setCustomPrimaryColor(color: string) {
+    settings.value.theme = 'custom'
+    settings.value.customPrimaryColor = color
+  }
+  
+  /**
+   * Update custom background lightness
+   */
+  function setCustomBackgroundLightness(lightness: number) {
+    settings.value.customBackgroundLightness = Math.max(-10, Math.min(10, lightness))
   }
   
   /**
@@ -500,8 +523,10 @@ export function useVisualTheme() {
     initialize,
     setTheme,
     setCustomThemeMode,
+    setCustomPrimaryColor,
     setCustomAccentColor,
     setCustomBackgroundColor,
+    setCustomBackgroundLightness,
     setFontSize,
     setZoomLevel,
     toggleShowTimestamps,

@@ -151,7 +151,7 @@ onMounted(() => {
 .section-title {
   font-size: 12px;
   font-weight: 600;
-  color: #b9bbbe;
+  color: var(--text-secondary, #b9bbbe);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   margin: 0;
@@ -194,14 +194,14 @@ onMounted(() => {
   background-color: var(--h-chat-darker);
   border: 1px solid var(--h-chat-light);
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
   font-size: 14px;
   font-family: 'Courier New', monospace;
 }
 
 .hex-input:focus {
   outline: none;
-  border-color: #5865f2;
+  border-color: var(--h-primary, #5865f2);
 }
 
 .color-input {
@@ -237,8 +237,7 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 600;
   color: #ffffff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  mix-blend-mode: difference;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 8px rgba(0, 0, 0, 0.4);
 }
 
 @media (max-width: 480px) {
