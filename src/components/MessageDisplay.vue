@@ -901,7 +901,9 @@ const shouldShowHeader = (message: Message, index: number): boolean => {
     }
   } 
   // Standard user message comparison
-  else if (prevMessage.user_id !== message.user_id || prevMessage.bot_id !== message.bot_id) {
+  // Note: Use nullish coalescing to normalize null/undefined for bot_id comparison
+  // This fixes optimistic messages (bot_id: undefined) vs DB messages (bot_id: null)
+  else if (prevMessage.user_id !== message.user_id || (prevMessage.bot_id ?? null) !== (message.bot_id ?? null)) {
     return true;
   }
   
