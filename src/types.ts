@@ -126,7 +126,7 @@ export interface UrlContent {
   embedId?: string;
 }
 
-export type EmbedProvider = 'harmony-post' | 'youtube' | 'spotify' | 'generic';
+export type EmbedProvider = 'harmony-post' | 'harmony-invite' | 'youtube' | 'spotify' | 'generic';
 
 export interface HarmonyEmbedSummary {
   postId: string;
@@ -199,6 +199,7 @@ export interface FileContent {
   url: string;
   fileType: string; // e.g., 'image', 'video'
   fileName?: string; // Optional file name
+  fileSize?: number; // Optional file size in bytes
 }
 
 export interface SystemContent {
@@ -218,6 +219,8 @@ export interface SystemContent {
   } | null;
   timestamp: string;
 }
+
+export type EncryptedPayloadMap = Record<string, string>
 
 export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | EmojiContent | HashtagContent | FileContent | SystemContent;
 
@@ -245,13 +248,25 @@ export interface ReactionGroup {
 export interface Message {
   id: string;
   created_at: Date;
+  updated_at?: Date; // Timestamp when message was last edited
   channel_id?: string;
   conversation_id?: string; // for DMs
-  user_id: string;
+  user_id?: string; // Optional - for user messages
+  bot_id?: string; // Optional - for bot messages
   content: MessagePart[];
   reply_to?: string;
   reactions?: Reaction[]; // doesn't exist in the database, we're transforming it
   is_system?: boolean; // for system messages like join/leave announcements
+  encrypted?: boolean; // true if this message is encrypted
+  decrypted?: boolean; // true if this message was encrypted and successfully decrypted (client-side flag)
+  encryption_metadata?: {
+    algorithm: string;
+    encrypted_for: string[];
+    sender_key_id: string;
+    timestamp: number;
+    encrypted_keys?: Record<string, string>; // Map of user_id -> encrypted symmetric key (hybrid encryption)
+    iv?: string; // Initialization vector for AES-GCM
+  };
   metadata?: Record<string, any> & {
     embeds?: Record<string, EmbedPayload>;
   }; // for federated messages and other metadata

@@ -1,6 +1,8 @@
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useUserData } from '@/composables/useUserData'
+import { supabase } from '@/supabase'
 import type { Server } from '@/types'
 
 export enum ServerPermission {
@@ -30,27 +32,55 @@ export interface UserRole {
 export function useServerPermissions() {
   const authStore = useAuthStore()
   const serverChannelStore = useServerChannelStore()
+  const { getCurrentUser } = useUserData()
 
-  const currentUserId = computed(() => authStore.session?.user?.id)
+  const currentUserId = computed(() => authStore.session?.user?.id || null)
+  const fetchedProfileId = ref<string | null>(null)
+  const isFetchingProfileId = ref(false)
+
+  watch(currentUserId, async (authId) => {
+    if (!authId) {
+      fetchedProfileId.value = null
+      return
+    }
+    if (getCurrentUser.value?.id === fetchedProfileId.value) return
+    if (isFetchingProfileId.value) return
+    isFetchingProfileId.value = true
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('auth_user_id', authId)
+        .maybeSingle()
+      if (error) {
+        console.warn('Failed to load profile id for auth user', error)
+      }
+      fetchedProfileId.value = data?.id || null
+    } finally {
+      isFetchingProfileId.value = false
+    }
+  }, { immediate: true })
+
+  const currentProfileId = computed(() => getCurrentUser.value?.id || fetchedProfileId.value)
   const currentServer = computed(() => serverChannelStore.currentServer)
 
   // Check if user is the server owner
-  const isServerOwner = (serverId: string, userId?: string): boolean => {
-    if (!userId) return false
+  const isServerOwner = (serverId: string, profileId?: string): boolean => {
+    if (!profileId) return false
     const server = serverChannelStore.servers.find(s => s.id === serverId)
-    return server?.owner === userId
+    return server?.owner === profileId
   }
 
   // Check if current user is the server owner
   const isCurrentUserServerOwner = computed(() => {
-    if (!currentUserId.value || !currentServer.value) return false
-    return isServerOwner(currentServer.value.id, currentUserId.value)
+    if (!currentProfileId.value || !currentServer.value) return false
+    return isServerOwner(currentServer.value.id, currentProfileId.value)
   })
 
   // For now, we'll use a simple role system based on server ownership
   // This can be extended to use a proper roles table in the future
-  const getUserRole = (serverId: string, userId: string): UserRole => {
-    const isOwner = isServerOwner(serverId, userId)
+  const getUserRole = (serverId: string, profileId?: string): UserRole => {
+    const isOwner = isServerOwner(serverId, profileId)
     
     if (isOwner) {
       return {
@@ -81,17 +111,17 @@ export function useServerPermissions() {
   // Check if user has a specific permission
   const hasPermission = (
     serverId: string, 
-    userId: string, 
+    profileId: string, 
     permission: ServerPermission
   ): boolean => {
-    const role = getUserRole(serverId, userId)
+    const role = getUserRole(serverId, profileId)
     return role.permissions.includes(permission)
   }
 
   // Check if current user has a specific permission
   const hasCurrentUserPermission = (permission: ServerPermission): boolean => {
-    if (!currentUserId.value || !currentServer.value) return false
-    return hasPermission(currentServer.value.id, currentUserId.value, permission)
+    if (!currentProfileId.value || !currentServer.value) return false
+    return hasPermission(currentServer.value.id, currentProfileId.value, permission)
   }
 
   // Server settings permissions
@@ -145,8 +175,8 @@ export function useServerPermissions() {
 
   // Get user's display role for UI
   const getCurrentUserRole = computed(() => {
-    if (!currentUserId.value || !currentServer.value) return null
-    return getUserRole(currentServer.value.id, currentUserId.value)
+    if (!currentProfileId.value || !currentServer.value) return null
+    return getUserRole(currentServer.value.id, currentProfileId.value)
   })
 
   // Helper to check permissions for any server
@@ -155,9 +185,9 @@ export function useServerPermissions() {
     permission: ServerPermission, 
     userId?: string
   ): boolean => {
-    const targetUserId = userId || currentUserId.value
-    if (!targetUserId) return false
-    return hasPermission(serverId, targetUserId, permission)
+    const targetProfileId = userId || currentProfileId.value
+    if (!targetProfileId) return false
+    return hasPermission(serverId, targetProfileId, permission)
   }
 
   return {

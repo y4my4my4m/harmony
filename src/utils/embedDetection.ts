@@ -43,6 +43,9 @@ export function detectEmbedProviderFromUrl(input: string | URL): EmbedProvider {
   if (!url) {
     return 'generic';
   }
+  if (isHarmonyInviteUrl(url)) {
+    return 'harmony-invite';
+  }
   if (isHarmonyPostUrl(url)) {
     return 'harmony-post';
   }
@@ -57,6 +60,22 @@ export function detectEmbedProviderFromUrl(input: string | URL): EmbedProvider {
 
 export function isHarmonyPostUrl(url: URL): boolean {
   return harmonyDomains.has(url.hostname.toLowerCase()) && /^\/posts\/[a-zA-Z0-9-]+/.test(url.pathname);
+}
+
+export function isHarmonyInviteUrl(url: URL): boolean {
+  // Check if it's a harmony domain with /invite/CODE pattern
+  const hostname = url.hostname.toLowerCase();
+  const isHarmonyDomain = harmonyDomains.has(hostname) || 
+                          hostname === 'localhost';
+  return isHarmonyDomain && /^\/invite\/[A-Za-z0-9]+$/.test(url.pathname);
+}
+
+export function getHarmonyInviteCode(url: URL): string | null {
+  if (!isHarmonyInviteUrl(url)) {
+    return null;
+  }
+  const match = url.pathname.match(/^\/invite\/([A-Za-z0-9]+)$/);
+  return match ? match[1] : null;
 }
 
 export function getHarmonyPostId(url: URL): string | null {

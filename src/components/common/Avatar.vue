@@ -183,8 +183,8 @@ const handleImageLoad = () => {
 }
 
 .avatar-sm {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
 }
 
 .avatar-md {

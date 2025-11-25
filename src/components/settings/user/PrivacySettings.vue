@@ -278,6 +278,15 @@
       </div>
     </div>
 
+    <!-- Encryption Settings -->
+    <div class="settings-section security-section">
+      <h3 class="section-title">
+        <ShieldIcon class="section-icon" />
+        Encryption Settings
+      </h3>
+      <EncryptionSettings :loading="loading" />
+    </div>
+
     <!-- Privacy Settings -->
     <div class="settings-section">
       <h3 class="section-title">Direct Messages</h3>
@@ -530,6 +539,7 @@ import ShieldIcon from '@/components/icons/Shield.vue'
 import EyeIcon from '@/components/icons/Eye.vue'
 import EyeOffIcon from '@/components/icons/EyeOff.vue'
 import CopyIcon from '@/components/icons/Copy.vue'
+import EncryptionSettings from '@/components/encryption/EncryptionSettings.vue'
 
 // Props
 interface Props {

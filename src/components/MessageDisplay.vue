@@ -117,18 +117,33 @@
         <div v-if="shouldShowHeader(message, index)" class="message-header">
           <div class="message-avatar">
             <Avatar 
-              :src="getUserAvatarUrl(message.user_id).value"
+              :src="getAuthorAvatarUrl(message).value"
               size="sm" 
               :interactive="true"
-              @click="showUserProfile(message.user_id, $event)"
+              @click="getMessageAuthorId(message) && showUserProfile(getMessageAuthorId(message), $event)"
             />
           </div>
           <div class="message-main">
             <div class="message-meta">
-              <span class="username" :style="{color: getUserColor(message.user_id).value}" @click="showUserProfile(message.user_id, $event)">
-                {{ getUserDisplayName(message.user_id).value }}
+              <span class="username" :style="{color: getAuthorColor(message).value}" @click="getMessageAuthorId(message) && showUserProfile(getMessageAuthorId(message), $event)">
+                {{ getAuthorDisplayName(message).value }}
+                <span v-if="hasDiscordUserMetadata(message)" class="bot-badge discord">DISCORD</span>
+                <span v-else-if="isMessageFromBot(message)" class="bot-badge">BOT</span>
               </span>
-              <span class="timestamp">{{ formatTimestamp(message.created_at) }}</span>
+              <span class="timestamp">
+                {{ formatTimestamp(message.created_at) }}
+                <!-- Encryption indicators -->
+                <span 
+                  v-if="message.decrypted" 
+                  class="encryption-dot decrypted"
+                  :title="'End-to-end encrypted'"
+                ></span>
+                <span 
+                  v-else-if="message.encrypted" 
+                  class="encryption-indicator locked"
+                  :title="'End-to-end encrypted - You cannot decrypt this message'"
+                >🔒</span>
+              </span>
             </div>
             <UnifiedMessageContent 
               :content="message.content"
@@ -138,6 +153,8 @@
               :image-loaded="imageLoaded"
               :is-single-emoji="checkSingleEmoji(message.content)"
               :embed-payloads="message.metadata?.embeds"
+              :encrypted="message.encrypted || false"
+              :decrypted="message.decrypted || false"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -145,6 +162,12 @@
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
             />
+            <!-- Edited indicator for messages with headers -->
+            <span 
+              v-if="isMessageEdited(message)" 
+              class="edited-indicator inline"
+              :title="message.updated_at ? `Edited at ${formatTimestamp(message.updated_at)}` : 'Edited'"
+            >(edited)</span>
           </div>
         </div>
         
@@ -160,6 +183,8 @@
               :image-loaded="imageLoaded"
               :is-single-emoji="checkSingleEmoji(message.content)"
               :embed-payloads="message.metadata?.embeds"
+              :encrypted="message.encrypted || false"
+              :decrypted="message.decrypted || false"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
@@ -167,6 +192,12 @@
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
             />
+            <!-- Edited indicator for compact messages -->
+            <span 
+              v-if="isMessageEdited(message)" 
+              class="edited-indicator compact"
+              :title="message.updated_at ? `Edited at ${formatTimestamp(message.updated_at)}` : 'Edited'"
+            >(edited)</span>
           </div>
         </div>
         
@@ -315,6 +346,157 @@ const {
   fetchUserProfile,
   getUserProfile
 } = useUserData();
+
+// Bot data cache
+const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
+const fetchingBots = ref<Set<string>>(new Set());
+
+// Fetch bot data from database
+const fetchBotData = async (botId: string) => {
+  if (botDataCache.value.has(botId) || fetchingBots.value.has(botId)) {
+    return;
+  }
+  
+  fetchingBots.value.add(botId);
+  
+  try {
+    const { data, error } = await supabase
+      .from('bots')
+      .select('id, username, display_name, avatar_url')
+      .eq('id', botId)
+      .single();
+    
+    if (!error && data) {
+      botDataCache.value.set(botId, data);
+    }
+  } catch (error) {
+    console.error('Failed to fetch bot data:', error);
+  } finally {
+    fetchingBots.value.delete(botId);
+  }
+};
+
+// Helper function to get author ID from message (handles both users and bots)
+const getMessageAuthorId = (message: Message): string | null => {
+  return message.user_id || message.bot_id || null;
+};
+
+// Helper function to check if message is from a bot
+const isMessageFromBot = (message: Message): boolean => {
+  return !!message.bot_id;
+};
+
+// Helper function to check if message is from Discord bridge (has Discord user metadata)
+const hasDiscordUserMetadata = (message: Message): boolean => {
+  const hasMetadata = !!message.metadata?.discord_user;
+  // if (message.bot_id && !hasMetadata) {
+  //   console.log('🔍 Bot message without Discord metadata:', message.id, message.metadata);
+  // }
+  // if (hasMetadata) {
+  //   console.log('✅ Discord user found:', message.metadata?.discord_user);
+  // }
+  return hasMetadata;
+};
+
+// Helper function to get Discord user info from metadata
+const getDiscordUserInfo = (message: Message): { username: string; display_name: string; avatar_url: string } | null => {
+  return message.metadata?.discord_user || null;
+};
+
+// Helper functions for bot display
+const getBotDisplayName = (botId: string): ComputedRef<string> => {
+  return computed(() => {
+    // Trigger fetch if not cached
+    if (!botDataCache.value.has(botId) && !fetchingBots.value.has(botId)) {
+      fetchBotData(botId);
+    }
+    
+    const bot = botDataCache.value.get(botId);
+    return bot?.display_name || bot?.username || `Bot-${botId.slice(0, 8)}`;
+  });
+};
+
+const getBotAvatarUrl = (botId: string): ComputedRef<string> => {
+  return computed(() => {
+    const bot = botDataCache.value.get(botId);
+    return bot?.avatar_url || '/default_avatar.png';
+  });
+};
+
+const getBotColor = (botId: string): ComputedRef<string> => {
+  return computed(() => '#5865F2'); // Discord bot color
+};
+
+// Unified helper functions that work for users, bots, and Discord users
+// IMPORTANT: All checks must be INSIDE computed() for reactivity
+const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
+  return computed(() => {
+    // Check for Discord user metadata first (puppeting)
+    if (message.metadata?.discord_user) {
+      const discordUser = message.metadata.discord_user;
+      return discordUser.display_name || discordUser.username || 'Discord User';
+    }
+    
+    // Regular bot
+    if (message.bot_id) {
+      if (!botDataCache.value.has(message.bot_id) && !fetchingBots.value.has(message.bot_id)) {
+        fetchBotData(message.bot_id);
+      }
+      const bot = botDataCache.value.get(message.bot_id);
+      return bot?.display_name || bot?.username || `Bot-${message.bot_id.slice(0, 8)}`;
+    }
+    
+    // Regular user
+    if (message.user_id) {
+      return getUserDisplayName(message.user_id).value;
+    }
+    
+    return 'Unknown';
+  });
+};
+
+const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
+  return computed(() => {
+    // Check for Discord user metadata first (puppeting)
+    if (message.metadata?.discord_user) {
+      return message.metadata.discord_user.avatar_url || '/default_avatar.png';
+    }
+    
+    // Regular bot
+    if (message.bot_id) {
+      const bot = botDataCache.value.get(message.bot_id);
+      return bot?.avatar_url || '/default_avatar.png';
+    }
+    
+    // Regular user
+    if (message.user_id) {
+      return getUserAvatarUrl(message.user_id).value;
+    }
+    
+    return '/default_avatar.png';
+  });
+};
+
+const getAuthorColor = (message: Message): ComputedRef<string> => {
+  return computed(() => {
+    // Check for Discord user metadata first (puppeting)
+    if (message.metadata?.discord_user) {
+      return '#7289DA'; // Discord blurple
+    }
+    
+    // Regular bot
+    if (message.bot_id) {
+      return '#5865F2';
+    }
+    
+    // Regular user
+    if (message.user_id) {
+      return getUserColor(message.user_id).value;
+    }
+    
+    return '#dddddd';
+  });
+};
 
 // Unified computed properties that work for both chat and DMs
 const isLoadingOlderMessages = computed(() => {
@@ -695,7 +877,34 @@ const handleWheel = (event: WheelEvent) => {
 const shouldShowHeader = (message: Message, index: number): boolean => {
   if (index === 0) return true;
   const prevMessage = props.messages[index - 1];
-  if (!prevMessage || prevMessage.user_id !== message.user_id) return true;
+  if (!prevMessage) return true;
+  
+  // For bot-puppeted messages (e.g., Discord bridge), compare the puppeted user identity
+  // rather than the bot_id, since multiple Discord users are puppeted through the same bot
+  if (message.bot_id && prevMessage.bot_id) {
+    const currentDiscordUser = message.metadata?.discord_user;
+    const prevDiscordUser = prevMessage.metadata?.discord_user;
+    
+    // If both have discord_user metadata, compare by discord user id or username
+    if (currentDiscordUser && prevDiscordUser) {
+      const currentId = currentDiscordUser.id || currentDiscordUser.username;
+      const prevId = prevDiscordUser.id || prevDiscordUser.username;
+      if (currentId !== prevId) return true;
+    } 
+    // If one has discord_user and the other doesn't, show header
+    else if (currentDiscordUser !== prevDiscordUser) {
+      return true;
+    }
+    // If neither has discord_user, compare bot_ids (same bot = same author)
+    else if (message.bot_id !== prevMessage.bot_id) {
+      return true;
+    }
+  } 
+  // Standard user message comparison
+  else if (prevMessage.user_id !== message.user_id || prevMessage.bot_id !== message.bot_id) {
+    return true;
+  }
+  
   if (message.reply_to) return true;
   const timeDiff = new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime();
   return timeDiff > 5 * 60 * 1000;
@@ -729,6 +938,19 @@ const formatTimestamp = (timestamp: Date) => {
   return format(date, 'MMM d, yyyy \'at\' p');
 };
 
+// Check if message has been edited
+const isMessageEdited = (message: Message): boolean => {
+  if (!message.updated_at || !message.created_at) return false;
+  
+  // Parse both timestamps
+  const createdAt = new Date(message.created_at).getTime();
+  const updatedAt = new Date(message.updated_at).getTime();
+  
+  // Consider edited if updated_at is more than 1 second after created_at
+  // (allows for small timing differences in the database)
+  return updatedAt - createdAt > 1000;
+};
+
 const formatTimeOnly = (timestamp: Date) => {
   const date = new Date(timestamp);
   if (!isValid(date)) return '';
@@ -754,6 +976,13 @@ const formatDateSeparator = (timestamp: Date): string => {
 // Message Actions (Edit, Delete, React)
 const canEditMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
+  
+  // Can't edit optimistic messages (temporary IDs starting with "temp-")
+  if (message.id.startsWith('temp-')) return false;
+  
+  // Can't edit messages that are still sending
+  if (message.sending) return false;
+  
   const currentUserId = authStore.session.user.id;
   const messageUserId = message.user_id;
   return messageUserId === currentUserId || isCurrentUserServerOwner.value;
@@ -812,7 +1041,7 @@ const deleteMessage = (messageId: string) => {
 };
 
 const openEmojiReactor = (message: Message, event: MouseEvent) => {
-  emit('toggleEmojiList', true, message, event.target as HTMLElement);
+  emit('toggleEmojiList', true, message, event.currentTarget as HTMLElement);
 };
 
 const handleToggleReaction = (messageId: string, emoji: Emoji) => {
@@ -941,8 +1170,7 @@ const closeInviteModal = () => {
 /* Individual message item */
 .message-item {
   position: relative;
-  margin-bottom: 1px;
-  padding: 0 16px;
+  padding: 0.125rem 48px 0.125rem 16px; /* 2px vertical padding like Discord */
   transition: background-color 0.1s ease-out;
 }
 
@@ -952,14 +1180,15 @@ const closeInviteModal = () => {
 
 /* Reply reference styling */
 .reply-reference {
-  margin-left: 48px;
+  margin-left: 56px; /* Match the gutter width */
+  margin-bottom: 4px;
   cursor: pointer;
   position: relative;
 }
 
 .reply-spine {
   position: absolute;
-  left: -32px;
+  left: -36px;
   bottom: -1px;
   width: 2px;
   height: 12px;
@@ -972,7 +1201,7 @@ const closeInviteModal = () => {
   position: absolute;
   top: 0;
   left: 0;
-  width: 30px;
+  width: 34px;
   height: 2px;
   background-color: #4f545c;
   border-radius: 1px;
@@ -1013,28 +1242,26 @@ const closeInviteModal = () => {
   display: flex;
   flex-direction: column;
   position: relative;
-  padding: 4px 0;
 }
 
-/* .message-group.has-header {
-  margin-top: 16px;
-} */
+/* Messages with headers get extra top margin for visual separation */
+.message-group.has-header {
+  margin-top: 1.0625rem;
+}
 
 .message-group.compact {
-  margin-top: 0.125rem;
+  margin-top: 0;
 }
 
 /* Message header with avatar + username + timestamp */
 .message-header {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 2px 0;
+  gap: 16px;
 }
 
 .message-avatar {
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
 .message-main {
@@ -1046,7 +1273,7 @@ const closeInviteModal = () => {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-bottom: 2px;
+  line-height: 1.375rem;
 }
 
 .username {
@@ -1054,10 +1281,29 @@ const closeInviteModal = () => {
   font-size: 1rem;
   cursor: pointer;
   transition: text-decoration 0.1s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .username:hover {
   text-decoration: underline;
+}
+
+.bot-badge {
+  display: inline-block;
+  background: #5865F2;
+  color: white;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.1875rem;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+}
+
+.bot-badge.discord {
+  background: #7289DA;
 }
 
 .timestamp {
@@ -1066,32 +1312,55 @@ const closeInviteModal = () => {
   font-weight: 400;
 }
 
+.edited-indicator {
+  font-size: 0.65rem;
+  color: #72767d;
+  font-style: italic;
+  margin-left: 0.25rem;
+  opacity: 0.8;
+  cursor: help;
+  transition: opacity 0.2s;
+}
+
+.edited-indicator:hover {
+  opacity: 1;
+}
+
+/* Inline variant appears after message content */
+.edited-indicator.inline,
+.edited-indicator.compact {
+  display: inline;
+  margin-left: 0.35rem;
+  vertical-align: baseline;
+  line-height: 1.375;
+}
+
 /* Compact message (no header) */
 .message-content-only {
   display: flex;
   align-items: flex-start;
-  padding: 0.125rem 0;
   min-height: 1.375rem;
 }
 
 .message-gutter {
-  width: 48px;
-  margin-left: 4px;
+  width: 56px; /* 40px avatar + 16px gap = 56px to align with header messages */
   flex-shrink: 0;
   position: relative;
+  height: 1.375rem; /* Match line height */
 }
 
 /* Show timestamp on hover for compact messages */
 .message-content-only:hover .message-gutter::before {
   content: attr(data-timestamp);
   position: absolute;
-  right: 2px;
-  top: 50%;
+  left: 0;
+  right: 0;
+  top: 0;
+  line-height: 1.375rem;
+  text-align: center;
   font-size: 0.6875rem;
-  color: #a3a6aa;
-  padding: 0 4px;
-  border-radius: 3px;
-  width: calc(100% + 10px);
+  color: #72767d;
+  font-weight: 500;
 }
 
 /* Message actions */
@@ -1540,5 +1809,60 @@ const closeInviteModal = () => {
 
 @keyframes spin-loader {
   to { transform: rotate(360deg); }
+}
+
+/* Encryption indicators */
+.encryption-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+  cursor: help;
+  transition: all 0.2s ease;
+  position: relative;
+  top: -1px;
+}
+
+.encryption-dot.decrypted {
+  background-color: #3ba55d;
+  opacity: 0.5;
+  box-shadow: 0 0 3px rgba(59, 165, 93, 0.4);
+}
+
+.encryption-dot.decrypted:hover {
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(59, 165, 93, 0.8);
+  transform: scale(1.2);
+}
+
+.encryption-indicator.locked {
+  display: inline-block;
+  font-size: 0.7em;
+  margin-left: 4px;
+  opacity: 0.6;
+  animation: lockPulse 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 3px rgba(237, 66, 69, 0.4));
+  cursor: help;
+  transition: all 0.2s ease;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+.encryption-indicator.locked:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px rgba(237, 66, 69, 0.8));
+  transform: scale(1.1);
+}
+
+@keyframes lockPulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.9;
+  }
 }
 </style>

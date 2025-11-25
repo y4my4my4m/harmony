@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { updateUserStatus } from '@/services/ProfileService';
+import { useChatStore } from '@/stores/useChat';
 import { UserStatus } from '@/types';
 import router from '@/router';
 
@@ -86,6 +87,9 @@ export const useAuthStore = defineStore('auth', {
         this.setupOfflineHandlers(this.session.user.id);
         // Note: Notification system is now initialized by RouteAwareInitialization
         // to only load unread count initially (full list loads on-demand)
+        
+        // Initialize encryption service if user has keys
+        this.initializeEncryptionIfAvailable(this.session.user.id);
       }
 
       supabase.auth.onAuthStateChange(async (event, session) => {
@@ -180,6 +184,38 @@ export const useAuthStore = defineStore('auth', {
         console.log('User set to offline:', userId);
       } catch (error) {
         console.error('Error setting user offline:', error);
+      }
+    },
+
+    async initializeEncryptionIfAvailable(userId: string) {
+      try {
+        console.log('🔐 Checking if user has encryption keys...');
+        
+        // Check if user has encryption keys set up
+        const { data: hasKeys } = await supabase
+          .rpc('user_has_encryption', { p_user_id: userId });
+        
+        if (hasKeys) {
+          console.log('✅ User has encryption keys - initializing encryption service (without password)');
+          
+          // Initialize encryption service without password
+          // This allows checking keys and basic operations
+          // Actual encryption will require password prompt if needed
+          const { messageEncryptionService } = await import('@/services/encryption/MessageEncryptionService');
+          await messageEncryptionService.initialize(userId);
+          
+          console.log('✅ Encryption service initialized');
+          try {
+            const chatStore = useChatStore();
+            chatStore.reprocessEncryptedMessages();
+          } catch (reprocessError) {
+            console.warn('Failed to reprocess messages after encryption init:', reprocessError);
+          }
+        } else {
+          console.log('ℹ️ User does not have encryption keys');
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize encryption:', error);
       }
     },
 

@@ -1,6 +1,21 @@
 import { supabase } from '@/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
+// Lazy load encryption service to avoid loading native modules in browser
+let webrtcEncryptionService: any = null
+async function getWebRTCEncryptionService() {
+  if (!webrtcEncryptionService) {
+    try {
+      const module = await import('@/services/encryption/WebRTCEncryptionService')
+      webrtcEncryptionService = module.webrtcEncryptionService
+    } catch (error) {
+      console.warn('⚠️ WebRTC encryption service not available:', error)
+      webrtcEncryptionService = null
+    }
+  }
+  return webrtcEncryptionService
+}
+
 // =============================================================================
 // TYPES & INTERFACES
 // =============================================================================
@@ -84,6 +99,9 @@ export class UnifiedWebRTCService {
   private selectedInputDevice: string | null = null;
   private selectedOutputDevice: string | null = null;
   private selectedVideoDevice: string | null = null;
+  
+  // Encryption
+  private encryptionEnabled = false;
   
   constructor() {
     this.setupCleanup();
@@ -1057,6 +1075,20 @@ export class UnifiedWebRTCService {
     // Store their media state
     this.allUserStates.set(userId, mediaState);
     
+    // Add participant to encryption if enabled
+    if (this.encryptionEnabled && this.currentUserId) {
+      try {
+        const encryptionService = await getWebRTCEncryptionService()
+        if (encryptionService) {
+          // Initialize encryption for new participant
+          await encryptionService.addParticipant(userId);
+          console.log('🔐 Encryption initialized for new participant:', userId);
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize encryption for participant:', error);
+      }
+    }
+    
     // Create peer connection
     await this.createPeerConnection(userId, true); // We initiate since they just joined
     
@@ -1065,6 +1097,14 @@ export class UnifiedWebRTCService {
 
   private async handleUserLeft(userId: string): Promise<void> {
     console.log('👋 User left:', userId);
+    
+    // Remove from encryption if enabled
+    if (this.encryptionEnabled) {
+      const encryptionService = await getWebRTCEncryptionService()
+      if (encryptionService) {
+        encryptionService.removeParticipant(userId);
+      }
+    }
     
     const connection = this.connections.get(userId);
     if (connection) {
@@ -1155,7 +1195,9 @@ export class UnifiedWebRTCService {
         { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
         { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
       ],
-      iceCandidatePoolSize: 10
+      iceCandidatePoolSize: 10,
+      // Enable insertable streams for E2EE
+      encodedInsertableStreams: this.encryptionEnabled
     });
     
     const connection: UserConnection = {

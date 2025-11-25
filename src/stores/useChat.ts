@@ -5,6 +5,7 @@ import type { Message, ChannelCache, CacheMetadata } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
+import { processMessageDecryption } from '@/utils/messageDecryption';
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
@@ -419,6 +420,21 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    async reprocessEncryptedMessages() {
+      try {
+        if (this.messages.length > 0) {
+          this.messages = await processMessageDecryption(this.messages);
+        }
+        for (const cache of this.messageCache.values()) {
+          if (cache.messages?.length) {
+            cache.messages = await processMessageDecryption(cache.messages);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to reprocess encrypted messages:', error);
+      }
+    },
+
     // Update cache when message is edited
     updateMessageInCache(messageId: string, updatedMessage: Message) {
       // Update current messages
@@ -605,7 +621,7 @@ export const useChatStore = defineStore('chat', {
             table: 'messages',
             filter: `channel_id=eq.${channelId}`
           },
-          (payload) => {
+          async (payload) => {
             console.log('🟢 Real-time INSERT received:', payload);
             
             // Check if this is our own message (already replaced by sendMessage)
@@ -621,20 +637,37 @@ export const useChatStore = defineStore('chat', {
             if (tempMessageIndex !== -1) {
               console.warn('⚠️ Temp message still exists during real-time, this is a race condition!');
               console.log('🔄 Replacing late:', this.messages[tempMessageIndex].id);
-              const resolvedMessage: Message = {
+              let resolvedMessage: Message = {
                 id: payload.new.id,
                 created_at: new Date(payload.new.created_at),
+                updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
                 channel_id: payload.new.channel_id,
                 conversation_id: payload.new.conversation_id,
                 user_id: payload.new.user_id,
+                bot_id: payload.new.bot_id, // Add bot_id support
                 content: payload.new.content,
                 reactions: payload.new.reactions,
                 reply_to: payload.new.reply_to,
                 is_system: payload.new.is_system,
                 metadata: payload.new.metadata || null,
+                // 🔐 Include encryption fields for real-time decryption
+                encrypted: payload.new.encrypted === true || payload.new.encrypted === 'true',
+                encryption_metadata: payload.new.encryption_metadata || null,
               };
               try {
                 ensureMessageEmbeds(resolvedMessage);
+                // Check for encryption with fallback detection
+                const looksEncrypted = resolvedMessage.encrypted || 
+                  (typeof resolvedMessage.content === 'string' && 
+                   resolvedMessage.content.match(/^[A-Za-z0-9+/=]{20,}$/) &&
+                   resolvedMessage.encryption_metadata);
+                if (looksEncrypted) {
+                  if (!resolvedMessage.encrypted && resolvedMessage.encryption_metadata) {
+                    resolvedMessage.encrypted = true;
+                  }
+                  const decrypted = await processMessageDecryption([resolvedMessage]);
+                  resolvedMessage = decrypted[0];
+                }
               } catch (error) {
                 console.warn('Failed to prepare embeds for resolved realtime message:', error);
               }
@@ -649,18 +682,71 @@ export const useChatStore = defineStore('chat', {
               return;
             }
             
-            const newMessage: Message = {
+            // 🔐 Debug: Log raw payload encryption fields to diagnose real-time decryption issues
+            console.log('🔐 Real-time message payload encryption fields:', {
+              id: payload.new.id,
+              encrypted: payload.new.encrypted,
+              encrypted_type: typeof payload.new.encrypted,
+              has_encryption_metadata: !!payload.new.encryption_metadata,
+              content_preview: typeof payload.new.content === 'string' 
+                ? payload.new.content.substring(0, 50) 
+                : 'not a string'
+            });
+
+            let newMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
+              updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
               channel_id: payload.new.channel_id,
               conversation_id: payload.new.conversation_id,
               user_id: payload.new.user_id,
+              bot_id: payload.new.bot_id, // Add bot_id support
               content: payload.new.content,
               reactions: payload.new.reactions,
               reply_to: payload.new.reply_to,
               is_system: payload.new.is_system,
               metadata: payload.new.metadata || null,
+              // 🔐 Include encryption fields for real-time decryption
+              // Handle both boolean and truthy values from database
+              encrypted: payload.new.encrypted === true || payload.new.encrypted === 'true',
+              encryption_metadata: payload.new.encryption_metadata || null,
             };
+            
+            // Debug: Log bot messages with metadata
+            if (newMessage.bot_id) {
+              console.log('🤖 Real-time bot message received:', {
+                id: newMessage.id,
+                bot_id: newMessage.bot_id,
+                has_metadata: !!newMessage.metadata,
+                has_discord_user: !!newMessage.metadata?.discord_user,
+                discord_username: newMessage.metadata?.discord_user?.username
+              });
+            }
+
+            // 🔐 Decrypt encrypted messages or show glyphs if encryption not available
+            // Also check if content looks like base64 encrypted data as fallback detection
+            const looksEncrypted = newMessage.encrypted || 
+              (typeof newMessage.content === 'string' && 
+               newMessage.content.match(/^[A-Za-z0-9+/=]{20,}$/) &&
+               newMessage.encryption_metadata);
+            
+            if (looksEncrypted) {
+              console.log('🔐 Real-time encrypted message received, attempting decryption...', {
+                encrypted_flag: newMessage.encrypted,
+                has_metadata: !!newMessage.encryption_metadata
+              });
+              try {
+                // Ensure encrypted flag is set if we detected encryption by content
+                if (!newMessage.encrypted && newMessage.encryption_metadata) {
+                  newMessage.encrypted = true;
+                }
+                const decrypted = await processMessageDecryption([newMessage]);
+                newMessage = decrypted[0];
+                console.log('🔓 Real-time message decryption result:', newMessage.decrypted ? 'success' : 'glyphs shown');
+              } catch (error) {
+                console.warn('Failed to decrypt real-time message:', error);
+              }
+            }
 
             this.addMessageToCache(newMessage);
             listenedMessageIds.add(newMessage.id);
@@ -683,20 +769,34 @@ export const useChatStore = defineStore('chat', {
             table: 'messages',
             filter: `channel_id=eq.${channelId}`
           },
-          (payload) => {
-            const updatedMessage: Message = {
+          async (payload) => {
+            let updatedMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
               channel_id: payload.new.channel_id,
               conversation_id: payload.new.conversation_id,
               user_id: payload.new.user_id,
+              bot_id: payload.new.bot_id, // Add bot_id support
               content: payload.new.content,
               reactions: payload.new.reactions,
               reply_to: payload.new.reply_to,
               is_system: payload.new.is_system,
               updated_at: payload.new.updated_at ? new Date(payload.new.updated_at) : undefined,
               metadata: payload.new.metadata || null,
+              // 🔐 Include encryption fields for real-time decryption
+              encrypted: payload.new.encrypted || false,
+              encryption_metadata: payload.new.encryption_metadata || null,
             };
+
+            // 🔐 Decrypt if encrypted (for edited encrypted messages)
+            if (updatedMessage.encrypted) {
+              try {
+                const decrypted = await processMessageDecryption([updatedMessage]);
+                updatedMessage = decrypted[0];
+              } catch (error) {
+                console.warn('Failed to decrypt updated real-time message:', error);
+              }
+            }
 
             this.updateMessageInCache(updatedMessage.id, updatedMessage);
             console.log('🔄 Message updated via real-time:', updatedMessage.id);

@@ -34,9 +34,15 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       'simple-peer',
+      '@privacyresearch/libsignal-protocol-typescript',  // Browser-compatible Signal Protocol
     ],
+    exclude: []
   },
   build: {
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true,
+    },
     rollupOptions: {
       external: [],
       output: {}

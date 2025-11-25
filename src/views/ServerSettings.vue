@@ -134,22 +134,32 @@
           />
 
           <!-- Privacy Settings Section -->
-          <ServerPrivacySettings
-            v-if="activeSection === 'privacy'"
-            v-model:isPublic="server.public"
-            :loading="loading"
-            :permissions="permissions"
-          />
+          <template v-if="activeSection === 'privacy'">
+            <ServerPrivacySettings
+              v-model:isPublic="server.public"
+              :loading="loading"
+              :permissions="permissions"
+            />
+            <ServerEncryptionSettings
+              :server-id="serverId"
+              v-if="permissions.canChangePrivacySettings"
+            />
+          </template>
 
           <!-- Advanced Settings Section -->
-          <ServerAdvancedSettings
-            v-if="activeSection === 'advanced'"
-            :server-id="serverId"
-            :server-name="server.name"
-            :created-at="server.created_at"
-            :loading="loading"
-            :permissions="{ canDeleteServer: permissions.canDeleteServer }"
-          />
+          <template v-if="activeSection === 'advanced'">
+            <ServerAdvancedSettings
+              :server-id="serverId"
+              :server-name="server.name"
+              :created-at="server.created_at"
+              :loading="loading"
+              :permissions="{ canDeleteServer: permissions.canDeleteServer }"
+            />
+            <ServerBotsSettings
+              v-if="permissions.canEditBasicInfo"
+              :server-id="serverId"
+            />
+          </template>
         </div>
       </div>
     </div>
@@ -172,6 +182,8 @@ import ServerBasicInfo from '@/components/settings/ServerBasicInfo.vue'
 import ServerEmojiManagement from '@/components/settings/ServerEmojiManagement.vue'
 import ServerPrivacySettings from '@/components/settings/ServerPrivacySettings.vue'
 import ServerAdvancedSettings from '@/components/settings/ServerAdvancedSettings.vue'
+import ServerEncryptionSettings from '@/components/settings/ServerEncryptionSettings.vue'
+import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 
 interface Props {
   serverId: string
@@ -232,22 +244,11 @@ const emojiPermissions = computed(() => ({
 // Available sections based on permissions
 const availableSections = computed(() => {
   const sections = [
-    { id: 'overview', label: t('server.overview') }
+    { id: 'overview', label: t('server.overview') },
+    { id: 'emoji', label: t('server.emoji') },
+    { id: 'privacy', label: t('server.privacySettings') },
+    { id: 'advanced', label: t('server.advancedSettings') }
   ]
-  
-  // Always show emoji section but with different permissions
-  sections.push({ id: 'emoji', label: t('server.emoji') })
-  
-  // Only show privacy settings if user can manage server
-  if (permissions.value.canChangePrivacySettings) {
-    sections.push({ id: 'privacy', label: t('server.privacySettings') })
-  }
-  
-  // Only show advanced settings if user has advanced permissions
-  if (permissions.value.canDeleteServer) {
-    sections.push({ id: 'advanced', label: t('server.advancedSettings') })
-  }
-  
   return sections
 })
 

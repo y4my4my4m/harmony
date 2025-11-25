@@ -163,6 +163,8 @@
     "viewOnlyAccess": "View Only Access",
     "viewOnlyMessage": "You can view server information but cannot make changes. Only the server owner and administrators can modify settings.",
     "emoji": "Emoji",
+    "bots": "Bots",
+    "encryption": "Encryption",
     "emojiManagement": "Emoji Management",
     "customEmojis": "Custom Emojis",
     "customEmojisDesc": "Add custom emoji to personalize your server",
@@ -437,6 +439,9 @@
     "account": "My Account",
     "profile": "Profile",
     "privacy": "Privacy & Safety",
+    "security": "Security",
+    "myBots": "My Bots",
+    "myBotsDescription": "Manage bots you have created",
     "authorizedApps": "Authorized Apps",
     "connections": "Connections",
     "appearance": {

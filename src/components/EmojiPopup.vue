@@ -1,5 +1,5 @@
 <template>
-  <div ref="emojiPopup" class="emoji-popup" :style="positionStyle" v-click-outside="handleClickOutside">
+  <div ref="emojiPopup" class="emoji-popup" :style="positionStyle">
     <!-- Search Input -->
     <div class="emoji-search">
       <input
@@ -168,9 +168,11 @@ const selectEmoji = (emoji: Emoji): void => {
   emit('sendEmoji', emoji);
 };
 
-const handleClickOutside = (): void => {
+const handleClickOutside = (event: MouseEvent): void => {
   // Close the popup when clicking outside
-      props.closeEmojiList?.();
+  if (emojiPopup.value && !emojiPopup.value.contains(event.target as Node)) {
+    props.closeEmojiList?.();
+  }
 };
 
 const handleKeyDown = (event: KeyboardEvent): void => {
@@ -182,7 +184,11 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 // --- Lifecycle Hooks ---
 
 onMounted(() => {
-  document.addEventListener('keydown', handleKeyDown);
+  // Add event listeners with a small delay to prevent immediate closure
+  setTimeout(() => {
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+  }, 100);
 
   nextTick(() => {
     updatePosition();
@@ -191,6 +197,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
   document.removeEventListener('keydown', handleKeyDown);
 });
 

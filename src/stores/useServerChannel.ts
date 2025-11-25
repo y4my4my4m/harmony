@@ -4,6 +4,7 @@ import { useToast } from 'vue-toastification';
 import type { Server, Category, Channel, ResolvedEmoji } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { statePersistence } from '@/services/StatePersistence';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export const useServerChannelStore = defineStore('serverChannel', {
   state: () => ({
@@ -17,6 +18,10 @@ export const useServerChannelStore = defineStore('serverChannel', {
     currentChannelId: null as string | null,
     isInitializing: false as boolean,
     hasInitialized: false as boolean,
+    // Real-time subscriptions
+    serverStructureSubscription: null as RealtimeChannel | null,
+    userServersSubscription: null as RealtimeChannel | null,
+    currentUserId: null as string | null,
   }),
 
   getters: {
@@ -39,9 +44,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
       try {
         console.log('🚀 Initializing user environment...');
         this.isInitializing = true;
+        this.currentUserId = userId;
         
         // Fetch user's servers first
         await this.fetchServersForUser(userId);
+        
+        // Subscribe to real-time updates for user's server list (join/leave)
+        await this.subscribeToUserServers(userId);
         
         // Restore last selected server and channel from persistence
         await this.restorePersistedState();
@@ -155,6 +164,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
         // Persist state asynchronously without blocking
         statePersistence.setLastServer(serverId).catch(console.error);
         console.log('📍 Current server set to:', server.name);
+        
+        // Subscribe to real-time updates for this server's structure (channels/categories)
+        this.subscribeToServerStructure(serverId).catch(console.error);
       }
     },
 
@@ -1664,6 +1676,335 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (categoryIndex !== -1) {
         this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...data };
       }
+    },
+
+    // =====================================================
+    // REAL-TIME SUBSCRIPTIONS
+    // =====================================================
+
+    /**
+     * Subscribe to real-time updates for server structure (channels & categories)
+     * Call this when entering a server to get live updates
+     */
+    async subscribeToServerStructure(serverId: string): Promise<void> {
+      // Unsubscribe from previous server if any
+      await this.unsubscribeFromServerStructure();
+      
+      console.log('🔔 Subscribing to server structure updates for:', serverId);
+      
+      this.serverStructureSubscription = supabase
+        .channel(`server-structure:${serverId}`)
+        // Listen for channel changes
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'channels', filter: `server_id=eq.${serverId}` },
+          (payload) => this._handleChannelInsert(payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'channels', filter: `server_id=eq.${serverId}` },
+          (payload) => this._handleChannelUpdate(payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'channels', filter: `server_id=eq.${serverId}` },
+          (payload) => this._handleChannelDelete(payload)
+        )
+        // Listen for category changes
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'channel_categories', filter: `server_id=eq.${serverId}` },
+          (payload) => this._handleCategoryInsert(payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'channel_categories', filter: `server_id=eq.${serverId}` },
+          (payload) => this._handleCategoryUpdate(payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'channel_categories', filter: `server_id=eq.${serverId}` },
+          (payload) => this._handleCategoryDelete(payload)
+        )
+        .subscribe((status) => {
+          console.log(`📡 Server structure subscription status for ${serverId}:`, status);
+        });
+    },
+
+    /**
+     * Unsubscribe from server structure updates
+     */
+    async unsubscribeFromServerStructure(): Promise<void> {
+      if (this.serverStructureSubscription) {
+        console.log('🔕 Unsubscribing from server structure updates');
+        await this.serverStructureSubscription.unsubscribe();
+        this.serverStructureSubscription = null;
+      }
+    },
+
+    /**
+     * Handle real-time channel INSERT
+     */
+    _handleChannelInsert(payload: any): void {
+      const newChannel = payload.new as Channel;
+      console.log('📥 Real-time: Channel created:', newChannel.name);
+      
+      // Check if channel already exists (avoid duplicates)
+      if (this.channels.some(c => c.id === newChannel.id)) {
+        console.log('⚠️ Channel already exists, skipping duplicate');
+        return;
+      }
+      
+      // Add to channels array
+      this.channels.push(newChannel);
+      
+      // Add to categoryChannels if it has a category
+      if (newChannel.category) {
+        if (!this.categoryChannels[newChannel.category]) {
+          this.categoryChannels[newChannel.category] = [];
+        }
+        this.categoryChannels[newChannel.category].push(newChannel);
+        // Sort by order
+        this.categoryChannels[newChannel.category].sort((a, b) => (a.order || 0) - (b.order || 0));
+      }
+    },
+
+    /**
+     * Handle real-time channel UPDATE
+     */
+    _handleChannelUpdate(payload: any): void {
+      const updatedChannel = payload.new as Channel;
+      const oldChannel = payload.old as Channel;
+      console.log('📝 Real-time: Channel updated:', updatedChannel.name);
+      
+      // Update in channels array
+      const channelIndex = this.channels.findIndex(c => c.id === updatedChannel.id);
+      if (channelIndex !== -1) {
+        this.channels[channelIndex] = { ...this.channels[channelIndex], ...updatedChannel };
+      }
+      
+      // Handle category change
+      if (oldChannel.category !== updatedChannel.category) {
+        // Remove from old category
+        if (oldChannel.category && this.categoryChannels[oldChannel.category]) {
+          this.categoryChannels[oldChannel.category] = this.categoryChannels[oldChannel.category].filter(
+            c => c.id !== updatedChannel.id
+          );
+        }
+        
+        // Add to new category
+        if (updatedChannel.category) {
+          if (!this.categoryChannels[updatedChannel.category]) {
+            this.categoryChannels[updatedChannel.category] = [];
+          }
+          this.categoryChannels[updatedChannel.category].push(updatedChannel);
+          this.categoryChannels[updatedChannel.category].sort((a, b) => (a.order || 0) - (b.order || 0));
+        }
+      } else if (updatedChannel.category) {
+        // Update within same category
+        const catChannelIndex = this.categoryChannels[updatedChannel.category]?.findIndex(
+          c => c.id === updatedChannel.id
+        );
+        if (catChannelIndex !== undefined && catChannelIndex !== -1) {
+          this.categoryChannels[updatedChannel.category][catChannelIndex] = {
+            ...this.categoryChannels[updatedChannel.category][catChannelIndex],
+            ...updatedChannel
+          };
+          // Re-sort in case order changed
+          this.categoryChannels[updatedChannel.category].sort((a, b) => (a.order || 0) - (b.order || 0));
+        }
+      }
+    },
+
+    /**
+     * Handle real-time channel DELETE
+     */
+    _handleChannelDelete(payload: any): void {
+      const deletedChannel = payload.old as Channel;
+      console.log('🗑️ Real-time: Channel deleted:', deletedChannel.id);
+      
+      // Remove from channels array
+      this.channels = this.channels.filter(c => c.id !== deletedChannel.id);
+      
+      // Remove from categoryChannels
+      if (deletedChannel.category && this.categoryChannels[deletedChannel.category]) {
+        this.categoryChannels[deletedChannel.category] = this.categoryChannels[deletedChannel.category].filter(
+          c => c.id !== deletedChannel.id
+        );
+      }
+      
+      // If this was the current channel, switch to another
+      if (this.currentChannelId === deletedChannel.id) {
+        const defaultChannel = this.getDefaultChannel();
+        if (defaultChannel) {
+          this.setCurrentChannel(defaultChannel);
+        } else {
+          this.currentChannelId = null;
+        }
+      }
+    },
+
+    /**
+     * Handle real-time category INSERT
+     */
+    _handleCategoryInsert(payload: any): void {
+      const newCategory = payload.new as Category;
+      console.log('📥 Real-time: Category created:', newCategory.name);
+      
+      // Check if category already exists
+      if (this.categories.some(c => c.id === newCategory.id)) {
+        console.log('⚠️ Category already exists, skipping duplicate');
+        return;
+      }
+      
+      // Add to categories array
+      this.categories.push(newCategory);
+      // Sort by order
+      this.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      // Initialize empty channel array for this category
+      this.categoryChannels[newCategory.id] = [];
+    },
+
+    /**
+     * Handle real-time category UPDATE
+     */
+    _handleCategoryUpdate(payload: any): void {
+      const updatedCategory = payload.new as Category;
+      console.log('📝 Real-time: Category updated:', updatedCategory.name);
+      
+      // Update in categories array
+      const categoryIndex = this.categories.findIndex(c => c.id === updatedCategory.id);
+      if (categoryIndex !== -1) {
+        this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...updatedCategory };
+        // Re-sort in case order changed
+        this.categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+      }
+    },
+
+    /**
+     * Handle real-time category DELETE
+     */
+    _handleCategoryDelete(payload: any): void {
+      const deletedCategory = payload.old as Category;
+      console.log('🗑️ Real-time: Category deleted:', deletedCategory.id);
+      
+      // Remove from categories array
+      this.categories = this.categories.filter(c => c.id !== deletedCategory.id);
+      
+      // Move channels from this category to orphans (no category)
+      const orphanedChannels = this.categoryChannels[deletedCategory.id] || [];
+      orphanedChannels.forEach(channel => {
+        channel.category = null;
+      });
+      
+      // Remove category from categoryChannels
+      delete this.categoryChannels[deletedCategory.id];
+    },
+
+    /**
+     * Subscribe to user's server list changes (join/leave servers)
+     */
+    async subscribeToUserServers(userId: string): Promise<void> {
+      // Unsubscribe from previous subscription if any
+      await this.unsubscribeFromUserServers();
+      
+      this.currentUserId = userId;
+      console.log('🔔 Subscribing to user server list updates for:', userId);
+      
+      this.userServersSubscription = supabase
+        .channel(`user-servers:${userId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'user_servers', filter: `user_id=eq.${userId}` },
+          (payload) => this._handleUserServerJoin(payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'user_servers', filter: `user_id=eq.${userId}` },
+          (payload) => this._handleUserServerLeave(payload)
+        )
+        .subscribe((status) => {
+          console.log(`📡 User servers subscription status for ${userId}:`, status);
+        });
+    },
+
+    /**
+     * Unsubscribe from user server list updates
+     */
+    async unsubscribeFromUserServers(): Promise<void> {
+      if (this.userServersSubscription) {
+        console.log('🔕 Unsubscribing from user server list updates');
+        await this.userServersSubscription.unsubscribe();
+        this.userServersSubscription = null;
+      }
+    },
+
+    /**
+     * Handle user joining a server (real-time)
+     */
+    async _handleUserServerJoin(payload: any): Promise<void> {
+      const serverId = payload.new.server_id;
+      console.log('📥 Real-time: User joined server:', serverId);
+      
+      // Check if server already in list
+      if (this.servers.some(s => s.id === serverId)) {
+        console.log('⚠️ Server already in list, skipping duplicate');
+        return;
+      }
+      
+      // Fetch server details
+      try {
+        const { data: server, error } = await supabase
+          .from('servers')
+          .select('*')
+          .eq('id', serverId)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching joined server:', error);
+          return;
+        }
+        
+        if (server) {
+          this.servers.push(server);
+          console.log('✅ Server added to list:', server.name);
+        }
+      } catch (error) {
+        console.error('Error handling server join:', error);
+      }
+    },
+
+    /**
+     * Handle user leaving a server (real-time)
+     */
+    _handleUserServerLeave(payload: any): void {
+      const serverId = payload.old.server_id;
+      console.log('📤 Real-time: User left server:', serverId);
+      
+      // Remove server from list
+      this.servers = this.servers.filter(s => s.id !== serverId);
+      
+      // If this was the current server, switch to another
+      if (this.currentServerId === serverId) {
+        if (this.servers.length > 0) {
+          this.setCurrentServer(this.servers[0].id);
+        } else {
+          this.currentServerId = null;
+          this.currentServer = {} as Server;
+          this.channels = [];
+          this.categories = [];
+          this.categoryChannels = {};
+        }
+      }
+    },
+
+    /**
+     * Cleanup all subscriptions
+     */
+    async cleanupSubscriptions(): Promise<void> {
+      await this.unsubscribeFromServerStructure();
+      await this.unsubscribeFromUserServers();
     },
   }
 });

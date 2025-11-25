@@ -18,6 +18,21 @@ import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
 
+// Lazy load encryption service to avoid loading native modules in browser
+let messageEncryptionService: any = null
+async function getEncryptionService() {
+  if (!messageEncryptionService) {
+    try {
+      const module = await import('@/services/encryption/MessageEncryptionService')
+      messageEncryptionService = module.messageEncryptionService
+    } catch (error) {
+      console.warn('⚠️ Encryption service not available:', error)
+      messageEncryptionService = null
+    }
+  }
+  return messageEncryptionService
+}
+
 export interface SendMessageData {
   content: MessagePart[]
   reply_to?: string
@@ -63,15 +78,76 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
+      // Check if sender has encryption enabled
+      let finalContent = content
+      let encrypted = false
+      let encryptionMetadata = null
+
+      const encryptionService = await getEncryptionService()
+      if (encryptionService && encryptionService.isInitialized()) {
+        try {
+          // If the sender has encryption keys, encrypt the message
+          const hasKeys = await encryptionService.hasEncryptionKeys()
+          
+          if (hasKeys) {
+            console.log('🔐 Sender has encryption - encrypting message')
+            
+            // Get all server members
+            const { data: members } = await supabase
+              .from('user_servers')
+              .select('user_id')
+              .eq('server_id', serverId)
+            
+            const allUserIds = members?.map(m => m.user_id).filter(id => id !== currentUser.id) || []
+            
+            // Filter to only users with encryption keys (who can decrypt)
+            const { data: usersWithKeys } = await supabase
+              .from('user_key_pairs')
+              .select('user_id')
+              .in('user_id', allUserIds)
+              .eq('is_active', true)
+            
+            const recipientIds = usersWithKeys?.map(u => u.user_id) || []
+            
+            // IMPORTANT: Always include yourself so you can decrypt your own messages!
+            if (!recipientIds.includes(currentUser.id)) {
+              recipientIds.push(currentUser.id)
+            }
+            
+            console.log(`🔐 Encrypting for ${recipientIds.length} recipients (including self)`)
+            
+            // Encrypt message for users who can decrypt (including yourself)
+            const encryptedData = await encryptionService.encryptMessage(content, recipientIds)
+            finalContent = encryptedData.content
+            encrypted = true
+            encryptionMetadata = encryptedData.encryption_metadata
+            console.log(`✅ Message encrypted successfully`)
+          } else {
+            console.log('ℹ️ Sender does not have encryption - sending plaintext')
+          }
+        } catch (error) {
+          console.error('❌ Encryption failed:', error)
+          // If encryption fails, check if server requires it
+          const policy = await encryptionService.checkServerEncryptionPolicy(serverId)
+          if (policy.mode === 'required' || policy.mode === 'required_local_only') {
+            throw error
+          }
+          // Otherwise, send unencrypted
+          console.warn('⚠️ Falling back to unencrypted message')
+        }
+      }
+
       const messageData = {
         user_id: currentUser.id,
         channel_id: channelId,
-        content: content,
+        content: finalContent,
         reply_to: replyTo || null,
+        encrypted,
+        encryption_metadata: encryptionMetadata,
         metadata: { created_via: 'harmony_client' }
       }
 
-      console.log('📤 Inserting message to database:', messageData)
+      console.log('📤 Inserting message to database:', { ...messageData, content: encrypted ? '[encrypted]' : messageData.content })
       
       const { data: message, error } = await supabase
         .from('messages')
@@ -114,11 +190,75 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
+      // Check encryption for conversation
+      let finalContent = content
+      let encrypted = false
+      let encryptionMetadata = null
+
+      const encryptionService = await getEncryptionService()
+      if (encryptionService && encryptionService.isInitialized()) {
+        try {
+          const status = await encryptionService.checkConversationEncryption(conversationId)
+          
+          // Auto-enable encryption if both parties have keys and it's not already enabled
+          if (!status.enabled && status.hasKeys) {
+            // Check if all participants have encryption keys
+            const allHaveKeys = status.mode === 'optional' // This means everyone has keys
+            
+            if (allHaveKeys) {
+              console.log('🔐 Auto-enabling encryption for conversation...')
+              try {
+                await encryptionService.enableConversationEncryption(conversationId)
+                // Re-check status after enabling
+                const newStatus = await encryptionService.checkConversationEncryption(conversationId)
+                if (newStatus.enabled) {
+                  console.log('✅ Encryption auto-enabled for conversation')
+                }
+              } catch (error) {
+                console.warn('⚠️ Could not auto-enable encryption:', error)
+              }
+            }
+          }
+          
+          // Re-check if encryption is now enabled
+          const finalStatus = await encryptionService.checkConversationEncryption(conversationId)
+          
+          if (finalStatus.enabled) {
+            // Get conversation participants
+            const { data: participants } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', conversationId)
+              .is('left_at', null)
+            
+            const recipientIds = participants?.map(p => p.user_id).filter(id => id !== currentUser.id) || []
+            
+            if (recipientIds.length > 0) {
+              // Encrypt message
+              const encryptedData = await encryptionService.encryptMessage(content, recipientIds)
+              finalContent = encryptedData.content
+              encrypted = true
+              encryptionMetadata = encryptedData.encryption_metadata
+              console.log(`🔐 DM encrypted for ${recipientIds.length} recipients`)
+            }
+          }
+        } catch (error) {
+          console.error('❌ DM encryption failed:', error)
+          // DMs are typically always encrypted if enabled, so throw error
+          const status = await encryptionService.checkConversationEncryption(conversationId)
+          if (status.enabled) {
+            throw error
+          }
+        }
+      }
+
       const messageData = {
         user_id: currentUser.id,
         conversation_id: conversationId,
-        content: content,
+        content: finalContent,
         reply_to: replyTo || null,
+        encrypted,
+        encryption_metadata: encryptionMetadata,
         metadata: { created_via: 'harmony_client' }
       }
 
@@ -147,10 +287,65 @@ export class CoreMessageService {
    */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
+      // Get current user from cached userDataService (no database calls)
+      const currentUser = userDataService.getCurrentUser()
+      if (!currentUser?.id) {
+        throw this.createError('AUTH_REQUIRED', 'User not authenticated')
+      }
+
+      // First, get the original message to check if it's encrypted
+      const { data: originalMessage, error: fetchError } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('id', messageId)
+        .single()
+
+      if (fetchError) throw this.createError('FETCH_FAILED', fetchError.message, fetchError)
+      if (!originalMessage) throw this.createError('NOT_FOUND', 'Message not found')
+
+      let finalContent = newContent
+      let encrypted = false
+      let encryptionMetadata = null
+
+      // If the original message was encrypted, re-encrypt the edited content
+      if (originalMessage.encrypted && originalMessage.encryption_metadata) {
+        console.log('🔐 Original message was encrypted - re-encrypting edited content')
+        
+        const encryptionService = await getEncryptionService()
+        if (encryptionService && encryptionService.isInitialized()) {
+          try {
+            // Get the list of recipients from the original encryption metadata
+            const recipientIds = originalMessage.encryption_metadata.encrypted_for || []
+            
+            // IMPORTANT: Include yourself in the recipients if not already there
+            if (!recipientIds.includes(currentUser.id)) {
+              recipientIds.push(currentUser.id)
+            }
+
+            console.log(`🔐 Re-encrypting for ${recipientIds.length} recipients (including self)`)
+            
+            // Encrypt the new content for the same recipients
+            const encryptedData = await encryptionService.encryptMessage(newContent, recipientIds)
+            finalContent = encryptedData.content
+            encrypted = true
+            encryptionMetadata = encryptedData.encryption_metadata
+            console.log(`✅ Edited message re-encrypted successfully`)
+          } catch (error) {
+            console.error('❌ Re-encryption failed:', error)
+            throw this.createError('ENCRYPTION_FAILED', 'Failed to re-encrypt edited message', error)
+          }
+        } else {
+          throw this.createError('ENCRYPTION_SERVICE_UNAVAILABLE', 'Encryption service not available')
+        }
+      }
+
+      // Update the message with the new content (encrypted or plaintext)
       const { data: message, error } = await supabase
         .from('messages')
         .update({ 
-          content: newContent,
+          content: finalContent,
+          encrypted,
+          encryption_metadata: encryptionMetadata,
         })
         .eq('id', messageId)
         .select('*')
@@ -455,7 +650,12 @@ export class CoreMessageService {
       }
 
       console.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for channel: ${channelId}`)
-      return orderedMessages
+      
+      // Process encrypted messages
+      const { processMessageDecryption } = await import('@/utils/messageDecryption')
+      const decryptedMessages = await processMessageDecryption(orderedMessages)
+      
+      return decryptedMessages
     } catch (error) {
       console.error('❌ Core: Failed to load channel messages:', error)
       throw error
@@ -523,7 +723,12 @@ export class CoreMessageService {
       }
 
       console.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for conversation: ${conversationId}`)
-      return orderedMessages
+      
+      // Process encrypted messages
+      const { processMessageDecryption } = await import('@/utils/messageDecryption')
+      const decryptedMessages = await processMessageDecryption(orderedMessages)
+      
+      return decryptedMessages
     } catch (error) {
       console.error('❌ Core: Failed to load conversation messages:', error)
       throw error
