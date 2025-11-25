@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { updateUserStatus } from '@/services/ProfileService';
+import { useChatStore } from '@/stores/useChat';
 import { UserStatus } from '@/types';
 import router from '@/router';
 
@@ -204,6 +205,12 @@ export const useAuthStore = defineStore('auth', {
           await messageEncryptionService.initialize(userId);
           
           console.log('✅ Encryption service initialized');
+          try {
+            const chatStore = useChatStore();
+            chatStore.reprocessEncryptedMessages();
+          } catch (reprocessError) {
+            console.warn('Failed to reprocess messages after encryption init:', reprocessError);
+          }
         } else {
           console.log('ℹ️ User does not have encryption keys');
         }

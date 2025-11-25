@@ -5,6 +5,7 @@ import type { Message, ChannelCache, CacheMetadata } from '@/types';
 import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
+import { processMessageDecryption } from '@/utils/messageDecryption';
 
 // import { getEmoji } from '@/services/emojiService';
 export const useChatStore = defineStore('chat', {
@@ -419,6 +420,21 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    async reprocessEncryptedMessages() {
+      try {
+        if (this.messages.length > 0) {
+          this.messages = await processMessageDecryption(this.messages);
+        }
+        for (const cache of this.messageCache.values()) {
+          if (cache.messages?.length) {
+            cache.messages = await processMessageDecryption(cache.messages);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to reprocess encrypted messages:', error);
+      }
+    },
+
     // Update cache when message is edited
     updateMessageInCache(messageId: string, updatedMessage: Message) {
       // Update current messages
@@ -605,7 +621,7 @@ export const useChatStore = defineStore('chat', {
             table: 'messages',
             filter: `channel_id=eq.${channelId}`
           },
-          (payload) => {
+          async (payload) => {
             console.log('🟢 Real-time INSERT received:', payload);
             
             // Check if this is our own message (already replaced by sendMessage)
@@ -621,7 +637,7 @@ export const useChatStore = defineStore('chat', {
             if (tempMessageIndex !== -1) {
               console.warn('⚠️ Temp message still exists during real-time, this is a race condition!');
               console.log('🔄 Replacing late:', this.messages[tempMessageIndex].id);
-              const resolvedMessage: Message = {
+              let resolvedMessage: Message = {
                 id: payload.new.id,
                 created_at: new Date(payload.new.created_at),
                 channel_id: payload.new.channel_id,
@@ -636,6 +652,10 @@ export const useChatStore = defineStore('chat', {
               };
               try {
                 ensureMessageEmbeds(resolvedMessage);
+                if (resolvedMessage.encrypted) {
+                  const decrypted = await processMessageDecryption([resolvedMessage]);
+                  resolvedMessage = decrypted[0];
+                }
               } catch (error) {
                 console.warn('Failed to prepare embeds for resolved realtime message:', error);
               }
@@ -650,7 +670,7 @@ export const useChatStore = defineStore('chat', {
               return;
             }
             
-            const newMessage: Message = {
+            let newMessage: Message = {
               id: payload.new.id,
               created_at: new Date(payload.new.created_at),
               channel_id: payload.new.channel_id,
@@ -673,6 +693,15 @@ export const useChatStore = defineStore('chat', {
                 has_discord_user: !!newMessage.metadata?.discord_user,
                 discord_username: newMessage.metadata?.discord_user?.username
               });
+            }
+
+            if (newMessage.encrypted) {
+              try {
+                const decrypted = await processMessageDecryption([newMessage]);
+                newMessage = decrypted[0];
+              } catch (error) {
+                console.warn('Failed to decrypt real-time message:', error);
+              }
             }
 
             this.addMessageToCache(newMessage);

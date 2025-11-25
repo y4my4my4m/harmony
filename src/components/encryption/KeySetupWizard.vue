@@ -178,6 +178,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useChatStore } from '@/stores/useChat'
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -185,6 +186,7 @@ const emit = defineEmits<{
 }>()
 
 const authStore = useAuthStore()
+const chatStore = useChatStore()
 
 const step = ref(1)
 const password = ref('')
@@ -248,6 +250,12 @@ async function handleContinue() {
     // Success
     await new Promise(resolve => setTimeout(resolve, 500))
     step.value = 4
+
+    try {
+      await chatStore.reprocessEncryptedMessages()
+    } catch (error) {
+      console.warn('Failed to refresh messages after encryption setup:', error)
+    }
   } catch (error: any) {
     console.error('Encryption setup failed:', error)
     errorMessage.value = error.message || 'Failed to setup encryption. Please try again.'

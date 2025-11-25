@@ -199,6 +199,7 @@ export interface FileContent {
   url: string;
   fileType: string; // e.g., 'image', 'video'
   fileName?: string; // Optional file name
+  fileSize?: number; // Optional file size in bytes
 }
 
 export interface SystemContent {
@@ -218,6 +219,8 @@ export interface SystemContent {
   } | null;
   timestamp: string;
 }
+
+export type EncryptedPayloadMap = Record<string, string>
 
 export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | EmojiContent | HashtagContent | FileContent | SystemContent;
 
@@ -253,6 +256,15 @@ export interface Message {
   reply_to?: string;
   reactions?: Reaction[]; // doesn't exist in the database, we're transforming it
   is_system?: boolean; // for system messages like join/leave announcements
+  encrypted?: boolean; // true if this message is encrypted
+  encryption_metadata?: {
+    algorithm: string;
+    encrypted_for: string[];
+    sender_key_id: string;
+    timestamp: number;
+    encrypted_keys?: Record<string, string>; // Map of user_id -> encrypted symmetric key (hybrid encryption)
+    iv?: string; // Initialization vector for AES-GCM
+  };
   metadata?: Record<string, any> & {
     embeds?: Record<string, EmbedPayload>;
   }; // for federated messages and other metadata

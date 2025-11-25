@@ -246,10 +246,22 @@ export class SignalProtocolService {
     const sessionCipher = new SessionCipher(this.keyStore!, address)
 
     const ciphertext = await sessionCipher.encrypt(this.stringToArrayBuffer(plaintext))
+    let bodyBuffer: ArrayBuffer
+
+    if (typeof (ciphertext as any).serialize === 'function') {
+      bodyBuffer = (ciphertext as any).serialize()
+    } else if ((ciphertext as any).body) {
+      const body = (ciphertext as any).body
+      bodyBuffer = typeof body === 'string'
+        ? this.binaryStringToArrayBuffer(body)
+        : body
+    } else {
+      throw new Error('Unsupported ciphertext format')
+    }
 
     return {
       type: ciphertext.type === 3 ? 'prekey' : 'message',
-      body: this.encodeToBase64(ciphertext.body!),
+      body: this.encodeToBase64(bodyBuffer),
       registrationId: ciphertext.registrationId || 0
     }
   }
@@ -316,6 +328,15 @@ export class SignalProtocolService {
   private arrayBufferToString(buffer: ArrayBuffer): string {
     const decoder = new TextDecoder()
     return decoder.decode(buffer)
+  }
+
+  private binaryStringToArrayBuffer(str: string): ArrayBuffer {
+    const buffer = new ArrayBuffer(str.length)
+    const bytes = new Uint8Array(buffer)
+    for (let i = 0; i < str.length; i++) {
+      bytes[i] = str.charCodeAt(i) & 0xff
+    }
+    return buffer
   }
 
   // =====================================================

@@ -24,12 +24,14 @@ export interface EncryptionStatus {
 
 export interface EncryptedMessageData {
   encrypted: true
-  content: MessagePart[] // Encrypted content
+  content: MessagePart[] // Encrypted content (base64 ciphertext in text field)
   encryption_metadata: {
-    algorithm: 'signal_protocol_v1'
+    algorithm: 'signal_protocol_v1_hybrid' // Hybrid: AES-GCM + Signal Protocol
     encrypted_for: string[] // User IDs this message is encrypted for
     sender_key_id: string
     timestamp: number
+    encrypted_keys: Record<string, string> // Map of user_id -> encrypted symmetric key
+    iv: string // Initialization vector for AES-GCM
   }
 }
 
@@ -193,8 +195,28 @@ export class MessageEncryptionService {
       1
     )
 
+    // Store signed prekey locally in IndexedDB for decryption
+    await this.keyStore.storeSignedPreKey(
+      signedPreKey.id,
+      {
+        pubKey: this.base64ToArrayBuffer(signedPreKey.keyPair.publicKey),
+        privKey: this.base64ToArrayBuffer(signedPreKey.keyPair.privateKey)
+      }
+    )
+
     // Generate one-time prekeys (100 keys) - start from 2 to avoid clobbering signed prekey id
     const preKeys = await signalProtocolService.generatePreKeys(2, 100)
+
+    // Store prekeys locally in IndexedDB for decryption
+    for (const preKey of preKeys) {
+      await this.keyStore.storePreKey(
+        preKey.id,
+        {
+          pubKey: this.base64ToArrayBuffer(preKey.keyPair.publicKey),
+          privKey: this.base64ToArrayBuffer(preKey.keyPair.privateKey)
+        }
+      )
+    }
 
     // Save signed prekey to database with upsert
     const { error: signedKeyError } = await supabase.from('prekeys').upsert({
@@ -231,12 +253,14 @@ export class MessageEncryptionService {
   }
 
   // =====================================================
-  // ENCRYPTION / DECRYPTION
+  // ENCRYPTION / DECRYPTION (HYBRID)
   // =====================================================
 
   /**
-   * Encrypt message content for recipients
-   * Encrypts text and URLs within MessageParts while preserving structure
+   * Encrypt message content using hybrid encryption
+   * 1. Generate random AES-256-GCM key
+   * 2. Encrypt message with AES key → store in content
+   * 3. Encrypt AES key for each recipient with Signal → store in metadata
    */
   async encryptMessage(
     content: MessagePart[],
@@ -246,200 +270,190 @@ export class MessageEncryptionService {
       throw new Error('Not initialized')
     }
 
-    console.log(`🔐 Encrypting message for ${recipientIds.length} recipients`)
+    console.log(`🔐 Encrypting message (hybrid) for ${recipientIds.length} recipients`)
 
-    // Process each message part
-    const encryptedContent: MessagePart[] = []
-
-    for (const part of content) {
-      if (part.type === 'text' && part.text) {
-        // Encrypt text content for each recipient
-        const encryptedForRecipients: Record<string, string> = {}
-
-        for (const recipientId of recipientIds) {
-          const recipientAddress = `${recipientId}:1`
-
-          // Check if we have a session with this recipient
-          const hasSession = await signalProtocolService.hasSession(recipientAddress)
-          if (!hasSession) {
-            await this.establishSession(recipientId)
-          }
-
-          // Encrypt the text
-          const encryptedMsg = await signalProtocolService.encryptMessage(
-            recipientAddress,
-            part.text
-          )
-
-          encryptedForRecipients[recipientId] = JSON.stringify(encryptedMsg)
-        }
-
-        // Keep the structure but mark as encrypted_text with payloads
-        encryptedContent.push({
-          type: 'encrypted_text',
-          encrypted_payloads: encryptedForRecipients
-        })
-      } else if (part.type === 'url' && part.url) {
-        // Encrypt URLs for each recipient
-        const encryptedForRecipients: Record<string, string> = {}
-
-        for (const recipientId of recipientIds) {
-          const recipientAddress = `${recipientId}:1`
-
-          const hasSession = await signalProtocolService.hasSession(recipientAddress)
-          if (!hasSession) {
-            await this.establishSession(recipientId)
-          }
-
-          const encryptedMsg = await signalProtocolService.encryptMessage(
-            recipientAddress,
-            part.url
-          )
-
-          encryptedForRecipients[recipientId] = JSON.stringify(encryptedMsg)
-        }
-
-        encryptedContent.push({
-          type: 'encrypted_url',
-          encrypted_payloads: encryptedForRecipients
-        })
-      } else {
-        // Non-sensitive parts (emoji, mention, system) - keep as-is
-        encryptedContent.push(part)
-      }
-    }
-
-    return {
-      encrypted: true,
-      content: encryptedContent,
-      encryption_metadata: {
-        algorithm: 'signal_protocol_v1',
-        encrypted_for: recipientIds,
-        sender_key_id: this.currentUserId,
-        timestamp: Date.now()
-      }
-    }
-  }
-
-  /**
-   * Decrypt message content
-   */
-  async decryptMessage(
-    encryptedContent: MessagePart[],
-    senderId: string
-  ): Promise<MessagePart[]> {
-    if (!this.currentUserId || !this.keyStore) {
-      throw new Error('Not initialized')
-    }
-
-    console.log(`🔓 Decrypting message from ${senderId}`)
-
-    // Extract encrypted payload for current user
-    const encryptedPart = encryptedContent[0]
-    if (!encryptedPart || encryptedPart.type !== 'encrypted') {
-      throw new Error('Invalid encrypted message format')
-    }
-
-    const encryptedPayload = encryptedPart.encrypted_payloads?.[this.currentUserId]
-    if (!encryptedPayload) {
-      throw new Error('No encrypted payload found for current user')
-    }
-
-    // Parse the encrypted message
-    const encryptedMsg = JSON.parse(encryptedPayload)
-    const senderAddress = `${senderId}:1`
-
-    // Decrypt the message
-    const plaintext = await signalProtocolService.decryptMessage(
-      senderAddress,
-      encryptedMsg
+    // Step 1: Generate random 256-bit symmetric key for AES-GCM
+    const symmetricKey = crypto.getRandomValues(new Uint8Array(32))
+    const iv = crypto.getRandomValues(new Uint8Array(12)) // 96-bit IV for GCM
+    
+    // Step 2: Encrypt the message content with AES-GCM
+    const plaintextContent = JSON.stringify(content)
+    const encoder = new TextEncoder()
+    const plaintextBuffer = encoder.encode(plaintextContent)
+    
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      symmetricKey,
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt']
     )
+    
+    const encryptedBuffer = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      cryptoKey,
+      plaintextBuffer
+    )
+    
+    // Convert to base64 for storage
+    const encryptedBase64 = this.arrayBufferToBase64(encryptedBuffer)
+    const ivBase64 = this.arrayBufferToBase64(iv.buffer)
+    
+    // Step 3: Encrypt the symmetric key for each recipient using Signal Protocol
+    const encryptedKeys: Record<string, string> = {}
+    const symmetricKeyBase64 = this.arrayBufferToBase64(symmetricKey.buffer)
+    
+    for (const recipientId of recipientIds) {
+      const recipientAddress = `${recipientId}:1`
+      const hasSession = await signalProtocolService.hasSession(recipientAddress)
+      if (!hasSession) {
+        await this.establishSession(recipientId)
+      }
 
-    // Parse decrypted content back to MessagePart[]
-    const content: MessagePart[] = JSON.parse(plaintext)
+      const encryptedKey = await signalProtocolService.encryptMessage(
+        recipientAddress,
+        symmetricKeyBase64
+      )
 
-    console.log('✅ Message decrypted successfully')
-    return content
-  }
-
-  /**
-   * Encrypt a group message using Sender Keys
-   */
-  async encryptGroupMessage(
-    content: MessagePart[],
-    groupId: string,
-    recipientIds: string[]
-  ): Promise<EncryptedMessageData> {
-    if (!this.currentUserId) {
-      throw new Error('Not initialized')
+      encryptedKeys[recipientId] = JSON.stringify(encryptedKey)
     }
 
-    console.log(`🔐 Encrypting group message for group ${groupId}`)
-
-    const plaintext = JSON.stringify(content)
-
-    // Encrypt using sender keys (more efficient for groups)
-    const encryptedBody = await signalProtocolService.encryptGroupMessage(
-      groupId,
-      this.currentUserId,
-      plaintext
-    )
-
+    // Store encrypted message in content as base64 text
     const encryptedContent: MessagePart[] = [{
-      type: 'encrypted_group',
-      group_id: groupId,
-      encrypted_body: encryptedBody
+      type: 'text',
+      text: encryptedBase64
     }]
 
     return {
       encrypted: true,
       content: encryptedContent,
       encryption_metadata: {
-        algorithm: 'signal_protocol_v1',
+        algorithm: 'signal_protocol_v1_hybrid',
         encrypted_for: recipientIds,
         sender_key_id: this.currentUserId,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        encrypted_keys: encryptedKeys,
+        iv: ivBase64
       }
     }
   }
 
   /**
-   * Decrypt a group message
+   * Decrypt message content using hybrid encryption
+   * 1. Decrypt symmetric key using Signal Protocol
+   * 2. Decrypt message content using AES-GCM
+   */
+  async decryptMessage(
+    message: { 
+      content: MessagePart[], 
+      encryption_metadata?: { 
+        encrypted_keys?: Record<string, string>,
+        sender_key_id: string,
+        iv?: string
+      } 
+    }
+  ): Promise<MessagePart[]> {
+    if (!this.currentUserId || !this.keyStore) {
+      throw new Error('Not initialized')
+    }
+
+    const senderId = message.encryption_metadata?.sender_key_id
+    if (!senderId) {
+      throw new Error('No sender key ID in encryption metadata')
+    }
+
+    const encryptedKey = message.encryption_metadata?.encrypted_keys?.[this.currentUserId]
+    const ivBase64 = message.encryption_metadata?.iv
+    
+    if (!encryptedKey || !ivBase64) {
+      console.log('🔐 No encrypted key or IV for current user')
+      throw new Error('Missing encryption data')
+    }
+
+    console.log(`🔓 Decrypting message (hybrid) from ${senderId}`)
+
+    try {
+      // Step 1: Decrypt the symmetric key using Signal Protocol
+      const encryptedKeyData = JSON.parse(encryptedKey)
+      const senderAddress = `${senderId}:1`
+      
+      console.log(`  - Message type: ${encryptedKeyData.type}`)
+      console.log(`  - Decrypting symmetric key from address: ${senderAddress}`)
+      
+      let symmetricKeyBase64: string
+      try {
+        symmetricKeyBase64 = await signalProtocolService.decryptMessage(senderAddress, encryptedKeyData)
+      } catch (sessionError: any) {
+        // If session doesn't exist, the session might have been cleared
+        console.error('❌ Session error:', sessionError.message)
+        
+        if (sessionError.message?.includes('unable to find session')) {
+          throw new Error('Session not found - encryption keys may have been cleared. Try re-initializing encryption.')
+        }
+        
+        throw sessionError
+      }
+      
+      const symmetricKey = this.base64ToArrayBuffer(symmetricKeyBase64)
+      
+      // Step 2: Decrypt the message content using AES-GCM
+      const encryptedBase64 = message.content[0]?.type === 'text' ? message.content[0].text : ''
+      if (!encryptedBase64) {
+        throw new Error('No encrypted content found')
+      }
+      
+      const encryptedBuffer = this.base64ToArrayBuffer(encryptedBase64)
+      const iv = this.base64ToArrayBuffer(ivBase64)
+      
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        symmetricKey,
+        { name: 'AES-GCM' },
+        false,
+        ['decrypt']
+      )
+      
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        cryptoKey,
+        encryptedBuffer
+      )
+      
+      const decoder = new TextDecoder()
+      const decryptedJson = decoder.decode(decryptedBuffer)
+      const decryptedContent: MessagePart[] = JSON.parse(decryptedJson)
+      
+      console.log('✅ Message decrypted successfully (hybrid)')
+      return decryptedContent
+    } catch (error) {
+      console.error('❌ Decryption failed:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Encrypt a group message using hybrid encryption
+   */
+  async encryptGroupMessage(
+    content: MessagePart[],
+    groupId: string,
+    recipientIds: string[]
+  ): Promise<EncryptedMessageData> {
+    // For now, just use regular hybrid encryption
+    // Could optimize later with sender keys
+    return this.encryptMessage(content, recipientIds)
+  }
+
+  /**
+   * Decrypt a group message using hybrid encryption
    */
   async decryptGroupMessage(
     encryptedContent: MessagePart[],
     senderId: string,
     groupId: string
   ): Promise<MessagePart[]> {
-    if (!this.currentUserId) {
-      throw new Error('Not initialized')
-    }
-
-    console.log(`🔓 Decrypting group message from ${senderId}`)
-
-    const encryptedPart = encryptedContent[0]
-    if (!encryptedPart || encryptedPart.type !== 'encrypted_group') {
-      throw new Error('Invalid encrypted group message format')
-    }
-
-    const encryptedBody = encryptedPart.encrypted_body
-    if (!encryptedBody) {
-      throw new Error('No encrypted body found')
-    }
-
-    const senderAddress = `${senderId}:1`
-
-    // Decrypt the message
-    const plaintext = await signalProtocolService.decryptGroupMessage(
-      senderAddress,
-      groupId,
-      encryptedBody
-    )
-
-    const content: MessagePart[] = JSON.parse(plaintext)
-
-    console.log('✅ Group message decrypted successfully')
-    return content
+    // Not used - handled by regular decryptMessage
+    throw new Error('Use decryptMessage instead')
   }
 
   // =====================================================
@@ -470,18 +484,18 @@ export class MessageEncryptionService {
     }
 
     // Transform database format to the format expected by the library
-    const transformedBundle = {
-      identityKey: this.base64ToArrayBuffer(bundle.identity_key),
+    const transformedBundle: any = {
+      identityKey: bundle.identity_key,
       registrationId: bundle.registration_id || 1,
       deviceId: 1,
       signedPreKey: {
         id: bundle.signed_prekey.id,
-        publicKey: this.base64ToArrayBuffer(bundle.signed_prekey.public_key),
-        signature: this.base64ToArrayBuffer(bundle.signed_prekey.signature)
+        publicKey: bundle.signed_prekey.public_key,
+        signature: bundle.signed_prekey.signature
       },
       oneTimePreKey: bundle.one_time_prekey ? {
         id: bundle.one_time_prekey.id,
-        publicKey: this.base64ToArrayBuffer(bundle.one_time_prekey.public_key)
+        publicKey: bundle.one_time_prekey.public_key
       } : undefined
     }
 
@@ -578,9 +592,8 @@ export class MessageEncryptionService {
   /**
    * Check if content is encrypted
    */
-  isEncryptedContent(content: MessagePart[]): boolean {
-    return content.length > 0 && 
-           (content[0].type === 'encrypted' || content[0].type === 'encrypted_group')
+  isEncryptedContent(message: { encrypted?: boolean }): boolean {
+    return message.encrypted === true
   }
 
   /**

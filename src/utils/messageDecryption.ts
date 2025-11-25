@@ -1,14 +1,14 @@
 /**
  * Message Decryption Middleware
  * 
- * Automatically attempts to decrypt encrypted messages when loading them.
- * Decrypts text and URLs within MessageParts while preserving structure.
+ * Automatically attempts to decrypt encrypted messages using hybrid encryption.
+ * Decrypts symmetric key from encryption_metadata, then decrypts content.
  */
 
 import type { Message, MessagePart } from '@/types'
 
 /**
- * Process messages and attempt to decrypt encrypted parts
+ * Process messages and attempt to decrypt encrypted ones
  */
 export async function processMessageDecryption(messages: Message[]): Promise<Message[]> {
   // Lazy load encryption service
@@ -17,97 +17,89 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     const module = await import('@/services/encryption/MessageEncryptionService')
     encryptionService = module.messageEncryptionService
   } catch (error) {
-    console.warn('⚠️ Encryption service not available')
+    console.warn('⚠️ Encryption service not available:', error)
     return messages
   }
 
   if (!encryptionService || !encryptionService.isInitialized()) {
-    console.log('ℹ️ Encryption not initialized - encrypted messages will show encrypted view')
+    console.log('ℹ️ Encryption not initialized - encrypted messages will show as encrypted')
+    console.log('  - Service exists:', !!encryptionService)
+    console.log('  - Is initialized:', encryptionService?.isInitialized())
     return messages
   }
 
-  const currentUserId = encryptionService.currentUserId
+  // Get current user ID from Supabase session
+  const { supabase } = await import('@/supabase')
+  const { data: { user } } = await supabase.auth.getUser()
+  const currentUserId = user?.id
+  
+  if (!currentUserId) {
+    console.log('ℹ️ No user session - encrypted messages will show as encrypted')
+    return messages
+  }
+
+  console.log(`🔑 Processing ${messages.length} messages for decryption (user: ${currentUserId})`)
 
   // Process each message
   const processedMessages = await Promise.all(
     messages.map(async (message) => {
       // Check if message is encrypted
-      if (!message.encrypted || !message.content) {
+      if (!message.encrypted || !message.encryption_metadata) {
         return message
       }
 
-      try {
-        // Process each part
-        const decryptedContent: MessagePart[] = []
+      console.log(`🔐 Found encrypted message ${message.id}:`)
+      console.log(`  - Algorithm:`, message.encryption_metadata.algorithm)
+      console.log(`  - Encrypted for:`, message.encryption_metadata.encrypted_for)
+      console.log(`  - Has keys:`, Object.keys(message.encryption_metadata.encrypted_keys || {}))
+      console.log(`  - Sender:`, message.encryption_metadata.sender_key_id)
 
-        for (const part of message.content as MessagePart[]) {
-          if (part.type === 'encrypted_text' && part.encrypted_payloads) {
-            // Try to decrypt text
-            const payload = part.encrypted_payloads[currentUserId]
-            if (payload) {
-              try {
-                const encryptedMsg = JSON.parse(payload)
-                const { signalProtocolService } = await import('@/services/encryption/SignalProtocolService')
-                const senderAddress = `${message.user_id}:1`
-                const decryptedText = await signalProtocolService.decryptMessage(senderAddress, encryptedMsg)
-                
-                // Replace with decrypted text part
-                decryptedContent.push({
-                  type: 'text',
-                  text: decryptedText
-                })
-              } catch (error) {
-                console.log(`🔐 Cannot decrypt text part - showing encrypted view`)
-                // Keep encrypted view
-                decryptedContent.push(part)
-              }
-            } else {
-              // No payload for current user - show encrypted view
-              decryptedContent.push(part)
-            }
-          } else if (part.type === 'encrypted_url' && part.encrypted_payloads) {
-            // Try to decrypt URL
-            const payload = part.encrypted_payloads[currentUserId]
-            if (payload) {
-              try {
-                const encryptedMsg = JSON.parse(payload)
-                const { signalProtocolService } = await import('@/services/encryption/SignalProtocolService')
-                const senderAddress = `${message.user_id}:1`
-                const decryptedUrl = await signalProtocolService.decryptMessage(senderAddress, encryptedMsg)
-                
-                // Replace with decrypted URL part
-                decryptedContent.push({
-                  type: 'url',
-                  url: decryptedUrl
-                })
-              } catch (error) {
-                console.log(`🔐 Cannot decrypt URL part - showing encrypted view`)
-                // Keep encrypted view
-                decryptedContent.push(part)
-              }
-            } else {
-              // No payload for current user - show encrypted view
-              decryptedContent.push(part)
-            }
-          } else {
-            // Non-encrypted part (emoji, mention, etc) - keep as-is
-            decryptedContent.push(part)
-          }
+      // Check if we have an encrypted key for this user
+      const hasKey = message.encryption_metadata.encrypted_keys?.[currentUserId]
+      if (!hasKey) {
+        console.log(`❌ No encrypted key for user ${currentUserId} in message ${message.id}`)
+        // Show cool placeholder characters
+        const obfuscatedText = generateObfuscatedPlaceholder(100)
+        return {
+          ...message,
+          content: [{ type: 'text' as const, text: obfuscatedText }]
         }
-        
-        console.log(`🔓 Message ${message.id} decrypted successfully`)
+      }
+
+      try {
+        console.log(`🔓 Attempting to decrypt message ${message.id} for user ${currentUserId}`)
+        const decryptedContent = await encryptionService.decryptMessage(message)
+        console.log(`✅ Successfully decrypted message ${message.id}`)
         
         return {
           ...message,
           content: decryptedContent
         }
       } catch (error) {
-        console.log(`🔐 Cannot decrypt message ${message.id}:`, error)
-        return message
+        console.error(`❌ Cannot decrypt message ${message.id}:`, error)
+        // Show cool placeholder characters on error
+        const obfuscatedText = generateObfuscatedPlaceholder(100)
+        return {
+          ...message,
+          content: [{ type: 'text' as const, text: obfuscatedText }]
+        }
       }
     })
   )
 
   return processedMessages
+}
+
+/**
+ * Generate cool obfuscated placeholder text for encrypted messages
+ */
+function generateObfuscatedPlaceholder(length: number): string {
+  const chars = '█▓▒░▄▀■□▪▫●○◘◙▬¤§¶ƒαßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■'
+  const displayLength = Math.min(Math.max(length / 4, 12), 64)
+  let result = ''
+  for (let i = 0; i < displayLength; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return result
 }
 

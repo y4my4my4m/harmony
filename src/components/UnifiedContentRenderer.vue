@@ -82,7 +82,9 @@
             rel="noopener noreferrer"
             class="url-link"
             @click="handleLinkClick(part.url, $event)"
-          >{{ part.url }}</a>
+          >
+            {{ part.url }}
+          </a>
         </template>
         
         <!-- File attachments -->
@@ -151,31 +153,6 @@
           class="system-message"
         >[{{ part.event_type }}]</span>
         
-        <!-- Encrypted text (cannot be decrypted) -->
-        <div 
-          v-else-if="part && part.type === 'encrypted_text'"
-          class="encrypted-message-container inline"
-        >
-          <div class="encrypted-message inline">
-            <span class="encrypted-icon">🔐</span>
-            <div class="encrypted-visual-effect inline">
-              <span class="encrypted-char" v-for="i in 20" :key="i">{{ getRandomChar() }}</span>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Encrypted URL (cannot be decrypted) -->
-        <div 
-          v-else-if="part && part.type === 'encrypted_url'"
-          class="encrypted-message-container inline"
-        >
-          <div class="encrypted-message inline">
-            <span class="encrypted-icon">🔐</span>
-            <div class="encrypted-visual-effect inline">
-              <span class="encrypted-char" v-for="i in 15" :key="i">{{ getRandomChar() }}</span>
-            </div>
-          </div>
-        </div>
       </template>
     </template>
   </div>
@@ -240,11 +217,6 @@ const isPreviewMode = computed(() => props.mode === 'preview');
 // Image loading state
 const imageLoaded = ref(props.imageLoaded);
 
-// Random character generator for encrypted message effect
-const getRandomChar = () => {
-  const chars = '█▓▒░▄▀■□▪▫●○◘◙▬¤§¶ƒαßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■'
-  return chars[Math.floor(Math.random() * chars.length)]
-}
 
 // Event handlers
 const handleContentClick = (event: Event) => {
@@ -583,55 +555,19 @@ const formatFileSize = (bytes: number): string => {
 }
 
 /* Encrypted messages */
-.encrypted-message-container {
-  display: inline-block;
-  margin: 0 2px;
-}
-
-.encrypted-message-container.inline {
-  display: inline;
-}
-
-.encrypted-message {
-  background: linear-gradient(135deg, #1a1d21 0%, #252932 100%);
-  border: 1px solid #3c4049;
-  border-radius: 4px;
-  padding: 4px 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.encrypted-message.inline {
-  border-radius: 3px;
-  padding: 2px 6px;
-}
-
-.encrypted-icon {
-  font-size: 0.9em;
-}
-
-.encrypted-visual-effect {
-  font-family: monospace;
-  font-size: 11px;
-  color: #4a5161;
+.encrypted-placeholder {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  letter-spacing: 0.05em;
   user-select: none;
   opacity: 0.7;
-  display: inline;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  padding: 0 4px;
+  animation: encrypted-flicker 3s infinite;
 }
 
-.encrypted-visual-effect.inline {
-  font-size: 10px;
-}
-
-.encrypted-char {
-  display: inline;
-  animation: flicker 4s infinite;
-  animation-delay: calc(var(--i, 0) * 0.1s);
-}
-
-@keyframes flicker {
-  0%, 100% { opacity: 1; }
+@keyframes encrypted-flicker {
+  0%, 100% { opacity: 0.7; }
   50% { opacity: 0.3; }
 }
 
