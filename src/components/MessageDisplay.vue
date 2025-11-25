@@ -132,12 +132,6 @@
               </span>
               <span class="timestamp">
                 {{ formatTimestamp(message.created_at) }}
-                <!-- Edited indicator -->
-                <span 
-                  v-if="isMessageEdited(message)" 
-                  class="edited-indicator"
-                  :title="message.updated_at ? `Edited at ${formatTimestamp(message.updated_at)}` : 'Edited'"
-                >(edited)</span>
                 <!-- Encryption indicators -->
                 <span 
                   v-if="message.decrypted" 
@@ -192,6 +186,12 @@
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
             />
+            <!-- Edited indicator for compact messages -->
+            <span 
+              v-if="isMessageEdited(message)" 
+              class="edited-indicator compact"
+              :title="message.updated_at ? `Edited at ${formatTimestamp(message.updated_at)}` : 'Edited'"
+            >(edited)</span>
           </div>
         </div>
         
@@ -943,6 +943,13 @@ const formatDateSeparator = (timestamp: Date): string => {
 // Message Actions (Edit, Delete, React)
 const canEditMessage = (message: Message) => {
   if (!authStore.session?.user || !message) return false;
+  
+  // Can't edit optimistic messages (temporary IDs starting with "temp-")
+  if (message.id.startsWith('temp-')) return false;
+  
+  // Can't edit messages that are still sending
+  if (message.sending) return false;
+  
   const currentUserId = authStore.session.user.id;
   const messageUserId = message.user_id;
   return messageUserId === currentUserId || isCurrentUserServerOwner.value;
@@ -1286,6 +1293,15 @@ const closeInviteModal = () => {
 
 .edited-indicator:hover {
   opacity: 1;
+}
+
+/* Inline variant appears after message content */
+.edited-indicator.inline,
+.edited-indicator.compact {
+  display: inline;
+  margin-left: 0.35rem;
+  vertical-align: baseline;
+  line-height: 1.375;
 }
 
 /* Compact message (no header) */

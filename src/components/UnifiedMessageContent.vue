@@ -767,7 +767,6 @@ export default defineComponent({
 
 <style scoped>
 .unified-content {
-  width: 100%;
   margin-bottom: 4px;
   line-height: 1.375;
   word-wrap: break-word;
@@ -776,10 +775,12 @@ export default defineComponent({
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
+  display: inline;
 }
 
 /* Display mode container */
 .content-display {
+  display: inline;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
