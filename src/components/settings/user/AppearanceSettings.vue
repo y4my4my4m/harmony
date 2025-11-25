@@ -135,23 +135,6 @@
 
     <div class="settings-section">
       <h3 class="section-title">{{ $t('settings.appearance.messageDisplay') }}</h3>
-      
-      <div class="setting-item">
-        <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.messageDisplay') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.messageDisplayDesc') }}</p>
-        </div>
-        <div class="setting-control">
-          <select 
-            v-model="settings.messageDisplay"
-            class="select-input"
-            @change="onSettingChange"
-          >
-            <option value="cozy">{{ $t('settings.appearance.cozy') }}</option>
-            <option value="compact">{{ $t('settings.appearance.compact') }}</option>
-          </select>
-        </div>
-      </div>
 
       <div class="setting-item">
         <div class="setting-info">
@@ -305,7 +288,6 @@ const settings = ref({
   customBackgroundColor: '#5865f2',
   fontSize: 14,
   zoomLevel: 100,
-  messageDisplay: 'cozy' as 'cozy' | 'compact',
   showTimestamps: true,
   use24HourTime: false,
   compactMode: false,
@@ -427,7 +409,6 @@ const saveSettings = () => {
     customBackgroundColor: settings.value.customBackgroundColor,
     fontSize: settings.value.fontSize,
     zoomLevel: settings.value.zoomLevel,
-    messageDisplay: settings.value.messageDisplay,
     showTimestamps: settings.value.showTimestamps,
     use24HourTime: settings.value.use24HourTime,
     compactMode: settings.value.compactMode,
@@ -462,7 +443,6 @@ onMounted(async () => {
     customBackgroundColor: currentSettings.customBackgroundColor || '#5865f2',
     fontSize: currentSettings.fontSize,
     zoomLevel: currentSettings.zoomLevel,
-    messageDisplay: currentSettings.messageDisplay,
     showTimestamps: currentSettings.showTimestamps,
     use24HourTime: currentSettings.use24HourTime,
     compactMode: currentSettings.compactMode,

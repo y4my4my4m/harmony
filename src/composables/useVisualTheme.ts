@@ -20,7 +20,6 @@ export interface VisualThemeSettings {
   customBackgroundColor?: string
   fontSize: number
   zoomLevel: number
-  messageDisplay: 'cozy' | 'compact'
   showTimestamps: boolean
   use24HourTime: boolean
   compactMode: boolean
@@ -68,7 +67,6 @@ const settings = ref<VisualThemeSettings>({
   customBackgroundColor: '#5865f2',
   fontSize: 14,
   zoomLevel: 100,
-  messageDisplay: 'cozy',
   showTimestamps: true,
   use24HourTime: false,
   compactMode: false,
@@ -205,9 +203,6 @@ function applySettings(settings: VisualThemeSettings) {
   
   // Apply zoom level
   root.style.zoom = `${settings.zoomLevel}%`
-  
-  // Apply message display mode
-  root.setAttribute('data-message-display', settings.messageDisplay)
   
   // Apply compact mode
   if (settings.compactMode) {
@@ -437,13 +432,6 @@ export function useVisualTheme() {
   }
   
   /**
-   * Update message display mode
-   */
-  function setMessageDisplay(mode: 'cozy' | 'compact') {
-    settings.value.messageDisplay = mode
-  }
-  
-  /**
    * Toggle settings
    */
   function toggleShowTimestamps() {
@@ -488,7 +476,6 @@ export function useVisualTheme() {
       customBackgroundColor: '#5865f2',
       fontSize: 14,
       zoomLevel: 100,
-      messageDisplay: 'cozy',
       showTimestamps: true,
       use24HourTime: false,
       compactMode: false,
@@ -517,7 +504,6 @@ export function useVisualTheme() {
     setCustomBackgroundColor,
     setFontSize,
     setZoomLevel,
-    setMessageDisplay,
     toggleShowTimestamps,
     toggle24HourTime,
     toggleCompactMode,
