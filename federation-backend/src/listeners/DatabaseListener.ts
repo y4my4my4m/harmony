@@ -483,17 +483,11 @@ async function handleProfileUpdate(oldProfile: any, newProfile: any): Promise<vo
 /**
  * Handle post deletion - send Delete or Undo Announce activity
  */
-async function handlePostDeletion(deletedPost: any, oldPost: any): Promise<void> {
+async function handlePostDeletion(deletedPost: any, _oldPost: any): Promise<void> {
   try {
     const supabase = getSupabaseClient();
 
-    // Only federate deletions for local posts that were previously federated
-    if (!oldPost?.is_local) {
-      logger.debug('Deletion of remote post, skipping federation');
-      return;
-    }
-
-    // Get full post data
+    // Get full post data (realtime events may not include all fields)
     const { data: post } = await supabase
       .from('posts')
       .select('*')
@@ -502,6 +496,12 @@ async function handlePostDeletion(deletedPost: any, oldPost: any): Promise<void>
 
     if (!post) {
       logger.error(`Post not found for deletion: ${deletedPost.id}`);
+      return;
+    }
+
+    // Only federate deletions for local posts
+    if (!post.is_local) {
+      logger.debug('Deletion of remote post, skipping federation');
       return;
     }
 

@@ -259,16 +259,20 @@
         <div class="reblog-menu-container" v-click-outside="() => showReblogMenu = false">
           <button 
             class="action-button reblog-button"
-            :class="{ active: displayInteractionCounts.is_reblogged }"
+            :class="{ 
+              active: displayInteractionCounts.is_reblogged,
+              disabled: !canReblog && !displayInteractionCounts.is_reblogged
+            }"
             @click="handleReblogClick"
-            :title="displayInteractionCounts.is_reblogged ? 'Undo reblog' : 'Reblog options'"
+            :disabled="!canReblog && !displayInteractionCounts.is_reblogged"
+            :title="!canReblog && !displayInteractionCounts.is_reblogged ? reblogDisabledReason : (displayInteractionCounts.is_reblogged ? 'Undo reblog' : 'Reblog options')"
           >
             <Icon name="reblog" />
             <span v-if="displayInteractionCounts.reblogs_count > 0">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
           </button>
           
           <!-- Reblog dropdown menu -->
-          <div v-if="showReblogMenu" class="reblog-dropdown">
+          <div v-if="showReblogMenu && canReblog" class="reblog-dropdown">
             <button 
               class="reblog-option"
               @click="handleSimpleReblog"
@@ -848,6 +852,25 @@ const visibilityTitle = computed(() => {
     case 'direct': return t('activitypub.directMessage');
     default: return t('activitypub.public');
   }
+});
+
+// Check if post can be reblogged (Mastodon behavior: only public/unlisted posts can be reblogged)
+const canReblog = computed(() => {
+  // Get the original post's visibility (for reblogs, check the original)
+  const originalVisibility = props.post.reblog?.visibility || props.post.visibility;
+  return originalVisibility === 'public' || originalVisibility === 'unlisted';
+});
+
+const reblogDisabledReason = computed(() => {
+  if (canReblog.value) return '';
+  const originalVisibility = props.post.reblog?.visibility || props.post.visibility;
+  if (originalVisibility === 'followers') {
+    return 'Followers-only posts cannot be reblogged';
+  }
+  if (originalVisibility === 'direct') {
+    return 'Direct messages cannot be reblogged';
+  }
+  return 'This post cannot be reblogged';
 });
 
 // Methods
