@@ -90,6 +90,8 @@
             >
               <MonyPost
                 :post="ancestor"
+                :is-in-thread="true"
+                :hide-reply-context="true"
                 @reply="handleReply"
                 @delete="handleDelete"
                 @user-click="handleUserClick"
@@ -131,11 +133,12 @@
         </div>
 
         <!-- Descendants (replies to this post) -->
-        <div v-if="showDescendants && descendants.length > 0" class="descendants-section">
+        <div v-if="showDescendants && descendants.length > 0" class="descendants-section" :class="{ 'inline-replies': shouldShowInlineReplies }">
           <!-- Thread connector from main post -->
           <div class="thread-connector descendants-connector"></div>
           
-          <div class="section-header">
+          <!-- Only show header if more than 5 replies (Twitter-style) -->
+          <div v-if="!shouldShowInlineReplies" class="section-header">
             <Icon name="arrow-down" />
             <span>Replies ({{ descendants.length }})</span>
           </div>
@@ -153,6 +156,8 @@
             >
               <MonyPost
                 :post="reply"
+                :is-in-thread="true"
+                :hide-reply-context="true"
                 @reply="handleReply"
                 @favorite="handleFavorite"
                 @reblog="handleReblog"
@@ -185,6 +190,8 @@
             >
               <MonyPost
                 :post="reply"
+                :is-in-thread="true"
+                :hide-reply-context="true"
                 @reply="handleReply"
                 @delete="handleDelete"
                 @user-click="handleUserClick"
@@ -270,6 +277,10 @@ const showAncestors = computed(() =>
 const showDescendants = computed(() => 
   ['thread', 'descendants', 'minimal'].includes(props.contextType) && descendants.value.length > 0
 );
+
+// Twitter-style: show inline (without header) if 5 or fewer replies
+const INLINE_REPLY_THRESHOLD = 5;
+const shouldShowInlineReplies = computed(() => descendants.value.length <= INLINE_REPLY_THRESHOLD);
 
 // Methods
 const loadPostWithContext = async () => {
@@ -622,6 +633,7 @@ onMounted(loadPostWithContext);
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  margin-top: 18px;
 }
 
 .highlighted-post .mony-post {
@@ -714,6 +726,11 @@ onMounted(loadPostWithContext);
 .ancestors-section,
 .descendants-section {
   position: relative;
+}
+
+/* Inline mode: seamless flow without header (Twitter-style for ≤5 replies) */
+.descendants-section.inline-replies .section-header {
+  display: none;
 }
 
 .ancestors-thread,

@@ -218,6 +218,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -230,6 +231,9 @@ import Icon from '@/components/common/Icon.vue';
 import type { TimelinePost, FederatedUser } from '@/types';
 import Avatar from '../common/Avatar.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
+
+// Router
+const router = useRouter();
 
 const { t } = useI18n();
 
@@ -362,18 +366,9 @@ const loadInstances = async () => {
   }
 };
 
-const loadHashtagPosts = async (hashtag: string) => {
-  try {
-    const result = await activityPubService.getPostsByHashtag(hashtag, {
-      limit: 20
-    });
-    
-    // For now, just show the hashtag was clicked
-    debug.log(`Loading posts for hashtag: #${hashtag}`, result);
-    // TODO: Navigate to hashtag view or update posts display
-  } catch (error) {
-    debug.error('Failed to load hashtag posts:', error);
-  }
+const loadHashtagPosts = (hashtag: string) => {
+  // Navigate to hashtag view
+  router.push({ name: 'HashtagView', params: { tag: hashtag } });
 };
 
 const showInstanceDetails = async (instance: any) => {
@@ -413,8 +408,26 @@ const searchInstances = async (searchTerm: string) => {
   }
 };
 
+const getInstanceStatus = (instance: any): 'online' | 'slow' | 'offline' | 'unknown' => {
+  // If instance has explicit status, use it
+  if (instance.status && ['online', 'slow', 'offline'].includes(instance.status)) {
+    return instance.status;
+  }
+  
+  // Otherwise, determine status based on last_seen_at
+  if (!instance.last_seen_at) return 'unknown';
+  
+  const now = new Date();
+  const lastSeen = new Date(instance.last_seen_at);
+  const hoursSinceLastSeen = (now.getTime() - lastSeen.getTime()) / (1000 * 60 * 60);
+  
+  if (hoursSinceLastSeen < 1) return 'online';
+  if (hoursSinceLastSeen < 24) return 'slow';
+  return 'offline';
+};
+
 const getInstanceStatusClass = (instance: any) => {
-  const status = instance.status || 'offline';
+  const status = getInstanceStatus(instance);
   return {
     'instance-status': true,
     [`status-${status}`]: true
@@ -423,7 +436,8 @@ const getInstanceStatusClass = (instance: any) => {
 
 const getInstanceStatusText = (instance: any) => {
   const { t } = useI18n();
-  switch (instance.status) {
+  const status = getInstanceStatus(instance);
+  switch (status) {
     case 'online':
       return t('activitypub.online');
     case 'slow':
@@ -736,6 +750,12 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 .hashtag-name {
   font-weight: 600;
   color: var(--harmony-primary);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.hashtag-name:hover {
+  color: var(--harmony-primary-hover);
 }
 
 .hashtag-count {
@@ -873,17 +893,70 @@ watch([selectedContentType, selectedInstance, selectedTimeRange], async () => {
 .instance-status {
   display: flex;
   align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.status-indicator {
+.instance-status.status-online {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.instance-status.status-online::before {
+  content: '';
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  background: #10b981;
+  animation: pulse 2s infinite;
 }
 
-.status-indicator.connected { background: #10b981; }
-.status-indicator.disconnected { background: #ef4444; }
-.status-indicator.limited { background: #f59e0b; }
+.instance-status.status-slow {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.instance-status.status-slow::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+}
+
+.instance-status.status-offline {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.instance-status.status-offline::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.instance-status.status-unknown {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+
+.instance-status.status-unknown::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 
 .instance-stats {
   display: flex;

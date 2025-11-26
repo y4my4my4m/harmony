@@ -90,7 +90,7 @@
           </div>
         </nav>
 
-        <!-- Enhanced Quick Stats with Realtime Updates -->
+        <!-- Enhanced Quick Stats with Realtime Updates (moved to bottom) -->
         <div class="quick-stats">
           <div class="stats-header">
             <h4 class="stats-title">{{ $t('activitypub.yourActivity') }}</h4>
@@ -118,30 +118,6 @@
             <div class="stat-item posts" @click="navigateToProfile">
               <div class="stat-value">{{ postsCount }}</div>
               <div class="stat-label">{{ $t('activitypub.posts') }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Instance Info -->
-        <div class="instance-info">
-          <div class="instance-header">
-            <h4 class="instance-title">{{ $t('activitypub.instance') }}</h4>
-            <div class="instance-status online">
-              <div class="status-dot"></div>
-              <span>{{ $t('activitypub.online') }}</span>
-            </div>
-          </div>
-          <div class="instance-details">
-            <div class="instance-domain">{{ instanceDomain }}</div>
-            <div class="instance-stats">
-              <div class="instance-stat">
-                <span class="stat-value">{{ instanceUserCount }}</span>
-                <span class="stat-label">{{ $t('activitypub.usersCount') }}</span>
-              </div>
-              <div class="instance-stat">
-                <span class="stat-value">{{ instancePostCount }}</span>
-                <span class="stat-label">{{ $t('activitypub.postsCount') }}</span>
-              </div>
             </div>
           </div>
         </div>

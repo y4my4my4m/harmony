@@ -403,17 +403,25 @@ const formatFileSize = (bytes: number): string => {
 /* Hashtags */
 .content-html :deep(.hashtag),
 :deep(.hashtag) {
-  color: #60a5fa;
+  background-color: var(--harmony-primary);
+  border-radius: 3px;
+  padding: 0 3px;
   cursor: pointer;
   font-weight: 500;
-  text-decoration: none;
-  transition: color 0.2s ease;
+  color: var(--text-primary);
+  display: inline-block;
+  transition: background-color 0.2s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+
 }
 
 .content-html :deep(.hashtag:hover),
 :deep(.hashtag:hover) {
-  color: #93c5fd;
-  text-decoration: underline;
+  background-color: var(--harmony-primary-hover);
+  color: var(--text-primary);
 }
 
 /* Emojis */

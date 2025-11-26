@@ -78,15 +78,22 @@
           <!-- Trending Section -->
           <div class="sidebar-section">
             <h3 class="section-title">{{ $t('activitypub.trending') }}</h3>
-            <div class="trending-list">
+            <div v-if="isLoadingTrending" class="trending-loading">
+              <span>Loading...</span>
+            </div>
+            <div v-else-if="trendingTopics.length > 0" class="trending-list">
               <div 
                 v-for="trend in trendingTopics"
                 :key="trend.tag"
                 class="trending-item"
+                @click="navigateToHashtag(trend.tag)"
               >
                 <span class="trending-tag">#{{ trend.tag }}</span>
                 <span class="trending-count">{{ formatNumber(trend.count) }} {{ $t('activitypub.posts') }}</span>
               </div>
+            </div>
+            <div v-else class="no-trending">
+              <span>No trending hashtags yet</span>
             </div>
           </div>
 
@@ -109,9 +116,9 @@
           <div class="sidebar-section">
             <h3 class="section-title">{{ $t('activitypub.instanceInfo') }}</h3>
             <div class="instance-info">
-              <p class="instance-domain">{{ instanceDomain }}</p>
-              <p class="instance-users">{{ instanceUserCount }} {{ $t('server.members') }}</p>
-              <p class="instance-posts">{{ instancePostCount }} {{ $t('activitypub.posts') }}</p>
+              <p class="instance-domain">{{ localInstanceDomain }}</p>
+              <p class="instance-users">{{ localInstanceUserCount }} {{ $t('server.members') }}</p>
+              <p class="instance-posts">{{ localInstancePostCount }} {{ $t('activitypub.posts') }}</p>
             </div>
           </div>
           </div>
@@ -123,9 +130,11 @@
     <Composer
       v-if="activityPubStore.isComposerOpen"
       mode="modal"
-      :type="composerReplyPost ? 'reply' : 'post'"
+      :type="composerType"
       :is-open="activityPubStore.isComposerOpen"
       :reply-to-post="composerReplyPost"
+      :quote-post="activityPubStore.composerState.quotePost"
+      :quote-author="activityPubStore.composerState.quoteAuthor"
       @close="handleCloseComposer"
       @posted="handlePosted"
     />
@@ -160,6 +169,7 @@ import UserProfileModal from '@/components/UserProfileModal.vue'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { trendingService } from '@/services/TrendingService'
 import { useViewContextTracking } from '@/composables/useViewContext'
+import { supabase } from '@/supabase'
 import type { FederatedUser, TimelinePost } from '@/types'
 
 // Props - Made view props optional since we extract from route
@@ -294,12 +304,47 @@ const specialViewData = computed(() => props.specialViewData)
 const showSearchModal = ref(false)
 const selectedUser = ref<FederatedUser | null>(null)
 const composerReplyPost = ref<TimelinePost | null>(null)
-const trendingTopics = ref([
-  { tag: 'harmony', count: 1234 },
-  { tag: 'social', count: 567 },
-  { tag: 'federation', count: 234 }
-])
+
+// Computed composer type - reply, quote, or post
+const composerType = computed(() => {
+  if (composerReplyPost.value) return 'reply'
+  if (activityPubStore.composerState.quotePost) return 'quote'
+  return 'post'
+})
+const trendingTopics = ref<Array<{ tag: string; count: number }>>([])
 const suggestedUsers = ref<FederatedUser[]>([])
+const isLoadingTrending = ref(false)
+
+// Instance stats (loaded dynamically)
+const localInstanceDomain = ref(props.instanceDomain || window.location.hostname)
+const localInstanceUserCount = ref(props.instanceUserCount)
+const localInstancePostCount = ref(props.instancePostCount)
+
+// Load trending hashtags from TrendingService
+const loadTrendingHashtags = async () => {
+  try {
+    isLoadingTrending.value = true
+    debug.log('🔄 Loading trending hashtags...')
+    const hashtags = await trendingService.getTrendingHashtags({ limit: 10, days: 7 })
+    debug.log('📊 Trending hashtags:', hashtags)
+    
+    // Map to simplified format for sidebar
+    trendingTopics.value = hashtags.map(h => ({
+      tag: h.tag,
+      count: h.daily_uses || h.weekly_uses || 0
+    }))
+    
+    // If no hashtags from DB, don't show placeholder
+    if (trendingTopics.value.length === 0) {
+      debug.log('ℹ️ No trending hashtags found')
+    }
+  } catch (error) {
+    debug.error('Failed to load trending hashtags:', error)
+    trendingTopics.value = []
+  } finally {
+    isLoadingTrending.value = false
+  }
+}
 
 // Load suggested users
 const loadSuggestedUsers = async () => {
@@ -317,9 +362,34 @@ const loadSuggestedUsers = async () => {
   }
 }
 
-// Load suggested users on component mount
+// Load local instance stats
+const loadInstanceStats = async () => {
+  try {
+    debug.log('🔄 Loading instance stats...')
+    
+    // Get counts from database
+    const [usersResult, postsResult] = await Promise.all([
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
+      supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true).eq('is_deleted', false)
+    ])
+    
+    localInstanceUserCount.value = usersResult.count || 0
+    localInstancePostCount.value = postsResult.count || 0
+    
+    debug.log('✅ Instance stats loaded:', {
+      users: localInstanceUserCount.value,
+      posts: localInstancePostCount.value
+    })
+  } catch (error) {
+    debug.error('Failed to load instance stats:', error)
+  }
+}
+
+// Load sidebar data on mount
 onMounted(() => {
+  loadTrendingHashtags()
   loadSuggestedUsers()
+  loadInstanceStats()
 })
 
 // Track view context in database for notification suppression
@@ -543,6 +613,11 @@ const handleUserCardClick = (user: FederatedUser) => {
   handleShowUserProfile(user)
 }
 
+// Navigate to hashtag view
+const navigateToHashtag = (tag: string) => {
+  router.push({ name: 'HashtagView', params: { tag } })
+}
+
 // Utility functions
 const formatNumber = (num: number): string => {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
@@ -637,10 +712,24 @@ const formatNumber = (num: number): string => {
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.trending-item:hover {
+  background: var(--background-hover);
 }
 
 .trending-item:last-child {
   border-bottom: none;
+}
+
+.trending-loading,
+.no-trending {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .trending-tag {

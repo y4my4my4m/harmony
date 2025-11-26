@@ -15,6 +15,7 @@ export enum ViewType {
   EXPLORE = 'explore',        // Explore content (trending, instances)
   PROFILE = 'profile',        // User profile view
   POST = 'post',             // Single post detail view
+  HASHTAG = 'hashtag',       // Hashtag posts view
   BOOKMARKS = 'bookmarks',   // User bookmarks
   NOTIFICATIONS = 'notifications', // User notifications
   LISTS = 'lists',           // User lists
@@ -36,6 +37,7 @@ export enum CurrentView {
   // Generic views
   PROFILE = 'profile',
   POST = 'post',
+  HASHTAG = 'hashtag',
   BOOKMARKS = 'bookmarks',
   NOTIFICATIONS = 'notifications',
   LISTS = 'lists',

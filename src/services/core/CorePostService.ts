@@ -696,7 +696,7 @@ export class CorePostService {
       visibility: post.visibility,
       created_at: post.created_at,
       updated_at: post.updated_at,
-      in_reply_to: post.in_reply_to,
+      reply_context: post.reply_context,
       is_local: post.is_local,
       is_federated: post.is_federated,
       author: post.author,
@@ -709,7 +709,10 @@ export class CorePostService {
       content_warning: post.content_warning,
       is_sensitive: post.is_sensitive,
       language: post.language,
-      media_attachments: post.media_attachments || []
+      media_attachments: post.media_attachments || [],
+      // Reblog data (stored as JSONB in database)
+      reblog: post.reblog || undefined,
+      reblog_author: post.reblog_author || undefined
     }
   }
 

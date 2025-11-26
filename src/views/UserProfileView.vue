@@ -179,7 +179,11 @@
                 @reply="replyToPost"
                 @favorite="handleFavorite"
                 @reblog="handleReblog"
+                @bookmark="handleBookmark"
+                @delete="handleDelete"
                 @user-click="showUserProfile"
+                @hashtag-click="navigateToHashtag"
+                @show-conversation="showConversation"
               />
               
               <div v-if="hasMorePosts" class="load-more-container">
@@ -807,6 +811,33 @@ const handleReblog = async (postId: string) => {
   } catch (error) {
     debug.error('Failed to toggle reblog:', error);
   }
+};
+
+const handleBookmark = async (postId: string) => {
+  try {
+    await activityPubStore.toggleBookmark(postId);
+  } catch (error) {
+    debug.error('Failed to toggle bookmark:', error);
+  }
+};
+
+const handleDelete = async (postId: string) => {
+  try {
+    await activityPubStore.deletePost(postId);
+    userPosts.value = userPosts.value.filter(p => p.id !== postId);
+  } catch (error) {
+    debug.error('Failed to delete post:', error);
+  }
+};
+
+const navigateToHashtag = (tag: string) => {
+  debug.log(`#️⃣ Navigating to hashtag: #${tag}`);
+  router.push({ name: 'HashtagView', params: { tag } });
+};
+
+const showConversation = (postId: string) => {
+  debug.log(`🎯 Showing conversation for post: ${postId}`);
+  router.push({ name: 'PostDetail', params: { postId } });
 };
 
 // Get the handle from props or route params

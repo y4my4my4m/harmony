@@ -44,10 +44,10 @@
             @favorite="toggleFavorite"
             @reblog="toggleReblog"
             @bookmark="toggleBookmark"
-            @reply="replyToPost"
             @delete="deletePost"
             @click="openPost"
             @show-conversation="showConversation"
+            @hashtag-click="navigateToHashtag"
           />
         </TransitionGroup>
 
@@ -261,10 +261,6 @@ const handleScroll = () => {
 // Post interactions using composable for consistency
 const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
 
-const replyToPost = (post: TimelinePost) => {
-  activityPubStore.openComposer(post.id);
-};
-
 const deletePost = async (postId: string) => {
   if (confirm('Are you sure you want to delete this mony?')) {
     await activityPubStore.deletePost(postId);
@@ -291,6 +287,11 @@ const showConversation = (postId: string) => {
   } catch (error) {
     debug.error(`❌ Navigation failed:`, error);
   }
+};
+
+const navigateToHashtag = (tag: string) => {
+  debug.log(`#️⃣ Navigating to hashtag: #${tag}`);
+  router.push({ name: 'HashtagView', params: { tag } });
 };
 
 // Composer

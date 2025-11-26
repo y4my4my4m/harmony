@@ -69,12 +69,62 @@ export class ActivityPubService {
       normalizedContent = [{ type: 'text', text: String(normalizedContent || '') }];
     }
 
+    // Build reply_context if this is a reply
+    let replyContext = null;
+    let conversationId = null;
+    if (postData.in_reply_to) {
+      const { data: parentPost, error: parentError } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(
+            id, username, display_name, avatar_url, domain
+          )
+        `)
+        .eq('id', postData.in_reply_to)
+        .single();
+
+      if (!parentError && parentPost) {
+        // Build content preview from parent post content
+        let contentPreview = '';
+        if (Array.isArray(parentPost.content)) {
+          contentPreview = parentPost.content
+            .filter((part: any) => part.type === 'text')
+            .map((part: any) => part.text || '')
+            .join(' ')
+            .slice(0, 200);
+        } else if (typeof parentPost.content === 'string') {
+          contentPreview = parentPost.content.slice(0, 200);
+        }
+
+        replyContext = {
+          id: parentPost.id,
+          content_preview: contentPreview,
+          content: parentPost.content,
+          author: {
+            id: parentPost.author.id,
+            username: parentPost.author.username,
+            display_name: parentPost.author.display_name || parentPost.author.username,
+            avatar_url: parentPost.author.avatar_url || '/default_avatar.png',
+            domain: parentPost.author.domain || 'har.mony.lol'
+          },
+          created_at: parentPost.created_at,
+          visibility: parentPost.visibility
+        };
+
+        // Use parent's conversation_id or create from parent post id
+        conversationId = parentPost.conversation_id || parentPost.id;
+      }
+    }
+
     const post = {
       author_id: profileId,
       content: normalizedContent,
       visibility: postData.visibility,
       content_warning: postData.content_warning,
       in_reply_to: postData.in_reply_to,
+      reply_context: replyContext,
+      conversation_id: conversationId,
       media_attachments: postData.media_attachments || [],
       is_sensitive: postData.is_sensitive || false,
       language: postData.language || 'en',
@@ -188,6 +238,7 @@ export class ActivityPubService {
       `)
       .eq('my_interactions.user_id', user.id)
       .in('visibility', ['public', 'unlisted'])
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -237,6 +288,7 @@ export class ActivityPubService {
         `)
         .eq('my_interactions.user_id', user.id)
         .in('visibility', ['public', 'unlisted'])
+        .or('is_deleted.is.null,is_deleted.eq.false')
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -327,6 +379,7 @@ export class ActivityPubService {
       .eq('my_interactions.user_id', user.id)
       .eq('is_local', true)
       .in('visibility', ['public', 'unlisted'])
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -515,15 +568,43 @@ export class ActivityPubService {
     const limit = options.limit || 20;
 
     try {
-      const { data, error } = await supabase.rpc('get_post_replies', {
-        p_post_id: postId,
-        p_user_id: user.id,
-        p_limit: limit,
-        p_max_id: options.max_id || null
-      });
+      // Direct query for replies - posts where in_reply_to matches the postId
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey (
+            id, username, display_name, domain, avatar_url, is_local
+          ),
+          reply_context:reply_context
+        `)
+        .eq('in_reply_to', postId)
+        .or('is_deleted.is.null,is_deleted.eq.false')
+        .order('created_at', { ascending: true })
+        .limit(limit);
+
+      // Pagination using max_id
+      if (options.max_id) {
+        // Get the created_at of the max_id post for cursor-based pagination
+        const { data: cursorPost } = await supabase
+          .from('posts')
+          .select('created_at')
+          .eq('id', options.max_id)
+          .single();
+        
+        if (cursorPost) {
+          query = query.gt('created_at', cursorPost.created_at);
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      
+      // Transform replies to TimelinePost format
+      const replies = (data || []).map(post => this.transformDatabasePostToTimelinePost(post));
+      
+      return replies;
     } catch (error) {
       debug.error('Failed to get post replies:', error);
       return [];
@@ -665,6 +746,22 @@ export class ActivityPubService {
     try {
       const { limit = 20, cursor } = options;
 
+      // First, get profile IDs from users of this domain
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('domain', domain)
+        .limit(100);
+
+      if (profileError) throw profileError;
+      
+      if (!profiles || profiles.length === 0) {
+        return { posts: [], hasMore: false, cursor: null };
+      }
+
+      const profileIds = profiles.map(p => p.id);
+
+      // Now query posts from those profiles
       let query = supabase
         .from('posts')
         .select(`
@@ -673,7 +770,7 @@ export class ActivityPubService {
             id, username, display_name, domain, avatar_url, is_local
           )
         `)
-        .eq('author.domain', domain)
+        .in('author_id', profileIds)
         .eq('visibility', 'public')
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
@@ -688,7 +785,7 @@ export class ActivityPubService {
 
       const posts = (data || []).slice(0, limit) as TimelinePost[];
       const hasMore = (data || []).length > limit;
-      const nextCursor = hasMore ? data![data!.length - 2].created_at : null;
+      const nextCursor = hasMore && data && data.length > 1 ? data[data.length - 2].created_at : null;
 
       return { posts, hasMore, cursor: nextCursor };
     } catch (error) {
@@ -1014,6 +1111,7 @@ export class ActivityPubService {
 
   /**
    * Toggle reblog (share) status for a post - creates actual reblog posts with federation
+   * Always operates on the ORIGINAL post, not a reblog
    */
   async toggleReblog(postId: string): Promise<{ reblogged: boolean; reblogPost?: any }> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1022,12 +1120,22 @@ export class ActivityPubService {
     // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
+    // First, resolve to the original post ID (in case this is a reblog)
+    const { data: targetPost } = await supabase
+      .from('timeline_posts')
+      .select('id, reblog')
+      .eq('id', postId)
+      .single();
+
+    // Use the original post ID if this is a reblog
+    const actualPostId = targetPost?.reblog?.id || postId;
+
     // Check if we already have a reblog interaction for this post
     const { data: existingInteraction } = await supabase
       .from('post_interactions')
       .select('id')
       .eq('user_id', profileId)
-      .eq('post_id', postId)
+      .eq('post_id', actualPostId)
       .eq('interaction_type', 'reblog')
       .maybeSingle();
 
@@ -1043,7 +1151,7 @@ export class ActivityPubService {
         .from('posts')
         .select('id')
         .eq('author_id', profileId)
-        .eq('metadata->>reblog_of', postId)
+        .eq('metadata->>reblog_of', actualPostId)
         .maybeSingle();
 
       if (reblogPost) {
@@ -1054,19 +1162,19 @@ export class ActivityPubService {
 
       return { reblogged: false };
     } else {
-      // Add reblog interaction
+      // Add reblog interaction for the ORIGINAL post
       await supabase
         .from('post_interactions')
         .insert({
           user_id: profileId,
-          post_id: postId,
+          post_id: actualPostId,
           interaction_type: 'reblog',
           is_local: true,
           metadata: {}
         });
 
-      // Create reblog post
-      const reblogPost = await this.reblogPost(postId);
+      // Create reblog post (reblogPost already handles getting the original)
+      const reblogPost = await this.reblogPost(actualPostId);
 
       // Federation is handled automatically by database triggers
 
@@ -1076,6 +1184,7 @@ export class ActivityPubService {
 
   /**
    * Reblog (share) a post - creates an actual reblog post
+   * Always reblogs the ORIGINAL post, not a reblog of a reblog (like Twitter)
    */
   async reblogPost(postId: string): Promise<any> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1084,14 +1193,39 @@ export class ActivityPubService {
     // Get the user's profile ID
     const profileId = await this.getCurrentUserProfileId();
 
-    // Get the original post to reblog
-    const { data: originalPost, error: postError } = await supabase
+    // Get the post to reblog
+    const { data: targetPost, error: postError } = await supabase
       .from('timeline_posts')
       .select('*')
       .eq('id', postId)
       .single();
 
     if (postError) throw postError;
+
+    // If the target is itself a reblog, get the ORIGINAL post instead
+    // This prevents reblog chains (reblog of reblog of reblog...)
+    let originalPost = targetPost;
+    let actualOriginalId = postId;
+    
+    if (targetPost.reblog && targetPost.reblog.id) {
+      // This is a reblog - get the original post
+      actualOriginalId = targetPost.reblog.id;
+      const { data: rootPost, error: rootError } = await supabase
+        .from('timeline_posts')
+        .select('*')
+        .eq('id', actualOriginalId)
+        .single();
+      
+      if (!rootError && rootPost) {
+        originalPost = rootPost;
+      } else {
+        // Fallback: use the reblog data we already have
+        originalPost = {
+          ...targetPost.reblog,
+          author: targetPost.reblog_author || targetPost.reblog.author
+        };
+      }
+    }
 
     // Create reblog post
     const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
@@ -1104,16 +1238,16 @@ export class ActivityPubService {
       is_federated: true,
       ap_id: ap_id,
       conversation_id: originalPost.conversation_id,
-      conversation_root_id: originalPost.conversation_root_id || originalPost.id,
+      conversation_root_id: originalPost.conversation_root_id || actualOriginalId,
       reblog: {
-        id: originalPost.id,
+        id: actualOriginalId,
         content: originalPost.content,
         created_at: originalPost.created_at,
         author: originalPost.author,
         visibility: originalPost.visibility,
-        favorites_count: originalPost.favorites_count,
-        reblogs_count: originalPost.reblogs_count,
-        replies_count: originalPost.replies_count,
+        favorites_count: originalPost.favorites_count || 0,
+        reblogs_count: originalPost.reblogs_count || 0,
+        replies_count: originalPost.replies_count || 0,
         media_attachments: originalPost.media_attachments,
         reply_context: originalPost.reply_context,
         content_warning: originalPost.content_warning,
@@ -1123,8 +1257,8 @@ export class ActivityPubService {
       reblog_author: originalPost.author,
       ap_type: 'Announce',
       metadata: { 
-        reblog_of: postId,
-        original_author: originalPost.author.id 
+        reblog_of: actualOriginalId,
+        original_author: originalPost.author?.id 
       }
     };
 
@@ -1142,6 +1276,121 @@ export class ActivityPubService {
     }
 
     debug.log(`📍 Created reblog post ${data.id} for original post ${postId}`);
+    return data;
+  }
+
+  /**
+   * Create a quote reblog - reblog with user's own comment
+   * Always quotes the ORIGINAL post, not a reblog
+   */
+  async createQuoteReblog(
+    postId: string, 
+    userContent: string,
+    visibility: 'public' | 'unlisted' | 'followers' | 'direct' = 'public',
+    contentWarning?: string,
+    isSensitive: boolean = false
+  ): Promise<any> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Get the user's profile ID
+    const profileId = await this.getCurrentUserProfileId();
+
+    // Get the post to quote
+    const { data: targetPost, error: postError } = await supabase
+      .from('timeline_posts')
+      .select('*')
+      .eq('id', postId)
+      .single();
+
+    if (postError) throw postError;
+
+    // If the target is itself a reblog, get the ORIGINAL post instead
+    let originalPost = targetPost;
+    let actualOriginalId = postId;
+    
+    if (targetPost.reblog && targetPost.reblog.id) {
+      actualOriginalId = targetPost.reblog.id;
+      const { data: rootPost, error: rootError } = await supabase
+        .from('timeline_posts')
+        .select('*')
+        .eq('id', actualOriginalId)
+        .single();
+      
+      if (!rootError && rootPost) {
+        originalPost = rootPost;
+      } else {
+        originalPost = {
+          ...targetPost.reblog,
+          author: targetPost.reblog_author || targetPost.reblog.author
+        };
+      }
+    }
+
+    // Parse user's content into MessagePart format
+    const parsedContent = await this.formatPostContent(userContent);
+
+    // Create quote reblog post
+    const ap_id = `${this.instanceUrl}/activities/${crypto.randomUUID()}`;
+    
+    const quotePost = {
+      author_id: profileId,
+      content: parsedContent, // User's comment, not the original content
+      visibility: visibility,
+      is_local: true,
+      is_federated: true,
+      ap_id: ap_id,
+      conversation_id: originalPost.conversation_id,
+      conversation_root_id: originalPost.conversation_root_id || actualOriginalId,
+      content_warning: contentWarning,
+      is_sensitive: isSensitive,
+      reblog: {
+        id: actualOriginalId,
+        content: originalPost.content,
+        created_at: originalPost.created_at,
+        author: originalPost.author,
+        visibility: originalPost.visibility,
+        favorites_count: originalPost.favorites_count || 0,
+        reblogs_count: originalPost.reblogs_count || 0,
+        replies_count: originalPost.replies_count || 0,
+        media_attachments: originalPost.media_attachments,
+        reply_context: originalPost.reply_context,
+        content_warning: originalPost.content_warning,
+        is_sensitive: originalPost.is_sensitive,
+        url: originalPost.url,
+        in_reply_to: originalPost.in_reply_to
+      },
+      reblog_author: originalPost.author,
+      ap_type: 'Announce', // Still an Announce but with content
+      metadata: { 
+        reblog_of: actualOriginalId,
+        original_author: originalPost.author?.id,
+        is_quote: true
+      }
+    };
+
+    const { data, error } = await supabase
+      .from('posts')
+      .insert(quotePost)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    // Add reblog interaction for the ORIGINAL post
+    await supabase
+      .from('post_interactions')
+      .insert({
+        user_id: profileId,
+        post_id: actualOriginalId,
+        interaction_type: 'reblog',
+        is_local: true,
+        metadata: { is_quote: true }
+      });
+
+    debug.log(`📝 Created quote reblog post ${data.id} for original post ${actualOriginalId}`);
     return data;
   }
 
@@ -1619,7 +1868,9 @@ export class ActivityPubService {
         .in('visibility', ['public', 'unlisted']);
     }
 
+    // Filter out deleted posts and apply ordering
     query = query
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -2463,6 +2714,9 @@ export class ActivityPubService {
         created_at: post.created_at,
         updated_at: post.created_at
       },
+      // Reblog data (stored as JSONB in database)
+      reblog: post.reblog || undefined,
+      reblog_author: post.reblog_author || undefined,
       // Use provided interaction states if available (from RPC functions), otherwise false
       is_favorited: post.is_favorited || false,
       is_reblogged: post.is_reblogged || false,
@@ -2529,8 +2783,12 @@ export class ActivityPubService {
             ? `@${data.author.username}@${data.author.domain}` 
             : `@${data.author.username}`
         },
+        // Reblog data (stored as JSONB in database)
+        reblog: data.reblog || undefined,
+        reblog_author: data.reblog_author || undefined,
         is_favorited: false,
-        is_reblogged: false
+        is_reblogged: false,
+        is_bookmarked: false
       };
     } catch (error) {
       debug.error('Failed to load post with author:', error);

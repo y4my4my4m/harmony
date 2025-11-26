@@ -183,9 +183,13 @@ export class ActivityProcessor {
       // Convert content (returns raw HTML for now)
       const rawContent = noteToContent(object);
       
+      // Check for quote post (quoteUrl for Fediverse, _misskey_quote for Misskey)
+      const quoteUrl = object.quoteUrl || object._misskey_quote;
+      
       logger.info('📝 Processing ActivityPub Note: ' + JSON.stringify({
         id: object.id,
         inReplyTo: object.inReplyTo,
+        quoteUrl: quoteUrl,
         contentPreview: object.content?.substring(0, 100)
       }));
       
@@ -208,26 +212,119 @@ export class ActivityProcessor {
           conversationRootId = replyResult.conversationRootId;
         }
 
-        // Create post with proper reply threading
-        const { error } = await supabase.from('posts').upsert({
+        // Handle quote posts - fetch/create the quoted post and store reference
+        let quotedPostData: any = null;
+        if (quoteUrl) {
+          logger.info(`📝 Processing quote post, quoted URL: ${quoteUrl}`);
+          quotedPostData = await this.resolveQuotedPost(quoteUrl);
+        }
+
+        // Build metadata object
+        const metadata: any = {};
+        if (object.inReplyTo) {
+          metadata.in_reply_to_ap_url = object.inReplyTo;
+        }
+        if (quotedPostData) {
+          metadata.is_quote = true;
+          metadata.reblog_of = quotedPostData.id;
+          metadata.quote_ap_url = quoteUrl;
+        }
+
+        // Create post with proper reply threading and quote support
+        // in_reply_to is a UUID column for the parent post ID
+        const postData: any = {
           ap_id: object.id,
           author_id: author.id,
           content,
           visibility,
           is_local: false,
-          in_reply_to: object.inReplyTo,
-          in_reply_to_id: parentPostId,
+          in_reply_to: parentPostId,
           conversation_root_id: conversationRootId,
           created_at: object.published || new Date().toISOString(),
-        });
+          metadata,
+          // Content warning (ActivityPub uses 'summary' for CW)
+          content_warning: object.summary || null,
+          // Sensitive flag
+          is_sensitive: object.sensitive === true,
+        };
+
+        // Add reblog data for quote posts (for display purposes)
+        if (quotedPostData) {
+          postData.reblog = {
+            id: quotedPostData.id,
+            content: quotedPostData.content,
+            created_at: quotedPostData.created_at,
+            visibility: quotedPostData.visibility,
+          };
+          
+          // Get quoted post author for reblog_author field
+          const { data: quotedAuthor } = await supabase
+            .from('profiles')
+            .select('id, username, display_name, avatar_url, domain, is_local')
+            .eq('id', quotedPostData.author_id)
+            .single();
+          
+          if (quotedAuthor) {
+            postData.reblog_author = quotedAuthor;
+          }
+        }
+
+        const { error } = await supabase.from('posts').upsert(postData);
 
         if (error) {
           logger.error('Failed to create post from activity:', error);
         } else {
-          logger.info(`✅ Created post from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}`);
+          const postType = quotedPostData ? 'quote post' : 'post';
+          logger.info(`✅ Created ${postType} from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}${quotedPostData ? ` (quoting ${quotedPostData.id})` : ''}`);
         }
       }
     }
+  }
+
+  /**
+   * Resolve a quoted post - fetch if not local
+   */
+  private static async resolveQuotedPost(quoteUrl: string): Promise<any | null> {
+    const supabase = getSupabaseClient();
+
+    // First check if quoted post exists locally by ap_id
+    const { data: existingPost } = await supabase
+      .from('posts')
+      .select('id, content, created_at, visibility, author_id')
+      .eq('ap_id', quoteUrl)
+      .maybeSingle();
+
+    if (existingPost) {
+      logger.info(`📝 Found quoted post locally: ${existingPost.id}`);
+      return existingPost;
+    }
+
+    // Try extracting UUID from URL (for local posts)
+    if (quoteUrl.includes('/posts/')) {
+      const uuidMatch = quoteUrl.match(/\/posts\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id, content, created_at, visibility, author_id')
+          .eq('id', uuidMatch[1])
+          .maybeSingle();
+        
+        if (postById) {
+          logger.info(`📝 Found quoted post by UUID: ${postById.id}`);
+          return postById;
+        }
+      }
+    }
+
+    // Fetch the quoted post from remote
+    logger.info(`📝 Fetching quoted post from remote: ${quoteUrl}`);
+    const fetchedPost = await this.fetchAndCreateRemotePost(quoteUrl);
+    
+    if (fetchedPost) {
+      logger.info(`📝 Created quoted post from remote: ${fetchedPost.id}`);
+    }
+    
+    return fetchedPost;
   }
 
   /**
@@ -376,6 +473,10 @@ export class ActivityProcessor {
           is_local: false,
           in_reply_to: remoteObject.inReplyTo || null,
           created_at: remoteObject.published || new Date().toISOString(),
+          // Content warning (ActivityPub uses 'summary' for CW)
+          content_warning: remoteObject.summary || null,
+          // Sensitive flag
+          is_sensitive: remoteObject.sensitive === true,
         })
         .select('id, in_reply_to, conversation_root_id')
         .single();
@@ -614,16 +715,21 @@ export class ActivityProcessor {
     originalPost = postByApId;
     
     // Method 2: If not found, try extracting UUID from URL
-    if (!originalPost && objectUrl.includes('/posts/')) {
-      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+    // Support both /posts/{uuid} and /activities/{uuid} URL formats
+    if (!originalPost) {
+      const uuidMatch = objectUrl.match(/\/(?:posts|activities)\/([a-f0-9-]{36})/);
       if (uuidMatch) {
         const postId = uuidMatch[1];
+        logger.info(`🔍 Trying to find post by UUID: ${postId}`);
         const { data: postById } = await supabase
           .from('posts')
           .select('id, content, visibility, author_id, created_at, ap_id')
           .eq('id', postId)
           .maybeSingle();
         originalPost = postById;
+        if (postById) {
+          logger.info(`✅ Found post by UUID: ${postId}`);
+        }
       }
     }
 
@@ -698,7 +804,15 @@ export class ActivityProcessor {
       return;
     }
 
-    // Create reblog post with proper metadata structure
+    // Get original post author for reblog_author field
+    const { data: originalAuthor } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, domain, is_local')
+      .eq('id', originalPost.author_id)
+      .single();
+
+    // Create reblog post with proper metadata and reblog fields
+    // The database constraint requires either content OR reblog to be non-null
     const { error: insertError } = await supabase.from('posts').insert({
       ap_id: activity.id, // Set ap_id for the reblog itself
       author_id: user.id,
@@ -707,6 +821,15 @@ export class ActivityProcessor {
       is_local: false,
       is_federated: true,
       ap_type: 'Announce',
+      // The reblog field is required for the posts_content_not_empty constraint
+      reblog: {
+        id: originalPost.id,
+        content: originalPost.content,
+        created_at: originalPost.created_at,
+        visibility: originalPost.visibility,
+        ap_id: originalPost.ap_id || objectUrl,
+      },
+      reblog_author: originalAuthor || null,
       metadata: {
         reblog_of: originalPost.id,
         original_ap_id: originalPost.ap_id || objectUrl,
@@ -742,12 +865,44 @@ export class ActivityProcessor {
     const object = activity.object;
     const supabase = getSupabaseClient();
 
-    if (!object) return;
+    logger.info(`🔄 Processing Undo activity from ${activity.actor}`);
+    logger.debug(`Undo object: ${JSON.stringify(object)?.substring(0, 500)}`);
 
-    switch (object.type) {
+    if (!object) {
+      logger.warn('Undo activity has no object, skipping');
+      return;
+    }
+
+    // Handle string object (just the ID of the original activity)
+    const objectType = typeof object === 'string' ? null : object.type;
+    
+    // If object is a string, we need to look up what type it was
+    if (typeof object === 'string') {
+      logger.info(`🔍 Undo object is a string ID: ${object}`);
+      // Try to find the original activity by its ID
+      const { data: originalActivity } = await supabase
+        .from('ap_activities')
+        .select('ap_type, activity_data')
+        .eq('ap_id', object)
+        .maybeSingle();
+      
+      if (originalActivity) {
+        logger.info(`Found original activity type: ${originalActivity.ap_type}`);
+        // Process based on the original activity type
+        await this.processUndoByType(originalActivity.ap_type, originalActivity.activity_data, activity.actor);
+        return;
+      } else {
+        logger.warn(`Could not find original activity: ${object}`);
+        return;
+      }
+    }
+
+    switch (objectType) {
       case 'Follow': {
         // Remove follow
         const { followerUrl, followingUrl } = extractFollowData(object);
+        logger.info(`🔄 Undoing follow: ${followerUrl} → ${followingUrl}`);
+        
         const { data: follower } = await supabase
           .from('profiles')
           .select('id')
@@ -760,68 +915,39 @@ export class ActivityProcessor {
           .eq('federated_id', followingUrl)
           .single();
 
+        if (!follower) {
+          logger.warn(`Follower not found: ${followerUrl}`);
+        }
+        if (!following) {
+          logger.warn(`Following not found: ${followingUrl}`);
+        }
+
         if (follower && following) {
-          await supabase
+          const { error } = await supabase
             .from('follows')
             .delete()
             .eq('follower_id', follower.id)
             .eq('following_id', following.id);
 
-          logger.info(`Undid follow: ${followerUrl} → ${followingUrl}`);
+          if (error) {
+            logger.error(`Failed to delete follow:`, error);
+          } else {
+            logger.info(`✅ Undid follow: ${followerUrl} → ${followingUrl}`);
+          }
         }
         break;
       }
 
       case 'Like':
       case 'EmojiReaction': {
-        // Remove reaction from post_interactions (correct table)
-        const { actorUrl, objectUrl } = extractLikeData(object);
-        const { data: user } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('federated_id', actorUrl)
-          .single();
-
-        // Try by ap_id first (correct column)
-        let post = null;
-        const { data: postByApId } = await supabase
-          .from('posts')
-          .select('id')
-          .eq('ap_id', objectUrl)
-          .maybeSingle();
-        
-        post = postByApId;
-        
-        // Fallback: try extracting UUID from URL
-        if (!post && objectUrl.includes('/posts/')) {
-          const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
-          if (uuidMatch) {
-            const { data: postById } = await supabase
-              .from('posts')
-              .select('id')
-              .eq('id', uuidMatch[1])
-              .maybeSingle();
-            post = postById;
-          }
-        }
-
-        if (user && post) {
-          // Delete from post_interactions (correct table, not post_reactions)
-          await supabase
-            .from('post_interactions')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('post_id', post.id)
-            .in('interaction_type', ['favorite', 'emoji_reaction']);
-
-          logger.info(`Undid reaction on ${objectUrl}`);
-        }
+        await this.processUndoReaction(object, activity.actor);
         break;
       }
 
       case 'Announce': {
         // Remove reblog by ap_id (correct column)
         const announceId = typeof object === 'string' ? object : object.id;
+        logger.info(`🔄 Undoing announce: ${announceId}`);
         
         // First get the reblog post to find the original
         const { data: reblogPost } = await supabase
@@ -832,10 +958,14 @@ export class ActivityProcessor {
         
         if (reblogPost) {
           // Delete the reblog post
-          await supabase
+          const { error: deleteError } = await supabase
             .from('posts')
             .delete()
             .eq('id', reblogPost.id);
+          
+          if (deleteError) {
+            logger.error(`Failed to delete reblog post:`, deleteError);
+          }
           
           // Also remove the interaction record if the original post is known
           const originalPostId = reblogPost.metadata?.reblog_of;
@@ -856,11 +986,134 @@ export class ActivityProcessor {
                 .eq('interaction_type', 'reblog');
             }
           }
+          logger.info(`✅ Undid announce: ${announceId}`);
+        } else {
+          logger.warn(`Reblog post not found for Undo: ${announceId}`);
         }
-
-        logger.info(`Undid announce: ${announceId}`);
         break;
       }
+      
+      default:
+        logger.warn(`Unhandled Undo object type: ${objectType}`);
+    }
+  }
+
+  /**
+   * Process Undo for Like/EmojiReaction
+   */
+  private static async processUndoReaction(object: any, actorUrl: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { actorUrl: likeActorUrl, objectUrl } = extractLikeData(object);
+    
+    logger.info(`🔄 Undoing reaction from ${likeActorUrl} on ${objectUrl}`);
+    
+    const { data: user } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('federated_id', likeActorUrl)
+      .single();
+
+    if (!user) {
+      logger.warn(`User not found for Undo reaction: ${likeActorUrl}`);
+      return;
+    }
+
+    // Try by ap_id first
+    let post = null;
+    const { data: postByApId } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('ap_id', objectUrl)
+      .maybeSingle();
+    
+    post = postByApId;
+    
+    // Fallback: try extracting UUID from URL (for local posts)
+    if (!post && objectUrl.includes('/posts/')) {
+      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        logger.info(`🔍 Trying to find local post by UUID: ${uuidMatch[1]}`);
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('id', uuidMatch[1])
+          .maybeSingle();
+        post = postById;
+      }
+    }
+
+    if (!post) {
+      logger.warn(`Post not found for Undo reaction: ${objectUrl}`);
+      return;
+    }
+
+    // Delete from post_interactions
+    const { error, count } = await supabase
+      .from('post_interactions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('post_id', post.id)
+      .in('interaction_type', ['favorite', 'emoji_reaction']);
+
+    if (error) {
+      logger.error(`Failed to delete reaction:`, error);
+    } else {
+      logger.info(`✅ Undid reaction on ${objectUrl} (deleted ${count || 'unknown'} records)`);
+    }
+  }
+
+  /**
+   * Process Undo by looking up the original activity type
+   */
+  private static async processUndoByType(activityType: string, activityData: any, actorUrl: string): Promise<void> {
+    logger.info(`🔄 Processing Undo by type: ${activityType}`);
+    
+    switch (activityType) {
+      case 'Like':
+      case 'EmojiReaction':
+        await this.processUndoReaction(activityData, actorUrl);
+        break;
+      case 'Follow':
+        // Extract follow data from the stored activity
+        if (activityData) {
+          const supabase = getSupabaseClient();
+          const { followerUrl, followingUrl } = extractFollowData(activityData);
+          
+          const { data: follower } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('federated_id', followerUrl)
+            .single();
+
+          const { data: following } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('federated_id', followingUrl)
+            .single();
+
+          if (follower && following) {
+            await supabase
+              .from('follows')
+              .delete()
+              .eq('follower_id', follower.id)
+              .eq('following_id', following.id);
+            logger.info(`✅ Undid follow: ${followerUrl} → ${followingUrl}`);
+          }
+        }
+        break;
+      case 'Announce':
+        // Handle via ap_id lookup
+        if (activityData?.id) {
+          const supabase = getSupabaseClient();
+          await supabase
+            .from('posts')
+            .delete()
+            .eq('ap_id', activityData.id);
+          logger.info(`✅ Undid announce: ${activityData.id}`);
+        }
+        break;
+      default:
+        logger.warn(`Unknown activity type for Undo: ${activityType}`);
     }
   }
 

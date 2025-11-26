@@ -665,6 +665,7 @@ export interface ActivityPubPost {
   ap_id?: string; // ActivityPub object ID
   ap_type: string; // 'Note', 'Article', etc.
   url?: string;
+  in_reply_to?: string; // UUID of parent post if this is a reply
   reply_context?: ReplyContext; // Rich reply context instead of simple UUID
   conversation_id?: string;
   visibility: 'public' | 'unlisted' | 'followers' | 'direct';
@@ -1006,6 +1007,9 @@ export interface PostComposerState {
     expiresIn: number; // seconds
   };
   scheduledAt?: string;
+  // Quote post support
+  quotePost?: TimelinePost;
+  quoteAuthor?: FederatedUser;
 }
 
 // Feed structure for timeline management

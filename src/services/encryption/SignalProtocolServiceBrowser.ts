@@ -12,8 +12,8 @@
  */
 
 import type { EncryptionKeyStore } from './EncryptionKeyStore'
-import {
 import { debug } from '@/utils/debug'
+import {
   KeyHelper,
   SignalProtocolAddress,
   SessionBuilder,

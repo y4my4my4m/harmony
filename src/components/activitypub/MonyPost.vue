@@ -64,41 +64,6 @@
         </div>
       </div>
 
-      <!-- Reply Context (if this is a reply) -->
-      <div v-if="displayReplyContext" class="reply-context">
-        <div class="reply-header">
-          <div class="reply-indicator">
-            <Icon name="reply" class="reply-icon" />
-            <span class="reply-text">Replying to</span>
-          </div>
-          <button 
-            class="show-conversation-btn"
-            @click="showReplyTarget"
-            title="View full conversation"
-          >
-            <Icon name="thread" :size="16" />
-            <span>Show thread</span>
-          </button>
-        </div>
-        <div class="reply-preview-card">
-          <Avatar 
-            :src="displayReplyContext.author.avatar_url"
-            :alt="displayReplyContext.author.display_name"
-            size="xs"
-          />
-          <div class="reply-details">
-            <span class="reply-author">@{{ displayReplyContext.author.username }}</span>
-            <span class="reply-content-preview">
-              <MonyContent 
-                :content="replyContentText" 
-                :isPreview="true" 
-                :previewLength="100" 
-              />
-            </span>
-          </div>
-        </div>
-      </div>
-
       <!-- Content Warning -->
       <div v-if="displayContentWarning" class="content-warning">
         <div class="cw-header">
@@ -226,10 +191,56 @@
         </div>
       </div>
 
+      <!-- Reply Context (shown AFTER the post content, like Twitter) -->
+      <!-- Only show in timeline view, not in thread view where parent is already visible -->
+      <div v-if="showReplyContextCard" class="reply-context-container">
+        <div class="reply-indicator-bar">
+          <Icon name="corner-down-right" class="reply-icon" :size="14" />
+          <span class="reply-text">Replying to</span>
+          <span class="reply-author-link" @click.stop="viewProfile(displayReplyContext.author)">
+            @{{ displayReplyContext.author.username }}
+          </span>
+          <button 
+            class="show-thread-btn"
+            @click.stop="showReplyTarget"
+            title="View full conversation"
+          >
+            <Icon name="message-square" :size="14" />
+            View thread
+          </button>
+        </div>
+        
+        <div class="reply-parent-post" @click.stop="showReplyTarget">
+          <div class="reply-parent-header">
+            <Avatar 
+              :src="displayReplyContext.author.avatar_url"
+              :alt="displayReplyContext.author.display_name || displayReplyContext.author.username"
+              size="sm"
+            />
+            <div class="reply-parent-author-info">
+              <span class="reply-parent-name">{{ displayReplyContext.author.display_name || displayReplyContext.author.username }}</span>
+              <span class="reply-parent-handle">@{{ displayReplyContext.author.username }}</span>
+              <time class="reply-parent-time" v-if="displayReplyContext.created_at">
+                {{ formatRelativeTime(displayReplyContext.created_at) }}
+              </time>
+            </div>
+          </div>
+          
+          <div class="reply-parent-content">
+            <MonyContent 
+              :content="replyContentText" 
+              :isPreview="true" 
+              :previewLength="200" 
+            />
+          </div>
+        </div>
+      </div>
+
       <!-- Post Reactions (Emoji Reactions) - Above action buttons -->
+      <!-- For reblogs, we need to show reactions for the ORIGINAL post -->
       <PostReactions
         ref="postReactionsRef"
-        :post="post"
+        :post="displayPostForReactions"
         @show-reaction-tooltip="handleShowReactionTooltip"
         @hide-reaction-tooltip="handleHideReactionTooltip"
       />
@@ -245,20 +256,45 @@
           <span v-if="displayInteractionCounts.replies_count > 0">{{ formatCount(displayInteractionCounts.replies_count) }}</span>
         </button>
 
-        <button 
-          class="action-button reblog-button"
-          :class="{ active: displayInteractionCounts.is_reblogged }"
-          @click="toggleReblog(post.id)"
-          :title="displayInteractionCounts.is_reblogged ? 'Undo reblog' : 'Reblog'"
-        >
-          <Icon name="reblog" />
-          <span v-if="displayInteractionCounts.reblogs_count > 0">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
-        </button>
+        <div class="reblog-menu-container" v-click-outside="() => showReblogMenu = false">
+          <button 
+            class="action-button reblog-button"
+            :class="{ 
+              active: displayInteractionCounts.is_reblogged,
+              disabled: !canReblog && !displayInteractionCounts.is_reblogged
+            }"
+            @click="handleReblogClick"
+            :disabled="!canReblog && !displayInteractionCounts.is_reblogged"
+            :title="!canReblog && !displayInteractionCounts.is_reblogged ? reblogDisabledReason : (displayInteractionCounts.is_reblogged ? 'Undo reblog' : 'Reblog options')"
+          >
+            <Icon name="reblog" />
+            <span v-if="displayInteractionCounts.reblogs_count > 0">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
+          </button>
+          
+          <!-- Reblog dropdown menu -->
+          <div v-if="showReblogMenu && canReblog" class="reblog-dropdown">
+            <button 
+              class="reblog-option"
+              @click="handleSimpleReblog"
+              :disabled="displayInteractionCounts.is_reblogged"
+            >
+              <Icon name="reblog" :size="16" />
+              <span>Reblog</span>
+            </button>
+            <button 
+              class="reblog-option"
+              @click="handleQuoteReblog"
+            >
+              <Icon name="edit" :size="16" />
+              <span>Quote</span>
+            </button>
+          </div>
+        </div>
 
         <button 
           class="action-button favorite-button"
           :class="{ active: displayInteractionCounts.is_favorited }"
-          @click="toggleFavorite(post.id)"
+          @click="toggleFavorite(originalPostId)"
           :title="displayInteractionCounts.is_favorited ? 'Unfavorite' : 'Favorite'"
         >
           <Icon :name="displayInteractionCounts.is_favorited ? 'heart-filled' : 'heart'" />
@@ -268,7 +304,7 @@
         <button 
           ref="emojiTriggerRef"
           class="action-button add-reaction-button"
-          @click.stop="() => handleShowEmojiPicker(post)"
+          @click.stop="handleShowEmojiPickerForOriginal"
           title="Add reaction"
         >
           <Icon name="plus" />
@@ -277,7 +313,7 @@
         <button 
           class="action-button bookmark-button"
           :class="{ active: displayInteractionCounts.is_bookmarked }"
-          @click="toggleBookmark(post.id)"
+          @click="toggleBookmark(originalPostId)"
           :title="displayInteractionCounts.is_bookmarked ? 'Remove bookmark' : 'Bookmark'"
         >
           <Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" />
@@ -312,8 +348,19 @@
             <span>Edit</span>
           </button>
           
+          <!-- For reblogs, show "Undo Reblog" instead of "Delete" -->
           <button 
-            v-if="canDelete"
+            v-if="isReblog && canDelete"
+            class="dropdown-item"
+            @click="onUndoReblog"
+          >
+            <Icon name="reblog" />
+            <span>Undo Reblog</span>
+          </button>
+          
+          <!-- Regular delete for non-reblog posts -->
+          <button 
+            v-if="!isReblog && canDelete"
             class="dropdown-item danger"
             @click="onDelete"
           >
@@ -391,7 +438,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
@@ -418,9 +465,14 @@ import router from '@/router';
 // Props
 interface Props {
   post: TimelinePost;
+  hideReplyContext?: boolean; // Hide reply context when in thread view (parent is already visible)
+  isInThread?: boolean; // True when this post is displayed within a thread/conversation view
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  hideReplyContext: false,
+  isInThread: false
+});
 
 // Emits
 const emit = defineEmits<{
@@ -446,6 +498,7 @@ const { toggleFavorite, toggleReblog, toggleBookmark } = usePostInteractions();
 // Local state (removed isToggling since composable handles loading)
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
+const showReblogMenu = ref(false);
 const showInlineReply = ref(false);
 const showDeleteConfirmation = ref(false);
 const isDeleting = ref(false);
@@ -495,19 +548,43 @@ const isReblog = computed(() => {
 });
 
 const isQuotePost = computed(() => {
-  // A quote post has both reblog data AND non-empty content
+  // A quote post has both reblog data AND unique user-added content
   if (!isReblog.value) return false;
-  const content = props.post.content;
   
-  // Check if content is empty (pure reblog) or has actual content (quote post)
-  if (Array.isArray(content)) {
-    return content.length > 0 && content.some(part => 
-      part.type === 'text' && part.text && part.text.trim().length > 0
-    );
+  const content = props.post.content;
+  const reblogContent = props.post.reblog?.content;
+  
+  // If no content, it's a pure reblog
+  if (!content || !Array.isArray(content) || content.length === 0) {
+    return false;
   }
   
-  // Fallback: if content exists but is not array (shouldn't happen per interface)
-  return false;
+  // Check if user actually added their own content
+  const hasUserContent = content.some(part => 
+    part.type === 'text' && part.text && part.text.trim().length > 0
+  );
+  
+  if (!hasUserContent) return false;
+  
+  // Additional check: if content is identical to reblog content, it's a pure reblog
+  // (This catches cases where content was incorrectly duplicated)
+  if (reblogContent && Array.isArray(reblogContent)) {
+    const contentText = content
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map(p => p.text.trim())
+      .join(' ');
+    const reblogText = reblogContent
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map(p => p.text.trim())
+      .join(' ');
+    
+    // If the content is the same as the reblogged content, it's NOT a quote
+    if (contentText === reblogText) {
+      return false;
+    }
+  }
+  
+  return true;
 });
 
 const displayAuthor = computed(() => {
@@ -547,27 +624,185 @@ const displayIsSensitive = computed(() => {
   return (isReblog.value && props.post.reblog) ? props.post.reblog.is_sensitive : props.post.is_sensitive;
 });
 
+// Track dynamically loaded reply context
+const loadedReplyContext = ref<any>(null);
+const isLoadingReplyContext = ref(false);
+
 const displayReplyContext = computed(() => {
-  // For now, ignore reblog logic and focus on regular posts
-  const context = props.post.reply_context;
-  return context;
+  // For reblogs, check the reblogged post's reply context
+  if (isReblog.value && props.post.reblog?.reply_context) {
+    return props.post.reblog.reply_context;
+  }
+  // First check if we have reply_context in the post itself
+  if (props.post.reply_context) {
+    return props.post.reply_context;
+  }
+  // Use dynamically loaded context if available
+  if (loadedReplyContext.value) {
+    return loadedReplyContext.value;
+  }
+  return null;
+});
+
+// Show reply context card only in timeline view (not in thread view)
+const showReplyContextCard = computed(() => {
+  return displayReplyContext.value && !props.hideReplyContext && !props.isInThread;
+});
+
+// Load reply context if we have in_reply_to but no reply_context
+const loadReplyContext = async () => {
+  // For reblogs, use the reblogged post's in_reply_to
+  const inReplyTo = isReblog.value 
+    ? props.post.reblog?.in_reply_to 
+    : props.post.in_reply_to;
+  const hasReplyContext = isReblog.value 
+    ? props.post.reblog?.reply_context 
+    : props.post.reply_context;
+    
+  if (!inReplyTo || hasReplyContext || isLoadingReplyContext.value) {
+    return;
+  }
+  
+  isLoadingReplyContext.value = true;
+  try {
+    const { data: parentPost, error } = await supabase
+      .from('posts')
+      .select(`
+        id, content, created_at, visibility,
+        author:profiles!posts_author_id_fkey(
+          id, username, display_name, avatar_url, domain
+        )
+      `)
+      .eq('id', inReplyTo)
+      .single();
+    
+    if (!error && parentPost && parentPost.author) {
+      // Handle author being either an object or array (Supabase join result)
+      const author = Array.isArray(parentPost.author) ? parentPost.author[0] : parentPost.author;
+      if (author) {
+        loadedReplyContext.value = {
+          id: parentPost.id,
+          content: parentPost.content,
+          content_preview: Array.isArray(parentPost.content) 
+            ? parentPost.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ').slice(0, 200)
+            : String(parentPost.content).slice(0, 200),
+          author: {
+            id: author.id,
+            username: author.username,
+            display_name: author.display_name || author.username,
+            avatar_url: author.avatar_url || '/default_avatar.png',
+            domain: author.domain || 'har.mony.lol'
+          },
+          created_at: parentPost.created_at,
+          visibility: parentPost.visibility
+        };
+      }
+    }
+  } catch (err) {
+    debug.error('Failed to load reply context:', err);
+  } finally {
+    isLoadingReplyContext.value = false;
+  }
+};
+
+// For reblogs, we need to fetch the user's interaction state with the ORIGINAL post
+const originalPostInteractions = ref<{
+  is_favorited: boolean;
+  is_reblogged: boolean;
+  is_bookmarked: boolean;
+} | null>(null);
+
+const loadOriginalPostInteractions = async () => {
+  if (!isReblog.value || !props.post.reblog?.id) return;
+  
+  try {
+    const { userDataService } = await import('@/services/userDataService');
+    const currentUser = userDataService.getCurrentUser();
+    if (!currentUser?.id) return;
+
+    const { data: interactions, error } = await supabase
+      .from('post_interactions')
+      .select('interaction_type')
+      .eq('post_id', props.post.reblog.id)
+      .eq('user_id', currentUser.id)
+      .in('interaction_type', ['favorite', 'reblog', 'bookmark']);
+
+    if (error) {
+      debug.error('Failed to load original post interactions:', error);
+      return;
+    }
+
+    const interactionTypes = new Set(interactions?.map(i => i.interaction_type) || []);
+    originalPostInteractions.value = {
+      is_favorited: interactionTypes.has('favorite'),
+      is_reblogged: interactionTypes.has('reblog'),
+      is_bookmarked: interactionTypes.has('bookmark')
+    };
+  } catch (err) {
+    debug.error('Failed to load original post interactions:', err);
+  }
+};
+
+// Load reply context on mount if needed
+onMounted(() => {
+  // Check for reply context in post or reblog
+  const inReplyTo = isReblog.value 
+    ? props.post.reblog?.in_reply_to 
+    : props.post.in_reply_to;
+  const hasReplyContext = isReblog.value 
+    ? props.post.reblog?.reply_context 
+    : props.post.reply_context;
+    
+  if (inReplyTo && !hasReplyContext) {
+    loadReplyContext();
+  }
+
+  // For reblogs, fetch the user's interaction state with the original post
+  if (isReblog.value) {
+    loadOriginalPostInteractions();
+  }
+});
+
+// The ID of the original post - for reblogs, this is the reblogged post's ID
+// All interactions (favorite, reblog, bookmark) should target this ID
+const originalPostId = computed(() => {
+  if (isReblog.value && props.post.reblog?.id) {
+    return props.post.reblog.id;
+  }
+  return props.post.id;
+});
+
+// For reblogs, we need to show reactions for the ORIGINAL post
+// Create a post-like object with the correct ID for PostReactions component
+const displayPostForReactions = computed(() => {
+  if (isReblog.value && props.post.reblog?.id) {
+    // Return the original post data with the correct ID
+    return {
+      ...props.post.reblog,
+      id: props.post.reblog.id
+    };
+  }
+  return props.post;
 });
 
 const displayInteractionCounts = computed(() => {
   if (isReblog.value && props.post.reblog) {
+    // Use fetched interaction state if available, fallback to stored values
+    const interactions = originalPostInteractions.value;
     return {
-      favorites_count: props.post.reblog.favorites_count,
-      reblogs_count: props.post.reblog.reblogs_count,
-      replies_count: props.post.reblog.replies_count,
-      is_favorited: props.post.reblog.is_favorited || false,
-      is_reblogged: props.post.reblog.is_reblogged || false,
-      is_bookmarked: props.post.reblog.is_bookmarked || false
+      favorites_count: props.post.reblog.favorites_count || 0,
+      reblogs_count: props.post.reblog.reblogs_count || 0,
+      replies_count: props.post.reblog.replies_count || 0,
+      is_favorited: interactions?.is_favorited ?? props.post.reblog.is_favorited ?? false,
+      // Use fetched interaction state - don't default to true
+      is_reblogged: interactions?.is_reblogged ?? props.post.reblog.is_reblogged ?? false,
+      is_bookmarked: interactions?.is_bookmarked ?? props.post.reblog.is_bookmarked ?? false
     };
   }
   return {
-    favorites_count: props.post.favorites_count,
-    reblogs_count: props.post.reblogs_count,
-    replies_count: props.post.replies_count,
+    favorites_count: props.post.favorites_count || 0,
+    reblogs_count: props.post.reblogs_count || 0,
+    replies_count: props.post.replies_count || 0,
     is_favorited: props.post.is_favorited || false,
     is_reblogged: props.post.is_reblogged || false,
     is_bookmarked: props.post.is_bookmarked || false
@@ -619,6 +854,25 @@ const visibilityTitle = computed(() => {
   }
 });
 
+// Check if post can be reblogged (Mastodon behavior: only public/unlisted posts can be reblogged)
+const canReblog = computed(() => {
+  // Get the original post's visibility (for reblogs, check the original)
+  const originalVisibility = props.post.reblog?.visibility || props.post.visibility;
+  return originalVisibility === 'public' || originalVisibility === 'unlisted';
+});
+
+const reblogDisabledReason = computed(() => {
+  if (canReblog.value) return '';
+  const originalVisibility = props.post.reblog?.visibility || props.post.visibility;
+  if (originalVisibility === 'followers') {
+    return 'Followers-only posts cannot be reblogged';
+  }
+  if (originalVisibility === 'direct') {
+    return 'Direct messages cannot be reblogged';
+  }
+  return 'This post cannot be reblogged';
+});
+
 // Methods
 const formatRelativeTime = (dateString: string) => {
   try {
@@ -644,9 +898,9 @@ const formatCount = (count: number) => {
 };
 
 const onReply = () => {
+  // Toggle inline reply - handled entirely within MonyPost
   showInlineReply.value = !showInlineReply.value;
-  // Also emit for parent components that might want to handle it differently
-  emit('reply', props.post);
+  // Don't emit to parent - we handle replies inline now
 };
 
 const handleReplySent = (reply: any) => {
@@ -772,6 +1026,38 @@ const onDelete = () => {
 };
 
 /**
+ * Handle undo reblog action - removes the reblog post and updates state
+ */
+const onUndoReblog = async () => {
+  closeMenu();
+  
+  try {
+    // Get the original post ID from the reblog
+    const originalPostId = props.post.reblog?.id || props.post.metadata?.reblog_of;
+    
+    if (originalPostId) {
+      // Use toggleReblog which handles the undo
+      await toggleReblog(originalPostId);
+      
+      notificationStore.showToast(
+        'server_update',
+        'Reblog removed',
+        'Your reblog has been undone',
+        3000
+      );
+    }
+  } catch (error) {
+    debug.error('Failed to undo reblog:', error);
+    notificationStore.showToast(
+      'error',
+      'Failed to undo reblog',
+      'There was an error removing your reblog',
+      5000
+    );
+  }
+};
+
+/**
  * Handle confirmed delete action - professional with feedback
  */
 const handleDeleteConfirm = async () => {
@@ -866,8 +1152,43 @@ const handleMenuToggle = () => {
   debug.log('🔘 Menu state after toggle:', showMenu.value);
 };
 
+// Reblog menu handlers
+const handleReblogClick = () => {
+  // If already reblogged, undo the reblog directly
+  if (displayInteractionCounts.value.is_reblogged) {
+    // Always use the original post ID for reblog actions
+    toggleReblog(originalPostId.value);
+    return;
+  }
+  // Otherwise show the menu with options
+  showReblogMenu.value = !showReblogMenu.value;
+};
 
+const handleSimpleReblog = async () => {
+  showReblogMenu.value = false;
+  // Always reblog the original post, not a reblog of a reblog
+  await toggleReblog(originalPostId.value);
+};
 
+const handleQuoteReblog = () => {
+  showReblogMenu.value = false;
+  // Open composer with the ORIGINAL post as a quote (not a reblog)
+  const originalPost = props.post.reblog || props.post;
+  const originalAuthor = props.post.reblog_author || props.post.author;
+  activityPubStore.openComposer({
+    quotePost: originalPost,
+    quoteAuthor: originalAuthor
+  });
+};
+
+// Handle emoji picker for original post (for reblogs, target the original)
+const handleShowEmojiPickerForOriginal = () => {
+  // Create a post-like object with the original post ID for the emoji picker
+  const targetPost = isReblog.value && props.post.reblog 
+    ? { ...props.post.reblog, id: originalPostId.value }
+    : props.post;
+  handleShowEmojiPicker(targetPost);
+};
 
 
 const handleMentionClick = (handle: string) => {
@@ -1021,73 +1342,136 @@ const closeLightbox = () => {
   background: var(--background-primary);
 }
 
-.reply-context {
+/* Reply Context - looks like quoted post */
+.reply-context-container {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
-  padding: 0.75rem;
-  background-color: rgba(59, 130, 246, 0.05);
-  border-radius: 0.5rem;
-  border-left: 3px solid #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.1);
 }
 
-.reply-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.reply-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  color: #9ca3af;
-  font-size: 0.875rem;
-}
-
-.reply-icon {
-  color: #9ca3af;
-  font-size: 0.875rem;
-}
-
-.reply-text {
-  color: #9ca3af;
-  font-size: 0.875rem;
-}
-
-.reply-preview-card {
+.reply-indicator-bar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background-color: #374151;
-  border-radius: 0.375rem;
-  padding: 0.375rem 0.75rem;
+  color: #9ca3af;
+  font-size: 0.8rem;
 }
 
-.reply-details {
-  display: flex;
-  flex-direction: column;
+.reply-icon {
+  color: #6b7280;
 }
 
-.reply-author {
-  color: #3b82f6;
+.reply-text {
+  color: #6b7280;
+}
+
+.reply-author-link {
+  color: #60a5fa;
+  cursor: pointer;
   font-weight: 500;
-  text-decoration: none;
 }
 
-.reply-author:hover {
+.reply-author-link:hover {
   text-decoration: underline;
 }
 
-.reply-content-preview {
+.show-thread-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: transparent;
+  border: 1px solid #374151;
+  border-radius: 0.375rem;
+  color: #9ca3af;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.show-thread-btn:hover {
+  background: #374151;
   color: white;
-  font-size: 0.875rem;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
+}
+
+.reply-parent-post {
+  /* border: 1px solid var(--border-color); */
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--background-primary);
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.reply-parent-post:hover {
+  border-color: #4b5563;
+}
+
+.reply-parent-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.reply-parent-author-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.reply-parent-name {
+  font-weight: 600;
+  color: white;
+  font-size: 0.9rem;
+}
+
+.reply-parent-handle {
+  color: #9ca3af;
+  font-size: 0.85rem;
+}
+
+.reply-parent-time {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.reply-parent-content {
+  color: #d1d5db;
+  font-size: 0.9rem;
+}
+
+/* Simple reply indicator for thread view */
+.reply-indicator-simple {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: #6b7280;
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+.reply-indicator-simple .reply-icon {
+  color: #6b7280;
+}
+
+.reply-indicator-simple .reply-text {
+  color: #6b7280;
+}
+
+.reply-indicator-simple .reply-author-link {
+  color: #60a5fa;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.reply-indicator-simple .reply-author-link:hover {
+  text-decoration: underline;
+  line-height: 1.5;
 }
 
 .show-conversation-btn {
@@ -1226,6 +1610,51 @@ const closeLightbox = () => {
 
 .reblog-button.active {
   color: #10b981;
+}
+
+/* Reblog dropdown menu */
+.reblog-menu-container {
+  position: relative;
+}
+
+.reblog-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.25rem;
+  min-width: 140px;
+  z-index: 100;
+  margin-bottom: 0.5rem;
+}
+
+.reblog-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reblog-option:hover:not(:disabled) {
+  background: var(--background-hover);
+  color: #10b981;
+}
+
+.reblog-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .favorite-button:hover {

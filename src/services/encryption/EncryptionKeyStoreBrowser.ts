@@ -13,8 +13,8 @@
  * All sensitive keys are encrypted with a key derived from the user's password.
  */
 
-import type {
 import { debug } from '@/utils/debug'
+import type {
   StorageType,
   KeyPairType,
   Direction,

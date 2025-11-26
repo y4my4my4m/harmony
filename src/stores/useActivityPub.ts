@@ -341,8 +341,24 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async handleRealtimePostCreate(post: any) {
       debug.log('📝 New post received via realtime:', post);
+      debug.log('📝 Realtime post details:', {
+        id: post.id,
+        author_id: post.author_id,
+        is_local: post.is_local,
+        visibility: post.visibility
+      });
       
       try {
+        // Check if post already exists in any feed to prevent duplicates
+        const existsInPublic = this.publicFeed.posts.some(p => p.id === post.id);
+        const existsInLocal = this.localFeed.posts.some(p => p.id === post.id);
+        const existsInHome = this.homeFeed.posts.some(p => p.id === post.id);
+        
+        if (existsInPublic || existsInLocal || existsInHome) {
+          debug.log('⚠️ Post already exists in feeds, skipping duplicate:', post.id);
+          return;
+        }
+        
         // Realtime data NEVER has author joins, always fetch complete data
         debug.log('🔄 Fetching complete post data with author information...');
         const completePost = await activityPubService.loadPostWithAuthor(post.id);
@@ -357,12 +373,19 @@ export const useActivityPubStore = defineStore('activitypub', {
           author: completePost.author?.username,
           display_name: completePost.author?.display_name,
           domain: completePost.author?.domain,
-          is_local: completePost.is_local
+          is_local: completePost.is_local,
+          visibility: completePost.visibility
         });
+        
+        // Get current user ID for home feed logic
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        const isOwnPost = currentUser?.id === completePost.author_id;
         
         // Add to public feed if public
         if (completePost.visibility === 'public') {
           this.publicFeed.posts.unshift(completePost);
+          debug.log('✅ Added post to public feed:', completePost.id);
           // Limit feed size
           if (this.publicFeed.posts.length > 100) {
             this.publicFeed.posts = this.publicFeed.posts.slice(0, 100);
@@ -372,15 +395,29 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Add to local feed if local
         if (completePost.is_local && completePost.visibility === 'public') {
           this.localFeed.posts.unshift(completePost);
+          debug.log('✅ Added post to local feed:', completePost.id);
           if (this.localFeed.posts.length > 100) {
             this.localFeed.posts = this.localFeed.posts.slice(0, 100);
           }
         }
         
-        // Add to home feed if following the author and increment unread count
-        if (this.followedUsers.has(completePost.author_id)) {
+        // Add to home feed if:
+        // 1. Following the author, OR
+        // 2. It's the current user's own post (so they see their own posts in home)
+        const shouldAddToHome = isOwnPost || this.followedUsers.has(completePost.author_id);
+        debug.log('📝 Home feed check:', {
+          isOwnPost,
+          isFollowing: this.followedUsers.has(completePost.author_id),
+          shouldAddToHome
+        });
+        
+        if (shouldAddToHome) {
           this.homeFeed.posts.unshift(completePost);
-          this.unreadCount++;
+          // Only increment unread for posts from others
+          if (!isOwnPost) {
+            this.unreadCount++;
+          }
+          debug.log('✅ Added post to home feed:', completePost.id);
           if (this.homeFeed.posts.length > 100) {
             this.homeFeed.posts = this.homeFeed.posts.slice(0, 100);
           }
@@ -406,6 +443,13 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     handleRealtimePostUpdate(post: any) {
       debug.log('📝 Post updated:', post);
+      
+      // Check for soft delete (is_deleted = true) - remove from feeds
+      if (post.is_deleted) {
+        debug.log('🗑️ Post soft-deleted, removing from feeds:', post.id);
+        this.removePostFromAllFeeds(post.id);
+        return;
+      }
       
       // Ignore updates that are likely just count changes from interaction triggers
       // These updates have updated_at very close to now and no content changes
@@ -451,9 +495,8 @@ export const useActivityPubStore = defineStore('activitypub', {
       } else if (follow.following_id === currentUser.id) {
         // Someone started following current user
         this.followersCount++;
-        
-        // Create notification for new follower
-        this.createFollowNotification(follow);
+        // Note: Notification is now created by DB trigger (handle_unified_notification_processing)
+        // with complete follower profile data - no need for client-side notification creation
       }
     },
 
@@ -521,18 +564,40 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      // Check event type first and handle DELETE events early
+      // Check event type first
       debug.log('💫 Event type check:', payload.event, 'interaction data:', interaction);
       
-      // For DELETE events, we only get minimal data (usually just ID)
-      // Skip processing if we don't have enough information
+      // For DELETE events, handle with available data
       if (payload.event === 'DELETE') {
-        debug.log('💫 DELETE event detected, skipping detailed processing (insufficient data in payload.old)');
-        debug.log('💫 This is normal behavior - DELETE events only provide minimal data');
+        debug.log('💫 DELETE event detected - processing reaction removal');
+        
+        // payload.old should contain the deleted row data
+        const deletedInteraction = payload.old;
+        if (deletedInteraction?.post_id) {
+          // Trigger a refresh of the post reactions from the server
+          // This ensures the UI is updated with the correct state
+          debug.log('💫 Refreshing reactions for post:', deletedInteraction.post_id);
+          
+          // Import and use the post reactions store to refresh
+          import('@/stores/postReactions').then(({ usePostReactionsStore }) => {
+            const postReactionsStore = usePostReactionsStore();
+            postReactionsStore.handleRealtimeUpdate(payload);
+          });
+          
+          // Also update counts if we have interaction type
+          if (deletedInteraction.interaction_type && deletedInteraction.user_id) {
+            this.updatePostInteractionFromRealtime(
+              deletedInteraction.post_id,
+              deletedInteraction.interaction_type,
+              'DELETE',
+              deletedInteraction.user_id
+            );
+          }
+        }
         return;
       }
 
-      // Validate required fields (only for non-DELETE events)
+      // Validate required fields (for INSERT/UPDATE events)
       if (!interaction.post_id) {
         debug.error('❌ Missing post_id in interaction:', interaction);
         return;
@@ -549,6 +614,15 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
 
       const eventType = payload.event || payload.eventType;
+      
+      // Handle emoji_reaction type specially - trigger postReactions store update
+      if (interaction.interaction_type === 'emoji_reaction') {
+        import('@/stores/postReactions').then(({ usePostReactionsStore }) => {
+          const postReactionsStore = usePostReactionsStore();
+          postReactionsStore.handleRealtimeUpdate(payload);
+        });
+      }
+      
       // Update both counts AND interaction state based on realtime events
       this.updatePostInteractionFromRealtime(
         interaction.post_id,
@@ -558,42 +632,9 @@ export const useActivityPubStore = defineStore('activitypub', {
       );
     },
 
-    /**
-     * Create notification for new follower
-     */
-    async createFollowNotification(follow: any) {
-      try {
-        // Get follower profile
-        const { data: follower } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', follow.follower_id)
-          .single();
-
-        if (!follower) return;
-
-        // Create notification
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: follow.following_id,
-            type: 'activitypub_follow',
-            data: {
-              follower_id: follow.follower_id,
-              follower_username: follower.username,
-              follower_display_name: follower.display_name,
-              follower_avatar_url: follower.avatar_url,
-              follow_id: follow.id,
-              timestamp: new Date().toISOString()
-            },
-            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
-          });
-
-        debug.log('🔔 Follow notification created');
-      } catch (error) {
-        debug.error('❌ Failed to create follow notification:', error);
-      }
-    },
+    // Note: createFollowNotification was removed - notifications are now created
+    // by the database trigger (handle_unified_notification_processing) with
+    // complete follower profile data to avoid duplicate notifications
 
     /**
      * Update post interaction counts - now uses server sync for consistency
@@ -878,19 +919,26 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Remove post from all feeds
+     * Remove post from all feeds (used by realtime and delete)
      */
     removePostFromAllFeeds(postId: string) {
+      debug.log('🗑️ Removing post from all feeds:', postId);
+      
       const feeds = [this.homeFeed, this.publicFeed, this.localFeed];
       
       feeds.forEach(feed => {
         feed.posts = feed.posts.filter(p => p.id !== postId);
       });
       
-      // Remove from user feeds
-      this.userFeeds.forEach(feed => {
-        feed.posts = feed.posts.filter(p => p.id !== postId);
+      // Remove from user feeds (properly update the map)
+      this.userFeeds.forEach((feed, key) => {
+        this.userFeeds.set(key, {
+          ...feed,
+          posts: feed.posts.filter(p => p.id !== postId)
+        });
       });
+      
+      debug.log('✅ Post removed from all feeds:', postId);
     },
 
     /**
@@ -1318,7 +1366,9 @@ export const useActivityPubStore = defineStore('activitypub', {
          sensitive: false,
          language: 'en',
          replyTo: undefined,
-         mediaAttachments: []
+         mediaAttachments: [],
+         quotePost: undefined,
+         quoteAuthor: undefined
        };
      },
 
@@ -1698,42 +1748,105 @@ export const useActivityPubStore = defineStore('activitypub', {
     },
 
     /**
-     * Get bookmarked posts
+     * Get bookmarked posts (excludes deleted posts, includes interaction states)
      */
     async getBookmarks(options: { limit?: number; cursor?: string | null } = {}) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.id) throw new Error('User not authenticated');
 
+        const profileId = currentUser.id;
         const limit = options.limit || 20;
         
+        // First, get bookmark interactions
         let query = supabase
           .from('post_interactions')
           .select(`
             created_at,
-            post:posts(
-              *,
-              author:profiles(*)
-            )
+            post_id
           `)
-          .eq('user_id', user.data.user.id)
+          .eq('user_id', profileId)
           .eq('interaction_type', 'bookmark')
           .order('created_at', { ascending: false })
-          .limit(limit);
+          .limit(limit * 2); // Fetch more to account for deleted posts
 
         if (options.cursor) {
           query = query.lt('created_at', options.cursor);
         }
 
-        const { data, error } = await query;
-        if (error) throw error;
+        const { data: bookmarkData, error: bookmarkError } = await query;
+        if (bookmarkError) throw bookmarkError;
 
-        const posts = data ? data.map(item => item.post).filter(Boolean) : [];
+        if (!bookmarkData || bookmarkData.length === 0) {
+          return { posts: [], cursor: null, hasMore: false };
+        }
+
+        const postIds = bookmarkData.map(item => item.post_id);
+
+        // Fetch posts, filtering out deleted ones
+        const { data: postsData, error: postsError } = await supabase
+          .from('posts')
+          .select(`
+            *,
+            author:profiles(*)
+          `)
+          .in('id', postIds)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false });
+
+        if (postsError) throw postsError;
+
+        // Fetch user's interactions with these posts
+        const { data: userInteractions, error: interactionsError } = await supabase
+          .from('post_interactions')
+          .select('post_id, interaction_type')
+          .eq('user_id', profileId)
+          .in('post_id', postIds)
+          .in('interaction_type', ['favorite', 'reblog', 'bookmark']);
+
+        if (interactionsError) {
+          debug.error('Failed to fetch user interactions:', interactionsError);
+        }
+
+        // Create a map of interactions per post
+        const interactionMap = new Map<string, Set<string>>();
+        (userInteractions || []).forEach(interaction => {
+          if (!interactionMap.has(interaction.post_id)) {
+            interactionMap.set(interaction.post_id, new Set());
+          }
+          interactionMap.get(interaction.post_id)!.add(interaction.interaction_type);
+        });
+
+        // Map posts to maintain bookmark order and add interaction states
+        const postsMap = new Map((postsData || []).map(p => [p.id, p]));
+        const orderedPosts = bookmarkData
+          .map(item => {
+            const post = postsMap.get(item.post_id);
+            if (!post) return null;
+            
+            // Add interaction states
+            const interactions = interactionMap.get(post.id) || new Set();
+            return {
+              ...post,
+              is_favorited: interactions.has('favorite'),
+              is_reblogged: interactions.has('reblog'),
+              is_bookmarked: interactions.has('bookmark') // Should always be true for bookmarks
+            };
+          })
+          .filter(Boolean)
+          .slice(0, limit);
+        
+        // Find the cursor from the last included bookmark
+        const lastIncludedIndex = bookmarkData.findIndex(
+          item => item.post_id === orderedPosts[orderedPosts.length - 1]?.id
+        );
+        const cursor = lastIncludedIndex >= 0 ? bookmarkData[lastIncludedIndex].created_at : null;
         
         return {
-          posts,
-          cursor: posts.length > 0 ? data[data.length - 1].created_at : null,
-          hasMore: posts.length === limit
+          posts: orderedPosts,
+          cursor,
+          hasMore: orderedPosts.length === limit && bookmarkData.length > lastIncludedIndex + 1
         };
       } catch (error) {
         debug.error('Failed to get bookmarks:', error);
@@ -1810,14 +1923,17 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async toggleReblog(postId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        if (!currentUser?.id) throw new Error('User not authenticated');
+
+        const profileId = currentUser.id;
 
         // Check if we already have a reblog interaction for this post
         const { data: existingInteraction, error: interactionError } = await supabase
           .from('post_interactions')
           .select('id')
-          .eq('user_id', user.data.user.id)
+          .eq('user_id', profileId)
           .eq('post_id', postId)
           .eq('interaction_type', 'reblog')
           .maybeSingle();
@@ -1829,18 +1945,18 @@ export const useActivityPubStore = defineStore('activitypub', {
         const isReblogged = !!existingInteraction;
 
         if (existingInteraction) {
-          // Remove reblog interaction and reblog post using service method
+          // Remove reblog interaction and reblog post
           const { data: reblogPost } = await supabase
             .from('posts')
             .select('id')
-            .eq('author_id', user.data.user.id)
+            .eq('author_id', profileId)
             .eq('metadata->>reblog_of', postId)
             .maybeSingle();
 
           if (reblogPost) {
             await activityPubService.unreblogPost(reblogPost.id);
-            // Remove reblog from our feeds
-            this.removePostFromFeeds(reblogPost.id);
+            // Remove ONLY the reblog post from our feeds, NOT the original
+            this.removePostFromAllFeeds(reblogPost.id);
           }
 
           // Remove the interaction record
@@ -1849,20 +1965,21 @@ export const useActivityPubStore = defineStore('activitypub', {
             .delete()
             .eq('id', existingInteraction.id);
 
+          // Update UI immediately - don't wait for realtime
+          this.updatePostInteractionState(postId, 'reblog', false);
+
           // Federation is handled automatically by database triggers
         } else {
           // Use service method for reblog (which creates both interaction and reblog post)
           const result = await activityPubService.toggleReblog(postId);
           
-          // Don't add to feeds immediately - let realtime handle it
-          // This prevents showing both the original post and reblog immediately
-          // The realtime system will properly add the reblog post to feeds
+          // Update UI immediately
+          this.updatePostInteractionState(postId, 'reblog', true);
 
           // Federation is handled automatically by database triggers
         }
 
-        // Don't update UI state here - let realtime handle it to avoid double updates
-        debug.log(`📍 Toggled reblog for post ${postId}: ${isReblogged} -> ${!isReblogged} (realtime will update UI)`);
+        debug.log(`📍 Toggled reblog for post ${postId}: ${isReblogged} -> ${!isReblogged}`);
 
       } catch (error) {
         debug.error('Failed to toggle reblog:', error);
@@ -1875,8 +1992,15 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async deletePost(postId: string) {
       try {
-        const user = await supabase.auth.getUser();
-        if (!user.data.user) throw new Error('User not authenticated');
+        // Get profile ID directly from userDataService - no extra DB query needed!
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        
+        if (!currentUser?.id) {
+          throw new Error('User not authenticated or profile not loaded');
+        }
+
+        const profileId = currentUser.id;
 
         // Get the post to verify ownership
         const { data: postData, error: fetchError } = await supabase
@@ -1888,7 +2012,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             )
           `)
           .eq('id', postId)
-          .eq('author_id', user.data.user.id)
+          .eq('author_id', profileId)
           .single();
 
         if (fetchError) throw fetchError;
@@ -1902,36 +2026,33 @@ export const useActivityPubStore = defineStore('activitypub', {
             deleted_at: new Date().toISOString() 
           })
           .eq('id', postId)
-          .eq('author_id', user.data.user.id);
+          .eq('author_id', profileId);
 
         if (deleteError) throw deleteError;
 
         // Federation is handled automatically by database triggers
 
         // Remove from local feeds
-        this.removePostFromFeeds(postId);
+        this.removePostFromAllFeeds(postId);
 
       } catch (error) {
         debug.error('Failed to delete post:', error);
         throw error;
       }
     },
-
+    
     /**
-     * Remove post from all feeds
+     * Remove reblog from feeds (when un-reblogging)
      */
-    removePostFromFeeds(postId: string) {
-      // Remove from home feed
-      this.homeFeed.posts = this.homeFeed.posts.filter(p => p.id !== postId);
+    removeReblogFromFeeds(originalPostId: string, rebloggerId: string) {
+      debug.log('🗑️ Removing reblog from feeds:', { originalPostId, rebloggerId });
       
-      // Remove from public feed
-      this.publicFeed.posts = this.publicFeed.posts.filter(p => p.id !== postId);
+      const filterReblog = (posts: TimelinePost[]) => 
+        posts.filter(p => !(p.reblog?.id === originalPostId && p.author_id === rebloggerId));
       
-      // Remove from local feed
-      this.localFeed.posts = this.localFeed.posts.filter(p => p.id !== postId);
-      
-      // Remove from user feeds
-      this.userFeeds.forEach(feed => feed.posts.filter(p => p.id !== postId));
+      this.homeFeed.posts = filterReblog(this.homeFeed.posts);
+      this.publicFeed.posts = filterReblog(this.publicFeed.posts);
+      this.localFeed.posts = filterReblog(this.localFeed.posts);
     },
 
          /**

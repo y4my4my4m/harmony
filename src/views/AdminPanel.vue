@@ -384,17 +384,29 @@
             </button>
           </div>
           <div class="users-list">
-            <div v-for="user in filteredUsers" :key="user.id" class="user-item">
+            <div 
+              v-for="user in filteredUsers" 
+              :key="user.id" 
+              class="user-item"
+              :class="{ 'user-suspended': user.is_suspended }"
+            >
               <Avatar 
                 :src="user.avatar_url" 
                 :alt="user.display_name || user.username"
                 size="md"
               />
               <div class="user-info">
-                <div class="user-name">{{ user.display_name || user.username }}</div>
+                <div class="user-name">
+                  {{ user.display_name || user.username }}
+                  <span v-if="user.is_suspended" class="badge suspended">Suspended</span>
+                  <span v-if="user.is_admin" class="badge admin">Admin</span>
+                </div>
                 <div class="user-meta">
                   {{ user.handle }}
                   <span class="user-joined">Joined {{ formatDate(user.created_at) }}</span>
+                  <span v-if="user.is_suspended && user.suspension_reason" class="suspension-reason">
+                    — {{ user.suspension_reason }}
+                  </span>
                 </div>
               </div>
               <div class="user-stats">
@@ -402,7 +414,7 @@
                   {{ user.postCount }} posts
                 </button>
                 <button 
-                  v-if="!user.is_local" 
+                  v-if="user.is_local" 
                   @click="navigateToUserServers(user)" 
                   class="user-stat clickable"
                 >
@@ -411,10 +423,27 @@
                 <span v-else class="user-stat">federated</span>
               </div>
               <div class="user-actions">
-                <button @click="moderateUser(user, 'suspend')" class="mod-btn suspend-btn">
+                <button 
+                  v-if="user.is_suspended"
+                  @click="moderateUser(user, 'unsuspend')" 
+                  class="mod-btn unsuspend-btn"
+                  title="Unsuspend user"
+                >
+                  <Icon name="check" :size="16" />
+                </button>
+                <button 
+                  v-else
+                  @click="moderateUser(user, 'suspend')" 
+                  class="mod-btn suspend-btn"
+                  title="Suspend user"
+                >
                   <Icon name="suspend" :size="16" />
                 </button>
-                <button @click="moderateUser(user, 'delete')" class="mod-btn delete-btn">
+                <button 
+                  @click="moderateUser(user, 'delete')" 
+                  class="mod-btn delete-btn"
+                  title="Delete user"
+                >
                   <Icon name="delete" :size="16" />
                 </button>
               </div>
@@ -557,6 +586,75 @@
         </div>
       </div>
     </div>
+
+    <!-- User Servers Modal -->
+    <Teleport to="body">
+      <div v-if="showServersModal" class="modal-overlay" @click.self="closeServersModal">
+        <div class="modal-content servers-modal">
+          <div class="modal-header">
+            <h3>
+              <Icon name="server" :size="20" />
+              Servers for {{ selectedUserForServers?.display_name || selectedUserForServers?.username }}
+            </h3>
+            <button @click="closeServersModal" class="close-btn">
+              <Icon name="close" :size="20" />
+            </button>
+          </div>
+          <div class="modal-body">
+            <div v-if="loadingServers" class="loading-state">
+              <div class="loading-spinner"></div>
+              <span>Loading servers...</span>
+            </div>
+            <div v-else-if="userServers.length === 0" class="empty-state">
+              <Icon name="server" :size="32" />
+              <p>This user is not a member of any servers.</p>
+            </div>
+            <div v-else class="servers-list">
+              <div 
+                v-for="server in userServers" 
+                :key="server.id" 
+                class="server-item"
+              >
+                <div class="server-icon">
+                  <img 
+                    v-if="server.icon_url" 
+                    :src="getServerIconUrl(server.icon_url)" 
+                    :alt="server.name"
+                  />
+                  <div v-else class="server-icon-placeholder">
+                    {{ server.name.charAt(0).toUpperCase() }}
+                  </div>
+                </div>
+                <div class="server-info">
+                  <div class="server-name">
+                    {{ server.name }}
+                    <span v-if="server.is_owner" class="badge owner">Owner</span>
+                  </div>
+                  <div class="server-meta">
+                    <span class="member-count">
+                      <Icon name="users" :size="12" />
+                      {{ server.member_count }} members
+                    </span>
+                    <span class="join-date">
+                      Joined {{ formatDate(server.joined_at) }}
+                    </span>
+                  </div>
+                </div>
+                <div class="server-actions">
+                  <button 
+                    @click="navigateToServer(server.id)" 
+                    class="action-btn-sm"
+                    title="View server"
+                  >
+                    <Icon name="arrow-right" :size="14" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -568,6 +666,7 @@ import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import { adminService, type SystemStats, type SystemHealth, type AdminUser, type AdminActivity, type BlockedInstance, type FederatedInstance, type InstanceStats, type InstanceSearchResult } from '@/services/AdminService'
+import { getServerIconUrl } from '@/utils/serverUtils'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -624,6 +723,20 @@ const loadingStates = ref({
   instances: false,
   discovering: false
 })
+
+// User servers modal
+const showServersModal = ref(false)
+const selectedUserForServers = ref<AdminUser | null>(null)
+const userServers = ref<{
+  id: string;
+  name: string;
+  icon_url: string | null;
+  member_count: number;
+  owner_id: string;
+  is_owner: boolean;
+  joined_at: string;
+}[]>([])
+const loadingServers = ref(false)
 
 // Pagination for instances
 const instancePagination = ref({
@@ -932,7 +1045,26 @@ const moderateUser = async (user: any, action: string) => {
       
       // Refresh user list
       await loadUsers()
+      await loadRecentActivity()
       debug.log(`User ${user.username} suspended`)
+      alert(`User ${user.username} has been suspended.`)
+    } else if (action === 'unsuspend') {
+      if (!confirm(`Are you sure you want to unsuspend user ${user.username}?`)) {
+        return
+      }
+
+      await adminService.moderateUser(
+        user.id,
+        'unsuspend',
+        'Admin unsuspend',
+        authStore.session?.user?.id || ''
+      )
+      
+      // Refresh user list
+      await loadUsers()
+      await loadRecentActivity()
+      debug.log(`User ${user.username} unsuspended`)
+      alert(`User ${user.username} has been unsuspended.`)
     } else if (action === 'delete') {
       if (!confirm(`Are you sure you want to delete user ${user.username}? This cannot be undone.`)) {
         return
@@ -947,11 +1079,13 @@ const moderateUser = async (user: any, action: string) => {
       
       // Refresh user list
       await loadUsers()
+      await loadRecentActivity()
       debug.log(`User ${user.username} deleted`)
+      alert(`User ${user.username} has been deleted.`)
     }
-  } catch (error) {
+  } catch (error: any) {
     debug.error('Failed to moderate user:', error)
-    alert('Failed to moderate user. Check console for details.')
+    alert(`Failed to ${action} user: ${error.message || 'Unknown error'}`)
   }
 }
 
@@ -964,11 +1098,31 @@ const navigateToUserPosts = (user: any) => {
   }
 }
 
-const navigateToUserServers = (user: any) => {
-  // For local users, could show a modal with their servers
-  // For now, just log it
-  debug.log(`Viewing servers for user ${user.username}`)
-  // TODO: Implement server list modal
+const navigateToUserServers = async (user: AdminUser) => {
+  // Open modal and load user's servers
+  selectedUserForServers.value = user
+  showServersModal.value = true
+  loadingServers.value = true
+  
+  try {
+    userServers.value = await adminService.getUserServers(user.id)
+  } catch (error) {
+    debug.error('Failed to load user servers:', error)
+    userServers.value = []
+  } finally {
+    loadingServers.value = false
+  }
+}
+
+const closeServersModal = () => {
+  showServersModal.value = false
+  selectedUserForServers.value = null
+  userServers.value = []
+}
+
+const navigateToServer = (serverId: string) => {
+  closeServersModal()
+  router.push(`/chat/${serverId}`)
 }
 
 const saveConfig = async () => {
@@ -2022,6 +2176,7 @@ const handleAddInstance = () => {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   transition: all 0.2s ease;
+  margin: 8px 0;
 }
 
 .user-item:hover {
@@ -2098,6 +2253,56 @@ const handleAddInstance = () => {
 .delete-btn:hover {
   border-color: #ff453a;
   color: #ff453a;
+}
+
+.unsuspend-btn {
+  border-color: rgba(0, 255, 136, 0.3);
+  color: #00ff88;
+}
+
+.unsuspend-btn:hover {
+  border-color: #00ff88;
+  background: rgba(0, 255, 136, 0.1);
+}
+
+/* Suspended user styling */
+.user-item.user-suspended {
+  opacity: 0.25;
+  background: rgba(255, 193, 7, 0.05);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+.user-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-name .badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge.suspended {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.badge.admin {
+  background: rgba(0, 212, 255, 0.2);
+  color: #00d4ff;
+}
+
+.suspension-reason {
+  font-style: italic;
+  color: #ffc107;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Health Module */
@@ -2308,6 +2513,160 @@ const handleAddInstance = () => {
   .user-actions {
     align-self: flex-end;
   }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.05), rgba(0, 255, 136, 0.05));
+}
+
+.modal-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.servers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.server-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.server-item:hover {
+  border-color: var(--accent-color);
+}
+
+.server-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.server-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.server-icon-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 255, 136, 0.2));
+  color: var(--accent-color);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.server-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.server-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge.owner {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.server-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.member-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.server-actions {
+  flex-shrink: 0;
 }
 
 /* Dark theme variables (these should be in your global CSS) */

@@ -1,5 +1,5 @@
 <template>
-  <BaseModal :show="true" @close="$emit('close')" class="instance-detail-modal">
+  <BaseModal :show="true" :show-header="false" @close="$emit('close')" class="instance-detail-modal">
     <div class="modal-header">
       <div class="instance-header">
         <div class="instance-icon">
@@ -101,9 +101,16 @@
       </div>
 
       <!-- Recent Activity -->
-      <div class="activity-section" v-if="recentPosts.length > 0">
+      <div class="activity-section">
         <h3 class="section-title">Recent Posts</h3>
-        <div class="recent-posts">
+        
+        <!-- Loading state -->
+        <div v-if="isLoadingPosts" class="loading-posts">
+          <span>Loading posts...</span>
+        </div>
+        
+        <!-- Posts list -->
+        <div v-else-if="recentPosts.length > 0" class="recent-posts">
           <div
             v-for="post in recentPosts"
             :key="post.id"
@@ -111,8 +118,8 @@
             @click="viewPost(post)"
           >
             <div class="post-author">
-              <img :src="post.author.avatar_url || '/default_avatar.png'" :alt="post.author.display_name" class="author-avatar" />
-              <span class="author-name">{{ post.author.display_name || post.author.username }}</span>
+              <img :src="post.author?.avatar_url || '/default_avatar.png'" :alt="post.author?.display_name" class="author-avatar" />
+              <span class="author-name">{{ post.author?.display_name || post.author?.username || 'Unknown' }}</span>
             </div>
             <div class="post-content">
               {{ getPostText(post.content) }}
@@ -125,6 +132,11 @@
               </div>
             </div>
           </div>
+        </div>
+        
+        <!-- Empty state -->
+        <div v-else class="no-posts">
+          <p>No recent posts from this instance</p>
         </div>
       </div>
     </div>
@@ -249,35 +261,21 @@ const getPostText = (content: any): string => {
 const loadRecentPosts = async () => {
   isLoadingPosts.value = true;
   try {
-    // TODO: Implement API call to get recent posts from this instance
-    // For now, use mock data
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Import the service dynamically
+    const { activityPubService } = await import('@/services/activityPubService');
     
-    recentPosts.value = [
-      {
-        id: 'post-1',
-        content: [{ type: 'text', text: 'Hello from ' + props.instance.domain + '! 👋' }],
-        created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        author: {
-          id: 'user-1',
-          username: 'admin',
-          domain: props.instance.domain,
-          handle: `@admin@${props.instance.domain}`,
-          display_name: 'Instance Admin',
-          avatar_url: '/default_avatar.png',
-          is_local: false
-        },
-        visibility: 'public',
-        favorites_count: 5,
-        reblogs_count: 2,
-        replies_count: 1,
-        is_favorited: false,
-        is_reblogged: false,
-        media_attachments: []
-      }
-    ];
+    // Try to get real posts from this instance
+    const result = await activityPubService.getInstanceActivity(props.instance.domain, { limit: 3 });
+    
+    if (result.posts && result.posts.length > 0) {
+      recentPosts.value = result.posts;
+    } else {
+      // No posts found, leave empty
+      recentPosts.value = [];
+    }
   } catch (error) {
     debug.error('Failed to load recent posts:', error);
+    recentPosts.value = [];
   } finally {
     isLoadingPosts.value = false;
   }
@@ -510,6 +508,14 @@ onMounted(() => {
 
 .activity-section {
   margin-bottom: 16px;
+}
+
+.loading-posts,
+.no-posts {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .recent-posts {
