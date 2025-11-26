@@ -92,8 +92,48 @@ export class MegolmService {
     
     await this.loadSessionsFromDB()
 
+    // Migration: ensure all outbound sessions also have inbound copies
+    // This handles existing users who have outbound sessions but no inbound copies
+    await this.migrateOutboundToInbound()
+
     this.initialized = true
     console.log(`✅ MegolmService initialized: db=${!!this.db}, encryptionKey=${!!this.encryptionKey}, userId=${this.userId}`)
+  }
+
+  /**
+   * Migration: Copy outbound sessions to inbound sessions
+   * 
+   * This ensures users who had sessions before this fix can still decrypt
+   * their own old messages. In the Matrix/Element model, all sessions
+   * (including your own) are stored as inbound for consistent lookup.
+   */
+  private async migrateOutboundToInbound(): Promise<void> {
+    if (!this.userId) return
+
+    let migratedCount = 0
+    for (const [roomId, outbound] of this.outboundSessions) {
+      const key = `${roomId}:${this.userId}:${outbound.sessionId}`
+      
+      // Only migrate if we don't already have this as inbound
+      if (!this.inboundSessions.has(key)) {
+        const inbound: MegolmInboundSession = {
+          sessionId: outbound.sessionId,
+          roomId: outbound.roomId,
+          senderUserId: this.userId,
+          sessionKey: outbound.sessionKey,
+          firstKnownIndex: 0,
+          createdAt: outbound.createdAt
+        }
+        
+        this.inboundSessions.set(key, inbound)
+        await this.saveInboundSession(inbound)
+        migratedCount++
+      }
+    }
+
+    if (migratedCount > 0) {
+      console.log(`🔄 Migrated ${migratedCount} outbound sessions to inbound (for self-decryption)`)
+    }
   }
 
   private async openDatabase(): Promise<void> {
@@ -195,6 +235,10 @@ export class MegolmService {
 
   /**
    * Create a new outbound session for a room
+   * 
+   * IMPORTANT: We also store a copy as an inbound session (from ourselves).
+   * This is the Matrix/Element approach - it ensures we can always decrypt our
+   * own messages even after session rotation, because we look up by sessionId.
    */
   private async createOutboundSession(roomId: string): Promise<MegolmOutboundSession> {
     // Generate session key material (32 bytes for AES-256)
@@ -223,6 +267,19 @@ export class MegolmService {
     // Save to IndexedDB
     console.log(`💾 Attempting to save session to IndexedDB... (db=${!!this.db}, key=${!!this.encryptionKey})`)
     await this.saveOutboundSession(session)
+    
+    // CRITICAL: Also store as inbound session (for decrypting our own messages later)
+    // This is how Matrix/Element works - all sessions are stored as inbound for lookup by sessionId
+    if (this.userId) {
+      await this.importInboundSession(
+        roomId,
+        this.userId,
+        sessionId,
+        sessionKey,
+        0 // firstKnownIndex
+      )
+      console.log(`📥 Also stored as inbound session (for own message decryption)`)
+    }
     
     return session
   }
@@ -295,6 +352,33 @@ export class MegolmService {
     return this.inboundSessions.has(key)
   }
 
+  /**
+   * Find an inbound session by sessionId only (searches all senders)
+   * Useful for fallback when we don't know the exact sender
+   */
+  findInboundSessionBySessionId(roomId: string, sessionId: string): MegolmInboundSession | undefined {
+    // Look for any inbound session with matching roomId and sessionId
+    for (const [key, session] of this.inboundSessions) {
+      if (session.roomId === roomId && session.sessionId === sessionId) {
+        return session
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Get all inbound sessions for a room (for debugging/diagnostics)
+   */
+  getInboundSessionsForRoom(roomId: string): MegolmInboundSession[] {
+    const sessions: MegolmInboundSession[] = []
+    for (const [_, session] of this.inboundSessions) {
+      if (session.roomId === roomId) {
+        sessions.push(session)
+      }
+    }
+    return sessions
+  }
+
   // =====================================================
   // ENCRYPTION / DECRYPTION
   // =====================================================
@@ -337,60 +421,62 @@ export class MegolmService {
   }
 
   /**
-   * Decrypt a message using appropriate session
-   * - For own messages: use outbound session
-   * - For others' messages: use inbound session
+   * Decrypt a message using inbound session (Matrix/Element approach)
+   * 
+   * ALL messages (including our own) are decrypted using inbound sessions.
+   * This works because when we create an outbound session, we also store it
+   * as an inbound session from ourselves. This ensures we can decrypt old
+   * messages even after session rotation.
+   * 
+   * Lookup is by sessionId, which is preserved forever.
    */
   async decryptMessage(
     roomId: string,
     senderUserId: string,
     encryptedMessage: MegolmEncryptedMessage
   ): Promise<string> {
-    let sessionKey: string
-
-    // Check if this is our own message
-    if (senderUserId === this.userId) {
-      // Use our outbound session for our own messages
-      console.log(`🔓 Looking for outbound session for room ${roomId}`)
-      console.log(`   Available rooms: [${Array.from(this.outboundSessions.keys()).join(', ')}]`)
-      
+    // Always use inbound session lookup (this works for both own and others' messages)
+    // Own messages work because createOutboundSession also saves as inbound
+    console.log(`🔓 Looking for inbound session ${encryptedMessage.sessionId.substring(0, 8)}... from ${senderUserId.substring(0, 8)}...`)
+    
+    let inboundSession = this.getInboundSession(roomId, senderUserId, encryptedMessage.sessionId)
+    
+    // Fallback: for own messages, also try the current outbound session if inbound not found
+    // (handles edge case during migration when old outbound sessions weren't stored as inbound)
+    if (!inboundSession && senderUserId === this.userId) {
       const outboundSession = this.outboundSessions.get(roomId)
-      
-      if (!outboundSession) {
-        console.log(`❌ No outbound session found for room ${roomId}`)
-        throw new Error(`No outbound session found for room ${roomId}`)
+      if (outboundSession && outboundSession.sessionId === encryptedMessage.sessionId) {
+        console.log(`🔓 Using current outbound session as fallback`)
+        // Also save it as inbound for future lookups
+        await this.importInboundSession(
+          roomId,
+          this.userId,
+          outboundSession.sessionId,
+          outboundSession.sessionKey,
+          0
+        )
+        inboundSession = this.getInboundSession(roomId, senderUserId, encryptedMessage.sessionId)
       }
-      
-      console.log(`   Found session: ${outboundSession.sessionId}`)
-      console.log(`   Message wants: ${encryptedMessage.sessionId}`)
-      console.log(`   Match: ${outboundSession.sessionId === encryptedMessage.sessionId}`)
-      
-      if (outboundSession.sessionId !== encryptedMessage.sessionId) {
-        // Session might have rotated - the message was encrypted with an old session
-        console.log(`⚠️ Session ID mismatch - message was encrypted with a different/rotated session`)
-        throw new Error(`Session rotated - old session ${encryptedMessage.sessionId} no longer available`)
-      }
-      
-      sessionKey = outboundSession.sessionKey
-      console.log(`🔓 Decrypting own message with outbound session`)
-    } else {
-      // Use inbound session for others' messages
-      const inboundSession = this.getInboundSession(roomId, senderUserId, encryptedMessage.sessionId)
-      
-      if (!inboundSession) {
-        throw new Error(`No inbound session found for session ${encryptedMessage.sessionId}`)
-      }
-      
-      if (encryptedMessage.messageIndex < inboundSession.firstKnownIndex) {
-        throw new Error(`Message index ${encryptedMessage.messageIndex} is before first known index ${inboundSession.firstKnownIndex}`)
-      }
-      
-      sessionKey = inboundSession.sessionKey
-      console.log(`🔓 Decrypting message from ${senderUserId.substring(0, 8)}... with inbound session`)
     }
+    
+    if (!inboundSession) {
+      console.log(`❌ No session found for ${encryptedMessage.sessionId}`)
+      console.log(`   Available inbound sessions: ${this.inboundSessions.size}`)
+      // Log what sessions we have for this room
+      const roomSessions = Array.from(this.inboundSessions.keys())
+        .filter(k => k.startsWith(roomId))
+      console.log(`   Sessions for this room: [${roomSessions.map(k => k.split(':').pop()?.substring(0, 8)).join(', ')}]`)
+      throw new Error(`No inbound session found for session ${encryptedMessage.sessionId}`)
+    }
+    
+    if (encryptedMessage.messageIndex < inboundSession.firstKnownIndex) {
+      throw new Error(`Message index ${encryptedMessage.messageIndex} is before first known index ${inboundSession.firstKnownIndex}`)
+    }
+    
+    console.log(`🔓 Decrypting with inbound session from ${senderUserId.substring(0, 8)}...`)
 
     // Derive the ratchet key for this message index
-    const ratchetKey = await this.deriveRatchetKey(sessionKey, encryptedMessage.messageIndex)
+    const ratchetKey = await this.deriveRatchetKey(inboundSession.sessionKey, encryptedMessage.messageIndex)
 
     // Decode the ciphertext
     const combined = this.base64ToArrayBuffer(encryptedMessage.ciphertext)
@@ -505,6 +591,9 @@ export class MegolmService {
 
   /**
    * Import sessions from backup (MERGES with existing, doesn't clear)
+   * 
+   * Also creates inbound copies of outbound sessions (Matrix/Element approach)
+   * to ensure self-decryption works for historical messages.
    */
   async importAllSessions(data: {
     outbound: MegolmOutboundSession[]
@@ -528,6 +617,25 @@ export class MegolmService {
         this.outboundSessions.set(session.roomId, session)
         await this.saveOutboundSession(session)
         console.log(`  - Imported outbound session for room ${session.roomId.substring(0, 8)}...`)
+      }
+      
+      // MIGRATION: Also create inbound copy for self-decryption
+      // This handles backups created before the Matrix-style fix
+      if (this.userId) {
+        const inboundKey = `${session.roomId}:${this.userId}:${session.sessionId}`
+        if (!this.inboundSessions.has(inboundKey)) {
+          const inbound: MegolmInboundSession = {
+            sessionId: session.sessionId,
+            roomId: session.roomId,
+            senderUserId: this.userId,
+            sessionKey: session.sessionKey,
+            firstKnownIndex: 0,
+            createdAt: session.createdAt
+          }
+          this.inboundSessions.set(inboundKey, inbound)
+          await this.saveInboundSession(inbound)
+          console.log(`  - Created inbound copy for self-decryption`)
+        }
       }
     }
 
