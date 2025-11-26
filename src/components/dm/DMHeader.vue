@@ -170,6 +170,18 @@
             <span>Notification Settings</span>
           </button>
           
+          <!-- Encryption Toggle -->
+          <button 
+            class="action-item"
+            @click="toggleEncryption"
+            :disabled="!canToggleEncryption"
+            :title="encryptionToggleTitle"
+          >
+            <Icon :name="encryptionEnabled ? 'lock' : 'unlock'" :size="16" />
+            <span>{{ encryptionEnabled ? 'Encryption On' : 'Encryption Off' }}</span>
+            <span v-if="encryptionLoading" class="loading-indicator">...</span>
+          </button>
+          
           <div class="menu-separator"></div>
           
           <!-- Leave Group (only for group chats) -->
@@ -232,6 +244,7 @@ import { useToast } from 'vue-toastification'
 import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 import { dmCallPermissions } from '@/services/DMCallPermissions'
 import { userDataService } from '@/services/userDataService'
+import { supabase } from '@/supabase'
 
 const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
@@ -286,6 +299,85 @@ const optionsMenuRef = ref<HTMLElement>()
 
 // Group chat state
 const showGroupSettings = ref(false)
+
+// Encryption state
+const encryptionEnabled = ref(false)
+const encryptionLoading = ref(false)
+const userHasEncryption = ref(false)
+
+// Check if user can toggle encryption (needs to have encryption set up)
+const canToggleEncryption = computed(() => userHasEncryption.value && !encryptionLoading.value)
+const encryptionToggleTitle = computed(() => {
+  if (!userHasEncryption.value) return 'Set up encryption in settings first'
+  return encryptionEnabled.value ? 'Click to disable encryption' : 'Click to enable encryption'
+})
+
+// Load encryption status
+async function loadEncryptionStatus() {
+  try {
+    // Check if user has encryption set up
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+    userHasEncryption.value = megolmMessageEncryptionService.isUnlocked()
+    console.log('🔐 User has encryption:', userHasEncryption.value)
+    
+    // Check conversation encryption setting
+    const { data } = await supabase
+      .from('conversation_encryption_settings')
+      .select('encryption_enabled')
+      .eq('conversation_id', props.conversation.id)
+      .maybeSingle()
+    
+    encryptionEnabled.value = data?.encryption_enabled === true
+    console.log('🔐 Conversation encryption enabled:', encryptionEnabled.value)
+  } catch (error) {
+    console.warn('Failed to load encryption status:', error)
+  }
+}
+
+// Toggle encryption for this conversation
+async function toggleEncryption() {
+  console.log('🔐 Toggle encryption clicked')
+  console.log('🔐 canToggleEncryption:', canToggleEncryption.value)
+  console.log('🔐 userHasEncryption:', userHasEncryption.value)
+  
+  if (!canToggleEncryption.value) {
+    console.log('🔐 Cannot toggle - user does not have encryption set up')
+    toast.warning('Set up encryption in settings first to enable encrypted DMs')
+    closeActionsMenu()
+    return
+  }
+  
+  encryptionLoading.value = true
+  try {
+    const newState = !encryptionEnabled.value
+    console.log('🔐 Setting encryption to:', newState)
+    
+    // Upsert the setting
+    const { error } = await supabase
+      .from('conversation_encryption_settings')
+      .upsert({
+        conversation_id: props.conversation.id,
+        encryption_enabled: newState,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'conversation_id'
+      })
+    
+    if (error) {
+      console.error('🔐 Supabase error:', error)
+      throw error
+    }
+    
+    encryptionEnabled.value = newState
+    toast.success(newState ? 'Encryption enabled for this conversation' : 'Encryption disabled for this conversation')
+    closeActionsMenu()
+  } catch (error) {
+    console.error('Failed to toggle encryption:', error)
+    toast.error('Failed to update encryption setting')
+  } finally {
+    encryptionLoading.value = false
+  }
+}
 
 // Methods
 function handleGroupUpdated() {
@@ -425,9 +517,19 @@ const unsubscribeFromCallSignals = () => {
 onMounted(() => {
   initializePresenceTracking()
   subscribeToCallSignals()
+  loadEncryptionStatus()
 })
 
-// Watch for conversation changes to update presence tracking
+// Watch for conversation changes to update presence tracking and encryption
+watch(
+  () => props.conversation.id,
+  async (newId, oldId) => {
+    if (newId !== oldId) {
+      loadEncryptionStatus()
+    }
+  }
+)
+
 watch(
   () => props.conversation.other_user?.id,
   async (newUserId, oldUserId) => {

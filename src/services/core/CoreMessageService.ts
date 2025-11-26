@@ -217,8 +217,18 @@ export class CoreMessageService {
       let encrypted = false
       let encryptionMetadata = null
 
+      // Check if conversation has encryption enabled
+      const { data: convSettings } = await supabase
+        .from('conversation_encryption_settings')
+        .select('encryption_enabled')
+        .eq('conversation_id', conversationId)
+        .maybeSingle()
+
+      const conversationEncryptionEnabled = convSettings?.encryption_enabled === true
+      console.log(`🔐 Conversation encryption setting: ${conversationEncryptionEnabled ? 'enabled' : 'disabled'}`)
+
       const encryptionService = await getEncryptionService()
-      if (encryptionService && encryptionService.isInitialized()) {
+      if (conversationEncryptionEnabled && encryptionService && encryptionService.isInitialized()) {
         try {
           // Check if sender has recovery key set up and encryption unlocked
           const hasRecoveryKey = await encryptionService.hasRecoveryKey()
