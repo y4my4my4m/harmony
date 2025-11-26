@@ -84,9 +84,18 @@ export class MegolmMessageEncryptionService {
       this.currentUserId = authUserId
     }
 
-    // Initialize backup service
+    // Initialize backup service (includes realtime key request subscriptions)
     if (this.currentUserId) {
       await megolmKeyBackupService.initialize(this.currentUserId)
+      
+      // Register callback for when keys are received via realtime
+      megolmKeyBackupService.onKeyReceived((roomId, sessionId) => {
+        console.log(`🔑 Key received for room ${roomId.substring(0, 8)}..., session ${sessionId.substring(0, 8)}...`)
+        // Emit event for UI to retry decryption
+        window.dispatchEvent(new CustomEvent('megolm-key-received', { 
+          detail: { roomId, sessionId } 
+        }))
+      })
     }
 
     this.initialized = true
@@ -137,6 +146,13 @@ export class MegolmMessageEncryptionService {
         }
       } catch (error) {
         // Ignore backup restore errors during auto-unlock
+      }
+
+      // Process any pending key requests to us (from while we were offline)
+      try {
+        await megolmKeyBackupService.processPendingRequestsToMe()
+      } catch (error) {
+        // Ignore errors during auto-unlock
       }
 
       console.log('✅ Auto-unlocked encryption from stored session')
@@ -206,6 +222,16 @@ export class MegolmMessageEncryptionService {
       }
     } catch (error) {
       console.warn('⚠️ Failed to claim pending session shares:', error)
+    }
+
+    // Process any pending key requests to us (from while we were offline)
+    try {
+      const fulfilledCount = await megolmKeyBackupService.processPendingRequestsToMe()
+      if (fulfilledCount > 0) {
+        console.log(`📤 Fulfilled ${fulfilledCount} pending key requests`)
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to process pending key requests:', error)
     }
 
     // Store session for auto-unlock on page refresh
@@ -509,11 +535,12 @@ export class MegolmMessageEncryptionService {
           }
         }
         
-        // No shares available - request the key
-        console.log('📤 Requesting session key from sender...')
-        megolmKeyBackupService.createKeyRequest(roomId, sessionId)
+        // No shares available - request the key from the sender
+        // The sender will receive this via realtime and auto-fulfill if they have the key
+        console.log(`📤 Requesting session key from sender ${senderId.substring(0, 8)}...`)
+        megolmKeyBackupService.createKeyRequest(roomId, sessionId, senderId)
           .catch(err => console.warn('⚠️ Key request failed:', err))
-        throw new Error('Session key not available - key request sent')
+        throw new Error('Session key not available - key request sent to sender')
       }
       throw error
     }

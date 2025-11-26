@@ -1,7 +1,8 @@
 /**
  * Megolm Key Backup Service
  * 
- * Handles server-side encrypted backup of Megolm session keys.
+ * Handles server-side encrypted backup of Megolm session keys AND
+ * realtime key request/fulfillment for cross-device key sharing.
  * 
  * Security Model:
  * - All session keys are encrypted with user's recovery key before upload
@@ -12,11 +13,34 @@
  * - Stored in database table `megolm_key_backups`
  * - Each user has one backup that gets updated as sessions are created
  * - Backup is automatically updated when new sessions are created
+ * 
+ * Realtime Key Requests (NEW):
+ * - When a user can't decrypt a message, they create a key request
+ * - The sender receives this request via realtime subscription
+ * - Sender automatically fulfills the request if they have the session key
+ * - Requester receives the fulfilled key via realtime and imports it
  */
 
 import { supabase } from '@/supabase'
 import { recoveryKeyService } from './RecoveryKeyService'
 import { megolmService, type MegolmOutboundSession, type MegolmInboundSession } from './MegolmService'
+import type { RealtimeChannel } from '@supabase/supabase-js'
+
+// Key request from the database
+export interface KeyRequest {
+  id: string
+  requester_user_id: string
+  sender_user_id: string
+  room_id: string
+  session_id: string
+  status: 'pending' | 'fulfilled' | 'expired' | 'cancelled'
+  encrypted_key?: string
+  created_at: string
+  fulfilled_at?: string
+}
+
+// Callback for when a key is received
+export type KeyReceivedCallback = (roomId: string, sessionId: string) => void
 
 // Backup data structure
 export interface MegolmBackupData {
@@ -42,11 +66,22 @@ export interface BackupMetadata {
 /**
  * Megolm Key Backup Service
  * Handles encrypted backup and restore of session keys
+ * AND realtime key request/fulfillment
  */
 export class MegolmKeyBackupService {
   private static instance: MegolmKeyBackupService
   private userId: string | null = null
   private autoBackupEnabled = true
+
+  // Realtime subscriptions
+  private incomingRequestsChannel: RealtimeChannel | null = null
+  private fulfilledRequestsChannel: RealtimeChannel | null = null
+  
+  // Callbacks for when keys are received
+  private keyReceivedCallbacks: Set<KeyReceivedCallback> = new Set()
+  
+  // Track pending requests we've made (to avoid duplicates)
+  private pendingRequests: Map<string, string> = new Map() // sessionId -> requestId
 
   private constructor() {}
 
@@ -62,8 +97,271 @@ export class MegolmKeyBackupService {
   // =====================================================
 
   async initialize(userId: string): Promise<void> {
+    // Clean up old subscriptions if re-initializing
+    if (this.userId && this.userId !== userId) {
+      this.cleanup()
+    }
+
     this.userId = userId
-    console.log('✅ MegolmKeyBackupService initialized')
+    
+    // Set up realtime subscriptions for key requests
+    await this.setupRealtimeSubscriptions()
+    
+    console.log('✅ MegolmKeyBackupService initialized with realtime key request support')
+  }
+
+  /**
+   * Set up realtime subscriptions for key request flow
+   */
+  private async setupRealtimeSubscriptions(): Promise<void> {
+    if (!this.userId) return
+
+    // 1. Subscribe to incoming key requests (where I am the sender)
+    // This lets me automatically fulfill requests for sessions I have
+    this.incomingRequestsChannel = supabase
+      .channel(`key-requests-incoming:${this.userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'megolm_key_requests',
+          filter: `sender_user_id=eq.${this.userId}`
+        },
+        (payload) => this.handleIncomingKeyRequest(payload.new as KeyRequest)
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('🔔 Subscribed to incoming key requests')
+        }
+      })
+
+    // 2. Subscribe to fulfilled requests (where I am the requester)
+    // This lets me receive keys and retry decryption
+    this.fulfilledRequestsChannel = supabase
+      .channel(`key-requests-fulfilled:${this.userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'megolm_key_requests',
+          filter: `requester_user_id=eq.${this.userId}`
+        },
+        (payload) => {
+          const request = payload.new as KeyRequest
+          if (request.status === 'fulfilled') {
+            this.handleFulfilledRequest(request)
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('🔔 Subscribed to fulfilled key requests')
+        }
+      })
+  }
+
+  /**
+   * Handle an incoming key request from another user
+   * Auto-fulfill if we have the session key
+   */
+  private async handleIncomingKeyRequest(request: KeyRequest): Promise<void> {
+    console.log(`📩 Received key request from ${request.requester_user_id.substring(0, 8)}... for session ${request.session_id.substring(0, 8)}...`)
+
+    if (!megolmService.isInitialized()) {
+      console.log('⏸️ Megolm not initialized, cannot fulfill request')
+      return
+    }
+
+    try {
+      // Look for the session in our inbound sessions (we might have it)
+      const session = megolmService.findInboundSessionBySessionId(request.room_id, request.session_id)
+      
+      if (!session) {
+        console.log(`ℹ️ Don't have session ${request.session_id.substring(0, 8)}...`)
+        return
+      }
+
+      console.log(`✅ Found session, fulfilling request...`)
+
+      // Get the requester's public key for encryption
+      const { data: requesterKey } = await supabase
+        .from('user_key_pairs')
+        .select('identity_public_key')
+        .eq('user_id', request.requester_user_id)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (!requesterKey?.identity_public_key) {
+        console.log(`⚠️ Requester has no public key, cannot fulfill`)
+        return
+      }
+
+      // Encrypt the session key for the requester
+      const encryptedKey = await this.encryptSessionKeyForUser(
+        session.sessionKey,
+        requesterKey.identity_public_key
+      )
+
+      // Fulfill the request
+      const { error } = await supabase
+        .from('megolm_key_requests')
+        .update({
+          status: 'fulfilled',
+          encrypted_key: encryptedKey,
+          fulfilled_at: new Date().toISOString()
+        })
+        .eq('id', request.id)
+
+      if (error) {
+        console.error('❌ Failed to fulfill request:', error)
+        return
+      }
+
+      console.log(`✅ Fulfilled key request ${request.id.substring(0, 8)}...`)
+    } catch (error) {
+      console.error('❌ Error handling key request:', error)
+    }
+  }
+
+  /**
+   * Handle a fulfilled key request (we requested a key and got it)
+   */
+  private async handleFulfilledRequest(request: KeyRequest): Promise<void> {
+    console.log(`📬 Key request fulfilled! Session ${request.session_id.substring(0, 8)}...`)
+
+    if (!request.encrypted_key) {
+      console.log('⚠️ Fulfilled request has no encrypted key')
+      return
+    }
+
+    try {
+      // Decrypt the session key
+      const sessionKey = await this.decryptSessionKeyForMe(request.encrypted_key)
+
+      // Import the session
+      await megolmService.importInboundSession(
+        request.room_id,
+        request.sender_user_id,
+        request.session_id,
+        sessionKey,
+        0 // firstKnownIndex
+      )
+
+      console.log(`✅ Imported session ${request.session_id.substring(0, 8)}... from fulfilled request`)
+
+      // Remove from pending requests
+      this.pendingRequests.delete(request.session_id)
+
+      // Notify callbacks (so UI can retry decryption)
+      for (const callback of this.keyReceivedCallbacks) {
+        try {
+          callback(request.room_id, request.session_id)
+        } catch (e) {
+          console.error('Error in key received callback:', e)
+        }
+      }
+
+      // Create backup with the new session
+      this.triggerAutoBackup().catch(() => {})
+    } catch (error) {
+      console.error('❌ Error importing fulfilled key:', error)
+    }
+  }
+
+  /**
+   * Encrypt a session key for a specific user using their public key
+   */
+  private async encryptSessionKeyForUser(sessionKey: string, recipientPublicKey: string): Promise<string> {
+    const encoder = new TextEncoder()
+    
+    // Derive encryption key from recipient's public key
+    const derivedKey = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(recipientPublicKey.substring(0, 32)),
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt']
+    )
+
+    const iv = crypto.getRandomValues(new Uint8Array(12))
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      derivedKey,
+      encoder.encode(sessionKey)
+    )
+
+    // Combine IV + ciphertext
+    const combined = new Uint8Array(iv.length + encrypted.byteLength)
+    combined.set(iv)
+    combined.set(new Uint8Array(encrypted), iv.length)
+
+    return btoa(String.fromCharCode(...combined))
+  }
+
+  /**
+   * Decrypt a session key that was encrypted for us
+   */
+  private async decryptSessionKeyForMe(encryptedKey: string): Promise<string> {
+    // Get our identity key
+    const { data: myKey } = await supabase
+      .from('user_key_pairs')
+      .select('identity_public_key')
+      .eq('user_id', this.userId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (!myKey?.identity_public_key) {
+      throw new Error('Cannot find my identity key')
+    }
+
+    const encoder = new TextEncoder()
+    const derivedKey = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(myKey.identity_public_key.substring(0, 32)),
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    )
+
+    // Decode and decrypt
+    const combined = Uint8Array.from(atob(encryptedKey), c => c.charCodeAt(0))
+    const iv = combined.slice(0, 12)
+    const ciphertext = combined.slice(12)
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      derivedKey,
+      ciphertext
+    )
+
+    return new TextDecoder().decode(decrypted)
+  }
+
+  /**
+   * Register a callback for when keys are received
+   * Used by UI components to retry decryption
+   */
+  onKeyReceived(callback: KeyReceivedCallback): () => void {
+    this.keyReceivedCallbacks.add(callback)
+    return () => this.keyReceivedCallbacks.delete(callback)
+  }
+
+  /**
+   * Clean up subscriptions
+   */
+  cleanup(): void {
+    if (this.incomingRequestsChannel) {
+      this.incomingRequestsChannel.unsubscribe()
+      this.incomingRequestsChannel = null
+    }
+    if (this.fulfilledRequestsChannel) {
+      this.fulfilledRequestsChannel.unsubscribe()
+      this.fulfilledRequestsChannel = null
+    }
+    this.keyReceivedCallbacks.clear()
+    this.pendingRequests.clear()
   }
 
   // =====================================================
@@ -270,16 +568,27 @@ export class MegolmKeyBackupService {
   }
 
   // =====================================================
-  // CROSS-DEVICE KEY SHARING
+  // CROSS-DEVICE KEY SHARING (with Realtime)
   // =====================================================
 
   /**
-   * Request to receive session keys from another device
-   * Creates a key request that the other device can fulfill
+   * Request a session key from the sender
+   * The sender will receive this via realtime and auto-fulfill if they have the key
+   * 
+   * @param roomId - The room/channel/conversation ID
+   * @param sessionId - The Megolm session ID needed
+   * @param senderUserId - The user who sent the original message (and has the key)
    */
-  async createKeyRequest(roomId: string, sessionId: string): Promise<string> {
+  async createKeyRequest(roomId: string, sessionId: string, senderUserId?: string): Promise<string> {
     if (!this.userId) {
       throw new Error('Not initialized')
+    }
+
+    // Check if we already have a pending request for this session
+    const existingRequestId = this.pendingRequests.get(sessionId)
+    if (existingRequestId) {
+      console.log(`ℹ️ Already have pending request for session ${sessionId.substring(0, 8)}...`)
+      return existingRequestId
     }
 
     const requestId = crypto.randomUUID()
@@ -288,7 +597,9 @@ export class MegolmKeyBackupService {
       .from('megolm_key_requests')
       .insert({
         id: requestId,
-        user_id: this.userId,
+        user_id: this.userId, // Legacy field for backwards compatibility
+        requester_user_id: this.userId,
+        sender_user_id: senderUserId || null, // Who we're requesting the key from
         room_id: roomId,
         session_id: sessionId,
         status: 'pending',
@@ -299,12 +610,127 @@ export class MegolmKeyBackupService {
       throw new Error(`Failed to create key request: ${error.message}`)
     }
 
-    console.log(`📤 Created key request ${requestId} for session ${sessionId}`)
+    // Track pending request
+    this.pendingRequests.set(sessionId, requestId)
+
+    console.log(`📤 Created key request ${requestId.substring(0, 8)}... for session ${sessionId.substring(0, 8)}... from ${senderUserId?.substring(0, 8) || 'unknown'}`)
     return requestId
   }
 
   /**
-   * Check for pending key requests from other devices
+   * Check for pending key requests we've made
+   */
+  async getMyPendingRequests(): Promise<KeyRequest[]> {
+    if (!this.userId) return []
+
+    const { data, error } = await supabase
+      .from('megolm_key_requests')
+      .select('*')
+      .eq('requester_user_id', this.userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('❌ Failed to fetch my pending requests:', error)
+      return []
+    }
+
+    return (data || []) as KeyRequest[]
+  }
+
+  /**
+   * Check for requests others have made to me
+   */
+  async getRequestsToMe(): Promise<KeyRequest[]> {
+    if (!this.userId) return []
+
+    const { data, error } = await supabase
+      .from('megolm_key_requests')
+      .select('*')
+      .eq('sender_user_id', this.userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('❌ Failed to fetch requests to me:', error)
+      return []
+    }
+
+    return (data || []) as KeyRequest[]
+  }
+
+  /**
+   * Process any pending requests to me (fulfill if we have the keys)
+   * Called on initialization to catch up on requests made while offline
+   */
+  async processPendingRequestsToMe(): Promise<number> {
+    const requests = await this.getRequestsToMe()
+    let fulfilledCount = 0
+
+    for (const request of requests) {
+      try {
+        await this.handleIncomingKeyRequest(request)
+        fulfilledCount++
+      } catch (error) {
+        console.warn(`⚠️ Failed to process request ${request.id}:`, error)
+      }
+    }
+
+    if (fulfilledCount > 0) {
+      console.log(`✅ Processed ${fulfilledCount} pending key requests`)
+    }
+
+    return fulfilledCount
+  }
+
+  /**
+   * Cancel a pending key request
+   */
+  async cancelKeyRequest(requestId: string): Promise<void> {
+    const { error } = await supabase
+      .from('megolm_key_requests')
+      .update({ status: 'cancelled' })
+      .eq('id', requestId)
+      .eq('requester_user_id', this.userId)
+
+    if (error) {
+      console.error('❌ Failed to cancel request:', error)
+    }
+
+    // Remove from pending
+    for (const [sessionId, id] of this.pendingRequests) {
+      if (id === requestId) {
+        this.pendingRequests.delete(sessionId)
+        break
+      }
+    }
+  }
+
+  /**
+   * Check if a key request has been fulfilled
+   */
+  async checkKeyRequestStatus(requestId: string): Promise<{
+    status: 'pending' | 'fulfilled' | 'expired' | 'cancelled'
+    encryptedKey?: string
+  }> {
+    const { data, error } = await supabase
+      .from('megolm_key_requests')
+      .select('status, encrypted_key')
+      .eq('id', requestId)
+      .maybeSingle()
+
+    if (error || !data) {
+      return { status: 'expired' }
+    }
+
+    return {
+      status: data.status as 'pending' | 'fulfilled' | 'expired' | 'cancelled',
+      encryptedKey: data.encrypted_key
+    }
+  }
+
+  /**
+   * @deprecated Use getMyPendingRequests instead
    */
   async getPendingKeyRequests(): Promise<{
     id: string
@@ -312,26 +738,17 @@ export class MegolmKeyBackupService {
     session_id: string
     created_at: string
   }[]> {
-    if (!this.userId) return []
-
-    const { data, error } = await supabase
-      .from('megolm_key_requests')
-      .select('id, room_id, session_id, created_at')
-      .eq('user_id', this.userId)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('❌ Failed to fetch key requests:', error)
-      return []
-    }
-
-    return data || []
+    const requests = await this.getMyPendingRequests()
+    return requests.map(r => ({
+      id: r.id,
+      room_id: r.room_id,
+      session_id: r.session_id,
+      created_at: r.created_at
+    }))
   }
 
   /**
-   * Fulfill a key request by sharing the session key
-   * The key is encrypted with the requesting user's public key
+   * @deprecated Use handleIncomingKeyRequest (auto-called via realtime)
    */
   async fulfillKeyRequest(
     requestId: string,
@@ -352,29 +769,6 @@ export class MegolmKeyBackupService {
     }
 
     console.log(`✅ Fulfilled key request ${requestId}`)
-  }
-
-  /**
-   * Check if a key request has been fulfilled
-   */
-  async checkKeyRequestStatus(requestId: string): Promise<{
-    status: 'pending' | 'fulfilled' | 'expired'
-    encryptedKey?: string
-  }> {
-    const { data, error } = await supabase
-      .from('megolm_key_requests')
-      .select('status, encrypted_key')
-      .eq('id', requestId)
-      .single()
-
-    if (error || !data) {
-      return { status: 'expired' }
-    }
-
-    return {
-      status: data.status as 'pending' | 'fulfilled' | 'expired',
-      encryptedKey: data.encrypted_key
-    }
   }
 
   // =====================================================
