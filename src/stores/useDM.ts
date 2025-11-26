@@ -992,6 +992,7 @@ export const useDMStore = defineStore('dm', () => {
       const allLoaded = !hasMore
 
       // Ensure all messages have conversation_id set and include encryption fields
+      // Note: Messages from CoreMessageService are already decrypted, preserve the decrypted flag!
       let formattedMessages: Message[] = orderedMessages.map(msg => ({
         id: msg.id,
         user_id: msg.user_id,
@@ -1004,6 +1005,7 @@ export const useDMStore = defineStore('dm', () => {
         is_system: msg.is_system,
         metadata: msg.metadata || null,
         encrypted: msg.encrypted || false,
+        decrypted: msg.decrypted || false,  // Preserve decrypted flag from CoreMessageService!
         encryption_metadata: msg.encryption_metadata
       }))
 
@@ -1013,11 +1015,12 @@ export const useDMStore = defineStore('dm', () => {
         console.warn('Failed to prepare DM embeds:', error)
       }
 
-      // 🔐 Decrypt encrypted DM messages
-      try {
-        formattedMessages = await processMessageDecryption(formattedMessages)
-      } catch (error) {
-        console.warn('Failed to decrypt DM messages:', error)
+      // 🔐 Note: Decryption already happens in CoreMessageService.loadConversationMessages
+      // Just log stats for debugging
+      const decryptedCount = formattedMessages.filter(m => m.decrypted).length
+      const encryptedCount = formattedMessages.filter(m => m.encrypted).length
+      if (decryptedCount > 0 || encryptedCount > 0) {
+        console.log(`🔐 DM messages: ${decryptedCount} decrypted, ${encryptedCount} still encrypted`)
       }
 
       if (beforeMessageId === undefined) {
@@ -1456,15 +1459,22 @@ export const useDMStore = defineStore('dm', () => {
         
         // 🔐 Decrypt if encrypted
         try {
+          console.log('🔐 DM message encrypted status:', formattedMessage.encrypted)
           if (formattedMessage.encrypted) {
+            console.log('🔐 Attempting to decrypt DM message...')
             const decrypted = await processMessageDecryption([formattedMessage]);
             formattedMessage = decrypted[0];
+            console.log('🔐 After decryption - encrypted:', formattedMessage.encrypted, 'decrypted:', formattedMessage.decrypted)
           }
         } catch (error) {
           console.warn('Failed to decrypt real-time DM message:', error);
         }
         
-        console.log('📨 Adding DM message to cache:', formattedMessage)
+        console.log('📨 Adding DM message to cache:', { 
+          id: formattedMessage.id, 
+          encrypted: formattedMessage.encrypted, 
+          decrypted: formattedMessage.decrypted 
+        })
         addMessageToCache(formattedMessage)
       })
       .on('postgres_changes', {
