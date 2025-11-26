@@ -139,6 +139,7 @@ onUnmounted(() => {
 .participant-item .speaking {
   box-shadow: 0 0 0 2px #43b581;
   animation: pulse 1.5s infinite;
+  border-radius: 50%;
 }
 
 @keyframes pulse {
