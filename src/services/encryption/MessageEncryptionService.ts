@@ -248,12 +248,14 @@ export class MessageEncryptionService {
     }
 
     // Save signed prekey to database with upsert
+    // IMPORTANT: Must explicitly set is_one_time: false to prevent it being returned as a one-time prekey!
     const { error: signedKeyError } = await supabase.from('prekeys').upsert({
       user_id: this.currentUserId,
       device_id: 'default',
       prekey_id: signedPreKey.id,
       public_key: signedPreKey.keyPair.publicKey,
       is_signed: true,
+      is_one_time: false,  // Explicitly false - signed prekeys are NOT one-time prekeys
       signature: signedPreKey.signature
     }, { onConflict: 'user_id, device_id, prekey_id' })
 
@@ -344,6 +346,7 @@ export class MessageEncryptionService {
     for (const recipientId of recipientIds) {
       // Special case: For self-encryption, just store the key directly (no Signal Protocol needed)
       if (recipientId === this.currentUserId) {
+        console.log(`🔐 [${recipientId}] Using direct key storage (self)`)
         encryptedKeys[recipientId] = JSON.stringify({
           type: 'direct',
           key: symmetricKeyBase64
@@ -351,19 +354,30 @@ export class MessageEncryptionService {
         continue
       }
       
-          const recipientAddress = `${recipientId}:1`
-          const hasSession = await signalProtocolService.hasSession(recipientAddress)
-          if (!hasSession) {
-            await this.establishSession(recipientId)
-          }
-
-      const encryptedKey = await signalProtocolService.encryptMessage(
-            recipientAddress,
-        symmetricKeyBase64
-          )
-
-      encryptedKeys[recipientId] = JSON.stringify(encryptedKey)
+      try {
+        console.log(`🔐 [${recipientId}] Encrypting with Signal Protocol...`)
+        const recipientAddress = `${recipientId}:1`
+        const hasSession = await signalProtocolService.hasSession(recipientAddress)
+        console.log(`🔐 [${recipientId}] Has existing session: ${hasSession}`)
+        
+        if (!hasSession) {
+          console.log(`🔐 [${recipientId}] Establishing new session...`)
+          await this.establishSession(recipientId)
+          console.log(`🔐 [${recipientId}] Session established successfully`)
         }
+
+        const encryptedKey = await signalProtocolService.encryptMessage(
+          recipientAddress,
+          symmetricKeyBase64
+        )
+        console.log(`🔐 [${recipientId}] Key encrypted successfully, type: ${encryptedKey.type}`)
+
+        encryptedKeys[recipientId] = JSON.stringify(encryptedKey)
+      } catch (error: any) {
+        console.error(`❌ [${recipientId}] Failed to encrypt for recipient:`, error.message)
+        // Skip this recipient but continue with others
+      }
+    }
 
     // Store encrypted message in content as base64 text
     const encryptedContent: MessagePart[] = [{
@@ -482,11 +496,17 @@ export class MessageEncryptionService {
       } else {
         // Regular Signal Protocol decryption for other users
         // IMPORTANT: This requires the user's encryption key to be loaded to access prekeys
+        console.log(`  - Using Signal Protocol decryption`)
+        console.log(`  - Encrypted key data:`, JSON.stringify(encryptedKeyData).substring(0, 100) + '...')
+        console.log(`  - Has encryption key loaded: ${this.keyStore?.hasEncryptionKeyLoaded()}`)
+        
         try {
           symmetricKeyBase64 = await signalProtocolService.decryptMessage(senderAddress, encryptedKeyData)
+          console.log('  - Signal Protocol decryption successful')
         } catch (sessionError: any) {
           const errorMsg = sessionError.message || String(sessionError)
           console.error('❌ Signal Protocol decryption error:', errorMsg)
+          console.error('  - Full error:', sessionError)
           
           // Provide more specific error messages
           if (errorMsg.includes('Encryption key not set')) {
@@ -783,12 +803,19 @@ export class MessageEncryptionService {
   }
 
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binary = atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i)
+    try {
+      // Handle URL-safe base64 if present
+      const normalizedBase64 = base64.replace(/-/g, '+').replace(/_/g, '/')
+      const binary = atob(normalizedBase64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+      return bytes.buffer
+    } catch (error) {
+      console.error('❌ Invalid base64 string:', base64?.substring(0, 50) + '...')
+      throw new Error('Invalid encrypted data format - message may be corrupted or from deleted keys')
     }
-    return bytes.buffer
   }
 
   // =====================================================
@@ -839,11 +866,60 @@ export class MessageEncryptionService {
   }
 
   // =====================================================
+  // RESET ENCRYPTION
+  // =====================================================
+
+  /**
+   * Completely reset encryption for the current user
+   * This deletes all keys from the database AND local IndexedDB
+   * After this, the user can set up encryption fresh
+   */
+  async resetEncryption(): Promise<void> {
+    if (!this.currentUserId) {
+      throw new Error('Not initialized - cannot reset encryption')
+    }
+
+    console.log('⚠️ Resetting encryption for user:', this.currentUserId)
+
+    try {
+      // 1. Delete keys from database using the reset function
+      const { data, error } = await supabase
+        .rpc('reset_user_encryption', {
+          p_user_id: this.currentUserId,
+          p_device_id: 'default'
+        })
+
+      if (error) {
+        console.error('❌ Failed to reset encryption in database:', error)
+        throw new Error(`Database reset failed: ${error.message}`)
+      }
+
+      console.log('✅ Database keys deleted:', data)
+
+      // 2. Clear local IndexedDB
+      if (this.keyStore) {
+        await this.keyStore.clearAllData()
+        this.keyStore.close()
+        this.keyStore = null
+      }
+
+      // 3. Reset service state
+      this.currentUserId = null
+      this.initialized = false
+
+      console.log('✅ Encryption fully reset - user can now set up encryption again')
+    } catch (error) {
+      console.error('❌ Failed to reset encryption:', error)
+      throw error
+    }
+  }
+
+  // =====================================================
   // CLEANUP
   // =====================================================
 
   /**
-   * Close and cleanup
+   * Close and cleanup (does NOT delete keys - just cleans up memory/connections)
    */
   async cleanup(): Promise<void> {
     if (this.keyStore) {

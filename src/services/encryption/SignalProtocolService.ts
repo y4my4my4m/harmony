@@ -194,6 +194,11 @@ export class SignalProtocolService {
     const address = new SignalProtocolAddress(userId, parseInt(deviceId))
     const sessionBuilder = new SessionBuilder(this.keyStore!, address)
 
+    console.log(`🔐 Creating session with ${recipientAddress}`)
+    console.log(`   - Signed prekey ID: ${bundle.signedPreKey.id}`)
+    console.log(`   - One-time prekey ID: ${bundle.oneTimePreKey?.id ?? 'NONE'}`)
+    console.log(`   - Identity key (first 20 chars): ${bundle.identityKey.substring(0, 20)}...`)
+
     // Build the prekey bundle in the format expected by the library
     await sessionBuilder.processPreKey({
       registrationId: bundle.registrationId,
@@ -209,7 +214,7 @@ export class SignalProtocolService {
       } : undefined
     })
 
-    console.log(`🔐 Session created with ${recipientAddress}`)
+    console.log(`✅ Session created with ${recipientAddress}`)
   }
 
   /**
@@ -275,21 +280,36 @@ export class SignalProtocolService {
   ): Promise<string> {
     this.ensureInitialized()
 
+    console.log(`🔓 SignalProtocol: Decrypting from ${senderAddress}`)
+    console.log(`🔓 SignalProtocol: Message type: ${encryptedMessage.type}`)
+
     // Parse the address (format: "userId:deviceId")
     const [userId, deviceId] = senderAddress.split(':')
     const address = new SignalProtocolAddress(userId, parseInt(deviceId))
+    
+    console.log(`🔓 SignalProtocol: Creating SessionCipher for ${userId}:${deviceId}`)
     const sessionCipher = new SessionCipher(this.keyStore!, address)
 
     const messageBody = this.decodeFromBase64(encryptedMessage.body)
+    console.log(`🔓 SignalProtocol: Decoded message body, length: ${messageBody.byteLength}`)
 
     let plaintext: ArrayBuffer
 
-    if (encryptedMessage.type === 'prekey') {
-      // PreKeySignalMessage (type 3)
-      plaintext = await sessionCipher.decryptPreKeyWhisperMessage(messageBody, 'binary')
-    } else {
-      // Regular SignalMessage (type 1)
-      plaintext = await sessionCipher.decryptWhisperMessage(messageBody, 'binary')
+    try {
+      if (encryptedMessage.type === 'prekey') {
+        // PreKeySignalMessage (type 3)
+        console.log(`🔓 SignalProtocol: Decrypting PreKey message...`)
+        plaintext = await sessionCipher.decryptPreKeyWhisperMessage(messageBody, 'binary')
+      } else {
+        // Regular SignalMessage (type 1)
+        console.log(`🔓 SignalProtocol: Decrypting regular message...`)
+        plaintext = await sessionCipher.decryptWhisperMessage(messageBody, 'binary')
+      }
+      console.log(`🔓 SignalProtocol: Decryption successful, plaintext length: ${plaintext.byteLength}`)
+    } catch (error: any) {
+      console.error(`❌ SignalProtocol: Decryption failed:`, error.message)
+      console.error(`❌ SignalProtocol: Full error:`, error)
+      throw error
     }
 
     return this.arrayBufferToString(plaintext)

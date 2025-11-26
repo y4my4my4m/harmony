@@ -142,6 +142,10 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
         } else if (errorMessage.includes('prekey')) {
           console.error('   ⚠️ Prekey issue - might need to regenerate encryption keys')
           lastDecryptionError = 'Prekey error'
+        } else if (errorMessage.includes('Invalid encrypted data') || errorMessage.includes('atob') || errorMessage.includes('base64')) {
+          console.error('   ⚠️ Message data is corrupted or was encrypted with deleted keys')
+          console.error('   This message cannot be recovered - the original encryption keys are gone')
+          lastDecryptionError = 'Message encrypted with deleted keys - unrecoverable'
         } else {
           lastDecryptionError = `Decryption error: ${errorMessage.substring(0, 50)}`
         }

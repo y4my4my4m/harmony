@@ -572,16 +572,18 @@ async function handleResetEncryption() {
   }
 
   try {
-    // TODO: Implement reset in messageEncryptionService
-    await service.cleanup()
-    // Delete keys from database would go here
+    // Fully reset encryption - deletes from database AND local IndexedDB
+    await service.resetEncryption()
     
     confirmReset.value = false
+    needsUnlock.value = false
+    
+    // Reload status to reflect the reset
     await loadEncryptionStatus()
-    toast.success('Encryption has been reset')
+    toast.success('Encryption has been completely reset. You can set up new encryption keys.')
   } catch (error: any) {
     console.error('Failed to reset encryption:', error)
-    toast.error('Failed to reset encryption')
+    toast.error(`Failed to reset encryption: ${error.message}`)
   }
 }
 
