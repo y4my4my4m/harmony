@@ -13,7 +13,6 @@
 
 import type { EncryptionKeyStore } from './EncryptionKeyStore'
 import {
-import { debug } from '@/utils/debug'
   KeyHelper,
   SignalProtocolAddress,
   SessionBuilder,
@@ -22,6 +21,7 @@ import { debug } from '@/utils/debug'
   type PreKeyType,
   type MessageType
 } from '@privacyresearch/libsignal-protocol-typescript'
+import { debug } from '@/utils/debug'
 
 export interface KeyPair {
   publicKey: string // Base64 encoded

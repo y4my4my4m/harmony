@@ -14,12 +14,12 @@
  */
 
 import type {
-import { debug } from '@/utils/debug'
   StorageType,
   KeyPairType,
   Direction,
   SessionRecordType
 } from '@privacyresearch/libsignal-protocol-typescript'
+import { debug } from '@/utils/debug'
 
 // IndexedDB database name
 const DB_NAME = 'harmony_e2ee_keystore'
