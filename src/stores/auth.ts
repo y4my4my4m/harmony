@@ -49,6 +49,62 @@ export const useAuthStore = defineStore('auth', {
         return 'aal1';
       }
     },
+
+    /**
+     * 🔒 CRITICAL SECURITY: Validate if session meets MFA requirements
+     * 
+     * Returns true if:
+     * - User has no MFA enabled (AAL1 is sufficient)
+     * - User has MFA enabled AND session is at AAL2
+     * 
+     * Returns false if:
+     * - User has MFA enabled but session is at AAL1 (MFA not completed)
+     * 
+     * This prevents the MFA bypass vulnerability where:
+     * 1. Tab A is logged in as UserA (no MFA)
+     * 2. Tab B logs out then starts login as UserB (has MFA)
+     * 3. Tab B creates AAL1 session before MFA verification
+     * 4. Tab A refreshes and picks up Tab B's AAL1 session
+     * 5. Without this check, Tab A would be logged in as UserB bypassing MFA!
+     */
+    async validateSessionForMFA(session: Session): Promise<boolean> {
+      try {
+        // Get the AAL from the session token
+        const aal = this.getAAL(session);
+        
+        // If already at AAL2, session is valid
+        if (aal === 'aal2') {
+          console.log('✅ Session at AAL2 - MFA verified');
+          return true;
+        }
+        
+        // Session is at AAL1, need to check if user has MFA enabled
+        const { data: factors, error } = await supabase.auth.mfa.listFactors();
+        
+        if (error) {
+          console.error('❌ Failed to check MFA factors:', error);
+          // On error, be conservative - reject the session
+          return false;
+        }
+        
+        const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
+        
+        if (has2FA) {
+          // User has MFA but session is AAL1 - this is an incomplete login!
+          console.warn('🚨 AAL1 session detected for user with MFA enabled - blocking access');
+          return false;
+        }
+        
+        // User doesn't have MFA, AAL1 is sufficient
+        console.log('✅ Session at AAL1, no MFA required');
+        return true;
+        
+      } catch (error) {
+        console.error('❌ Error validating session MFA:', error);
+        // On error, be conservative - reject the session
+        return false;
+      }
+    },
     async initializeAuth() {
       const { data: getSessionData } = await supabase.auth.getSession();
       const session = getSessionData.session;
@@ -68,17 +124,22 @@ export const useAuthStore = defineStore('auth', {
         // Keep the session - it's needed for updateUser to work
         // But isLoggedIn will return false because of isPasswordResetMode
         this.session = session;
+      } else if (session) {
+        // 🚨 CRITICAL SECURITY: Check AAL2 on session restoration
+        // This prevents MFA bypass when another tab creates an AAL1 session
+        // and this tab picks it up from localStorage on refresh
+        const isValid = await this.validateSessionForMFA(session);
+        
+        if (isValid) {
+          this.session = session;
+        } else {
+          console.warn('🚨 Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
+          // Sign out the incomplete session to prevent other tabs from using it
+          await supabase.auth.signOut();
+          this.session = null;
+        }
       } else {
-      // RELAXED AAL2 SECURITY MODEL:
-      // Users with 2FA enabled can stay logged in with AAL1 (password only)
-      // They will be prompted to "step up" to AAL2 when performing sensitive operations:
-      // - Changing password
-      // - Changing email
-      // - Modifying 2FA settings
-      // - Deleting account
-      // This provides better UX while maintaining security for critical operations
-      
-      this.session = session;
+        this.session = null;
       }
 
       // Initialize notification system for existing session
@@ -138,26 +199,27 @@ export const useAuthStore = defineStore('auth', {
           return; // Early return, skip AAL validation for this event
         }
         
-        // CRITICAL MFA ENFORCEMENT:
-        // Only enforce AAL2 requirement on SIGNED_IN events (fresh logins)
-        // For TOKEN_REFRESHED, INITIAL_SESSION, etc. - allow existing sessions
-        // This prevents MFA bypass during login while allowing session persistence
-        if (event === 'SIGNED_IN' && session && !wasLoggedIn) {
-          const { data: factors } = await supabase.auth.mfa.listFactors();
-          const has2FA = factors?.totp?.some((f: any) => f.status === 'verified');
+        // 🚨 CRITICAL MFA ENFORCEMENT FOR ALL SESSION EVENTS
+        // Validate AAL2 for any event that provides a session
+        // This prevents MFA bypass via localStorage cross-tab contamination
+        // 
+        // The attack vector this protects against:
+        // 1. Tab A has a valid session
+        // 2. Tab B starts login for a user with MFA, creates AAL1 session  
+        // 3. Tab A receives storage change event, gets AAL1 session
+        // 4. Without this check, Tab A would accept the incomplete session
+        if (session) {
+          const isValid = await this.validateSessionForMFA(session);
           
-          if (has2FA) {
-            const aal = this.getAAL(session);
-            if (aal !== 'aal2') {
-              console.warn('🚨 SIGNED_IN event with AAL1 but 2FA enabled - rejecting (MFA bypass prevented)');
-              // Don't set the session - user must complete 2FA verification
-              // The login() method will show the 2FA modal
-              return;
-            }
+          if (!isValid) {
+            console.warn(`🚨 ${event} event with invalid AAL1 session (MFA enabled) - rejecting`);
+            // Don't set the session - this is an incomplete MFA login from another tab
+            // or an attempted bypass
+            return;
           }
         }
         
-        // Accept the session for all other events (token refresh, session restoration, etc.)
+        // Session is valid (either AAL2 with MFA, or AAL1 without MFA requirement)
         this.session = session;
         
         if (session?.user?.id) {
