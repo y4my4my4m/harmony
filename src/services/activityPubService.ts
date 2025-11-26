@@ -746,6 +746,22 @@ export class ActivityPubService {
     try {
       const { limit = 20, cursor } = options;
 
+      // First, get profile IDs from users of this domain
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('domain', domain)
+        .limit(100);
+
+      if (profileError) throw profileError;
+      
+      if (!profiles || profiles.length === 0) {
+        return { posts: [], hasMore: false, cursor: null };
+      }
+
+      const profileIds = profiles.map(p => p.id);
+
+      // Now query posts from those profiles
       let query = supabase
         .from('posts')
         .select(`
@@ -754,7 +770,7 @@ export class ActivityPubService {
             id, username, display_name, domain, avatar_url, is_local
           )
         `)
-        .eq('author.domain', domain)
+        .in('author_id', profileIds)
         .eq('visibility', 'public')
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
@@ -769,7 +785,7 @@ export class ActivityPubService {
 
       const posts = (data || []).slice(0, limit) as TimelinePost[];
       const hasMore = (data || []).length > limit;
-      const nextCursor = hasMore ? data![data!.length - 2].created_at : null;
+      const nextCursor = hasMore && data && data.length > 1 ? data[data.length - 2].created_at : null;
 
       return { posts, hasMore, cursor: nextCursor };
     } catch (error) {

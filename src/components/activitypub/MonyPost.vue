@@ -343,8 +343,19 @@
             <span>Edit</span>
           </button>
           
+          <!-- For reblogs, show "Undo Reblog" instead of "Delete" -->
           <button 
-            v-if="canDelete"
+            v-if="isReblog && canDelete"
+            class="dropdown-item"
+            @click="onUndoReblog"
+          >
+            <Icon name="reblog" />
+            <span>Undo Reblog</span>
+          </button>
+          
+          <!-- Regular delete for non-reblog posts -->
+          <button 
+            v-if="!isReblog && canDelete"
             class="dropdown-item danger"
             @click="onDelete"
           >
@@ -920,6 +931,38 @@ const onEdit = () => {
 const onDelete = () => {
   showDeleteConfirmation.value = true;
   closeMenu();
+};
+
+/**
+ * Handle undo reblog action - removes the reblog post and updates state
+ */
+const onUndoReblog = async () => {
+  closeMenu();
+  
+  try {
+    // Get the original post ID from the reblog
+    const originalPostId = props.post.reblog?.id || props.post.metadata?.reblog_of;
+    
+    if (originalPostId) {
+      // Use toggleReblog which handles the undo
+      await toggleReblog(originalPostId);
+      
+      notificationStore.showToast(
+        'server_update',
+        'Reblog removed',
+        'Your reblog has been undone',
+        3000
+      );
+    }
+  } catch (error) {
+    debug.error('Failed to undo reblog:', error);
+    notificationStore.showToast(
+      'error',
+      'Failed to undo reblog',
+      'There was an error removing your reblog',
+      5000
+    );
+  }
 };
 
 /**
