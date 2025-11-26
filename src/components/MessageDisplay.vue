@@ -1159,10 +1159,19 @@ const handleDecryptMessage = async (message: Message) => {
     }
     
     // Build the message object that decryptMessage expects
+    // Use the message's own channel_id/conversation_id, not props (which might be empty)
+    const roomId = message.channel_id || message.conversation_id || props.channelId || props.conversationId || '';
+    console.log('🔐 Decrypting with roomId:', roomId, { 
+      'message.channel_id': message.channel_id, 
+      'message.conversation_id': message.conversation_id,
+      'props.channelId': props.channelId,
+      'props.conversationId': props.conversationId
+    });
+    
     const messageForDecryption = {
       content: message.content,
-      channel_id: props.channelId,
-      conversation_id: props.conversationId,
+      channel_id: message.channel_id || props.channelId || '',
+      conversation_id: message.conversation_id || props.conversationId || '',
       encryption_metadata: message.encryption_metadata
     };
     
