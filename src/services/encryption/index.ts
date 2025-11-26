@@ -56,17 +56,22 @@ export { megolmKeyBackupService } from './MegolmKeyBackupService'
 export { megolmMessageEncryptionService } from './MegolmMessageEncryptionService'
 
 // =====================================================
-// LEGACY: SIGNAL PROTOCOL SERVICES
-// Kept for backward compatibility with existing encrypted messages
+// LEGACY: SIGNAL PROTOCOL SERVICES (DEPRECATED)
+// These are kept ONLY for WebRTC encryption (voice/video calls)
+// Message encryption has moved to Megolm (above)
 // =====================================================
 
-// Lazy exports for Signal Protocol services (legacy)
+// WebRTC encryption (still uses Signal Protocol for calls)
+export const getWebRTCEncryptionService = () => import('./WebRTCEncryptionService').then(m => m.webrtcEncryptionService)
+export { webrtcEncryptionService } from './WebRTCEncryptionService'
+
+// DEPRECATED: Signal Protocol services - DO NOT USE for new code
+// These exports are kept only for WebRTC and backwards compatibility
 export const getSignalProtocolService = () => import('./SignalProtocolService').then(m => m.signalProtocolService)
 export const getEncryptionKeyStore = () => import('./EncryptionKeyStore').then(m => m.EncryptionKeyStore)
 export const getMessageEncryptionService = () => import('./MessageEncryptionService').then(m => m.messageEncryptionService)
-export const getWebRTCEncryptionService = () => import('./WebRTCEncryptionService').then(m => m.webrtcEncryptionService)
 
-// Type exports for Signal Protocol (legacy)
+// Legacy type exports (for WebRTC only)
 export type {
   KeyPair,
   PreKey,
@@ -80,10 +85,9 @@ export type {
   EncryptedMessageData
 } from './MessageEncryptionService'
 
-// Legacy direct exports for backward compatibility
+// Legacy direct exports (for WebRTC backwards compatibility)
 export { signalProtocolService } from './SignalProtocolService'
 export { EncryptionKeyStore } from './EncryptionKeyStore'
 export { messageEncryptionService } from './MessageEncryptionService'
-export { webrtcEncryptionService } from './WebRTCEncryptionService'
 
 

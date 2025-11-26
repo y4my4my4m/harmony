@@ -90,41 +90,19 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     })
   }
 
-  // Count encrypted messages for logging
-  const encryptedCount = messages.filter(m => m.encrypted).length
-  if (encryptedCount > 0) {
-    console.log(`🔑 Processing ${encryptedCount}/${messages.length} encrypted messages for decryption (user: ${currentUserId})`)
+  // Separate encrypted and non-encrypted messages
+  const encryptedMessages = messages.filter(m => m.encrypted && m.encryption_metadata)
+  const nonEncryptedMessages = messages.filter(m => !m.encrypted || !m.encryption_metadata)
+
+  if (encryptedMessages.length === 0) {
+    return messages // Fast path: nothing to decrypt
   }
 
-  // Process each message
-  const processedMessages = await Promise.all(
-    messages.map(async (message) => {
-      // Check if message is encrypted
-      if (!message.encrypted || !message.encryption_metadata) {
-        return message
-      }
-
-      const algorithm = message.encryption_metadata.algorithm || 'unknown'
-      
-      // Debug logging
-      console.log(`🔐 Processing encrypted message ${message.id}:`)
-      console.log(`  - Algorithm: ${algorithm}`)
-      console.log(`  - Sender: ${message.encryption_metadata.sender_user_id || message.encryption_metadata.sender_key_id}`)
-      
-      if (algorithm === 'megolm_v1') {
-        // Megolm: per-room session key encryption
-        console.log(`  - Session ID: ${message.encryption_metadata.session_id}`)
-        console.log(`  - Message Index: ${message.encryption_metadata.message_index}`)
-      } else {
-        // Legacy Signal Protocol
-        const encryptedFor = message.encryption_metadata.encrypted_for || []
-        console.log(`  - Encrypted for ${encryptedFor.length} users`)
-      }
-
+  // Process encrypted messages in parallel
+  const decryptedResults = await Promise.all(
+    encryptedMessages.map(async (message) => {
       try {
-        console.log(`🔓 Attempting to decrypt message ${message.id}`)
         const decryptedContent = await encryptionService.decryptMessage(message)
-        console.log(`✅ Successfully decrypted message ${message.id}`)
         lastDecryptionError = null
         
         return {
@@ -135,34 +113,29 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
         }
       } catch (error: any) {
         const errorMessage = error?.message || String(error)
-        console.error(`❌ Cannot decrypt message ${message.id}:`, errorMessage)
         
-        // Megolm-specific errors
-        if (errorMessage.includes('No inbound session')) {
-          console.error('   ⚠️ Missing session key - need to sync keys from sender')
-          lastDecryptionError = 'Session key not available - sync keys'
+        // Set last error for UI display
+        if (errorMessage.includes('No inbound session') || errorMessage.includes('No outbound session')) {
+          lastDecryptionError = 'Session key not available'
         } else if (errorMessage.includes('recovery key')) {
-          console.error('   ⚠️ Enter recovery key to unlock encryption')
           lastDecryptionError = 'Enter recovery key to decrypt'
-        } else if (errorMessage.includes('Message index')) {
-          console.error('   ⚠️ Message from before session was established')
-          lastDecryptionError = 'Message predates session'
         } else {
-          lastDecryptionError = `Decryption error: ${errorMessage.substring(0, 50)}`
+          lastDecryptionError = `Decryption error`
         }
         
         // Show placeholder
-        const obfuscatedText = generateObfuscatedPlaceholder(100)
         return {
           ...message,
-          content: [{ type: 'text' as const, text: obfuscatedText }],
+          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }],
           encrypted: true
         }
       }
     })
   )
 
-  return processedMessages
+  // Rebuild the message list preserving original order
+  const decryptedMap = new Map(decryptedResults.map(m => [m.id, m]))
+  return messages.map(msg => decryptedMap.get(msg.id) || msg)
 }
 
 /**

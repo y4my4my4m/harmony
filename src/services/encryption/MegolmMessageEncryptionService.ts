@@ -370,16 +370,16 @@ export class MegolmMessageEncryptionService {
       throw new Error('Encryption not unlocked - enter your recovery key first')
     }
 
-    console.log(`🔐 Encrypting message for room ${roomId.substring(0, 8)}...`)
-
     // Serialize content
     const plaintextContent = JSON.stringify(content)
 
-    // Encrypt with Megolm
+    // Encrypt with Megolm (fast - uses in-memory session key)
     const encryptedMessage = await megolmService.encryptMessage(roomId, plaintextContent)
 
-    // Share session with recipients who don't have it
-    await this.ensureSessionShared(roomId, encryptedMessage.sessionId, recipientIds)
+    // Share session with recipients in the background (non-blocking)
+    // This allows the message to be sent immediately while keys are shared
+    this.ensureSessionShared(roomId, encryptedMessage.sessionId, recipientIds)
+      .catch(err => console.warn('⚠️ Background session sharing failed:', err))
 
     // Store encrypted message in content as base64 text
     const encryptedContent: MessagePart[] = [{
@@ -446,6 +446,7 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Decrypt a Megolm-encrypted message
+   * OPTIMIZED: Fast path when we have the session key in memory
    */
   private async decryptMegolmMessage(
     message: {
@@ -484,23 +485,34 @@ export class MegolmMessageEncryptionService {
       ciphertext
     }
 
-    // Check if we have the session - if not, try to claim pending shares
-    if (!megolmService.hasInboundSession(roomId, senderId, sessionId)) {
-      console.log(`ℹ️ Missing inbound session ${sessionId} for room ${roomId.substring(0, 8)}..., checking for shares...`)
-      await this.claimPendingSessionShares()
-    }
-
+    // FAST PATH: Try to decrypt immediately (works if we have the key in memory)
     try {
       const decryptedJson = await megolmService.decryptMessage(roomId, senderId, encryptedMessage)
       const decryptedContent: MessagePart[] = JSON.parse(decryptedJson)
-      
-      console.log('✅ Message decrypted successfully (Megolm)')
       return decryptedContent
     } catch (error: any) {
-      if (error.message.includes('No inbound session')) {
-        // Request the session key from sender
+      // SLOW PATH: Key not in memory, try to get it from server
+      if (error.message.includes('No inbound session') || error.message.includes('No outbound session')) {
+        console.log(`ℹ️ Missing session ${sessionId.substring(0, 8)}... for room ${roomId.substring(0, 8)}..., fetching...`)
+        
+        // Try to claim pending session shares from server
+        const claimed = await this.claimPendingSessionShares()
+        
+        if (claimed > 0) {
+          // Retry decryption after claiming shares
+          try {
+            const decryptedJson = await megolmService.decryptMessage(roomId, senderId, encryptedMessage)
+            const decryptedContent: MessagePart[] = JSON.parse(decryptedJson)
+            return decryptedContent
+          } catch {
+            // Still failed - request key from sender
+          }
+        }
+        
+        // No shares available - request the key
         console.log('📤 Requesting session key from sender...')
-        await megolmKeyBackupService.createKeyRequest(roomId, sessionId)
+        megolmKeyBackupService.createKeyRequest(roomId, sessionId)
+          .catch(err => console.warn('⚠️ Key request failed:', err))
         throw new Error('Session key not available - key request sent')
       }
       throw error
@@ -514,6 +526,7 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Ensure our session is shared with all recipients
+   * OPTIMIZED: Batch DB queries and parallelize operations
    */
   private async ensureSessionShared(
     roomId: string,
@@ -522,20 +535,12 @@ export class MegolmMessageEncryptionService {
   ): Promise<void> {
     if (!this.currentUserId) return
 
-    console.log(`🔐 ensureSessionShared: recipientIds = [${recipientIds.join(', ')}]`)
-    console.log(`🔐 ensureSessionShared: currentUserId = ${this.currentUserId}`)
-
-    // Get users who need the session
+    // Get users who need the session (fast in-memory check)
     const usersNeedingSession = megolmService.getUsersNeedingSession(roomId, recipientIds)
 
-    console.log(`🔐 Users needing session: ${usersNeedingSession.length} (${usersNeedingSession.join(', ')})`)
-
     if (usersNeedingSession.length === 0) {
-      console.log('ℹ️ All users already have the session')
-      return
+      return // All users already have the session
     }
-
-    console.log(`📤 Sharing session with ${usersNeedingSession.length} users...`)
 
     // Get session key data
     const sessionData = megolmService.getSessionKeyForSharing(roomId)
@@ -544,48 +549,48 @@ export class MegolmMessageEncryptionService {
       return
     }
 
-    // For each user, encrypt the session key with their identity key
-    // In a full implementation, we'd use Signal Protocol for this
-    // For now, we'll store it encrypted with a shared key derivation
-    let usersWithKeys = 0
-    let usersWithoutKeys = 0
-    
-    for (const userId of usersNeedingSession) {
+    // BATCH: Fetch ALL public keys in ONE query
+    const { data: publicKeys, error: keyError } = await supabase
+      .from('user_key_pairs')
+      .select('user_id, identity_public_key')
+      .in('user_id', usersNeedingSession)
+      .eq('is_active', true)
+
+    if (keyError) {
+      console.error('❌ Error fetching public keys:', keyError)
+      return
+    }
+
+    // Create lookup map for fast access
+    const keyMap = new Map<string, string>()
+    for (const row of publicKeys || []) {
+      if (row.identity_public_key) {
+        keyMap.set(row.user_id, row.identity_public_key)
+      }
+    }
+
+    const usersWithKeys = keyMap.size
+    const usersWithoutKeys = usersNeedingSession.length - usersWithKeys
+
+    if (usersWithKeys === 0) {
+      if (usersWithoutKeys > 0) {
+        console.log(`ℹ️ ${usersWithoutKeys} users haven't set up encryption yet`)
+      }
+      return
+    }
+
+    console.log(`📤 Sharing session with ${usersWithKeys} users...`)
+
+    // PARALLEL: Encrypt and store shares concurrently
+    const sharePromises = Array.from(keyMap.entries()).map(async ([userId, publicKey]) => {
       try {
-        console.log(`🔐 Checking public key for user ${userId.substring(0, 8)}...`)
-        
-        // Get recipient's public key
-        const { data: recipientKey, error: keyError } = await supabase
-          .from('user_key_pairs')
-          .select('identity_public_key')
-          .eq('user_id', userId)
-          .eq('is_active', true)
-          .maybeSingle()
-
-        if (keyError) {
-          console.error(`❌ Error fetching public key for ${userId}:`, keyError)
-          continue
-        }
-
-        console.log(`🔐 Query result for ${userId.substring(0, 8)}...:`, recipientKey ? 'found row' : 'no row', recipientKey?.identity_public_key ? 'has key' : 'no key')
-
-        if (!recipientKey?.identity_public_key) {
-          console.log(`⚠️ No public key for user ${userId.substring(0, 8)}... (they haven't set up encryption)`)
-          usersWithoutKeys++
-          continue
-        }
-        
-        usersWithKeys++
-        console.log(`✅ Found public key for user ${userId.substring(0, 8)}...`)
-
-        // For now, we'll use a simple encryption approach
-        // In production, this would use the recipient's public key
+        // Encrypt session key for this user
         const encryptedSessionKey = await this.encryptSessionKeyForUser(
           sessionData.sessionKey,
-          recipientKey.identity_public_key
+          publicKey
         )
 
-        // Store the share - always share from index 0 so recipient can decrypt all messages
+        // Store the share
         const { error: shareError } = await supabase
           .from('megolm_session_shares')
           .upsert({
@@ -594,30 +599,28 @@ export class MegolmMessageEncryptionService {
             sender_user_id: this.currentUserId,
             recipient_user_id: userId,
             encrypted_session_key: encryptedSessionKey,
-            first_known_index: 0 // Share from beginning so all messages can be decrypted
+            first_known_index: 0
           }, {
             onConflict: 'room_id,session_id,recipient_user_id'
           })
 
         if (shareError) {
-          console.error(`❌ Failed to store session share for ${userId}:`, shareError)
-          continue
+          console.error(`❌ Failed to store session share for ${userId.substring(0, 8)}:`, shareError)
+          return false
         }
 
-        // Mark as shared in local state
-        await megolmService.markSessionSharedWith(roomId, userId)
-        console.log(`✅ Shared session with user ${userId.substring(0, 8)}...`)
-
+        // Mark as shared in local state (sync)
+        megolmService.markSessionSharedWith(roomId, userId)
+        return true
       } catch (error) {
-        console.error(`❌ Failed to share session with ${userId}:`, error)
+        console.error(`❌ Failed to share session with ${userId.substring(0, 8)}:`, error)
+        return false
       }
-    }
+    })
 
-    // Summary
-    console.log(`📊 Session sharing summary: ${usersWithKeys} users with keys, ${usersWithoutKeys} users without keys`)
-    if (usersWithoutKeys > 0) {
-      console.warn(`⚠️ ${usersWithoutKeys} users cannot receive encrypted messages until they set up encryption`)
-    }
+    const results = await Promise.all(sharePromises)
+    const successCount = results.filter(Boolean).length
+    console.log(`✅ Session shared with ${successCount}/${usersWithKeys} users`)
   }
 
   /**
@@ -688,36 +691,23 @@ export class MegolmMessageEncryptionService {
 
   /**
    * Claim pending session shares (from other users)
+   * OPTIMIZED: Single RPC call + parallel processing
    */
   async claimPendingSessionShares(): Promise<number> {
-    if (!this.currentUserId) {
-      console.log('🔐 claimPendingSessionShares: No user ID')
-      return 0
-    }
-
-    console.log(`🔐 Checking for unclaimed session shares for user ${this.currentUserId}...`)
+    if (!this.currentUserId) return 0
 
     const { data: shares, error } = await supabase
       .rpc('get_unclaimed_session_shares', { p_user_id: this.currentUserId })
 
-    if (error) {
-      console.error('❌ Error fetching session shares:', error)
-      return 0
-    }
-
-    if (!shares || shares.length === 0) {
-      console.log('ℹ️ No unclaimed session shares found')
+    if (error || !shares || shares.length === 0) {
       return 0
     }
 
     console.log(`📥 Found ${shares.length} unclaimed session shares`)
 
-    let claimedCount = 0
-
-    for (const share of shares) {
+    // Process shares in parallel
+    const results = await Promise.all(shares.map(async (share: any) => {
       try {
-        console.log(`📥 Claiming session share from ${share.sender_user_id.substring(0, 8)}... for room ${share.room_id.substring(0, 8)}...`)
-        
         // Decrypt the session key
         const sessionKey = await this.decryptSessionKeyForMe(share.encrypted_session_key)
 
@@ -730,20 +720,22 @@ export class MegolmMessageEncryptionService {
           share.first_known_index
         )
 
-        // Mark as claimed
-        await supabase.rpc('claim_session_share', {
+        // Mark as claimed (fire and forget)
+        supabase.rpc('claim_session_share', {
           p_share_id: share.share_id,
           p_user_id: this.currentUserId
-        })
+        }).catch(() => {}) // Ignore claim errors
 
-        claimedCount++
-        console.log(`✅ Claimed session share for session ${share.session_id.substring(0, 8)}...`)
-      } catch (error) {
-        console.error(`❌ Failed to claim share ${share.share_id}:`, error)
+        return true
+      } catch {
+        return false
       }
-    }
+    }))
 
-    console.log(`📥 Claimed ${claimedCount}/${shares.length} session shares`)
+    const claimedCount = results.filter(Boolean).length
+    if (claimedCount > 0) {
+      console.log(`✅ Claimed ${claimedCount} session shares`)
+    }
     return claimedCount
   }
 
