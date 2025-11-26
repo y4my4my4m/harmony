@@ -12,6 +12,7 @@ import { ref, computed, watch } from 'vue'
 import { generateThemePalette, applyThemePalette, type ThemePalette } from '@/utils/colorUtils'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { debug } from '@/utils/debug'
 
 export interface VisualThemeSettings {
   theme: 'dark' | 'light' | 'midnight' | 'custom'
@@ -205,7 +206,7 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   root.setAttribute('data-theme', themeName)
   root.setAttribute('data-theme-type', theme.isLightTheme ? 'light' : 'dark')
   
-  console.log(`🎨 Applied ${themeName} theme`)
+  debug.log(`🎨 Applied ${themeName} theme`)
 }
 
 /**
@@ -227,7 +228,7 @@ function applySettings(settings: VisualThemeSettings) {
       )
       applyThemePalette(palette)
     } catch (error) {
-      console.error('Failed to apply custom theme:', error)
+      debug.error('Failed to apply custom theme:', error)
       applyPresetTheme('dark')
     }
   } else if (settings.theme !== 'custom') {
@@ -283,7 +284,7 @@ function saveToLocalStorage(settings: VisualThemeSettings) {
   try {
     localStorage.setItem('harmony-visual-theme', JSON.stringify(settings))
   } catch (error) {
-    console.error('Failed to save theme to localStorage:', error)
+    debug.error('Failed to save theme to localStorage:', error)
   }
 }
 
@@ -297,7 +298,7 @@ function loadFromLocalStorage(): Partial<VisualThemeSettings> | null {
       return JSON.parse(saved)
     }
   } catch (error) {
-    console.error('Failed to load theme from localStorage:', error)
+    debug.error('Failed to load theme from localStorage:', error)
   }
   return null
 }
@@ -324,9 +325,9 @@ async function saveToSupabase(settings: VisualThemeSettings) {
     
     if (error) throw error
     
-    console.log('✅ Visual theme settings saved to Supabase')
+    debug.log('✅ Visual theme settings saved to Supabase')
   } catch (error) {
-    console.error('Failed to save theme to Supabase:', error)
+    debug.error('Failed to save theme to Supabase:', error)
   } finally {
     isSaving.value = false
   }
@@ -352,7 +353,7 @@ async function loadFromSupabase(): Promise<Partial<VisualThemeSettings> | null> 
     
     return data?.appearance_settings || null
   } catch (error) {
-    console.error('Failed to load theme from Supabase:', error)
+    debug.error('Failed to load theme from Supabase:', error)
     return null
   }
 }
@@ -380,7 +381,7 @@ export function useVisualTheme() {
   async function initialize() {
     if (isInitialized.value) return
     
-    console.log('🎨 Initializing visual theme system...')
+    debug.log('🎨 Initializing visual theme system...')
     
     // Try to load from localStorage first (instant)
     const localSettings = loadFromLocalStorage()
@@ -412,7 +413,7 @@ export function useVisualTheme() {
     )
     
     isInitialized.value = true
-    console.log('✅ Visual theme system initialized')
+    debug.log('✅ Visual theme system initialized')
   }
   
   /**

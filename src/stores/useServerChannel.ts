@@ -4,6 +4,7 @@ import { useToast } from 'vue-toastification';
 import type { Server, Category, Channel, ResolvedEmoji } from '@/types';
 import { useEmojiCacheStore } from '@/stores/useEmojiCache';
 import { statePersistence } from '@/services/StatePersistence';
+import { debug } from '@/utils/debug';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export const useServerChannelStore = defineStore('serverChannel', {
@@ -42,7 +43,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
   actions: {
     async initializeUserEnvironment(userId: string): Promise<void> {
       try {
-        console.log('🚀 Initializing user environment...');
+        debug.log('🚀 Initializing user environment...');
         this.isInitializing = true;
         this.currentUserId = userId;
         
@@ -63,9 +64,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
         this.hasInitialized = true;
         this.isInitializing = false;
         
-        console.log('✅ User environment initialized successfully');
+        debug.log('✅ User environment initialized successfully');
       } catch (error) {
-        console.error('❌ Failed to initialize user environment:', error);
+        debug.error('❌ Failed to initialize user environment:', error);
         this.isInitializing = false;
         throw error;
       }
@@ -83,7 +84,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const serverExists = this.servers.some(server => server.id === lastServerId);
       
       if (lastServerId && serverExists) {
-        console.log('🔄 Restoring last selected server:', lastServerId);
+        debug.log('🔄 Restoring last selected server:', lastServerId);
         this.setCurrentServer(lastServerId);
         
         // Fetch categories and channels for the server first
@@ -92,7 +93,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         // Restore last channel for this server
         const lastChannelId = statePersistence.getLastChannel(lastServerId);
         if (lastChannelId && this.channels.some(channel => channel.id === lastChannelId)) {
-          console.log('🔄 Restoring last selected channel:', lastChannelId);
+          debug.log('🔄 Restoring last selected channel:', lastChannelId);
           this.setCurrentChannel(lastChannelId);
         } else if (this.channels.length > 0) {
           // Set default channel if last channel doesn't exist
@@ -103,7 +104,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       } else if (this.servers.length > 0) {
         // No valid last server, select first available server
-        console.log('🔄 No valid last server, selecting first available');
+        debug.log('🔄 No valid last server, selecting first available');
         this.setCurrentServer(this.servers[0].id);
         
         // Fetch categories and channels for the first server
@@ -153,7 +154,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     setCurrentServer(serverId: string): void {
       // ✅ SMART CACHING: Prevent setting the same server twice
       if (this.currentServerId === serverId) {
-        console.log(`💾 Server ${serverId} already selected, skipping duplicate set`);
+        debug.log(`💾 Server ${serverId} already selected, skipping duplicate set`);
         return;
       }
       
@@ -162,11 +163,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
         this.currentServerId = serverId;
         this.currentServer = server;
         // Persist state asynchronously without blocking
-        statePersistence.setLastServer(serverId).catch(console.error);
-        console.log('📍 Current server set to:', server.name);
+        statePersistence.setLastServer(serverId).catch(debug.error);
+        debug.log('📍 Current server set to:', server.name);
         
         // Subscribe to real-time updates for this server's structure (channels/categories)
-        this.subscribeToServerStructure(serverId).catch(console.error);
+        this.subscribeToServerStructure(serverId).catch(debug.error);
       }
     },
 
@@ -174,32 +175,32 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.currentChannelId = channelId;
       if (channelId && this.currentServerId) {
         // Persist state asynchronously without blocking
-        statePersistence.setLastChannel(this.currentServerId, channelId).catch(console.error);
+        statePersistence.setLastChannel(this.currentServerId, channelId).catch(debug.error);
         const channel = this.channels.find(c => c.id === channelId);
-        console.log('📍 Current channel set to:', channel?.name || channelId);
+        debug.log('📍 Current channel set to:', channel?.name || channelId);
       }
     },
 
     async fetchServersForUser(userId: string) {
       try {
-        console.log('🔄 Fetching servers for user via service-like helper:', userId)
+        debug.log('🔄 Fetching servers for user via service-like helper:', userId)
         
         // Use service-like helper for user server fetching
         const servers = await this._fetchServersForUserHelper(userId)
         
         if (servers) {
           this.servers = servers
-          console.log(`✅ Servers fetched successfully via service-like helper: ${servers.length} servers`)
+          debug.log(`✅ Servers fetched successfully via service-like helper: ${servers.length} servers`)
         }
       } catch (error) {
-        console.error('❌ Failed to fetch servers for user via service-like helper:', error)
+        debug.error('❌ Failed to fetch servers for user via service-like helper:', error)
         
         // Fallback to direct fetching if helper fails
         try {
-          console.log('🔄 Falling back to direct user server fetching')
+          debug.log('🔄 Falling back to direct user server fetching')
           await this._fetchServersForUserFallback(userId)
         } catch (fallbackError) {
-          console.error('❌ Fallback user server fetching also failed:', fallbackError)
+          debug.error('❌ Fallback user server fetching also failed:', fallbackError)
           throw fallbackError
         }
       }
@@ -251,32 +252,32 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .eq('user_id', userId)
 
       if (error) {
-        console.error('Error fetching servers for user in fallback:', error)
+        debug.error('Error fetching servers for user in fallback:', error)
         return
       }
 
       this.servers = data?.map((item: any) => item.server).filter(Boolean) || []
-      console.log(`📊 Loaded ${this.servers.length} servers for user`)
+      debug.log(`📊 Loaded ${this.servers.length} servers for user`)
     },
 
     async fetchServers() {
       try {
-        console.log('🔄 Fetching all servers via service-like helper');
+        debug.log('🔄 Fetching all servers via service-like helper');
         
         // Use service-like helper for database operations
         const servers = await this._fetchServersHelper();
         this.servers = servers || [];
         
-        console.log(`✅ Fetched ${this.servers.length} servers via service-like helper`);
+        debug.log(`✅ Fetched ${this.servers.length} servers via service-like helper`);
       } catch (error) {
-        console.error('❌ Failed to fetch servers via service-like helper:', error);
+        debug.error('❌ Failed to fetch servers via service-like helper:', error);
         
         // Fallback to direct query if helper fails
         try {
-          console.log('🔄 Falling back to direct servers fetch');
+          debug.log('🔄 Falling back to direct servers fetch');
           await this._fetchServersFallback();
         } catch (fallbackError) {
-          console.error('❌ Fallback servers fetch also failed:', fallbackError);
+          debug.error('❌ Fallback servers fetch also failed:', fallbackError);
           this.servers = []; // Ensure state is clean on total failure
         }
       }
@@ -301,7 +302,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     async _fetchServersFallback(): Promise<void> {
       const { data, error } = await supabase.from('servers').select('*');
       if (error) {
-        console.error('Error in fallback servers fetch:', error);
+        debug.error('Error in fallback servers fetch:', error);
         throw error;
       }
       this.servers = data || [];
@@ -309,30 +310,30 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async fetchCategoriesAndChannels(serverId: string, signal?: AbortSignal) {
       try {
-        console.log('🔄 Fetching categories and channels via service-like helper:', serverId);
+        debug.log('🔄 Fetching categories and channels via service-like helper:', serverId);
         
         // Use service-like helper with full abort support
         await this._fetchCategoriesAndChannelsHelper(serverId, signal);
         
-        console.log(`✅ Fetched ${this.categories?.length || 0} categories and ${this.channels?.length || 0} channels via service-like helper`);
+        debug.log(`✅ Fetched ${this.categories?.length || 0} categories and ${this.channels?.length || 0} channels via service-like helper`);
       } catch (error) {
         if (signal?.aborted) {
-          console.log('🛑 Categories and channels fetch aborted');
+          debug.log('🛑 Categories and channels fetch aborted');
           return;
         }
         
-        console.error('❌ Failed to fetch categories and channels via service-like helper:', error);
+        debug.error('❌ Failed to fetch categories and channels via service-like helper:', error);
         
         // Fallback to direct query if helper fails
         try {
-          console.log('🔄 Falling back to direct categories and channels fetch');
+          debug.log('🔄 Falling back to direct categories and channels fetch');
           await this._fetchCategoriesAndChannelsFallback(serverId, signal);
         } catch (fallbackError) {
           if (signal?.aborted) {
-            console.log('🛑 Categories and channels fallback fetch aborted');
+            debug.log('🛑 Categories and channels fallback fetch aborted');
             return;
           }
-          console.error('❌ Fallback categories and channels fetch also failed:', fallbackError);
+          debug.error('❌ Fallback categories and channels fetch also failed:', fallbackError);
           // Ensure state is clean on total failure
           this.categories = [];
           this.channels = [];
@@ -389,7 +390,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (signal?.aborted) return;
       
       if (categoriesError) {
-        console.error('Error fetching categories in fallback:', categoriesError);
+        debug.error('Error fetching categories in fallback:', categoriesError);
         throw categoriesError;
       }
 
@@ -403,7 +404,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (signal?.aborted) return;
       
       if (channelsError) {
-        console.error('Error fetching channels in fallback:', channelsError);
+        debug.error('Error fetching channels in fallback:', channelsError);
         throw channelsError;
       }
 
@@ -440,22 +441,22 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async moveChannelToCategory(channelId: string, newCategoryId: string | null) {
       try {
-        console.log('🔄 Moving channel to category via service-like helper:', { channelId, newCategoryId })
+        debug.log('🔄 Moving channel to category via service-like helper:', { channelId, newCategoryId })
         
         // Use service-like helper for optimistic channel move with rollback
         const updatedChannel = await this._moveChannelToCategoryHelper(channelId, newCategoryId)
         
-        console.log(`✅ Channel moved successfully via service-like helper: ${channelId} → ${newCategoryId || 'orphan'}`)
+        debug.log(`✅ Channel moved successfully via service-like helper: ${channelId} → ${newCategoryId || 'orphan'}`)
         return updatedChannel
       } catch (error) {
-        console.error('❌ Failed to move channel via service-like helper:', error)
+        debug.error('❌ Failed to move channel via service-like helper:', error)
         
         // Fallback to direct move if helper fails
         try {
-          console.log('🔄 Falling back to direct channel move')
+          debug.log('🔄 Falling back to direct channel move')
           return await this._moveChannelToCategoryFallback(channelId, newCategoryId)
         } catch (fallbackError) {
-          console.error('❌ Fallback channel move also failed:', fallbackError)
+          debug.error('❌ Fallback channel move also failed:', fallbackError)
           throw fallbackError
         }
       }
@@ -496,7 +497,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         return data
       } catch (error) {
         // Rollback on error: Restore original state
-        console.log('🔄 Rolling back optimistic channel move due to error')
+        debug.log('🔄 Rolling back optimistic channel move due to error')
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
         throw error
@@ -532,15 +533,15 @@ export const useServerChannelStore = defineStore('serverChannel', {
           .single()
 
         if (error) {
-          console.error('Error moving channel to category in fallback:', error)
+          debug.error('Error moving channel to category in fallback:', error)
           throw error
         }
 
-        console.log(`✅ Successfully moved channel ${channelId} to category ${newCategoryId || 'orphan'}`)
+        debug.log(`✅ Successfully moved channel ${channelId} to category ${newCategoryId || 'orphan'}`)
         return data
       } catch (error) {
         // Rollback on error: Restore original state
-        console.error('❌ Server update failed, rolling back channel move:', error)
+        debug.error('❌ Server update failed, rolling back channel move:', error)
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
         throw error
@@ -549,21 +550,21 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async updateChannelOrder(channels: Channel[], categoryId: string | null) {
       try {
-        console.log('🔄 Updating channel order via service-like helper:', { count: channels.length, categoryId })
+        debug.log('🔄 Updating channel order via service-like helper:', { count: channels.length, categoryId })
         
         // Use service-like helper for complex channel ordering with rollback
         await this._updateChannelOrderHelper(channels, categoryId)
         
-        console.log(`✅ Channel order updated successfully via service-like helper: ${channels.length} channels`)
+        debug.log(`✅ Channel order updated successfully via service-like helper: ${channels.length} channels`)
       } catch (error) {
-        console.error('❌ Failed to update channel order via service-like helper:', error)
+        debug.error('❌ Failed to update channel order via service-like helper:', error)
         
         // Fallback to direct ordering if helper fails
         try {
-          console.log('🔄 Falling back to direct channel ordering')
+          debug.log('🔄 Falling back to direct channel ordering')
           await this._updateChannelOrderFallback(channels, categoryId)
         } catch (fallbackError) {
-          console.error('❌ Fallback channel ordering also failed:', fallbackError)
+          debug.error('❌ Fallback channel ordering also failed:', fallbackError)
           throw fallbackError
         }
       }
@@ -605,7 +606,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       } catch (error) {
         // Rollback on error: Restore original state
-        console.log('🔄 Rolling back optimistic channel order due to error')
+        debug.log('🔄 Rolling back optimistic channel order due to error')
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
         throw error
@@ -643,15 +644,15 @@ export const useServerChannelStore = defineStore('serverChannel', {
             .eq('id', channel.id)
 
           if (error) {
-            console.error(`Error updating channel ${channel.id}:`, error)
+            debug.error(`Error updating channel ${channel.id}:`, error)
             throw error
           }
         }
 
-        console.log(`✅ Successfully updated order for ${channels.length} channels`)
+        debug.log(`✅ Successfully updated order for ${channels.length} channels`)
       } catch (error) {
         // Rollback on error: Restore original state
-        console.error('❌ Server update failed, rolling back changes:', error)
+        debug.error('❌ Server update failed, rolling back changes:', error)
         this.channels = originalChannels
         this.categoryChannels = originalCategoryChannels
         throw error
@@ -660,21 +661,21 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async reorderChannelsInCategory(categoryId: string | null, newChannelOrder: Channel[]) {
       try {
-        console.log('🔄 Reordering channels in category via service-like helper:', { categoryId, count: newChannelOrder.length })
+        debug.log('🔄 Reordering channels in category via service-like helper:', { categoryId, count: newChannelOrder.length })
         
         // Use service-like helper for channel reordering
         await this._reorderChannelsInCategoryHelper(categoryId, newChannelOrder)
         
-        console.log(`✅ Channels reordered successfully via service-like helper: ${newChannelOrder.length} in ${categoryId || 'orphan'}`)
+        debug.log(`✅ Channels reordered successfully via service-like helper: ${newChannelOrder.length} in ${categoryId || 'orphan'}`)
       } catch (error) {
-        console.error('❌ Failed to reorder channels via service-like helper:', error)
+        debug.error('❌ Failed to reorder channels via service-like helper:', error)
         
         // Fallback to direct reordering if helper fails
         try {
-          console.log('🔄 Falling back to direct channel reordering')
+          debug.log('🔄 Falling back to direct channel reordering')
           await this._reorderChannelsInCategoryFallback(categoryId, newChannelOrder)
         } catch (fallbackError) {
-          console.error('❌ Fallback channel reordering also failed:', fallbackError)
+          debug.error('❌ Fallback channel reordering also failed:', fallbackError)
           throw fallbackError
         }
       }
@@ -695,9 +696,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       // Specifically handle reordering within the same category
       try {
         await this.updateChannelOrder(newChannelOrder, categoryId)
-        console.log(`✅ Reordered ${newChannelOrder.length} channels in category ${categoryId || 'orphan'}`)
+        debug.log(`✅ Reordered ${newChannelOrder.length} channels in category ${categoryId || 'orphan'}`)
       } catch (error) {
-        console.error('❌ Failed to reorder channels in category:', error)
+        debug.error('❌ Failed to reorder channels in category:', error)
         throw error
       }
     },
@@ -723,21 +724,21 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async updateCategoryOrder(categories: Category[]) {
       try {
-        console.log('🔄 Updating category order via service-like helper:', { count: categories.length })
+        debug.log('🔄 Updating category order via service-like helper:', { count: categories.length })
         
         // Use service-like helper for complex category ordering with rollback
         await this._updateCategoryOrderHelper(categories)
         
-        console.log(`✅ Category order updated successfully via service-like helper: ${categories.length} categories`)
+        debug.log(`✅ Category order updated successfully via service-like helper: ${categories.length} categories`)
       } catch (error) {
-        console.error('❌ Failed to update category order via service-like helper:', error)
+        debug.error('❌ Failed to update category order via service-like helper:', error)
         
         // Fallback to direct ordering if helper fails
         try {
-          console.log('🔄 Falling back to direct category ordering')
+          debug.log('🔄 Falling back to direct category ordering')
           await this._updateCategoryOrderFallback(categories)
         } catch (fallbackError) {
-          console.error('❌ Fallback category ordering also failed:', fallbackError)
+          debug.error('❌ Fallback category ordering also failed:', fallbackError)
           throw fallbackError
         }
       }
@@ -771,7 +772,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       } catch (error) {
         // Rollback on error: Restore original state
-        console.log('🔄 Rolling back optimistic category order due to error')
+        debug.log('🔄 Rolling back optimistic category order due to error')
         this.categories = originalCategories
         throw error
       }
@@ -800,15 +801,15 @@ export const useServerChannelStore = defineStore('serverChannel', {
             .eq('id', category.id)
 
           if (error) {
-            console.error(`Error updating category ${category.id}:`, error)
+            debug.error(`Error updating category ${category.id}:`, error)
             throw error
           }
         }
 
-        console.log(`✅ Successfully updated order for ${categories.length} categories`)
+        debug.log(`✅ Successfully updated order for ${categories.length} categories`)
       } catch (error) {
         // Rollback on error: Restore original state
-        console.error('❌ Server update failed, rolling back category changes:', error)
+        debug.error('❌ Server update failed, rolling back category changes:', error)
         this.categories = originalCategories
         throw error
       }
@@ -816,27 +817,27 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async createCategory(name: string, serverId: string) {
       try {
-        console.log('🔄 Creating category via service-like helper:', { name, serverId });
+        debug.log('🔄 Creating category via service-like helper:', { name, serverId });
         
         // Use service-like helper for category creation
         const newCategory = await this._createCategoryHelper(name, serverId);
         
         if (newCategory) {
           this.categories.push(newCategory);
-          console.log('✅ Category created successfully via service-like helper:', newCategory.id);
+          debug.log('✅ Category created successfully via service-like helper:', newCategory.id);
           return newCategory;
         }
         
         return null;
       } catch (error) {
-        console.error('❌ Failed to create category via service-like helper:', error);
+        debug.error('❌ Failed to create category via service-like helper:', error);
         
         // Fallback to direct creation if helper fails
         try {
-          console.log('🔄 Falling back to direct category creation');
+          debug.log('🔄 Falling back to direct category creation');
           return await this._createCategoryFallback(name, serverId);
         } catch (fallbackError) {
-          console.error('❌ Fallback category creation also failed:', fallbackError);
+          debug.error('❌ Fallback category creation also failed:', fallbackError);
           return null;
         }
       }
@@ -855,7 +856,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .limit(1);
 
       if (fetchError) {
-        console.warn('Warning: Could not fetch existing categories for ordering, using default');
+        debug.warn('Warning: Could not fetch existing categories for ordering, using default');
       }
 
       // Calculate the next order value (highest + 1, or 0 if no categories exist)
@@ -889,7 +890,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .limit(1);
 
       if (fetchError) {
-        console.error('Error fetching existing categories for ordering in fallback:', fetchError);
+        debug.error('Error fetching existing categories for ordering in fallback:', fetchError);
         // Continue with default order if fetch fails
       }
 
@@ -905,7 +906,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .single();
 
       if (error) {
-        console.error('Error creating category in fallback:', error);
+        debug.error('Error creating category in fallback:', error);
         throw error;
       }
 
@@ -915,24 +916,24 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async fetchChannels(serverId: string) {
       try {
-        console.log('🔄 Fetching channels via service-like helper:', serverId)
+        debug.log('🔄 Fetching channels via service-like helper:', serverId)
         
         // Use service-like helper for channel fetching
         const channels = await this._fetchChannelsHelper(serverId)
         
         if (channels) {
           this.channels = channels
-          console.log('✅ Channels fetched successfully via service-like helper:', channels.length)
+          debug.log('✅ Channels fetched successfully via service-like helper:', channels.length)
         }
       } catch (error) {
-        console.error('❌ Failed to fetch channels via service-like helper:', error)
+        debug.error('❌ Failed to fetch channels via service-like helper:', error)
         
         // Fallback to direct fetching if helper fails
         try {
-          console.log('🔄 Falling back to direct channel fetching')
+          debug.log('🔄 Falling back to direct channel fetching')
           await this._fetchChannelsFallback(serverId)
         } catch (fallbackError) {
-          console.error('❌ Fallback channel fetching also failed:', fallbackError)
+          debug.error('❌ Fallback channel fetching also failed:', fallbackError)
           throw fallbackError
         }
       }
@@ -964,7 +965,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .eq('server_id', serverId)
 
       if (error) {
-        console.error('Error fetching channels in fallback:', error)
+        debug.error('Error fetching channels in fallback:', error)
         return
       }
       this.channels = data
@@ -972,22 +973,22 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async createServer(serverData: { name: string; description?: string; public?: boolean; owner: string }) {
       try {
-        console.log('🔄 Creating server via service-like helper:', serverData.name)
+        debug.log('🔄 Creating server via service-like helper:', serverData.name)
         
         // Use service-like helper for server creation with user membership
         const newServer = await this._createServerHelper(serverData)
         
-        console.log('✅ Server created successfully via service-like helper:', newServer.id)
+        debug.log('✅ Server created successfully via service-like helper:', newServer.id)
         return newServer
       } catch (error) {
-        console.error('❌ Failed to create server via service-like helper:', error)
+        debug.error('❌ Failed to create server via service-like helper:', error)
         
         // Fallback to direct creation if helper fails
         try {
-          console.log('🔄 Falling back to direct server creation')
+          debug.log('🔄 Falling back to direct server creation')
           return await this._createServerFallback(serverData)
         } catch (fallbackError) {
-          console.error('❌ Fallback server creation also failed:', fallbackError)
+          debug.error('❌ Fallback server creation also failed:', fallbackError)
           throw fallbackError
         }
       }
@@ -1037,7 +1038,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .single()
 
       if (error) {
-        console.error('Error creating server in fallback:', error)
+        debug.error('Error creating server in fallback:', error)
         throw error
       }
 
@@ -1047,27 +1048,27 @@ export const useServerChannelStore = defineStore('serverChannel', {
       // Add server to local state
       this.servers.push(data)
       
-      console.log('✅ Server created successfully with default structure:', data)
+      debug.log('✅ Server created successfully with default structure:', data)
       return data
     },
 
     async addUserToServer(serverId: string, userId: string) {
       try {
-        console.log('🔄 Adding user to server via service-like helper:', { serverId, userId })
+        debug.log('🔄 Adding user to server via service-like helper:', { serverId, userId })
         
         // Use service-like helper for user-server membership
         await this._addUserToServerHelper(serverId, userId)
         
-        console.log('✅ User added to server successfully via service-like helper')
+        debug.log('✅ User added to server successfully via service-like helper')
       } catch (error) {
-        console.error('❌ Failed to add user to server via service-like helper:', error)
+        debug.error('❌ Failed to add user to server via service-like helper:', error)
         
         // Fallback to direct addition if helper fails
         try {
-          console.log('🔄 Falling back to direct user-server addition')
+          debug.log('🔄 Falling back to direct user-server addition')
           await this._addUserToServerFallback(serverId, userId)
         } catch (fallbackError) {
-          console.error('❌ Fallback user-server addition also failed:', fallbackError)
+          debug.error('❌ Fallback user-server addition also failed:', fallbackError)
           throw fallbackError
         }
       }
@@ -1084,7 +1085,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (error) {
         // Handle duplicate membership gracefully
         if (error.code === '23505') { // Unique constraint violation
-          console.log("User is already a member of this server")
+          debug.log("User is already a member of this server")
           return // Consider it successful since the desired state is achieved
         }
         throw new Error(`Adding user to server failed: ${error.message}`)
@@ -1104,11 +1105,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
       if (error) {
         // Handle duplicate membership gracefully
         if (error.code === '23505') { // Unique constraint violation
-          console.log("User is already a member of this server")
+          debug.log("User is already a member of this server")
           // Don't show a toast here since this is typically called internally
           return // Consider it successful since the desired state is achieved
         }
-        console.error('Error adding user to server:', error)
+        debug.error('Error adding user to server:', error)
         toast.error("Failed to add user to server")
         throw error
       }
@@ -1116,7 +1117,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async updateServer(serverData: { id: string; icon?: string; name?: string; description?: string; public?: boolean }) {
       try {
-        console.log('🔄 Updating server via service-like helper:', serverData.id);
+        debug.log('🔄 Updating server via service-like helper:', serverData.id);
         
         // Use service-like helper for server update
         const updatedServer = await this._updateServerHelper(serverData);
@@ -1128,20 +1129,20 @@ export const useServerChannelStore = defineStore('serverChannel', {
             this.servers[serverIndex] = { ...this.servers[serverIndex], ...updatedServer };
           }
           
-          console.log('✅ Server updated successfully via service-like helper:', updatedServer.id);
+          debug.log('✅ Server updated successfully via service-like helper:', updatedServer.id);
           return updatedServer;
         }
         
         throw new Error('Server update returned no data');
       } catch (error) {
-        console.error('❌ Failed to update server via service-like helper:', error);
+        debug.error('❌ Failed to update server via service-like helper:', error);
         
         // Fallback to direct update if helper fails
         try {
-          console.log('🔄 Falling back to direct server update');
+          debug.log('🔄 Falling back to direct server update');
           return await this._updateServerFallback(serverData);
         } catch (fallbackError) {
-          console.error('❌ Fallback server update also failed:', fallbackError);
+          debug.error('❌ Fallback server update also failed:', fallbackError);
           throw fallbackError;
         }
       }
@@ -1190,7 +1191,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .single();
 
       if (error) {
-        console.error('Error updating server in fallback:', error);
+        debug.error('Error updating server in fallback:', error);
         throw error;
       }
 
@@ -1252,22 +1253,22 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async fetchPublicServers(searchTerm = '', limit = 10) {
       try {
-        console.log('🔄 Fetching public servers via service-like helper:', { searchTerm, limit });
+        debug.log('🔄 Fetching public servers via service-like helper:', { searchTerm, limit });
         
         // Use service-like helper for database operations
         const servers = await this._fetchPublicServersHelper(searchTerm, limit);
         this.publicServers = servers || [];
         
-        console.log(`✅ Fetched ${this.publicServers.length} public servers via service-like helper`);
+        debug.log(`✅ Fetched ${this.publicServers.length} public servers via service-like helper`);
       } catch (error) {
-        console.error('❌ Failed to fetch public servers via service-like helper:', error);
+        debug.error('❌ Failed to fetch public servers via service-like helper:', error);
         
         // Fallback to direct query if helper fails
         try {
-          console.log('🔄 Falling back to direct public servers fetch');
+          debug.log('🔄 Falling back to direct public servers fetch');
           await this._fetchPublicServersFallback(searchTerm, limit);
         } catch (fallbackError) {
-          console.error('❌ Fallback public servers fetch also failed:', fallbackError);
+          debug.error('❌ Fallback public servers fetch also failed:', fallbackError);
           this.publicServers = []; // Ensure state is clean on total failure
         }
       }
@@ -1313,7 +1314,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Error in fallback public servers fetch:', error);
+        debug.error('Error in fallback public servers fetch:', error);
         throw error;
       }
 
@@ -1322,7 +1323,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async deleteChannel(channelId: string): Promise<void> {
       try {
-        console.log('🔄 Deleting channel via service-like helper:', channelId);
+        debug.log('🔄 Deleting channel via service-like helper:', channelId);
         
         // Use service-like helper for channel deletion
         await this._deleteChannelHelper(channelId);
@@ -1330,16 +1331,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
         // Handle complex local state cleanup using service-like helper
         this._removeChannelFromLocalState(channelId);
         
-        console.log('✅ Channel deleted successfully via service-like helper:', channelId);
+        debug.log('✅ Channel deleted successfully via service-like helper:', channelId);
       } catch (error) {
-        console.error('❌ Failed to delete channel via service-like helper:', error);
+        debug.error('❌ Failed to delete channel via service-like helper:', error);
         
         // Fallback to direct deletion if helper fails
         try {
-          console.log('🔄 Falling back to direct channel deletion');
+          debug.log('🔄 Falling back to direct channel deletion');
           await this._deleteChannelFallback(channelId);
         } catch (fallbackError) {
-          console.error('❌ Fallback channel deletion also failed:', fallbackError);
+          debug.error('❌ Fallback channel deletion also failed:', fallbackError);
           throw fallbackError;
         }
       }
@@ -1394,7 +1395,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .eq('id', channelId);
 
       if (error) {
-        console.error('Error deleting channel in fallback:', error);
+        debug.error('Error deleting channel in fallback:', error);
         throw error;
       }
 
@@ -1404,7 +1405,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async deleteCategory(categoryId: string): Promise<void> {
       try {
-        console.log('🔄 Deleting category via service-like helper:', categoryId);
+        debug.log('🔄 Deleting category via service-like helper:', categoryId);
         
         // Get channels that need to be moved to orphans
         const channelsInCategory = this.categoryChannels[categoryId] || [];
@@ -1415,16 +1416,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
         // Handle complex local state cleanup using service-like helper
         this._removeCategoryFromLocalState(categoryId, channelsInCategory);
         
-        console.log('✅ Category deleted successfully via service-like helper:', categoryId);
+        debug.log('✅ Category deleted successfully via service-like helper:', categoryId);
       } catch (error) {
-        console.error('❌ Failed to delete category via service-like helper:', error);
+        debug.error('❌ Failed to delete category via service-like helper:', error);
         
         // Fallback to direct deletion if helper fails
         try {
-          console.log('🔄 Falling back to direct category deletion');
+          debug.log('🔄 Falling back to direct category deletion');
           await this._deleteCategoryFallback(categoryId);
         } catch (fallbackError) {
-          console.error('❌ Fallback category deletion also failed:', fallbackError);
+          debug.error('❌ Fallback category deletion also failed:', fallbackError);
           throw fallbackError;
         }
       }
@@ -1490,7 +1491,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
           .in('id', channelsInCategory.map(channel => channel.id));
 
         if (updateError) {
-          console.error('Error moving channels to orphans in fallback:', updateError);
+          debug.error('Error moving channels to orphans in fallback:', updateError);
           throw updateError;
         }
       }
@@ -1502,7 +1503,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .eq('id', categoryId);
 
       if (error) {
-        console.error('Error deleting category in fallback:', error);
+        debug.error('Error deleting category in fallback:', error);
         throw error;
       }
 
@@ -1512,7 +1513,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async updateChannel(channelData: { id: string; name?: string; description?: string }): Promise<void> {
       try {
-        console.log('🔄 Updating channel via service-like helper:', channelData.id);
+        debug.log('🔄 Updating channel via service-like helper:', channelData.id);
         
         // Use service-like helper for channel update
         const updatedChannel = await this._updateChannelHelper(channelData);
@@ -1521,17 +1522,17 @@ export const useServerChannelStore = defineStore('serverChannel', {
           // Update complex local state using service-like helper
           this._updateChannelInLocalState(updatedChannel);
           
-          console.log('✅ Channel updated successfully via service-like helper:', channelData.id);
+          debug.log('✅ Channel updated successfully via service-like helper:', channelData.id);
         }
       } catch (error) {
-        console.error('❌ Failed to update channel via service-like helper:', error);
+        debug.error('❌ Failed to update channel via service-like helper:', error);
         
         // Fallback to direct update if helper fails
         try {
-          console.log('🔄 Falling back to direct channel update');
+          debug.log('🔄 Falling back to direct channel update');
           await this._updateChannelFallback(channelData);
         } catch (fallbackError) {
-          console.error('❌ Fallback channel update also failed:', fallbackError);
+          debug.error('❌ Fallback channel update also failed:', fallbackError);
           throw fallbackError;
         }
       }
@@ -1599,7 +1600,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .single();
 
       if (error) {
-        console.error('Error updating channel in fallback:', error);
+        debug.error('Error updating channel in fallback:', error);
         throw error;
       }
 
@@ -1609,7 +1610,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     async updateCategory(categoryData: { id: string; name: string }): Promise<void> {
       try {
-        console.log('🔄 Updating category via service-like helper:', categoryData.id);
+        debug.log('🔄 Updating category via service-like helper:', categoryData.id);
         
         // Use service-like helper for category update
         const updatedCategory = await this._updateCategoryHelper(categoryData);
@@ -1621,17 +1622,17 @@ export const useServerChannelStore = defineStore('serverChannel', {
             this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...updatedCategory };
           }
           
-          console.log('✅ Category updated successfully via service-like helper:', categoryData.id);
+          debug.log('✅ Category updated successfully via service-like helper:', categoryData.id);
         }
       } catch (error) {
-        console.error('❌ Failed to update category via service-like helper:', error);
+        debug.error('❌ Failed to update category via service-like helper:', error);
         
         // Fallback to direct update if helper fails
         try {
-          console.log('🔄 Falling back to direct category update');
+          debug.log('🔄 Falling back to direct category update');
           await this._updateCategoryFallback(categoryData);
         } catch (fallbackError) {
-          console.error('❌ Fallback category update also failed:', fallbackError);
+          debug.error('❌ Fallback category update also failed:', fallbackError);
           throw fallbackError;
         }
       }
@@ -1667,7 +1668,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .single();
 
       if (error) {
-        console.error('Error updating category in fallback:', error);
+        debug.error('Error updating category in fallback:', error);
         throw error;
       }
 
@@ -1690,7 +1691,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       // Unsubscribe from previous server if any
       await this.unsubscribeFromServerStructure();
       
-      console.log('🔔 Subscribing to server structure updates for:', serverId);
+      debug.log('🔔 Subscribing to server structure updates for:', serverId);
       
       this.serverStructureSubscription = supabase
         .channel(`server-structure:${serverId}`)
@@ -1727,7 +1728,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
           (payload) => this._handleCategoryDelete(payload)
         )
         .subscribe((status) => {
-          console.log(`📡 Server structure subscription status for ${serverId}:`, status);
+          debug.log(`📡 Server structure subscription status for ${serverId}:`, status);
         });
     },
 
@@ -1736,7 +1737,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     async unsubscribeFromServerStructure(): Promise<void> {
       if (this.serverStructureSubscription) {
-        console.log('🔕 Unsubscribing from server structure updates');
+        debug.log('🔕 Unsubscribing from server structure updates');
         await this.serverStructureSubscription.unsubscribe();
         this.serverStructureSubscription = null;
       }
@@ -1747,11 +1748,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     _handleChannelInsert(payload: any): void {
       const newChannel = payload.new as Channel;
-      console.log('📥 Real-time: Channel created:', newChannel.name);
+      debug.log('📥 Real-time: Channel created:', newChannel.name);
       
       // Check if channel already exists (avoid duplicates)
       if (this.channels.some(c => c.id === newChannel.id)) {
-        console.log('⚠️ Channel already exists, skipping duplicate');
+        debug.log('⚠️ Channel already exists, skipping duplicate');
         return;
       }
       
@@ -1775,7 +1776,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
     _handleChannelUpdate(payload: any): void {
       const updatedChannel = payload.new as Channel;
       const oldChannel = payload.old as Channel;
-      console.log('📝 Real-time: Channel updated:', updatedChannel.name);
+      debug.log('📝 Real-time: Channel updated:', updatedChannel.name);
       
       // Update in channels array
       const channelIndex = this.channels.findIndex(c => c.id === updatedChannel.id);
@@ -1821,7 +1822,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     _handleChannelDelete(payload: any): void {
       const deletedChannel = payload.old as Channel;
-      console.log('🗑️ Real-time: Channel deleted:', deletedChannel.id);
+      debug.log('🗑️ Real-time: Channel deleted:', deletedChannel.id);
       
       // Remove from channels array
       this.channels = this.channels.filter(c => c.id !== deletedChannel.id);
@@ -1849,11 +1850,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     _handleCategoryInsert(payload: any): void {
       const newCategory = payload.new as Category;
-      console.log('📥 Real-time: Category created:', newCategory.name);
+      debug.log('📥 Real-time: Category created:', newCategory.name);
       
       // Check if category already exists
       if (this.categories.some(c => c.id === newCategory.id)) {
-        console.log('⚠️ Category already exists, skipping duplicate');
+        debug.log('⚠️ Category already exists, skipping duplicate');
         return;
       }
       
@@ -1871,7 +1872,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     _handleCategoryUpdate(payload: any): void {
       const updatedCategory = payload.new as Category;
-      console.log('📝 Real-time: Category updated:', updatedCategory.name);
+      debug.log('📝 Real-time: Category updated:', updatedCategory.name);
       
       // Update in categories array
       const categoryIndex = this.categories.findIndex(c => c.id === updatedCategory.id);
@@ -1887,7 +1888,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     _handleCategoryDelete(payload: any): void {
       const deletedCategory = payload.old as Category;
-      console.log('🗑️ Real-time: Category deleted:', deletedCategory.id);
+      debug.log('🗑️ Real-time: Category deleted:', deletedCategory.id);
       
       // Remove from categories array
       this.categories = this.categories.filter(c => c.id !== deletedCategory.id);
@@ -1911,7 +1912,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       await this.unsubscribeFromUserServers();
       
       this.currentUserId = userId;
-      console.log('🔔 Subscribing to user server list updates for:', userId);
+      debug.log('🔔 Subscribing to user server list updates for:', userId);
       
       this.userServersSubscription = supabase
         .channel(`user-servers:${userId}`)
@@ -1939,7 +1940,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
           (payload) => this._handleServerDelete(payload)
         )
         .subscribe((status) => {
-          console.log(`📡 User servers subscription status for ${userId}:`, status);
+          debug.log(`📡 User servers subscription status for ${userId}:`, status);
         });
     },
 
@@ -1948,7 +1949,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     async unsubscribeFromUserServers(): Promise<void> {
       if (this.userServersSubscription) {
-        console.log('🔕 Unsubscribing from user server list updates');
+        debug.log('🔕 Unsubscribing from user server list updates');
         await this.userServersSubscription.unsubscribe();
         this.userServersSubscription = null;
       }
@@ -1959,11 +1960,11 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     async _handleUserServerJoin(payload: any): Promise<void> {
       const serverId = payload.new.server_id;
-      console.log('📥 Real-time: User joined server:', serverId);
+      debug.log('📥 Real-time: User joined server:', serverId);
       
       // Check if server already in list
       if (this.servers.some(s => s.id === serverId)) {
-        console.log('⚠️ Server already in list, skipping duplicate');
+        debug.log('⚠️ Server already in list, skipping duplicate');
         return;
       }
       
@@ -1976,16 +1977,16 @@ export const useServerChannelStore = defineStore('serverChannel', {
           .single();
         
         if (error) {
-          console.error('Error fetching joined server:', error);
+          debug.error('Error fetching joined server:', error);
           return;
         }
         
         if (server) {
           this.servers.push(server);
-          console.log('✅ Server added to list:', server.name);
+          debug.log('✅ Server added to list:', server.name);
         }
       } catch (error) {
-        console.error('Error handling server join:', error);
+        debug.error('Error handling server join:', error);
       }
     },
 
@@ -1994,7 +1995,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     _handleUserServerLeave(payload: any): void {
       const serverId = payload.old.server_id;
-      console.log('📤 Real-time: User left server:', serverId);
+      debug.log('📤 Real-time: User left server:', serverId);
       
       // Remove server from list
       this.servers = this.servers.filter(s => s.id !== serverId);
@@ -2018,7 +2019,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     _handleServerUpdate(payload: any): void {
       const updatedServer = payload.new as Server;
-      console.log('📝 Real-time: Server updated:', updatedServer.id, updatedServer.name);
+      debug.log('📝 Real-time: Server updated:', updatedServer.id, updatedServer.name);
       
       // Only update if this server is in the user's list
       const serverIndex = this.servers.findIndex(s => s.id === updatedServer.id);
@@ -2029,12 +2030,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
       
       // Update server in the list
       this.servers[serverIndex] = { ...this.servers[serverIndex], ...updatedServer };
-      console.log('✅ Server updated in list:', updatedServer.name);
+      debug.log('✅ Server updated in list:', updatedServer.name);
       
       // If this is the current server, also update currentServer
       if (this.currentServerId === updatedServer.id) {
         this.currentServer = { ...this.currentServer, ...updatedServer };
-        console.log('✅ Current server updated:', updatedServer.name);
+        debug.log('✅ Current server updated:', updatedServer.name);
       }
     },
 
@@ -2043,7 +2044,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
      */
     _handleServerDelete(payload: any): void {
       const deletedServer = payload.old as Server;
-      console.log('🗑️ Real-time: Server deleted:', deletedServer.id);
+      debug.log('🗑️ Real-time: Server deleted:', deletedServer.id);
       
       // Check if this server is in the user's list
       const serverExists = this.servers.some(s => s.id === deletedServer.id);
@@ -2054,7 +2055,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       
       // Remove server from list
       this.servers = this.servers.filter(s => s.id !== deletedServer.id);
-      console.log('✅ Deleted server removed from list:', deletedServer.name || deletedServer.id);
+      debug.log('✅ Deleted server removed from list:', deletedServer.name || deletedServer.id);
       
       // If this was the current server, switch to another
       if (this.currentServerId === deletedServer.id) {

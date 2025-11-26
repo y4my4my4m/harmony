@@ -90,6 +90,7 @@ import { useUserData } from '@/composables/useUserData'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { useViewContextTracking } from '@/composables/useViewContext'
+import { debug } from '@/utils/debug'
 import type { MessagePart } from '@/types'
 
 // Props
@@ -222,7 +223,7 @@ const handleUsersAdded = async (conversationId: string, userIds: string[]) => {
       // Optionally reload messages to show the system message about added users
       await dmStore.fetchConversationMessages(conversationId)
     } catch (error) {
-      console.error('Failed to refresh conversation after adding users:', error)
+      debug.error('Failed to refresh conversation after adding users:', error)
     }
   }
 }
@@ -230,7 +231,7 @@ const handleUsersAdded = async (conversationId: string, userIds: string[]) => {
 const handleConversationStarted = async (conversationId: string) => {
   // Navigation is already handled by the FollowersList component
   // This method exists for consistency and potential future use
-  console.log('Conversation started:', conversationId)
+  debug.log('Conversation started:', conversationId)
 }
 
 const handleConversationCreated = async (newConversationId: string) => {
@@ -238,7 +239,7 @@ const handleConversationCreated = async (newConversationId: string) => {
   try {
     await router.push(`/dm/${newConversationId}`)
   } catch (error) {
-    console.error('Failed to navigate to new conversation:', error)
+    debug.error('Failed to navigate to new conversation:', error)
   }
 }
 
@@ -275,7 +276,7 @@ const handleAcceptCall = async (acceptWithVideo: boolean) => {
       voiceStore.isOverlayVisible = true
     }
   } catch (error) {
-    console.error('Error accepting call:', error)
+    debug.error('Error accepting call:', error)
     toast.error('Failed to join call')
   } finally {
     showIncomingCallModal.value = false
@@ -294,7 +295,7 @@ const handleDeclineCall = async () => {
     await dmCallSignaling.declineCall(incomingCall.value.conversationId, currentUserId)
     toast.info('Call declined')
   } catch (error) {
-    console.error('Error declining call:', error)
+    debug.error('Error declining call:', error)
   } finally {
     showIncomingCallModal.value = false
     incomingCall.value = null
@@ -438,10 +439,10 @@ onMounted(async () => {
   if (userId) {
     // Only initialize if conversations aren't already loaded
     if (dmStore.conversations.length === 0 && !dmStore.loadingConversations) {
-      console.log('🔄 DMView: Fallback DM initialization (BaseLayout may not have loaded DMs)')
+      debug.log('🔄 DMView: Fallback DM initialization (BaseLayout may not have loaded DMs)')
       await dmStore.initializeDMEnvironment(userId, false, true) // metadata only as fallback
     } else {
-      console.log('✅ DMView: DMs already loaded by BaseLayout')
+      debug.log('✅ DMView: DMs already loaded by BaseLayout')
     }
   }
 })

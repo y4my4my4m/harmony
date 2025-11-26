@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 import type { Profile } from '@/types';
 import { services, createLoadingState, setLoading, setSuccess, setError } from '@/services';
 import type { ProfileData } from '@/services/ProfileService';
+import { debug } from '@/utils/debug';
 
 export const useProfileStore = defineStore('profile', {
   state: () => ({
@@ -19,7 +20,7 @@ export const useProfileStore = defineStore('profile', {
   actions: {
     async fetchProfile(userId: string, useCache = true) {
       try {
-        console.log('🔄 Fetching profile via ProfileService:', userId);
+        debug.log('🔄 Fetching profile via ProfileService:', userId);
         this.loadingState = setLoading(this.loadingState);
         
         const profile = await services.profiles.fetchProfile(userId, useCache);
@@ -32,9 +33,9 @@ export const useProfileStore = defineStore('profile', {
           this.loadingState = setSuccess(this.loadingState, null);
         }
         
-        console.log('✅ Profile fetched via service layer');
+        debug.log('✅ Profile fetched via service layer');
       } catch (error: any) {
-        console.error('❌ Error fetching profile via service:', error);
+        debug.error('❌ Error fetching profile via service:', error);
         this.loadingState = setError(this.loadingState, {
           code: error.code || 'FETCH_ERROR',
           message: error.message || 'Failed to fetch profile',
@@ -52,7 +53,7 @@ export const useProfileStore = defineStore('profile', {
 
     async updateProfile(profileData: ProfileData) {
       try {
-        console.log('🔄 Updating profile via ProfileService:', profileData);
+        debug.log('🔄 Updating profile via ProfileService:', profileData);
         this.loadingState = setLoading(this.loadingState);
 
         const updatedProfile = await services.profiles.updateProfile(profileData);
@@ -60,10 +61,10 @@ export const useProfileStore = defineStore('profile', {
         this.profile = updatedProfile;
         this.loadingState = setSuccess(this.loadingState, updatedProfile);
         
-        console.log('✅ Profile updated via service layer');
+        debug.log('✅ Profile updated via service layer');
         return updatedProfile;
       } catch (error: any) {
-        console.error('❌ Error updating profile via service:', error);
+        debug.error('❌ Error updating profile via service:', error);
         this.loadingState = setError(this.loadingState, {
           code: error.code || 'UPDATE_ERROR', 
           message: error.message || 'Failed to update profile',
@@ -75,7 +76,7 @@ export const useProfileStore = defineStore('profile', {
 
     async createProfile(profileData: Profile) {
       try {
-        console.log('🔄 Creating profile via ProfileService:', profileData.username);
+        debug.log('🔄 Creating profile via ProfileService:', profileData.username);
         this.loadingState = setLoading(this.loadingState);
 
         const newProfile = await services.profiles.createProfile(profileData);
@@ -83,10 +84,10 @@ export const useProfileStore = defineStore('profile', {
         this.profile = newProfile;
         this.loadingState = setSuccess(this.loadingState, newProfile);
         
-        console.log('✅ Profile created via service layer');
+        debug.log('✅ Profile created via service layer');
         return newProfile;
       } catch (error: any) {
-        console.error('❌ Error creating profile via service:', error);
+        debug.error('❌ Error creating profile via service:', error);
         this.loadingState = setError(this.loadingState, {
           code: error.code || 'CREATE_ERROR',
           message: error.message || 'Failed to create profile', 
@@ -98,7 +99,7 @@ export const useProfileStore = defineStore('profile', {
 
     async fetchProfileByAuthUserId(authUserId: string) {
       try {
-        console.log('🔄 Fetching profile by auth user ID via ProfileService:', authUserId);
+        debug.log('🔄 Fetching profile by auth user ID via ProfileService:', authUserId);
         this.loadingState = setLoading(this.loadingState);
 
         const profile = await services.profiles.fetchProfileByAuthUserId(authUserId);
@@ -106,9 +107,9 @@ export const useProfileStore = defineStore('profile', {
         this.profile = profile;
         this.loadingState = setSuccess(this.loadingState, profile);
         
-        console.log('✅ Profile fetched by auth user ID via service layer');
+        debug.log('✅ Profile fetched by auth user ID via service layer');
       } catch (error: any) {
-        console.error('❌ Error fetching profile by auth user ID via service:', error);
+        debug.error('❌ Error fetching profile by auth user ID via service:', error);
         this.loadingState = setError(this.loadingState, {
           code: error.code || 'FETCH_BY_AUTH_ERROR',
           message: error.message || 'Failed to fetch profile by auth user ID',

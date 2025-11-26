@@ -17,6 +17,7 @@
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
+import { debug } from '@/utils/debug'
 
 // Lazy load Megolm encryption service (room-based encryption with recovery keys)
 let megolmEncryptionService: any = null
@@ -26,7 +27,7 @@ async function getEncryptionService() {
       const module = await import('@/services/encryption/MegolmMessageEncryptionService')
       megolmEncryptionService = module.megolmMessageEncryptionService
     } catch (error) {
-      console.warn('⚠️ Megolm encryption service not available:', error)
+      debug.warn('⚠️ Megolm encryption service not available:', error)
       megolmEncryptionService = null
     }
   }
@@ -91,11 +92,11 @@ export class CoreMessageService {
         .maybeSingle()
       
       const encryptionMode = serverSettings?.encryption_mode || 'optional'
-      console.log(`🔐 Server encryption mode: ${encryptionMode}`)
+      debug.log(`🔐 Server encryption mode: ${encryptionMode}`)
 
       // Skip encryption if server has it disabled
       if (encryptionMode === 'disabled') {
-        console.log('ℹ️ Server has encryption disabled - sending plaintext')
+        debug.log('ℹ️ Server has encryption disabled - sending plaintext')
       } else {
         // Encryption is optional or required - check if user can encrypt
         const encryptionService = await getEncryptionService()
@@ -104,12 +105,12 @@ export class CoreMessageService {
           const hasRecoveryKey = await encryptionService.hasRecoveryKey()
           const isUnlocked = encryptionService.isUnlocked()
           
-          console.log(`🔐 Encryption check: hasRecoveryKey=${hasRecoveryKey}, isUnlocked=${isUnlocked}`)
+          debug.log(`🔐 Encryption check: hasRecoveryKey=${hasRecoveryKey}, isUnlocked=${isUnlocked}`)
           
           if (hasRecoveryKey && isUnlocked) {
             try {
-              console.log('🔐 Megolm encryption active - encrypting message for channel')
-              console.log(`🔐 Channel (room): ${channelId}`)
+              debug.log('🔐 Megolm encryption active - encrypting message for channel')
+              debug.log(`🔐 Channel (room): ${channelId}`)
               
               // Get all server members to share session key with
               const { data: members } = await supabase
@@ -122,20 +123,20 @@ export class CoreMessageService {
                 recipientIds.push(currentUser.id)
               }
               
-              console.log(`🔐 Encrypting for channel with ${recipientIds.length} members`)
+              debug.log(`🔐 Encrypting for channel with ${recipientIds.length} members`)
               
               // Encrypt message with Megolm (channel-wide session key)
               const encryptedData = await encryptionService.encryptMessage(content, channelId, recipientIds)
               finalContent = encryptedData.content
               encrypted = true
               encryptionMetadata = encryptedData.encryption_metadata
-              console.log(`✅ Message encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
+              debug.log(`✅ Message encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
             } catch (error) {
-              console.error('❌ Encryption failed:', error)
+              debug.error('❌ Encryption failed:', error)
               if (encryptionMode === 'required') {
                 throw this.createError('ENCRYPTION_REQUIRED', 'Server requires encryption but encryption failed')
               }
-              console.warn('⚠️ Falling back to unencrypted message')
+              debug.warn('⚠️ Falling back to unencrypted message')
             }
           } else if (encryptionMode === 'required') {
             // Server requires encryption but user doesn't have it set up/unlocked
@@ -147,15 +148,15 @@ export class CoreMessageService {
           } else {
             // Optional encryption - user doesn't have it, send plaintext
             if (hasRecoveryKey && !isUnlocked) {
-              console.log('🔐 Encryption locked - enter recovery key to send encrypted messages')
+              debug.log('🔐 Encryption locked - enter recovery key to send encrypted messages')
             } else {
-              console.log('ℹ️ No encryption set up - sending plaintext')
+              debug.log('ℹ️ No encryption set up - sending plaintext')
             }
           }
         } else if (encryptionMode === 'required') {
           throw this.createError('ENCRYPTION_REQUIRED', 'This server requires encryption. Set up encryption in Settings first.')
         } else {
-          console.log('ℹ️ Encryption service not available - sending plaintext')
+          debug.log('ℹ️ Encryption service not available - sending plaintext')
         }
       }
 
@@ -169,7 +170,7 @@ export class CoreMessageService {
         metadata: { created_via: 'harmony_client' }
       }
 
-      console.log('📤 Inserting message to database:', { ...messageData, content: encrypted ? '[encrypted]' : messageData.content })
+      debug.log('📤 Inserting message to database:', { ...messageData, content: encrypted ? '[encrypted]' : messageData.content })
       
       const { data: message, error } = await supabase
         .from('messages')
@@ -178,20 +179,20 @@ export class CoreMessageService {
         .single()
 
       if (error) {
-        console.error('❌ DATABASE INSERT FAILED:', error)
+        debug.error('❌ DATABASE INSERT FAILED:', error)
         throw this.createError('INSERT_FAILED', error.message, error)
       }
       
       if (!message) {
-        console.error('❌ No message returned from insert!')
+        debug.error('❌ No message returned from insert!')
         throw this.createError('INSERT_FAILED', 'No message returned from database')
       }
 
-      console.log('✅ Message inserted to database successfully:', message.id)
-      console.log('📦 Returned message:', message)
+      debug.log('✅ Message inserted to database successfully:', message.id)
+      debug.log('📦 Returned message:', message)
       return message
     } catch (error) {
-      console.error('❌ Failed to send channel message:', error)
+      debug.error('❌ Failed to send channel message:', error)
       throw error
     }
   }
@@ -225,7 +226,7 @@ export class CoreMessageService {
         .maybeSingle()
 
       const conversationEncryptionEnabled = convSettings?.encryption_enabled === true
-      console.log(`🔐 Conversation encryption setting: ${conversationEncryptionEnabled ? 'enabled' : 'disabled'}`)
+      debug.log(`🔐 Conversation encryption setting: ${conversationEncryptionEnabled ? 'enabled' : 'disabled'}`)
 
       const encryptionService = await getEncryptionService()
       if (conversationEncryptionEnabled && encryptionService && encryptionService.isInitialized()) {
@@ -235,8 +236,8 @@ export class CoreMessageService {
           const isUnlocked = encryptionService.isUnlocked()
           
           if (hasRecoveryKey && isUnlocked) {
-            console.log('🔐 Megolm encryption active - encrypting DM')
-            console.log(`🔐 Conversation (room): ${conversationId}`)
+            debug.log('🔐 Megolm encryption active - encrypting DM')
+            debug.log(`🔐 Conversation (room): ${conversationId}`)
             
             // Get conversation participants
             const { data: participants } = await supabase
@@ -251,22 +252,22 @@ export class CoreMessageService {
               recipientIds.push(currentUser.id)
             }
             
-            console.log(`🔐 Encrypting DM for ${recipientIds.length} participants`)
+            debug.log(`🔐 Encrypting DM for ${recipientIds.length} participants`)
             
             // Encrypt message with Megolm (conversation-wide session key)
             const encryptedData = await encryptionService.encryptMessage(content, conversationId, recipientIds)
             finalContent = encryptedData.content
             encrypted = true
             encryptionMetadata = encryptedData.encryption_metadata
-            console.log(`✅ DM encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
+            debug.log(`✅ DM encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
           } else if (hasRecoveryKey && !isUnlocked) {
-            console.log('🔐 Encryption locked - enter recovery key to send encrypted DMs')
+            debug.log('🔐 Encryption locked - enter recovery key to send encrypted DMs')
           } else {
-            console.log('ℹ️ No encryption set up - sending plaintext DM')
+            debug.log('ℹ️ No encryption set up - sending plaintext DM')
           }
         } catch (error) {
-          console.error('❌ DM encryption failed:', error)
-          console.warn('⚠️ Falling back to unencrypted DM')
+          debug.error('❌ DM encryption failed:', error)
+          debug.warn('⚠️ Falling back to unencrypted DM')
         }
       }
 
@@ -288,10 +289,10 @@ export class CoreMessageService {
 
       if (error) throw this.createError('INSERT_FAILED', error.message, error)
 
-      console.log('✅ DM message sent successfully (local only)')
+      debug.log('✅ DM message sent successfully (local only)')
       return message
     } catch (error) {
-      console.error('❌ Failed to send DM message:', error)
+      debug.error('❌ Failed to send DM message:', error)
       throw error
     }
   }
@@ -327,7 +328,7 @@ export class CoreMessageService {
 
       // If the original message was encrypted, re-encrypt the edited content
       if (originalMessage.encrypted && originalMessage.encryption_metadata) {
-        console.log('🔐 Original message was encrypted - re-encrypting edited content')
+        debug.log('🔐 Original message was encrypted - re-encrypting edited content')
         
         const encryptionService = await getEncryptionService()
         if (encryptionService && encryptionService.isInitialized() && encryptionService.isUnlocked()) {
@@ -370,16 +371,16 @@ export class CoreMessageService {
               recipientIds.push(currentUser.id)
             }
 
-            console.log(`🔐 Re-encrypting with Megolm for room ${roomId.substring(0, 8)}...`)
+            debug.log(`🔐 Re-encrypting with Megolm for room ${roomId.substring(0, 8)}...`)
             
             // Encrypt the new content with Megolm
             const encryptedData = await encryptionService.encryptMessage(newContent, roomId, recipientIds)
             finalContent = encryptedData.content
             encrypted = true
             encryptionMetadata = encryptedData.encryption_metadata
-            console.log(`✅ Edited message re-encrypted with Megolm`)
+            debug.log(`✅ Edited message re-encrypted with Megolm`)
           } catch (error) {
-            console.error('❌ Re-encryption failed:', error)
+            debug.error('❌ Re-encryption failed:', error)
             throw this.createError('ENCRYPTION_FAILED', 'Failed to re-encrypt edited message', error)
           }
         } else {
@@ -401,10 +402,10 @@ export class CoreMessageService {
 
       if (error) throw this.createError('UPDATE_FAILED', error.message, error)
 
-      console.log('✅ Message edited successfully (local only)')
+      debug.log('✅ Message edited successfully (local only)')
       return message
     } catch (error) {
-      console.error('❌ Failed to edit message:', error)
+      debug.error('❌ Failed to edit message:', error)
       throw error
     }
   }
@@ -424,9 +425,9 @@ export class CoreMessageService {
 
       if (error) throw this.createError('DELETE_FAILED', error.message, error)
 
-      console.log('✅ Message deleted successfully (local only)')
+      debug.log('✅ Message deleted successfully (local only)')
     } catch (error) {
-      console.error('❌ Failed to delete message:', error)
+      debug.error('❌ Failed to delete message:', error)
       throw error
     }
   }
@@ -448,7 +449,7 @@ export class CoreMessageService {
 
       const profileId = await this.getCurrentUserProfileId()
 
-      console.log(`🔄 Core: Toggling reaction: message=${messageId}, emoji=${emojiId}, user=${profileId}`)
+      debug.log(`🔄 Core: Toggling reaction: message=${messageId}, emoji=${emojiId}, user=${profileId}`)
 
       // Check if reaction already exists
       const { data: existingReaction } = await supabase
@@ -466,7 +467,7 @@ export class CoreMessageService {
 
         if (error) throw this.createError('REMOVE_REACTION_FAILED', error.message, error)
         
-        console.log('✅ Core: Reaction removed successfully')
+        debug.log('✅ Core: Reaction removed successfully')
         return { added: false }
       } else {
         // Add reaction
@@ -481,7 +482,7 @@ export class CoreMessageService {
         if (error) {
           // Handle race condition (duplicate constraint violation)
           if (error.code === '23505') {
-            console.log('🎯 Core: Race condition detected in reaction toggle')
+            debug.log('🎯 Core: Race condition detected in reaction toggle')
             
             // Double-check current state after race condition
             const { data: nowExists } = await supabase
@@ -491,7 +492,7 @@ export class CoreMessageService {
               .maybeSingle()
 
             if (nowExists) {
-              console.log('✅ Core: Reaction was added by another process, treating as success')
+              debug.log('✅ Core: Reaction was added by another process, treating as success')
               return { added: true, hadRaceCondition: true }
             } else {
               throw this.createError('RACE_CONDITION_ERROR', 'Unexpected duplicate error state')
@@ -503,11 +504,11 @@ export class CoreMessageService {
           throw this.createError('ADD_REACTION_FAILED', error.message, error)
         }
         
-        console.log('✅ Core: Reaction added successfully')
+        debug.log('✅ Core: Reaction added successfully')
         return { added: true }
       }
     } catch (error) {
-      console.error('❌ Core: Failed to toggle reaction:', error)
+      debug.error('❌ Core: Failed to toggle reaction:', error)
       throw error
     }
   }
@@ -517,13 +518,13 @@ export class CoreMessageService {
    */
   async getMessageReactions(messageId: string): Promise<any[]> {
     try {
-      console.log(`🔄 Core: Fetching reactions for message: ${messageId}`)
+      debug.log(`🔄 Core: Fetching reactions for message: ${messageId}`)
       
       const { data: reactions, error } = await supabase
         .rpc('get_message_reactions', { message_id: messageId })
 
       if (error) {
-        console.error('❌ Core: Failed to fetch message reactions:', error)
+        debug.error('❌ Core: Failed to fetch message reactions:', error)
         throw this.createError('FETCH_REACTIONS_FAILED', error.message, error)
       }
 
@@ -539,10 +540,10 @@ export class CoreMessageService {
         reactions: Array.isArray(reaction.reactions) ? reaction.reactions : [],
         message_id_of_reactions: reaction.message_id_of_reactions
       })) || []
-      console.log(`✅ Core: Fetched ${transformedReactions.length} reaction groups for message: ${messageId}`)
+      debug.log(`✅ Core: Fetched ${transformedReactions.length} reaction groups for message: ${messageId}`)
       return transformedReactions
     } catch (error) {
-      console.error('❌ Core: Error in getMessageReactions:', error)
+      debug.error('❌ Core: Error in getMessageReactions:', error)
       throw error
     }
   }
@@ -557,14 +558,14 @@ export class CoreMessageService {
         return {}
       }
 
-      console.log(`🔄 Core: Batch fetching reactions for ${messageIds.length} messages`)
+      debug.log(`🔄 Core: Batch fetching reactions for ${messageIds.length} messages`)
       
       // Use the optimized database function
       const { data: reactions, error } = await supabase
         .rpc('get_batch_message_reactions', { message_ids: messageIds })
 
       if (error) {
-        console.error('❌ Core: Failed to batch fetch message reactions:', error)
+        debug.error('❌ Core: Failed to batch fetch message reactions:', error)
         throw this.createError('BATCH_FETCH_REACTIONS_FAILED', error.message, error)
       }
 
@@ -596,10 +597,10 @@ export class CoreMessageService {
         })
       })
 
-      console.log(`✅ Core: Batch fetched reactions for ${messageIds.length} messages (${reactions?.length || 0} reaction groups)`)
+      debug.log(`✅ Core: Batch fetched reactions for ${messageIds.length} messages (${reactions?.length || 0} reaction groups)`)
       return groupedReactions
     } catch (error) {
-      console.error('❌ Core: Error in getBatchMessageReactions:', error)
+      debug.error('❌ Core: Error in getBatchMessageReactions:', error)
       throw error
     }
   }
@@ -621,9 +622,9 @@ export class CoreMessageService {
       // Use the store's bulk set method to populate cache
       reactionsStore.bulkSetReactions(reactionsByMessage)
       
-      console.log(`✅ Core: Synced ${Object.keys(reactionsByMessage).length} message reactions to store cache`)
+      debug.log(`✅ Core: Synced ${Object.keys(reactionsByMessage).length} message reactions to store cache`)
     } catch (error) {
-      console.warn('⚠️ Core: Failed to sync reactions to store cache:', error)
+      debug.warn('⚠️ Core: Failed to sync reactions to store cache:', error)
       // Don't throw - this is not critical to core functionality
     }
   }
@@ -647,7 +648,7 @@ export class CoreMessageService {
     try {
       const { limit = 50, before, after, signal } = options
 
-      console.log(`🔄 Core: Loading messages for channel: ${channelId}`, { limit, before, after })
+      debug.log(`🔄 Core: Loading messages for channel: ${channelId}`, { limit, before, after })
 
       let query = supabase
         .from('messages')
@@ -668,16 +669,16 @@ export class CoreMessageService {
         throw this.createError('ABORTED', 'Request was aborted')
       }
 
-      console.log('📤 Executing message load query...')
+      debug.log('📤 Executing message load query...')
       const { data: messages, error } = await query
 
       if (error) {
-        console.error('❌ Failed to load messages:', error)
+        debug.error('❌ Failed to load messages:', error)
         throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
       }
 
       const messageList = messages || []
-      console.log(`✅ Loaded ${messageList.length} messages from database for channel ${channelId}`)
+      debug.log(`✅ Loaded ${messageList.length} messages from database for channel ${channelId}`)
       
       // Reverse to get oldest-first for display (since query returns newest-first)
       const orderedMessages = messageList.reverse()
@@ -697,7 +698,7 @@ export class CoreMessageService {
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
 
-      console.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for channel: ${channelId}`)
+      debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for channel: ${channelId}`)
       
       // Process encrypted messages
       const { processMessageDecryption } = await import('@/utils/messageDecryption')
@@ -705,7 +706,7 @@ export class CoreMessageService {
       
       return decryptedMessages
     } catch (error) {
-      console.error('❌ Core: Failed to load channel messages:', error)
+      debug.error('❌ Core: Failed to load channel messages:', error)
       throw error
     }
   }
@@ -725,7 +726,7 @@ export class CoreMessageService {
     try {
       const { limit = 50, before, after, signal } = options
 
-      console.log(`🔄 Core: Loading messages for conversation: ${conversationId}`)
+      debug.log(`🔄 Core: Loading messages for conversation: ${conversationId}`)
 
       let query = supabase
         .from('messages')
@@ -770,7 +771,7 @@ export class CoreMessageService {
         await this.populateReactionsStoreCache(reactionsByMessage)
       }
 
-      console.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for conversation: ${conversationId}`)
+      debug.log(`✅ Core: Loaded ${orderedMessages.length} messages with reactions for conversation: ${conversationId}`)
       
       // Process encrypted messages
       const { processMessageDecryption } = await import('@/utils/messageDecryption')
@@ -778,7 +779,7 @@ export class CoreMessageService {
       
       return decryptedMessages
     } catch (error) {
-      console.error('❌ Core: Failed to load conversation messages:', error)
+      debug.error('❌ Core: Failed to load conversation messages:', error)
       throw error
     }
   }
@@ -788,7 +789,7 @@ export class CoreMessageService {
    */
   async loadMessage(messageId: string): Promise<Message | null> {
     try {
-      console.log(`🔄 Core: Loading message: ${messageId}`)
+      debug.log(`🔄 Core: Loading message: ${messageId}`)
 
       const { data: message, error } = await supabase
         .from('messages')
@@ -798,16 +799,16 @@ export class CoreMessageService {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          console.log(`ℹ️ Core: Message not found: ${messageId}`)
+          debug.log(`ℹ️ Core: Message not found: ${messageId}`)
           return null
         }
         throw this.createError('LOAD_MESSAGE_FAILED', error.message, error)
       }
 
-      console.log(`✅ Core: Loaded message: ${messageId}`)
+      debug.log(`✅ Core: Loaded message: ${messageId}`)
       return message
     } catch (error) {
-      console.error('❌ Core: Failed to load message:', error)
+      debug.error('❌ Core: Failed to load message:', error)
       throw error
     }
   }
@@ -835,7 +836,7 @@ export class CoreMessageService {
 
       return profile.id
     } catch (error) {
-      console.error('❌ Core: Failed to get current user profile ID:', error)
+      debug.error('❌ Core: Failed to get current user profile ID:', error)
       throw error
     }
   }

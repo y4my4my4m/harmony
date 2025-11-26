@@ -289,6 +289,7 @@ import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 import { dmCallPermissions } from '@/services/DMCallPermissions'
 import { userDataService } from '@/services/userDataService'
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
 
 const router = useRouter()
 const toast = useToast()
@@ -364,7 +365,7 @@ async function loadEncryptionStatus() {
     // Check if user has encryption set up
     const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
     userHasEncryption.value = megolmMessageEncryptionService.isUnlocked()
-    console.log('🔐 User has encryption:', userHasEncryption.value)
+    debug.log('🔐 User has encryption:', userHasEncryption.value)
     
     // Check conversation encryption setting
     const { data } = await supabase
@@ -374,20 +375,20 @@ async function loadEncryptionStatus() {
       .maybeSingle()
     
     encryptionEnabled.value = data?.encryption_enabled === true
-    console.log('🔐 Conversation encryption enabled:', encryptionEnabled.value)
+    debug.log('🔐 Conversation encryption enabled:', encryptionEnabled.value)
   } catch (error) {
-    console.warn('Failed to load encryption status:', error)
+    debug.warn('Failed to load encryption status:', error)
   }
 }
 
 // Toggle encryption for this conversation
 async function toggleEncryption() {
-  console.log('🔐 Toggle encryption clicked')
-  console.log('🔐 canToggleEncryption:', canToggleEncryption.value)
-  console.log('🔐 userHasEncryption:', userHasEncryption.value)
+  debug.log('🔐 Toggle encryption clicked')
+  debug.log('🔐 canToggleEncryption:', canToggleEncryption.value)
+  debug.log('🔐 userHasEncryption:', userHasEncryption.value)
   
   if (!canToggleEncryption.value) {
-    console.log('🔐 Cannot toggle - user does not have encryption set up')
+    debug.log('🔐 Cannot toggle - user does not have encryption set up')
     closeActionsMenu()
     showEncryptionSetupModal.value = true
     return
@@ -396,7 +397,7 @@ async function toggleEncryption() {
   encryptionLoading.value = true
   try {
     const newState = !encryptionEnabled.value
-    console.log('🔐 Setting encryption to:', newState)
+    debug.log('🔐 Setting encryption to:', newState)
     
     // Upsert the setting
     const { error } = await supabase
@@ -410,7 +411,7 @@ async function toggleEncryption() {
       })
     
     if (error) {
-      console.error('🔐 Supabase error:', error)
+      debug.error('🔐 Supabase error:', error)
       throw error
     }
     
@@ -418,7 +419,7 @@ async function toggleEncryption() {
     toast.success(newState ? 'Encryption enabled for this conversation' : 'Encryption disabled for this conversation')
     closeActionsMenu()
   } catch (error) {
-    console.error('Failed to toggle encryption:', error)
+    debug.error('Failed to toggle encryption:', error)
     toast.error('Failed to update encryption setting')
   } finally {
     encryptionLoading.value = false
@@ -443,9 +444,9 @@ const initializePresenceTracking = async () => {
       // The userDataService will handle deduplication if user is already tracked globally
       profileContextId = await subscribeToProfilePresence(userId)
       presenceInitialized.value = true
-      console.log(`🗨️ DMHeader: Tracking presence for user ${userId}`)
+      debug.log(`🗨️ DMHeader: Tracking presence for user ${userId}`)
     } catch (error) {
-      console.error('Failed to subscribe to profile presence:', error)
+      debug.error('Failed to subscribe to profile presence:', error)
     }
   }
 }
@@ -456,9 +457,9 @@ const cleanupPresenceTracking = async () => {
       await unsubscribeFromProfilePresence(props.conversation.other_user.id)
       profileContextId = null
       presenceInitialized.value = false
-      console.log(`🗨️ DMHeader: Stopped tracking presence for user ${props.conversation.other_user.id}`)
+      debug.log(`🗨️ DMHeader: Stopped tracking presence for user ${props.conversation.other_user.id}`)
     } catch (error) {
-      console.error('Failed to unsubscribe from profile presence:', error)
+      debug.error('Failed to unsubscribe from profile presence:', error)
     }
   }
 }
@@ -484,7 +485,7 @@ const handleCallSignal = async (signal: CallSignal) => {
       
       if (!permissionCheck.allowed) {
         // Auto-decline with reason
-        console.log('🚫 Auto-declining call:', permissionCheck.reason)
+        debug.log('🚫 Auto-declining call:', permissionCheck.reason)
         await dmCallSignaling.declineCall(
           signal.conversationId,
           currentUserId,
@@ -580,7 +581,7 @@ watch(
   () => props.conversation.other_user?.id,
   async (newUserId, oldUserId) => {
     if (newUserId !== oldUserId) {
-      console.log(`🔄 DMHeader: Conversation changed from ${oldUserId} to ${newUserId}`)
+      debug.log(`🔄 DMHeader: Conversation changed from ${oldUserId} to ${newUserId}`)
       // Clean up old tracking
       await cleanupPresenceTracking()
       // Initialize new tracking
@@ -607,7 +608,7 @@ const otherUserStatus = computed(() => {
   
   // Debug logging to help identify issues
   if (process.env.NODE_ENV === 'development') {
-    console.log(`🔍 DMHeader status for ${props.conversation.other_user.id}:`, {
+    debug.log(`🔍 DMHeader status for ${props.conversation.other_user.id}:`, {
       status,
       presenceInitialized: presenceInitialized.value,
       profileContextId: profileContextId
@@ -679,7 +680,7 @@ const openGroupSettings = () => {
 }
 
 const handleNotificationSettings = () => {
-  console.log('Notification settings clicked')
+  debug.log('Notification settings clicked')
   showOptionsMenu.value = false
 }
 
@@ -689,12 +690,12 @@ const goToEncryptionSettings = () => {
 }
 
 const handleLeaveGroup = () => {
-  console.log('Leave group clicked')
+  debug.log('Leave group clicked')
   showOptionsMenu.value = false
 }
 
 const handleCloseDM = () => {
-  console.log('Close DM clicked')
+  debug.log('Close DM clicked')
   showOptionsMenu.value = false
 }
 
@@ -703,7 +704,7 @@ const toggleVoiceCall = async () => {
   try {
     if (isInVoiceCall.value) {
       // End call
-      console.log('📞 Ending voice call...')
+      debug.log('📞 Ending voice call...')
       
       const currentUserId = authStore.session?.user?.id
       if (currentUserId) {
@@ -715,7 +716,7 @@ const toggleVoiceCall = async () => {
       toast.info('Call ended')
     } else {
       // Start voice call
-      console.log('📞 Starting DM voice call...')
+      debug.log('📞 Starting DM voice call...')
       
       const currentUserId = authStore.session?.user?.id
       if (!currentUserId) {
@@ -766,13 +767,13 @@ const toggleVoiceCall = async () => {
         voiceStore.isOverlayVisible = true
         // Small delay to ensure it renders fully maximized
         await new Promise(resolve => setTimeout(resolve, 100))
-        console.log('✅ Voice overlay opened for caller (maximized)')
+        debug.log('✅ Voice overlay opened for caller (maximized)')
       } else {
         toast.error('Failed to start call')
       }
     }
   } catch (error) {
-    console.error('Error toggling voice call:', error)
+    debug.error('Error toggling voice call:', error)
     toast.error('Failed to start call')
   }
 }
@@ -799,12 +800,12 @@ const joinActiveCall = async () => {
       // Show voice overlay in maximized mode
       voiceStore.isOverlayVisible = true
       await new Promise(resolve => setTimeout(resolve, 100))
-      console.log('✅ Joined group call (maximized)')
+      debug.log('✅ Joined group call (maximized)')
     } else {
       toast.error('Failed to join call')
     }
   } catch (error) {
-    console.error('Error joining call:', error)
+    debug.error('Error joining call:', error)
     toast.error('Failed to join call')
   }
 }
@@ -861,7 +862,7 @@ const toggleVideoCall = async () => {
         // Show voice overlay in maximized mode (for caller)
         voiceStore.isOverlayVisible = true
         await new Promise(resolve => setTimeout(resolve, 100))
-        console.log('✅ Video call overlay opened for caller (maximized)')
+        debug.log('✅ Video call overlay opened for caller (maximized)')
       } else {
         toast.error('Failed to start call')
       }
@@ -879,7 +880,7 @@ const toggleVideoCall = async () => {
       }
     }
   } catch (error) {
-    console.error('Error toggling video:', error)
+    debug.error('Error toggling video:', error)
     toast.error('Failed to toggle camera')
   }
 }

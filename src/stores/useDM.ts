@@ -9,6 +9,7 @@ import { userDataService } from '@/services/userDataService'
 import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessing'
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import { processMessageDecryption } from '@/utils/messageDecryption'
+import { debug } from '@/utils/debug'
 
 // Types for DM functionality
 export interface DMUser {
@@ -100,7 +101,7 @@ export const useDMStore = defineStore('dm', () => {
       const userData = userDataService.getUser(userId)
       return userData?.isOnline || false
     } catch (error) {
-      console.error('Failed to check user online status:', error)
+      debug.error('Failed to check user online status:', error)
       // Fallback to searching in cached user data
       const user = searchResults.value.find(u => u.id === userId)
       return user?.is_online || false
@@ -123,7 +124,7 @@ export const useDMStore = defineStore('dm', () => {
 
     if (oldestConversationId) {
       messageCache.value.delete(oldestConversationId)
-      console.log(`Evicted DM cache for conversation: ${oldestConversationId}`)
+      debug.log(`Evicted DM cache for conversation: ${oldestConversationId}`)
     }
   }
 
@@ -140,7 +141,7 @@ export const useDMStore = defineStore('dm', () => {
   const loadCachedMessages = (conversationId: string) => {
     const cached = messageCache.value.get(conversationId)
     if (cached) {
-      console.log(`Loading cached DM messages instantly: ${conversationId}`)
+      debug.log(`Loading cached DM messages instantly: ${conversationId}`)
       currentDMMessages.value = [...cached.messages]
       allMessagesLoaded.value = cached.allMessagesLoaded
     }
@@ -150,7 +151,7 @@ export const useDMStore = defineStore('dm', () => {
     try {
       ensureMessageEmbeds(message)
     } catch (error) {
-      console.warn('Failed to prepare DM message embeds:', error)
+      debug.warn('Failed to prepare DM message embeds:', error)
     }
     // Add to current messages if it's the current conversation
     if (currentConversationId.value === message.conversation_id) {
@@ -199,7 +200,7 @@ export const useDMStore = defineStore('dm', () => {
     try {
       ensureMessageEmbeds(updatedMessage, { force: true })
     } catch (error) {
-      console.warn('Failed to refresh DM embeds for updated message:', error)
+      debug.warn('Failed to refresh DM embeds for updated message:', error)
     }
   }
 
@@ -245,7 +246,7 @@ export const useDMStore = defineStore('dm', () => {
       const message = await _fetchSingleMessage(messageId)
       
       if (!message) {
-        console.error('❌ DM reply message not found:', messageId)
+        debug.error('❌ DM reply message not found:', messageId)
         return null
       }
 
@@ -253,7 +254,7 @@ export const useDMStore = defineStore('dm', () => {
       replyMessageCache.value.set(messageId, message)
       return message
     } catch (error) {
-      console.error('❌ Error fetching DM reply message:', error)
+      debug.error('❌ Error fetching DM reply message:', error)
       return null
     } finally {
       fetchingReplyMessages.value.delete(messageId)
@@ -279,12 +280,12 @@ export const useDMStore = defineStore('dm', () => {
       try {
         ensureMessageEmbeds(message)
       } catch (fetchError) {
-        console.warn('Failed to prepare embeds for DM reply message:', fetchError)
+        debug.warn('Failed to prepare embeds for DM reply message:', fetchError)
       }
 
       return message
     } catch (error) {
-      console.error('Error in _fetchSingleMessage:', error)
+      debug.error('Error in _fetchSingleMessage:', error)
       return null
     }
   }
@@ -299,7 +300,7 @@ export const useDMStore = defineStore('dm', () => {
   const initializeDMEnvironment = async (userId: string, forceRefresh = false, metadataOnly = false, loadStrategy: 'lazy' | 'partial' | 'immediate' = 'partial') => {
     // Prevent duplicate initialization
     if (isInitializing.value && !forceRefresh) {
-      console.log('🔄 DM initialization already in progress, skipping duplicate')
+      debug.log('🔄 DM initialization already in progress, skipping duplicate')
       return
     }
     
@@ -321,7 +322,7 @@ export const useDMStore = defineStore('dm', () => {
       // Set up realtime subscriptions (always needed for new messages/updates)
       await setupRealtimeSubscriptions(userId)
     } catch (error) {
-      console.error('Failed to initialize DM environment:', error)
+      debug.error('Failed to initialize DM environment:', error)
     } finally {
       isInitializing.value = false
     }
@@ -352,7 +353,7 @@ export const useDMStore = defineStore('dm', () => {
         .limit(50) // Reasonable limit for metadata
 
       if (participationError) {
-        console.error('❌ Error fetching conversation metadata:', participationError)
+        debug.error('❌ Error fetching conversation metadata:', participationError)
         return
       }
 
@@ -375,7 +376,7 @@ export const useDMStore = defineStore('dm', () => {
         .is('left_at', null)
 
       if (participantError) {
-        console.warn('⚠️ Error fetching participant data:', participantError)
+        debug.warn('⚠️ Error fetching participant data:', participantError)
       }
 
       // Group participants by conversation for quick lookup
@@ -398,7 +399,7 @@ export const useDMStore = defineStore('dm', () => {
         .order('created_at', { ascending: false })
 
       if (messagesError) {
-        console.warn('⚠️ Error fetching last messages for preview:', messagesError)
+        debug.warn('⚠️ Error fetching last messages for preview:', messagesError)
       }
 
       // Group last messages by conversation ID
@@ -491,7 +492,7 @@ export const useDMStore = defineStore('dm', () => {
       }
       
     } catch (error) {
-      console.error('❌ Error fetching conversation metadata:', error)
+      debug.error('❌ Error fetching conversation metadata:', error)
     } finally {
       loadingConversations.value = false
     }
@@ -527,7 +528,7 @@ export const useDMStore = defineStore('dm', () => {
         .single()
 
       if (participationError || !participation) {
-        console.error('❌ Conversation not found or user not participant:', participationError)
+        debug.error('❌ Conversation not found or user not participant:', participationError)
         return null
       }
 
@@ -544,7 +545,7 @@ export const useDMStore = defineStore('dm', () => {
         .is('left_at', null)
 
       if (othersError) {
-        console.error('Error fetching other participants:', othersError)
+        debug.error('Error fetching other participants:', othersError)
       }
 
       // Get participant count
@@ -569,7 +570,7 @@ export const useDMStore = defineStore('dm', () => {
       // Process conversation using existing helper
       const processedConv = await _processConversationData(convData, currentUserId)
       if (!processedConv) {
-        console.error('❌ Failed to process conversation data')
+        debug.error('❌ Failed to process conversation data')
         return null
       }
 
@@ -580,7 +581,7 @@ export const useDMStore = defineStore('dm', () => {
 
       return processedConv
     } catch (error) {
-      console.error('Failed to fetch conversation details:', error)
+      debug.error('Failed to fetch conversation details:', error)
       return null
     }
   }
@@ -594,7 +595,7 @@ export const useDMStore = defineStore('dm', () => {
       .single()
 
     if (convError || !convData) {
-      console.error('Error fetching conversation:', convError)
+      debug.error('Error fetching conversation:', convError)
       return null
     }
 
@@ -628,7 +629,7 @@ export const useDMStore = defineStore('dm', () => {
       
       return null
     } catch (error) {
-      console.error('Failed to initialize DM environment for direct access:', error)
+      debug.error('Failed to initialize DM environment for direct access:', error)
       return null
     }
   }
@@ -660,7 +661,7 @@ export const useDMStore = defineStore('dm', () => {
       conversations.value = processedConversations
       
     } catch (error) {
-      console.error('❌ Failed to fetch conversations via service-like method:', error)
+      debug.error('❌ Failed to fetch conversations via service-like method:', error)
     } finally {
       loadingConversations.value = false
     }
@@ -691,7 +692,7 @@ export const useDMStore = defineStore('dm', () => {
         .order('joined_at', { ascending: false })
 
       if (participationError) {
-        console.error('Error fetching conversation participations:', participationError)
+        debug.error('Error fetching conversation participations:', participationError)
         return null
       }
 
@@ -715,7 +716,7 @@ export const useDMStore = defineStore('dm', () => {
             .is('left_at', null)
 
           if (othersError) {
-            console.error('Error fetching other participants:', othersError)
+            debug.error('Error fetching other participants:', othersError)
           }
 
           // Get participant count
@@ -743,7 +744,7 @@ export const useDMStore = defineStore('dm', () => {
 
       return conversationsData
     } catch (error) {
-      console.error('Error in _fetchRawConversations:', error)
+      debug.error('Error in _fetchRawConversations:', error)
       return null
     }
   }
@@ -830,14 +831,14 @@ export const useDMStore = defineStore('dm', () => {
         }
 
         if (!otherUserId) {
-          console.error('❌ No other participant found for conversation:', conv.conversation_id)
+          debug.error('❌ No other participant found for conversation:', conv.conversation_id)
           return null
         }
         
         // Get other user's profile
         const profileData = await _fetchUserProfile(otherUserId)
         if (!profileData) {
-          console.error('Failed to fetch profile for user:', otherUserId)
+          debug.error('Failed to fetch profile for user:', otherUserId)
           return null
         }
 
@@ -854,7 +855,7 @@ export const useDMStore = defineStore('dm', () => {
         }
       }
     } catch (error) {
-      console.error('Error processing conversation data:', error)
+      debug.error('Error processing conversation data:', error)
       return null
     }
   }
@@ -868,7 +869,7 @@ export const useDMStore = defineStore('dm', () => {
       .single()
 
     if (profileError) {
-      console.error('Error fetching profile:', profileError)
+      debug.error('Error fetching profile:', profileError)
       return null
     }
 
@@ -880,7 +881,7 @@ export const useDMStore = defineStore('dm', () => {
     // Determine the correct ID (prefer 'id' over 'user_id')
     const userId = user.id || user.user_id
     if (!userId) {
-      console.error('User object missing both id and user_id fields:', user)
+      debug.error('User object missing both id and user_id fields:', user)
       throw new Error('Invalid user object: missing ID')
     }
 
@@ -917,7 +918,7 @@ export const useDMStore = defineStore('dm', () => {
     if (beforeMessageId === undefined) {
       // Simple time-based cache validation (no async database calls)
       if (isCacheValid(conversationId)) {
-        console.log(`Loading from DM cache instantly: ${conversationId}`)
+        debug.log(`Loading from DM cache instantly: ${conversationId}`)
         loadCachedMessages(conversationId)
         return
       }
@@ -927,7 +928,7 @@ export const useDMStore = defineStore('dm', () => {
     loadingMessages.value = true
     
     try {
-      console.log('🔄 Loading DM messages via MessageService:', { conversationId, beforeMessageId })
+      debug.log('🔄 Loading DM messages via MessageService:', { conversationId, beforeMessageId })
       
       // Use services.messages for consistent loading with service layer
       // Determine cursor for pagination (before timestamp)
@@ -1012,7 +1013,7 @@ export const useDMStore = defineStore('dm', () => {
       try {
         ensureMessageEmbeds(formattedMessages)
       } catch (error) {
-        console.warn('Failed to prepare DM embeds:', error)
+        debug.warn('Failed to prepare DM embeds:', error)
       }
 
       // 🔐 Note: Decryption already happens in CoreMessageService.loadConversationMessages
@@ -1020,7 +1021,7 @@ export const useDMStore = defineStore('dm', () => {
       const decryptedCount = formattedMessages.filter(m => m.decrypted).length
       const encryptedCount = formattedMessages.filter(m => m.encrypted).length
       if (decryptedCount > 0 || encryptedCount > 0) {
-        console.log(`🔐 DM messages: ${decryptedCount} decrypted, ${encryptedCount} still encrypted`)
+        debug.log(`🔐 DM messages: ${decryptedCount} decrypted, ${encryptedCount} still encrypted`)
       }
 
       if (beforeMessageId === undefined) {
@@ -1038,7 +1039,7 @@ export const useDMStore = defineStore('dm', () => {
           lastModified: new Date(),
         })
 
-        console.log(`Cached DM messages for conversation: ${conversationId}`)
+        debug.log(`Cached DM messages for conversation: ${conversationId}`)
       } else {
         // Loading older messages - append to current
         currentDMMessages.value = [...formattedMessages, ...currentDMMessages.value]
@@ -1058,7 +1059,7 @@ export const useDMStore = defineStore('dm', () => {
       if (error.message === 'Request aborted') {
         throw new Error('AbortError')
       }
-      console.error('Failed to fetch DM messages:', error)
+      debug.error('Failed to fetch DM messages:', error)
       throw error
     } finally {
       loadingMessages.value = false
@@ -1068,7 +1069,7 @@ export const useDMStore = defineStore('dm', () => {
   const searchUsers = async (query: string, currentUserId: string) => {
     try {
       isSearching.value = true
-      console.log('🔄 Searching users via service layer:', query)
+      debug.log('🔄 Searching users via service layer:', query)
       
       if (!query.trim()) {
         searchResults.value = []
@@ -1078,7 +1079,7 @@ export const useDMStore = defineStore('dm', () => {
       // Use activityPubService for federated user search (includes local users)
       const users = await services.activityPub.searchUsers(query, 10)
       
-      console.log('🔍 Raw search results from service:', users.map(u => ({ id: u.id, user_id: u.user_id, username: u.username })))
+      debug.log('🔍 Raw search results from service:', users.map(u => ({ id: u.id, user_id: u.user_id, username: u.username })))
       
       // Normalize and filter users with consistent ID structure
       const filteredUsers = users
@@ -1086,18 +1087,18 @@ export const useDMStore = defineStore('dm', () => {
         .filter(user => user.id !== currentUserId)
 
       searchResults.value = filteredUsers
-      console.log(`✅ Found ${filteredUsers.length} users via service layer`)
+      debug.log(`✅ Found ${filteredUsers.length} users via service layer`)
       
     } catch (error) {
-      console.error('❌ Failed to search users via service:', error)
+      debug.error('❌ Failed to search users via service:', error)
       searchResults.value = []
       
       // Fallback to local search if service fails
       try {
-        console.log('🔄 Falling back to local user search')
+        debug.log('🔄 Falling back to local user search')
         await _searchLocalUsers(query, currentUserId)
       } catch (fallbackError) {
-        console.error('❌ Fallback search also failed:', fallbackError)
+        debug.error('❌ Fallback search also failed:', fallbackError)
       }
     } finally {
       isSearching.value = false
@@ -1131,7 +1132,7 @@ export const useDMStore = defineStore('dm', () => {
 
   const createOrGetConversation = async (user1Id: string, user2Id: string): Promise<string | null> => {
     try {
-      console.log('🔄 Creating/getting conversation via service-like method:', { user1Id, user2Id })
+      debug.log('🔄 Creating/getting conversation via service-like method:', { user1Id, user2Id })
       
       // Use service-like helper for conversation management
       const conversationId = await _createOrFindConversation(user1Id, user2Id)
@@ -1139,12 +1140,12 @@ export const useDMStore = defineStore('dm', () => {
       if (conversationId) {
         // Refresh conversations to include the new one
         await fetchUserConversations(user1Id)
-        console.log('✅ Conversation created/found:', conversationId)
+        debug.log('✅ Conversation created/found:', conversationId)
       }
 
       return conversationId
     } catch (error) {
-      console.error('❌ Failed to create conversation via service-like method:', error)
+      debug.error('❌ Failed to create conversation via service-like method:', error)
       return null
     }
   }
@@ -1160,13 +1161,13 @@ export const useDMStore = defineStore('dm', () => {
         })
 
       if (error) {
-        console.error('Error creating/finding conversation:', error)
+        debug.error('Error creating/finding conversation:', error)
         return null
       }
 
       return conversationId
     } catch (error) {
-      console.error('Error in _createOrFindConversation:', error)
+      debug.error('Error in _createOrFindConversation:', error)
       return null
     }
   }
@@ -1193,7 +1194,7 @@ export const useDMStore = defineStore('dm', () => {
     addMessageToCache(optimisticMessage as any);
     
     try {
-      console.log('🔄 Sending DM message via MessageService:', { conversationId, userId })
+      debug.log('🔄 Sending DM message via MessageService:', { conversationId, userId })
       
       // Use services.messages for consistent DM sending with service layer
       const message = await services.messages.sendDMMessage(
@@ -1202,11 +1203,11 @@ export const useDMStore = defineStore('dm', () => {
         replyTo
       )
 
-      console.log('✅ DM message saved to database:', message.id)
-      console.log('📦 DM message data from server:', message)
+      debug.log('✅ DM message saved to database:', message.id)
+      debug.log('📦 DM message data from server:', message)
       
       // Real-time will replace the temp message with the real one
-      console.log('⏳ Waiting for real-time to replace temp DM message...')
+      debug.log('⏳ Waiting for real-time to replace temp DM message...')
       
       // Real-time INSERT will handle replacing temp → real
       
@@ -1219,14 +1220,14 @@ export const useDMStore = defineStore('dm', () => {
     } catch (error: any) {
       // Remove optimistic message on error
       removeMessageFromCache(tempId);
-      console.error('❌ Failed to send DM message via service:', error)
+      debug.error('❌ Failed to send DM message via service:', error)
       throw new Error(error.message || 'Failed to send DM message')
     }
   }
 
   const setCurrentConversation = (conversationId: string | null) => {
     const previousConversationId = currentConversationId.value
-    console.log('🔄 Setting current conversation:', {
+    debug.log('🔄 Setting current conversation:', {
       from: previousConversationId,
       to: conversationId
     });
@@ -1235,25 +1236,25 @@ export const useDMStore = defineStore('dm', () => {
     
     // Clean up previous conversation subscription
     if (previousConversationId && previousConversationId !== conversationId) {
-      console.log('🧹 Cleaning up previous conversation subscription:', previousConversationId);
+      debug.log('🧹 Cleaning up previous conversation subscription:', previousConversationId);
       cleanupConversationSubscription(previousConversationId)
     }
     
     // Set up new conversation subscription
     if (conversationId) {
-      console.log('🔔 Setting up new conversation subscription:', conversationId);
+      debug.log('🔔 Setting up new conversation subscription:', conversationId);
       setupConversationSubscription(conversationId)
       
       // Mark conversation as read
       const conversation = conversations.value.find(c => c.id === conversationId)
       if (conversation) {
         conversation.unread_count = 0
-        console.log('📖 Marked conversation as read:', conversationId);
+        debug.log('📖 Marked conversation as read:', conversationId);
       } else {
-        console.warn('⚠️ Could not find conversation to mark as read:', conversationId);
+        debug.warn('⚠️ Could not find conversation to mark as read:', conversationId);
       }
     } else {
-      console.log('❌ No conversation ID provided, skipping subscription setup');
+      debug.log('❌ No conversation ID provided, skipping subscription setup');
     }
   }
 
@@ -1264,11 +1265,11 @@ export const useDMStore = defineStore('dm', () => {
     
     // Check if we have cached messages for instant loading
     if (isCacheValid(conversationId)) {
-      console.log('📂 Loading cached messages instantly for conversation:', conversationId)
+      debug.log('📂 Loading cached messages instantly for conversation:', conversationId)
       loadCachedMessages(conversationId)
       return true // Indicates instant loading from cache
     } else {
-      console.log('🔄 No valid cache, will need to fetch messages for conversation:', conversationId)
+      debug.log('🔄 No valid cache, will need to fetch messages for conversation:', conversationId)
       clearDMMessages()
       return false // Indicates need to fetch from server
     }
@@ -1281,7 +1282,7 @@ export const useDMStore = defineStore('dm', () => {
 
   // Enhanced subscription management following useChat pattern
   const cleanupRealtimeSubscriptions = () => {
-    console.log('🧹 Cleaning up DM realtime subscriptions')
+    debug.log('🧹 Cleaning up DM realtime subscriptions')
     
     // Clean up current subscription
     if (currentSubscription.value) {
@@ -1291,7 +1292,7 @@ export const useDMStore = defineStore('dm', () => {
     
     // Remove all DM-specific subscriptions
     dmSubscriptions.value.forEach((subscription, channelName) => {
-      console.log(`🗑️ Removing DM subscription: ${channelName}`)
+      debug.log(`🗑️ Removing DM subscription: ${channelName}`)
       supabase.removeChannel(subscription)
     })
     dmSubscriptions.value.clear()
@@ -1302,7 +1303,7 @@ export const useDMStore = defineStore('dm', () => {
     const subscription = dmSubscriptions.value.get(channelName)
     
     if (subscription) {
-      console.log(`🗑️ Cleaning up conversation subscription: ${channelName}`)
+      debug.log(`🗑️ Cleaning up conversation subscription: ${channelName}`)
       supabase.removeChannel(subscription)
       dmSubscriptions.value.delete(channelName)
     }
@@ -1310,7 +1311,7 @@ export const useDMStore = defineStore('dm', () => {
 
   const setupRealtimeSubscriptions = async (userId: string) => {
     try {
-      console.log('🔄 Setting up DM realtime subscriptions for user:', userId)
+      debug.log('🔄 Setting up DM realtime subscriptions for user:', userId)
       
       // Listen to user profile updates from the centralized cache
       // This ensures DM conversations update when users change their avatars/names
@@ -1340,11 +1341,11 @@ export const useDMStore = defineStore('dm', () => {
           table: 'conversations',
           filter: `or(user1.eq.${userId},user2.eq.${userId})`
         }, (payload) => {
-          console.log('🔔 New DM conversation created:', payload)
+          debug.log('🔔 New DM conversation created:', payload)
           fetchUserConversations(userId)
         })
         .subscribe((status) => {
-          console.log('📡 DM conversations subscription status:', status)
+          debug.log('📡 DM conversations subscription status:', status)
         })
 
       // Get reactions store for handling real-time updates
@@ -1359,7 +1360,7 @@ export const useDMStore = defineStore('dm', () => {
           schema: 'public',
           table: 'reactions'
         }, async (payload) => {
-          console.log('🎯 Global DM reaction INSERT received:', payload)
+          debug.log('🎯 Global DM reaction INSERT received:', payload)
           reactionsStore.handleRealtimeUpdate(payload)
         })
         .on('postgres_changes', {
@@ -1367,11 +1368,11 @@ export const useDMStore = defineStore('dm', () => {
           schema: 'public',
           table: 'reactions'
         }, async (payload) => {
-          console.log('🎯 Global DM reaction DELETE received:', payload)
+          debug.log('🎯 Global DM reaction DELETE received:', payload)
           reactionsStore.handleRealtimeUpdate(payload)
         })
         .subscribe((status) => {
-          console.log('📡 Global DM reactions subscription status:', status)
+          debug.log('📡 Global DM reactions subscription status:', status)
         })
 
       // Store the subscriptions
@@ -1379,7 +1380,7 @@ export const useDMStore = defineStore('dm', () => {
       dmSubscriptions.value.set(`dm-reactions-${userId}`, reactionsChannel)
 
     } catch (error) {
-      console.error('❌ Error setting up DM realtime subscriptions:', error)
+      debug.error('❌ Error setting up DM realtime subscriptions:', error)
     }
   }
 
@@ -1388,7 +1389,7 @@ export const useDMStore = defineStore('dm', () => {
     // Clean up existing subscription for this conversation
     cleanupConversationSubscription(conversationId)
 
-    console.log('🔄 Setting up conversation subscription for:', conversationId)
+    debug.log('🔄 Setting up conversation subscription for:', conversationId)
 
     const channelName = `dm-conversation-${conversationId}`
     const conversationChannel = supabase
@@ -1399,21 +1400,21 @@ export const useDMStore = defineStore('dm', () => {
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
       }, async (payload) => {
-        console.log('🔔 New DM message received in DM store:', payload)
+        debug.log('🔔 New DM message received in DM store:', payload)
         
         const message = payload.new as any
         
         // Check if real message already exists (from sendDMMessage replacement)
         const existingRealMessage = currentDMMessages.value.findIndex(m => m.id === message.id);
         if (existingRealMessage !== -1) {
-          console.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
+          debug.log('⚠️ Real message already exists (from sendMessage), skipping real-time duplicate');
           return;
         }
         
         // Check if temp message exists (shouldn't happen - sendDMMessage should have replaced it)
         const tempMessageIndex = currentDMMessages.value.findIndex(m => m.id.startsWith('temp-') && m.user_id === message.user_id);
         if (tempMessageIndex !== -1) {
-          console.warn('⚠️ Temp message still exists during real-time, replacing now');
+          debug.warn('⚠️ Temp message still exists during real-time, replacing now');
           let resolvedMessage: Message = {
             id: message.id,
             user_id: message.user_id,
@@ -1436,7 +1437,7 @@ export const useDMStore = defineStore('dm', () => {
               resolvedMessage = decrypted[0];
             }
           } catch (error) {
-            console.warn('Failed to process DM message:', error);
+            debug.warn('Failed to process DM message:', error);
           }
           currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage);
           return;
@@ -1459,18 +1460,18 @@ export const useDMStore = defineStore('dm', () => {
         
         // 🔐 Decrypt if encrypted
         try {
-          console.log('🔐 DM message encrypted status:', formattedMessage.encrypted)
+          debug.log('🔐 DM message encrypted status:', formattedMessage.encrypted)
           if (formattedMessage.encrypted) {
-            console.log('🔐 Attempting to decrypt DM message...')
+            debug.log('🔐 Attempting to decrypt DM message...')
             const decrypted = await processMessageDecryption([formattedMessage]);
             formattedMessage = decrypted[0];
-            console.log('🔐 After decryption - encrypted:', formattedMessage.encrypted, 'decrypted:', formattedMessage.decrypted)
+            debug.log('🔐 After decryption - encrypted:', formattedMessage.encrypted, 'decrypted:', formattedMessage.decrypted)
           }
         } catch (error) {
-          console.warn('Failed to decrypt real-time DM message:', error);
+          debug.warn('Failed to decrypt real-time DM message:', error);
         }
         
-        console.log('📨 Adding DM message to cache:', { 
+        debug.log('📨 Adding DM message to cache:', { 
           id: formattedMessage.id, 
           encrypted: formattedMessage.encrypted, 
           decrypted: formattedMessage.decrypted 
@@ -1483,7 +1484,7 @@ export const useDMStore = defineStore('dm', () => {
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
       }, async (payload) => {
-        console.log('🔄 DM message updated:', payload)
+        debug.log('🔄 DM message updated:', payload)
         const message = payload.new as any
         
         // Fetch properly formatted reactions if the message has any
@@ -1497,7 +1498,7 @@ export const useDMStore = defineStore('dm', () => {
               formattedReactions = reactions
             }
           } catch (error) {
-            console.error('Error fetching reactions for updated DM message:', error)
+            debug.error('Error fetching reactions for updated DM message:', error)
           }
         }
         
@@ -1523,7 +1524,7 @@ export const useDMStore = defineStore('dm', () => {
             updatedMessage = decrypted[0];
           }
         } catch (error) {
-          console.warn('Failed to decrypt updated DM message:', error);
+          debug.warn('Failed to decrypt updated DM message:', error);
         }
         
         updateMessageInCache(message.id, updatedMessage)
@@ -1534,21 +1535,21 @@ export const useDMStore = defineStore('dm', () => {
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
       }, (payload) => {
-        console.log('🗑️ DM message deleted:', payload)
+        debug.log('🗑️ DM message deleted:', payload)
         const messageId = payload.old.id
         removeMessageFromCache(messageId)
       })
       .subscribe((status) => {
-        console.log(`📡 DM conversation ${conversationId} subscription status:`, status)
+        debug.log(`📡 DM conversation ${conversationId} subscription status:`, status)
         if (status === 'SUBSCRIBED') {
-          console.log(`✅ Successfully subscribed to DM conversation: ${conversationId}`)
-          console.log(`📍 Listening for messages on table: messages, filter: conversation_id=eq.${conversationId}`)
+          debug.log(`✅ Successfully subscribed to DM conversation: ${conversationId}`)
+          debug.log(`📍 Listening for messages on table: messages, filter: conversation_id=eq.${conversationId}`)
         } else if (status === 'CHANNEL_ERROR') {
-          console.error(`❌ Error subscribing to DM conversation: ${conversationId}`)
+          debug.error(`❌ Error subscribing to DM conversation: ${conversationId}`)
         } else if (status === 'CLOSED') {
-          console.log(`🔒 DM conversation subscription closed: ${conversationId}`)
+          debug.log(`🔒 DM conversation subscription closed: ${conversationId}`)
         } else if (status === 'TIMED_OUT') {
-          console.warn(`⏰ DM conversation subscription timed out: ${conversationId}`)
+          debug.warn(`⏰ DM conversation subscription timed out: ${conversationId}`)
         }
       })
 
@@ -1556,7 +1557,7 @@ export const useDMStore = defineStore('dm', () => {
     currentSubscription.value = conversationChannel
     dmSubscriptions.value.set(channelName, conversationChannel)
     
-    console.log(`📝 Stored DM subscription for ${channelName}, total subscriptions: ${dmSubscriptions.value.size}`)
+    debug.log(`📝 Stored DM subscription for ${channelName}, total subscriptions: ${dmSubscriptions.value.size}`)
   }
 
   // Helper function to update conversation from a new message
@@ -1582,12 +1583,12 @@ export const useDMStore = defineStore('dm', () => {
         conversation.unread_count = (conversation.unread_count || 0) + 1
       }
       
-      console.log('✅ Updated conversation from new message')
+      debug.log('✅ Updated conversation from new message')
     }
   }
 
   const cleanup = () => {
-    console.log('🧹 Cleaning up DM store')
+    debug.log('🧹 Cleaning up DM store')
     
     // Cleanup subscriptions
     cleanupRealtimeSubscriptions()
@@ -1601,7 +1602,7 @@ export const useDMStore = defineStore('dm', () => {
     replyMessageCache.value.clear()
     fetchingReplyMessages.value.clear()
     
-    console.log('✅ DM store cleaned up')
+    debug.log('✅ DM store cleaned up')
   }
 
   // =================================================================
@@ -1611,7 +1612,7 @@ export const useDMStore = defineStore('dm', () => {
   // Process incoming federated DM according to ActivityStreams specification
   const processFederatedDM = async (activity: any, note: any) => {
     try {
-      console.log('🌐 Processing federated DM:', { activityId: activity.id, noteId: note.id })
+      debug.log('🌐 Processing federated DM:', { activityId: activity.id, noteId: note.id })
       
       // Validate this is a direct message according to ActivityStreams spec:
       // - All actors in 'to' should be mentioned in 'tag' for "direct" visibility
@@ -1625,7 +1626,7 @@ export const useDMStore = defineStore('dm', () => {
       )
       
       if (!allRecipientsAreMentioned) {
-        console.warn('⚠️ Federated message does not follow direct message mention requirements, may not be a DM')
+        debug.warn('⚠️ Federated message does not follow direct message mention requirements, may not be a DM')
       }
       
       // Extract sender information from ActivityPub actor
@@ -1643,7 +1644,7 @@ export const useDMStore = defineStore('dm', () => {
         toActors
       }
     } catch (error) {
-      console.error('❌ Failed to process federated DM:', error)
+      debug.error('❌ Failed to process federated DM:', error)
       return null
     }
   }
@@ -1716,7 +1717,7 @@ export const useDMStore = defineStore('dm', () => {
             processedUrls.add(recipientUrl)
           }
         } catch (error) {
-          console.warn('Failed to parse recipient URL for mention tag:', recipientUrl, error)
+          debug.warn('Failed to parse recipient URL for mention tag:', recipientUrl, error)
         }
       }
     })
@@ -1732,16 +1733,16 @@ export const useDMStore = defineStore('dm', () => {
     // Debug helper for testing conversation queries
     
     // Test 1: Check all participants for the conversation
-    console.log('\n🧪 Test 1: All participants in conversation')
+    debug.log('\n🧪 Test 1: All participants in conversation')
     const { data: allParticipants, error: allError } = await supabase
       .from('conversation_participants')
       .select('*')
       .eq('conversation_id', testConversationId)
     
-    console.log('All participants:', allParticipants, 'Error:', allError)
+    debug.log('All participants:', allParticipants, 'Error:', allError)
     
     // Test 2: Check other participants (excluding test user)
-    console.log('\n🧪 Test 2: Other participants (excluding current user)')
+    debug.log('\n🧪 Test 2: Other participants (excluding current user)')
     const { data: otherParticipants, error: otherError } = await supabase
       .from('conversation_participants')
       .select('user_id, role, joined_at')
@@ -1749,10 +1750,10 @@ export const useDMStore = defineStore('dm', () => {
       .neq('user_id', testUserId)
       .is('left_at', null)
     
-    console.log('Other participants:', otherParticipants, 'Error:', otherError)
+    debug.log('Other participants:', otherParticipants, 'Error:', otherError)
     
     // Test 3: Check user's conversations
-    console.log('\n🧪 Test 3: User participations')
+    debug.log('\n🧪 Test 3: User participations')
     const { data: userConversations, error: userError } = await supabase
       .from('conversation_participants')
       .select(`
@@ -1771,7 +1772,7 @@ export const useDMStore = defineStore('dm', () => {
       .is('left_at', null)
       .limit(3)
     
-    console.log('User conversations:', userConversations, 'Error:', userError)
+    debug.log('User conversations:', userConversations, 'Error:', userError)
     
     return {
       allParticipants,
@@ -1782,7 +1783,7 @@ export const useDMStore = defineStore('dm', () => {
 
   // Check migration status and provide fix instructions
   const checkMigrationStatus = async () => {
-    console.log('🔍 Checking conversation migration status...')
+    debug.log('🔍 Checking conversation migration status...')
     
     try {
       // Check if conversation_participants table exists
@@ -1792,10 +1793,10 @@ export const useDMStore = defineStore('dm', () => {
         .limit(1)
       
       if (participantError) {
-        console.error('❌ Migration 013 NOT APPLIED: conversation_participants table missing')
-        console.log('💡 To fix this, you need to apply the migration:')
-        console.log('   1. Run: psql -d your_database -f db_migrations/013_multi_participant_conversations.sql')
-        console.log('   2. Or apply the migration through your Supabase dashboard')
+        debug.error('❌ Migration 013 NOT APPLIED: conversation_participants table missing')
+        debug.log('💡 To fix this, you need to apply the migration:')
+        debug.log('   1. Run: psql -d your_database -f db_migrations/013_multi_participant_conversations.sql')
+        debug.log('   2. Or apply the migration through your Supabase dashboard')
         return { migrationApplied: false, error: participantError }
       }
       
@@ -1806,8 +1807,8 @@ export const useDMStore = defineStore('dm', () => {
         .limit(1)
       
       if (convError) {
-        console.error('❌ Migration 013 PARTIALLY APPLIED: conversations table missing new columns')
-        console.log('💡 The migration needs to be re-run or completed')
+        debug.error('❌ Migration 013 PARTIALLY APPLIED: conversations table missing new columns')
+        debug.log('💡 The migration needs to be re-run or completed')
         return { migrationApplied: false, error: convError }
       }
       
@@ -1820,14 +1821,14 @@ export const useDMStore = defineStore('dm', () => {
         .from('conversations')
         .select('*', { count: 'exact', head: true })
       
-      console.log('✅ Migration status check:')
-      console.log(`   - conversation_participants table: EXISTS (${participantCount} records)`)
-      console.log(`   - conversations table: EXISTS (${conversationCount} records)`)
-      console.log(`   - Expected participants: ${(conversationCount || 0) * 2}`)
+      debug.log('✅ Migration status check:')
+      debug.log(`   - conversation_participants table: EXISTS (${participantCount} records)`)
+      debug.log(`   - conversations table: EXISTS (${conversationCount} records)`)
+      debug.log(`   - Expected participants: ${(conversationCount || 0) * 2}`)
       
       if (participantCount === 0) {
-        console.warn('⚠️ Migration tables exist but no participant data found')
-        console.log('💡 You may need to re-run the migration data population step')
+        debug.warn('⚠️ Migration tables exist but no participant data found')
+        debug.log('💡 You may need to re-run the migration data population step')
       }
       
       return { 
@@ -1838,7 +1839,7 @@ export const useDMStore = defineStore('dm', () => {
       }
       
     } catch (error) {
-      console.error('❌ Error checking migration status:', error)
+      debug.error('❌ Error checking migration status:', error)
       return { migrationApplied: false, error }
     }
   }
@@ -1856,21 +1857,21 @@ export const useDMStore = defineStore('dm', () => {
     isPrivate?: boolean
   }): Promise<string | null> => {
     try {
-      console.log('🔄 Creating group conversation:', options)
+      debug.log('🔄 Creating group conversation:', options)
       
       if (!options.participantIds || options.participantIds.length < 2) {
-        console.error('❌ Need at least 2 participants for group conversation')
+        debug.error('❌ Need at least 2 participants for group conversation')
         return null
       }
 
       // Get current user for conversation creation
       const currentUserData = userDataService.getCurrentUser()
       if (!currentUserData || !currentUserData.id) {
-        console.error('❌ No current user found for conversation creation')
+        debug.error('❌ No current user found for conversation creation')
         return null
       }
       
-      console.log('✅ Current user for conversation creation:', currentUserData.id)
+      debug.log('✅ Current user for conversation creation:', currentUserData.id)
 
       // Create the conversation using database function (bypasses RLS)
       const { data: conversationId, error: createError } = await supabase.rpc('create_group_conversation', {
@@ -1881,11 +1882,11 @@ export const useDMStore = defineStore('dm', () => {
       })
 
       if (createError || !conversationId) {
-        console.error('❌ Failed to create conversation:', createError)
+        debug.error('❌ Failed to create conversation:', createError)
         return null
       }
 
-      console.log('✅ Created conversation:', conversationId)
+      debug.log('✅ Created conversation:', conversationId)
 
       // Add a system message about conversation creation
       try {
@@ -1899,18 +1900,18 @@ export const useDMStore = defineStore('dm', () => {
           systemMessageContent
         )
       } catch (systemMessageError) {
-        console.warn('⚠️ Failed to send system message:', systemMessageError)
+        debug.warn('⚠️ Failed to send system message:', systemMessageError)
         // Don't fail the operation for this
       }
 
       // Refresh conversations to include the new one
       await fetchUserConversations(currentUserData.id)
 
-      console.log('✅ Successfully created group conversation')
+      debug.log('✅ Successfully created group conversation')
       return conversationId
       
     } catch (error) {
-      console.error('❌ Failed to create group conversation:', error)
+      debug.error('❌ Failed to create group conversation:', error)
       return null
     }
   }
@@ -1924,7 +1925,7 @@ export const useDMStore = defineStore('dm', () => {
     currentUserId: string
   ): Promise<boolean | string> => {
     try {
-      console.log('🔄 Adding users to conversation:', { conversationId, userIds })
+      debug.log('🔄 Adding users to conversation:', { conversationId, userIds })
       
       // First, check if this is a direct conversation
       const { data: conversation, error: fetchError } = await supabase
@@ -1934,13 +1935,13 @@ export const useDMStore = defineStore('dm', () => {
         .single()
 
       if (fetchError) {
-        console.error('❌ Failed to fetch conversation:', fetchError)
+        debug.error('❌ Failed to fetch conversation:', fetchError)
         return false
       }
 
       // If it's a direct conversation, create a NEW group conversation (keep original 1:1 intact)
       if (conversation?.type === 'direct') {
-        console.log('🔄 Creating NEW group conversation (preserving original 1:1 chat)')
+        debug.log('🔄 Creating NEW group conversation (preserving original 1:1 chat)')
         
         // Get current participants of the direct conversation
         const { data: currentParticipants, error: participantsError } = await supabase
@@ -1949,12 +1950,12 @@ export const useDMStore = defineStore('dm', () => {
           .eq('conversation_id', conversationId)
 
         if (participantsError) {
-          console.error('❌ Failed to fetch current participants:', participantsError)
+          debug.error('❌ Failed to fetch current participants:', participantsError)
           return false
         }
 
         if (!currentParticipants || currentParticipants.length === 0) {
-          console.error('❌ No current participants found for conversation')
+          debug.error('❌ No current participants found for conversation')
           return false
         }
 
@@ -1964,7 +1965,7 @@ export const useDMStore = defineStore('dm', () => {
           ...userIds.filter(id => id) // Filter out any undefined values
         ].filter((id, index, arr) => id && arr.indexOf(id) === index) // Remove duplicates and undefined values
 
-        console.log('🔄 All user IDs for new group:', allUserIds)
+        debug.log('🔄 All user IDs for new group:', allUserIds)
 
         const groupOptions = {
           participantIds: allUserIds,
@@ -1977,14 +1978,14 @@ export const useDMStore = defineStore('dm', () => {
         if (newConversationId) {
           // Navigate to the new group conversation
           // The parent component should handle this
-          console.log('✅ Created new group conversation:', newConversationId)
+          debug.log('✅ Created new group conversation:', newConversationId)
           return newConversationId // Return the new conversation ID
         } else {
           return false
         }
       } else {
         // It's already a group conversation, just add the new participants
-        console.log('🔄 Adding users to existing group conversation')
+        debug.log('🔄 Adding users to existing group conversation')
         
         // Use the database function to add participants (bypasses RLS)
         for (const userId of userIds) {
@@ -1995,7 +1996,7 @@ export const useDMStore = defineStore('dm', () => {
           })
 
           if (addError) {
-            console.error('❌ Failed to add participant:', addError)
+            debug.error('❌ Failed to add participant:', addError)
             return false
           }
         }
@@ -2028,19 +2029,19 @@ export const useDMStore = defineStore('dm', () => {
             systemMessageContent
           )
         } catch (systemMessageError) {
-          console.warn('⚠️ Failed to send system message:', systemMessageError)
+          debug.warn('⚠️ Failed to send system message:', systemMessageError)
           // Don't fail the operation for this
         }
 
         // Refresh the conversations to show updated participant count
         await fetchUserConversations(currentUserId)
 
-        console.log('✅ Successfully added users to group conversation')
+        debug.log('✅ Successfully added users to group conversation')
         return true
       }
       
     } catch (error) {
-      console.error('❌ Failed to add users to conversation:', error)
+      debug.error('❌ Failed to add users to conversation:', error)
       return false
     }
   }
@@ -2079,7 +2080,7 @@ export const useDMStore = defineStore('dm', () => {
         }
       })
     } catch (error) {
-      console.error('❌ Failed to get conversation participants:', error)
+      debug.error('❌ Failed to get conversation participants:', error)
       return []
     }
   }
@@ -2093,13 +2094,13 @@ export const useDMStore = defineStore('dm', () => {
     participants: DMUser[]
   ): Promise<boolean> => {
     try {
-      console.log('🌐 Federating group DM message to participants:', participants.length)
+      debug.log('🌐 Federating group DM message to participants:', participants.length)
       
       // Filter for external (federated) participants
       const externalParticipants = participants.filter(p => !p.is_local)
       
       if (externalParticipants.length === 0) {
-        console.log('📝 No external participants, skipping federation')
+        debug.log('📝 No external participants, skipping federation')
         return true
       }
       
@@ -2111,11 +2112,11 @@ export const useDMStore = defineStore('dm', () => {
       // 4. Delivering to each external participant's inbox
       // 5. Handling delivery failures and retries
       
-      console.warn('🚧 Group DM federation not yet fully implemented')
+      debug.warn('🚧 Group DM federation not yet fully implemented')
       return false
       
     } catch (error) {
-      console.error('❌ Failed to federate group DM message:', error)
+      debug.error('❌ Failed to federate group DM message:', error)
       return false
     }
   }
@@ -2153,7 +2154,7 @@ export const useDMStore = defineStore('dm', () => {
       
       return false
     } catch (error) {
-      console.error('❌ Failed to load user profile for conversation:', conversationId, error)
+      debug.error('❌ Failed to load user profile for conversation:', conversationId, error)
       return false
     }
   }
@@ -2199,7 +2200,7 @@ export const useDMStore = defineStore('dm', () => {
       }
       
     } catch (error) {
-      console.error('❌ Failed to batch load user profiles:', error)
+      debug.error('❌ Failed to batch load user profiles:', error)
     }
   }
 

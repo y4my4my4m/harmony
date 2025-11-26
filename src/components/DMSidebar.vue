@@ -196,6 +196,7 @@ import type { Message, MessagePart } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
 import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
+import { debug } from '@/utils/debug'
 
 const emit = defineEmits<{
   'conversationSelected': [conversationId: string]
@@ -248,10 +249,10 @@ const getConversationAvatarUrl = (conversation: DMConversation): string => {
 const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' => {
   try {
     const status = getPresenceAwareStatus(userId).value;
-    console.log('DMSidebar - Status for user', userId, ':', status);
+    debug.log('DMSidebar - Status for user', userId, ':', status);
     return status;
   } catch (error) {
-    console.error('DMSidebar - Error getting status for user', userId, ':', error);
+    debug.error('DMSidebar - Error getting status for user', userId, ':', error);
     return 'offline';
   }
 }
@@ -259,7 +260,7 @@ const getUserStatus = (userId: string): 'online' | 'away' | 'busy' | 'offline' =
 // Get conversation user status (optimized for placeholder data)
 const getConversationUserStatus = (conversation: DMConversation): 'online' | 'away' | 'busy' | 'offline' => {
   if (!conversation.other_user?.id) {
-    console.log('DMSidebar - No other_user.id for conversation:', conversation.id);
+    debug.log('DMSidebar - No other_user.id for conversation:', conversation.id);
     return 'offline';
   }
   
@@ -411,7 +412,7 @@ const handleConversationHover = async (conversationId: string) => {
       }
     }
   } catch (error) {
-    console.error('Failed to load conversation profile on hover:', conversationId, error)
+    debug.error('Failed to load conversation profile on hover:', conversationId, error)
   }
 }
 
@@ -422,7 +423,7 @@ onMounted(async () => {
     // OPTIMIZED: Don't initialize DM environment again - BaseLayout already handles it
     // Just wait for conversations to be available if they're being loaded
     if (dmStore.loadingConversations) {
-      console.log('⏳ DMSidebar: Waiting for DM conversations to load...')
+      debug.log('⏳ DMSidebar: Waiting for DM conversations to load...')
       
       // Wait for conversations to be loaded
       const checkConversations = () => {
@@ -439,7 +440,7 @@ onMounted(async () => {
       await checkConversations()
     }
     
-    console.log('✅ DMSidebar: Ready with optimized loading')
+    debug.log('✅ DMSidebar: Ready with optimized loading')
     
     // OPTIMIZED: Don't load all user presence immediately
     // User profiles and presence will be loaded on-demand when conversations are hovered

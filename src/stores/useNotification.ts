@@ -6,6 +6,7 @@ import { viewContextTracker } from '@/services/ViewContextTracker'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { services } from '@/services'
+import { debug } from '@/utils/debug'
 import type { 
   Notification, 
   NotificationType,
@@ -27,6 +28,9 @@ interface NotificationState {
   isInitialized: boolean
   hasPermission: boolean
   currentFilter: string
+  // Cache for profileId to avoid repeated lookups
+  cachedProfileId: string | null
+  cachedAuthUserId: string | null
 }
 
 // Sound mappings for different notification types to audio actions
@@ -111,7 +115,9 @@ export const useNotificationStore = defineStore('notification', {
     lastNotificationTime: new Map(),
     isInitialized: false,
     hasPermission: false,
-    currentFilter: 'all'
+    currentFilter: 'all',
+    cachedProfileId: null,
+    cachedAuthUserId: null
   }),
 
   getters: {
@@ -328,7 +334,7 @@ export const useNotificationStore = defineStore('notification', {
       
       try {
         this.isLoading = true
-        console.log('🔔 Notification Store: Initializing Discord-like client for user:', userId)
+        debug.log('🔔 Notification Store: Initializing for user:', userId)
         
         // Check notification permission first
         this.hasPermission = await this.checkNotificationPermission()
@@ -346,9 +352,9 @@ export const useNotificationStore = defineStore('notification', {
         this.setupDndCheck()
         
         this.isInitialized = true
-        console.log('✅ Notification Store: Discord-like client initialized successfully')
+        debug.log('✅ Notification Store: Initialized successfully')
       } catch (error) {
-        console.error('❌ Notification Store: Failed to initialize:', error)
+        debug.error('❌ Notification Store: Failed to initialize:', error)
         this.showToast('server_update', 'Failed to load notifications', 'Please refresh the page', 5000)
       } finally {
         this.isLoading = false
@@ -363,7 +369,7 @@ export const useNotificationStore = defineStore('notification', {
       if (this.isInitialized) return
       
       try {
-        console.log('🔔 Notification Store: Fast initialization (unread count only) for user:', userId)
+        debug.log('🔔 Notification Store: Fast initialization (unread count only)')
         
         // Check notification permission
         this.hasPermission = await this.checkNotificationPermission()
@@ -379,11 +385,11 @@ export const useNotificationStore = defineStore('notification', {
           .rpc('get_unread_notification_count', { p_user_id: profileId })
         
         if (countError) {
-          console.error('Failed to get unread count:', countError)
+          debug.error('Failed to get unread count:', countError)
           this.unreadCount = 0
         } else {
           this.unreadCount = countData || 0
-          console.log(`✅ Unread notification count: ${this.unreadCount}`)
+          debug.log(`✅ Unread notification count: ${this.unreadCount}`)
         }
         
         // Setup realtime subscription for new notifications
@@ -393,9 +399,9 @@ export const useNotificationStore = defineStore('notification', {
         this.setupDndCheck()
         
         this.isInitialized = true
-        console.log('✅ Notification Store: Fast initialization complete (unread count only)')
+        debug.log('✅ Notification Store: Fast initialization complete')
       } catch (error) {
-        console.error('❌ Notification Store: Failed to initialize unread count:', error)
+        debug.error('❌ Notification Store: Failed to initialize unread count:', error)
         this.unreadCount = 0
       }
     },
@@ -405,17 +411,17 @@ export const useNotificationStore = defineStore('notification', {
      */
     async loadFullNotificationList(userId: string) {
       if (this.notifications.length > 0) {
-        console.log('📝 Full notification list already loaded')
+        debug.log('📝 Full notification list already loaded')
         return
       }
       
       try {
         this.isLoading = true
-        console.log('📝 Loading full notification list...')
+        debug.log('📝 Loading full notification list...')
         await this.fetchNotifications(userId)
-        console.log('✅ Full notification list loaded')
+        debug.log('✅ Full notification list loaded')
       } catch (error) {
-        console.error('❌ Failed to load full notification list:', error)
+        debug.error('❌ Failed to load full notification list:', error)
       } finally {
         this.isLoading = false
       }
@@ -423,11 +429,10 @@ export const useNotificationStore = defineStore('notification', {
 
     async fetchNotifications(userId: string, limit = 50, offset = 0) {
       try {
-        console.log('🔄 Fetching notifications via NotificationService:', userId)
+        debug.log('🔄 Fetching notifications for user:', userId)
         
         // Get the profile ID for this auth user ID
         const profileId = await this.getProfileId(userId)
-        console.log('🔄 Using profile ID for notifications:', profileId)
         
         // Use NotificationService for consistent notification management
         const data = await services.notifications.fetchNotifications(profileId, {
@@ -435,7 +440,7 @@ export const useNotificationStore = defineStore('notification', {
           offset
         })
 
-        console.log(`✅ Fetched ${data?.length || 0} notifications via service layer`)
+        debug.log(`✅ Fetched ${data?.length || 0} notifications`)
         
         if (offset === 0) {
           this.notifications = data || []
@@ -448,14 +453,14 @@ export const useNotificationStore = defineStore('notification', {
 
         return data || []
       } catch (error) {
-        console.error('❌ Failed to fetch notifications via service:', error)
+        debug.error('❌ Failed to fetch notifications:', error)
         
         // Fallback to direct query if service fails
         try {
-          console.log('🔄 Falling back to direct notification fetch')
+          debug.log('🔄 Falling back to direct notification fetch')
           await this._fetchNotificationsFallback(userId, limit, offset)
         } catch (fallbackError) {
-          console.error('❌ Fallback fetch also failed:', fallbackError)
+          debug.error('❌ Fallback fetch also failed:', fallbackError)
           // Create mock notifications for development/testing
           if (process.env.NODE_ENV === 'development') {
             this.createMockNotifications(userId)
@@ -503,21 +508,20 @@ export const useNotificationStore = defineStore('notification', {
         const profileId = await this.getProfileId(userId);
         const existingChannelName = `harmony-notifications-${profileId}`;
         if (this.realtimeSubscription.topic === existingChannelName) {
-          console.log('✅ Real-time notification subscription already exists for user, reusing:', userId)
+          debug.log('✅ Notification subscription already exists, reusing')
           return; // Reuse existing subscription
         }
         
         // Only clean up if we're changing users (shouldn't happen in normal flow)
-        console.log('🧹 Cleaning up existing notification subscription for different user')
+        debug.log('🧹 Cleaning up existing notification subscription for different user')
         supabase.removeChannel(this.realtimeSubscription)
         this.realtimeSubscription = null
       }
 
-      console.log('🔔 Setting up real-time notification subscription for user:', userId)
+      debug.log('🔔 Setting up real-time notification subscription')
 
       // Get the profile ID for realtime subscription
       const profileId = await this.getProfileId(userId)
-      console.log('🔄 Using profile ID for realtime subscription:', profileId)
 
       this.realtimeSubscription = supabase
         .channel(`harmony-notifications-${profileId}`)
@@ -531,13 +535,12 @@ export const useNotificationStore = defineStore('notification', {
           },
           async (payload) => {
             try {
-              console.log('🚨 RAW NOTIFICATION PAYLOAD RECEIVED:', payload)
+              debug.log('🚨 Notification payload received:', payload)
               const newNotification = payload.new as Notification
-              console.log('🔔 Structured notification received from database:', newNotification)
               
               // Prevent duplicates
               if (this.notifications.find(n => n.id === newNotification.id)) {
-                console.log('⚠️ Duplicate notification ignored:', newNotification.id)
+                debug.log('⚠️ Duplicate notification ignored:', newNotification.id)
                 return
               }
 
@@ -548,7 +551,7 @@ export const useNotificationStore = defineStore('notification', {
               // Check DND - if active, don't show UI but still add to list
               const isDndActive = this.isQuietHours
               if (isDndActive && newNotification.type !== 'server_update') {
-                console.log('🌙 DND active - notification added silently:', newNotification.id)
+                debug.log('🌙 DND active - notification added silently')
                 // Still add to list but don't show UI
                 this.notifications.unshift(newNotification)
                 this.updateUnreadCount()
@@ -561,7 +564,6 @@ export const useNotificationStore = defineStore('notification', {
 
               // Format message using client-side formatter
               const formatted = NotificationFormatter.formatNotification(newNotification)
-              console.log('✨ Formatted notification message:', formatted)
 
               // Since database already filters based on view context, show all notifications that reach here
               const uiDecision = {
@@ -575,28 +577,27 @@ export const useNotificationStore = defineStore('notification', {
               this.handleRealtimeNotification(newNotification, formatted, uiDecision)
 
             } catch (error) {
-              console.error('❌ Error handling real-time notification:', error)
+              debug.error('❌ Error handling real-time notification:', error)
             }
           }
         )
         .subscribe((status) => {
-          console.log('🔔 Real-time notification subscription status:', status)
+          debug.log('🔔 Notification subscription status:', status)
           
           if (status === 'SUBSCRIBED') {
-            console.log('✅ Notification real-time subscription CONNECTED successfully!')
-            console.log(`📡 Listening for notifications on table: notifications, filter: user_id=eq.${userId}`)
+            debug.log('✅ Notification subscription connected')
           } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Real-time subscription error, retrying in 5s...')
+            debug.error('❌ Subscription error, retrying in 5s...')
             setTimeout(() => {
               this.setupContextAwareRealtimeSubscription(userId)
             }, 5000)
           } else if (status === 'TIMED_OUT') {
-            console.error('⏰ Real-time subscription timed out, retrying...')
+            debug.error('⏰ Subscription timed out, retrying...')
             setTimeout(() => {
               this.setupContextAwareRealtimeSubscription(userId)
             }, 2000)
           } else if (status === 'CLOSED') {
-            console.warn('🔒 Real-time subscription closed')
+            debug.warn('🔒 Subscription closed')
           }
         })
     },
@@ -613,15 +614,10 @@ export const useNotificationStore = defineStore('notification', {
       uiDecision: any
     ) {
       try {
-        console.log('🔔 Processing realtime notification through unified system:', {
-          type: notification.type,
-          uiDecision
-        })
+        debug.log('🔔 Processing notification:', notification.type)
 
         // Show toast notification if appropriate
         if (uiDecision.showToast) {
-          console.log('🍞 Showing toast notification')
-          
           // Extract emoji data for reaction notifications
           let emojiUrl: string | undefined
           let emojiName: string | undefined
@@ -648,29 +644,21 @@ export const useNotificationStore = defineStore('notification', {
             emojiUrl,
             emojiName
           )
-        } else {
-          console.log('🚫 Toast notification suppressed by UI decision')
         }
 
         // Show desktop notification if appropriate
         if (uiDecision.showDesktop && this.shouldShowDesktopNotification(notification.type)) {
-          console.log('🖥️ Showing desktop notification')
           this.showDesktopNotification(notification, formatted)
-        } else {
-          console.log('🚫 Desktop notification suppressed')
         }
 
         // Play sound if appropriate
         if (uiDecision.playSound && this.shouldPlaySound(notification.type)) {
-          console.log('🔊 Playing notification sound')
           this.playNotificationSound(notification.type)
-        } else {
-          console.log('🔇 Sound notification suppressed')
         }
 
-        console.log('✅ Realtime notification processed successfully through unified system')
+        debug.log('✅ Notification processed successfully')
       } catch (error) {
-        console.error('❌ Error processing realtime notification:', error)
+        debug.error('❌ Error processing notification:', error)
         // Fallback: show minimal toast notification
         this.showToast(
           'server_update',
@@ -687,12 +675,10 @@ export const useNotificationStore = defineStore('notification', {
     async showDesktopNotification(notification: Notification, formatted?: any) {
       try {
         if (typeof Notification === 'undefined') {
-          console.log('Desktop notifications not supported')
           return
         }
 
         if (Notification.permission !== 'granted') {
-          console.log('Desktop notification permission not granted')
           return
         }
 
@@ -706,7 +692,6 @@ export const useNotificationStore = defineStore('notification', {
           icon: NotificationFormatter.getAvatarUrl(notification),
           badge: '/img/app_icon_square.png',
           tag: `harmony-${notification.type}-${notification.id}`,
-          // requireInteraction: notification.type === 'mention' || notification.type === 'dm', // Add this if you want critical notifications to stay open
           silent: false
         })
 
@@ -722,9 +707,9 @@ export const useNotificationStore = defineStore('notification', {
           setTimeout(() => desktopNotification.close(), 8000)
         }
 
-        console.log(`✅ Desktop notification shown for ${notification.type}`)
+        debug.log(`✅ Desktop notification shown for ${notification.type}`)
       } catch (error) {
-        console.error('❌ Error showing desktop notification:', error)
+        debug.error('❌ Error showing desktop notification:', error)
       }
     },
 
@@ -784,9 +769,9 @@ export const useNotificationStore = defineStore('notification', {
         
         await themeStore.playAudio(audioAction)
         
-        console.log(`🔊 Played sound for ${type} using professional theme system`)
+        debug.log(`🔊 Played sound for ${type}`)
       } catch (error) {
-        console.error(`❌ Failed to play sound for ${type}:`, error)
+        debug.error(`❌ Failed to play sound for ${type}:`, error)
       }
     },
 
@@ -825,7 +810,7 @@ export const useNotificationStore = defineStore('notification', {
           .single()
 
         if (error && error.code !== 'PGRST116') {
-          console.error('Error loading preferences:', error)
+          debug.error('Error loading preferences:', error)
           // Use defaults if no preferences found
           this.preferences = { 
             ...DEFAULT_PREFERENCES,
@@ -841,9 +826,9 @@ export const useNotificationStore = defineStore('notification', {
           user_id: userId,
         }
 
-        console.log('✅ Loaded notification preferences')
+        debug.log('✅ Loaded notification preferences')
       } catch (error) {
-        console.error('❌ Failed to load preferences:', error)
+        debug.error('❌ Failed to load preferences:', error)
         this.preferences = {
           ...DEFAULT_PREFERENCES,
           id: crypto.randomUUID(),
@@ -872,16 +857,15 @@ export const useNotificationStore = defineStore('notification', {
           throw error
         }
 
-        console.log('✅ Updated notification preferences')
+        debug.log('✅ Updated notification preferences')
       } catch (error) {
-        console.error('❌ Failed to update preferences:', error)
+        debug.error('❌ Failed to update preferences:', error)
         throw error
       }
     },
 
     async checkNotificationPermission(): Promise<boolean> {
       if (typeof Notification === 'undefined') {
-        console.log('Notifications not supported')
         return false
       }
 
@@ -912,8 +896,6 @@ export const useNotificationStore = defineStore('notification', {
       const notification = this.notifications.find(n => n.id === notificationId)
       
       try {
-        console.log('🔄 Marking notification as read via service:', notificationId)
-        
         // Optimistic update
         if (notification) {
           notification.is_read = true
@@ -922,9 +904,8 @@ export const useNotificationStore = defineStore('notification', {
 
         // Use NotificationService for consistent state management
         await services.notifications.markAsRead(notificationId)
-        console.log('✅ Notification marked as read via service layer')
       } catch (error) {
-        console.error('❌ Failed to mark notification as read via service:', error)
+        debug.error('❌ Failed to mark notification as read:', error)
         
         // Revert optimistic update on error
         if (notification) {
@@ -943,17 +924,14 @@ export const useNotificationStore = defineStore('notification', {
       const notification = this.notifications[index]
       
       try {
-        console.log('🔄 Deleting notification via service:', notificationId)
-        
         // Optimistic update
         this.notifications.splice(index, 1)
         this.updateUnreadCount()
         
         // Use NotificationService for consistent state management
         await services.notifications.deleteNotification(notificationId)
-        console.log('✅ Notification deleted via service layer')
       } catch (error) {
-        console.error('❌ Failed to delete notification via service:', error)
+        debug.error('❌ Failed to delete notification:', error)
         
         // Revert optimistic update on error
         this.notifications.splice(index, 0, notification)
@@ -1012,9 +990,9 @@ export const useNotificationStore = defineStore('notification', {
         // Update the audio volume in theme store
         themeStore.audioVolume = Math.max(0, Math.min(1, volume))
 
-        console.log(`🔊 Set notification volume to ${Math.round(volume * 100)}%`)
+        debug.log(`🔊 Set notification volume to ${Math.round(volume * 100)}%`)
       } catch (error) {
-        console.error('❌ Failed to set notification volume:', error)
+        debug.error('❌ Failed to set notification volume:', error)
       }
     },
     /**
@@ -1056,11 +1034,6 @@ export const useNotificationStore = defineStore('notification', {
                 name: 'PostView',
                 params: { postId: navData.postId }
               })
-              
-              console.log(`🎯 Navigated to ActivityPub post: ${navData.postId}`)
-              if (navData.highlightUser) {
-                console.log(`👤 Should highlight interaction from user: ${navData.highlightUser}`)
-              }
               break
               
             case 'activitypub':
@@ -1073,12 +1046,11 @@ export const useNotificationStore = defineStore('notification', {
               break
             
             default:
-              console.log('⚠️ No navigation data available for notification type:', navData.type)
+              debug.log('⚠️ No navigation data for notification type:', navData.type)
           }
-          console.log('📍 Navigated to notification source using formatted data')
         }
       } catch (error) {
-        console.error('❌ Error handling notification click:', error)
+        debug.error('❌ Error handling notification click:', error)
       }
     },
 
@@ -1141,11 +1113,16 @@ export const useNotificationStore = defineStore('notification', {
 
       this.notifications = mockNotifications
       this.updateUnreadCount()
-      console.log('📝 Created mock notifications with structured data for development')
+      debug.log('📝 Created mock notifications for development')
     },
 
-    // Helper function to get profile ID from auth user ID
+    // Helper function to get profile ID from auth user ID with caching
     async getProfileId(authUserId: string): Promise<string> {
+      // Return cached value if available and auth user hasn't changed
+      if (this.cachedProfileId && this.cachedAuthUserId === authUserId) {
+        return this.cachedProfileId
+      }
+
       try {
         const { data: profile, error } = await supabase
           .from('profiles')
@@ -1154,15 +1131,29 @@ export const useNotificationStore = defineStore('notification', {
           .single()
 
         if (profile && !error) {
+          // Cache the result
+          this.cachedProfileId = profile.id
+          this.cachedAuthUserId = authUserId
           return profile.id
         } else {
           // Fallback to auth user ID for backward compatibility
+          this.cachedProfileId = authUserId
+          this.cachedAuthUserId = authUserId
           return authUserId
         }
       } catch (error) {
-        console.warn('Could not find profile for auth user, using auth user ID:', error)
+        debug.warn('Could not find profile for auth user, using auth user ID:', error)
+        // Cache the fallback
+        this.cachedProfileId = authUserId
+        this.cachedAuthUserId = authUserId
         return authUserId
       }
+    },
+
+    // Clear the profile ID cache (called on logout)
+    clearProfileCache() {
+      this.cachedProfileId = null
+      this.cachedAuthUserId = null
     },
   }
 })

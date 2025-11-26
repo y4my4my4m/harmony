@@ -11,6 +11,7 @@
 import { supabase } from '@/supabase'
 import { UserStatus, type UserData, type UserContext } from '@/types'
 import { activityTracker } from '@/services/ActivityTracker'
+import { debug } from '@/utils/debug'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 
@@ -47,7 +48,7 @@ class UserDataService extends EventTarget {
   async initialize(userId: string, username: string, avatarUrl?: string, existingProfile?: any): Promise<void> {
     if (this.initialized && this.currentUserId === userId) return
     
-    console.log('🚀 Initializing User Data Service for:', username)
+    debug.log('🚀 Initializing User Data Service for:', username)
     
     this.cleanup()
     this.currentUserId = userId
@@ -62,7 +63,7 @@ class UserDataService extends EventTarget {
     this.startHeartbeat()
     
     this.initialized = true
-    console.log('✅ User Data Service initialized')
+    debug.log('✅ User Data Service initialized')
   }
 
   /**
@@ -71,13 +72,13 @@ class UserDataService extends EventTarget {
    */
   async initializeBackgroundFeatures(): Promise<void> {
     if (!this.initialized) {
-      console.warn('⚠️ Cannot initialize background features - service not initialized')
+      debug.warn('⚠️ Cannot initialize background features - service not initialized')
       return
     }
     
     // Start activity tracking and lifecycle management
     this.setupActivityTracking()
-    console.log('✅ Background features initialized (activity tracking)')
+    debug.log('✅ Background features initialized (activity tracking)')
   }
   
   /**
@@ -89,12 +90,12 @@ class UserDataService extends EventTarget {
       if (saved !== null) {
         const statusNumber = parseInt(saved, 10)
         if (!isNaN(statusNumber) && statusNumber >= 0 && statusNumber <= 3) {
-          console.log('📱 Found status backup in localStorage:', UserStatus[statusNumber])
+          debug.log('📱 Found status backup in localStorage:', UserStatus[statusNumber])
           return statusNumber as UserStatus
         }
       }
     } catch (error) {
-      console.warn('⚠️ Failed to read status from localStorage:', error)
+      debug.warn('⚠️ Failed to read status from localStorage:', error)
     }
     return null
   }
@@ -115,7 +116,7 @@ class UserDataService extends EventTarget {
       this.handleAutomaticStatusChange(event.detail)
     })
     
-    console.log('🎯 Activity tracking started')
+    debug.log('🎯 Activity tracking started')
   }
   
   /**
@@ -130,21 +131,21 @@ class UserDataService extends EventTarget {
     
     // If status was manually set to Away, keep it Away (user wants to stay away)
     if (this.wasManuallySet && this.manualStatus === UserStatus.Away) {
-      console.log('👋 User active again, but keeping manual Away status (user preference)')
+      debug.log('👋 User active again, but keeping manual Away status (user preference)')
       // Don't change status - user manually chose to be Away
       return
     }
     
     // If status was manually set to Busy, keep it Busy
     if (this.wasManuallySet && this.manualStatus === UserStatus.Busy) {
-      console.log('👋 User active again, but keeping manual Busy status (user preference)')
+      debug.log('👋 User active again, but keeping manual Busy status (user preference)')
       // Don't change status - user manually chose to be Busy
       return
     }
     
     // Otherwise, restore to Online if they were auto-set to Away/Offline
     if (userData.status === UserStatus.Away || userData.status === UserStatus.Offline) {
-      console.log('👋 User active again, restoring to Online (was auto-set)')
+      debug.log('👋 User active again, restoring to Online (was auto-set)')
       await this.updateCurrentUserStatus(UserStatus.Online, false)
     }
     
@@ -164,11 +165,11 @@ class UserDataService extends EventTarget {
     // Only auto-change status if it's currently Online or if going to Offline
     // Don't override manual Away/Busy settings
     if (this.wasManuallySet && userData.status !== UserStatus.Online && detail.status !== UserStatus.Offline) {
-      console.log('⏭️ Skipping auto status change - user manually set to:', UserStatus[userData.status])
+      debug.log('⏭️ Skipping auto status change - user manually set to:', UserStatus[userData.status])
       return
     }
     
-    console.log(`😴 Auto-changing status to ${UserStatus[detail.status]} due to ${detail.reason} (${Math.round(detail.inactiveTime / 60000)}min)`)
+    debug.log(`😴 Auto-changing status to ${UserStatus[detail.status]} due to ${detail.reason} (${Math.round(detail.inactiveTime / 60000)}min)`)
     
     // Store current status if it's manual
     if (!this.wasManuallySet && userData.status !== UserStatus.Online) {
@@ -189,7 +190,7 @@ class UserDataService extends EventTarget {
       
       if (!profile) {
         // Only query database if profile wasn't already loaded
-        console.log('🔄 Loading user profile from database...')
+        debug.log('🔄 Loading user profile from database...')
         const { data: profileData } = await supabase
           .from('profiles')
           .select('id, username, display_name, avatar_url, banner_url, bio, color, status, domain, is_local, updated_at, created_at')
@@ -197,7 +198,7 @@ class UserDataService extends EventTarget {
           .single()
         profile = profileData
       } else {
-        console.log('✅ Using existing profile data, skipping database query')
+        debug.log('✅ Using existing profile data, skipping database query')
       }
       
       if (profile) {
@@ -210,14 +211,14 @@ class UserDataService extends EventTarget {
           // If user was explicitly set to Away/Busy, preserve that
           if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy) {
             finalStatus = profile.status
-            console.log('✅ Preserving user-set status from database:', UserStatus[finalStatus])
+            debug.log('✅ Preserving user-set status from database:', UserStatus[finalStatus])
           } else if (profile.status === UserStatus.Online) {
             finalStatus = UserStatus.Online
-            console.log('✅ Status loaded from database:', UserStatus[finalStatus])
+            debug.log('✅ Status loaded from database:', UserStatus[finalStatus])
           } else {
             // User was offline in database, but they're actively using the app now
             finalStatus = UserStatus.Online
-            console.log('🔄 User was offline in DB but is now active, setting to Online')
+            debug.log('🔄 User was offline in DB but is now active, setting to Online')
             
             // Update database to reflect they're now online
             try {
@@ -225,9 +226,9 @@ class UserDataService extends EventTarget {
                 .from('profiles')
                 .update({ status: UserStatus.Online })
                 .eq('id', userId)
-              console.log('💾 Updated database to show user as Online')
+              debug.log('💾 Updated database to show user as Online')
             } catch (syncError) {
-              console.warn('⚠️ Failed to update online status in database:', syncError)
+              debug.warn('⚠️ Failed to update online status in database:', syncError)
             }
           }
         } else {
@@ -235,7 +236,7 @@ class UserDataService extends EventTarget {
           const backupStatus = this.getStatusFromLocalStorage()
           if (backupStatus === UserStatus.Away || backupStatus === UserStatus.Busy) {
             finalStatus = backupStatus
-            console.log('🔄 Using Away/Busy status from localStorage backup:', UserStatus[finalStatus])
+            debug.log('🔄 Using Away/Busy status from localStorage backup:', UserStatus[finalStatus])
             
             // Sync backup to database for consistency
             try {
@@ -243,13 +244,13 @@ class UserDataService extends EventTarget {
                 .from('profiles')
                 .update({ status: finalStatus })
                 .eq('id', userId)
-              console.log('💾 Synced localStorage status to database')
+              debug.log('💾 Synced localStorage status to database')
             } catch (syncError) {
-              console.warn('⚠️ Failed to sync status to database:', syncError)
+              debug.warn('⚠️ Failed to sync status to database:', syncError)
             }
           } else {
             // Default to Online - user is actively using the app
-            console.log('🆕 No valid status found, defaulting to Online (user is active)')
+            debug.log('🆕 No valid status found, defaulting to Online (user is active)')
           }
         }
         
@@ -273,7 +274,7 @@ class UserDataService extends EventTarget {
         }
         
         this.users.set(userId, userData)
-        console.log('✅ Current user initialized:', userData.displayName, 'Final Status:', UserStatus[finalStatus])
+        debug.log('✅ Current user initialized:', userData.displayName, 'Final Status:', UserStatus[finalStatus])
       } else {
         // No profile exists - user is actively using the app, so they should be Online
         const backupStatus = this.getStatusFromLocalStorage()
@@ -299,13 +300,13 @@ class UserDataService extends EventTarget {
         }
         
         this.users.set(userId, userData)
-        console.log('✅ Current user initialized with minimal data:', username, 'Status:', UserStatus[initialStatus])
+        debug.log('✅ Current user initialized with minimal data:', username, 'Status:', UserStatus[initialStatus])
       }
       
       this.emitEvent('user-updated', { userId })
       
     } catch (error) {
-      console.error('❌ Failed to initialize current user:', error)
+      debug.error('❌ Failed to initialize current user:', error)
       throw error
     }
   }
@@ -321,20 +322,20 @@ class UserDataService extends EventTarget {
     // Track basic online/offline status across all contexts
     this.globalChannel = supabase.channel('harmony-global-presence')
       .on('presence', { event: 'sync' }, () => {
-        console.log('🌐 Global presence sync')
+        debug.log('🌐 Global presence sync')
         this.handleGlobalPresenceSync()
       })
       .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => {
-        console.log('🌐 Users joined global presence:', newPresences.length)
+        debug.log('🌐 Users joined global presence:', newPresences.length)
         this.handleGlobalPresenceJoin(newPresences)
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
-        console.log('🌐 Users left global presence:', leftPresences.length)
+        debug.log('🌐 Users left global presence:', leftPresences.length)
         this.handleGlobalPresenceLeave(leftPresences)
       })
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Global presence channel connected')
+          debug.log('✅ Global presence channel connected')
           await this.trackCurrentUserGlobally()
         }
       })
@@ -353,7 +354,7 @@ class UserDataService extends EventTarget {
     // If user has set status to Offline (0), they should be invisible to others
     // Don't track global presence at all
     if (userData.status === UserStatus.Offline) {
-      console.log(`👻 User ${this.currentUserId} is invisible (status: Offline) - not tracking global presence`)
+      debug.log(`👻 User ${this.currentUserId} is invisible (status: Offline) - not tracking global presence`)
       return
     }
     
@@ -368,7 +369,7 @@ class UserDataService extends EventTarget {
       online_at: new Date().toISOString()
     })
     
-    console.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]} - now visible to all users regardless of their current view`)
+    debug.log(`✅ User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]} - now visible to all users regardless of their current view`)
   }
   
   /**
@@ -378,7 +379,7 @@ class UserDataService extends EventTarget {
     if (!this.globalChannel) return
     
     const state = this.globalChannel.presenceState()
-    console.log('🌐 Global presence sync with', Object.keys(state).length, 'users')
+    debug.log('🌐 Global presence sync with', Object.keys(state).length, 'users')
     
     // Track which users are globally online
     const globallyOnlineUserIds = new Set<string>()
@@ -410,7 +411,7 @@ class UserDataService extends EventTarget {
       }
     })
     
-    console.log(`✅ Global presence: ${globallyOnlineUserIds.size} users online globally`)
+    debug.log(`✅ Global presence: ${globallyOnlineUserIds.size} users online globally`)
   }
   
   /**
@@ -420,7 +421,7 @@ class UserDataService extends EventTarget {
     newPresences.forEach((presence: any) => {
       if (presence.user_id) {
         this.updateUserFromGlobalPresence(presence.user_id, presence)
-        console.log(`🌐 User ${presence.user_id} joined global presence - now globally online`)
+        debug.log(`🌐 User ${presence.user_id} joined global presence - now globally online`)
       }
     })
   }
@@ -442,7 +443,7 @@ class UserDataService extends EventTarget {
           }
           
           // 🔥 CRITICAL FIX: Force UI updates for global presence changes
-          console.log(`🌐 Global presence leave: User ${presence.user_id} went offline`)
+          debug.log(`🌐 Global presence leave: User ${presence.user_id} went offline`)
           this.emitEvent('user-updated', { userId: presence.user_id })
           this.emitEvent('global-presence-updated', { userId: presence.user_id, isOnline: false })
         }
@@ -461,7 +462,7 @@ class UserDataService extends EventTarget {
     // If user has status set to Offline (invisible), don't show them as online
     // This should never happen due to trackCurrentUserGlobally() checks, but handle it as safety net
     if (userStatus === UserStatus.Offline) {
-      console.log(`👻 User ${userId} has offline status in global presence - skipping update (they should be invisible)`)
+      debug.log(`👻 User ${userId} has offline status in global presence - skipping update (they should be invisible)`)
       // If they exist in our cache, mark them as offline
       if (existing) {
         existing.isOnline = false
@@ -496,7 +497,7 @@ class UserDataService extends EventTarget {
     
     // 🔥 CRITICAL FIX: Force UI updates for global presence changes
     // This ensures that users see each other online regardless of current view
-    console.log(`🌐 Global presence update: User ${userId} is now online with status ${UserStatus[userStatus]}, color: ${userData.color || 'none'} (source: global_presence)`)
+    debug.log(`🌐 Global presence update: User ${userId} is now online with status ${UserStatus[userStatus]}, color: ${userData.color || 'none'} (source: global_presence)`)
     this.emitEvent('user-updated', { userId })
     this.emitEvent('global-presence-updated', { userId, isOnline: true })
   }
@@ -514,7 +515,7 @@ class UserDataService extends EventTarget {
     // If user has status set to Offline (invisible), don't show them as online
     // This should never happen due to untrackFromAllPresenceChannels() calls, but handle it as safety net
     if (userStatus === UserStatus.Offline) {
-      console.log(`👻 User ${userId} has offline status in context presence - skipping update (they should be invisible)`)
+      debug.log(`👻 User ${userId} has offline status in context presence - skipping update (they should be invisible)`)
       // If they exist in our cache, mark them as offline
       if (existing) {
         existing.isOnline = false
@@ -566,12 +567,12 @@ class UserDataService extends EventTarget {
             this.heartbeatFailures = 0
             
           } catch (error) {
-            console.warn('💔 Heartbeat failed:', error)
+            debug.warn('💔 Heartbeat failed:', error)
             this.heartbeatFailures++
             
             // If heartbeat fails repeatedly, set offline
             if (this.heartbeatFailures >= this.MAX_HEARTBEAT_FAILURES) {
-              console.log('💀 Connection lost - setting offline after', this.heartbeatFailures, 'failures')
+              debug.log('💀 Connection lost - setting offline after', this.heartbeatFailures, 'failures')
               await this.handleConnectionLost()
             }
           }
@@ -586,13 +587,13 @@ class UserDataService extends EventTarget {
   private async handleConnectionLost(): Promise<void> {
     if (!this.currentUserId) return
     
-    console.log('📡 Connection lost - setting user offline')
+    debug.log('📡 Connection lost - setting user offline')
     
     try {
       // Set offline status (this will be automatic, not manual)
       await this.updateCurrentUserStatus(UserStatus.Offline, false)
     } catch (error) {
-      console.error('Failed to set offline status on connection loss:', error)
+      debug.error('Failed to set offline status on connection loss:', error)
     }
   }
   
@@ -602,13 +603,13 @@ class UserDataService extends EventTarget {
   async subscribeToContext(contextId: string, type: 'server' | 'dm' | 'profile' | 'friends', userIds: string[]): Promise<void> {
     // Check if already subscribed to this context
     if (this.contexts.has(contextId)) {
-      console.log(`⚠️ Already subscribed to ${type} context:`, contextId, '- skipping duplicate subscription')
+      debug.log(`⚠️ Already subscribed to ${type} context:`, contextId, '- skipping duplicate subscription')
       return
     }
     
     // Check if subscription is already in progress
     if (this.pendingSubscriptions.has(contextId)) {
-      console.log(`⚠️ Subscription already in progress for ${type} context:`, contextId, '- skipping duplicate')
+      debug.log(`⚠️ Subscription already in progress for ${type} context:`, contextId, '- skipping duplicate')
       return
     }
     
@@ -616,7 +617,7 @@ class UserDataService extends EventTarget {
     this.pendingSubscriptions.add(contextId)
     
     try {
-      console.log(`🔄 Subscribing to ${type} context:`, contextId, `(${userIds.length} users)`)
+      debug.log(`🔄 Subscribing to ${type} context:`, contextId, `(${userIds.length} users)`)
       
       // Load user data for context
       await this.loadUsersData(userIds)
@@ -636,7 +637,7 @@ class UserDataService extends EventTarget {
         await this.setupServerPresence(contextId, userIds)
       }
       
-      console.log(`✅ Subscribed to ${type} context:`, contextId)
+      debug.log(`✅ Subscribed to ${type} context:`, contextId)
     } finally {
       // Remove from pending subscriptions
       this.pendingSubscriptions.delete(contextId)
@@ -648,19 +649,19 @@ class UserDataService extends EventTarget {
    */
   private async setupServerPresence(serverId: string, userIds: string[]): Promise<void> {
     const channelName = `server-presence:${serverId}`
-    console.log('🔄 Setting up presence for server:', serverId, 'with', userIds.length, 'users')
+    debug.log('🔄 Setting up presence for server:', serverId, 'with', userIds.length, 'users')
     
     const channel = supabase.channel(channelName)
       .on('presence', { event: 'sync' }, () => {
-        console.log('🔄 Presence sync for server:', serverId)
+        debug.log('🔄 Presence sync for server:', serverId)
         this.handleServerSync(serverId)
       })
       .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => {
-        // console.log('👋 User(s) joined presence in server:', serverId, newPresences)
+        // debug.log('👋 User(s) joined presence in server:', serverId, newPresences)
         this.handleServerUserJoin(serverId, newPresences)
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
-        // console.log('👋 User(s) left presence in server:', serverId, leftPresences)
+        // debug.log('👋 User(s) left presence in server:', serverId, leftPresences)
         this.handleServerUserLeave(serverId, leftPresences)
       })
       // 🔥 Listen for profile update broadcasts (the correct way for real-time profile changes)
@@ -685,16 +686,16 @@ class UserDataService extends EventTarget {
         table: 'profiles'
       }, (payload) => this.handleProfileUpdate(serverId, payload))
       .subscribe(async (status: string) => {
-        console.log(`📡 Server presence subscription status for ${serverId}:`, status)
+        debug.log(`📡 Server presence subscription status for ${serverId}:`, status)
         if (status === 'SUBSCRIBED') {
-          // console.log(`✅ Server presence connected: ${serverId}`)
+          // debug.log(`✅ Server presence connected: ${serverId}`)
           
           // Track current user if they're in this server
           if (this.currentUserId && userIds.includes(this.currentUserId)) {
             await this.trackCurrentUserInServer(channel, serverId)
           }
         } else if (status === 'CHANNEL_ERROR') {
-          console.error(`❌ Server presence error for ${serverId}, retrying...`)
+          debug.error(`❌ Server presence error for ${serverId}, retrying...`)
           setTimeout(() => this.setupServerPresence(serverId, userIds), 5000)
         }
       })
@@ -718,7 +719,7 @@ class UserDataService extends EventTarget {
     // If user has set status to Offline (0), they should be invisible to others
     // Don't track presence at all - this is the cleanest approach
     if (userData.status === UserStatus.Offline) {
-      console.log(`👻 User ${this.currentUserId} is invisible (status: Offline) - not tracking presence in server ${serverId}`)
+      debug.log(`👻 User ${this.currentUserId} is invisible (status: Offline) - not tracking presence in server ${serverId}`)
       return
     }
     
@@ -734,7 +735,7 @@ class UserDataService extends EventTarget {
       online_at: new Date().toISOString()
     })
     
-    console.log(`✅ User ${this.currentUserId} presence tracked in server ${serverId} with status: ${UserStatus[userData.status]}`)
+    debug.log(`✅ User ${this.currentUserId} presence tracked in server ${serverId} with status: ${UserStatus[userData.status]}`)
   }
   
   /**
@@ -759,19 +760,19 @@ class UserDataService extends EventTarget {
   private executeServerSync(serverId: string): void {
     const context = this.contexts.get(serverId)
     if (!context?.channel) {
-      console.warn('⚠️ No context or channel found for server sync:', serverId)
+      debug.warn('⚠️ No context or channel found for server sync:', serverId)
       return
     }
     
     const state = context.channel.presenceState()
-    console.log(`📡 Server ${serverId} presence sync:`, Object.keys(state).length, 'presence keys')
-    console.log('📊 Full presence state:', state)
+    debug.log(`📡 Server ${serverId} presence sync:`, Object.keys(state).length, 'presence keys')
+    debug.log('📊 Full presence state:', state)
     
     // Track which users are online based on presence
     const onlineUserIds = new Set<string>()
     
     Object.entries(state).forEach(([presenceKey, presences]) => {
-      console.log(`👤 Presence key ${presenceKey}:`, presences)
+      debug.log(`👤 Presence key ${presenceKey}:`, presences)
       if (Array.isArray(presences) && presences.length > 0) {
         const presence = presences[0] as any
         if (presence.user_id) {
@@ -787,7 +788,7 @@ class UserDataService extends EventTarget {
       if (!onlineUserIds.has(userId)) {
         const userData = this.users.get(userId)
         if (userData && userData.isOnline) {
-          console.log(`🔴 Marking user ${userId} as offline (not in presence)`)
+          debug.log(`🔴 Marking user ${userId} as offline (not in presence)`)
           userData.isOnline = false
           userData.status = UserStatus.Offline
           userData.lastSeen = new Date().toISOString()
@@ -797,7 +798,7 @@ class UserDataService extends EventTarget {
       }
     })
     
-    console.log(`✅ Sync complete: ${onlineUserIds.size} online, ${contextUsers.length - onlineUserIds.size} offline`)
+    debug.log(`✅ Sync complete: ${onlineUserIds.size} online, ${contextUsers.length - onlineUserIds.size} offline`)
   }
   
   /**
@@ -806,7 +807,7 @@ class UserDataService extends EventTarget {
   private handleServerUserJoin(serverId: string, newPresences: any[]): void {
     newPresences.forEach(presence => {
       this.updateUserFromPresence(presence.user_id, presence)
-      console.log(`👋 User joined server ${serverId}:`, presence.display_name || presence.username)
+      debug.log(`👋 User joined server ${serverId}:`, presence.display_name || presence.username)
     })
   }
   
@@ -823,7 +824,7 @@ class UserDataService extends EventTarget {
         userData.status = 0 // Set to Offline
         this.emitEvent('user-updated', { userId: presence.user_id })
       }
-      console.log(`👋 User left server ${serverId}:`, presence.display_name || presence.username)
+      debug.log(`👋 User left server ${serverId}:`, presence.display_name || presence.username)
     })
   }
 
@@ -832,7 +833,7 @@ class UserDataService extends EventTarget {
    */
   private async handleServerMemberJoin(serverId: string, payload: any): Promise<void> {
     const newUserId = payload.new.user_id
-    console.log(`👤 New member joined server ${serverId}:`, newUserId)
+    debug.log(`👤 New member joined server ${serverId}:`, newUserId)
     
     const context = this.contexts.get(serverId)
     if (context) {
@@ -852,7 +853,7 @@ class UserDataService extends EventTarget {
    */
   private async handleServerMemberLeave(serverId: string, payload: any): Promise<void> {
     const leftUserId = payload.old.user_id
-    console.log(`👋 Member left server ${serverId}:`, leftUserId)
+    debug.log(`👋 Member left server ${serverId}:`, leftUserId)
     
     const context = this.contexts.get(serverId)
     if (context) {
@@ -880,7 +881,7 @@ class UserDataService extends EventTarget {
     const updatedProfile = payload.new
     const userId = updatedProfile.id
     
-    console.log(`🔄 Profile update received for user ${userId} in server ${serverId}:`, {
+    debug.log(`🔄 Profile update received for user ${userId} in server ${serverId}:`, {
       display_name: updatedProfile.display_name,
       avatar_url: updatedProfile.avatar_url,
       banner_url: updatedProfile.banner_url,
@@ -916,10 +917,10 @@ class UserDataService extends EventTarget {
       // Emit update event so UI components can react
       this.emitEvent('user-updated', { userId })
       
-      console.log(`✅ Updated user data for ${userData.displayName} in server ${serverId}`)
+      debug.log(`✅ Updated user data for ${userData.displayName} in server ${serverId}`)
     } else {
       // If we don't have the user data, load it fresh from the database
-      console.log(`🔄 Loading fresh user data for ${userId} after profile update`)
+      debug.log(`🔄 Loading fresh user data for ${userId} after profile update`)
       await this.loadUsersData([userId])
       
       // Emit event after loading
@@ -946,7 +947,7 @@ class UserDataService extends EventTarget {
       return
     }
     
-    console.log(`📡 Received profile update broadcast for user ${userId} in server ${serverId}:`, profileUpdates)
+    debug.log(`📡 Received profile update broadcast for user ${userId} in server ${serverId}:`, profileUpdates)
     
     // Update our local user data if we have it
     const userData = this.users.get(userId)
@@ -974,10 +975,10 @@ class UserDataService extends EventTarget {
       // Emit update event so UI components can react immediately
       this.emitEvent('user-updated', { userId })
       
-      console.log(`✅ Updated user data for ${userData.displayName} from broadcast`)
+      debug.log(`✅ Updated user data for ${userData.displayName} from broadcast`)
     } else {
       // If we don't have the user data, load it fresh from the database
-      console.log(`🔄 Loading fresh user data for ${userId} after profile broadcast`)
+      debug.log(`🔄 Loading fresh user data for ${userId} after profile broadcast`)
       await this.loadUsersData([userId])
       
       // Emit event after loading
@@ -1000,7 +1001,7 @@ class UserDataService extends EventTarget {
     
     if (missingUserIds.length === 0) return
     
-    console.log(`🔄 Loading user data for ${missingUserIds.length} users`)
+    debug.log(`🔄 Loading user data for ${missingUserIds.length} users`)
 
     try {
       const { data: profiles } = await supabase
@@ -1033,11 +1034,11 @@ class UserDataService extends EventTarget {
           this.users.set(profile.id, userData)
         })
         
-        console.log(`✅ Loaded ${profiles.length} user profiles from database`)
+        debug.log(`✅ Loaded ${profiles.length} user profiles from database`)
       }
       
     } catch (error) {
-      console.error('❌ Failed to load user data:', error)
+      debug.error('❌ Failed to load user data:', error)
     }
   }
   
@@ -1127,7 +1128,7 @@ class UserDataService extends EventTarget {
   async updateCurrentUserStatus(status: UserStatus, isManual: boolean = true): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
     
-    console.log('🔄 Updating current user status to:', UserStatus[status], isManual ? '(manual)' : '(automatic)')
+    debug.log('🔄 Updating current user status to:', UserStatus[status], isManual ? '(manual)' : '(automatic)')
     
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
@@ -1138,13 +1139,13 @@ class UserDataService extends EventTarget {
       if (status === UserStatus.Away || status === UserStatus.Busy) {
         this.wasManuallySet = true
         this.manualStatus = status
-        console.log('📌 Status manually set to:', UserStatus[status])
+        debug.log('📌 Status manually set to:', UserStatus[status])
       } 
       // If user manually sets to Online, clear the manual flag (back to automatic mode)
       else if (status === UserStatus.Online) {
         this.wasManuallySet = false
         this.manualStatus = null
-        console.log('📌 Status manually set to Online - clearing manual flag')
+        debug.log('📌 Status manually set to Online - clearing manual flag')
       }
       // Note: activityTracker would be called here if available
     }
@@ -1173,7 +1174,7 @@ class UserDataService extends EventTarget {
         throw new Error(`Status verification failed. Expected: ${status}, Got: ${data[0].status}`)
       }
       
-      console.log('✅ Status verified in database:', UserStatus[status])
+      debug.log('✅ Status verified in database:', UserStatus[status])
       
       // Update all presence channels
       await this.updatePresenceStatus(status)
@@ -1181,16 +1182,16 @@ class UserDataService extends EventTarget {
       // Save to localStorage as professional backup (like Discord/Slack)
       try {
         localStorage.setItem('harmony_user_status', status.toString())
-        console.log('💾 Status backed up to localStorage')
+        debug.log('💾 Status backed up to localStorage')
       } catch (localStorageError) {
-        console.warn('⚠️ Failed to backup status to localStorage:', localStorageError)
+        debug.warn('⚠️ Failed to backup status to localStorage:', localStorageError)
       }
       
       this.emitEvent('status-changed', { userId: this.currentUserId, status })
-      console.log('✅ Status updated successfully to:', UserStatus[status])
+      debug.log('✅ Status updated successfully to:', UserStatus[status])
       
     } catch (error) {
-      console.error('❌ Failed to update status:', error)
+      debug.error('❌ Failed to update status:', error)
       // Note: local change already applied, database update failed
       throw error
     }
@@ -1203,13 +1204,13 @@ class UserDataService extends EventTarget {
     // 🎯 PROFESSIONAL INVISIBLE IMPLEMENTATION
     // If user sets status to Offline (0), they should become invisible to others
     if (status === UserStatus.Offline) {
-      console.log(`👻 User going invisible - untracking from all presence channels`)
+      debug.log(`👻 User going invisible - untracking from all presence channels`)
       await this.untrackFromAllPresenceChannels()
       return
     }
     
     // User is setting a visible status - ensure they're tracked in all relevant contexts
-    console.log(`🌟 User becoming visible with status: ${UserStatus[status]}`)
+    debug.log(`🌟 User becoming visible with status: ${UserStatus[status]}`)
     
     // Track in global presence if available
     if (this.globalChannel) {
@@ -1232,12 +1233,12 @@ class UserDataService extends EventTarget {
             server_id: context.id,
             online_at: new Date().toISOString()
           })
-          console.log(`🌟 Tracking in ${context.type} context: ${context.id}`)
+          debug.log(`🌟 Tracking in ${context.type} context: ${context.id}`)
         }
       }
     }
     
-    console.log(`📡 Status updated in ${this.contexts.size} context channels`)
+    debug.log(`📡 Status updated in ${this.contexts.size} context channels`)
   }
   
   /**
@@ -1254,7 +1255,7 @@ class UserDataService extends EventTarget {
   }): Promise<void> {
     if (!this.currentUserId) throw new Error('No current user')
     
-    console.log('🔄 Updating current user profile:', profileData)
+    debug.log('🔄 Updating current user profile:', profileData)
     
     const userData = this.users.get(this.currentUserId)
     if (!userData) throw new Error('Current user data not found')
@@ -1277,10 +1278,10 @@ class UserDataService extends EventTarget {
       await this.trackCurrentUserGlobally()
       
       this.emitEvent('user-updated', { userId: this.currentUserId })
-      console.log('✅ Profile updated and broadcast to relevant contexts')
+      debug.log('✅ Profile updated and broadcast to relevant contexts')
       
     } catch (error) {
-      console.error('❌ Failed to broadcast profile update:', error)
+      debug.error('❌ Failed to broadcast profile update:', error)
       throw error
     }
   }
@@ -1299,7 +1300,7 @@ class UserDataService extends EventTarget {
   }): Promise<void> {
     if (!this.currentUserId) return
     
-    console.log(`🔄 Broadcasting profile update to ${this.contexts.size} contexts`)
+    debug.log(`🔄 Broadcasting profile update to ${this.contexts.size} contexts`)
     
     // Broadcast profile updates as events (not presence state)
     for (const context of this.contexts.values()) {
@@ -1315,14 +1316,14 @@ class UserDataService extends EventTarget {
             }
           })
           
-          console.log(`📡 Profile broadcast to ${context.type} context: ${context.id}`)
+          debug.log(`📡 Profile broadcast to ${context.type} context: ${context.id}`)
         } catch (error) {
-          console.error(`❌ Failed to broadcast profile to context ${context.id}:`, error)
+          debug.error(`❌ Failed to broadcast profile to context ${context.id}:`, error)
         }
       }
     }
     
-    console.log(`📡 Profile broadcast completed to ${this.contexts.size} context channels`)
+    debug.log(`📡 Profile broadcast completed to ${this.contexts.size} context channels`)
   }
   
   /**
@@ -1363,7 +1364,7 @@ class UserDataService extends EventTarget {
     }
     
     this.contexts.delete(contextId)
-    console.log('✅ Unsubscribed from context:', contextId)
+    debug.log('✅ Unsubscribed from context:', contextId)
   }
   
   /**
@@ -1380,18 +1381,18 @@ class UserDataService extends EventTarget {
    */
   async refreshGlobalPresence(): Promise<void> {
     if (!this.initialized || !this.currentUserId) {
-      console.warn('⚠️ Cannot refresh global presence - service not initialized')
+      debug.warn('⚠️ Cannot refresh global presence - service not initialized')
       return
     }
     
-    console.log('🔄 Refreshing global presence to ensure cross-context visibility...')
+    debug.log('🔄 Refreshing global presence to ensure cross-context visibility...')
     
     // Re-track in global presence
     if (this.globalChannel) {
       await this.trackCurrentUserGlobally()
-      console.log('✅ Global presence refreshed - user is visible across all contexts')
+      debug.log('✅ Global presence refreshed - user is visible across all contexts')
     } else {
-      console.warn('⚠️ Global presence channel not available')
+      debug.warn('⚠️ Global presence channel not available')
     }
   }
   
@@ -1399,7 +1400,7 @@ class UserDataService extends EventTarget {
    * Cleanup and reset
    */
   async cleanup(): Promise<void> {
-    console.log('🧹 Cleaning up User Data Service')
+    debug.log('🧹 Cleaning up User Data Service')
     
     // Stop heartbeat
     if (this.heartbeatTimer) {
@@ -1432,14 +1433,14 @@ class UserDataService extends EventTarget {
     this.currentUserId = null
     this.initialized = false
     
-    console.log('✅ User Data Service cleaned up')
+    debug.log('✅ User Data Service cleaned up')
   }
   
   /**
    * Force refresh of all data
    */
   async refresh(): Promise<void> {
-    console.log('🔄 Refreshing all user data')
+    debug.log('🔄 Refreshing all user data')
     
     // Reload all cached users
     const userIds = Array.from(this.users.keys())
@@ -1458,7 +1459,7 @@ class UserDataService extends EventTarget {
     }
     
     this.emitEvent('data-refreshed', {})
-    console.log('✅ User data refreshed')
+    debug.log('✅ User data refreshed')
   }
   
   /**
@@ -1505,18 +1506,18 @@ class UserDataService extends EventTarget {
    * Manually trigger presence sync for a server context (useful for debugging or forcing updates)
    */
   async triggerPresenceSync(contextId: string): Promise<void> {
-    console.log('🔄 Manually triggering presence sync for context:', contextId)
+    debug.log('🔄 Manually triggering presence sync for context:', contextId)
     
     const context = this.contexts.get(contextId)
     if (!context?.channel) {
-      console.warn('⚠️ No context or channel found for manual sync:', contextId)
+      debug.warn('⚠️ No context or channel found for manual sync:', contextId)
       return
     }
     
     // Force a presence sync
     this.handleServerSync(contextId)
     
-    console.log('✅ Manual presence sync completed for:', contextId)
+    debug.log('✅ Manual presence sync completed for:', contextId)
   }
   
   /**
@@ -1548,9 +1549,9 @@ class UserDataService extends EventTarget {
     if (this.globalChannel) {
       try {
         await this.globalChannel.untrack()
-        console.log('👻 Untracked from global presence channel')
+        debug.log('👻 Untracked from global presence channel')
       } catch (error) {
-        console.warn('⚠️ Failed to untrack from global presence:', error)
+        debug.warn('⚠️ Failed to untrack from global presence:', error)
       }
     }
     
@@ -1559,14 +1560,14 @@ class UserDataService extends EventTarget {
       if (context.channel) {
         try {
           await context.channel.untrack()
-          console.log(`👻 Untracked from ${context.type} context: ${context.id}`)
+          debug.log(`👻 Untracked from ${context.type} context: ${context.id}`)
         } catch (error) {
-          console.warn(`⚠️ Failed to untrack from ${context.type} context ${context.id}:`, error)
+          debug.warn(`⚠️ Failed to untrack from ${context.type} context ${context.id}:`, error)
         }
       }
     }
     
-    console.log('👻 User is now invisible to all other users')
+    debug.log('👻 User is now invisible to all other users')
   }
 }
 

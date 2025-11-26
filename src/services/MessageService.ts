@@ -20,6 +20,7 @@
 
 import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
+import { debug } from '@/utils/debug'
 
 // Import only core service - database handles federation
 import { coreMessageService } from './core'
@@ -60,16 +61,16 @@ export class MessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
-      console.log(`🚀 Simplified: Sending channel message to: ${channelId}`)
+      debug.log(`🚀 Simplified: Sending channel message to: ${channelId}`)
 
       // Channel messages are local-only (no federation by design)
       const message = await coreMessageService.sendChannelMessage(serverId, channelId, content, replyTo)
 
-      console.log(`✅ Simplified: Channel message sent successfully (local-only): ${message.id}`)
+      debug.log(`✅ Simplified: Channel message sent successfully (local-only): ${message.id}`)
       return message
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to send channel message:', error)
+      debug.error('❌ Simplified: Failed to send channel message:', error)
       throw error
     }
   }
@@ -87,16 +88,16 @@ export class MessageService {
     replyTo?: string
   ): Promise<Message> {
     try {
-      console.log(`🚀 Simplified: Sending DM message to conversation: ${conversationId}`)
+      debug.log(`🚀 Simplified: Sending DM message to conversation: ${conversationId}`)
 
       // Just send the message - database triggers handle federation automatically
       const message = await coreMessageService.sendDMMessage(conversationId, content, replyTo)
 
-      console.log(`✅ Simplified: DM message sent successfully - database handling federation: ${message.id}`)
+      debug.log(`✅ Simplified: DM message sent successfully - database handling federation: ${message.id}`)
       return message
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to send DM message:', error)
+      debug.error('❌ Simplified: Failed to send DM message:', error)
       throw error
     }
   }
@@ -110,16 +111,16 @@ export class MessageService {
    */
   async editMessage(messageId: string, newContent: MessagePart[]): Promise<Message> {
     try {
-      console.log(`🚀 Simplified: Editing message: ${messageId}`)
+      debug.log(`🚀 Simplified: Editing message: ${messageId}`)
 
       // Just edit the message - database triggers handle federation automatically
       const message = await coreMessageService.editMessage(messageId, newContent)
 
-      console.log(`✅ Simplified: Message edited successfully - database handling federation: ${messageId}`)
+      debug.log(`✅ Simplified: Message edited successfully - database handling federation: ${messageId}`)
       return message
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to edit message:', error)
+      debug.error('❌ Simplified: Failed to edit message:', error)
       throw error
     }
   }
@@ -129,15 +130,15 @@ export class MessageService {
    */
   async deleteMessage(messageId: string): Promise<void> {
     try {
-      console.log(`🚀 Simplified: Deleting message: ${messageId}`)
+      debug.log(`🚀 Simplified: Deleting message: ${messageId}`)
 
       // Just delete the message - database triggers handle federation automatically
       await coreMessageService.deleteMessage(messageId)
 
-      console.log(`✅ Simplified: Message deleted successfully - database handling federation: ${messageId}`)
+      debug.log(`✅ Simplified: Message deleted successfully - database handling federation: ${messageId}`)
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to delete message:', error)
+      debug.error('❌ Simplified: Failed to delete message:', error)
       throw error
     }
   }
@@ -156,7 +157,7 @@ export class MessageService {
     emojiId: string
   ): Promise<{ added: boolean; newCount: number }> {
     try {
-      console.log(`🚀 Simplified: Toggling reaction for message: ${messageId}, emoji: ${emojiId}`)
+      debug.log(`🚀 Simplified: Toggling reaction for message: ${messageId}, emoji: ${emojiId}`)
 
       // Just toggle the reaction - database triggers handle federation logic automatically
       // (chat reactions stay local, DM reactions may federate based on participants)
@@ -174,11 +175,11 @@ export class MessageService {
         newCount: count || 0
       }
 
-      console.log(`✅ Simplified: Message reaction toggled - database handling federation: ${response.added ? 'added' : 'removed'}`)
+      debug.log(`✅ Simplified: Message reaction toggled - database handling federation: ${response.added ? 'added' : 'removed'}`)
       return response
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to toggle message reaction:', error)
+      debug.error('❌ Simplified: Failed to toggle message reaction:', error)
       throw error
     }
   }
@@ -194,16 +195,16 @@ export class MessageService {
     users: Array<{ id: string; username: string; display_name?: string }>;
   }>> {
     try {
-      console.log(`🚀 Simplified: Loading reactions for message: ${messageId}`)
+      debug.log(`🚀 Simplified: Loading reactions for message: ${messageId}`)
 
       // Delegate to core service (no federation needed for reads)
       const reactions = await coreMessageService.getMessageReactions(messageId)
 
-      console.log(`✅ Simplified: Loaded ${reactions.length} reaction groups`)
+      debug.log(`✅ Simplified: Loaded ${reactions.length} reaction groups`)
       return reactions
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to load message reactions:', error)
+      debug.error('❌ Simplified: Failed to load message reactions:', error)
       throw error
     }
   }
@@ -221,16 +222,16 @@ export class MessageService {
     }>;
   }> {
     try {
-      console.log(`🚀 Simplified: Loading reactions for ${messageIds.length} messages`)
+      debug.log(`🚀 Simplified: Loading reactions for ${messageIds.length} messages`)
 
       // Delegate to core service (optimized batch query)
       const reactions = await coreMessageService.getBatchMessageReactions(messageIds)
 
-      console.log(`✅ Simplified: Loaded batch reactions successfully`)
+      debug.log(`✅ Simplified: Loaded batch reactions successfully`)
       return reactions
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to load batch message reactions:', error)
+      debug.error('❌ Simplified: Failed to load batch message reactions:', error)
       throw error
     }
   }
@@ -257,7 +258,7 @@ export class MessageService {
     nextCursor?: string;
   }> {
     try {
-      console.log(`🚀 Simplified: Loading channel messages for: ${channelId}`)
+      debug.log(`🚀 Simplified: Loading channel messages for: ${channelId}`)
 
       // Delegate to core service (no federation needed for reads)
       const messages = await coreMessageService.loadChannelMessages(channelId, options)
@@ -273,11 +274,11 @@ export class MessageService {
         nextCursor
       }
 
-      console.log(`✅ Simplified: Loaded ${messages.length} channel messages`)
+      debug.log(`✅ Simplified: Loaded ${messages.length} channel messages`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to load channel messages:', error)
+      debug.error('❌ Simplified: Failed to load channel messages:', error)
       throw error
     }
   }
@@ -300,7 +301,7 @@ export class MessageService {
     nextCursor?: string;
   }> {
     try {
-      console.log(`🚀 Simplified: Loading conversation messages for: ${conversationId}`)
+      debug.log(`🚀 Simplified: Loading conversation messages for: ${conversationId}`)
 
       // Delegate to core service (no federation needed for reads)
       const messages = await coreMessageService.loadConversationMessages(conversationId, options)
@@ -316,11 +317,11 @@ export class MessageService {
         nextCursor
       }
 
-      console.log(`✅ Simplified: Loaded ${messages.length} conversation messages`)
+      debug.log(`✅ Simplified: Loaded ${messages.length} conversation messages`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to load conversation messages:', error)
+      debug.error('❌ Simplified: Failed to load conversation messages:', error)
       throw error
     }
   }
@@ -331,21 +332,21 @@ export class MessageService {
    */
   async loadMessage(messageId: string): Promise<Message | null> {
     try {
-      console.log(`🚀 Simplified: Loading message: ${messageId}`)
+      debug.log(`🚀 Simplified: Loading message: ${messageId}`)
 
       // Delegate to core service (no federation needed for reads)
       const message = await coreMessageService.loadMessage(messageId)
 
       if (message) {
-        console.log(`✅ Simplified: Message loaded successfully: ${messageId}`)
+        debug.log(`✅ Simplified: Message loaded successfully: ${messageId}`)
       } else {
-        console.log(`ℹ️ Simplified: Message not found: ${messageId}`)
+        debug.log(`ℹ️ Simplified: Message not found: ${messageId}`)
       }
 
       return message
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to load message:', error)
+      debug.error('❌ Simplified: Failed to load message:', error)
       throw error
     }
   }

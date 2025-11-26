@@ -183,37 +183,32 @@ export class ActivityProcessor {
       // Convert content (returns raw HTML for now)
       const rawContent = noteToContent(object);
       
-      // Debug: Log what we're getting from Misskey/Mastodon
-      logger.info('📝 Raw content from ActivityPub Note: ' + JSON.stringify({
-        contentType: typeof object.content,
-        contentPreview: object.content?.substring(0, 200),
-        hasContent: !!object.content,
-        rawContentParts: rawContent.length,
-        rawContentSample: rawContent[0]
+      logger.info('📝 Processing ActivityPub Note: ' + JSON.stringify({
+        id: object.id,
+        inReplyTo: object.inReplyTo,
+        contentPreview: object.content?.substring(0, 100)
       }));
       
-      // Parse ActivityPub HTML to MessageParts if needed
-      // Note: This parsing should ideally happen in the backend, but for now
-      // we're storing raw HTML and letting frontend parse it
       const content = rawContent;
 
       // Determine visibility
       const visibility = this.determineVisibility(object);
 
-      // Debug logging
-      logger.info(`📬 Processing incoming Note: ` + JSON.stringify({
-        id: object.id,
-        to: object.to,
-        cc: object.cc,
-        determined_visibility: visibility,
-        has_mentions: object.tag?.some((t: any) => t.type === 'Mention')
-      }));
-
       // Route direct messages to messages table, everything else to posts
       if (visibility === 'direct' || visibility === 'private') {
         await this.handleDirectMessage(object, author.id, content);
       } else {
-        // Create post
+        // Handle reply threading - fetch parent posts if missing and find conversation root
+        let parentPostId: string | null = null;
+        let conversationRootId: string | null = null;
+
+        if (object.inReplyTo) {
+          const replyResult = await this.resolveReplyChain(object.inReplyTo);
+          parentPostId = replyResult.parentPostId;
+          conversationRootId = replyResult.conversationRootId;
+        }
+
+        // Create post with proper reply threading
         const { error } = await supabase.from('posts').upsert({
           ap_id: object.id,
           author_id: author.id,
@@ -221,15 +216,180 @@ export class ActivityProcessor {
           visibility,
           is_local: false,
           in_reply_to: object.inReplyTo,
+          in_reply_to_id: parentPostId,
+          conversation_root_id: conversationRootId,
           created_at: object.published || new Date().toISOString(),
         });
 
         if (error) {
           logger.error('Failed to create post from activity:', error);
         } else {
-          logger.info(`Created post from ${object.id}`);
+          logger.info(`✅ Created post from ${object.id}${parentPostId ? ` (reply to ${parentPostId})` : ''}`);
         }
       }
+    }
+  }
+
+  /**
+   * Resolve reply chain - fetch missing parent posts and find conversation root
+   * Returns the parent post ID and conversation root ID
+   */
+  private static async resolveReplyChain(inReplyToUrl: string, depth = 0): Promise<{
+    parentPostId: string | null;
+    conversationRootId: string | null;
+  }> {
+    const MAX_DEPTH = 10; // Prevent infinite loops
+    const supabase = getSupabaseClient();
+
+    if (depth > MAX_DEPTH) {
+      logger.warn(`Reply chain too deep (>${MAX_DEPTH}), stopping resolution`);
+      return { parentPostId: null, conversationRootId: null };
+    }
+
+    // First check if parent post exists locally
+    let parentPost = null;
+    
+    // Try by ap_id
+    const { data: postByApId } = await supabase
+      .from('posts')
+      .select('id, in_reply_to, conversation_root_id')
+      .eq('ap_id', inReplyToUrl)
+      .maybeSingle();
+    
+    parentPost = postByApId;
+
+    // Try extracting UUID from URL
+    if (!parentPost && inReplyToUrl.includes('/posts/')) {
+      const uuidMatch = inReplyToUrl.match(/\/posts\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id, in_reply_to, conversation_root_id')
+          .eq('id', uuidMatch[1])
+          .maybeSingle();
+        parentPost = postById;
+      }
+    }
+
+    // If parent doesn't exist locally, try to fetch it from remote
+    if (!parentPost) {
+      logger.info(`🔍 Parent post not found locally, fetching: ${inReplyToUrl}`);
+      parentPost = await this.fetchAndCreateRemotePost(inReplyToUrl);
+    }
+
+    if (!parentPost) {
+      logger.warn(`Could not resolve parent post: ${inReplyToUrl}`);
+      return { parentPostId: null, conversationRootId: null };
+    }
+
+    // If parent already has a conversation_root_id, use it
+    if (parentPost.conversation_root_id) {
+      return {
+        parentPostId: parentPost.id,
+        conversationRootId: parentPost.conversation_root_id
+      };
+    }
+
+    // If parent is not a reply (no in_reply_to), it IS the conversation root
+    if (!parentPost.in_reply_to) {
+      return {
+        parentPostId: parentPost.id,
+        conversationRootId: parentPost.id
+      };
+    }
+
+    // Parent is also a reply - recurse to find the root
+    const parentResult = await this.resolveReplyChain(parentPost.in_reply_to, depth + 1);
+    
+    // Update the parent post with its conversation_root_id if we found it
+    if (parentResult.conversationRootId && !parentPost.conversation_root_id) {
+      await supabase
+        .from('posts')
+        .update({ conversation_root_id: parentResult.conversationRootId })
+        .eq('id', parentPost.id);
+    }
+
+    return {
+      parentPostId: parentPost.id,
+      conversationRootId: parentResult.conversationRootId || parentPost.id
+    };
+  }
+
+  /**
+   * Fetch a remote post and create it locally
+   */
+  private static async fetchAndCreateRemotePost(postUrl: string): Promise<{
+    id: string;
+    in_reply_to: string | null;
+    conversation_root_id: string | null;
+  } | null> {
+    const supabase = getSupabaseClient();
+
+    try {
+      const response = await fetch(postUrl, {
+        headers: {
+          'Accept': 'application/activity+json, application/ld+json',
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn(`Failed to fetch remote post ${postUrl}: ${response.status}`);
+        return null;
+      }
+
+      const remoteObject = await response.json();
+
+      // Only handle Note/Article types
+      if (remoteObject.type !== 'Note' && remoteObject.type !== 'Article') {
+        logger.warn(`Remote object is not a Note/Article: ${remoteObject.type}`);
+        return null;
+      }
+
+      // Ensure author exists
+      const authorUrl = normalizeActor(remoteObject.attributedTo || remoteObject.actor);
+      await this.ensureRemoteUser(authorUrl);
+
+      // Get author ID
+      const { data: author } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('federated_id', authorUrl)
+        .single();
+
+      if (!author) {
+        logger.warn(`Could not find/create author for remote post`);
+        return null;
+      }
+
+      // Convert content
+      const content = noteToContent(remoteObject);
+      const visibility = this.determineVisibility(remoteObject);
+
+      // Create the remote post
+      const { data: newPost, error } = await supabase
+        .from('posts')
+        .insert({
+          ap_id: remoteObject.id,
+          author_id: author.id,
+          content,
+          visibility,
+          is_local: false,
+          in_reply_to: remoteObject.inReplyTo || null,
+          created_at: remoteObject.published || new Date().toISOString(),
+        })
+        .select('id, in_reply_to, conversation_root_id')
+        .single();
+
+      if (error) {
+        logger.error('Failed to create remote post:', error);
+        return null;
+      }
+
+      logger.info(`✅ Fetched and created remote post: ${remoteObject.id}`);
+      return newPost;
+    } catch (error) {
+      logger.warn(`Error fetching remote post ${postUrl}:`, error);
+      return null;
     }
   }
 
@@ -267,19 +427,21 @@ export class ActivityProcessor {
     const { objectUrl } = extractDeleteData(activity);
     const supabase = getSupabaseClient();
 
-    // Try to delete post
-    await supabase
+    // Try to soft-delete post by ap_id (correct column)
+    const { error: postError } = await supabase
       .from('posts')
-      .delete()
-      .eq('federated_id', objectUrl);
+      .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+      .eq('ap_id', objectUrl);
 
-    // Try to delete message
-    await supabase
+    // Try to soft-delete message by metadata.ap_id
+    const { error: messageError } = await supabase
       .from('messages')
       .update({ is_deleted: true })
-      .eq('federated_id', objectUrl);
+      .eq('metadata->>ap_id', objectUrl);
 
-    logger.info(`Deleted object: ${objectUrl}`);
+    if (!postError || !messageError) {
+      logger.info(`Deleted object: ${objectUrl}`);
+    }
   }
 
   /**
@@ -419,8 +581,10 @@ export class ActivityProcessor {
    * Process Announce activity (reblog/boost)
    */
   private static async processAnnounce(activity: any): Promise<void> {
-    const { actorUrl, objectUrl } = extractAnnounceData(activity);
+    const { actorUrl, objectUrl, published } = extractAnnounceData(activity);
     const supabase = getSupabaseClient();
+
+    logger.info(`📢 Processing Announce: ${actorUrl} reblogged ${objectUrl}`);
 
     // Ensure user exists
     await this.ensureRemoteUser(actorUrl);
@@ -437,25 +601,137 @@ export class ActivityProcessor {
       return;
     }
 
-    // Find original post
-    const { data: originalPost } = await supabase
+    // Find original post - try ap_id first (correct column), then by UUID extraction
+    let originalPost = null;
+    
+    // Method 1: Try by ap_id (correct column name)
+    const { data: postByApId } = await supabase
+      .from('posts')
+      .select('id, content, visibility, author_id, created_at, ap_id')
+      .eq('ap_id', objectUrl)
+      .maybeSingle();
+    
+    originalPost = postByApId;
+    
+    // Method 2: If not found, try extracting UUID from URL
+    if (!originalPost && objectUrl.includes('/posts/')) {
+      const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+      if (uuidMatch) {
+        const postId = uuidMatch[1];
+        const { data: postById } = await supabase
+          .from('posts')
+          .select('id, content, visibility, author_id, created_at, ap_id')
+          .eq('id', postId)
+          .maybeSingle();
+        originalPost = postById;
+      }
+    }
+
+    // Method 3: If still not found, try to fetch and create the remote post
+    if (!originalPost) {
+      logger.info(`Original post not found locally, attempting to fetch: ${objectUrl}`);
+      try {
+        const response = await fetch(objectUrl, {
+          headers: {
+            'Accept': 'application/activity+json, application/ld+json',
+          },
+        });
+        
+        if (response.ok) {
+          const remotePost = await response.json();
+          if (remotePost.type === 'Note' || remotePost.type === 'Article') {
+            // Ensure the remote author exists
+            const authorUrl = normalizeActor(remotePost.attributedTo || remotePost.actor);
+            await this.ensureRemoteUser(authorUrl);
+            
+            // Get author ID
+            const { data: author } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('federated_id', authorUrl)
+              .single();
+            
+            if (author) {
+              // Create the original post
+              const content = noteToContent(remotePost);
+              const visibility = this.determineVisibility(remotePost);
+              
+              const { data: newPost, error: createError } = await supabase
+                .from('posts')
+                .insert({
+                  ap_id: remotePost.id,
+                  author_id: author.id,
+                  content,
+                  visibility,
+                  is_local: false,
+                  created_at: remotePost.published || new Date().toISOString(),
+                })
+                .select('id, content, visibility, author_id, created_at, ap_id')
+                .single();
+              
+              if (!createError && newPost) {
+                originalPost = newPost;
+                logger.info(`Created remote post ${remotePost.id} for reblog`);
+              }
+            }
+          }
+        }
+      } catch (fetchError) {
+        logger.warn(`Failed to fetch remote post for reblog: ${objectUrl}`, fetchError);
+      }
+    }
+
+    if (!originalPost) {
+      logger.warn(`Original post not found for announce: ${objectUrl}`);
+      return;
+    }
+
+    // Check if reblog already exists to avoid duplicates
+    const { data: existingReblog } = await supabase
       .from('posts')
       .select('id')
-      .eq('federated_id', objectUrl)
-      .single();
+      .eq('ap_id', activity.id)
+      .maybeSingle();
+    
+    if (existingReblog) {
+      logger.info(`Reblog already exists: ${activity.id}`);
+      return;
+    }
 
-    if (originalPost) {
-      // Create reblog post
-      await supabase.from('posts').insert({
-        author_id: user.id,
+    // Create reblog post with proper metadata structure
+    const { error: insertError } = await supabase.from('posts').insert({
+      ap_id: activity.id, // Set ap_id for the reblog itself
+      author_id: user.id,
+      content: [], // Reblogs have no content of their own
+      visibility: 'public',
+      is_local: false,
+      is_federated: true,
+      ap_type: 'Announce',
+      metadata: {
         reblog_of: originalPost.id,
-        is_local: false,
-        visibility: 'public',
-        content: [],
-        created_at: activity.published || new Date().toISOString(),
-      });
+        original_ap_id: originalPost.ap_id || objectUrl,
+        original_author_id: originalPost.author_id,
+      },
+      created_at: published || new Date().toISOString(),
+    });
 
-      logger.info(`Created reblog of ${originalPost.id}`);
+    if (insertError) {
+      logger.error('Failed to create reblog post:', insertError);
+    } else {
+      // Also create a post_interaction record for the reblog
+      await supabase.from('post_interactions').insert({
+        user_id: user.id,
+        post_id: originalPost.id,
+        interaction_type: 'reblog',
+        ap_id: activity.id,
+        is_local: false,
+      }).catch(err => logger.warn('Failed to create reblog interaction:', err));
+      
+      // Increment reblogs_count on original post
+      await supabase.rpc('increment_post_reblogs', { p_post_id: originalPost.id })
+        .catch(err => logger.warn('Failed to increment reblog count:', err));
+
+      logger.info(`✅ Created reblog of ${originalPost.id} by ${user.id}`);
     }
   }
 
@@ -469,7 +745,7 @@ export class ActivityProcessor {
     if (!object) return;
 
     switch (object.type) {
-      case 'Follow':
+      case 'Follow': {
         // Remove follow
         const { followerUrl, followingUrl } = extractFollowData(object);
         const { data: follower } = await supabase
@@ -494,9 +770,11 @@ export class ActivityProcessor {
           logger.info(`Undid follow: ${followerUrl} → ${followingUrl}`);
         }
         break;
+      }
 
       case 'Like':
-        // Remove reaction
+      case 'EmojiReaction': {
+        // Remove reaction from post_interactions (correct table)
         const { actorUrl, objectUrl } = extractLikeData(object);
         const { data: user } = await supabase
           .from('profiles')
@@ -504,32 +782,85 @@ export class ActivityProcessor {
           .eq('federated_id', actorUrl)
           .single();
 
-        const { data: post } = await supabase
+        // Try by ap_id first (correct column)
+        let post = null;
+        const { data: postByApId } = await supabase
           .from('posts')
           .select('id')
-          .eq('federated_id', objectUrl)
-          .single();
+          .eq('ap_id', objectUrl)
+          .maybeSingle();
+        
+        post = postByApId;
+        
+        // Fallback: try extracting UUID from URL
+        if (!post && objectUrl.includes('/posts/')) {
+          const uuidMatch = objectUrl.match(/\/posts\/([a-f0-9-]{36})/);
+          if (uuidMatch) {
+            const { data: postById } = await supabase
+              .from('posts')
+              .select('id')
+              .eq('id', uuidMatch[1])
+              .maybeSingle();
+            post = postById;
+          }
+        }
 
         if (user && post) {
+          // Delete from post_interactions (correct table, not post_reactions)
           await supabase
-            .from('post_reactions')
+            .from('post_interactions')
             .delete()
             .eq('user_id', user.id)
-            .eq('post_id', post.id);
+            .eq('post_id', post.id)
+            .in('interaction_type', ['favorite', 'emoji_reaction']);
 
           logger.info(`Undid reaction on ${objectUrl}`);
         }
         break;
+      }
 
-      case 'Announce':
-        // Remove reblog
-        await supabase
+      case 'Announce': {
+        // Remove reblog by ap_id (correct column)
+        const announceId = typeof object === 'string' ? object : object.id;
+        
+        // First get the reblog post to find the original
+        const { data: reblogPost } = await supabase
           .from('posts')
-          .delete()
-          .eq('federated_id', object.id);
+          .select('id, metadata')
+          .eq('ap_id', announceId)
+          .maybeSingle();
+        
+        if (reblogPost) {
+          // Delete the reblog post
+          await supabase
+            .from('posts')
+            .delete()
+            .eq('id', reblogPost.id);
+          
+          // Also remove the interaction record if the original post is known
+          const originalPostId = reblogPost.metadata?.reblog_of;
+          if (originalPostId) {
+            const actorUrl = normalizeActor(activity.actor);
+            const { data: user } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('federated_id', actorUrl)
+              .single();
+            
+            if (user) {
+              await supabase
+                .from('post_interactions')
+                .delete()
+                .eq('user_id', user.id)
+                .eq('post_id', originalPostId)
+                .eq('interaction_type', 'reblog');
+            }
+          }
+        }
 
-        logger.info(`Undid announce: ${object.id}`);
+        logger.info(`Undid announce: ${announceId}`);
         break;
+      }
     }
   }
 

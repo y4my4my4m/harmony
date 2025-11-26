@@ -1,3 +1,5 @@
+import { debug } from '@/utils/debug'
+
 interface PersistedState {
   lastServerId: string | null
   lastChannelByServer: Record<string, string>
@@ -92,9 +94,9 @@ class StatePersistenceService {
         }
         
         this.state = { ...DEFAULT_STATE, ...parsed }
-        console.log('✅ Loaded persisted state (v' + STATE_VERSION + '):', this.state)
+        debug.log('✅ Loaded persisted state (v' + STATE_VERSION + '):', this.state)
       } else {
-        console.log('📱 No persisted state found, using defaults')
+        debug.log('📱 No persisted state found, using defaults')
         this.state = { ...DEFAULT_STATE }
       }
 
@@ -110,7 +112,7 @@ class StatePersistenceService {
       await this.updateLastActiveTimestamp()
       
     } catch (error) {
-      console.warn('⚠️ Failed to load persisted state, using defaults:', error)
+      debug.warn('⚠️ Failed to load persisted state, using defaults:', error)
       this.state = { ...DEFAULT_STATE }
       this.appState = { ...DEFAULT_APP_STATE }
       this.isLoaded = true
@@ -122,7 +124,7 @@ class StatePersistenceService {
    */
   loadState(): PersistedState {
     if (!this.isLoaded) {
-      console.warn('⚠️ State not initialized, using defaults. Call initialize() first.')
+      debug.warn('⚠️ State not initialized, using defaults. Call initialize() first.')
       return { ...DEFAULT_STATE }
     }
     return this.state
@@ -147,17 +149,17 @@ class StatePersistenceService {
       }
       
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave))
-      console.log('💾 State persisted to localStorage')
+      debug.log('💾 State persisted to localStorage')
     } catch (error) {
-      console.warn('⚠️ Failed to persist state:', error)
+      debug.warn('⚠️ Failed to persist state:', error)
       
       // Try to clear space and retry once
       try {
         this.clearOldStates()
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state))
-        console.log('💾 State persisted after cleanup')
+        debug.log('💾 State persisted after cleanup')
       } catch (retryError) {
-        console.error('❌ Failed to persist state even after cleanup:', retryError)
+        debug.error('❌ Failed to persist state even after cleanup:', retryError)
       }
     }
   }
@@ -224,7 +226,7 @@ class StatePersistenceService {
       localStorage.removeItem(key)
     })
     
-    console.log(`🧹 Cleaned up ${keysToRemove.length} old localStorage entries`)
+    debug.log(`🧹 Cleaned up ${keysToRemove.length} old localStorage entries`)
   }
 
   /**
@@ -235,7 +237,7 @@ class StatePersistenceService {
     
     this.state.lastServerId = serverId
     this.debouncedSave() // ✅ PERFORMANCE FIX: Use debounced save during initialization
-    console.log('📍 Last server saved:', serverId)
+    debug.log('📍 Last server saved:', serverId)
   }
 
   /**
@@ -243,7 +245,7 @@ class StatePersistenceService {
    */
   getLastServer(): string | null {
     if (!this.isLoaded) {
-      console.warn('⚠️ State not loaded, returning null for last server')
+      debug.warn('⚠️ State not loaded, returning null for last server')
       return null
     }
     return this.state.lastServerId
@@ -262,7 +264,7 @@ class StatePersistenceService {
     }
     
     this.debouncedSave() // ✅ PERFORMANCE FIX: Use debounced save during initialization
-    console.log('📍 Last channel saved for server', serverId, ':', channelId)
+    debug.log('📍 Last channel saved for server', serverId, ':', channelId)
   }
 
   /**
@@ -270,7 +272,7 @@ class StatePersistenceService {
    */
   getLastChannel(serverId: string): string | null {
     if (!this.isLoaded) {
-      console.warn('⚠️ State not loaded, returning null for last channel')
+      debug.warn('⚠️ State not loaded, returning null for last channel')
       return null
     }
     return this.state.lastChannelByServer[serverId] || null
@@ -291,7 +293,7 @@ class StatePersistenceService {
     // Debounce saves for category states to avoid excessive writes
     this.debouncedSave()
     
-    console.log('📂 Category collapse state saved:', { serverId, categoryId, collapsed })
+    debug.log('📂 Category collapse state saved:', { serverId, categoryId, collapsed })
   }
 
   /**
@@ -299,7 +301,7 @@ class StatePersistenceService {
    */
   getCategoryCollapseState(serverId: string, categoryId: string): boolean {
     if (!this.isLoaded) {
-      console.warn('⚠️ State not loaded, returning default collapsed state')
+      debug.warn('⚠️ State not loaded, returning default collapsed state')
       return false
     }
     
@@ -312,7 +314,7 @@ class StatePersistenceService {
    */
   getServerCategoryStates(serverId: string): CategoryCollapseState {
     if (!this.isLoaded) {
-      console.warn('⚠️ State not loaded, returning empty category states')
+      debug.warn('⚠️ State not loaded, returning empty category states')
       return {}
     }
     
@@ -328,7 +330,7 @@ class StatePersistenceService {
     this.state.categoryCollapseStates[serverId] = { ...categoryStates }
     await this.saveState()
     
-    console.log('📂 Batch updated category states for server:', serverId)
+    debug.log('📂 Batch updated category states for server:', serverId)
   }
 
   /**
@@ -351,7 +353,7 @@ class StatePersistenceService {
    */
   getSidebarState(sidebar: 'left' | 'right'): boolean {
     if (!this.isLoaded) {
-      console.warn('⚠️ State not loaded, returning default sidebar state')
+      debug.warn('⚠️ State not loaded, returning default sidebar state')
       return false
     }
     
@@ -369,7 +371,7 @@ class StatePersistenceService {
     this.appState.hasInitialized = initialized
     
     await this.saveState()
-    console.log('🚀 App initialization state saved:', initialized)
+    debug.log('🚀 App initialization state saved:', initialized)
   }
 
   /**
@@ -389,7 +391,7 @@ class StatePersistenceService {
         return parsed.appInitialized === true
       }
     } catch (error) {
-      console.warn('⚠️ Failed to quick-check initialization state:', error)
+      debug.warn('⚠️ Failed to quick-check initialization state:', error)
     }
     
     return false
@@ -449,9 +451,9 @@ class StatePersistenceService {
     try {
       localStorage.removeItem(STORAGE_KEY)
       this.clearOldStates() // Also clean up any legacy keys
-      console.log('🗑️ All persisted state cleared')
+      debug.log('🗑️ All persisted state cleared')
     } catch (error) {
-      console.warn('⚠️ Failed to clear persisted state:', error)
+      debug.warn('⚠️ Failed to clear persisted state:', error)
     }
   }
 
@@ -480,10 +482,10 @@ class StatePersistenceService {
       this.state = validatedState
       await this.saveState()
       
-      console.log('📥 State imported successfully')
+      debug.log('📥 State imported successfully')
       return true
     } catch (error) {
-      console.error('❌ Failed to import state:', error)
+      debug.error('❌ Failed to import state:', error)
       return false
     }
   }
@@ -528,4 +530,4 @@ class StatePersistenceService {
 export const statePersistence = new StatePersistenceService()
 
 // Initialize immediately for early access
-statePersistence.initialize().catch(console.error)
+statePersistence.initialize().catch(debug.error)

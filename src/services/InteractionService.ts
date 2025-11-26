@@ -20,6 +20,7 @@
 
 import { supabase } from '@/supabase'
 import type { Profile } from '@/types'
+import { debug } from '@/utils/debug'
 
 // Import only core service - database handles federation
 import { coreInteractionService } from './core'
@@ -59,7 +60,7 @@ export class InteractionService {
    */
   async toggleFollow(targetUserId: string): Promise<FollowResult> {
     try {
-      console.log(`🚀 Simplified: Toggling follow for user: ${targetUserId}`)
+      debug.log(`🚀 Simplified: Toggling follow for user: ${targetUserId}`)
 
       // Get current user for validation
       const { data: { user } } = await supabase.auth.getUser()
@@ -74,11 +75,11 @@ export class InteractionService {
       // Just toggle the follow - database triggers handle federation automatically
       const result = await coreInteractionService.toggleFollow(targetUserId)
 
-      console.log(`✅ Simplified: Follow toggled - database handling federation: ${result.following ? 'following' : 'unfollowed'}`)
+      debug.log(`✅ Simplified: Follow toggled - database handling federation: ${result.following ? 'following' : 'unfollowed'}`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to toggle follow:', error)
+      debug.error('❌ Simplified: Failed to toggle follow:', error)
       throw error
     }
   }
@@ -89,15 +90,15 @@ export class InteractionService {
    */
   async acceptFollowRequest(followerUserId: string): Promise<void> {
     try {
-      console.log(`🚀 Simplified: Accepting follow request from: ${followerUserId}`)
+      debug.log(`🚀 Simplified: Accepting follow request from: ${followerUserId}`)
 
       // Just accept the follow request - database triggers handle federation automatically
       await coreInteractionService.acceptFollowRequest(followerUserId)
 
-      console.log(`✅ Simplified: Follow request accepted - database handling federation: ${followerUserId}`)
+      debug.log(`✅ Simplified: Follow request accepted - database handling federation: ${followerUserId}`)
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to accept follow request:', error)
+      debug.error('❌ Simplified: Failed to accept follow request:', error)
       throw error
     }
   }
@@ -108,15 +109,15 @@ export class InteractionService {
    */
   async rejectFollowRequest(followerUserId: string): Promise<void> {
     try {
-      console.log(`🚀 Simplified: Rejecting follow request from: ${followerUserId}`)
+      debug.log(`🚀 Simplified: Rejecting follow request from: ${followerUserId}`)
 
       // Just reject the follow request - database triggers handle federation automatically
       await coreInteractionService.rejectFollowRequest(followerUserId)
 
-      console.log(`✅ Simplified: Follow request rejected - database handling federation: ${followerUserId}`)
+      debug.log(`✅ Simplified: Follow request rejected - database handling federation: ${followerUserId}`)
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to reject follow request:', error)
+      debug.error('❌ Simplified: Failed to reject follow request:', error)
       throw error
     }
   }
@@ -131,16 +132,16 @@ export class InteractionService {
    */
   async toggleBlock(targetUserId: string): Promise<{ blocking: boolean }> {
     try {
-      console.log(`🚀 Simplified: Toggling block for user: ${targetUserId}`)
+      debug.log(`🚀 Simplified: Toggling block for user: ${targetUserId}`)
 
       // Just toggle the block - database triggers handle federation automatically
       const result = await coreInteractionService.toggleBlock(targetUserId)
 
-      console.log(`✅ Simplified: Block toggled - database handling federation: ${result.blocking ? 'blocked' : 'unblocked'}`)
+      debug.log(`✅ Simplified: Block toggled - database handling federation: ${result.blocking ? 'blocked' : 'unblocked'}`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to toggle block:', error)
+      debug.error('❌ Simplified: Failed to toggle block:', error)
       throw error
     }
   }
@@ -151,16 +152,16 @@ export class InteractionService {
    */
   async toggleMute(targetUserId: string): Promise<{ muting: boolean }> {
     try {
-      console.log(`🚀 Simplified: Toggling mute for user: ${targetUserId}`)
+      debug.log(`🚀 Simplified: Toggling mute for user: ${targetUserId}`)
 
       // Muting is always local-only (by design)
       const result = await coreInteractionService.toggleMute(targetUserId)
 
-      console.log(`✅ Simplified: Mute toggled (local-only): ${result.muting ? 'muted' : 'unmuted'}`)
+      debug.log(`✅ Simplified: Mute toggled (local-only): ${result.muting ? 'muted' : 'unmuted'}`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to toggle mute:', error)
+      debug.error('❌ Simplified: Failed to toggle mute:', error)
       throw error
     }
   }
@@ -177,16 +178,16 @@ export class InteractionService {
     [userId: string]: RelationshipInfo;
   }> {
     try {
-      console.log(`🚀 Simplified: Getting relationships for ${userIds.length} users`)
+      debug.log(`🚀 Simplified: Getting relationships for ${userIds.length} users`)
 
       // Delegate to core service (no federation needed for reads)
       const relationships = await coreInteractionService.getUserRelationships(userIds)
 
-      console.log(`✅ Simplified: Retrieved relationships for ${Object.keys(relationships).length} users`)
+      debug.log(`✅ Simplified: Retrieved relationships for ${Object.keys(relationships).length} users`)
       return relationships
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to get user relationships:', error)
+      debug.error('❌ Simplified: Failed to get user relationships:', error)
       throw error
     }
   }
@@ -207,16 +208,16 @@ export class InteractionService {
     total: number;
   }> {
     try {
-      console.log(`🚀 Simplified: Getting followers for user: ${userId}`)
+      debug.log(`🚀 Simplified: Getting followers for user: ${userId}`)
 
       // Delegate to core service (no federation needed for reads)
       const result = await coreInteractionService.getFollowers(userId, options)
 
-      console.log(`✅ Simplified: Retrieved ${result.followers.length} followers`)
+      debug.log(`✅ Simplified: Retrieved ${result.followers.length} followers`)
       return result
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to get followers:', error)
+      debug.error('❌ Simplified: Failed to get followers:', error)
       throw error
     }
   }
@@ -237,7 +238,7 @@ export class InteractionService {
     total: number;
   }> {
     try {
-      console.log(`🚀 Simple: Getting following for user: ${userId}`)
+      debug.log(`🚀 Simple: Getting following for user: ${userId}`)
 
       const { limit = 20, offset = 0 } = options
 
@@ -261,7 +262,7 @@ export class InteractionService {
         .range(offset, offset + limit - 1)
 
       if (error) {
-        console.error('❌ Database error:', error)
+        debug.error('❌ Database error:', error)
         throw this.createError('FOLLOWING_FAILED', 'Failed to load following', error)
       }
 
@@ -307,11 +308,11 @@ export class InteractionService {
         total: totalCount || 0
       }
 
-      console.log(`✅ Simple: Retrieved ${result.following.length} following users`)
+      debug.log(`✅ Simple: Retrieved ${result.following.length} following users`)
       return result
 
     } catch (error) {
-      console.error('❌ Simple: Failed to get following:', error)
+      debug.error('❌ Simple: Failed to get following:', error)
       throw error
     }
   }
@@ -333,7 +334,7 @@ export class InteractionService {
     total: number;
   }> {
     try {
-      console.log(`🚀 Simplified: Getting follow requests`)
+      debug.log(`🚀 Simplified: Getting follow requests`)
 
       const { limit = 20 } = options
       
@@ -373,11 +374,11 @@ export class InteractionService {
         total: result.requests.length // Note: This is not the true total, just current batch size
       }
 
-      console.log(`✅ Simplified: Retrieved ${transformedResult.requests.length} follow requests`)
+      debug.log(`✅ Simplified: Retrieved ${transformedResult.requests.length} follow requests`)
       return transformedResult
 
     } catch (error) {
-      console.error('❌ Simplified: Failed to get follow requests:', error)
+      debug.error('❌ Simplified: Failed to get follow requests:', error)
       throw error
     }
   }

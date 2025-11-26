@@ -1,20 +1,35 @@
 /**
  * Composable to track and update user's current view context in ephemeral presence
  * This enables database-level notification suppression (Discord-like behavior)
- * Uses Supabase Realtime presence - completely ephemeral, no database table
+ * Uses Supabase Realtime presence - completely ephemeral, no database table needed
+ * 
+ * Architecture:
+ * - Frontend tracks view context in presence
+ * - Database triggers read presence to suppress notifications for active contexts
+ * - No redundant DB sync needed - presence IS the source of truth
  */
 
 import { watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabase } from '@/supabase'
+import { debug } from '@/utils/debug'
+import { viewContextTracker } from '@/services/ViewContextTracker'
 
 let viewContextChannel: ReturnType<typeof supabase.channel> | null = null
+let currentUserId: string | null = null
 
 /**
  * Get the view context presence channel (for use in other modules)
  */
 export function getViewContextChannel() {
   return viewContextChannel
+}
+
+/**
+ * Get current view context from presence state
+ */
+export function getCurrentViewContext() {
+  return viewContextTracker.getCurrentContext()
 }
 
 /**
@@ -32,14 +47,15 @@ export async function updateViewContext(
     if (!viewContextChannel) {
       const userId = (await supabase.auth.getUser()).data.user?.id
       if (!userId) return
+      currentUserId = userId
 
       viewContextChannel = supabase.channel(`view-context:${userId}`)
         .on('presence', { event: 'sync' }, () => {
-          console.log('🔄 View context presence synced')
+          debug.log('🔄 View context presence synced')
         })
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
-            console.log('✅ View context presence channel subscribed')
+            debug.log('✅ View context presence channel subscribed')
           }
         })
     }
@@ -53,21 +69,29 @@ export async function updateViewContext(
       updated_at: new Date().toISOString()
     })
 
-    // Sync to database table so PostgreSQL functions can check it (for database-level notification suppression)
-    const { error: syncError } = await supabase.rpc('sync_view_context_from_presence', {
-      p_view_type: viewType,
-      p_server_id: serverId || null,
-      p_channel_id: channelId || null,
-      p_conversation_id: conversationId || null
+    // Also update the local tracker for immediate client-side checks
+    viewContextTracker.updateContext({
+      view_type: viewType === 'activitypub_home' ? 'home' : viewType,
+      server_id: serverId,
+      channel_id: channelId,
+      conversation_id: conversationId
     })
 
-    if (syncError) {
-      console.error('Failed to sync view context to database:', syncError)
-    } else {
-      console.log('✅ View context updated in presence and synced to database:', { viewType, serverId, channelId, conversationId })
-    }
+    debug.log('✅ View context updated:', { viewType, serverId, channelId, conversationId })
   } catch (error) {
-    console.error('Error updating view context:', error)
+    debug.error('Error updating view context:', error)
+  }
+}
+
+/**
+ * Cleanup view context channel on logout
+ */
+export async function cleanupViewContext(): Promise<void> {
+  if (viewContextChannel) {
+    await supabase.removeChannel(viewContextChannel)
+    viewContextChannel = null
+    currentUserId = null
+    viewContextTracker.reset()
   }
 }
 

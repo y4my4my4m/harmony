@@ -540,17 +540,27 @@ watch(() => authStore.session, async (newSession, oldSession) => {
 
 // 🔥 CRITICAL FIX: Watch for route changes and refresh global presence
 // This ensures users remain visible globally when navigating between different contexts
+// Debounced to prevent excessive calls during rapid navigation
+let presenceRefreshTimeout: ReturnType<typeof setTimeout> | null = null
+const PRESENCE_REFRESH_DEBOUNCE_MS = 500
+
 watch(() => route.name, async (newRouteName, oldRouteName) => {
   if (newRouteName !== oldRouteName && isAppInitialized.value && authStore.session?.user?.id) {
-    console.log(`🌐 Route changed from ${String(oldRouteName)} to ${String(newRouteName)} - refreshing global presence`)
-    try {
-      const { useUserData } = await import('@/composables/useUserData')
-      const userData = useUserData()
-      await userData.refreshGlobalPresence()
-      console.log('✅ Global presence refreshed on route change - user remains visible across contexts')
-    } catch (error) {
-      console.error('Failed to refresh global presence on route change:', error)
+    // Clear any pending refresh
+    if (presenceRefreshTimeout) {
+      clearTimeout(presenceRefreshTimeout)
     }
+    
+    // Debounce presence refresh to prevent excessive calls during rapid navigation
+    presenceRefreshTimeout = setTimeout(async () => {
+      try {
+        const { useUserData } = await import('@/composables/useUserData')
+        const userData = useUserData()
+        await userData.refreshGlobalPresence()
+      } catch (error) {
+        console.error('Failed to refresh global presence:', error)
+      }
+    }, PRESENCE_REFRESH_DEBOUNCE_MS)
   }
 })
 

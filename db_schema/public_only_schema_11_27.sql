@@ -1629,7 +1629,7 @@ BEGIN
 
   -- Create default General voice channel under the voice category
   INSERT INTO public.channels (server_id, name, type, category, "order")
-  VALUES (p_server_id, 'General', 2, v_voice_category_id, 0);
+  VALUES (p_server_id, 'voice chat', 1, v_voice_category_id, 0);
 
   RAISE NOTICE 'Created default structure for server %: text category %, voice category %', 
     p_server_id, v_text_category_id, v_voice_category_id;
