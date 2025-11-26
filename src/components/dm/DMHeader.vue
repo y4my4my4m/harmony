@@ -170,6 +170,18 @@
             <span>Notification Settings</span>
           </button>
           
+          <!-- Encryption Toggle -->
+          <button 
+            class="action-item"
+            @click="toggleEncryption"
+            :disabled="!canToggleEncryption"
+            :title="encryptionToggleTitle"
+          >
+            <Icon :name="encryptionEnabled ? 'lock' : 'unlock'" :size="16" />
+            <span>{{ encryptionEnabled ? 'Encryption On' : 'Encryption Off' }}</span>
+            <span v-if="encryptionLoading" class="loading-indicator">...</span>
+          </button>
+          
           <div class="menu-separator"></div>
           
           <!-- Leave Group (only for group chats) -->
@@ -213,10 +225,54 @@
     @close="showSearchModal = false"
     @message-click="handleSearchMessageClick"
   />
+
+  <!-- Encryption Setup Required Modal -->
+  <Teleport to="body">
+    <div v-if="showEncryptionSetupModal" class="modal-overlay" @click.self="showEncryptionSetupModal = false">
+      <div class="modal-content encryption-setup-modal">
+        <div class="modal-header">
+          <h3>🔐 Encryption Setup Required</h3>
+          <button class="close-btn" @click="showEncryptionSetupModal = false">
+            <Icon name="x" :size="20" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <p>To enable encrypted DMs, you need to set up end-to-end encryption first.</p>
+          <div class="setup-steps">
+            <div class="step">
+              <span class="step-number">1</span>
+              <span class="step-text">Go to <strong>Settings → Privacy & Security → Encryption</strong></span>
+            </div>
+            <div class="step">
+              <span class="step-number">2</span>
+              <span class="step-text">Create your recovery key (12-word phrase)</span>
+            </div>
+            <div class="step">
+              <span class="step-number">3</span>
+              <span class="step-text">Come back here and enable encryption for this conversation</span>
+            </div>
+          </div>
+          <p class="note">
+            <Icon name="info" :size="14" />
+            Your recovery key is the only way to decrypt your messages. Keep it safe!
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showEncryptionSetupModal = false">
+            Cancel
+          </button>
+          <button class="btn btn-primary" @click="goToEncryptionSettings">
+            Go to Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import GroupIcon from '@/components/common/GroupIcon.vue'
@@ -232,7 +288,9 @@ import { useToast } from 'vue-toastification'
 import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 import { dmCallPermissions } from '@/services/DMCallPermissions'
 import { userDataService } from '@/services/userDataService'
+import { supabase } from '@/supabase'
 
+const router = useRouter()
 const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
 const authStore = useAuthStore()
@@ -282,10 +340,90 @@ const {
 const showSearchModal = ref(false)
 const showOptionsMenu = ref(false)
 const presenceInitialized = ref(false)
+const showEncryptionSetupModal = ref(false)
 const optionsMenuRef = ref<HTMLElement>()
 
 // Group chat state
 const showGroupSettings = ref(false)
+
+// Encryption state
+const encryptionEnabled = ref(false)
+const encryptionLoading = ref(false)
+const userHasEncryption = ref(false)
+
+// Check if user can toggle encryption (needs to have encryption set up)
+const canToggleEncryption = computed(() => userHasEncryption.value && !encryptionLoading.value)
+const encryptionToggleTitle = computed(() => {
+  if (!userHasEncryption.value) return 'Set up encryption in settings first'
+  return encryptionEnabled.value ? 'Click to disable encryption' : 'Click to enable encryption'
+})
+
+// Load encryption status
+async function loadEncryptionStatus() {
+  try {
+    // Check if user has encryption set up
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+    userHasEncryption.value = megolmMessageEncryptionService.isUnlocked()
+    console.log('🔐 User has encryption:', userHasEncryption.value)
+    
+    // Check conversation encryption setting
+    const { data } = await supabase
+      .from('conversation_encryption_settings')
+      .select('encryption_enabled')
+      .eq('conversation_id', props.conversation.id)
+      .maybeSingle()
+    
+    encryptionEnabled.value = data?.encryption_enabled === true
+    console.log('🔐 Conversation encryption enabled:', encryptionEnabled.value)
+  } catch (error) {
+    console.warn('Failed to load encryption status:', error)
+  }
+}
+
+// Toggle encryption for this conversation
+async function toggleEncryption() {
+  console.log('🔐 Toggle encryption clicked')
+  console.log('🔐 canToggleEncryption:', canToggleEncryption.value)
+  console.log('🔐 userHasEncryption:', userHasEncryption.value)
+  
+  if (!canToggleEncryption.value) {
+    console.log('🔐 Cannot toggle - user does not have encryption set up')
+    closeActionsMenu()
+    showEncryptionSetupModal.value = true
+    return
+  }
+  
+  encryptionLoading.value = true
+  try {
+    const newState = !encryptionEnabled.value
+    console.log('🔐 Setting encryption to:', newState)
+    
+    // Upsert the setting
+    const { error } = await supabase
+      .from('conversation_encryption_settings')
+      .upsert({
+        conversation_id: props.conversation.id,
+        encryption_enabled: newState,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'conversation_id'
+      })
+    
+    if (error) {
+      console.error('🔐 Supabase error:', error)
+      throw error
+    }
+    
+    encryptionEnabled.value = newState
+    toast.success(newState ? 'Encryption enabled for this conversation' : 'Encryption disabled for this conversation')
+    closeActionsMenu()
+  } catch (error) {
+    console.error('Failed to toggle encryption:', error)
+    toast.error('Failed to update encryption setting')
+  } finally {
+    encryptionLoading.value = false
+  }
+}
 
 // Methods
 function handleGroupUpdated() {
@@ -425,9 +563,19 @@ const unsubscribeFromCallSignals = () => {
 onMounted(() => {
   initializePresenceTracking()
   subscribeToCallSignals()
+  loadEncryptionStatus()
 })
 
-// Watch for conversation changes to update presence tracking
+// Watch for conversation changes to update presence tracking and encryption
+watch(
+  () => props.conversation.id,
+  async (newId, oldId) => {
+    if (newId !== oldId) {
+      loadEncryptionStatus()
+    }
+  }
+)
+
 watch(
   () => props.conversation.other_user?.id,
   async (newUserId, oldUserId) => {
@@ -533,6 +681,11 @@ const openGroupSettings = () => {
 const handleNotificationSettings = () => {
   console.log('Notification settings clicked')
   showOptionsMenu.value = false
+}
+
+const goToEncryptionSettings = () => {
+  showEncryptionSetupModal.value = false
+  router.push('/settings/privacy')
 }
 
 const handleLeaveGroup = () => {
@@ -1085,5 +1238,166 @@ const getDefaultGroupName = (): string => {
     width: 24px;
     height: 24px;
   }
+}
+
+/* Encryption Setup Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.encryption-setup-modal {
+  background: var(--background-primary);
+  border-radius: 12px;
+  max-width: 460px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-header .close-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-header .close-btn:hover {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 20px 24px;
+}
+
+.modal-body p {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.setup-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.step-number {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.step-text {
+  color: var(--text-primary);
+  line-height: 1.5;
+  padding-top: 2px;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(var(--primary-rgb), 0.1);
+  border-radius: 8px;
+  color: var(--text-secondary) !important;
+  font-size: 13px;
+  margin-bottom: 0 !important;
+}
+
+.note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--primary-color);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.modal-footer .btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-footer .btn-secondary {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.modal-footer .btn-secondary:hover {
+  background: var(--background-tertiary);
+}
+
+.modal-footer .btn-primary {
+  background: var(--primary-color);
+  border: none;
+  color: white;
+}
+
+.modal-footer .btn-primary:hover {
+  filter: brightness(1.1);
 }
 </style>

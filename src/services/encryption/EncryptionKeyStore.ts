@@ -182,6 +182,14 @@ export class EncryptionKeyStore implements StorageType {
     this.encryptionKey = null
   }
 
+  /**
+   * Check if the encryption key is currently loaded
+   * This is needed to know if we can decrypt prekeys from IndexedDB
+   */
+  hasEncryptionKeyLoaded(): boolean {
+    return this.encryptionKey !== null
+  }
+
   // =====================================================
   // STORAGE INTERFACE IMPLEMENTATION
   // =====================================================
@@ -242,9 +250,17 @@ export class EncryptionKeyStore implements StorageType {
   }
 
   async loadPreKey(keyId: string | number): Promise<KeyPairType | undefined> {
+    console.log(`🔑 loadPreKey: Loading prekey ID ${keyId}`)
     const stored = await this.getFromStore<any>(STORES.PREKEYS, Number(keyId))
-    if (!stored) return undefined
+    if (!stored) {
+      console.error(`❌ loadPreKey: Prekey ID ${keyId} NOT FOUND in IndexedDB`)
+      // List all available prekey IDs for debugging
+      const allPrekeys = await this.getAllFromStore(STORES.PREKEYS)
+      console.log(`   Available prekey IDs in IndexedDB:`, allPrekeys.map((p: any) => p.id))
+      return undefined
+    }
 
+    console.log(`✅ loadPreKey: Found prekey ID ${keyId} in IndexedDB`)
     const decrypted = await this.decrypt(stored.keyPair)
     const parsed = JSON.parse(decrypted)
 
@@ -292,9 +308,17 @@ export class EncryptionKeyStore implements StorageType {
   }
 
   async loadSignedPreKey(keyId: number | string): Promise<KeyPairType | undefined> {
+    console.log(`🔑 loadSignedPreKey: Loading signed prekey ID ${keyId}`)
     const stored = await this.getFromStore<any>(STORES.SIGNED_PREKEYS, Number(keyId))
-    if (!stored) return undefined
+    if (!stored) {
+      console.error(`❌ loadSignedPreKey: Signed prekey ID ${keyId} NOT FOUND in IndexedDB`)
+      // List all available signed prekey IDs for debugging
+      const allSignedPrekeys = await this.getAllFromStore(STORES.SIGNED_PREKEYS)
+      console.log(`   Available signed prekey IDs in IndexedDB:`, allSignedPrekeys.map((p: any) => p.id))
+      return undefined
+    }
 
+    console.log(`✅ loadSignedPreKey: Found signed prekey ID ${keyId} in IndexedDB`)
     const decrypted = await this.decrypt(stored.keyPair)
     const parsed = JSON.parse(decrypted)
 
@@ -433,6 +457,49 @@ export class EncryptionKeyStore implements StorageType {
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
+  }
+
+  /**
+   * Clear ALL data from IndexedDB (for encryption reset)
+   * This is destructive and cannot be undone!
+   */
+  async clearAllData(): Promise<void> {
+    if (!this.db) {
+      console.log('⚠️ No database to clear')
+      return
+    }
+
+    console.log('⚠️ Clearing all encryption data from IndexedDB...')
+
+    const storeNames = [
+      STORES.IDENTITY,
+      STORES.PREKEYS,
+      STORES.SIGNED_PREKEYS,
+      STORES.SESSIONS,
+      STORES.SENDER_KEYS
+    ]
+
+    for (const storeName of storeNames) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const transaction = this.db!.transaction(storeName, 'readwrite')
+          const store = transaction.objectStore(storeName)
+          const request = store.clear()
+          request.onsuccess = () => {
+            console.log(`  ✅ Cleared store: ${storeName}`)
+            resolve()
+          }
+          request.onerror = () => reject(request.error)
+        })
+      } catch (error) {
+        console.error(`  ❌ Failed to clear store ${storeName}:`, error)
+      }
+    }
+
+    // Also clear session storage key
+    this.clearSessionKey()
+
+    console.log('✅ All IndexedDB encryption data cleared')
   }
 
   // =====================================================

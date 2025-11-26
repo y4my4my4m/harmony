@@ -248,12 +248,14 @@ export class MessageEncryptionService {
     }
 
     // Save signed prekey to database with upsert
+    // IMPORTANT: Must explicitly set is_one_time: false to prevent it being returned as a one-time prekey!
     const { error: signedKeyError } = await supabase.from('prekeys').upsert({
       user_id: this.currentUserId,
       device_id: 'default',
       prekey_id: signedPreKey.id,
       public_key: signedPreKey.keyPair.publicKey,
       is_signed: true,
+      is_one_time: false,  // Explicitly false - signed prekeys are NOT one-time prekeys
       signature: signedPreKey.signature
     }, { onConflict: 'user_id, device_id, prekey_id' })
 
@@ -299,6 +301,15 @@ export class MessageEncryptionService {
       throw new Error('Not initialized')
     }
 
+    // Check if we have recipients other than self
+    const hasOtherRecipients = recipientIds.some(id => id !== this.currentUserId)
+    
+    // If encrypting for others, we need the encryption key to access our identity key
+    if (hasOtherRecipients && !this.keyStore.hasEncryptionKeyLoaded()) {
+      console.error('❌ Cannot encrypt for other users without encryption password')
+      throw new Error('Encryption password required. Please unlock encryption in Settings > Encryption to send encrypted messages to others.')
+    }
+
     console.log(`🔐 Encrypting message (hybrid) for ${recipientIds.length} recipients`)
 
     // Step 1: Generate random 256-bit symmetric key for AES-GCM
@@ -335,6 +346,7 @@ export class MessageEncryptionService {
     for (const recipientId of recipientIds) {
       // Special case: For self-encryption, just store the key directly (no Signal Protocol needed)
       if (recipientId === this.currentUserId) {
+        console.log(`🔐 [${recipientId}] Using direct key storage (self)`)
         encryptedKeys[recipientId] = JSON.stringify({
           type: 'direct',
           key: symmetricKeyBase64
@@ -342,19 +354,30 @@ export class MessageEncryptionService {
         continue
       }
       
-          const recipientAddress = `${recipientId}:1`
-          const hasSession = await signalProtocolService.hasSession(recipientAddress)
-          if (!hasSession) {
-            await this.establishSession(recipientId)
-          }
-
-      const encryptedKey = await signalProtocolService.encryptMessage(
-            recipientAddress,
-        symmetricKeyBase64
-          )
-
-      encryptedKeys[recipientId] = JSON.stringify(encryptedKey)
+      try {
+        console.log(`🔐 [${recipientId}] Encrypting with Signal Protocol...`)
+        const recipientAddress = `${recipientId}:1`
+        const hasSession = await signalProtocolService.hasSession(recipientAddress)
+        console.log(`🔐 [${recipientId}] Has existing session: ${hasSession}`)
+        
+        if (!hasSession) {
+          console.log(`🔐 [${recipientId}] Establishing new session...`)
+          await this.establishSession(recipientId)
+          console.log(`🔐 [${recipientId}] Session established successfully`)
         }
+
+        const encryptedKey = await signalProtocolService.encryptMessage(
+          recipientAddress,
+          symmetricKeyBase64
+        )
+        console.log(`🔐 [${recipientId}] Key encrypted successfully, type: ${encryptedKey.type}`)
+
+        encryptedKeys[recipientId] = JSON.stringify(encryptedKey)
+      } catch (error: any) {
+        console.error(`❌ [${recipientId}] Failed to encrypt for recipient:`, error.message)
+        // Skip this recipient but continue with others
+      }
+    }
 
     // Store encrypted message in content as base64 text
     const encryptedContent: MessagePart[] = [{
@@ -374,6 +397,52 @@ export class MessageEncryptionService {
         iv: ivBase64
       }
     }
+  }
+
+  /**
+   * Check if the encryption key (password-derived) is available for decryption
+   * Without this key, prekeys can't be loaded from IndexedDB
+   */
+  hasEncryptionKeyLoaded(): boolean {
+    if (!this.keyStore) return false
+    return this.keyStore.hasEncryptionKeyLoaded()
+  }
+
+  /**
+   * Unlock encryption by entering the password
+   * This is needed to send/receive encrypted messages in a new session
+   */
+  async unlockEncryption(password: string): Promise<boolean> {
+    if (!this.keyStore) {
+      throw new Error('Encryption service not initialized')
+    }
+
+    try {
+      await this.keyStore.setEncryptionKey(password)
+      
+      // Verify the key works by trying to load the identity key pair
+      const identityKey = await this.keyStore.getIdentityKeyPair()
+      if (!identityKey) {
+        throw new Error('Invalid password - could not decrypt keys')
+      }
+      
+      console.log('✅ Encryption unlocked successfully')
+      return true
+    } catch (error: any) {
+      console.error('❌ Failed to unlock encryption:', error.message)
+      // Clear the bad key
+      this.keyStore.clearSessionKey()
+      throw new Error('Invalid encryption password')
+    }
+  }
+
+  /**
+   * Check if encryption needs to be unlocked (has keys but no password loaded)
+   */
+  needsUnlock(): boolean {
+    if (!this.keyStore) return false
+    // Has stored keys but encryption key not loaded
+    return !this.keyStore.hasEncryptionKeyLoaded()
   }
 
   /**
@@ -413,7 +482,7 @@ export class MessageEncryptionService {
     try {
       // Step 1: Decrypt the symmetric key
       const encryptedKeyData = JSON.parse(encryptedKey)
-    const senderAddress = `${senderId}:1`
+      const senderAddress = `${senderId}:1`
 
       console.log(`  - Message type: ${encryptedKeyData.type}`)
       console.log(`  - Decrypting symmetric key from address: ${senderAddress}`)
@@ -426,14 +495,30 @@ export class MessageEncryptionService {
         symmetricKeyBase64 = encryptedKeyData.key
       } else {
         // Regular Signal Protocol decryption for other users
+        // IMPORTANT: This requires the user's encryption key to be loaded to access prekeys
+        console.log(`  - Using Signal Protocol decryption`)
+        console.log(`  - Encrypted key data:`, JSON.stringify(encryptedKeyData).substring(0, 100) + '...')
+        console.log(`  - Has encryption key loaded: ${this.keyStore?.hasEncryptionKeyLoaded()}`)
+        
         try {
           symmetricKeyBase64 = await signalProtocolService.decryptMessage(senderAddress, encryptedKeyData)
+          console.log('  - Signal Protocol decryption successful')
         } catch (sessionError: any) {
-          // If session doesn't exist, the session might have been cleared
-          console.error('❌ Session error:', sessionError.message)
+          const errorMsg = sessionError.message || String(sessionError)
+          console.error('❌ Signal Protocol decryption error:', errorMsg)
+          console.error('  - Full error:', sessionError)
           
-          if (sessionError.message?.includes('unable to find session')) {
-            throw new Error('Session not found - encryption keys may have been cleared. Try re-initializing encryption.')
+          // Provide more specific error messages
+          if (errorMsg.includes('Encryption key not set')) {
+            throw new Error('Encryption key not set - please unlock encryption with your password')
+          }
+          
+          if (errorMsg.includes('unable to find session') || errorMsg.includes('Session not found')) {
+            throw new Error('Session not found - encryption keys may need to be regenerated')
+          }
+          
+          if (errorMsg.includes('prekey') || errorMsg.includes('PreKey')) {
+            throw new Error('Prekey error - the sender may have used an outdated encryption key')
           }
           
           throw sessionError
@@ -718,12 +803,19 @@ export class MessageEncryptionService {
   }
 
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binary = atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i)
+    try {
+      // Handle URL-safe base64 if present
+      const normalizedBase64 = base64.replace(/-/g, '+').replace(/_/g, '/')
+      const binary = atob(normalizedBase64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+      return bytes.buffer
+    } catch (error) {
+      console.error('❌ Invalid base64 string:', base64?.substring(0, 50) + '...')
+      throw new Error('Invalid encrypted data format - message may be corrupted or from deleted keys')
     }
-    return bytes.buffer
   }
 
   // =====================================================
@@ -774,11 +866,60 @@ export class MessageEncryptionService {
   }
 
   // =====================================================
+  // RESET ENCRYPTION
+  // =====================================================
+
+  /**
+   * Completely reset encryption for the current user
+   * This deletes all keys from the database AND local IndexedDB
+   * After this, the user can set up encryption fresh
+   */
+  async resetEncryption(): Promise<void> {
+    if (!this.currentUserId) {
+      throw new Error('Not initialized - cannot reset encryption')
+    }
+
+    console.log('⚠️ Resetting encryption for user:', this.currentUserId)
+
+    try {
+      // 1. Delete keys from database using the reset function
+      const { data, error } = await supabase
+        .rpc('reset_user_encryption', {
+          p_user_id: this.currentUserId,
+          p_device_id: 'default'
+        })
+
+      if (error) {
+        console.error('❌ Failed to reset encryption in database:', error)
+        throw new Error(`Database reset failed: ${error.message}`)
+      }
+
+      console.log('✅ Database keys deleted:', data)
+
+      // 2. Clear local IndexedDB
+      if (this.keyStore) {
+        await this.keyStore.clearAllData()
+        this.keyStore.close()
+        this.keyStore = null
+      }
+
+      // 3. Reset service state
+      this.currentUserId = null
+      this.initialized = false
+
+      console.log('✅ Encryption fully reset - user can now set up encryption again')
+    } catch (error) {
+      console.error('❌ Failed to reset encryption:', error)
+      throw error
+    }
+  }
+
+  // =====================================================
   // CLEANUP
   // =====================================================
 
   /**
-   * Close and cleanup
+   * Close and cleanup (does NOT delete keys - just cleans up memory/connections)
    */
   async cleanup(): Promise<void> {
     if (this.keyStore) {

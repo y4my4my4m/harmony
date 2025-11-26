@@ -47,20 +47,41 @@
     </div>
     
     <!-- Display mode -->
-    <div v-else class="content-display" :class="{ 'system-message-content': isSystem, 'encrypted-glyphs': encrypted }">
+    <div v-else class="content-display" :class="{ 'system-message-content': isSystem, 'encrypted-glyphs': encrypted && !decrypted }">
       <template v-for="(part, partIndex) in content" :key="partIndex">
         <!-- Text content with markdown-style formatting and code blocks -->
         <template 
           v-if="part && typeof part === 'object' && part.type === 'text'"
         >
           <!-- Encrypted glyphs -->
-          <template v-if="encrypted">
+          <template v-if="encrypted && !decrypted">
+            <!-- Clickable version (user has encryption set up) -->
             <span 
-              v-for="(char, charIdx) in part.text.split('')" 
-              :key="`${partIndex}-${charIdx}`"
-              class="glyph-char"
-              :style="{ animationDelay: `${charIdx * 0.05}s` }"
-            >{{ char }}</span>
+              v-if="canDecrypt"
+              class="encrypted-click-target"
+              @click="handleDecryptClick"
+              :title="decrypting ? 'Decrypting...' : 'Click to decrypt'"
+            >
+              <span v-if="decrypting" class="decrypt-loading">
+                <span class="decrypt-spinner">🔓</span>
+              </span>
+              <span 
+                v-for="(char, charIdx) in part.text.split('')" 
+                :key="`${partIndex}-${charIdx}`"
+                class="glyph-char"
+                :class="{ 'decrypting': decrypting }"
+                :style="{ animationDelay: `${charIdx * 0.05}s` }"
+              >{{ char }}</span>
+            </span>
+            <!-- Non-clickable version (user doesn't have encryption) -->
+            <span v-else class="encrypted-no-decrypt">
+              <span 
+                v-for="(char, charIdx) in part.text.split('')" 
+                :key="`${partIndex}-${charIdx}`"
+                class="glyph-char"
+                :style="{ animationDelay: `${charIdx * 0.05}s` }"
+              >{{ char }}</span>
+            </span>
           </template>
           <!-- Normal text -->
           <template v-else v-for="(segment, segmentIndex) in renderTextSegments(part.text)" :key="`${partIndex}-${segmentIndex}`">
@@ -333,13 +354,18 @@ export default defineComponent({
     decrypted: {
       type: Boolean,
       default: false
+    },
+    canDecrypt: {
+      type: Boolean,
+      default: false
     }
   },
-  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click'],
+  emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message'],
   setup(props, { emit }) {
     const localEditableContent = ref(props.editableContent);
     const editTextarea = ref<HTMLTextAreaElement | null>(null);
     const videoContainers = ref<HTMLElement[]>([]);
+    const decrypting = ref(false);
     
     // Internal reactive state for image loading (use prop if provided, otherwise create new)
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
@@ -734,6 +760,22 @@ export default defineComponent({
       emit('hashtag-click', hashtag);
     };
 
+    const handleDecryptClick = (event: MouseEvent) => {
+      event.stopPropagation();
+      if (decrypting.value) return;
+      
+      console.log('🔓 Click to decrypt message:', props.messageId);
+      decrypting.value = true;
+      
+      // Emit event to parent to handle decryption
+      emit('decrypt-message', props.messageId);
+      
+      // Reset decrypting state after a timeout (in case decryption fails silently)
+      setTimeout(() => {
+        decrypting.value = false;
+      }, 5000);
+    };
+
     return {
       getEmojiUrl,
       localEditableContent,
@@ -759,7 +801,9 @@ export default defineComponent({
       renderTextSegments,
       getFileName,
       handleHashtagClick,
-      resolveEmbedPayload
+      resolveEmbedPayload,
+      decrypting,
+      handleDecryptClick
     };
   }
 });
@@ -1112,94 +1156,7 @@ export default defineComponent({
   text-decoration: underline;
 }
 
-/* Encrypted glyphs styling */
-.encrypted-glyphs .glyph-char {
-  display: inline-block;
-  color: #ffffffaa;
-  opacity: 0.7;
-  animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite;
-  text-shadow: 
-    0 0 5px rgba(114, 137, 218, 0.5),
-    0 0 10px rgba(114, 137, 218, 0.3);
-  transition: all 0.3s ease;
-  user-select: all;
-}
-
-.encrypted-glyphs .glyph-char:hover {
-  color: #7289da;
-  opacity: 1;
-  text-shadow: 
-    0 0 8px rgba(88, 101, 242, 0.8),
-    0 0 15px rgba(88, 101, 242, 0.5),
-    0 0 20px rgba(88, 101, 242, 0.3);
-  transform: scale(1.1);
-}
-
-.encrypted-glyphs .glyph-char:nth-child(3n) {
-  animation-duration: 2.5s, 4.5s;
-}
-
-.encrypted-glyphs .glyph-char:nth-child(3n+1) {
-  animation-duration: 3.5s, 5.5s;
-  animation-delay: 0.5s, 1s;
-}
-
-.encrypted-glyphs .glyph-char:nth-child(3n+2) {
-  animation-duration: 2.8s, 4.8s;
-  animation-delay: 0.3s, 0.7s;
-}
-
-.encrypted-glyphs .glyph-char:nth-child(5n) {
-  animation: glyphFloat 3s ease-in-out infinite, glyphGlitch 5s ease-in-out infinite, glyphGlow 2s ease-in-out infinite;
-}
-
-@keyframes glyphFloat {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-2px);
-  }
-}
-
-@keyframes glyphGlitch {
-  0%, 90%, 100% {
-    transform: translateY(0) skew(0deg);
-    opacity: 0.7;
-  }
-  92% {
-    transform: translateY(-2px) skew(-1deg);
-    opacity: 0.5;
-  }
-  94% {
-    transform: translateY(2px) skew(1deg);
-    opacity: 0.9;
-  }
-  96% {
-    transform: translateY(-1px) skew(-0.5deg);
-    opacity: 0.6;
-  }
-  98% {
-    transform: translateY(1px) skew(0.5deg);
-    opacity: 0.8;
-  }
-}
-
-@keyframes glyphGlow {
-  0%, 100% {
-    text-shadow: 
-      0 0 5px rgba(114, 137, 218, 0.5),
-      0 0 10px rgba(114, 137, 218, 0.3);
-    color: #7289da;
-  }
-  50% {
-    text-shadow: 
-      0 0 10px rgba(88, 101, 242, 0.9),
-      0 0 20px rgba(88, 101, 242, 0.6),
-      0 0 30px rgba(88, 101, 242, 0.4);
-    color: #5865f2;
-  }
-}
+/* Encrypted glyphs styling - uses global styles from design-system.css */
 
 .audio-filename {
   font-size: 0.875rem;
@@ -1207,4 +1164,6 @@ export default defineComponent({
   margin-bottom: 6px;
   font-weight: 500;
 }
+
+/* Encrypted message styles now use global design-system.css */
 </style>

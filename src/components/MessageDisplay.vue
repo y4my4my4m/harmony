@@ -155,12 +155,14 @@
               :embed-payloads="message.metadata?.embeds"
               :encrypted="message.encrypted || false"
               :decrypted="message.decrypted || false"
+              :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
+              @decrypt-message="handleDecryptMessage(message)"
             />
             <!-- Edited indicator for messages with headers -->
             <span 
@@ -185,12 +187,14 @@
               :embed-payloads="message.metadata?.embeds"
               :encrypted="message.encrypted || false"
               :decrypted="message.decrypted || false"
+              :can-decrypt="canDecryptMessages"
               @image-loaded="handleImageLoaded"
               @open-lightbox="handleOpenLightbox"
               @update:message="saveEdit"
               @update:content="editableMessageContent = $event"
               @cancel-edit="cancelEdit"
               @show-user-profile="showUserProfile"
+              @decrypt-message="handleDecryptMessage(message)"
             />
             <!-- Edited indicator for compact messages -->
             <span 
@@ -350,6 +354,19 @@ const {
 // Bot data cache
 const botDataCache = ref<Map<string, { username: string; display_name: string; avatar_url: string }>>(new Map());
 const fetchingBots = ref<Set<string>>(new Set());
+
+// Encryption capability check (cached - only updates when service state changes)
+const canDecryptMessages = ref(false);
+
+// Check encryption status once on mount
+onMounted(async () => {
+  try {
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
+    canDecryptMessages.value = megolmMessageEncryptionService.isUnlocked();
+  } catch {
+    canDecryptMessages.value = false;
+  }
+});
 
 // Fetch bot data from database
 const fetchBotData = async (botId: string) => {
@@ -1099,6 +1116,83 @@ const getReplyMessagePreview = (replyMessageId: string) => {
 // Lightbox and Media
 const handleImageLoaded = (url: string) => {
   imageLoaded.value[url] = true;
+};
+
+// Handle click-to-decrypt for encrypted messages
+const handleDecryptMessage = async (message: Message) => {
+  console.log('🔓 Attempting to decrypt message on click:', message.id);
+  
+  try {
+    // Dynamically import the encryption service
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
+    
+    if (!megolmMessageEncryptionService.isUnlocked()) {
+      console.log('🔒 Encryption not unlocked - cannot decrypt');
+      return;
+    }
+    
+    // First, try to claim any pending session shares
+    await megolmMessageEncryptionService.claimPendingSessionShares();
+    
+    // Check if message has encryption metadata (might be missing if content was already replaced with glyphs)
+    if (!message.encryption_metadata) {
+      console.log('❌ No encryption metadata on message - may need to reload from database');
+      
+      // Try to reload the message from the database to get encryption_metadata
+      const { data: freshMessage } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('id', message.id)
+        .single();
+      
+      if (!freshMessage?.encryption_metadata) {
+        console.log('❌ Message has no encryption metadata in database either');
+        return;
+      }
+      
+      // Use the fresh message data
+      message = {
+        ...message,
+        encryption_metadata: freshMessage.encryption_metadata,
+        content: freshMessage.content
+      } as Message;
+    }
+    
+    // Build the message object that decryptMessage expects
+    const messageForDecryption = {
+      content: message.content,
+      channel_id: props.channelId,
+      conversation_id: props.conversationId,
+      encryption_metadata: message.encryption_metadata
+    };
+    
+    const decryptedContent = await megolmMessageEncryptionService.decryptMessage(messageForDecryption);
+    
+    if (decryptedContent) {
+      // Update the message in the store with decrypted content
+      const resolvedContent = await resolveMentionsUserData(decryptedContent);
+      
+      // Create updated message object
+      const updatedMessage: Message = {
+        ...message,
+        content: resolvedContent,
+        encrypted: false,
+        decrypted: true
+      };
+      
+      // Update the message in the appropriate store
+      if (props.channelId) {
+        chatStore.updateMessageInCache(message.id, updatedMessage);
+      } else if (props.conversationId) {
+        dmStore.updateMessageInCache(message.id, updatedMessage);
+      }
+      
+      console.log('✅ Message decrypted successfully on click');
+    }
+  } catch (error) {
+    console.log('❌ Could not decrypt message:', error);
+    // Silently fail - the message will remain encrypted
+  }
 };
 
 const handleOpenLightbox = (url: string) => {

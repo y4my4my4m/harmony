@@ -1,24 +1,36 @@
 /**
  * Message Decryption Middleware
  * 
- * Automatically attempts to decrypt encrypted messages using hybrid encryption.
- * Decrypts symmetric key from encryption_metadata, then decrypts content.
+ * Decrypts encrypted messages using Megolm-style room-based encryption.
+ * Each channel/conversation has a session key shared with all members.
+ * Keys are backed up to server (encrypted with user's recovery key).
  */
 
 import type { Message, MessagePart } from '@/types'
+
+// Track decryption failures for debugging
+let lastDecryptionError: string | null = null
+
+/**
+ * Get the last decryption error (for debugging/UI display)
+ */
+export function getLastDecryptionError(): string | null {
+  return lastDecryptionError
+}
 
 /**
  * Process messages and attempt to decrypt encrypted ones
  */
 export async function processMessageDecryption(messages: Message[]): Promise<Message[]> {
-  // Lazy load encryption service
+  // Load Megolm encryption service
   let encryptionService: any = null
+  
   try {
-    const module = await import('@/services/encryption/MessageEncryptionService')
-    encryptionService = module.messageEncryptionService
+    const module = await import('@/services/encryption/MegolmMessageEncryptionService')
+    encryptionService = module.megolmMessageEncryptionService
   } catch (error) {
-    console.warn('⚠️ Encryption service not available:', error)
-    // Replace all encrypted messages with glyphs for users without encryption
+    console.warn('⚠️ Megolm encryption service not available:', error)
+    lastDecryptionError = 'Encryption service not available'
     return messages.map(msg => {
       if (msg.encrypted) {
         return {
@@ -29,10 +41,25 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
       return msg
     })
   }
-
+  
   if (!encryptionService || !encryptionService.isInitialized()) {
     console.log('ℹ️ Encryption not initialized - encrypted messages will show as glyphs')
-    // Replace all encrypted messages with glyphs for users without encryption
+    lastDecryptionError = 'Encryption service not initialized'
+    return messages.map(msg => {
+      if (msg.encrypted) {
+        return {
+          ...msg,
+          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }]
+        }
+      }
+      return msg
+    })
+  }
+  
+  // Check if encryption is unlocked (user has entered recovery key)
+  if (!encryptionService.isUnlocked()) {
+    console.log('🔐 Encryption locked - enter recovery key to decrypt messages')
+    lastDecryptionError = 'Enter recovery key to unlock encryption'
     return messages.map(msg => {
       if (msg.encrypted) {
         return {
@@ -50,6 +77,7 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
   
   if (!currentUserId) {
     console.log('ℹ️ No user ID in encryption service - encrypted messages will show as glyphs')
+    lastDecryptionError = 'User ID not available in encryption service'
     // Replace all encrypted messages with glyphs
     return messages.map(msg => {
       if (msg.encrypted) {
@@ -62,59 +90,52 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     })
   }
 
-  console.log(`🔑 Processing ${messages.length} messages for decryption (user: ${currentUserId})`)
+  // Separate encrypted and non-encrypted messages
+  const encryptedMessages = messages.filter(m => m.encrypted && m.encryption_metadata)
+  const nonEncryptedMessages = messages.filter(m => !m.encrypted || !m.encryption_metadata)
 
-  // Process each message
-  const processedMessages = await Promise.all(
-    messages.map(async (message) => {
-      // Check if message is encrypted
-      if (!message.encrypted || !message.encryption_metadata) {
-        return message
-      }
+  if (encryptedMessages.length === 0) {
+    return messages // Fast path: nothing to decrypt
+  }
 
-      console.log(`🔐 Found encrypted message ${message.id}:`)
-      console.log(`  - Algorithm:`, message.encryption_metadata.algorithm)
-      console.log(`  - Encrypted for:`, message.encryption_metadata.encrypted_for)
-      console.log(`  - Has keys:`, Object.keys(message.encryption_metadata.encrypted_keys || {}))
-      console.log(`  - Sender:`, message.encryption_metadata.sender_key_id)
-
-      // Check if we have an encrypted key for this user
-      const hasKey = message.encryption_metadata.encrypted_keys?.[currentUserId]
-      if (!hasKey) {
-        console.log(`❌ No encrypted key for user ${currentUserId} in message ${message.id}`)
-        // Show cool placeholder characters
-        const obfuscatedText = generateObfuscatedPlaceholder(100)
-        return {
-          ...message,
-          content: [{ type: 'text' as const, text: obfuscatedText }]
-        }
-      }
-
+  // Process encrypted messages in parallel
+  const decryptedResults = await Promise.all(
+    encryptedMessages.map(async (message) => {
       try {
-        console.log(`🔓 Attempting to decrypt message ${message.id} for user ${currentUserId}`)
         const decryptedContent = await encryptionService.decryptMessage(message)
-        console.log(`✅ Successfully decrypted message ${message.id}`)
+        lastDecryptionError = null
         
         return {
           ...message,
           content: decryptedContent,
-          encrypted: false, // Remove encrypted flag
-          decrypted: true // Add decrypted flag so we can show unlock indicator
+          encrypted: false,
+          decrypted: true
         }
-      } catch (error) {
-        console.error(`❌ Cannot decrypt message ${message.id}:`, error)
-        // Show cool placeholder characters on error
-        const obfuscatedText = generateObfuscatedPlaceholder(100)
+      } catch (error: any) {
+        const errorMessage = error?.message || String(error)
+        
+        // Set last error for UI display
+        if (errorMessage.includes('No inbound session') || errorMessage.includes('No outbound session')) {
+          lastDecryptionError = 'Session key not available'
+        } else if (errorMessage.includes('recovery key')) {
+          lastDecryptionError = 'Enter recovery key to decrypt'
+        } else {
+          lastDecryptionError = `Decryption error`
+        }
+        
+        // Show placeholder
         return {
           ...message,
-          content: [{ type: 'text' as const, text: obfuscatedText }],
-          encrypted: true // Keep encrypted flag so glyphs and lock show
+          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }],
+          encrypted: true
         }
       }
     })
   )
 
-  return processedMessages
+  // Rebuild the message list preserving original order
+  const decryptedMap = new Map(decryptedResults.map(m => [m.id, m]))
+  return messages.map(msg => decryptedMap.get(msg.id) || msg)
 }
 
 /**

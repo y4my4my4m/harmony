@@ -8,6 +8,7 @@ import { useReactionsStore } from './useReactions'
 import { userDataService } from '@/services/userDataService'
 import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessing'
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
+import { processMessageDecryption } from '@/utils/messageDecryption'
 
 // Types for DM functionality
 export interface DMUser {
@@ -990,8 +991,9 @@ export const useDMStore = defineStore('dm', () => {
       const orderedMessages = messagesData
       const allLoaded = !hasMore
 
-      // Ensure all messages have conversation_id set
-      const formattedMessages: Message[] = orderedMessages.map(msg => ({
+      // Ensure all messages have conversation_id set and include encryption fields
+      // Note: Messages from CoreMessageService are already decrypted, preserve the decrypted flag!
+      let formattedMessages: Message[] = orderedMessages.map(msg => ({
         id: msg.id,
         user_id: msg.user_id,
         content: msg.content,
@@ -1001,13 +1003,24 @@ export const useDMStore = defineStore('dm', () => {
         reply_to: msg.reply_to,
         reactions: msg.reactions || [],
         is_system: msg.is_system,
-        metadata: msg.metadata || null
+        metadata: msg.metadata || null,
+        encrypted: msg.encrypted || false,
+        decrypted: msg.decrypted || false,  // Preserve decrypted flag from CoreMessageService!
+        encryption_metadata: msg.encryption_metadata
       }))
 
       try {
         ensureMessageEmbeds(formattedMessages)
       } catch (error) {
         console.warn('Failed to prepare DM embeds:', error)
+      }
+
+      // 🔐 Note: Decryption already happens in CoreMessageService.loadConversationMessages
+      // Just log stats for debugging
+      const decryptedCount = formattedMessages.filter(m => m.decrypted).length
+      const encryptedCount = formattedMessages.filter(m => m.encrypted).length
+      if (decryptedCount > 0 || encryptedCount > 0) {
+        console.log(`🔐 DM messages: ${decryptedCount} decrypted, ${encryptedCount} still encrypted`)
       }
 
       if (beforeMessageId === undefined) {
@@ -1385,15 +1398,8 @@ export const useDMStore = defineStore('dm', () => {
         schema: 'public',
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`  // FIXED: Use correct filter syntax
-      }, (payload) => {
+      }, async (payload) => {
         console.log('🔔 New DM message received in DM store:', payload)
-        console.log('🔍 Real-time payload details:', {
-          event: payload.eventType,
-          table: payload.table,
-          schema: payload.schema,
-          new: payload.new,
-          old: payload.old
-        });
         
         const message = payload.new as any
         
@@ -1408,7 +1414,7 @@ export const useDMStore = defineStore('dm', () => {
         const tempMessageIndex = currentDMMessages.value.findIndex(m => m.id.startsWith('temp-') && m.user_id === message.user_id);
         if (tempMessageIndex !== -1) {
           console.warn('⚠️ Temp message still exists during real-time, replacing now');
-          const resolvedMessage: Message = {
+          let resolvedMessage: Message = {
             id: message.id,
             user_id: message.user_id,
             content: message.content,
@@ -1418,18 +1424,25 @@ export const useDMStore = defineStore('dm', () => {
             reply_to: message.reply_to,
             reactions: message.reactions || [],
             is_system: message.is_system,
-            metadata: message.metadata || null
+            metadata: message.metadata || null,
+            encrypted: message.encrypted || false,
+            encryption_metadata: message.encryption_metadata
           };
           try {
             ensureMessageEmbeds(resolvedMessage);
+            // 🔐 Decrypt if encrypted
+            if (resolvedMessage.encrypted) {
+              const decrypted = await processMessageDecryption([resolvedMessage]);
+              resolvedMessage = decrypted[0];
+            }
           } catch (error) {
-            console.warn('Failed to prepare embeds for resolved DM message:', error);
+            console.warn('Failed to process DM message:', error);
           }
           currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage);
           return;
         }
         
-        const formattedMessage: Message = {
+        let formattedMessage: Message = {
           id: message.id,
           user_id: message.user_id,
           content: message.content,
@@ -1439,10 +1452,29 @@ export const useDMStore = defineStore('dm', () => {
           reply_to: message.reply_to,
           reactions: message.reactions || [],
           is_system: message.is_system,
-          metadata: message.metadata || null
+          metadata: message.metadata || null,
+          encrypted: message.encrypted || false,
+          encryption_metadata: message.encryption_metadata
         }
         
-        console.log('📨 Adding DM message to cache:', formattedMessage)
+        // 🔐 Decrypt if encrypted
+        try {
+          console.log('🔐 DM message encrypted status:', formattedMessage.encrypted)
+          if (formattedMessage.encrypted) {
+            console.log('🔐 Attempting to decrypt DM message...')
+            const decrypted = await processMessageDecryption([formattedMessage]);
+            formattedMessage = decrypted[0];
+            console.log('🔐 After decryption - encrypted:', formattedMessage.encrypted, 'decrypted:', formattedMessage.decrypted)
+          }
+        } catch (error) {
+          console.warn('Failed to decrypt real-time DM message:', error);
+        }
+        
+        console.log('📨 Adding DM message to cache:', { 
+          id: formattedMessage.id, 
+          encrypted: formattedMessage.encrypted, 
+          decrypted: formattedMessage.decrypted 
+        })
         addMessageToCache(formattedMessage)
       })
       .on('postgres_changes', {
@@ -1469,7 +1501,7 @@ export const useDMStore = defineStore('dm', () => {
           }
         }
         
-        const updatedMessage: Message = {
+        let updatedMessage: Message = {
           id: message.id,
           user_id: message.user_id,
           content: message.content,
@@ -1479,7 +1511,19 @@ export const useDMStore = defineStore('dm', () => {
           reply_to: message.reply_to,
           reactions: formattedReactions,
           is_system: message.is_system,
-          metadata: message.metadata || null
+          metadata: message.metadata || null,
+          encrypted: message.encrypted || false,
+          encryption_metadata: message.encryption_metadata
+        }
+        
+        // 🔐 Decrypt if encrypted
+        try {
+          if (updatedMessage.encrypted) {
+            const decrypted = await processMessageDecryption([updatedMessage]);
+            updatedMessage = decrypted[0];
+          }
+        } catch (error) {
+          console.warn('Failed to decrypt updated DM message:', error);
         }
         
         updateMessageInCache(message.id, updatedMessage)
@@ -2214,6 +2258,9 @@ export const useDMStore = defineStore('dm', () => {
     extractMentionsFromMessageParts,
     generateActivityPubMentionTags,
     debugConversationQueries,
-    checkMigrationStatus
+    checkMigrationStatus,
+    
+    // Encryption support
+    updateMessageInCache
   }
 })
