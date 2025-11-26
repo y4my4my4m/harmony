@@ -1119,28 +1119,49 @@ const handleDecryptMessage = async (message: Message) => {
     // First, try to claim any pending session shares
     await megolmMessageEncryptionService.claimPendingSessionShares();
     
-    // Now try to decrypt
-    const encryptionMetadata = message.encryption_metadata;
-    if (!encryptionMetadata) {
-      console.log('❌ No encryption metadata on message');
-      return;
+    // Check if message has encryption metadata (might be missing if content was already replaced with glyphs)
+    if (!message.encryption_metadata) {
+      console.log('❌ No encryption metadata on message - may need to reload from database');
+      
+      // Try to reload the message from the database to get encryption_metadata
+      const { data: freshMessage } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('id', message.id)
+        .single();
+      
+      if (!freshMessage?.encryption_metadata) {
+        console.log('❌ Message has no encryption metadata in database either');
+        return;
+      }
+      
+      // Use the fresh message data
+      message = {
+        ...message,
+        encryption_metadata: freshMessage.encryption_metadata,
+        content: freshMessage.content
+      } as Message;
     }
     
-    const decryptedContent = await megolmMessageEncryptionService.decryptMessage(
-      encryptionMetadata,
-      props.channelId || props.conversationId || '',
-      message.user_id
-    );
+    // Build the message object that decryptMessage expects
+    const messageForDecryption = {
+      content: message.content,
+      channel_id: props.channelId,
+      conversation_id: props.conversationId,
+      encryption_metadata: message.encryption_metadata
+    };
+    
+    const decryptedContent = await megolmMessageEncryptionService.decryptMessage(messageForDecryption);
     
     if (decryptedContent) {
       // Update the message in the store with decrypted content
-      const parsedContent = parseContentToMessageParts(decryptedContent);
-      const resolvedContent = await resolveMentionsUserData(parsedContent);
+      const resolvedContent = await resolveMentionsUserData(decryptedContent);
       
       // Create updated message object
       const updatedMessage: Message = {
         ...message,
         content: resolvedContent,
+        encrypted: false,
         decrypted: true
       };
       
