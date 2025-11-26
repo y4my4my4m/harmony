@@ -547,20 +547,34 @@ export class MegolmMessageEncryptionService {
     // For each user, encrypt the session key with their identity key
     // In a full implementation, we'd use Signal Protocol for this
     // For now, we'll store it encrypted with a shared key derivation
+    let usersWithKeys = 0
+    let usersWithoutKeys = 0
+    
     for (const userId of usersNeedingSession) {
       try {
+        console.log(`🔐 Checking public key for user ${userId.substring(0, 8)}...`)
+        
         // Get recipient's public key
-        const { data: recipientKey } = await supabase
+        const { data: recipientKey, error: keyError } = await supabase
           .from('user_key_pairs')
           .select('identity_public_key')
           .eq('user_id', userId)
           .eq('is_active', true)
           .maybeSingle()
 
-        if (!recipientKey?.identity_public_key) {
-          console.warn(`⚠️ No public key for user ${userId}`)
+        if (keyError) {
+          console.error(`❌ Error fetching public key for ${userId}:`, keyError)
           continue
         }
+
+        if (!recipientKey?.identity_public_key) {
+          console.warn(`⚠️ No public key for user ${userId.substring(0, 8)}... (they haven't set up encryption)`)
+          usersWithoutKeys++
+          continue
+        }
+        
+        usersWithKeys++
+        console.log(`✅ Found public key for user ${userId.substring(0, 8)}...`)
 
         // For now, we'll use a simple encryption approach
         // In production, this would use the recipient's public key
@@ -595,6 +609,12 @@ export class MegolmMessageEncryptionService {
       } catch (error) {
         console.error(`❌ Failed to share session with ${userId}:`, error)
       }
+    }
+
+    // Summary
+    console.log(`📊 Session sharing summary: ${usersWithKeys} users with keys, ${usersWithoutKeys} users without keys`)
+    if (usersWithoutKeys > 0) {
+      console.warn(`⚠️ ${usersWithoutKeys} users cannot receive encrypted messages until they set up encryption`)
     }
   }
 
