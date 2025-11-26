@@ -384,17 +384,29 @@
             </button>
           </div>
           <div class="users-list">
-            <div v-for="user in filteredUsers" :key="user.id" class="user-item">
+            <div 
+              v-for="user in filteredUsers" 
+              :key="user.id" 
+              class="user-item"
+              :class="{ 'user-suspended': user.is_suspended }"
+            >
               <Avatar 
                 :src="user.avatar_url" 
                 :alt="user.display_name || user.username"
                 size="md"
               />
               <div class="user-info">
-                <div class="user-name">{{ user.display_name || user.username }}</div>
+                <div class="user-name">
+                  {{ user.display_name || user.username }}
+                  <span v-if="user.is_suspended" class="badge suspended">Suspended</span>
+                  <span v-if="user.is_admin" class="badge admin">Admin</span>
+                </div>
                 <div class="user-meta">
                   {{ user.handle }}
                   <span class="user-joined">Joined {{ formatDate(user.created_at) }}</span>
+                  <span v-if="user.is_suspended && user.suspension_reason" class="suspension-reason">
+                    — {{ user.suspension_reason }}
+                  </span>
                 </div>
               </div>
               <div class="user-stats">
@@ -411,10 +423,27 @@
                 <span v-else class="user-stat">federated</span>
               </div>
               <div class="user-actions">
-                <button @click="moderateUser(user, 'suspend')" class="mod-btn suspend-btn">
+                <button 
+                  v-if="user.is_suspended"
+                  @click="moderateUser(user, 'unsuspend')" 
+                  class="mod-btn unsuspend-btn"
+                  title="Unsuspend user"
+                >
+                  <Icon name="check" :size="16" />
+                </button>
+                <button 
+                  v-else
+                  @click="moderateUser(user, 'suspend')" 
+                  class="mod-btn suspend-btn"
+                  title="Suspend user"
+                >
                   <Icon name="suspend" :size="16" />
                 </button>
-                <button @click="moderateUser(user, 'delete')" class="mod-btn delete-btn">
+                <button 
+                  @click="moderateUser(user, 'delete')" 
+                  class="mod-btn delete-btn"
+                  title="Delete user"
+                >
                   <Icon name="delete" :size="16" />
                 </button>
               </div>
@@ -932,7 +961,26 @@ const moderateUser = async (user: any, action: string) => {
       
       // Refresh user list
       await loadUsers()
+      await loadRecentActivity()
       debug.log(`User ${user.username} suspended`)
+      alert(`User ${user.username} has been suspended.`)
+    } else if (action === 'unsuspend') {
+      if (!confirm(`Are you sure you want to unsuspend user ${user.username}?`)) {
+        return
+      }
+
+      await adminService.moderateUser(
+        user.id,
+        'unsuspend',
+        'Admin unsuspend',
+        authStore.session?.user?.id || ''
+      )
+      
+      // Refresh user list
+      await loadUsers()
+      await loadRecentActivity()
+      debug.log(`User ${user.username} unsuspended`)
+      alert(`User ${user.username} has been unsuspended.`)
     } else if (action === 'delete') {
       if (!confirm(`Are you sure you want to delete user ${user.username}? This cannot be undone.`)) {
         return
@@ -947,11 +995,13 @@ const moderateUser = async (user: any, action: string) => {
       
       // Refresh user list
       await loadUsers()
+      await loadRecentActivity()
       debug.log(`User ${user.username} deleted`)
+      alert(`User ${user.username} has been deleted.`)
     }
-  } catch (error) {
+  } catch (error: any) {
     debug.error('Failed to moderate user:', error)
-    alert('Failed to moderate user. Check console for details.')
+    alert(`Failed to ${action} user: ${error.message || 'Unknown error'}`)
   }
 }
 
@@ -2098,6 +2148,55 @@ const handleAddInstance = () => {
 .delete-btn:hover {
   border-color: #ff453a;
   color: #ff453a;
+}
+
+.unsuspend-btn {
+  border-color: rgba(0, 255, 136, 0.3);
+  color: #00ff88;
+}
+
+.unsuspend-btn:hover {
+  border-color: #00ff88;
+  background: rgba(0, 255, 136, 0.1);
+}
+
+/* Suspended user styling */
+.user-item.user-suspended {
+  background: rgba(255, 193, 7, 0.05);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+.user-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-name .badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge.suspended {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.badge.admin {
+  background: rgba(0, 212, 255, 0.2);
+  color: #00d4ff;
+}
+
+.suspension-reason {
+  font-style: italic;
+  color: #ffc107;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Health Module */

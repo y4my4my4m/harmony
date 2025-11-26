@@ -186,9 +186,9 @@ class AdminService {
         failedResult,
         instancesResult
       ] = await Promise.all([
-        supabase.from('delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'delivered'),
-        supabase.from('delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'failed'),
+        supabase.from('federation_delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('federation_delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'delivered'),
+        supabase.from('federation_delivery_queue').select('*', { count: 'exact', head: true }).eq('status', 'failed'),
         supabase.from('federated_instances').select('*', { count: 'exact', head: true }).eq('is_blocked', false)
       ]);
 
@@ -338,6 +338,8 @@ class AdminService {
 
   /**
    * Moderate a user (suspend, unsuspend, delete)
+   * Uses the moderate_user RPC function which has SECURITY DEFINER
+   * to bypass RLS policies and allow admins to moderate other users
    */
   async moderateUser(
     userId: string, 
@@ -346,54 +348,34 @@ class AdminService {
     adminId: string
   ): Promise<void> {
     try {
-      // Handle user moderation using direct queries
-      switch (action) {
-        case 'suspend': {
-          const { error: suspendError } = await supabase
-            .from('profiles')
-            .update({
-              is_suspended: true,
-              suspended_at: new Date().toISOString(),
-              suspension_reason: reason
-            })
-            .eq('id', userId);
-          
-          if (suspendError) throw suspendError;
-          break;
-        }
+      // Use the RPC function which has SECURITY DEFINER to bypass RLS
+      // The moderate_user function checks admin permissions internally
+      let rpcAction = action;
+      let rpcReason = reason;
 
-        case 'unsuspend': {
-          const { error: unsuspendError } = await supabase
-            .from('profiles')
-            .update({
-              is_suspended: false,
-              suspended_at: null,
-              suspension_reason: null
-            })
-            .eq('id', userId);
-          
-          if (unsuspendError) throw unsuspendError;
-          break;
-        }
-
-        case 'delete': {
-          // Soft delete - mark as deleted but don't actually remove
-          const { error: deleteError } = await supabase
-            .from('profiles')
-            .update({
-              is_suspended: true,
-              suspended_at: new Date().toISOString(),
-              suspension_reason: `DELETED: ${reason}`
-            })
-            .eq('id', userId);
-          
-          if (deleteError) throw deleteError;
-          break;
-        }
-
-        default:
-          throw new Error(`Unknown moderation action: ${action}`);
+      // Handle delete as a special case of suspend with DELETED prefix
+      if (action === 'delete') {
+        rpcAction = 'suspend';
+        rpcReason = `DELETED: ${reason}`;
       }
+
+      const { data, error } = await supabase.rpc('moderate_user', {
+        p_admin_id: adminId,
+        p_target_user_id: userId,
+        p_action: rpcAction,
+        p_reason: rpcReason
+      });
+
+      if (error) {
+        debug.error('RPC moderate_user failed:', error);
+        throw new Error(error.message || 'Failed to moderate user');
+      }
+
+      if (data === false) {
+        throw new Error('Moderation action failed - insufficient permissions or user not found');
+      }
+
+      debug.log(`User ${userId} ${action}ed successfully by admin ${adminId}`);
     } catch (error) {
       debug.error('Failed to moderate user:', error);
       throw error;
