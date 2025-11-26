@@ -137,20 +137,20 @@ export class MegolmKeyBackupService {
       throw new Error('Recovery key not loaded - cannot restore backup')
     }
 
-    // Fetch backup from database
+    // Fetch backup from database (use maybeSingle to avoid error on 0 rows)
     const { data: backup, error } = await supabase
       .from('megolm_key_backups')
       .select('encrypted_data, backup_hash, version')
       .eq('user_id', this.userId)
-      .single()
+      .maybeSingle()
 
-    if (error || !backup) {
-      if (error?.code === 'PGRST116') {
-        // No backup found
-        console.log('ℹ️ No backup found for user')
-        return { outboundCount: 0, inboundCount: 0 }
-      }
-      throw new Error(`Failed to fetch backup: ${error?.message}`)
+    if (error) {
+      throw new Error(`Failed to fetch backup: ${error.message}`)
+    }
+
+    if (!backup) {
+      console.log('ℹ️ No backup found for user')
+      return { outboundCount: 0, inboundCount: 0 }
     }
 
     // Decrypt with recovery key
@@ -196,13 +196,13 @@ export class MegolmKeyBackupService {
   async hasBackup(): Promise<boolean> {
     if (!this.userId) return false
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('megolm_key_backups')
       .select('id')
       .eq('user_id', this.userId)
-      .single()
+      .maybeSingle()
 
-    return !error && !!data
+    return !!data
   }
 
   /**
@@ -211,13 +211,13 @@ export class MegolmKeyBackupService {
   async getBackupMetadata(): Promise<BackupMetadata | null> {
     if (!this.userId) return null
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('megolm_key_backups')
       .select('id, user_id, version, session_count, last_updated, backup_hash')
       .eq('user_id', this.userId)
-      .single()
+      .maybeSingle()
 
-    if (error || !data) {
+    if (!data) {
       return null
     }
 

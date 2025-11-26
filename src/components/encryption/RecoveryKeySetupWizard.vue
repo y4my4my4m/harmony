@@ -396,42 +396,12 @@ async function completeSetup() {
       throw new Error('Not logged in')
     }
 
-    // Initialize the service
+    // Initialize the main service (converts auth_user_id to profile_id)
     await megolmMessageEncryptionService.initialize(user.id)
 
-    // Setup new encryption with the generated recovery key
-    // Note: We already have the words, so we just need to finalize
-    const { recoveryKeyService } = await import('@/services/encryption/RecoveryKeyService')
-    const { megolmService } = await import('@/services/encryption/MegolmService')
-    const { megolmKeyBackupService } = await import('@/services/encryption/MegolmKeyBackupService')
-    
-    // Derive keys from mnemonic (should already be done, but ensure it)
-    const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(recoveryWords.value)
-    
-    // Get profile ID
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single()
-    
-    if (!profile) {
-      throw new Error('Profile not found')
-    }
-
-    // Initialize Megolm service
-    await megolmService.initialize(profile.id, derivedKeys.encryptionKey)
-    
-    // Register recovery key metadata
-    await supabase.rpc('register_recovery_key', {
-      p_user_id: profile.id,
-      p_verification_code: verificationCode.value,
-      p_word_count: 12
-    })
-
-    // Initialize backup service and create initial backup
-    await megolmKeyBackupService.initialize(profile.id)
-    await megolmKeyBackupService.createBackup()
+    // Complete setup with the words we've already generated
+    // This does everything: initializes Megolm, creates identity key, registers metadata, creates backup
+    await megolmMessageEncryptionService.completeSetupWithWords(recoveryWords.value)
 
     currentStep.value = 3
     toast.success('Encryption setup complete!')

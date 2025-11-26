@@ -106,6 +106,9 @@ export class MegolmMessageEncryptionService {
     // Initialize Megolm service with encryption key
     await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
 
+    // Ensure identity key pair exists
+    await this.ensureIdentityKeyPair()
+
     // Try to restore from backup
     try {
       const result = await megolmKeyBackupService.restoreFromBackup()
@@ -114,11 +117,22 @@ export class MegolmMessageEncryptionService {
       console.log('ℹ️ No backup to restore or restore failed:', error)
     }
 
+    // Claim any pending session shares
+    try {
+      const claimedCount = await this.claimPendingSessionShares()
+      if (claimedCount > 0) {
+        console.log(`📥 Claimed ${claimedCount} pending session shares`)
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to claim pending session shares:', error)
+    }
+
     console.log('✅ Encryption initialized with recovery key')
   }
 
   /**
    * Setup new encryption with a fresh recovery key
+   * Returns the generated recovery words
    */
   async setupNewEncryption(): Promise<string[]> {
     if (!this.currentUserId) {
@@ -127,28 +141,121 @@ export class MegolmMessageEncryptionService {
 
     // Generate new recovery mnemonic
     const words = recoveryKeyService.generateMnemonic(12)
+    
+    // Complete setup with the generated words
+    await this.completeSetupWithWords(words)
+
+    console.log('✅ New encryption setup complete')
+    return words
+  }
+
+  /**
+   * Complete encryption setup with provided recovery words
+   * Used when wizard generates words first, then user confirms
+   */
+  async completeSetupWithWords(words: string[]): Promise<void> {
+    if (!this.currentUserId) {
+      throw new Error('Not initialized')
+    }
+
+    console.log('🔐 Completing encryption setup...')
 
     // Derive keys from mnemonic
     const derivedKeys = await recoveryKeyService.deriveKeysFromMnemonic(words)
 
     // Initialize Megolm service
     await megolmService.initialize(this.currentUserId, derivedKeys.encryptionKey)
+    console.log('✅ Megolm service initialized')
+
+    // Generate identity key pair for session key exchange
+    await this.ensureIdentityKeyPair()
+    console.log('✅ Identity key pair ready')
+
+    // Initialize backup service
+    await megolmKeyBackupService.initialize(this.currentUserId)
 
     // Generate verification code
     const verificationCode = await recoveryKeyService.generateVerificationCode()
 
     // Store recovery key metadata (NOT the key itself!)
-    await supabase.rpc('register_recovery_key', {
+    const { error } = await supabase.rpc('register_recovery_key', {
       p_user_id: this.currentUserId,
       p_verification_code: verificationCode,
       p_word_count: 12
     })
+    
+    if (error) {
+      console.error('Failed to register recovery key:', error)
+      throw new Error('Failed to register recovery key metadata')
+    }
+    console.log('✅ Recovery key metadata registered')
 
     // Create initial backup
-    await megolmKeyBackupService.createBackup()
+    try {
+      await megolmKeyBackupService.createBackup()
+      console.log('✅ Initial backup created')
+    } catch (backupError) {
+      console.warn('⚠️ Failed to create initial backup:', backupError)
+    }
 
-    console.log('✅ New encryption setup complete')
-    return words
+    console.log('🔐 Encryption setup complete!')
+    console.log(`   isUnlocked: ${this.isUnlocked()}`)
+    console.log(`   hasRecoveryKey: ${await this.hasRecoveryKey()}`)
+  }
+
+  /**
+   * Ensure user has an identity key pair for session key exchange
+   */
+  private async ensureIdentityKeyPair(): Promise<void> {
+    if (!this.currentUserId) return
+
+    // Check if user already has an active key pair (use maybeSingle to avoid error)
+    const { data: existingKey } = await supabase
+      .from('user_key_pairs')
+      .select('id')
+      .eq('user_id', this.currentUserId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (existingKey) {
+      console.log('✅ Identity key pair already exists')
+      return
+    }
+
+    // Generate a new ECDH key pair for session key exchange
+    const keyPair = await crypto.subtle.generateKey(
+      { name: 'ECDH', namedCurve: 'P-256' },
+      true,
+      ['deriveBits']
+    )
+
+    // Export public key as base64
+    const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
+    const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(publicKeyRaw)))
+
+    // Store the public key in the database
+    const { error } = await supabase
+      .from('user_key_pairs')
+      .insert({
+        user_id: this.currentUserId,
+        identity_public_key: publicKeyBase64,
+        device_id: 1,
+        is_active: true
+      })
+
+    if (error) {
+      console.error('❌ Failed to store identity key:', error)
+      throw new Error('Failed to create identity key pair')
+    }
+
+    // Store private key locally (encrypted with session encryption key)
+    const privateKeyRaw = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
+    const privateKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(privateKeyRaw)))
+    
+    // Store in localStorage for now (should be encrypted with recovery key)
+    localStorage.setItem(`megolm_identity_private_${this.currentUserId}`, privateKeyBase64)
+
+    console.log('✅ Identity key pair created')
   }
 
   // =====================================================
@@ -207,6 +314,8 @@ export class MegolmMessageEncryptionService {
   async decryptMessage(
     message: {
       content: MessagePart[]
+      channel_id?: string // For channel messages
+      conversation_id?: string // For DMs
       encryption_metadata?: {
         algorithm?: string
         session_id?: string
@@ -228,13 +337,16 @@ export class MegolmMessageEncryptionService {
       throw new Error('No encryption metadata')
     }
 
+    // Get room ID from message context
+    const roomId = message.channel_id || message.conversation_id || ''
+
     // Check encryption algorithm
     if (metadata.algorithm === 'megolm_v1') {
-      return this.decryptMegolmMessage(message)
+      return this.decryptMegolmMessage(message, roomId)
     } else if (metadata.algorithm === 'signal_protocol_v1_hybrid') {
-      // Legacy Signal Protocol message - need to handle differently
-      console.log('⚠️ Legacy Signal Protocol message - attempting fallback decryption')
-      return this.decryptLegacyMessage(message)
+      // Legacy Signal Protocol message - can't decrypt without old keys
+      console.warn('⚠️ Legacy Signal Protocol message - cannot decrypt')
+      throw new Error('Legacy encrypted message - keys no longer available')
     }
 
     throw new Error(`Unsupported encryption algorithm: ${metadata.algorithm}`)
@@ -251,7 +363,8 @@ export class MegolmMessageEncryptionService {
         message_index?: number
         sender_user_id?: string
       }
-    }
+    },
+    roomId: string
   ): Promise<MessagePart[]> {
     if (!megolmService.isInitialized()) {
       throw new Error('Encryption not unlocked - enter your recovery key first')
@@ -280,15 +393,10 @@ export class MegolmMessageEncryptionService {
     }
 
     // Check if we have the session - if not, try to claim pending shares
-    if (!megolmService.hasInboundSession('', senderId, sessionId)) {
-      console.log(`ℹ️ Missing inbound session ${sessionId}, checking for shares...`)
+    if (!megolmService.hasInboundSession(roomId, senderId, sessionId)) {
+      console.log(`ℹ️ Missing inbound session ${sessionId} for room ${roomId.substring(0, 8)}..., checking for shares...`)
       await this.claimPendingSessionShares()
     }
-
-    // Find the room ID from message context (this might need to be passed in)
-    // For now, we'll extract it from the decryption attempt
-    // In practice, the room_id should be part of the message or context
-    const roomId = '' // TODO: Get from context
 
     try {
       const decryptedJson = await megolmService.decryptMessage(roomId, senderId, encryptedMessage)
@@ -307,25 +415,6 @@ export class MegolmMessageEncryptionService {
     }
   }
 
-  /**
-   * Decrypt a legacy Signal Protocol message
-   * This provides backward compatibility
-   */
-  private async decryptLegacyMessage(
-    message: {
-      content: MessagePart[]
-      encryption_metadata?: any
-    }
-  ): Promise<MessagePart[]> {
-    // Import the legacy service dynamically
-    try {
-      const { messageEncryptionService } = await import('./MessageEncryptionService')
-      return await messageEncryptionService.decryptMessage(message)
-    } catch (error) {
-      console.error('❌ Failed to decrypt legacy message:', error)
-      throw new Error('Cannot decrypt legacy message - old encryption keys may be required')
-    }
-  }
 
   // =====================================================
   // SESSION SHARING
@@ -368,7 +457,7 @@ export class MegolmMessageEncryptionService {
           .select('identity_public_key')
           .eq('user_id', userId)
           .eq('is_active', true)
-          .single()
+          .maybeSingle()
 
         if (!recipientKey?.identity_public_key) {
           console.warn(`⚠️ No public key for user ${userId}`)
@@ -495,10 +584,10 @@ export class MegolmMessageEncryptionService {
       .select('identity_public_key')
       .eq('user_id', this.currentUserId)
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     if (!myKey?.identity_public_key) {
-      throw new Error('Cannot find my identity key')
+      throw new Error('Cannot find my identity key - run encryption setup first')
     }
 
     const encoder = new TextEncoder()
@@ -543,12 +632,12 @@ export class MegolmMessageEncryptionService {
       }
     }
 
-    // Check if user has recovery key set up
+    // Check if user has recovery key set up (use maybeSingle to avoid error on 0 rows)
     const { data: recoveryMetadata } = await supabase
       .from('recovery_key_metadata')
       .select('id, has_server_backup')
       .eq('user_id', this.currentUserId)
-      .single()
+      .maybeSingle()
 
     const hasRecoveryKey = !!recoveryMetadata
     const hasBackup = recoveryMetadata?.has_server_backup || false
@@ -573,15 +662,26 @@ export class MegolmMessageEncryptionService {
    * Check if user has recovery key set up
    */
   async hasRecoveryKey(): Promise<boolean> {
-    if (!this.currentUserId) return false
+    if (!this.currentUserId) {
+      console.log('🔐 hasRecoveryKey: No user ID')
+      return false
+    }
 
-    const { data } = await supabase
+    // Use maybeSingle() to avoid error when no rows exist
+    const { data, error } = await supabase
       .from('recovery_key_metadata')
       .select('id')
       .eq('user_id', this.currentUserId)
-      .single()
+      .maybeSingle()
 
-    return !!data
+    if (error) {
+      console.warn('⚠️ hasRecoveryKey check failed:', error)
+      return false
+    }
+
+    const hasKey = !!data
+    console.log(`🔐 hasRecoveryKey: ${hasKey}`)
+    return hasKey
   }
 
   /**

@@ -18,19 +18,19 @@ import { supabase } from '@/supabase'
 import type { Message, MessagePart } from '@/types'
 import { userDataService } from '@/services/userDataService'
 
-// Lazy load encryption service to avoid loading native modules in browser
-let messageEncryptionService: any = null
+// Lazy load Megolm encryption service (room-based encryption with recovery keys)
+let megolmEncryptionService: any = null
 async function getEncryptionService() {
-  if (!messageEncryptionService) {
+  if (!megolmEncryptionService) {
     try {
-      const module = await import('@/services/encryption/MessageEncryptionService')
-      messageEncryptionService = module.messageEncryptionService
+      const module = await import('@/services/encryption/MegolmMessageEncryptionService')
+      megolmEncryptionService = module.megolmMessageEncryptionService
     } catch (error) {
-      console.warn('⚠️ Encryption service not available:', error)
-      messageEncryptionService = null
+      console.warn('⚠️ Megolm encryption service not available:', error)
+      megolmEncryptionService = null
     }
   }
-  return messageEncryptionService
+  return megolmEncryptionService
 }
 
 export interface SendMessageData {
@@ -84,16 +84,23 @@ export class CoreMessageService {
       let encryptionMetadata = null
 
       const encryptionService = await getEncryptionService()
+      console.log('🔐 Encryption service loaded:', !!encryptionService)
+      console.log('🔐 Service initialized:', encryptionService?.isInitialized?.())
+      
       if (encryptionService && encryptionService.isInitialized()) {
         try {
-          // If the sender has encryption keys, encrypt the message
-          const hasKeys = await encryptionService.hasEncryptionKeys()
+          // Check if sender has recovery key set up and encryption unlocked
+          const hasRecoveryKey = await encryptionService.hasRecoveryKey()
+          const isUnlocked = encryptionService.isUnlocked()
           
-          if (hasKeys) {
-            console.log('🔐 Sender has encryption - encrypting message')
+          console.log(`🔐 Encryption check: hasRecoveryKey=${hasRecoveryKey}, isUnlocked=${isUnlocked}`)
+          
+          if (hasRecoveryKey && isUnlocked) {
+            console.log('🔐 Megolm encryption active - encrypting message for channel')
             console.log(`🔐 Current user (sender): ${currentUser.id}`)
+            console.log(`🔐 Channel (room): ${channelId}`)
             
-            // Get all server members
+            // Get all server members to share session key with
             const { data: members, error: membersError } = await supabase
               .from('user_servers')
               .select('user_id')
@@ -103,61 +110,28 @@ export class CoreMessageService {
               console.error('❌ Failed to get server members:', membersError)
             }
             
-            console.log(`🔐 Server ${serverId} has ${members?.length || 0} members:`, members?.map(m => m.user_id))
-            
-            // Get all member IDs except self
-            const allUserIds = members?.map(m => m.user_id).filter(id => id !== currentUser.id) || []
-            console.log(`🔐 Other members (excluding self): ${allUserIds.length}`, allUserIds)
-            
-            // Filter to only users with encryption keys (who can decrypt)
-            // Use RPC function to bypass RLS policy that prevents seeing other users' keys
-            let usersWithKeysIds: string[] = []
-            if (allUserIds.length > 0) {
-              const { data: keysResult, error: keysError } = await supabase
-                .rpc('get_users_with_encryption_keys', { p_user_ids: allUserIds })
-              
-              if (keysError) {
-                console.error('❌ Failed to check encryption keys:', keysError)
-                // Fallback: try direct query (will only work if RLS policy is updated)
-                const { data: fallbackData } = await supabase
-                  .from('user_key_pairs')
-                  .select('user_id')
-                  .in('user_id', allUserIds)
-                  .eq('is_active', true)
-                usersWithKeysIds = fallbackData?.map(u => u.user_id) || []
-              } else {
-                // RPC returns array of user_ids directly
-                usersWithKeysIds = keysResult || []
-              }
-              console.log(`🔐 Users with encryption keys: ${usersWithKeysIds.length}`, usersWithKeysIds)
-            }
-            
-            const recipientIds = [...usersWithKeysIds]
-            
-            // IMPORTANT: Always include yourself so you can decrypt your own messages!
+            // Get member IDs (session will be shared with all)
+            const recipientIds = members?.map(m => m.user_id) || []
             if (!recipientIds.includes(currentUser.id)) {
               recipientIds.push(currentUser.id)
             }
             
-            console.log(`🔐 Final recipient list (${recipientIds.length} users):`, recipientIds)
+            console.log(`🔐 Encrypting for channel with ${recipientIds.length} members`)
             
-            // Encrypt message for users who can decrypt (including yourself)
-            const encryptedData = await encryptionService.encryptMessage(content, recipientIds)
+            // Encrypt message with Megolm (channel-wide session key)
+            const encryptedData = await encryptionService.encryptMessage(content, channelId, recipientIds)
             finalContent = encryptedData.content
             encrypted = true
             encryptionMetadata = encryptedData.encryption_metadata
-            console.log(`✅ Message encrypted successfully`)
+            console.log(`✅ Message encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
+          } else if (hasRecoveryKey && !isUnlocked) {
+            console.log('🔐 Encryption locked - enter recovery key to send encrypted messages')
           } else {
-            console.log('ℹ️ Sender does not have encryption - sending plaintext')
+            console.log('ℹ️ No encryption set up - sending plaintext')
           }
         } catch (error) {
           console.error('❌ Encryption failed:', error)
-          // If encryption fails, check if server requires it
-          const policy = await encryptionService.checkServerEncryptionPolicy(serverId)
-          if (policy.mode === 'required' || policy.mode === 'required_local_only') {
-            throw error
-          }
-          // Otherwise, send unencrypted
+          // TODO: Check server encryption policy
           console.warn('⚠️ Falling back to unencrypted message')
         }
       }
@@ -223,32 +197,14 @@ export class CoreMessageService {
       const encryptionService = await getEncryptionService()
       if (encryptionService && encryptionService.isInitialized()) {
         try {
-          const status = await encryptionService.checkConversationEncryption(conversationId)
+          // Check if sender has recovery key set up and encryption unlocked
+          const hasRecoveryKey = await encryptionService.hasRecoveryKey()
+          const isUnlocked = encryptionService.isUnlocked()
           
-          // Auto-enable encryption if both parties have keys and it's not already enabled
-          if (!status.enabled && status.hasKeys) {
-            // Check if all participants have encryption keys
-            const allHaveKeys = status.mode === 'optional' // This means everyone has keys
+          if (hasRecoveryKey && isUnlocked) {
+            console.log('🔐 Megolm encryption active - encrypting DM')
+            console.log(`🔐 Conversation (room): ${conversationId}`)
             
-            if (allHaveKeys) {
-              console.log('🔐 Auto-enabling encryption for conversation...')
-              try {
-                await encryptionService.enableConversationEncryption(conversationId)
-                // Re-check status after enabling
-                const newStatus = await encryptionService.checkConversationEncryption(conversationId)
-                if (newStatus.enabled) {
-                  console.log('✅ Encryption auto-enabled for conversation')
-                }
-              } catch (error) {
-                console.warn('⚠️ Could not auto-enable encryption:', error)
-              }
-            }
-          }
-          
-          // Re-check if encryption is now enabled
-          const finalStatus = await encryptionService.checkConversationEncryption(conversationId)
-          
-          if (finalStatus.enabled) {
             // Get conversation participants
             const { data: participants } = await supabase
               .from('conversation_participants')
@@ -256,45 +212,28 @@ export class CoreMessageService {
               .eq('conversation_id', conversationId)
               .is('left_at', null)
             
-            // Get all participant IDs (including self for decryption)
-            const allParticipantIds = participants?.map(p => p.user_id) || []
-            
-            // Check which participants have encryption keys using RPC (bypasses RLS)
-            let recipientIds: string[] = []
-            if (allParticipantIds.length > 0) {
-              const { data: keysResult, error: keysError } = await supabase
-                .rpc('get_users_with_encryption_keys', { p_user_ids: allParticipantIds })
-              
-              if (keysError) {
-                console.warn('⚠️ Failed to check encryption keys for DM:', keysError)
-                // Fallback: assume all participants have keys (conversation encryption was enabled)
-                recipientIds = [...allParticipantIds]
-              } else {
-                recipientIds = keysResult || []
-              }
-              
-              // Always include self for decryption
-              if (!recipientIds.includes(currentUser.id)) {
-                recipientIds.push(currentUser.id)
-              }
+            // Get participant IDs (session will be shared with all)
+            const recipientIds = participants?.map(p => p.user_id) || []
+            if (!recipientIds.includes(currentUser.id)) {
+              recipientIds.push(currentUser.id)
             }
             
-            if (recipientIds.length > 0) {
-              // Encrypt message
-              const encryptedData = await encryptionService.encryptMessage(content, recipientIds)
-              finalContent = encryptedData.content
-              encrypted = true
-              encryptionMetadata = encryptedData.encryption_metadata
-              console.log(`🔐 DM encrypted for ${recipientIds.length} recipients:`, recipientIds)
-            }
+            console.log(`🔐 Encrypting DM for ${recipientIds.length} participants`)
+            
+            // Encrypt message with Megolm (conversation-wide session key)
+            const encryptedData = await encryptionService.encryptMessage(content, conversationId, recipientIds)
+            finalContent = encryptedData.content
+            encrypted = true
+            encryptionMetadata = encryptedData.encryption_metadata
+            console.log(`✅ DM encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
+          } else if (hasRecoveryKey && !isUnlocked) {
+            console.log('🔐 Encryption locked - enter recovery key to send encrypted DMs')
+          } else {
+            console.log('ℹ️ No encryption set up - sending plaintext DM')
           }
         } catch (error) {
           console.error('❌ DM encryption failed:', error)
-          // DMs are typically always encrypted if enabled, so throw error
-          const status = await encryptionService.checkConversationEncryption(conversationId)
-          if (status.enabled) {
-            throw error
-          }
+          console.warn('⚠️ Falling back to unencrypted DM')
         }
       }
 
@@ -358,30 +297,60 @@ export class CoreMessageService {
         console.log('🔐 Original message was encrypted - re-encrypting edited content')
         
         const encryptionService = await getEncryptionService()
-        if (encryptionService && encryptionService.isInitialized()) {
+        if (encryptionService && encryptionService.isInitialized() && encryptionService.isUnlocked()) {
           try {
-            // Get the list of recipients from the original encryption metadata
-            const recipientIds = originalMessage.encryption_metadata.encrypted_for || []
+            // Get the room ID (channel_id or conversation_id)
+            const roomId = originalMessage.channel_id || originalMessage.conversation_id
+            if (!roomId) {
+              throw new Error('Cannot determine room ID for re-encryption')
+            }
             
-            // IMPORTANT: Include yourself in the recipients if not already there
+            // For Megolm, we need to get current room members
+            let recipientIds: string[] = []
+            
+            if (originalMessage.channel_id) {
+              // Get server members for the channel
+              const { data: channel } = await supabase
+                .from('channels')
+                .select('server_id')
+                .eq('id', originalMessage.channel_id)
+                .single()
+              
+              if (channel?.server_id) {
+                const { data: members } = await supabase
+                  .from('user_servers')
+                  .select('user_id')
+                  .eq('server_id', channel.server_id)
+                recipientIds = members?.map(m => m.user_id) || []
+              }
+            } else if (originalMessage.conversation_id) {
+              // Get conversation participants
+              const { data: participants } = await supabase
+                .from('conversation_participants')
+                .select('user_id')
+                .eq('conversation_id', originalMessage.conversation_id)
+                .is('left_at', null)
+              recipientIds = participants?.map(p => p.user_id) || []
+            }
+            
             if (!recipientIds.includes(currentUser.id)) {
               recipientIds.push(currentUser.id)
             }
 
-            console.log(`🔐 Re-encrypting for ${recipientIds.length} recipients (including self)`)
+            console.log(`🔐 Re-encrypting with Megolm for room ${roomId.substring(0, 8)}...`)
             
-            // Encrypt the new content for the same recipients
-            const encryptedData = await encryptionService.encryptMessage(newContent, recipientIds)
+            // Encrypt the new content with Megolm
+            const encryptedData = await encryptionService.encryptMessage(newContent, roomId, recipientIds)
             finalContent = encryptedData.content
             encrypted = true
             encryptionMetadata = encryptedData.encryption_metadata
-            console.log(`✅ Edited message re-encrypted successfully`)
+            console.log(`✅ Edited message re-encrypted with Megolm`)
           } catch (error) {
             console.error('❌ Re-encryption failed:', error)
             throw this.createError('ENCRYPTION_FAILED', 'Failed to re-encrypt edited message', error)
           }
         } else {
-          throw this.createError('ENCRYPTION_SERVICE_UNAVAILABLE', 'Encryption service not available')
+          throw this.createError('ENCRYPTION_SERVICE_UNAVAILABLE', 'Encryption not unlocked - enter recovery key')
         }
       }
 

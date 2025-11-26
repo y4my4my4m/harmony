@@ -189,29 +189,25 @@ export const useAuthStore = defineStore('auth', {
 
     async initializeEncryptionIfAvailable(authUserId: string) {
       try {
-        console.log('🔐 Initializing encryption service...');
+        console.log('🔐 Initializing Megolm encryption service...');
         
-        // IMPORTANT: Always initialize the encryption service first
+        // Initialize the Megolm encryption service
         // The service internally converts auth_user_id to profile_id
-        // This is required for BOTH senders AND recipients to decrypt messages
-        const { messageEncryptionService } = await import('@/services/encryption/MessageEncryptionService');
-        await messageEncryptionService.initialize(authUserId);
+        const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService');
+        await megolmMessageEncryptionService.initialize(authUserId);
         
-        // Now check if user has encryption keys (using profile ID internally)
-        const hasKeys = await messageEncryptionService.hasEncryptionKeys();
+        // Check if user has recovery key set up
+        const hasRecoveryKey = await megolmMessageEncryptionService.hasRecoveryKey();
         
-        if (hasKeys) {
-          console.log('✅ User has encryption keys - encryption service ready');
+        if (hasRecoveryKey) {
+          console.log('🔐 User has recovery key set up');
+          console.log('ℹ️ User needs to enter recovery phrase to unlock encryption');
           
-          // Reprocess any encrypted messages now that we're initialized
-          try {
-            const chatStore = useChatStore();
-            chatStore.reprocessEncryptedMessages();
-          } catch (reprocessError) {
-            console.warn('Failed to reprocess messages after encryption init:', reprocessError);
-          }
+          // Encryption is set up but NOT unlocked
+          // User must enter recovery phrase in Settings > Encryption to unlock
         } else {
-          console.log('ℹ️ Encryption service initialized but user has no encryption keys yet');
+          console.log('ℹ️ Encryption service initialized but user has no recovery key yet');
+          console.log('ℹ️ User can set up encryption in Settings > Encryption');
         }
       } catch (error) {
         console.error('❌ Failed to initialize encryption:', error);

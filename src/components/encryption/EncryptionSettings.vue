@@ -374,16 +374,19 @@ async function loadEncryptionStatus() {
     const status = await megolmMessageEncryptionService.getEncryptionStatus()
     encryptionStatus.value = status
 
-    // Get recovery metadata
+    // Get recovery metadata (use maybeSingle to avoid error on 0 rows)
     if (status.hasRecoveryKey) {
       const { data: metadata } = await supabase
         .from('recovery_key_metadata')
         .select('*')
         .eq('user_id', megolmMessageEncryptionService.getCurrentUserId())
-        .single()
+        .maybeSingle()
       
       recoveryMetadata.value = metadata
       lastBackupTime.value = metadata?.last_backup_at || null
+    } else {
+      recoveryMetadata.value = null
+      lastBackupTime.value = null
     }
 
     // Get session stats if enabled

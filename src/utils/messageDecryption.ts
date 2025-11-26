@@ -1,8 +1,9 @@
 /**
  * Message Decryption Middleware
  * 
- * Automatically attempts to decrypt encrypted messages using hybrid encryption.
- * Decrypts symmetric key from encryption_metadata, then decrypts content.
+ * Decrypts encrypted messages using Megolm-style room-based encryption.
+ * Each channel/conversation has a session key shared with all members.
+ * Keys are backed up to server (encrypted with user's recovery key).
  */
 
 import type { Message, MessagePart } from '@/types'
@@ -21,15 +22,15 @@ export function getLastDecryptionError(): string | null {
  * Process messages and attempt to decrypt encrypted ones
  */
 export async function processMessageDecryption(messages: Message[]): Promise<Message[]> {
-  // Lazy load encryption service
+  // Load Megolm encryption service
   let encryptionService: any = null
+  
   try {
-    const module = await import('@/services/encryption/MessageEncryptionService')
-    encryptionService = module.messageEncryptionService
+    const module = await import('@/services/encryption/MegolmMessageEncryptionService')
+    encryptionService = module.megolmMessageEncryptionService
   } catch (error) {
-    console.warn('⚠️ Encryption service not available:', error)
+    console.warn('⚠️ Megolm encryption service not available:', error)
     lastDecryptionError = 'Encryption service not available'
-    // Replace all encrypted messages with glyphs for users without encryption
     return messages.map(msg => {
       if (msg.encrypted) {
         return {
@@ -40,11 +41,25 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
       return msg
     })
   }
-
+  
   if (!encryptionService || !encryptionService.isInitialized()) {
     console.log('ℹ️ Encryption not initialized - encrypted messages will show as glyphs')
     lastDecryptionError = 'Encryption service not initialized'
-    // Replace all encrypted messages with glyphs for users without encryption
+    return messages.map(msg => {
+      if (msg.encrypted) {
+        return {
+          ...msg,
+          content: [{ type: 'text' as const, text: generateObfuscatedPlaceholder(100) }]
+        }
+      }
+      return msg
+    })
+  }
+  
+  // Check if encryption is unlocked (user has entered recovery key)
+  if (!encryptionService.isUnlocked()) {
+    console.log('🔐 Encryption locked - enter recovery key to decrypt messages')
+    lastDecryptionError = 'Enter recovery key to unlock encryption'
     return messages.map(msg => {
       if (msg.encrypted) {
         return {
@@ -89,73 +104,59 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
         return message
       }
 
-      // Debug logging for encrypted messages
-      const encryptedFor = message.encryption_metadata.encrypted_for || []
-      const hasKeyInMetadata = message.encryption_metadata.encrypted_keys?.[currentUserId]
+      const algorithm = message.encryption_metadata.algorithm || 'unknown'
       
+      // Debug logging
       console.log(`🔐 Processing encrypted message ${message.id}:`)
-      console.log(`  - Sender: ${message.encryption_metadata.sender_key_id}`)
-      console.log(`  - Encrypted for ${encryptedFor.length} users: [${encryptedFor.join(', ')}]`)
-      console.log(`  - Current user ${currentUserId} ${hasKeyInMetadata ? 'HAS' : 'MISSING'} encrypted key`)
-
-      // Check if we have an encrypted key for this user
-      if (!hasKeyInMetadata) {
-        console.log(`❌ No encrypted key for user ${currentUserId} in message ${message.id}`)
-        console.log(`   This could mean:`)
-        console.log(`   - The sender didn't encrypt for this user`)
-        console.log(`   - User ID mismatch (profile ID vs auth ID)`)
-        console.log(`   - Message was sent before user joined/enabled encryption`)
-        
-        lastDecryptionError = `No encrypted key for user in message`
-        // Show cool placeholder characters
-        const obfuscatedText = generateObfuscatedPlaceholder(100)
-        return {
-          ...message,
-          content: [{ type: 'text' as const, text: obfuscatedText }]
-        }
+      console.log(`  - Algorithm: ${algorithm}`)
+      console.log(`  - Sender: ${message.encryption_metadata.sender_user_id || message.encryption_metadata.sender_key_id}`)
+      
+      if (algorithm === 'megolm_v1') {
+        // Megolm: per-room session key encryption
+        console.log(`  - Session ID: ${message.encryption_metadata.session_id}`)
+        console.log(`  - Message Index: ${message.encryption_metadata.message_index}`)
+      } else {
+        // Legacy Signal Protocol
+        const encryptedFor = message.encryption_metadata.encrypted_for || []
+        console.log(`  - Encrypted for ${encryptedFor.length} users`)
       }
 
       try {
-        console.log(`🔓 Attempting to decrypt message ${message.id} for user ${currentUserId}`)
+        console.log(`🔓 Attempting to decrypt message ${message.id}`)
         const decryptedContent = await encryptionService.decryptMessage(message)
         console.log(`✅ Successfully decrypted message ${message.id}`)
-        lastDecryptionError = null // Clear error on success
+        lastDecryptionError = null
         
         return {
           ...message,
           content: decryptedContent,
-          encrypted: false, // Remove encrypted flag
-          decrypted: true // Add decrypted flag so we can show unlock indicator
+          encrypted: false,
+          decrypted: true
         }
       } catch (error: any) {
         const errorMessage = error?.message || String(error)
         console.error(`❌ Cannot decrypt message ${message.id}:`, errorMessage)
         
-        // Provide more specific error diagnostics
-        if (errorMessage.includes('Encryption key not set')) {
-          console.error('   ⚠️ Encryption password required - user needs to unlock encryption')
-          lastDecryptionError = 'Encryption password required'
-        } else if (errorMessage.includes('Session not found') || errorMessage.includes('unable to find session')) {
-          console.error('   ⚠️ No Signal Protocol session with sender')
-          console.error('   This can happen if encryption keys were regenerated or cleared')
-          lastDecryptionError = 'Encryption session not found'
-        } else if (errorMessage.includes('prekey')) {
-          console.error('   ⚠️ Prekey issue - might need to regenerate encryption keys')
-          lastDecryptionError = 'Prekey error'
-        } else if (errorMessage.includes('Invalid encrypted data') || errorMessage.includes('atob') || errorMessage.includes('base64')) {
-          console.error('   ⚠️ Message data is corrupted or was encrypted with deleted keys')
-          console.error('   This message cannot be recovered - the original encryption keys are gone')
-          lastDecryptionError = 'Message encrypted with deleted keys - unrecoverable'
+        // Megolm-specific errors
+        if (errorMessage.includes('No inbound session')) {
+          console.error('   ⚠️ Missing session key - need to sync keys from sender')
+          lastDecryptionError = 'Session key not available - sync keys'
+        } else if (errorMessage.includes('recovery key')) {
+          console.error('   ⚠️ Enter recovery key to unlock encryption')
+          lastDecryptionError = 'Enter recovery key to decrypt'
+        } else if (errorMessage.includes('Message index')) {
+          console.error('   ⚠️ Message from before session was established')
+          lastDecryptionError = 'Message predates session'
         } else {
           lastDecryptionError = `Decryption error: ${errorMessage.substring(0, 50)}`
         }
         
-        // Show cool placeholder characters on error
+        // Show placeholder
         const obfuscatedText = generateObfuscatedPlaceholder(100)
         return {
           ...message,
           content: [{ type: 'text' as const, text: obfuscatedText }],
-          encrypted: true // Keep encrypted flag so glyphs and lock show
+          encrypted: true
         }
       }
     })
