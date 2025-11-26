@@ -645,7 +645,7 @@ class TrendingService {
       ap_id: post.ap_id,
       ap_type: post.ap_type,
       url: post.url,
-      in_reply_to: post.in_reply_to,
+      reply_context: post.reply_context,
       conversation_id: post.conversation_id,
       visibility: post.visibility,
       is_local: post.is_local,
@@ -689,6 +689,9 @@ class TrendingService {
         created_at: post.created_at,
         updated_at: post.created_at
       },
+      // Reblog data (stored as JSONB in database)
+      reblog: post.reblog || undefined,
+      reblog_author: post.reblog_author || undefined,
       // Use provided interaction states if available (from RPC functions), otherwise false
       is_favorited: post.is_favorited || false,
       is_reblogged: post.is_reblogged || false,

@@ -27,6 +27,14 @@
         :key="post.id"
         :post="post"
         v-bind="postProps"
+        @reply="$emit('reply', $event)"
+        @favorite="$emit('favorite', $event)"
+        @reblog="$emit('reblog', $event)"
+        @bookmark="$emit('bookmark', $event)"
+        @delete="$emit('delete', $event)"
+        @user-click="$emit('user-click', $event)"
+        @hashtag-click="$emit('hashtag-click', $event)"
+        @show-conversation="$emit('show-conversation', $event)"
       />
 
       <!-- Load More -->
@@ -77,6 +85,14 @@ const props = withDefaults(defineProps<Props>(), {
 defineEmits<{
   'load-more': []
   'empty-action': []
+  'reply': [post: any]
+  'favorite': [postId: string]
+  'reblog': [postId: string]
+  'bookmark': [postId: string]
+  'delete': [postId: string]
+  'user-click': [user: any]
+  'hashtag-click': [tag: string]
+  'show-conversation': [postId: string]
 }>()
 </script>
 

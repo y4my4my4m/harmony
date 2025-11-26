@@ -237,6 +237,16 @@ const router = createRouter({
             currentView: CurrentView.PROFILE,
             viewType: ViewType.PROFILE
           })
+        },
+        {
+          path: 'hashtag/:tag',
+          name: 'HashtagView',
+          component: () => import('@/views/HashtagView.vue'),
+          props: route => ({
+            hashtag: route.params.tag as string,
+            currentView: CurrentView.HASHTAG,
+            viewType: ViewType.HASHTAG
+          })
         }
       ]
     },

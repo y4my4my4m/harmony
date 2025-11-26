@@ -48,6 +48,7 @@
             @delete="deletePost"
             @click="openPost"
             @show-conversation="showConversation"
+            @hashtag-click="navigateToHashtag"
           />
         </TransitionGroup>
 
@@ -291,6 +292,11 @@ const showConversation = (postId: string) => {
   } catch (error) {
     debug.error(`❌ Navigation failed:`, error);
   }
+};
+
+const navigateToHashtag = (tag: string) => {
+  debug.log(`#️⃣ Navigating to hashtag: #${tag}`);
+  router.push({ name: 'HashtagView', params: { tag } });
 };
 
 // Composer

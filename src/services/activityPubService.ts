@@ -69,12 +69,62 @@ export class ActivityPubService {
       normalizedContent = [{ type: 'text', text: String(normalizedContent || '') }];
     }
 
+    // Build reply_context if this is a reply
+    let replyContext = null;
+    let conversationId = null;
+    if (postData.in_reply_to) {
+      const { data: parentPost, error: parentError } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(
+            id, username, display_name, avatar_url, domain
+          )
+        `)
+        .eq('id', postData.in_reply_to)
+        .single();
+
+      if (!parentError && parentPost) {
+        // Build content preview from parent post content
+        let contentPreview = '';
+        if (Array.isArray(parentPost.content)) {
+          contentPreview = parentPost.content
+            .filter((part: any) => part.type === 'text')
+            .map((part: any) => part.text || '')
+            .join(' ')
+            .slice(0, 200);
+        } else if (typeof parentPost.content === 'string') {
+          contentPreview = parentPost.content.slice(0, 200);
+        }
+
+        replyContext = {
+          id: parentPost.id,
+          content_preview: contentPreview,
+          content: parentPost.content,
+          author: {
+            id: parentPost.author.id,
+            username: parentPost.author.username,
+            display_name: parentPost.author.display_name || parentPost.author.username,
+            avatar_url: parentPost.author.avatar_url || '/default_avatar.png',
+            domain: parentPost.author.domain || 'har.mony.lol'
+          },
+          created_at: parentPost.created_at,
+          visibility: parentPost.visibility
+        };
+
+        // Use parent's conversation_id or create from parent post id
+        conversationId = parentPost.conversation_id || parentPost.id;
+      }
+    }
+
     const post = {
       author_id: profileId,
       content: normalizedContent,
       visibility: postData.visibility,
       content_warning: postData.content_warning,
       in_reply_to: postData.in_reply_to,
+      reply_context: replyContext,
+      conversation_id: conversationId,
       media_attachments: postData.media_attachments || [],
       is_sensitive: postData.is_sensitive || false,
       language: postData.language || 'en',
@@ -2463,6 +2513,9 @@ export class ActivityPubService {
         created_at: post.created_at,
         updated_at: post.created_at
       },
+      // Reblog data (stored as JSONB in database)
+      reblog: post.reblog || undefined,
+      reblog_author: post.reblog_author || undefined,
       // Use provided interaction states if available (from RPC functions), otherwise false
       is_favorited: post.is_favorited || false,
       is_reblogged: post.is_reblogged || false,
@@ -2529,8 +2582,12 @@ export class ActivityPubService {
             ? `@${data.author.username}@${data.author.domain}` 
             : `@${data.author.username}`
         },
+        // Reblog data (stored as JSONB in database)
+        reblog: data.reblog || undefined,
+        reblog_author: data.reblog_author || undefined,
         is_favorited: false,
-        is_reblogged: false
+        is_reblogged: false,
+        is_bookmarked: false
       };
     } catch (error) {
       debug.error('Failed to load post with author:', error);

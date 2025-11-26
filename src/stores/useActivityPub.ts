@@ -341,8 +341,24 @@ export const useActivityPubStore = defineStore('activitypub', {
      */
     async handleRealtimePostCreate(post: any) {
       debug.log('📝 New post received via realtime:', post);
+      debug.log('📝 Realtime post details:', {
+        id: post.id,
+        author_id: post.author_id,
+        is_local: post.is_local,
+        visibility: post.visibility
+      });
       
       try {
+        // Check if post already exists in any feed to prevent duplicates
+        const existsInPublic = this.publicFeed.posts.some(p => p.id === post.id);
+        const existsInLocal = this.localFeed.posts.some(p => p.id === post.id);
+        const existsInHome = this.homeFeed.posts.some(p => p.id === post.id);
+        
+        if (existsInPublic || existsInLocal || existsInHome) {
+          debug.log('⚠️ Post already exists in feeds, skipping duplicate:', post.id);
+          return;
+        }
+        
         // Realtime data NEVER has author joins, always fetch complete data
         debug.log('🔄 Fetching complete post data with author information...');
         const completePost = await activityPubService.loadPostWithAuthor(post.id);
@@ -357,12 +373,19 @@ export const useActivityPubStore = defineStore('activitypub', {
           author: completePost.author?.username,
           display_name: completePost.author?.display_name,
           domain: completePost.author?.domain,
-          is_local: completePost.is_local
+          is_local: completePost.is_local,
+          visibility: completePost.visibility
         });
+        
+        // Get current user ID for home feed logic
+        const { userDataService } = await import('@/services/userDataService');
+        const currentUser = userDataService.getCurrentUser();
+        const isOwnPost = currentUser?.id === completePost.author_id;
         
         // Add to public feed if public
         if (completePost.visibility === 'public') {
           this.publicFeed.posts.unshift(completePost);
+          debug.log('✅ Added post to public feed:', completePost.id);
           // Limit feed size
           if (this.publicFeed.posts.length > 100) {
             this.publicFeed.posts = this.publicFeed.posts.slice(0, 100);
@@ -372,15 +395,29 @@ export const useActivityPubStore = defineStore('activitypub', {
         // Add to local feed if local
         if (completePost.is_local && completePost.visibility === 'public') {
           this.localFeed.posts.unshift(completePost);
+          debug.log('✅ Added post to local feed:', completePost.id);
           if (this.localFeed.posts.length > 100) {
             this.localFeed.posts = this.localFeed.posts.slice(0, 100);
           }
         }
         
-        // Add to home feed if following the author and increment unread count
-        if (this.followedUsers.has(completePost.author_id)) {
+        // Add to home feed if:
+        // 1. Following the author, OR
+        // 2. It's the current user's own post (so they see their own posts in home)
+        const shouldAddToHome = isOwnPost || this.followedUsers.has(completePost.author_id);
+        debug.log('📝 Home feed check:', {
+          isOwnPost,
+          isFollowing: this.followedUsers.has(completePost.author_id),
+          shouldAddToHome
+        });
+        
+        if (shouldAddToHome) {
           this.homeFeed.posts.unshift(completePost);
-          this.unreadCount++;
+          // Only increment unread for posts from others
+          if (!isOwnPost) {
+            this.unreadCount++;
+          }
+          debug.log('✅ Added post to home feed:', completePost.id);
           if (this.homeFeed.posts.length > 100) {
             this.homeFeed.posts = this.homeFeed.posts.slice(0, 100);
           }
@@ -521,18 +558,40 @@ export const useActivityPubStore = defineStore('activitypub', {
         return;
       }
 
-      // Check event type first and handle DELETE events early
+      // Check event type first
       debug.log('💫 Event type check:', payload.event, 'interaction data:', interaction);
       
-      // For DELETE events, we only get minimal data (usually just ID)
-      // Skip processing if we don't have enough information
+      // For DELETE events, handle with available data
       if (payload.event === 'DELETE') {
-        debug.log('💫 DELETE event detected, skipping detailed processing (insufficient data in payload.old)');
-        debug.log('💫 This is normal behavior - DELETE events only provide minimal data');
+        debug.log('💫 DELETE event detected - processing reaction removal');
+        
+        // payload.old should contain the deleted row data
+        const deletedInteraction = payload.old;
+        if (deletedInteraction?.post_id) {
+          // Trigger a refresh of the post reactions from the server
+          // This ensures the UI is updated with the correct state
+          debug.log('💫 Refreshing reactions for post:', deletedInteraction.post_id);
+          
+          // Import and use the post reactions store to refresh
+          import('@/stores/postReactions').then(({ usePostReactionsStore }) => {
+            const postReactionsStore = usePostReactionsStore();
+            postReactionsStore.handleRealtimeUpdate(payload);
+          });
+          
+          // Also update counts if we have interaction type
+          if (deletedInteraction.interaction_type && deletedInteraction.user_id) {
+            this.updatePostInteractionFromRealtime(
+              deletedInteraction.post_id,
+              deletedInteraction.interaction_type,
+              'DELETE',
+              deletedInteraction.user_id
+            );
+          }
+        }
         return;
       }
 
-      // Validate required fields (only for non-DELETE events)
+      // Validate required fields (for INSERT/UPDATE events)
       if (!interaction.post_id) {
         debug.error('❌ Missing post_id in interaction:', interaction);
         return;
@@ -549,6 +608,15 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
 
       const eventType = payload.event || payload.eventType;
+      
+      // Handle emoji_reaction type specially - trigger postReactions store update
+      if (interaction.interaction_type === 'emoji_reaction') {
+        import('@/stores/postReactions').then(({ usePostReactionsStore }) => {
+          const postReactionsStore = usePostReactionsStore();
+          postReactionsStore.handleRealtimeUpdate(payload);
+        });
+      }
+      
       // Update both counts AND interaction state based on realtime events
       this.updatePostInteractionFromRealtime(
         interaction.post_id,

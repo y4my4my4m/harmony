@@ -67,6 +67,14 @@
           :empty-action="currentView === 'home' ? $t('activitypub.explorePublicTimeline') : undefined"
           @load-more="$emit('load-more-posts')"
           @empty-action="$emit('switch-feed', 'public')"
+          @reply="$emit('reply-to-post', $event)"
+          @favorite="$emit('favorite-post', $event)"
+          @reblog="$emit('reblog-post', $event)"
+          @bookmark="$emit('bookmark-post', $event)"
+          @delete="$emit('delete-post', $event)"
+          @user-click="$emit('show-user-profile', $event)"
+          @hashtag-click="handleHashtagClick"
+          @show-conversation="handleShowConversation"
         />
       </div>
     </div>
@@ -75,6 +83,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import ChatComponent from '@/components/ChatComponent.vue'
 import Composer from '@/components/activitypub/Composer.vue'
 import ExploreContent from '@/components/activitypub/ExploreContent.vue'
@@ -84,6 +93,8 @@ import ViewHeader from './ViewHeader.vue'
 import type { Message, TimelinePost, FederatedUser } from '@/types'
 import { ViewMode, ViewType } from '@/types/viewTypes'
 import { usePostInteractions } from '@/composables/usePostInteractions'
+
+const router = useRouter()
 
 interface Props {
   mode: ViewMode;
@@ -140,7 +151,24 @@ defineEmits<{
   'load-more-special-data': []
   'clear-all-bookmarks': []
   'back-to-timeline': []
+  
+  // Post interaction events
+  'reply-to-post': [post: any]
+  'favorite-post': [postId: string]
+  'reblog-post': [postId: string]
+  'bookmark-post': [postId: string]
+  'delete-post': [postId: string]
+  'show-user-profile': [user: any]
 }>()
+
+// Navigation handlers
+const handleHashtagClick = (tag: string) => {
+  router.push({ name: 'HashtagView', params: { tag } })
+}
+
+const handleShowConversation = (postId: string) => {
+  router.push({ name: 'PostDetail', params: { postId } })
+}
 
 // Use the post interactions composable for all post-related actions
 const postInteractions = usePostInteractions()
