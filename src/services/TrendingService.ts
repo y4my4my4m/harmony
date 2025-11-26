@@ -234,17 +234,39 @@ class TrendingService {
       const { limit = 20, cursor } = options;
       const normalizedTag = hashtag.toLowerCase().replace(/^#/, '');
 
-      // Step 1: Find the hashtag ID
-      const { data: hashtagData, error: hashtagError } = await supabase
+      debug.log(`🔍 Looking for hashtag: "${normalizedTag}" (original: "${hashtag}")`);
+
+      // Step 1: Find the hashtag ID - try both tag and normalized_tag
+      let hashtagData: { id: string } | null = null;
+      let hashtagError: any = null;
+
+      // First try normalized_tag
+      const { data: data1, error: error1 } = await supabase
         .from('hashtags')
         .select('id')
         .eq('normalized_tag', normalizedTag)
-        .single();
+        .maybeSingle();
 
-      if (hashtagError || !hashtagData) {
-        debug.log(`Hashtag not found: ${normalizedTag}`);
+      if (data1) {
+        hashtagData = data1;
+      } else {
+        // Fallback: try the tag field
+        const { data: data2, error: error2 } = await supabase
+          .from('hashtags')
+          .select('id')
+          .eq('tag', normalizedTag)
+          .maybeSingle();
+        
+        hashtagData = data2;
+        hashtagError = error2;
+      }
+
+      if (!hashtagData) {
+        debug.log(`❌ Hashtag not found in DB: ${normalizedTag}`);
         return { posts: [], hasMore: false, cursor: null };
       }
+
+      debug.log(`✅ Found hashtag ID: ${hashtagData.id}`);
 
       // Step 2: Get post IDs with this hashtag
       let postHashtagQuery = supabase
@@ -261,11 +283,15 @@ class TrendingService {
       const { data: postHashtags, error: phError } = await postHashtagQuery;
       if (phError) throw phError;
 
+      debug.log(`📝 Found ${postHashtags?.length || 0} post_hashtags entries`);
+
       if (!postHashtags || postHashtags.length === 0) {
+        debug.log(`❌ No posts found for hashtag ${normalizedTag}`);
         return { posts: [], hasMore: false, cursor: null };
       }
 
       const postIds = postHashtags.slice(0, limit).map(ph => ph.post_id);
+      debug.log(`📝 Post IDs: ${postIds.join(', ')}`);
 
       // Step 3: Fetch posts with those IDs (excluding deleted)
       const { data: postsData, error: postsError } = await supabase
@@ -279,12 +305,16 @@ class TrendingService {
 
       if (postsError) throw postsError;
 
+      debug.log(`📝 Fetched ${postsData?.length || 0} posts from DB`);
+
       // Maintain the original order from post_hashtags
       const postsMap = new Map((postsData || []).map(p => [p.id, p]));
       const orderedPosts = postIds
         .map(id => postsMap.get(id))
         .filter(Boolean)
         .map((post: any) => this.transformDatabasePostToTimelinePost(post));
+
+      debug.log(`✅ Returning ${orderedPosts.length} posts for #${normalizedTag}`);
 
       const hasMore = postHashtags.length > limit;
       const nextCursor = hasMore && postHashtags.length > 1 

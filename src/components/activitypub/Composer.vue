@@ -844,11 +844,14 @@ const vClickOutside = {
 }
 
 .composer-inline-content {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--background-tertiary-alpha);
   border-radius: 12px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: 0;
   background-color: var(--background-primary);
   padding: 1rem;
-  margin: 1rem 0;
+  transition: all 0.2s ease;
 }
 
 /* Header */

@@ -633,6 +633,7 @@ onMounted(loadPostWithContext);
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  margin-top: 18px;
 }
 
 .highlighted-post .mony-post {

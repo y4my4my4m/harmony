@@ -80,12 +80,18 @@ BEGIN
   FOR item IN SELECT * FROM jsonb_array_elements(p_content)
   LOOP
     -- Handle dedicated hashtag type parts
+    -- Check multiple possible field names: 'name', 'hashtag', 'normalized'
     IF item->>'type' = 'hashtag' THEN
-      hashtag_text := item->>'hashtag';
+      -- Try 'name' field first (this is the actual format used)
+      hashtag_text := COALESCE(
+        item->>'name',
+        item->>'hashtag', 
+        item->>'normalized'
+      );
       IF hashtag_text IS NOT NULL AND hashtag_text != '' THEN
         -- Remove leading # if present
         hashtag_text := regexp_replace(hashtag_text, '^#', '');
-        hashtags := array_append(hashtags, hashtag_text);
+        hashtags := array_append(hashtags, lower(hashtag_text));
       END IF;
     -- Also check for #hashtag patterns in text content
     ELSIF item->>'type' = 'text' THEN
@@ -95,7 +101,7 @@ BEGIN
         FOR match_record IN SELECT (regexp_matches(text_content, '#([a-zA-Z0-9_]+)', 'g'))[1] as tag
         LOOP
           IF match_record.tag IS NOT NULL THEN
-            hashtags := array_append(hashtags, match_record.tag);
+            hashtags := array_append(hashtags, lower(match_record.tag));
           END IF;
         END LOOP;
       END IF;
@@ -196,29 +202,59 @@ CREATE TRIGGER extract_hashtags_on_post_insert
   EXECUTE FUNCTION public.trigger_extract_post_hashtags();
 
 -- =============================================
--- STEP 3: Backfill existing posts (process any posts without hashtags)
+-- STEP 3: Clear old data and reprocess all posts with hashtags
 -- =============================================
+
+-- Clear existing post_hashtags to reprocess with fixed function
+DELETE FROM public.post_hashtags;
 
 DO $$
 DECLARE
   v_post RECORD;
   v_count INTEGER := 0;
+  v_hashtag_count INTEGER := 0;
+  v_total_hashtags INTEGER := 0;
 BEGIN
+  -- Process all posts that contain hashtag-type parts
   FOR v_post IN 
     SELECT p.id, p.content 
     FROM public.posts p
     WHERE p.content IS NOT NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM public.post_hashtags ph WHERE ph.post_id = p.id
-    )
+    AND (p.is_deleted = false OR p.is_deleted IS NULL)
     AND jsonb_typeof(p.content) = 'array'
-    LIMIT 1000 -- Process in batches
+    -- Check if content contains hashtag parts or text with # 
+    AND (
+      p.content::text LIKE '%"type":"hashtag"%' 
+      OR p.content::text LIKE '%#%'
+    )
   LOOP
-    PERFORM public.process_post_hashtags(v_post.id, v_post.content);
-    v_count := v_count + 1;
+    BEGIN
+      v_hashtag_count := public.process_post_hashtags(v_post.id, v_post.content);
+      IF v_hashtag_count > 0 THEN
+        v_count := v_count + 1;
+        v_total_hashtags := v_total_hashtags + v_hashtag_count;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'Error processing post %: %', v_post.id, SQLERRM;
+    END;
   END LOOP;
   
-  RAISE NOTICE 'Processed hashtags for % posts', v_count;
+  RAISE NOTICE 'Processed % hashtags from % posts', v_total_hashtags, v_count;
+END $$;
+
+-- =============================================
+-- STEP 4: Verify and display hashtag counts
+-- =============================================
+
+DO $$
+DECLARE
+  v_hashtag_count INTEGER;
+  v_post_hashtag_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO v_hashtag_count FROM public.hashtags;
+  SELECT COUNT(*) INTO v_post_hashtag_count FROM public.post_hashtags;
+  
+  RAISE NOTICE 'Total hashtags: %, Total post-hashtag links: %', v_hashtag_count, v_post_hashtag_count;
 END $$;
 
 COMMIT;

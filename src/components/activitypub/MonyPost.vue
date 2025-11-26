@@ -237,9 +237,10 @@
       </div>
 
       <!-- Post Reactions (Emoji Reactions) - Above action buttons -->
+      <!-- For reblogs, we need to show reactions for the ORIGINAL post -->
       <PostReactions
         ref="postReactionsRef"
-        :post="post"
+        :post="displayPostForReactions"
         @show-reaction-tooltip="handleShowReactionTooltip"
         @hide-reaction-tooltip="handleHideReactionTooltip"
       />
@@ -765,6 +766,19 @@ const originalPostId = computed(() => {
     return props.post.reblog.id;
   }
   return props.post.id;
+});
+
+// For reblogs, we need to show reactions for the ORIGINAL post
+// Create a post-like object with the correct ID for PostReactions component
+const displayPostForReactions = computed(() => {
+  if (isReblog.value && props.post.reblog?.id) {
+    // Return the original post data with the correct ID
+    return {
+      ...props.post.reblog,
+      id: props.post.reblog.id
+    };
+  }
+  return props.post;
 });
 
 const displayInteractionCounts = computed(() => {
